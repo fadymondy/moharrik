@@ -15,21 +15,21 @@ Scaffold: extracted from Mahaam's P0 (workspaces, members, invitations, MCP toke
 
 | What | Port |
 |---|---|
-| API (Go) | **8110** — REST `/api`, GraphQL `/graphql`, docs `/docs`, MCP `/api/mcp`, admin MCP `/api/admin/mcp` |
-| Web (Next dev) | **3010** — proxies `/api/*` and `/graphql` to 8110 |
-| Postgres (docker compose, container `moharrik-postgres`) | **55460** — databases `moharrik`, `moharrik_test` |
+| API (Go) | **8120** — REST `/api`, GraphQL `/graphql`, docs `/docs`, MCP `/api/mcp`, admin MCP `/api/admin/mcp` |
+| Web (Next dev) | **3120** — proxies `/api/*` and `/graphql` to 8120 |
+| Postgres (docker compose, container `moharrik-postgres`) | **55470** — databases `moharrik`, `moharrik_test` |
 
 ## Run it
 
 ```bash
 cp .env.example .env           # set the moharrik_app password and AUTH_SECRET
-make db                        # Postgres on :55460
+make db                        # Postgres on :55470
 make migrate                   # schema, app role, FKs, RLS (idempotent)
-make api                       # :8110
-make web                       # :3010  (first time: cd web && npm install)
+make api                       # :8120
+make web                       # :3120  (first time: cd web && npm install)
 ```
 
-Open http://localhost:3010 → register → create a workspace.
+Open http://localhost:3120 → register → create a workspace.
 
 Admin MCP bootstrap (after registering in the UI):
 

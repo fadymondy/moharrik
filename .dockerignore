@@ -1,0 +1,14 @@
+.git
+.github
+.claude
+.env
+.env.*
+!.env.example
+bin
+storage
+*.log
+internal/db/gen
+internal/graph/gen
+web/node_modules
+web/.next
+web/.env*

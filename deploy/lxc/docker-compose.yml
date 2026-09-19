@@ -1,0 +1,32 @@
+# Moharrik PRODUCTION on Proxmox LXC 121 (10.10.10.121), the same pattern as Mahaam (LXC 116).
+# The image is built on the workstation and loaded with `docker load` (no registry needed).
+# NPM forwards app.moharrik.com -> 10.10.10.121:3120 (the web; it proxies /api and /graphql
+# to the API inside the same container). The database is `moharrik` on pg-shared (LXC 102).
+#
+#   migrate:  docker compose run --rm moharrik /app/bin/moharrik-migrate
+#   admin:    docker compose exec moharrik /app/bin/moharrik-admin …
+#
+# Secrets live only in .env.prod next to this file on the server (never in git).
+name: moharrik-prod
+services:
+  moharrik:
+    image: moharrik:latest
+    container_name: moharrik
+    env_file: .env.prod
+    environment:
+      PORT: "3120"
+    ports:
+      - "0.0.0.0:3120:3120"
+    volumes:
+      # Uploads, mail (.eml) and logs survive a redeploy (force-recreate).
+      - moharrik-storage:/app/storage
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3120/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  moharrik-storage:

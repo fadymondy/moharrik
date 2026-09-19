@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3010",
+    "dev": "next dev -p 3120",
     "build": "next build",
-    "start": "next start -p 3010",
+    "start": "next start -p 3120",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "grid:sync": "node ../../fadymondy.com-v2/packages/sync-grid.mjs web app/styles",

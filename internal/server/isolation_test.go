@@ -17,8 +17,8 @@ New routes are swept automatically: nothing here lists them by hand.
 
 Run it with a dedicated database (it creates users and workspaces):
 
-	TEST_DATABASE_URL=postgres://postgres:postgres@localhost:55460/moharrik_test?sslmode=disable \
-	TEST_APP_DATABASE_URL=postgres://moharrik_app_test:test@localhost:55460/moharrik_test?sslmode=disable \
+	TEST_DATABASE_URL=postgres://postgres:postgres@localhost:55470/moharrik_test?sslmode=disable \
+	TEST_APP_DATABASE_URL=postgres://moharrik_app_test:test@localhost:55470/moharrik_test?sslmode=disable \
 	go test -count=1 ./internal/server/ -run Isolation -v
 */
 

@@ -9,7 +9,7 @@ import type { NextRequest } from "next/server"
 export const dynamic = "force-dynamic"
 
 const MAX_BYTES = 12 * 1024 * 1024
-const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8110"
+const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8120"
 
 type Me = { id?: string | number; email?: string }
 

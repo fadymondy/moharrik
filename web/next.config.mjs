@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
-const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8110";
+const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8120";
 
 const nextConfig = {
+  // One self-contained server for the production image (see the root Dockerfile).
+  output: "standalone",
+
   // The Go API and this app feel like one origin: /api and /graphql are proxied to the API, so
   // the togo_session cookie and the CSRF cookie are first-party. Realtime (/events) is not in P0.
   async rewrites() {

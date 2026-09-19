@@ -1,0 +1,13 @@
+# Hosbah deploy settings (config as code; see Hosbah's internal/deploy/config.go).
+# The image (Dockerfile) runs the API and the web together; the web is the public process.
+
+port = 3000
+
+# Schema, the app role and its grants, constraints and RLS — idempotent. Runs once per deploy in
+# a one-off container, before the new release takes traffic.
+release = "/app/bin/moharrik-migrate"
+
+[healthcheck]
+# Through the web to the API: passes only when both are up.
+path = "/api/health"
+timeout = 120
