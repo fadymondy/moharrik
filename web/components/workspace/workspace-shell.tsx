@@ -1,21 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
-  BriefcaseIcon,
   CheckIcon,
   ChevronsUpDownIcon,
-  FolderKanbanIcon,
   KeyRoundIcon,
   LayoutGridIcon,
   MenuIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
   MessageSquarePlusIcon,
   PlusIcon,
-  TagIcon,
   UsersIcon,
-  UsersRoundIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -46,12 +44,12 @@ import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { cn } from "@/lib/utils"
 
-function Brand() {
+function Brand({ mini = false }: { mini?: boolean }) {
   const { t, locale } = useTranslations()
   return (
     <Link href={`/${locale}/workspaces`} className="flex items-center gap-2.5">
       <CubeMark mark={MOHARRIK_MARK} size={24} />
-      <span className="text-[15px] font-medium">{t("brand.name")}</span>
+      {mini ? null : <span className="text-[15px] font-medium">{t("brand.name")}</span>}
     </Link>
   )
 }
@@ -114,7 +112,7 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
   )
 }
 
-function NavLink({ href, icon, children, exact = false, onNavigate }: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean; onNavigate?: () => void }) {
+function NavLink({ href, icon, children, exact = false, onNavigate, mini = false }: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean; onNavigate?: () => void; mini?: boolean }) {
   const pathname = usePathname()
   const active = exact ? pathname === href : pathname === href || pathname.startsWith(href + "/")
   return (
@@ -122,15 +120,17 @@ function NavLink({ href, icon, children, exact = false, onNavigate }: { href: st
       href={href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
+      title={mini && typeof children === "string" ? children : undefined}
       className={cn(
         "flex items-center gap-2.5 border-s-2 px-3 py-2 text-sm transition-colors [&_svg]:size-4 [&_svg]:shrink-0",
+        mini && "justify-center px-0 py-2.5",
         active
           ? "border-grid-action bg-grid-soft font-medium text-grid-fg"
           : "border-transparent text-grid-body hover:bg-grid-soft hover:text-grid-fg",
       )}
     >
       {icon}
-      {children}
+      {mini ? <span className="sr-only">{children}</span> : children}
     </Link>
   )
 }
@@ -141,6 +141,25 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const me = useRequireAuth()
   const list = useMyWorkspaces(!!me.data)
   const [navOpen, setNavOpen] = useState(false)
+  // The desktop sidebar collapses to an icon rail; the choice is kept per browser. Ctrl/⌘+B toggles.
+  const [mini, setMini] = useState(false)
+  useEffect(() => {
+    setMini(localStorage.getItem("moharrik.nav") === "mini")
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault()
+        toggleMini()
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+  function toggleMini() {
+    setMini((m) => {
+      localStorage.setItem("moharrik.nav", m ? "full" : "mini")
+      return !m
+    })
+  }
   const { isRtl } = useTranslations()
 
   const summary = list.data?.find((w) => w.slug === slug)
@@ -176,12 +195,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     )
 
   return (
-    <div className="grid-shell">
+    <div className="grid-shell" data-nav={mini ? "mini" : "full"}>
       <aside className="grid-shell-nav sticky top-0 hidden h-dvh flex-col overflow-y-auto md:flex">
-        <div className="flex h-14 items-center border-b border-line px-4">
-          <Brand />
+        <div className={cn("flex h-14 items-center border-b border-line px-4", mini && "justify-center px-0")}>
+          <Brand mini={mini} />
         </div>
-        {summary ? <ShellNav base={base} can={current.data?.can ?? []} /> : null}
+        {summary ? <ShellNav base={base} mini={mini} /> : null}
       </aside>
 
       <div className="flex min-w-0 flex-col">
@@ -192,6 +211,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                 <MenuIcon />
               </Button>
             ) : null}
+            <Button variant="ghost" size="icon-sm" className="hidden md:inline-flex" aria-label={t("shell.toggleSidebar")} aria-pressed={mini} title={t("shell.toggleSidebar")} onClick={toggleMini} data-nav-toggle>
+              {mini ? <PanelLeftOpenIcon className="rtl:-scale-x-100" /> : <PanelLeftCloseIcon className="rtl:-scale-x-100" />}
+            </Button>
             {summary && list.data ? <WorkspaceSwitcher active={summary} all={list.data} /> : <Skeleton className="h-6 w-40" />}
           </div>
           <div className="flex items-center gap-1">
@@ -214,7 +236,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           <SheetTitle className="flex h-14 items-center border-b border-line px-4">
             <Brand />
           </SheetTitle>
-          {summary ? <ShellNav base={base} can={current.data?.can ?? []} onNavigate={() => setNavOpen(false)} /> : null}
+          {summary ? <ShellNav base={base} onNavigate={() => setNavOpen(false)} /> : null}
         </SheetContent>
       </Sheet>
 
@@ -234,34 +256,18 @@ function ShellSkeleton() {
 }
 
 /** The workspace navigation: the sticky sidebar on desktop, a slide-out sheet below md. */
-function ShellNav({ base, can, onNavigate }: { base: string; can: string[]; onNavigate?: () => void }) {
+function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate?: () => void; mini?: boolean }) {
   const { t } = useTranslations()
-  const L = (props: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean }) => <NavLink {...props} onNavigate={onNavigate} />
+  const L = (props: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean }) => <NavLink {...props} onNavigate={onNavigate} mini={mini} />
   return (
     <nav className="flex flex-col py-3" aria-label={t("shell.navigation")}>
       <L href={base} exact icon={<LayoutGridIcon />}>
         {t("nav.overview")}
       </L>
-      <L href={`${base}/projects`} icon={<FolderKanbanIcon />}>
-        {t("nav.projects")}
-      </L>
-      {can.includes("clients:read") ? (
-        <L href={`${base}/clients`} icon={<BriefcaseIcon />}>
-          {t("nav.clients")}
-        </L>
-      ) : null}
-      {can.includes("teams:read") ? (
-        <L href={`${base}/teams`} icon={<UsersRoundIcon />}>
-          {t("nav.teams")}
-        </L>
-      ) : null}
       <L href={`${base}/members`} icon={<UsersIcon />}>
         {t("nav.members")}
       </L>
-      <p className="grid-micro mt-4 border-t border-line px-4 pt-4 pb-1">{t("nav.settings")}</p>
-      <L href={`${base}/settings/labels`} icon={<TagIcon />}>
-        {t("nav.labels")}
-      </L>
+      {mini ? <div className="mt-3 border-t border-line pt-3" /> : <p className="grid-micro mt-4 border-t border-line px-4 pt-4 pb-1">{t("nav.settings")}</p>}
       <L href={`${base}/settings/mcp`} icon={<KeyRoundIcon />}>
         {t("nav.mcpTokens")}
       </L>

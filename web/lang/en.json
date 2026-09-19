@@ -27,10 +27,6 @@
   "common.optional": "optional",
   "common.revoke": "Revoke",
   "common.working": "Working…",
-  "dev.badge": "In development",
-  "dev.title": "Moharrik is in development.",
-  "dev.now": "accounts, workspaces, members, invitations and MCP tokens.",
-  "dev.next": "Contacts, inbox, campaigns, automation, notifications and research come next.",
   "feedback.report": "Report a problem",
   "header.account": "Account",
   "header.language": "Language",
@@ -149,5 +145,6 @@
   "footer.product": "Product",
   "footer.productValue": "Automation & CRM",
   "footer.stack": "Stack",
-  "footer.tagline": "Automation, messaging, research and CRM — all over MCP."
+  "footer.tagline": "Automation, messaging, research and CRM — all over MCP.",
+  "shell.toggleSidebar": "Collapse or expand the sidebar"
 }

@@ -22,20 +22,6 @@ export default function OverviewPage() {
     <>
       <SectionHeader micro={t("nav.overview")} title={ws.summary.name} action={<Badge variant="outline">{t(`role.${ws.summary.role}`)}</Badge>} />
 
-      {/* The "In development" notice: a hairline-framed hatched band with the message on the card. */}
-      <div className="border-y border-line p-3 hatch-band" role="status">
-        <div className="border border-line bg-grid-card px-5 py-4">
-          <p className="grid-micro mb-2 text-grid-brand">{t("dev.badge")}</p>
-          <p className="text-base font-medium text-grid-fg">{t("dev.title")}</p>
-          <p className="grid-body mt-1 text-sm">
-            <span className="font-medium text-grid-fg">
-              <Ltr>P0</Ltr>:
-            </span>{" "}
-            {t("dev.now")}
-          </p>
-          <p className="grid-body text-sm">{t("dev.next")}</p>
-        </div>
-      </div>
 
       <div className="grid-separator-contained hatch-band mt-8 border-t-0" aria-hidden />
 
