@@ -1,0 +1,41 @@
+version: "2"
+sql:
+  # Postgres, not the "sqlite" the togo 0.2.31 scaffold writes for a --db postgres
+  # project. The schema fragments are hand-written Postgres DDL (README).
+  - engine: "postgresql"
+    schema: "internal/db/schema"
+    queries: "internal/db/queries"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db/gen"
+        emit_json_tags: true
+        emit_db_tags: true
+        # Only honoured with sql_package pgx/v5; on database/sql (which the ORM
+        # and every generated file use) sqlc emits sql.Null* instead. The
+        # overrides below restore the pointer types togo's generated code,
+        # resources and GraphQL autobinding expect.
+        emit_pointers_for_null_types: true
+        # togo's generated resources/*.go spell these PageURL/ExternalURL; sqlc's
+        # Postgres engine only treats "id" as an initialism by default.
+        initialisms: ["id", "url"]
+        overrides:
+          - db_type: "text"
+            nullable: true
+            go_type: { type: "string", pointer: true }
+          - db_type: "pg_catalog.int8"
+            nullable: true
+            go_type: { type: "int64", pointer: true }
+          - db_type: "pg_catalog.bool"
+            nullable: true
+            go_type: { type: "bool", pointer: true }
+          - db_type: "pg_catalog.timestamptz"
+            go_type: { import: "time", type: "Time" }
+          - db_type: "pg_catalog.timestamptz"
+            nullable: true
+            go_type: { import: "time", type: "Time", pointer: true }
+          - db_type: "timestamptz"
+            go_type: { import: "time", type: "Time" }
+          - db_type: "timestamptz"
+            nullable: true
+            go_type: { import: "time", type: "Time", pointer: true }

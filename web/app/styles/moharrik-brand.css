@@ -1,0 +1,25 @@
+/* Repo-owned (NOT generated): the Moharrik brand block, in exactly the shape of the product blocks
+   in grid-tokens.css. Brand = the Claude Digital Twin palette (twin.fadymondy.com/en/brand):
+   body/action #00A0A8, accent #C9A227, ink #0B1429, paper #F0EBE1.
+
+   Contrast (WCAG 2.x):
+   - light: paper #F0EBE1 on #00A0A8 = 2.68:1 (fails 4.5:1), so on-action is ink:
+            #0B1429 on #00A0A8 = 5.75:1 (AA).
+   - dark:  action lifted to #2EC4CB; #2EC4CB on ink #0B1429 = 8.61:1, and ink on #2EC4CB as
+            on-action = 8.61:1 (AAA).
+   Note #00A0A8 as TEXT on paper is also 2.68:1 — use it for fills and marks, not body text. */
+
+[data-brand="moharrik"] {
+  --grid-brand: #00a0a8;
+  --grid-brand-accent: #c9a227;
+  --grid-action: #00a0a8;
+  --grid-on-action: #0b1429;
+}
+.dark[data-brand="moharrik"],
+.dark [data-brand="moharrik"],
+[data-theme="dark"][data-brand="moharrik"],
+[data-theme="dark"] [data-brand="moharrik"] {
+  --grid-brand: #2ec4cb;
+  --grid-action: #2ec4cb;
+  --grid-on-action: #0b1429;
+}

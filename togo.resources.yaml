@@ -1,0 +1,221 @@
+# Managed by togo. Source of truth for generated registries.
+resources:
+    - name: AdminMcpToken
+      table: admin_mcp_tokens
+      fields:
+        - name: user_id
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: name
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: token_hash
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: prefix
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: expires_at
+          go: time.Time
+          gql: String
+          pg: timestamptz
+          "null": true
+        - name: last_used_at
+          go: time.Time
+          gql: String
+          pg: timestamptz
+          "null": true
+        - name: revoked_at
+          go: time.Time
+          gql: String
+          pg: timestamptz
+          "null": true
+    - name: Invitation
+      table: invitations
+      fields:
+        - name: workspace_id
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: email
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: role
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: token_hash
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: invited_by
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: expires_at
+          go: time.Time
+          gql: String!
+          pg: timestamptz
+          "null": false
+        - name: accepted_at
+          go: time.Time
+          gql: String
+          pg: timestamptz
+          "null": true
+        - name: accepted_by
+          go: string
+          gql: String
+          pg: text
+          "null": true
+      controller: true
+    - name: McpToken
+      table: mcp_tokens
+      fields:
+        - name: workspace_id
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: user_id
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: name
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: token_hash
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: prefix
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: scopes
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: expires_at
+          go: time.Time
+          gql: String
+          pg: timestamptz
+          "null": true
+        - name: last_used_at
+          go: time.Time
+          gql: String
+          pg: timestamptz
+          "null": true
+        - name: revoked_at
+          go: time.Time
+          gql: String
+          pg: timestamptz
+          "null": true
+      controller: true
+    - name: Workspace
+      table: workspaces
+      fields:
+        - name: slug
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: name
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: locale
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: timezone
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: currency
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: week_start
+          go: int64
+          gql: Int!
+          pg: bigint
+          "null": false
+        - name: rounding_minutes
+          go: int64
+          gql: Int!
+          pg: bigint
+          "null": false
+        - name: settings
+          go: string
+          gql: String
+          pg: text
+          "null": true
+        - name: plan
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: created_by
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+      controller: true
+    - name: WorkspaceMember
+      table: workspace_members
+      fields:
+        - name: workspace_id
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: user_id
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: role
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+        - name: cost_rate_minor
+          go: int64
+          gql: Int
+          pg: bigint
+          "null": true
+        - name: bill_rate_minor
+          go: int64
+          gql: Int
+          pg: bigint
+          "null": true
+        - name: status
+          go: string
+          gql: String!
+          pg: text
+          "null": false
+      controller: true

@@ -1,0 +1,14 @@
+/bin/
+*.exe
+.env
+.env.local
+/internal/db/gen/
+/internal/graph/gen/
+/web/node_modules/
+/web/.next/
+/web/.env*
+!/web/.env.example
+/db/atlas/migrations/atlas.sum
+/storage/
+*.log
+.DS_Store
