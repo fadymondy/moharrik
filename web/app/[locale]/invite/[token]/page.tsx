@@ -8,10 +8,9 @@ import useSWR, { useSWRConfig } from "swr"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { PublicFrame, SectionHeader } from "@/components/public-frame"
+import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { ErrorState } from "@/components/states"
 import { Ltr } from "@/components/copy-field"
-import { NotFoundState } from "@/components/not-found-state"
 import { api, ApiError, type InvitationPreview, type WorkspaceSummary } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMe } from "@/lib/queries"
@@ -54,8 +53,12 @@ export default function InvitePage() {
 
   if (preview.error instanceof ApiError && preview.error.status === 404) {
     return (
-      <PublicFrame>
-        <NotFoundState title={t("invite.notFoundTitle")} body={t("invite.notFoundBody")} backHref={`/${locale}`} backLabel={t("invite.goHome")} />
+      <PublicFrame eyebrow="404" title={t("invite.notFoundTitle")} description={t("invite.notFoundBody")}>
+        <PublicPanel className="flex justify-center py-10">
+          <Button variant="outline" nativeButton={false} render={<Link href={`/${locale}`} />}>
+            {t("invite.goHome")}
+          </Button>
+        </PublicPanel>
       </PublicFrame>
     )
   }
@@ -65,29 +68,30 @@ export default function InvitePage() {
   const emailMismatch = !!inv && !!signedInEmail && signedInEmail.toLowerCase() !== inv.email.toLowerCase()
 
   return (
-    <PublicFrame>
-      <SectionHeader micro={t("invite.micro")} title={t("invite.title")} />
+    <PublicFrame eyebrow={t("invite.micro")} title={t("invite.title")} description={inv ? inv.workspace_name : undefined}>
+      <PublicPanel className="flex justify-center py-10">
+      <div className="w-full max-w-sm">
       {preview.error ? (
         <ErrorState error={preview.error} />
       ) : !inv ? (
-        <div className="space-y-3 border-t border-line px-6 py-6">
+        <div className="space-y-3">
           <Skeleton className="h-6 w-2/3" />
           <Skeleton className="h-4 w-1/2" />
         </div>
       ) : (
         <>
-          <dl className="divide-y divide-line border-y border-line text-sm">
-            <div className="flex items-center justify-between gap-4 px-6 py-3">
+          <dl className="divide-y divide-line border border-line text-sm">
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
               <dt className="text-grid-muted">{t("invite.workspace")}</dt>
               <dd className="font-medium">{inv.workspace_name}</dd>
             </div>
-            <div className="flex items-center justify-between gap-4 px-6 py-3">
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
               <dt className="text-grid-muted">{t("invite.invitedEmail")}</dt>
               <dd>
                 <Ltr>{inv.email}</Ltr>
               </dd>
             </div>
-            <div className="flex items-center justify-between gap-4 px-6 py-3">
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
               <dt className="text-grid-muted">{t("invite.role")}</dt>
               <dd>
                 <Badge variant="outline">{t(`role.${inv.role}`)}</Badge>
@@ -95,7 +99,7 @@ export default function InvitePage() {
             </div>
           </dl>
 
-          <div className="space-y-4 px-6 py-6">
+          <div className="space-y-4 pt-6">
             {inv.accepted ? (
               <p className="text-sm">{t("invite.alreadyAccepted")}</p>
             ) : inv.expired ? (
@@ -138,6 +142,8 @@ export default function InvitePage() {
           </div>
         </>
       )}
+      </div>
+      </PublicPanel>
     </PublicFrame>
   )
 }

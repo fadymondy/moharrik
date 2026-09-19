@@ -1,6 +1,5 @@
 {
   "brand.name": "محرّك",
-
   "auth.continueWith": "المتابعة باستخدام {provider}",
   "auth.createAccount": "إنشاء حساب",
   "auth.email": "البريد الإلكتروني",
@@ -17,7 +16,6 @@
   "auth.signIn": "تسجيل الدخول",
   "auth.signInHint": "سجّل الدخول إلى مساحات عملك.",
   "auth.welcomeBack": "مرحبًا بعودتك",
-
   "common.actions": "إجراءات",
   "common.apiUnavailable": "خادم محرّك لا يستجيب. حاول مرة أخرى بعد قليل.",
   "common.cancel": "إلغاء",
@@ -29,20 +27,16 @@
   "common.optional": "اختياري",
   "common.revoke": "إلغاء الصلاحية",
   "common.working": "جارٍ التنفيذ…",
-
   "dev.badge": "قيد التطوير",
   "dev.title": "محرّك قيد التطوير.",
   "dev.now": "الحسابات، ومساحات العمل، والأعضاء، والدعوات، ورموز MCP.",
   "dev.next": "جهات الاتصال، وصندوق الوارد، والحملات، والأتمتة، والإشعارات، والبحث في المراحل القادمة.",
-
   "feedback.report": "الإبلاغ عن مشكلة",
-
   "header.account": "الحساب",
   "header.language": "اللغة",
   "header.signOut": "تسجيل الخروج",
   "header.signedInAs": "مسجّل الدخول باسم",
   "header.toggleTheme": "التبديل بين الوضع الفاتح والداكن",
-
   "invite.accept": "قبول الدعوة",
   "invite.alreadyAccepted": "تم قبول هذه الدعوة من قبل.",
   "invite.expired": "انتهت صلاحية هذه الدعوة. اطلب رابطًا جديدًا من مالك مساحة العمل.",
@@ -60,7 +54,6 @@
   "invite.title": "تمت دعوتك إلى مساحة عمل",
   "invite.toWorkspaces": "الانتقال إلى مساحات عملك",
   "invite.workspace": "مساحة العمل",
-
   "mcp.claudeCode": "الإضافة إلى Claude Code",
   "mcp.create": "إنشاء رمز",
   "mcp.createHint": "يتيح الرمز لوكيل ذكاء اصطناعي العمل في هذه المساحة بالصلاحيات التي تختارها فقط — ولا يتجاوز أبدًا ما يسمح به دورك.",
@@ -92,7 +85,6 @@
   "mcp.scopesHint": "اختر بالضبط ما يُسمح لهذا الرمز بفعله. لا شيء محدد مسبقًا.",
   "mcp.shownOnce": "انسخ هذا الرمز الآن، فلن يظهر مرة أخرى. إن فقدته فألغِ صلاحيته وأنشئ رمزًا جديدًا.",
   "mcp.token": "الرمز",
-
   "members.acceptLink": "رابط القبول",
   "members.email": "البريد الإلكتروني",
   "members.empty": "لا يوجد أعضاء بعد",
@@ -112,40 +104,33 @@
   "members.revoked": "تم إلغاء الدعوة",
   "members.role": "الدور",
   "members.status": "الحالة",
-
   "nav.comingNext": "جهات الاتصال وصندوق الوارد والحملات والأتمتة قادمة في المراحل التالية.",
   "nav.mcpTokens": "رموز MCP",
   "nav.members": "الأعضاء",
   "nav.overview": "نظرة عامة",
-
   "notFound.back": "العودة إلى مساحات العمل",
   "notFound.body": "الصفحة التي تبحث عنها غير موجودة أو نُقلت.",
   "notFound.title": "الصفحة غير موجودة",
-
   "overview.currency": "العملة",
   "overview.locale": "اللغة",
   "overview.slug": "العنوان",
   "overview.timezone": "المنطقة الزمنية",
-
   "role.owner": "مالك",
   "role.admin": "مشرف",
   "role.manager": "مدير",
   "role.member": "عضو",
   "role.client": "عميل",
-
   "status.active": "نشط",
   "status.pending": "معلّق",
   "status.invited": "مدعو",
   "status.suspended": "موقوف",
   "status.removed": "محذوف",
-
   "shell.allWorkspaces": "كل مساحات العمل",
   "shell.navigation": "مساحة العمل",
   "shell.switchWorkspace": "تبديل مساحة العمل",
   "shell.unknownWorkspace": "مساحة العمل غير موجودة",
   "shell.unknownWorkspaceBody": "لا توجد مساحة عمل على العنوان «{slug}» أنت عضو فيها.",
   "shell.workspaces": "مساحات العمل",
-
   "workspaces.create": "إنشاء مساحة عمل",
   "workspaces.createHint": "مساحة العمل هي نشاطك التجاري: فريقك وقنواتك وعملاؤك.",
   "workspaces.createTitle": "مساحة عمل جديدة",
@@ -158,5 +143,11 @@
   "workspaces.slugHint": "أحرف إنجليزية صغيرة وأرقام وشرطات، من 3 إلى 40 حرفًا. إن تركته فارغًا فسيُشتق من الاسم.",
   "workspaces.slugInvalid": "استخدم من 3 إلى 40 حرفًا من الأحرف الإنجليزية الصغيرة أو الأرقام أو الشرطات.",
   "workspaces.slugTaken": "هذا العنوان مستخدم. جرّب عنوانًا آخر.",
-  "workspaces.title": "مساحات العمل"
+  "workspaces.title": "مساحات العمل",
+  "footer.craftedBy": "من صنع",
+  "footer.languages": "اللغات",
+  "footer.product": "المنتج",
+  "footer.productValue": "الأتمتة وإدارة العملاء",
+  "footer.stack": "التقنيات",
+  "footer.tagline": "أتمتة وتواصل وبحث وإدارة عملاء — وكلها عبر MCP."
 }

@@ -1,6 +1,5 @@
 {
   "brand.name": "Moharrik",
-
   "auth.continueWith": "Continue with {provider}",
   "auth.createAccount": "Create account",
   "auth.email": "Email",
@@ -17,7 +16,6 @@
   "auth.signIn": "Sign in",
   "auth.signInHint": "Sign in to your workspaces.",
   "auth.welcomeBack": "Welcome back",
-
   "common.actions": "Actions",
   "common.apiUnavailable": "The Moharrik API isn't responding. Try again in a moment.",
   "common.cancel": "Cancel",
@@ -29,20 +27,16 @@
   "common.optional": "optional",
   "common.revoke": "Revoke",
   "common.working": "Working…",
-
   "dev.badge": "In development",
   "dev.title": "Moharrik is in development.",
   "dev.now": "accounts, workspaces, members, invitations and MCP tokens.",
   "dev.next": "Contacts, inbox, campaigns, automation, notifications and research come next.",
-
   "feedback.report": "Report a problem",
-
   "header.account": "Account",
   "header.language": "Language",
   "header.signOut": "Sign out",
   "header.signedInAs": "Signed in as",
   "header.toggleTheme": "Toggle light / dark",
-
   "invite.accept": "Accept invitation",
   "invite.alreadyAccepted": "This invitation has already been accepted.",
   "invite.expired": "This invitation has expired. Ask the workspace owner for a new link.",
@@ -60,7 +54,6 @@
   "invite.title": "You're invited to a workspace",
   "invite.toWorkspaces": "Go to your workspaces",
   "invite.workspace": "Workspace",
-
   "mcp.claudeCode": "Add to Claude Code",
   "mcp.create": "Create token",
   "mcp.createHint": "A token lets an AI agent act in this workspace with the scopes you choose — never more than your own role allows.",
@@ -92,7 +85,6 @@
   "mcp.scopesHint": "Pick exactly what this token may do. Nothing is selected by default.",
   "mcp.shownOnce": "Copy this token now. It won't be shown again — if you lose it, revoke it and create a new one.",
   "mcp.token": "Token",
-
   "members.acceptLink": "Accept link",
   "members.email": "Email",
   "members.empty": "No members yet",
@@ -112,40 +104,33 @@
   "members.revoked": "Invitation revoked",
   "members.role": "Role",
   "members.status": "Status",
-
   "nav.comingNext": "Contacts, inbox, campaigns and automation are coming in the next phases.",
   "nav.mcpTokens": "MCP tokens",
   "nav.members": "Members",
   "nav.overview": "Overview",
-
   "notFound.back": "Back to workspaces",
   "notFound.body": "The page you're looking for doesn't exist or has moved.",
   "notFound.title": "Page not found",
-
   "overview.currency": "Currency",
   "overview.locale": "Language",
   "overview.slug": "Address",
   "overview.timezone": "Time zone",
-
   "role.owner": "Owner",
   "role.admin": "Admin",
   "role.manager": "Manager",
   "role.member": "Member",
   "role.client": "Client",
-
   "status.active": "Active",
   "status.pending": "Pending",
   "status.invited": "Invited",
   "status.suspended": "Suspended",
   "status.removed": "Removed",
-
   "shell.allWorkspaces": "All workspaces",
   "shell.navigation": "Workspace",
   "shell.switchWorkspace": "Switch workspace",
   "shell.unknownWorkspace": "Workspace not found",
   "shell.unknownWorkspaceBody": "There's no workspace at \"{slug}\" that you're a member of.",
   "shell.workspaces": "Workspaces",
-
   "workspaces.create": "Create workspace",
   "workspaces.createHint": "A workspace is your business: its team, channels and customers.",
   "workspaces.createTitle": "New workspace",
@@ -158,5 +143,11 @@
   "workspaces.slugHint": "Lowercase letters, numbers and dashes, 3–40 characters. Left empty, it's made from the name.",
   "workspaces.slugInvalid": "Use 3–40 lowercase letters, numbers or dashes.",
   "workspaces.slugTaken": "That address is taken. Try another.",
-  "workspaces.title": "Workspaces"
+  "workspaces.title": "Workspaces",
+  "footer.craftedBy": "Crafted by",
+  "footer.languages": "Languages",
+  "footer.product": "Product",
+  "footer.productValue": "Automation & CRM",
+  "footer.stack": "Stack",
+  "footer.tagline": "Automation, messaging, research and CRM — all over MCP."
 }

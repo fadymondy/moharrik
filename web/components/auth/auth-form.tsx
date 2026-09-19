@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { PublicFrame, SectionHeader } from "@/components/public-frame"
+import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { api, ApiError, resetCsrf } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { safeNext } from "@/lib/use-require-auth"
@@ -108,13 +108,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const otherHref = `/${locale}/${other}${params.get("next") ? `?next=${encodeURIComponent(next)}` : ""}`
 
   return (
-    <PublicFrame>
-      <SectionHeader
-        micro={mode === "login" ? t("auth.welcomeBack") : t("auth.getStarted")}
-        title={mode === "login" ? t("auth.signIn") : t("auth.createAccount")}
-        description={mode === "login" ? t("auth.signInHint") : t("auth.registerHint")}
-      />
-      <div className="border-t border-line px-6 py-6">
+    <PublicFrame
+      eyebrow={mode === "login" ? t("auth.welcomeBack") : t("auth.getStarted")}
+      title={mode === "login" ? t("auth.signIn") : t("auth.createAccount")}
+      description={mode === "login" ? t("auth.signInHint") : t("auth.registerHint")}
+    >
+      <PublicPanel className="flex justify-center py-10">
+      <div className="w-full max-w-sm" data-auth-form>
         <form onSubmit={onSubmit} noValidate>
           <FieldGroup>
             <Field data-invalid={!!error || undefined}>
@@ -171,13 +171,14 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             ))}
           </div>
         ) : null}
+        <p className="mt-6 text-center text-sm text-grid-muted">
+          {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
+          <Link href={otherHref} className="font-medium text-grid-fg underline underline-offset-4">
+            {mode === "login" ? t("auth.createAccount") : t("auth.signIn")}
+          </Link>
+        </p>
       </div>
-      <div className="border-t border-line px-6 py-4 text-sm text-grid-muted">
-        {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
-        <Link href={otherHref} className="font-medium text-grid-fg underline underline-offset-4">
-          {mode === "login" ? t("auth.createAccount") : t("auth.signIn")}
-        </Link>
-      </div>
+      </PublicPanel>
     </PublicFrame>
   )
 }
