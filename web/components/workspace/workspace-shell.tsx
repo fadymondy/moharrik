@@ -11,8 +11,11 @@ import {
   MenuIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  MailIcon,
   MessageSquarePlusIcon,
   PlusIcon,
+  SendIcon,
+  ServerIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -264,10 +267,19 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
       <L href={base} exact icon={<LayoutGridIcon />}>
         {t("nav.overview")}
       </L>
+      <L href={`${base}/contacts`} icon={<MailIcon />}>
+        {t("nav.contacts")}
+      </L>
+      <L href={`${base}/campaigns`} icon={<SendIcon />}>
+        {t("nav.campaigns")}
+      </L>
       <L href={`${base}/members`} icon={<UsersIcon />}>
         {t("nav.members")}
       </L>
       {mini ? <div className="mt-3 border-t border-line pt-3" /> : <p className="grid-micro mt-4 border-t border-line px-4 pt-4 pb-1">{t("nav.settings")}</p>}
+      <L href={`${base}/settings/email`} icon={<ServerIcon />}>
+        {t("nav.email")}
+      </L>
       <L href={`${base}/settings/mcp`} icon={<KeyRoundIcon />}>
         {t("nav.mcpTokens")}
       </L>

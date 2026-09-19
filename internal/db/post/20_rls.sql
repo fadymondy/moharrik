@@ -48,3 +48,38 @@ CREATE POLICY tenant_isolation ON mcp_tokens
 -- even if a grant is ever added by mistake.
 ALTER TABLE admin_mcp_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_mcp_tokens FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE mail_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mail_lists FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON mail_lists;
+CREATE POLICY tenant_isolation ON mail_lists
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contacts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON contacts;
+CREATE POLICY tenant_isolation ON contacts
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE list_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE list_subscriptions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON list_subscriptions;
+CREATE POLICY tenant_isolation ON list_subscriptions
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaigns FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON campaigns;
+CREATE POLICY tenant_isolation ON campaigns
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE smtp_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE smtp_settings FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON smtp_settings;
+CREATE POLICY tenant_isolation ON smtp_settings
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

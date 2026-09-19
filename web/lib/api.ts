@@ -135,3 +135,59 @@ export type McpToken = {
 export type McpScope = { scope: string; description: string; min_role: Role; allowed: boolean }
 
 export type AuthMethods = { methods?: unknown; oauth?: unknown; providers?: unknown }
+
+// ── Email marketing ──────────────────────────────────────────────────────
+
+export type SubscriptionStatus = "pending" | "subscribed" | "unsubscribed" | "bounced"
+
+export type MailList = {
+  id: string
+  name: string
+  description: string
+  double_opt_in: boolean
+  subscribed: number
+  pending: number
+  created_at: string
+}
+
+export type Subscription = { id: string; list_id: string; list_name: string; status: SubscriptionStatus }
+
+export type Contact = {
+  id: string
+  email: string
+  name: string
+  locale: "en" | "ar"
+  source: string
+  created_at: string
+  subscriptions: Subscription[] | null
+}
+
+export type CampaignStatus = "draft" | "sending" | "sent" | "failed"
+
+export type Campaign = {
+  id: string
+  list_id: string
+  list_name: string
+  subject: string
+  body: string
+  locale: "en" | "ar"
+  status: CampaignStatus
+  recipient_count: number
+  sent_count: number
+  failed_count: number
+  last_error: string
+  sent_at: string | null
+  created_at: string
+}
+
+export type SmtpSettings = {
+  configured: boolean
+  host: string
+  port: number
+  username: string
+  has_password: boolean
+  from_name: string
+  from_email: string
+  tls_mode: "none" | "starttls" | "tls"
+  updated_at: string | null
+}

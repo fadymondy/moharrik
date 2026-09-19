@@ -47,6 +47,13 @@ const (
 	TokensManageOwn   = "tokens:manage"
 	TokensRevokeAny   = "tokens:revoke_any"
 	GraphQL           = "graphql"
+	// Email marketing.
+	ContactsRead   = "contacts:read"
+	ContactsWrite  = "contacts:write"
+	CampaignsRead  = "campaigns:read"
+	CampaignsWrite = "campaigns:write"
+	CampaignsSend  = "campaigns:send"
+	MailSettings   = "mail:settings"
 )
 
 // Matrix is the minimum role per action.
@@ -62,6 +69,14 @@ var Matrix = map[string]Role{
 	// per-field authorization of their own; RLS isolates tenants, and this keeps
 	// it to people who could make the same changes in the UI.
 	GraphQL: Admin,
+	// Email marketing: members keep the audience; managers compose and send;
+	// admins own the sending credentials.
+	ContactsRead:   Member,
+	ContactsWrite:  Member,
+	CampaignsRead:  Member,
+	CampaignsWrite: Manager,
+	CampaignsSend:  Manager,
+	MailSettings:   Admin,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

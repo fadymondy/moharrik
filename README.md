@@ -66,6 +66,23 @@ make grid-check # generated grid copies match fadymondy.com-v2
   `set_config('app.workspace_id', …)` before each statement. Boot refuses to start if the app
   role could bypass RLS.
 
+## Email marketing (first product module)
+
+Ported from fadymondy.com-v2 (`internal/mail`, subscribe/confirm/unsubscribe, campaigns) into
+`internal/marketing`, per workspace:
+
+- Tables `mail_lists`, `contacts`, `list_subscriptions` (per-list consent: pending → subscribed /
+  unsubscribed / bounced), `campaigns`, `smtp_settings` — all `workspace_id`, FORCE RLS, in `TenantTables`.
+- Endpoints under `/api/w/` (app pool + explicit `workspace_id`), authz actions `contacts:*`,
+  `campaigns:*`, `mail:settings` (members keep contacts, managers send, admins own SMTP).
+- Double opt-in: adding a contact to a double-opt-in list emails a confirm link; the public
+  `/{locale}/mail/confirm` and `/{locale}/mail/unsubscribe` pages act only on a click
+  (`POST /api/mail/confirm|unsubscribe`, token = authorization; RFC 8058 one-click header).
+  Links use `PUBLIC_URL`, else `APP_URL` — set it to the **web** origin.
+- SMTP per workspace (Settings → Email sending); password AES-GCM sealed with a key derived from
+  `AUTH_SECRET`, never returned. Campaigns send in the background with progress on the row.
+- `node web/e2e/marketing-check.mjs [base]` drives it end to end with a local SMTP sink on :2525.
+
 ## MCP
 
 - **User MCP** `POST /api/mcp` — `mhr_` tokens owned by a user in a workspace, SHA-256 hashed,

@@ -5,7 +5,11 @@ import useSWR from "swr"
 import {
   api,
   ApiError,
+  type Campaign,
+  type Contact,
   type CurrentWorkspace,
+  type MailList,
+  type SmtpSettings,
   type Invitation,
   type McpScope,
   type McpToken,
@@ -60,3 +64,21 @@ export const useInvitations = (id?: string | null, enabled = true) =>
 
 export const useMcpTokens = (id?: string | null) =>
   useScoped<{ tokens: McpToken[] | null; scopes: McpScope[] | null }>("/api/w/mcp_tokens", id)
+
+export const useMailLists = (id?: string | null) => useScoped<{ lists: MailList[] | null }>("/api/w/mail/lists", id)
+
+export const useContacts = (id?: string | null) => useScoped<{ contacts: Contact[] | null }>("/api/w/contacts", id)
+
+/** Polls while a campaign is sending, so progress moves on screen. */
+export function useCampaigns(workspaceId?: string | null) {
+  return useSWR<{ campaigns: Campaign[] | null; smtp_configured: boolean }>(
+    workspaceId ? ["/api/w/campaigns", workspaceId] : null,
+    ([p, id]: [string, string]) => api<{ campaigns: Campaign[] | null; smtp_configured: boolean }>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) => ((data?.campaigns ?? []).some((c) => c.status === "sending") ? 2000 : 0),
+    },
+  )
+}
+
+export const useSmtpSettings = (id?: string | null, enabled = true) => useScoped<SmtpSettings>("/api/w/mail/smtp", id, enabled)

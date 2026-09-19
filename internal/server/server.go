@@ -23,6 +23,7 @@ import (
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/tenant"
+	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 )
 
@@ -72,6 +73,7 @@ func Boot() *app.App {
 func registerREST(api huma.API, a *app.App) {
 	rest.RegisterRoutes(api, a) // generated CRUD — behind the guard's workspace tier
 	workspaces.Register(api, a)
+	marketing.Register(api, a)
 	mcp.RegisterTokenRoutes(api, a)
 }
 

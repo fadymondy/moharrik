@@ -67,7 +67,11 @@ func classify(r *http.Request) tier {
 		// Both MCP transports authenticate with their own bearer tokens. Exact
 		// matches: a prefix "/api/mcp" would also match /api/mcp_tokens.
 		"/api/mcp",
-		"/api/admin/mcp":
+		"/api/admin/mcp",
+		// Double opt-in and unsubscribe links from an email: the random token in
+		// the body is the authorization (internal/marketing).
+		"/api/mail/confirm",
+		"/api/mail/unsubscribe":
 		return tierPublic
 	case "/api/invitations/accept":
 		return tierSignedIn
