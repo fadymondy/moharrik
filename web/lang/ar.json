@@ -146,5 +146,6 @@
   "footer.productValue": "الأتمتة وإدارة العملاء",
   "footer.stack": "التقنيات",
   "footer.tagline": "أتمتة وتواصل وبحث وإدارة عملاء — وكلها عبر MCP.",
-  "shell.toggleSidebar": "طيّ الشريط الجانبي أو توسيعه"
+  "shell.toggleSidebar": "طيّ الشريط الجانبي أو توسيعه",
+  "nav.settings": "الإعدادات"
 }

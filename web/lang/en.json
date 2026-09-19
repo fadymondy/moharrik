@@ -146,5 +146,6 @@
   "footer.productValue": "Automation & CRM",
   "footer.stack": "Stack",
   "footer.tagline": "Automation, messaging, research and CRM — all over MCP.",
-  "shell.toggleSidebar": "Collapse or expand the sidebar"
+  "shell.toggleSidebar": "Collapse or expand the sidebar",
+  "nav.settings": "Settings"
 }
