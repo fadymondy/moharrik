@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/mail"
 	"regexp"
@@ -189,6 +190,7 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error409Conflict("that address is taken")
 		}
 		if err != nil {
+			slog.ErrorContext(ctx, "create workspace", "err", err)
 			return nil, huma.Error500InternalServerError("could not create the workspace")
 		}
 		out := &struct {

@@ -25,6 +25,17 @@ var roleName = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 // Run applies internal/db/schema/*.sql, then the app role + grants, then
 // internal/db/post/*.sql (constraints, RLS). Idempotent. root is the repo root.
 func Run(ctx context.Context, owner *sql.DB, appURL, root string, logf func(string, ...any)) error {
+	// The tenant tables FORCE row-level security, so the owner pool (tenant resolution, creating a
+	// workspace, admin MCP) only works if the owner role bypasses it. A superuser does locally; on
+	// pg-shared the owner is not one and needs BYPASSRLS — without it every workspace create 500s.
+	var super, bypass bool
+	if err := owner.QueryRowContext(ctx,
+		`SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`).Scan(&super, &bypass); err != nil {
+		return err
+	}
+	if !super && !bypass {
+		return fmt.Errorf("DATABASE_URL's role must be superuser or BYPASSRLS (as a superuser: ALTER ROLE <owner> BYPASSRLS)")
+	}
 	if err := applyDir(ctx, owner, filepath.Join(root, "internal", "db", "schema"), logf); err != nil {
 		return err
 	}
