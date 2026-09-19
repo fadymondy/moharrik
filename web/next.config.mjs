@@ -5,6 +5,9 @@ const nextConfig = {
   // One self-contained server for the production image (see the root Dockerfile).
   output: "standalone",
 
+  // dev.moharrik.com tunnels to `next dev` on the workstation; Next blocks dev assets for other origins.
+  allowedDevOrigins: ["dev.moharrik.com"],
+
   // The Go API and this app feel like one origin: /api and /graphql are proxied to the API, so
   // the togo_session cookie and the CSRF cookie are first-party. Realtime (/events) is not in P0.
   async rewrites() {
