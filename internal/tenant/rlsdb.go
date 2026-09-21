@@ -27,6 +27,10 @@ transaction, as planned).
 */
 
 import (
+	"os"
+	"strconv"
+	"time"
+
 	"context"
 	"database/sql"
 	"database/sql/driver"
@@ -38,14 +42,54 @@ import (
 
 const setScopeSQL = "SELECT set_config('app.workspace_id', $1, false)"
 
-// OpenRLS opens the app pool: pgx connections that scope every statement to
-// the workspace on its context.
+/*
+OpenRLS opens the app pool: pgx connections that scope every statement to the
+workspace on its context.
+
+The pool is BOUNDED, and the bound is the point. Without one, a burst of
+parallel requests asks Postgres for a connection each, and Postgres — shared
+here with every other product on the server — answers "sorry, too many clients
+already". Every refused request then fails and the work it carried is lost.
+That was found in Mahaam (MH-250), where fifty parallel timer starts produced
+forty-four time entries; this app had the identical pattern.
+
+A bounded pool makes the next request WAIT for a connection instead of
+demanding a new one. Waiting is slower; running out is an outage, and not only
+for this app.
+
+DB_MAX_CONNS overrides the default for a deployment with its own Postgres.
+*/
 func OpenRLS(url string) (*sql.DB, error) {
 	cfg, err := pgx.ParseConfig(url)
 	if err != nil {
 		return nil, err
 	}
-	return sql.OpenDB(connector{base: stdlib.GetConnector(*cfg)}), nil
+	db := sql.OpenDB(connector{base: stdlib.GetConnector(*cfg)})
+	Tune(db)
+	return db, nil
+}
+
+// DefaultMaxConns is deliberately modest: this app shares one Postgres with
+// several others, and its share has to leave room for them.
+const DefaultMaxConns = 20
+
+// Tune bounds a pool. Exported so the owner pool gets the same treatment —
+// "unbounded" is the wrong answer for both.
+func Tune(db *sql.DB) {
+	max := DefaultMaxConns
+	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			max = n
+		}
+	}
+	db.SetMaxOpenConns(max)
+	idle := max / 4
+	if idle < 2 {
+		idle = 2
+	}
+	db.SetMaxIdleConns(idle)
+	db.SetConnMaxLifetime(time.Hour)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 }
 
 type connector struct{ base driver.Connector }

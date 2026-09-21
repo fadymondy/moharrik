@@ -71,6 +71,9 @@ func New(ctx context.Context, k *togo.Kernel) *App {
 	}
 	if sysDB, err := k.SQL(ctx); err == nil {
 		a.SysDB = sysDB
+		// Bounded too: an unbounded pool against a shared Postgres is the wrong
+		// default whatever it is for.
+		tenant.Tune(sysDB)
 	} else {
 		k.Log.Warn("database unavailable", "err", err)
 	}
