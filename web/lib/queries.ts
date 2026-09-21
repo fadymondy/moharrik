@@ -20,6 +20,9 @@ import {
   type McpScope,
   type McpToken,
   type Member,
+  type ChatWidget,
+  type Conversation,
+  type InboxMessage,
   type NotificationItem,
   type User,
   type WebhookSource,
@@ -130,3 +133,32 @@ export function useNotifications(workspaceId: string | null | undefined, filter:
     noRetryOn4xx,
   )
 }
+
+// ── Inbox ────────────────────────────────────────────────────────────────
+
+export type ConversationFilter = { status?: string; unread?: boolean; channel?: string }
+
+/** The inbox list. Polls while it is on screen, so a new customer message lands without a reload. */
+export function useConversations(workspaceId: string | null | undefined, filter: ConversationFilter = {}) {
+  const qs = new URLSearchParams()
+  if (filter.status) qs.set("status", filter.status)
+  if (filter.unread) qs.set("unread", "true")
+  if (filter.channel) qs.set("channel", filter.channel)
+  const path = "/api/w/conversations" + (qs.toString() ? `?${qs.toString()}` : "")
+  return useSWR<{ conversations: Conversation[]; unread_count: number }>(
+    workspaceId ? [path, workspaceId] : null,
+    ([p, id]: [string, string]) => api<{ conversations: Conversation[]; unread_count: number }>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, refreshInterval: 10000 },
+  )
+}
+
+/** One thread. Polls too — a reply from a teammate should appear while you are reading. */
+export function useConversation(workspaceId: string | null | undefined, id?: string) {
+  return useSWR<{ conversation: Conversation; messages: InboxMessage[] }>(
+    workspaceId && id ? [`/api/w/conversations/${encodeURIComponent(id)}`, workspaceId] : null,
+    ([p, ws]: [string, string]) => api<{ conversation: Conversation; messages: InboxMessage[] }>(p, { workspaceId: ws }),
+    { ...noRetryOn4xx, refreshInterval: 10000 },
+  )
+}
+
+export const useChatWidgets = (id?: string | null) => useScoped<{ widgets: ChatWidget[] | null }>("/api/w/chat_widgets", id)

@@ -129,3 +129,28 @@ DROP POLICY IF EXISTS tenant_isolation ON notification_items;
 CREATE POLICY tenant_isolation ON notification_items
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- Inbox. chat_widgets is also read by the owner pool (a.SysDB) in the two public
+-- routes, POST/GET /api/chat/{key}/messages, to resolve which workspace a visitor's
+-- message belongs to before anything runs on the app pool — the same shape as
+-- internal/notifications' webhook receiver and internal/marketing's mail links.
+ALTER TABLE chat_widgets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_widgets FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON chat_widgets;
+CREATE POLICY tenant_isolation ON chat_widgets
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conversations;
+CREATE POLICY tenant_isolation ON conversations
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON messages;
+CREATE POLICY tenant_isolation ON messages
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

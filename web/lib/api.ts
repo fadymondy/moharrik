@@ -304,3 +304,44 @@ export type NotificationItem = {
   read_at: string | null
   saved_at: string | null
 }
+
+// ── Inbox ───────────────────────────────────────────────────────────────
+
+export type ConversationChannel = "chat" | "email" | "whatsapp"
+export type ConversationStatus = "open" | "snoozed" | "closed"
+
+export type Conversation = {
+  id: string
+  channel: ConversationChannel
+  subject: string
+  status: ConversationStatus
+  customer_name: string
+  customer_email: string
+  contact_id: string | null
+  assignee_user_id: string | null
+  unread: boolean
+  last_message_at: string
+  created_at: string
+  preview: string
+  message_count: number
+}
+
+export type InboxMessage = {
+  id: string
+  direction: "in" | "out"
+  author_user_id: string | null
+  author_email: string
+  body: string
+  created_at: string
+}
+
+export type ChatWidget = {
+  id: string
+  name: string
+  public_key: string
+  allowed_origins: string[]
+  enabled: boolean
+  greeting: string
+  embed: string
+  created_at: string
+}

@@ -65,6 +65,13 @@ const (
 	NotificationsRead   = "notifications:read"
 	NotificationsWrite  = "notifications:write"
 	NotificationsManage = "notifications:manage"
+	// Inbox: reading and answering conversations is a member right (answering
+	// customers is the job). Creating a chat widget mints a public key that
+	// decides which origins may write into the workspace, so that is a
+	// manager's call — the same line notifications:manage draws.
+	InboxRead   = "inbox:read"
+	InboxWrite  = "inbox:write"
+	InboxManage = "inbox:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -99,6 +106,12 @@ var Matrix = map[string]Role{
 	NotificationsRead:   Member,
 	NotificationsWrite:  Member,
 	NotificationsManage: Manager,
+	// Inbox: every member reads and answers; only a manager or above creates or
+	// revokes a chat widget, because its public key is what lets an outside site
+	// write into this workspace at all.
+	InboxRead:   Member,
+	InboxWrite:  Member,
+	InboxManage: Manager,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

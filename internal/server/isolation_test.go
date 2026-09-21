@@ -227,11 +227,35 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	itemID := items[0].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID}
+	// Inbox: a chat widget, then a real visitor message through the PUBLIC route,
+	// so the conversation and its message exist the way a visitor would make them.
+	wgt := alice.must("POST", "/api/w/chat_widgets", map[string]any{"name": marker + " Widget", "allowed_origins": []string{"https://iso.test"}}, 201)
+	widgetID := wgt["widget"].(map[string]any)["id"].(string)
+	widgetKey := wgt["widget"].(map[string]any)["public_key"].(string)
+	creq, _ := http.NewRequest("POST", srv.URL+"/api/chat/"+widgetKey+"/messages", bytes.NewReader([]byte(`{"body":"`+marker+` hello","name":"Visitor"}`)))
+	creq.Header.Set("Content-Type", "application/json")
+	creq.Header.Set("Origin", "https://iso.test")
+	cres, err := http.DefaultClient.Do(creq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cres.StatusCode != 201 {
+		b, _ := io.ReadAll(cres.Body)
+		t.Fatalf("POST /api/chat/{key}/messages: got %d want 201: %s", cres.StatusCode, b)
+	}
+	cres.Body.Close()
+	convs := alice.must("GET", "/api/w/conversations", nil, 200)["conversations"].([]any)
+	if len(convs) == 0 {
+		t.Fatal("the visitor message did not produce a conversation")
+	}
+	convID := convs[0].(map[string]any)["id"].(string)
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
 		"webhook_sources": srcID, "notifications": itemID,
+		"chat_widgets": widgetID, "conversations": convID,
 	}
 
 	leaks := func(b []byte) string {

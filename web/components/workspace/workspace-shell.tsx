@@ -9,6 +9,7 @@ import {
   CheckIcon,
   ChevronsUpDownIcon,
   HandshakeIcon,
+  InboxIcon,
   KeyRoundIcon,
   LayoutGridIcon,
   MenuIcon,
@@ -282,6 +283,9 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
       </L>
       <L href={`${base}/campaigns`} icon={<SendIcon />}>
         {t("nav.campaigns")}
+      </L>
+      <L href={`${base}/inbox`} icon={<InboxIcon />}>
+        {t("nav.inbox")}
       </L>
       <L href={`${base}/notifications`} exact icon={<BellIcon />}>
         {t("nav.notifications")}

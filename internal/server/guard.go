@@ -83,6 +83,12 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/hooks/") {
 		return tierPublic
 	}
+	// A visitor writing to (or polling) an embedded chat widget: no session, no
+	// X-Workspace-ID — the widget key in the path plus the Origin allow-list are
+	// the authorization (internal/inbox).
+	if strings.HasPrefix(path, "/api/chat/") {
+		return tierPublic
+	}
 	if strings.HasPrefix(path, "/api/auth/") {
 		return tierPublic // the auth plugin guards its own routes
 	}

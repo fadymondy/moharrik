@@ -1,0 +1,624 @@
+package inbox
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/tenant"
+)
+
+var tags = []string{"Inbox"}
+
+// maxMessage caps one message. Long enough for a real support message, short
+// enough that a scripted visitor cannot fill the database one POST at a time.
+const maxMessage = 8000
+
+func publicBase() string {
+	for _, k := range []string{"PUBLIC_URL", "APP_URL"} {
+		if v := strings.TrimRight(strings.TrimSpace(os.Getenv(k)), "/"); v != "" {
+			return v
+		}
+	}
+	return "http://localhost:3120"
+}
+
+const conversationSelect = `
+	SELECT c.id, c.channel, c.subject, c.status, c.customer_name, c.customer_email, c.contact_id,
+	       c.assignee_user_id, c.unread, c.last_message_at, c.created_at,
+	       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
+	                 ORDER BY m.created_at DESC LIMIT 1), ''),
+	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id)
+	FROM conversations c WHERE c.workspace_id = $1`
+
+func scanConversation(row interface{ Scan(...any) error }) (ConversationOut, error) {
+	var c ConversationOut
+	var contactID, assignee sql.NullString
+	var preview string
+	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
+		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &preview, &c.MessageCount); err != nil {
+		return c, err
+	}
+	c.ContactID = strp(contactID)
+	c.AssigneeUserID = strp(assignee)
+	c.Preview = trim(preview, 140)
+	return c, nil
+}
+
+// Register mounts the inbox endpoints. `a` may be nil (OpenAPI export).
+func Register(api huma.API, a *app.App) {
+	db := func() *sql.DB { return a.SQLDB }
+
+	// ---- conversations -----------------------------------------------------
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-conversations", Method: http.MethodGet, Path: "/api/w/conversations",
+		Summary: "The inbox: conversations, most recent first", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Status  string `query:"status" enum:",open,snoozed,closed"`
+		Unread  bool   `query:"unread" doc:"Only conversations the team has not opened since the last inbound message."`
+		Channel string `query:"channel" enum:",chat,email,whatsapp"`
+		Limit   int    `query:"limit" minimum:"1" maximum:"200"`
+	}) (*body[struct {
+		Conversations []ConversationOut `json:"conversations"`
+		UnreadCount   int64             `json:"unread_count"`
+	}], error) {
+		s, err := scope(ctx, authz.InboxRead)
+		if err != nil {
+			return nil, err
+		}
+		q := conversationSelect
+		args := []any{s.WorkspaceID}
+		if in.Status != "" {
+			args = append(args, in.Status)
+			q += ` AND c.status = $` + strconv.Itoa(len(args))
+		}
+		if in.Channel != "" {
+			args = append(args, in.Channel)
+			q += ` AND c.channel = $` + strconv.Itoa(len(args))
+		}
+		if in.Unread {
+			q += ` AND c.unread`
+		}
+		limit := in.Limit
+		if limit <= 0 {
+			limit = 100
+		}
+		q += ` ORDER BY c.last_message_at DESC LIMIT ` + strconv.Itoa(limit)
+		rows, err := db().QueryContext(ctx, q, args...)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not list conversations")
+		}
+		defer rows.Close()
+		list := []ConversationOut{}
+		for rows.Next() {
+			c, err := scanConversation(rows)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not list conversations")
+			}
+			list = append(list, c)
+		}
+		var unread int64
+		if err := db().QueryRowContext(ctx, `SELECT count(*) FROM conversations WHERE workspace_id = $1 AND unread`, s.WorkspaceID).Scan(&unread); err != nil {
+			return nil, huma.Error500InternalServerError("could not count unread conversations")
+		}
+		return out(struct {
+			Conversations []ConversationOut `json:"conversations"`
+			UnreadCount   int64             `json:"unread_count"`
+		}{list, unread}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-conversation", Method: http.MethodGet, Path: "/api/w/conversations/{id}",
+		Summary: "One conversation and its whole thread (opening it marks it read)", Tags: tags,
+	}, func(ctx context.Context, in *idPath) (*body[struct {
+		Conversation ConversationOut `json:"conversation"`
+		Messages     []MessageOut    `json:"messages"`
+	}], error) {
+		s, err := scope(ctx, authz.InboxRead)
+		if err != nil {
+			return nil, err
+		}
+		row := db().QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, s.WorkspaceID, in.ID)
+		c, err := scanConversation(row)
+		if notFound(err) {
+			return nil, huma.Error404NotFound("conversation not found")
+		} else if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the conversation")
+		}
+		msgs, err := thread(ctx, db(), s.WorkspaceID, in.ID)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the thread")
+		}
+		// Opening a thread is what "read" means here; a member with inbox:read
+		// only is still allowed to clear it — seeing it IS reading it.
+		if c.Unread {
+			_, _ = db().ExecContext(ctx, `UPDATE conversations SET unread = false, updated_at = now() WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
+			c.Unread = false
+		}
+		return out(struct {
+			Conversation ConversationOut `json:"conversation"`
+			Messages     []MessageOut    `json:"messages"`
+		}{c, msgs}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-reply-conversation", Method: http.MethodPost, Path: "/api/w/conversations/{id}/reply",
+		DefaultStatus: http.StatusCreated, Summary: "Reply to a conversation as the signed-in member", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body struct {
+			Body string `json:"body" minLength:"1" maxLength:"8000"`
+		}
+	}) (*body[struct {
+		Message MessageOut `json:"message"`
+	}], error) {
+		s, err := scope(ctx, authz.InboxWrite)
+		if err != nil {
+			return nil, err
+		}
+		text := strings.TrimSpace(in.Body.Body)
+		if text == "" {
+			return nil, huma.Error422UnprocessableEntity("a message is required")
+		}
+		var exists string
+		if err := db().QueryRowContext(ctx, `SELECT id FROM conversations WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID).Scan(&exists); err != nil {
+			if notFound(err) {
+				return nil, huma.Error404NotFound("conversation not found")
+			}
+			return nil, huma.Error500InternalServerError("could not read the conversation")
+		}
+		var id string
+		var createdAt time.Time
+		if err := db().QueryRowContext(ctx, `
+			INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body)
+			VALUES ($1, $2, 'out', $3, $4) RETURNING id, created_at`,
+			s.WorkspaceID, in.ID, s.UserID, text,
+		).Scan(&id, &createdAt); err != nil {
+			return nil, huma.Error500InternalServerError("could not send the reply")
+		}
+		// A reply is the team's answer: the thread stops being unread, and it
+		// reopens a closed conversation rather than replying into a closed one.
+		_, _ = db().ExecContext(ctx, `
+			UPDATE conversations SET last_message_at = now(), unread = false, updated_at = now(),
+			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
+			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
+		uid := s.UserID
+		return out(struct {
+			Message MessageOut `json:"message"`
+		}{MessageOut{ID: id, Direction: "out", AuthorUserID: &uid, AuthorEmail: s.Email, Body: text, CreatedAt: createdAt}}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-update-conversation", Method: http.MethodPatch, Path: "/api/w/conversations/{id}",
+		Summary: "Assign, close, reopen or retitle a conversation, or link it to a CRM contact", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body struct {
+			Status         *string `json:"status,omitempty" enum:"open,snoozed,closed"`
+			AssigneeUserID *string `json:"assignee_user_id,omitempty" doc:"A member's user id; empty string unassigns."`
+			ContactID      *string `json:"contact_id,omitempty" doc:"A CRM contact id; empty string unlinks."`
+			Subject        *string `json:"subject,omitempty" maxLength:"200"`
+			Unread         *bool   `json:"unread,omitempty"`
+		}
+	}) (*body[struct {
+		Conversation ConversationOut `json:"conversation"`
+	}], error) {
+		s, err := scope(ctx, authz.InboxWrite)
+		if err != nil {
+			return nil, err
+		}
+		u := &update{}
+		if in.Body.Status != nil {
+			if !statuses[*in.Body.Status] {
+				return nil, huma.Error422UnprocessableEntity("unknown status")
+			}
+			u.set("status", *in.Body.Status)
+		}
+		if in.Body.AssigneeUserID != nil {
+			if err := checkMember(ctx, db(), s.WorkspaceID, *in.Body.AssigneeUserID); err != nil {
+				return nil, err
+			}
+			u.set("assignee_user_id", nullable(*in.Body.AssigneeUserID))
+		}
+		if in.Body.ContactID != nil {
+			u.set("contact_id", nullable(*in.Body.ContactID))
+		}
+		if in.Body.Subject != nil {
+			u.set("subject", strings.TrimSpace(*in.Body.Subject))
+		}
+		if in.Body.Unread != nil {
+			u.set("unread", *in.Body.Unread)
+		}
+		if len(u.sets) > 0 {
+			res, err := db().ExecContext(ctx, `UPDATE conversations SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
+				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
+			if err != nil {
+				if pgCode(err) == "23503" {
+					return nil, huma.Error422UnprocessableEntity("that contact or member is not in this workspace")
+				}
+				return nil, huma.Error500InternalServerError("could not update the conversation")
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return nil, huma.Error404NotFound("conversation not found")
+			}
+		}
+		row := db().QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, s.WorkspaceID, in.ID)
+		c, err := scanConversation(row)
+		if notFound(err) {
+			return nil, huma.Error404NotFound("conversation not found")
+		} else if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the conversation")
+		}
+		return out(struct {
+			Conversation ConversationOut `json:"conversation"`
+		}{c}), nil
+	})
+
+	// ---- chat widgets ------------------------------------------------------
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-chat-widgets", Method: http.MethodGet, Path: "/api/w/chat_widgets",
+		Summary: "Chat widgets this workspace can embed", Tags: tags,
+	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
+		Widgets []WidgetOut `json:"widgets"`
+	}], error) {
+		s, err := scope(ctx, authz.InboxRead)
+		if err != nil {
+			return nil, err
+		}
+		rows, err := db().QueryContext(ctx, `
+			SELECT id, name, public_key, allowed_origins, enabled, greeting, created_at
+			FROM chat_widgets WHERE workspace_id = $1 ORDER BY lower(name)`, s.WorkspaceID)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not list chat widgets")
+		}
+		defer rows.Close()
+		list := []WidgetOut{}
+		for rows.Next() {
+			var w WidgetOut
+			var origins string
+			if err := rows.Scan(&w.ID, &w.Name, &w.PublicKey, &origins, &w.Enabled, &w.Greeting, &w.CreatedAt); err != nil {
+				return nil, huma.Error500InternalServerError("could not list chat widgets")
+			}
+			w.AllowedOrigins = splitOrigins(origins)
+			w.Embed = embedSnippet(w.PublicKey)
+			list = append(list, w)
+		}
+		return out(struct {
+			Widgets []WidgetOut `json:"widgets"`
+		}{list}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-create-chat-widget", Method: http.MethodPost, Path: "/api/w/chat_widgets",
+		DefaultStatus: http.StatusCreated, Summary: "Create a chat widget (its key is public; the origin allow-list is what protects it)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Body struct {
+			Name           string   `json:"name" minLength:"1" maxLength:"80"`
+			AllowedOrigins []string `json:"allowed_origins,omitempty" doc:"e.g. https://example.com — with none set the widget is blocked."`
+			Greeting       string   `json:"greeting,omitempty" maxLength:"500"`
+		}
+	}) (*body[struct {
+		Widget WidgetOut `json:"widget"`
+	}], error) {
+		s, err := scope(ctx, authz.InboxManage)
+		if err != nil {
+			return nil, err
+		}
+		name := strings.TrimSpace(in.Body.Name)
+		if name == "" {
+			return nil, huma.Error422UnprocessableEntity("a name is required")
+		}
+		key, err := token("cwk_")
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not generate a key")
+		}
+		origins := strings.Join(splitOrigins(strings.Join(in.Body.AllowedOrigins, ",")), ",")
+		var id string
+		if err := db().QueryRowContext(ctx, `
+			INSERT INTO chat_widgets (workspace_id, name, public_key, allowed_origins, greeting, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+			s.WorkspaceID, name, key, origins, strings.TrimSpace(in.Body.Greeting), s.UserID,
+		).Scan(&id); err != nil {
+			return nil, huma.Error500InternalServerError("could not create the chat widget")
+		}
+		return out(struct {
+			Widget WidgetOut `json:"widget"`
+		}{WidgetOut{ID: id, Name: name, PublicKey: key, AllowedOrigins: splitOrigins(origins), Enabled: true,
+			Greeting: strings.TrimSpace(in.Body.Greeting), Embed: embedSnippet(key), CreatedAt: time.Now()}}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-update-chat-widget", Method: http.MethodPatch, Path: "/api/w/chat_widgets/{id}",
+		Summary: "Rename a widget, change its allowed origins or greeting, enable or disable it", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body struct {
+			Name           *string   `json:"name,omitempty" maxLength:"80"`
+			AllowedOrigins *[]string `json:"allowed_origins,omitempty"`
+			Greeting       *string   `json:"greeting,omitempty" maxLength:"500"`
+			Enabled        *bool     `json:"enabled,omitempty"`
+		}
+	}) (*body[struct {
+		Widget WidgetOut `json:"widget"`
+	}], error) {
+		s, err := scope(ctx, authz.InboxManage)
+		if err != nil {
+			return nil, err
+		}
+		u := &update{}
+		if in.Body.Name != nil {
+			n := strings.TrimSpace(*in.Body.Name)
+			if n == "" {
+				return nil, huma.Error422UnprocessableEntity("a name is required")
+			}
+			u.set("name", n)
+		}
+		if in.Body.AllowedOrigins != nil {
+			u.set("allowed_origins", strings.Join(splitOrigins(strings.Join(*in.Body.AllowedOrigins, ",")), ","))
+		}
+		if in.Body.Greeting != nil {
+			u.set("greeting", strings.TrimSpace(*in.Body.Greeting))
+		}
+		if in.Body.Enabled != nil {
+			u.set("enabled", *in.Body.Enabled)
+		}
+		if len(u.sets) > 0 {
+			res, err := db().ExecContext(ctx, `UPDATE chat_widgets SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
+				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not update the chat widget")
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return nil, huma.Error404NotFound("chat widget not found")
+			}
+		}
+		var w WidgetOut
+		var origins string
+		if err := db().QueryRowContext(ctx, `
+			SELECT id, name, public_key, allowed_origins, enabled, greeting, created_at
+			FROM chat_widgets WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID,
+		).Scan(&w.ID, &w.Name, &w.PublicKey, &origins, &w.Enabled, &w.Greeting, &w.CreatedAt); err != nil {
+			if notFound(err) {
+				return nil, huma.Error404NotFound("chat widget not found")
+			}
+			return nil, huma.Error500InternalServerError("could not read the chat widget")
+		}
+		w.AllowedOrigins = splitOrigins(origins)
+		w.Embed = embedSnippet(w.PublicKey)
+		return out(struct {
+			Widget WidgetOut `json:"widget"`
+		}{w}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-delete-chat-widget", Method: http.MethodDelete, Path: "/api/w/chat_widgets/{id}",
+		DefaultStatus: http.StatusNoContent, Summary: "Delete a chat widget (its conversations stay, unlinked)", Tags: tags,
+	}, func(ctx context.Context, in *idPath) (*struct{}, error) {
+		s, err := scope(ctx, authz.InboxManage)
+		if err != nil {
+			return nil, err
+		}
+		res, err := db().ExecContext(ctx, `DELETE FROM chat_widgets WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not delete the chat widget")
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil, huma.Error404NotFound("chat widget not found")
+		}
+		return &struct{}{}, nil
+	})
+
+	registerPublicChat(api, a)
+}
+
+// thread reads a conversation's messages on the app (RLS) pool. It deliberately
+// does NOT join `users` for the author's email: the app role has no grant on
+// that table at all (cmd/migrate REVOKEs it), so the join fails outright. The
+// UI maps author_user_id -> email from /api/w/members, the same way the CRM's
+// useMemberNames does for activity authors and deal owners.
+func thread(ctx context.Context, db *sql.DB, wsID, convID string) ([]MessageOut, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, direction, author_user_id, body, created_at
+		FROM messages WHERE workspace_id = $1 AND conversation_id = $2 ORDER BY created_at LIMIT 500`, wsID, convID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list := []MessageOut{}
+	for rows.Next() {
+		var m MessageOut
+		var author sql.NullString
+		if err := rows.Scan(&m.ID, &m.Direction, &author, &m.Body, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		m.AuthorUserID = strp(author)
+		list = append(list, m)
+	}
+	return list, nil
+}
+
+// checkMember refuses an assignee who is not an active member of the workspace
+// — otherwise a conversation could be parked on someone who cannot see it.
+func checkMember(ctx context.Context, db *sql.DB, wsID, userID string) error {
+	if strings.TrimSpace(userID) == "" {
+		return nil
+	}
+	var n int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM workspace_members WHERE workspace_id = $1 AND user_id = $2 AND status = 'active'`, wsID, userID).Scan(&n); err != nil {
+		return huma.Error500InternalServerError("could not check the assignee")
+	}
+	if n == 0 {
+		return huma.Error422UnprocessableEntity("that person is not an active member of this workspace")
+	}
+	return nil
+}
+
+func embedSnippet(key string) string {
+	return fmt.Sprintf(`<script src="%s/chat/v1.js" data-key="%s" defer></script>`, publicBase(), key)
+}
+
+// ---- public: the chat widget ----------------------------------------------
+//
+// POST/GET /api/chat/{key}/messages have no session and no X-Workspace-ID: the
+// widget's public key in the path plus the browser Origin allow-list ARE the
+// authorization, the same shape internal/notifications uses for /api/hooks/{id}
+// and internal/marketing for its mail links. The key is resolved on the owner
+// pool (the one cross-tenant read), and everything after runs on the app pool
+// scoped to the workspace it resolved to. Both are listed as public prefixes in
+// internal/server/guard.go's classify().
+//
+// A visitor continues their own thread with visitor_token, which the widget
+// keeps in localStorage — unguessable, and scoped to one conversation, so it
+// can read and write that thread and nothing else.
+
+type chatIn struct {
+	Key    string `path:"key"`
+	Origin string `header:"Origin"`
+	Body   struct {
+		Body         string `json:"body" maxLength:"8000"`
+		VisitorToken string `json:"visitor_token,omitempty" doc:"From a previous reply; omit to start a conversation."`
+		Name         string `json:"name,omitempty" maxLength:"120"`
+		Email        string `json:"email,omitempty" maxLength:"200"`
+	}
+}
+
+func registerPublicChat(api huma.API, a *app.App) {
+	// resolve finds the widget's workspace on the owner pool and checks the
+	// browser Origin against its allow-list.
+	resolve := func(ctx context.Context, key, origin string) (string, string, error) {
+		var wsID, id, origins string
+		var enabled bool
+		err := a.SysDB.QueryRowContext(ctx, `SELECT workspace_id, id, allowed_origins, enabled FROM chat_widgets WHERE public_key = $1`, key).
+			Scan(&wsID, &id, &origins, &enabled)
+		if notFound(err) {
+			return "", "", huma.Error404NotFound("this chat widget does not exist")
+		} else if err != nil {
+			return "", "", huma.Error500InternalServerError("could not resolve the chat widget")
+		}
+		if !enabled {
+			return "", "", huma.Error403Forbidden("this chat widget is disabled")
+		}
+		if !originAllowed(origins, origin) {
+			return "", "", huma.Error403Forbidden("this origin is not allowed for this chat widget")
+		}
+		return wsID, id, nil
+	}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "chat-send", Method: http.MethodPost, Path: "/api/chat/{key}/messages",
+		DefaultStatus: http.StatusCreated, Summary: "A visitor writes (public: the widget key plus the Origin allow-list are the authorization)", Tags: tags,
+	}, func(ctx context.Context, in *chatIn) (*body[struct {
+		VisitorToken string `json:"visitor_token" doc:"Keep this to continue the conversation."`
+		Sent         bool   `json:"sent"`
+	}], error) {
+		text := strings.TrimSpace(in.Body.Body)
+		if text == "" {
+			return nil, huma.Error422UnprocessableEntity("a message is required")
+		}
+		if len(text) > maxMessage {
+			return nil, huma.Error400BadRequest("that message is too long")
+		}
+		wsID, widgetID, err := resolve(ctx, in.Key, in.Origin)
+		if err != nil {
+			return nil, err
+		}
+		sctx := tenant.WithWorkspace(ctx, wsID)
+
+		convID := ""
+		visitor := strings.TrimSpace(in.Body.VisitorToken)
+		if visitor != "" {
+			// Their own thread, or nothing — the token is scoped to one conversation.
+			err := a.SQLDB.QueryRowContext(sctx, `SELECT id FROM conversations WHERE workspace_id = $1 AND visitor_token = $2`, wsID, visitor).Scan(&convID)
+			if notFound(err) {
+				return nil, huma.Error404NotFound("that conversation is not available")
+			} else if err != nil {
+				return nil, huma.Error500InternalServerError("could not read the conversation")
+			}
+		} else {
+			visitor, err = token("cvt_")
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not start the conversation")
+			}
+			if err := a.SQLDB.QueryRowContext(sctx, `
+				INSERT INTO conversations (workspace_id, channel, widget_id, customer_name, customer_email, visitor_token, subject, last_message_at, unread)
+				VALUES ($1, 'chat', $2, $3, $4, $5, $6, now(), true) RETURNING id`,
+				wsID, widgetID, strings.TrimSpace(in.Body.Name), strings.TrimSpace(in.Body.Email), visitor, trim(text, 80),
+			).Scan(&convID); err != nil {
+				return nil, huma.Error500InternalServerError("could not start the conversation")
+			}
+		}
+		if _, err := a.SQLDB.ExecContext(sctx, `
+			INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ($1, $2, 'in', $3)`,
+			wsID, convID, text); err != nil {
+			return nil, huma.Error500InternalServerError("could not send the message")
+		}
+		// An inbound message makes the thread unread for the team again.
+		_, _ = a.SQLDB.ExecContext(sctx, `UPDATE conversations SET last_message_at = now(), unread = true, updated_at = now(),
+			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
+			WHERE workspace_id = $1 AND id = $2`, wsID, convID)
+
+		return out(struct {
+			VisitorToken string `json:"visitor_token" doc:"Keep this to continue the conversation."`
+			Sent         bool   `json:"sent"`
+		}{visitor, true}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "chat-poll", Method: http.MethodGet, Path: "/api/chat/{key}/messages",
+		Summary: "The visitor's own thread (public: the widget key, the Origin allow-list and the visitor token)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		Key          string `path:"key"`
+		Origin       string `header:"Origin"`
+		VisitorToken string `query:"visitor_token"`
+	}) (*body[struct {
+		Messages []MessageOut `json:"messages"`
+		Status   string       `json:"status"`
+	}], error) {
+		wsID, _, err := resolve(ctx, in.Key, in.Origin)
+		if err != nil {
+			return nil, err
+		}
+		visitor := strings.TrimSpace(in.VisitorToken)
+		if visitor == "" {
+			return nil, huma.Error422UnprocessableEntity("visitor_token is required")
+		}
+		sctx := tenant.WithWorkspace(ctx, wsID)
+		var convID, status string
+		if err := a.SQLDB.QueryRowContext(sctx, `SELECT id, status FROM conversations WHERE workspace_id = $1 AND visitor_token = $2`, wsID, visitor).Scan(&convID, &status); err != nil {
+			if notFound(err) {
+				return nil, huma.Error404NotFound("that conversation is not available")
+			}
+			return nil, huma.Error500InternalServerError("could not read the conversation")
+		}
+		msgs, err := thread(sctx, a.SQLDB, wsID, convID)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the thread")
+		}
+		// The visitor sees who wrote, not who the agent is: emails of staff are
+		// not the visitor's business.
+		for i := range msgs {
+			msgs[i].AuthorEmail = ""
+			msgs[i].AuthorUserID = nil
+		}
+		return out(struct {
+			Messages []MessageOut `json:"messages"`
+			Status   string       `json:"status"`
+		}{msgs, status}), nil
+	})
+}
