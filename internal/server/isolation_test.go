@@ -103,6 +103,16 @@ func (c *client) do(method, path string, body any) (int, []byte) {
 		c.t.Fatal(err)
 	}
 	defer res.Body.Close()
+
+	// /api/w/events is the one route whose success is an OPEN CONNECTION: it
+	// streams until the caller goes away, so reading it to EOF never returns
+	// and the whole sweep hangs (it did, for ten minutes, before this).
+	// Reading the headers is exactly what the sweep needs anyway — the tier
+	// checks are about the status code, and a refusal arrives in the status.
+	if strings.Contains(req.URL.Path, "/api/w/events") {
+		return res.StatusCode, nil
+	}
+
 	b, _ := io.ReadAll(res.Body)
 	return res.StatusCode, b
 }

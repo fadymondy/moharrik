@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -97,7 +97,7 @@ func Collect(ctx context.Context, a *app.App, src Source) (int, error) {
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT (workspace_id, source_id, external_id) WHERE source_id IS NOT NULL DO NOTHING`,
 			src.WorkspaceID, src.ID, src.Name, item.ExternalID, trimTo(item.Title, 400), item.URL,
-			item.Summary, trimTo(item.Author, 200), pgArray(ids), item.PublishedAt)
+			item.Summary, trimTo(item.Author, 200), pgtext.Literal(ids), item.PublishedAt)
 		if err != nil {
 			return fail("could not store an item: " + err.Error())
 		}
@@ -122,7 +122,7 @@ func loadTopics(ctx context.Context, db *sql.DB, wsID string) ([]Topic, error) {
 	var out []Topic
 	for rows.Next() {
 		var t Topic
-		var kw pgTextArray
+		var kw pgtext.Array
 		if err := rows.Scan(&t.ID, &t.Name, &kw); err != nil {
 			return nil, err
 		}
@@ -202,75 +202,4 @@ func StartCollector(a *app.App, interval, staleAfter time.Duration, perTick int)
 		}
 	}()
 	return cancel
-}
-
-// ---- small pg helpers -----------------------------------------------------
-
-// pgTextArray scans a Postgres text[] without pulling in a driver-specific type.
-type pgTextArray []string
-
-func (a *pgTextArray) Scan(src any) error {
-	*a = nil
-	var s string
-	switch v := src.(type) {
-	case nil:
-		return nil
-	case string:
-		s = v
-	case []byte:
-		s = string(v)
-	default:
-		return fmt.Errorf("trends: cannot scan %T into text[]", src)
-	}
-	s = strings.TrimSpace(s)
-	if len(s) < 2 || s[0] != '{' || s[len(s)-1] != '}' {
-		return nil
-	}
-	s = s[1 : len(s)-1]
-	if s == "" {
-		return nil
-	}
-	for _, part := range splitPGArray(s) {
-		*a = append(*a, part)
-	}
-	return nil
-}
-
-// splitPGArray splits on commas that are not inside quotes, and unquotes.
-func splitPGArray(s string) []string {
-	var out []string
-	var cur strings.Builder
-	inQuotes, escaped := false, false
-	for _, r := range s {
-		switch {
-		case escaped:
-			cur.WriteRune(r)
-			escaped = false
-		case r == '\\':
-			escaped = true
-		case r == '"':
-			inQuotes = !inQuotes
-		case r == ',' && !inQuotes:
-			out = append(out, cur.String())
-			cur.Reset()
-		default:
-			cur.WriteRune(r)
-		}
-	}
-	out = append(out, cur.String())
-	return out
-}
-
-// pgArray renders []string as a Postgres array literal.
-func pgArray(vals []string) string {
-	if len(vals) == 0 {
-		return "{}"
-	}
-	parts := make([]string, 0, len(vals))
-	for _, v := range vals {
-		v = strings.ReplaceAll(v, `\`, `\\`)
-		v = strings.ReplaceAll(v, `"`, `\"`)
-		parts = append(parts, `"`+v+`"`)
-	}
-	return "{" + strings.Join(parts, ",") + "}"
 }

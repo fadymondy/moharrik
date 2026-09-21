@@ -1,6 +1,7 @@
 package trends
 
 import (
+	"github.com/fadymondy/moharrik/internal/pgtext"
 	"strings"
 	"testing"
 	"time"
@@ -127,7 +128,7 @@ func TestMatchTopics(t *testing.T) {
 func TestPGTextArrayRoundTrip(t *testing.T) {
 	// The array literal the driver hands back, including a value with a comma
 	// and one with a quote — the two that break a naive split.
-	var a pgTextArray
+	var a pgtext.Array
 	if err := a.Scan(`{plain,"has, comma","say \"hi\""}`); err != nil {
 		t.Fatal(err)
 	}
@@ -141,15 +142,15 @@ func TestPGTextArrayRoundTrip(t *testing.T) {
 		}
 	}
 
-	var empty pgTextArray
+	var empty pgtext.Array
 	if err := empty.Scan("{}"); err != nil || len(empty) != 0 {
 		t.Errorf("empty array = %q, err %v", empty, err)
 	}
 
-	if got := pgArray([]string{`a"b`, "c,d"}); got != `{"a\"b","c,d"}` {
+	if got := pgtext.Literal([]string{`a"b`, "c,d"}); got != `{"a\"b","c,d"}` {
 		t.Errorf("pgArray = %s", got)
 	}
-	if got := pgArray(nil); got != "{}" {
-		t.Errorf("pgArray(nil) = %s", got)
+	if got := pgtext.Literal(nil); got != "{}" {
+		t.Errorf("pgtext.Literal(nil) = %s", got)
 	}
 }

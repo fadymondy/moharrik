@@ -77,6 +77,15 @@ const (
 	// the same line notifications:manage and inbox:manage draw.
 	TrendsRead   = "trends:read"
 	TrendsManage = "trends:manage"
+	// Automation. The line is drawn harder here than anywhere else in this file,
+	// because these browsers are already signed into someone's mail, bank and
+	// work tools: seeing what ran is a member right, but STARTING a run is a
+	// manager right, and pairing a browser, changing where it may be driven, or
+	// lifting the kill switch is an admin right. A wrong guess elsewhere in this
+	// file leaks a list; a wrong guess here drives somebody's signed-in browser.
+	AutomationRead   = "automation:read"
+	AutomationRun    = "automation:run"
+	AutomationManage = "automation:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -114,11 +123,14 @@ var Matrix = map[string]Role{
 	// Inbox: every member reads and answers; only a manager or above creates or
 	// revokes a chat widget, because its public key is what lets an outside site
 	// write into this workspace at all.
-	InboxRead:    Member,
-	InboxWrite:   Member,
-	InboxManage:  Manager,
-	TrendsRead:   Member,
-	TrendsManage: Manager,
+	InboxRead:        Member,
+	InboxWrite:       Member,
+	InboxManage:      Manager,
+	TrendsRead:       Member,
+	TrendsManage:     Manager,
+	AutomationRead:   Member,
+	AutomationRun:    Manager,
+	AutomationManage: Admin,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

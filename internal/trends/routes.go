@@ -14,6 +14,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -336,7 +337,7 @@ func Register(api huma.API, a *app.App) {
 		list := []TopicOut{}
 		for rows.Next() {
 			var t TopicOut
-			var kw pgTextArray
+			var kw pgtext.Array
 			if err := rows.Scan(&t.ID, &t.Name, &kw, &t.Enabled, &t.CreatedAt, &t.ItemCount); err != nil {
 				return nil, huma.Error500InternalServerError("could not list topics")
 			}
@@ -528,7 +529,7 @@ func Register(api huma.API, a *app.App) {
 			var n NewsOut
 			var src sql.NullString
 			var saved sql.NullTime
-			var topics pgTextArray
+			var topics pgtext.Array
 			if err := rows.Scan(&n.ID, &src, &n.SourceName, &n.Title, &n.URL, &n.Summary, &n.Author, &topics, &n.PublishedAt, &saved); err != nil {
 				return nil, huma.Error500InternalServerError("could not list the timeline")
 			}
@@ -608,7 +609,7 @@ func getSource(ctx context.Context, db *sql.DB, wsID, id string) (SourceOut, err
 
 func getTopic(ctx context.Context, db *sql.DB, wsID, id string) (TopicOut, error) {
 	var t TopicOut
-	var kw pgTextArray
+	var kw pgtext.Array
 	err := db.QueryRowContext(ctx, `
 		SELECT t.id, t.name, t.keywords, t.enabled, t.created_at,
 		       (SELECT count(*) FROM news_items n WHERE n.workspace_id = t.workspace_id AND t.id = ANY (n.topic_ids))

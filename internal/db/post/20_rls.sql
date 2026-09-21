@@ -178,3 +178,42 @@ DROP POLICY IF EXISTS tenant_isolation ON news_items;
 CREATE POLICY tenant_isolation ON news_items
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- Automation. The socket resolves a browser by token hash on the OWNER pool
+-- (it arrives with no workspace in hand), then everything it does runs on the
+-- app pool inside tenant.WithWorkspace — so these policies apply to a browser's
+-- own traffic exactly as they do to a request from the web app.
+ALTER TABLE browser_agents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE browser_agents FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON browser_agents;
+CREATE POLICY tenant_isolation ON browser_agents
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE agent_pairings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agent_pairings FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON agent_pairings;
+CREATE POLICY tenant_isolation ON agent_pairings
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE automation_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE automation_runs FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON automation_runs;
+CREATE POLICY tenant_isolation ON automation_runs
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE automation_run_steps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE automation_run_steps FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON automation_run_steps;
+CREATE POLICY tenant_isolation ON automation_run_steps
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE automation_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE automation_settings FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON automation_settings;
+CREATE POLICY tenant_isolation ON automation_settings
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

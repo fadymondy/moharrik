@@ -89,6 +89,15 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/chat/") {
 		return tierPublic
 	}
+	// The browser socket and the pairing handshake: no session and no
+	// X-Workspace-ID, because the extension has neither yet. The socket
+	// authenticates with a token in its FIRST FRAME (a browser WebSocket cannot
+	// set headers), and pairing can only create a REQUEST that does nothing
+	// until an admin of that workspace approves it on screen. Same shape as
+	// /api/hooks/ and /api/chat/ above.
+	if path == "/api/agents/ws" || strings.HasPrefix(path, "/api/agents/pair") {
+		return tierPublic
+	}
 	if strings.HasPrefix(path, "/api/auth/") {
 		return tierPublic // the auth plugin guards its own routes
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/crm"
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
@@ -54,6 +55,19 @@ func Boot() *app.App {
 	installProblemReports(k) // outermost: sees what the guard and handlers answer
 	installChatCORS(k)       // before the guard: a preflight carries no session
 	installGuard(k, a)
+
+	// The registry of connected browsers, created BEFORE the routes: the
+	// automation handlers are handed it at registration time, so a hub made
+	// afterwards is a nil pointer in every one of them. (It was, once — the
+	// isolation sweep caught it.)
+	//
+	// The socket itself is mounted on the router rather than through huma: a
+	// WebSocket upgrade is not a request/response body. It sits in the guard's
+	// PUBLIC tier because the extension has no session and cannot set headers —
+	// the token in its first frame is the authentication (internal/automation/ws.go).
+	agentHub := automation.NewHub(k.Log)
+	automation.SetDefault(agentHub)
+	k.Router.Get("/api/agents/ws", agentHub.Handler(a))
 
 	api := humachi.New(k.Router, huma.DefaultConfig("Moharrik API", "0.1.0"))
 	registerREST(api, a)
@@ -105,6 +119,7 @@ func registerREST(api huma.API, a *app.App) {
 	notifications.Register(api, a)
 	inbox.Register(api, a)
 	trends.Register(api, a)
+	automation.Register(api, a, automation.Default())
 	mcp.RegisterTokenRoutes(api, a)
 }
 
