@@ -146,6 +146,7 @@ func registerREST(api huma.API, a *app.App) {
 	trends.Register(api, a)
 	automation.Register(api, a, automation.Default())
 	automation.RegisterSchedules(api, a, automation.Default())
+	automation.RegisterWorkflows(api, a, automation.Default())
 	mcp.RegisterTokenRoutes(api, a)
 }
 

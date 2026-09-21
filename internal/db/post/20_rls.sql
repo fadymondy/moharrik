@@ -247,3 +247,11 @@ DROP POLICY IF EXISTS tenant_isolation ON automation_schedules;
 CREATE POLICY tenant_isolation ON automation_schedules
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- Saved workflows.
+ALTER TABLE automation_workflows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE automation_workflows FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON automation_workflows;
+CREATE POLICY tenant_isolation ON automation_workflows
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

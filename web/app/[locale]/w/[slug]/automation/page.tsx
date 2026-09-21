@@ -17,10 +17,10 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type AutomationRun, type AutomationSchedule, type BrowserAgent } from "@/lib/api"
+import { api, ApiError, type AutomationRun, type AutomationSchedule, type AutomationWorkflow, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useWorkspaceEvents } from "@/lib/events"
-import { useAutomationSettings, useBrowsers, useRuns, useSchedules } from "@/lib/queries"
+import { useAutomationSettings, useBrowsers, useRuns, useSchedules, useWorkflows } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
 export default function AutomationPage() {
@@ -34,6 +34,7 @@ export default function AutomationPage() {
   const settings = useAutomationSettings(ws.id)
   const runs = useRuns(ws.id)
   const schedules = useSchedules(ws.id)
+  const workflows = useWorkflows(ws.id)
 
   // A schedule fires with nobody watching, by definition. Without this a page
   // left open showed "waiting" long after the run had finished, because
@@ -135,6 +136,38 @@ export default function AutomationPage() {
         ) : null}
 
         {canManage ? <ApproveForm onApproved={() => browsers.mutate()} /> : null}
+      </section>
+
+      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+
+      {/* ---- workflows ---- */}
+      <section>
+        <h2 className="px-6 pb-1 text-base font-medium">{t("automation.workflows")}</h2>
+        <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.workflowsHint")}</p>
+
+        {workflows.error ? (
+          <ErrorState error={workflows.error} />
+        ) : workflows.isLoading ? (
+          <LoadingRows rows={2} />
+        ) : (workflows.data?.workflows ?? []).length === 0 ? (
+          <EmptyState title={t("automation.noWorkflows")} body={canRun ? t("automation.noWorkflowsBody") : undefined} />
+        ) : (
+          <ul className="divide-y divide-line border-y border-line">
+            {(workflows.data?.workflows ?? []).map((w) => (
+              <WorkflowRow
+                key={w.id}
+                workflow={w}
+                browsers={list.filter((b) => !b.revoked_at)}
+                canRun={canRun}
+                onChange={() => {
+                  workflows.mutate()
+                  runs.mutate()
+                }}
+              />
+            ))}
+          </ul>
+        )}
+        {canRun ? <AddWorkflow onAdded={() => workflows.mutate()} /> : null}
       </section>
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
@@ -630,6 +663,207 @@ function AddSchedule({ browsers, onAdded }: { browsers: BrowserAgent[]; onAdded:
           <Button type="submit" disabled={busy || !name.trim()}>
             <PlusIcon />
             {busy ? t("common.working") : t("automation.addSchedule")}
+          </Button>
+        </div>
+      </FieldGroup>
+      {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+    </form>
+  )
+}
+
+function WorkflowRow({
+  workflow,
+  browsers,
+  canRun,
+  onChange,
+}: {
+  workflow: AutomationWorkflow
+  browsers: BrowserAgent[]
+  canRun: boolean
+  onChange: () => void
+}) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [open, setOpen] = useState(false)
+  const [agent, setAgent] = useState(browsers[0]?.id ?? "")
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  // Every placeholder the steps use, whether or not someone remembered to
+  // declare it: a workflow edited to add one should still be runnable.
+  const fields = workflow.placeholders.map((name) => workflow.params.find((p) => p.name === name) ?? { name })
+
+  async function run(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setErr(null)
+    try {
+      await api(`/api/w/workflows/${encodeURIComponent(workflow.id)}/run`, {
+        json: { agent_id: agent, values },
+        workspaceId: ws.id,
+      })
+      toast.success(t("automation.runStarted"))
+      setOpen(false)
+      onChange()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove() {
+    await api(`/api/w/workflows/${encodeURIComponent(workflow.id)}`, { method: "DELETE", workspaceId: ws.id })
+    toast.success(t("automation.workflowDeleted"))
+    onChange()
+  }
+
+  return (
+    <li className="px-6 py-4" data-workflow={workflow.name}>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{workflow.name}</p>
+          {workflow.description ? <p className="text-sm text-grid-muted">{workflow.description}</p> : null}
+          <p className="text-xs text-grid-muted">
+            {t("automation.stepCount", { n: workflow.steps.length })}
+            {workflow.placeholders.length > 0 ? ` · ${t("automation.asksFor", { names: workflow.placeholders.join(", ") })}` : ""}
+            {workflow.run_count > 0 ? ` · ${t("automation.ranTimes", { n: workflow.run_count })}` : ""}
+          </p>
+        </div>
+        {canRun ? (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)} disabled={browsers.length === 0}>
+              <PlayIcon />
+              {t("automation.useIt")}
+            </Button>
+            <ConfirmButton
+              label={t("common.delete")}
+              title={t("automation.deleteWorkflowTitle")}
+              description={t("automation.deleteWorkflowBody", { name: workflow.name })}
+              confirmLabel={t("common.delete")}
+              onConfirm={remove}
+            />
+          </div>
+        ) : null}
+      </div>
+
+      {open ? (
+        <form onSubmit={run} className="mt-3" data-form="run-workflow">
+          <FieldGroup>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor={`wf-agent-${workflow.id}`}>{t("automation.browsers")}</FieldLabel>
+                <PickSelect id={`wf-agent-${workflow.id}`} value={agent} onChange={setAgent} options={browsers.map((b) => ({ value: b.id, label: b.name }))} />
+              </Field>
+              {fields.map((f) => (
+                <Field key={f.name}>
+                  <FieldLabel htmlFor={`wf-${workflow.id}-${f.name}`}>
+                    {("label" in f && f.label) || f.name}
+                    {"required" in f && f.required ? "" : ` (${t("common.optional")})`}
+                  </FieldLabel>
+                  <Input
+                    id={`wf-${workflow.id}-${f.name}`}
+                    type={"secret" in f && f.secret ? "password" : "text"}
+                    autoComplete={"secret" in f && f.secret ? "new-password" : undefined}
+                    value={values[f.name] ?? ("default" in f ? (f.default ?? "") : "")}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                  />
+                  {"secret" in f && f.secret ? <FieldDescription>{t("automation.secretHint")}</FieldDescription> : null}
+                </Field>
+              ))}
+            </div>
+            <div>
+              <Button type="submit" disabled={busy || !agent}>
+                {busy ? t("common.working") : t("automation.startRun")}
+              </Button>
+            </div>
+          </FieldGroup>
+          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+        </form>
+      ) : null}
+    </li>
+  )
+}
+
+function AddWorkflow({ onAdded }: { onAdded: () => void }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [steps, setSteps] = useState('[{"command":"goto","args":{"url":"https://example.com/{{page}}"}}]')
+  const [secrets, setSecrets] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setErr(null)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(steps)
+    } catch {
+      setErr(t("automation.stepsNotJson"))
+      return
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      setErr(t("automation.stepsNotArray"))
+      return
+    }
+    // Every placeholder becomes a parameter; the ones named here are marked
+    // secret so their values never reach the run record.
+    const secretNames = secrets.split(",").map((x) => x.trim()).filter(Boolean)
+    const used = [...new Set((JSON.stringify(parsed).match(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g) ?? []).map((m) => m.replace(/[{}\s]/g, "")))]
+    const params = used.map((n) => ({ name: n, required: true, secret: secretNames.includes(n) }))
+
+    setBusy(true)
+    try {
+      await api("/api/w/workflows", {
+        json: { name: name.trim(), description: description.trim(), steps: parsed, params },
+        workspaceId: ws.id,
+      })
+      toast.success(t("automation.workflowSaved"))
+      setName("")
+      setDescription("")
+      onAdded()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="px-6 pt-6" data-form="workflow">
+      <FieldGroup>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="wf-name">{t("automation.workflowName")}</FieldLabel>
+            <Input id="wf-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="wf-desc">
+              {t("automation.workflowDescription")} <span className="text-grid-muted">({t("common.optional")})</span>
+            </FieldLabel>
+            <Input id="wf-desc" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={400} />
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor="wf-steps">{t("automation.steps")}</FieldLabel>
+          <Textarea id="wf-steps" dir="ltr" rows={3} className="font-mono text-xs" value={steps} onChange={(e) => setSteps(e.target.value)} />
+          <FieldDescription>{t("automation.workflowStepsHint")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="wf-secrets">
+            {t("automation.secretParams")} <span className="text-grid-muted">({t("common.optional")})</span>
+          </FieldLabel>
+          <Input id="wf-secrets" dir="ltr" value={secrets} onChange={(e) => setSecrets(e.target.value)} placeholder="password, token" />
+          <FieldDescription>{t("automation.secretParamsHint")}</FieldDescription>
+        </Field>
+        <div>
+          <Button type="submit" disabled={busy || !name.trim()}>
+            <PlusIcon />
+            {busy ? t("common.working") : t("automation.saveWorkflow")}
           </Button>
         </div>
       </FieldGroup>

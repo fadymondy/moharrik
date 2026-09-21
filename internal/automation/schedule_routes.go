@@ -78,7 +78,10 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 			Cron     string `json:"cron" minLength:"1" maxLength:"100" doc:"Five-field cron, or a descriptor like @daily."`
 			Timezone string `json:"timezone,omitempty" maxLength:"60" doc:"IANA name. Defaults to UTC."`
 			CatchUp  string `json:"catch_up,omitempty" enum:"skip,once" doc:"What to do when the browser was shut at the due time."`
-			Steps    []Step `json:"steps" maxItems:"200"`
+			Steps    []Step `json:"steps,omitempty" maxItems:"200" doc:"The steps to run. Leave empty and give workflow_id instead."`
+			// A schedule either carries its own steps or runs a saved workflow.
+			WorkflowID string            `json:"workflow_id,omitempty"`
+			Values     map[string]string `json:"values,omitempty" doc:"Values for the workflow's placeholders."`
 		}
 	}) (*body[struct {
 		Schedule Schedule `json:"schedule"`
@@ -91,6 +94,25 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		catchUp := firstNonEmpty(in.Body.CatchUp, CatchUpSkip)
 		if err := ValidateSchedule(in.Body.Cron, zone, catchUp); err != nil {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+
+		// A workflow's steps are filled in here too, so the allow-list check
+		// below sees the hosts this schedule will ACTUALLY visit rather than a
+		// placeholder that could be anything.
+		steps2 := in.Body.Steps
+		if in.Body.WorkflowID != "" {
+			w, err := getWorkflow(ctx, db(), s.WorkspaceID, in.Body.WorkflowID)
+			if err != nil {
+				return nil, err
+			}
+			filled, _, ferr := Fill(w.Steps, w.Params, in.Body.Values)
+			if ferr != nil {
+				return nil, huma.Error422UnprocessableEntity(ferr.Error())
+			}
+			steps2 = filled
+		}
+		if len(steps2) == 0 {
+			return nil, huma.Error422UnprocessableEntity("a schedule needs steps, or a workflow to run")
 		}
 
 		// The steps are checked against the browser's allow-list NOW, not only
@@ -109,7 +131,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		if revoked.Valid {
 			return nil, huma.Error409Conflict(ErrRevoked.Error())
 		}
-		if err := CheckSteps(in.Body.Steps, hosts); err != nil {
+		if err := CheckSteps(steps2, hosts); err != nil {
 			return nil, runError(err)
 		}
 
@@ -124,10 +146,11 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 
 		var id string
 		err = db().QueryRowContext(ctx, `
-			INSERT INTO automation_schedules (workspace_id, name, agent_id, steps, cron, timezone, catch_up, next_run_at, created_by)
-			VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9) RETURNING id`,
+			INSERT INTO automation_schedules (workspace_id, name, agent_id, steps, cron, timezone, catch_up, next_run_at, created_by, workflow_id, params)
+			VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING id`,
 			s.WorkspaceID, strings.TrimSpace(in.Body.Name), in.Body.AgentID, string(steps),
-			strings.TrimSpace(in.Body.Cron), zone, catchUp, next, s.UserID).Scan(&id)
+			strings.TrimSpace(in.Body.Cron), zone, catchUp, next, s.UserID,
+			in.Body.WorkflowID, jsonOrEmpty(in.Body.Values)).Scan(&id)
 		if pgCode(err) == "23505" {
 			return nil, huma.Error409Conflict("a schedule with that name already exists")
 		}
@@ -288,4 +311,17 @@ func getSchedule(ctx context.Context, db *sql.DB, workspaceID, id string) (Sched
 	x.NextRunAt = &n
 	x.LastRunAt = timep(last)
 	return x, nil
+}
+
+// jsonOrEmpty renders a value map for storage, never NULL: the scheduler reads
+// this column into a map and a NULL would be one more nil to handle.
+func jsonOrEmpty(v map[string]string) string {
+	if len(v) == 0 {
+		return "{}"
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return "{}"
+	}
+	return string(raw)
 }

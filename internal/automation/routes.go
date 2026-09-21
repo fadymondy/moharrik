@@ -729,6 +729,10 @@ func runError(err error) error {
 	case errors.Is(err, ErrHostNotAllowed):
 		return huma.Error422UnprocessableEntity(err.Error())
 	}
+	var missing *MissingParam
+	if errors.As(err, &missing) {
+		return huma.Error422UnprocessableEntity(missing.Error())
+	}
 	var se *StepError
 	if errors.As(err, &se) {
 		return huma.Error422UnprocessableEntity(se.Error())

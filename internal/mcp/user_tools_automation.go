@@ -192,3 +192,99 @@ func AutomationTools() []Tool {
 		},
 	}
 }
+
+// WorkflowTools: a model runs a PREPARED sequence rather than composing raw
+// steps. That is the safer shape — the steps were written and saved by a
+// person, and the model only supplies values — and it is why start_workflow
+// exists alongside start_browser_run rather than replacing it.
+func WorkflowTools() []Tool {
+	return []Tool{
+		{
+			Name:        "list_workflows",
+			Description: "Saved workflows: what each one does, and the values it asks for.",
+			Scope:       "automation:read",
+			InputSchema: schema(nil, nil),
+			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
+				s, ok := tenant.From(ctx)
+				if !ok {
+					return "", errNotFound
+				}
+				rows, err := a.SQLDB.QueryContext(ctx, `
+					SELECT id, name, description, params::text, run_count
+					FROM automation_workflows WHERE workspace_id = $1 ORDER BY created_at DESC`, s.WorkspaceID)
+				if err != nil {
+					return "", err
+				}
+				defer rows.Close()
+
+				var b strings.Builder
+				n := 0
+				for rows.Next() {
+					var id, name, desc, params string
+					var runs int
+					if err := rows.Scan(&id, &name, &desc, &params, &runs); err != nil {
+						return "", err
+					}
+					var ps []automation.Param
+					_ = json.Unmarshal([]byte(params), &ps)
+					var names []string
+					for _, p := range ps {
+						label := p.Name
+						if p.Required {
+							label += " (required)"
+						}
+						if p.Secret {
+							label += " (secret)"
+						}
+						names = append(names, label)
+					}
+					fmt.Fprintf(&b, "%s  %s\n", id, name)
+					if desc != "" {
+						fmt.Fprintf(&b, "    %s\n", desc)
+					}
+					if len(names) > 0 {
+						fmt.Fprintf(&b, "    values: %s\n", strings.Join(names, ", "))
+					}
+					n++
+				}
+				if n == 0 {
+					return "This workspace has no saved workflows yet.", nil
+				}
+				return b.String(), nil
+			},
+		},
+		{
+			Name:        "start_workflow",
+			Description: "Run a saved workflow on a paired browser, supplying values for its placeholders.",
+			Scope:       "automation:run",
+			InputSchema: schema([]string{"workflow_id", "browser_id"}, map[string]any{
+				"workflow_id": map[string]any{"type": "string", "description": "From list_workflows"},
+				"browser_id":  map[string]any{"type": "string", "description": "From list_browsers"},
+				"values":      map[string]any{"type": "object", "description": "Values for the workflow's placeholders"},
+			}),
+			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
+				s, ok := tenant.From(ctx)
+				if !ok {
+					return "", errNotFound
+				}
+				var in struct {
+					WorkflowID string            `json:"workflow_id"`
+					BrowserID  string            `json:"browser_id"`
+					Values     map[string]string `json:"values"`
+				}
+				if err := json.Unmarshal(args, &in); err != nil {
+					return "", err
+				}
+				hub := automation.Default()
+				if hub == nil {
+					return "", errors.New("the browser registry is not running")
+				}
+				runID, err := automation.RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, in.WorkflowID, in.BrowserID, "mcp", in.Values)
+				if err != nil {
+					return "", err
+				}
+				return "Run " + runID + " started. Read it with get_browser_run.", nil
+			},
+		},
+	}
+}

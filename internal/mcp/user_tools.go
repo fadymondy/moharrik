@@ -67,6 +67,7 @@ func UserTools() []Tool {
 	tools = append(tools, MarketingTools()...)
 	tools = append(tools, NotificationTools()...)
 	tools = append(tools, AutomationTools()...)
+	tools = append(tools, WorkflowTools()...)
 	return tools
 }
 

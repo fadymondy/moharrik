@@ -150,6 +150,10 @@ type due struct {
 	LastStatus  string
 	Steps       []Step
 	RequestedBy string
+	// A schedule either carries its own steps or names a saved workflow and
+	// the values to fill it with (MH-233).
+	WorkflowID string
+	Values     map[string]string
 }
 
 // Tick fires everything due at `now`. Exported so the tests drive the clock
@@ -159,7 +163,8 @@ func (h *Hub) Tick(ctx context.Context, a *app.App, now time.Time) {
 	// by definition cross-tenant. Everything each schedule then does runs on
 	// the app pool inside its own workspace.
 	rows, err := a.SysDB.QueryContext(ctx, `
-		SELECT id, workspace_id, agent_id, cron, timezone, catch_up, last_status, steps::text, created_by
+		SELECT id, workspace_id, agent_id, cron, timezone, catch_up, last_status, steps::text, created_by,
+		       workflow_id, params::text
 		FROM automation_schedules
 		WHERE enabled AND next_run_at <= $1
 		ORDER BY next_run_at LIMIT 100`, now)
@@ -171,11 +176,13 @@ func (h *Hub) Tick(ctx context.Context, a *app.App, now time.Time) {
 	var list []due
 	for rows.Next() {
 		var d due
-		var steps string
-		if err := rows.Scan(&d.ID, &d.WorkspaceID, &d.AgentID, &d.Cron, &d.Timezone, &d.CatchUp, &d.LastStatus, &steps, &d.RequestedBy); err != nil {
+		var steps, values string
+		if err := rows.Scan(&d.ID, &d.WorkspaceID, &d.AgentID, &d.Cron, &d.Timezone, &d.CatchUp, &d.LastStatus, &steps, &d.RequestedBy,
+			&d.WorkflowID, &values); err != nil {
 			continue
 		}
 		_ = json.Unmarshal([]byte(steps), &d.Steps)
+		_ = json.Unmarshal([]byte(values), &d.Values)
 		list = append(list, d)
 	}
 	for _, d := range list {
@@ -228,7 +235,14 @@ func (h *Hub) fire(ctx context.Context, a *app.App, d due, now time.Time) {
 		return
 	}
 
-	runID, err := h.Start(ctx, a, d.WorkspaceID, d.RequestedBy, "schedule", d.AgentID, d.Steps)
+	var runID string
+	if d.WorkflowID != "" {
+		// A saved workflow: its placeholders are filled from the values stored
+		// on the schedule, and the run keeps the redacted copy.
+		runID, err = RunWorkflow(ctx, a, h, d.WorkspaceID, d.RequestedBy, d.WorkflowID, d.AgentID, "schedule", d.Values)
+	} else {
+		runID, err = h.Start(ctx, a, d.WorkspaceID, d.RequestedBy, "schedule", d.AgentID, d.Steps)
+	}
 	if err != nil {
 		// Paused, busy, off the allow-list: the guardrails answer here exactly
 		// as they do for a person, and their words are what gets recorded.

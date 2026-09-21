@@ -8,6 +8,7 @@ import {
   type AgentPairing,
   type AutomationRun,
   type AutomationSchedule,
+  type AutomationWorkflow,
   type AutomationSettings,
   type BrowserAgent,
   type MailboxSettings,
@@ -246,3 +247,5 @@ export const useMailbox = (id?: string | null) => useScoped<MailboxSettings>("/a
 export const useWhatsApp = (id?: string | null) => useScoped<WhatsAppLink>("/api/w/whatsapp", id)
 
 export const useSchedules = (id?: string | null) => useScoped<{ schedules: AutomationSchedule[] | null }>("/api/w/schedules", id)
+
+export const useWorkflows = (id?: string | null) => useScoped<{ workflows: AutomationWorkflow[] | null }>("/api/w/workflows", id)

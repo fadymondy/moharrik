@@ -492,3 +492,25 @@ export type AutomationSchedule = {
   last_run_id: string
   created_at: string
 }
+
+
+export type WorkflowParam = {
+  name: string
+  label?: string
+  required?: boolean
+  /** Redacted from the run record. */
+  secret?: boolean
+  default?: string
+}
+
+export type AutomationWorkflow = {
+  id: string
+  name: string
+  description: string
+  steps: { command: string; args?: Record<string, unknown> }[]
+  params: WorkflowParam[]
+  /** Every {{placeholder}} the steps actually use. */
+  placeholders: string[]
+  run_count: number
+  created_at: string
+}
