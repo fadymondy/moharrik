@@ -217,3 +217,13 @@ DROP POLICY IF EXISTS tenant_isolation ON automation_settings;
 CREATE POLICY tenant_isolation ON automation_settings
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- The inbox's email channel. The IMAP collector runs on the app pool inside
+-- tenant.WithWorkspace, one workspace at a time, so this policy applies to it
+-- exactly as it does to a request.
+ALTER TABLE mailboxes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mailboxes FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON mailboxes;
+CREATE POLICY tenant_isolation ON mailboxes
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

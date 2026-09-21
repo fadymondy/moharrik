@@ -173,19 +173,35 @@ func Register(api huma.API, a *app.App) {
 		if text == "" {
 			return nil, huma.Error422UnprocessableEntity("a message is required")
 		}
-		var exists string
-		if err := db().QueryRowContext(ctx, `SELECT id FROM conversations WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID).Scan(&exists); err != nil {
+		var channel, customerEmail, subject string
+		if err := db().QueryRowContext(ctx, `
+			SELECT channel, customer_email, subject FROM conversations WHERE workspace_id = $1 AND id = $2`,
+			s.WorkspaceID, in.ID).Scan(&channel, &customerEmail, &subject); err != nil {
 			if notFound(err) {
 				return nil, huma.Error404NotFound("conversation not found")
 			}
 			return nil, huma.Error500InternalServerError("could not read the conversation")
 		}
+
+		// An email thread is answered by EMAIL, and the send happens before the
+		// row is written: a reply the customer never received must not sit in
+		// the thread looking sent. Chat is the other way round (the widget polls
+		// for it), which is why this is here rather than after the insert.
+		var sentID string
+		if channel == "email" {
+			sentID, err = SendEmailReply(ctx, a, s.WorkspaceID, in.ID, customerEmail, subject, text)
+			if err != nil {
+				return nil, mailError(err)
+			}
+		}
 		var id string
 		var createdAt time.Time
+		// sentID is the Message-ID this reply went out with: storing it is what
+		// lets the customer's answer thread back onto this conversation.
 		if err := db().QueryRowContext(ctx, `
-			INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body)
-			VALUES ($1, $2, 'out', $3, $4) RETURNING id, created_at`,
-			s.WorkspaceID, in.ID, s.UserID, text,
+			INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body, external_id)
+			VALUES ($1, $2, 'out', $3, $4, $5) RETURNING id, created_at`,
+			s.WorkspaceID, in.ID, s.UserID, text, sentID,
 		).Scan(&id, &createdAt); err != nil {
 			return nil, huma.Error500InternalServerError("could not send the reply")
 		}

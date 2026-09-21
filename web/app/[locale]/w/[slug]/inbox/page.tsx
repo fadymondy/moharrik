@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { MessageSquareIcon, SettingsIcon } from "lucide-react"
+import { MessageSquareIcon, SettingsIcon, MailIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
@@ -63,10 +63,16 @@ export default function InboxPage() {
         description={t("inbox.hint")}
         action={
           canManage ? (
-            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/widgets`} />}>
-              <SettingsIcon />
-              {t("inbox.widgets")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/email`} />}>
+                <MailIcon />
+                {t("mailbox.title")}
+              </Button>
+              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/widgets`} />}>
+                <SettingsIcon />
+                {t("inbox.widgets")}
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -187,6 +193,14 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-6 py-4">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{c.customer_name || c.customer_email || t("inbox.anonymous")}</p>
+          {/* On an email thread the SUBJECT is what the thread is about, and it
+              was nowhere on this page — the e2e caught that. Chat has no
+              subject worth showing, so it is only rendered when there is one. */}
+          {c.subject ? (
+            <p className="truncate text-sm text-grid-fg" data-thread-subject>
+              {c.subject}
+            </p>
+          ) : null}
           <p className="truncate text-xs text-grid-muted">
             {t(`inbox.channel.${c.channel}`)}
             {c.customer_email ? (

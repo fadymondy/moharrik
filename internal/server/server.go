@@ -81,6 +81,13 @@ func Boot() *app.App {
 		trends.StartCollector(a, 5*time.Minute, 20*time.Minute, 25)
 	}
 
+	// The inbox's mail collector: one in-process ticker polling the mailboxes
+	// that are due. MAIL_COLLECTOR=off turns it off — the tests and the OpenAPI
+	// export must not open a connection to anyone's mail server.
+	if os.Getenv("MAIL_COLLECTOR") != "off" {
+		inbox.StartMailCollector(a, 2*time.Minute, 20)
+	}
+
 	gql := handler.NewDefaultServer(graphgen.NewExecutableSchema(graphgen.Config{
 		Resolvers: &resolvers.Resolver{App: a},
 	}))
@@ -118,6 +125,7 @@ func registerREST(api huma.API, a *app.App) {
 	crm.Register(api, a)
 	notifications.Register(api, a)
 	inbox.Register(api, a)
+	inbox.RegisterMailbox(api, a)
 	trends.Register(api, a)
 	automation.Register(api, a, automation.Default())
 	mcp.RegisterTokenRoutes(api, a)

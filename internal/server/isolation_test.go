@@ -160,6 +160,11 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	t.Setenv("DB_DRIVER", "pgx")
 	t.Setenv("AUTH_SECRET", "isolation-test-secret-isolation-test-secret-0123")
 	t.Setenv("STORAGE_DIR", t.TempDir())
+	// No background collector reaches out to the internet or to a mail server
+	// from a test. Without these two the sweep still passes, but it opens
+	// sockets nobody asked for and its timing depends on them.
+	t.Setenv("TRENDS_COLLECTOR", "off")
+	t.Setenv("MAIL_COLLECTOR", "off")
 
 	// Migrate the test database exactly as `togo migrate` would.
 	k0 := togo.New()

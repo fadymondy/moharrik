@@ -9,6 +9,7 @@ import {
   type AutomationRun,
   type AutomationSettings,
   type BrowserAgent,
+  type MailboxSettings,
   type RunStep,
   type Activity,
   type Campaign,
@@ -237,3 +238,5 @@ export function useRun(workspaceId: string | null | undefined, id?: string) {
     },
   )
 }
+
+export const useMailbox = (id?: string | null) => useScoped<MailboxSettings>("/api/w/mailbox", id)

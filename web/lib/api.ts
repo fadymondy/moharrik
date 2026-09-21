@@ -443,3 +443,20 @@ export type AutomationRun = {
   finished_at: string | null
   created_at: string
 }
+
+// ── Inbox: the email channel ────────────────────────────────────────────
+
+export type MailboxSettings = {
+  configured: boolean
+  host: string
+  port: number
+  username: string
+  /** The password is write-only; this only says whether one is stored. */
+  has_password: boolean
+  tls_mode: "tls" | "starttls" | "none"
+  folder: string
+  enabled: boolean
+  last_polled_at: string | null
+  last_error: string
+  message_count: number
+}
