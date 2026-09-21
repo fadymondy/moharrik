@@ -268,3 +268,39 @@ export type ContactDetail = {
   created_at: string
   subscriptions: Subscription[]
 }
+
+// ── Notification center ─────────────────────────────────────────────────
+
+export type WebhookSourceKind = "generic" | "github" | "sentry"
+
+export type WebhookSource = {
+  id: string
+  name: string
+  kind: WebhookSourceKind
+  enabled: boolean
+  url: string
+  delivery_count: number
+  last_delivery_at: string | null
+  last_error: string
+  last_error_at: string | null
+  rotated_at: string
+  created_at: string
+}
+
+export type NotificationSeverity = "info" | "warning" | "error"
+
+export type NotificationItem = {
+  id: string
+  source_id: string | null
+  source_name: string
+  kind: string
+  severity: NotificationSeverity
+  title: string
+  body: string
+  actor: string
+  url: string
+  payload: string
+  occurred_at: string
+  read_at: string | null
+  saved_at: string | null
+}

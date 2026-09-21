@@ -22,6 +22,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/mcp"
+	"github.com/fadymondy/moharrik/internal/notifications"
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/tenant"
@@ -76,6 +77,7 @@ func registerREST(api huma.API, a *app.App) {
 	workspaces.Register(api, a)
 	marketing.Register(api, a)
 	crm.Register(api, a)
+	notifications.Register(api, a)
 	mcp.RegisterTokenRoutes(api, a)
 }
 

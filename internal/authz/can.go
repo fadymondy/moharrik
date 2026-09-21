@@ -58,6 +58,13 @@ const (
 	// contacts:read / contacts:write — the MCP scopes of the same names already
 	// promise "CRM contacts, companies and leads" (internal/mcp/scopes.go).
 	PipelineManage = "pipeline:manage"
+	// Notifications: reading the feed, marking read and saving is a member
+	// right, analogous to contacts:read/write. Creating, renaming, disabling,
+	// rotating or deleting a webhook source is a manager right, analogous to
+	// pipeline:manage — it changes what a whole workspace collects.
+	NotificationsRead   = "notifications:read"
+	NotificationsWrite  = "notifications:write"
+	NotificationsManage = "notifications:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -85,6 +92,13 @@ var Matrix = map[string]Role{
 	// the stages shape everyone's board, so renaming or reordering them is a
 	// manager's call.
 	PipelineManage: Manager,
+	// Notifications: every member reads the feed and marks/saves items; only a
+	// manager or above creates, renames, disables, rotates or deletes a
+	// webhook source (it decides what the whole workspace collects, and a
+	// secret is shown once at that moment).
+	NotificationsRead:   Member,
+	NotificationsWrite:  Member,
+	NotificationsManage: Manager,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

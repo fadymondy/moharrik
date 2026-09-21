@@ -25,7 +25,9 @@ Run it with a dedicated database (it creates users and workspaces):
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -196,10 +198,40 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	dealID := alice.must("POST", "/api/w/deals", map[string]any{"title": marker + " deal", "value_minor": 1000, "contact_id": ctID, "company_id": coID}, 201)["deal"].(map[string]any)["id"].(string)
 	actID := alice.must("POST", "/api/w/activities", map[string]any{"kind": "task", "body": marker + " task", "deal_id": dealID}, 201)["activity"].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID}
+	// Notifications: a webhook source, then a real signed delivery through the
+	// PUBLIC /api/hooks/{id} route — proving the whole path (signature check,
+	// workspace resolution, insert scoped by that workspace) rather than just
+	// the authenticated CRUD around it.
+	hookCreate := alice.must("POST", "/api/w/webhook_sources", map[string]any{"name": marker + " Hook"}, 201)
+	srcID := hookCreate["source"].(map[string]any)["id"].(string)
+	secret := hookCreate["secret"].(string)
+	rawBody := []byte(`{"title":"` + marker + ` alert"}`)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(rawBody)
+	sig := hex.EncodeToString(mac.Sum(nil))
+	hreq, _ := http.NewRequest("POST", srv.URL+"/api/hooks/"+srcID, bytes.NewReader(rawBody))
+	hreq.Header.Set("Content-Type", "application/json")
+	hreq.Header.Set("X-Webhook-Signature", "sha256="+sig)
+	hres, err := http.DefaultClient.Do(hreq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hres.StatusCode != 202 {
+		b, _ := io.ReadAll(hres.Body)
+		t.Fatalf("POST /api/hooks/%s: got %d want 202: %s", srcID, hres.StatusCode, b)
+	}
+	hres.Body.Close()
+	items := alice.must("GET", "/api/w/notifications", nil, 200)["items"].([]any)
+	if len(items) == 0 {
+		t.Fatal("the signed delivery did not produce a notification item")
+	}
+	itemID := items[0].(map[string]any)["id"].(string)
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
+		"webhook_sources": srcID, "notifications": itemID,
 	}
 
 	leaks := func(b []byte) string {

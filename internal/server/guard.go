@@ -76,6 +76,13 @@ func classify(r *http.Request) tier {
 	case "/api/invitations/accept":
 		return tierSignedIn
 	}
+	// A webhook delivery: no session, no X-Workspace-ID — the id in the path
+	// plus its HMAC signature over the raw body are the authorization
+	// (internal/notifications). Same shape as the mail links above, just a
+	// prefix instead of two exact paths because the source id varies.
+	if strings.HasPrefix(path, "/api/hooks/") {
+		return tierPublic
+	}
 	if strings.HasPrefix(path, "/api/auth/") {
 		return tierPublic // the auth plugin guards its own routes
 	}

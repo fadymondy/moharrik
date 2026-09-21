@@ -20,7 +20,9 @@ import {
   type McpScope,
   type McpToken,
   type Member,
+  type NotificationItem,
   type User,
+  type WebhookSource,
   type WorkspaceSummary,
 } from "@/lib/api"
 
@@ -107,3 +109,24 @@ export const useDeals = (id?: string | null) => useScoped<{ deals: Deal[]; stage
 
 export const useDeal = (wsId?: string | null, id?: string) =>
   useScoped<{ deal: Deal; activities: Activity[] }>(`/api/w/deals/${encodeURIComponent(id ?? "")}`, wsId, !!id)
+
+// ── Notifications ────────────────────────────────────────────────────────
+
+export const useWebhookSources = (id?: string | null) => useScoped<{ sources: WebhookSource[] | null }>("/api/w/webhook_sources", id)
+
+export type NotificationFilter = { unread?: boolean; saved?: boolean; sourceId?: string; severity?: string }
+
+/** The notification feed. Query params vary per filter, so this bypasses useScoped's fixed path. */
+export function useNotifications(workspaceId: string | null | undefined, filter: NotificationFilter = {}) {
+  const qs = new URLSearchParams()
+  if (filter.unread) qs.set("unread", "true")
+  if (filter.saved) qs.set("saved", "true")
+  if (filter.sourceId) qs.set("source_id", filter.sourceId)
+  if (filter.severity) qs.set("severity", filter.severity)
+  const path = "/api/w/notifications" + (qs.toString() ? `?${qs.toString()}` : "")
+  return useSWR<{ items: NotificationItem[]; unread_count: number }>(
+    workspaceId ? [path, workspaceId] : null,
+    ([p, id]: [string, string]) => api<{ items: NotificationItem[]; unread_count: number }>(p, { workspaceId: id }),
+    noRetryOn4xx,
+  )
+}

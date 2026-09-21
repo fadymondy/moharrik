@@ -111,3 +111,21 @@ DROP POLICY IF EXISTS tenant_isolation ON activities;
 CREATE POLICY tenant_isolation ON activities
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- Notifications. webhook_sources is also read by the owner pool (a.SysDB) in
+-- the one public route, POST /api/hooks/{id}, to resolve which workspace a
+-- delivery belongs to before anything runs on the app pool — see
+-- internal/notifications/webhook.go for why that is safe.
+ALTER TABLE webhook_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE webhook_sources FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON webhook_sources;
+CREATE POLICY tenant_isolation ON webhook_sources
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE notification_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_items FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON notification_items;
+CREATE POLICY tenant_isolation ON notification_items
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

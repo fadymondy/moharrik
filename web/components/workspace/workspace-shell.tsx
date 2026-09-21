@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
+  BellIcon,
   Building2Icon,
   CheckIcon,
   ChevronsUpDownIcon,
@@ -18,6 +19,7 @@ import {
   PlusIcon,
   SendIcon,
   ServerIcon,
+  WebhookIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -281,12 +283,18 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
       <L href={`${base}/campaigns`} icon={<SendIcon />}>
         {t("nav.campaigns")}
       </L>
+      <L href={`${base}/notifications`} exact icon={<BellIcon />}>
+        {t("nav.notifications")}
+      </L>
       <L href={`${base}/members`} icon={<UsersIcon />}>
         {t("nav.members")}
       </L>
       {mini ? <div className="mt-3 border-t border-line pt-3" /> : <p className="grid-micro mt-4 border-t border-line px-4 pt-4 pb-1">{t("nav.settings")}</p>}
       <L href={`${base}/settings/email`} icon={<ServerIcon />}>
         {t("nav.email")}
+      </L>
+      <L href={`${base}/notifications/sources`} icon={<WebhookIcon />}>
+        {t("notifications.sources")}
       </L>
       <L href={`${base}/settings/mcp`} icon={<KeyRoundIcon />}>
         {t("nav.mcpTokens")}
