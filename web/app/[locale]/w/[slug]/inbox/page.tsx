@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { MessageSquareIcon, SettingsIcon, MailIcon } from "lucide-react"
+import { MessageSquareIcon, SettingsIcon, MailIcon, MessageCircleIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
@@ -67,6 +67,10 @@ export default function InboxPage() {
               <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/email`} />}>
                 <MailIcon />
                 {t("mailbox.title")}
+              </Button>
+              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/whatsapp`} />}>
+                <MessageCircleIcon />
+                {t("whatsapp.title")}
               </Button>
               <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/widgets`} />}>
                 <SettingsIcon />

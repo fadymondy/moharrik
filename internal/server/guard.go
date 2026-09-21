@@ -98,6 +98,13 @@ func classify(r *http.Request) tier {
 	if path == "/api/agents/ws" || strings.HasPrefix(path, "/api/agents/pair") {
 		return tierPublic
 	}
+	// A WhatsApp delivery from the Evolution server: no session and no
+	// X-Workspace-ID. The unguessable id in the path plus the token it sends
+	// back in a header are the authorization (internal/whatsapp/routes.go) —
+	// the same shape as /api/hooks/ and /api/chat/.
+	if strings.HasPrefix(path, "/api/whatsapp/hook/") {
+		return tierPublic
+	}
 	if strings.HasPrefix(path, "/api/auth/") {
 		return tierPublic // the auth plugin guards its own routes
 	}

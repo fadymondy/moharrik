@@ -16,6 +16,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
+	"github.com/fadymondy/moharrik/internal/whatsapp"
 )
 
 var tags = []string{"Inbox"}
@@ -173,10 +174,10 @@ func Register(api huma.API, a *app.App) {
 		if text == "" {
 			return nil, huma.Error422UnprocessableEntity("a message is required")
 		}
-		var channel, customerEmail, subject string
+		var channel, customerEmail, customerPhone, subject string
 		if err := db().QueryRowContext(ctx, `
-			SELECT channel, customer_email, subject FROM conversations WHERE workspace_id = $1 AND id = $2`,
-			s.WorkspaceID, in.ID).Scan(&channel, &customerEmail, &subject); err != nil {
+			SELECT channel, customer_email, customer_phone, subject FROM conversations WHERE workspace_id = $1 AND id = $2`,
+			s.WorkspaceID, in.ID).Scan(&channel, &customerEmail, &customerPhone, &subject); err != nil {
 			if notFound(err) {
 				return nil, huma.Error404NotFound("conversation not found")
 			}
@@ -188,10 +189,18 @@ func Register(api huma.API, a *app.App) {
 		// the thread looking sent. Chat is the other way round (the widget polls
 		// for it), which is why this is here rather than after the insert.
 		var sentID string
-		if channel == "email" {
+		switch channel {
+		case "email":
 			sentID, err = SendEmailReply(ctx, a, s.WorkspaceID, in.ID, customerEmail, subject, text)
 			if err != nil {
 				return nil, mailError(err)
+			}
+		case "whatsapp":
+			// Same rule as email: send first, write the row after. A reply the
+			// customer never received must not sit in the thread looking sent.
+			sentID, err = whatsapp.Send(ctx, a, s.WorkspaceID, customerPhone, text)
+			if err != nil {
+				return nil, whatsappError(err)
 			}
 		}
 		var id string

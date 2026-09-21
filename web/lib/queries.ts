@@ -10,6 +10,7 @@ import {
   type AutomationSettings,
   type BrowserAgent,
   type MailboxSettings,
+  type WhatsAppLink,
   type RunStep,
   type Activity,
   type Campaign,
@@ -240,3 +241,5 @@ export function useRun(workspaceId: string | null | undefined, id?: string) {
 }
 
 export const useMailbox = (id?: string | null) => useScoped<MailboxSettings>("/api/w/mailbox", id)
+
+export const useWhatsApp = (id?: string | null) => useScoped<WhatsAppLink>("/api/w/whatsapp", id)

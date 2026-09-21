@@ -460,3 +460,16 @@ export type MailboxSettings = {
   last_error: string
   message_count: number
 }
+
+export type WhatsAppLink = {
+  linked: boolean
+  /** Read live from the WhatsApp server, not from our row. */
+  state: "open" | "connecting" | "close" | string
+  phone: string
+  qr_base64?: string
+  qr_code?: string
+  last_error: string
+  linked_at: string | null
+  /** false when this deployment has no WhatsApp server configured at all. */
+  available: boolean
+}

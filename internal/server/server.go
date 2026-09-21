@@ -32,6 +32,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
+	"github.com/fadymondy/moharrik/internal/whatsapp"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 )
 
@@ -81,6 +82,13 @@ func Boot() *app.App {
 		trends.StartCollector(a, 5*time.Minute, 20*time.Minute, 25)
 	}
 
+	// The WhatsApp webhook, and the inbox's own "file this message" handed to
+	// it: neither package imports the other, so the wiring happens here.
+	whatsapp.RegisterHook(k.Router, a)
+	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string) error {
+		return inbox.FileWhatsApp(ctx, a, workspaceID, phone, name, text, externalID)
+	})
+
 	// The inbox's mail collector: one in-process ticker polling the mailboxes
 	// that are due. MAIL_COLLECTOR=off turns it off — the tests and the OpenAPI
 	// export must not open a connection to anyone's mail server.
@@ -126,6 +134,7 @@ func registerREST(api huma.API, a *app.App) {
 	notifications.Register(api, a)
 	inbox.Register(api, a)
 	inbox.RegisterMailbox(api, a)
+	whatsapp.Register(api, a)
 	trends.Register(api, a)
 	automation.Register(api, a, automation.Default())
 	mcp.RegisterTokenRoutes(api, a)

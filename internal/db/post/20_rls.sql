@@ -227,3 +227,13 @@ DROP POLICY IF EXISTS tenant_isolation ON mailboxes;
 CREATE POLICY tenant_isolation ON mailboxes
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- The inbox's WhatsApp channel. The public webhook resolves the workspace from
+-- the unguessable id in its URL on the OWNER pool, then everything it does runs
+-- on the app pool inside that workspace — the same shape as a chat widget.
+ALTER TABLE whatsapp_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE whatsapp_links FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON whatsapp_links;
+CREATE POLICY tenant_isolation ON whatsapp_links
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
