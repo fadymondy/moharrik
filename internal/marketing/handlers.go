@@ -160,8 +160,10 @@ func publicBase() string {
 	return "http://localhost:3120"
 }
 
-// loadSMTP resolves the workspace's service on the app pool.
-func loadSMTP(ctx context.Context, db *sql.DB, wsID string) (*SMTP, error) {
+// LoadSMTP resolves the workspace's service on the app pool. Exported so the
+// MCP send_campaign tool resolves it exactly the way the REST route does,
+// rather than reimplementing the unsealing.
+func LoadSMTP(ctx context.Context, db *sql.DB, wsID string) (*SMTP, error) {
 	var s SMTP
 	var sealed string
 	err := db.QueryRowContext(ctx, `
@@ -183,7 +185,7 @@ func loadSMTP(ctx context.Context, db *sql.DB, wsID string) (*SMTP, error) {
 // sendConfirmation delivers the double opt-in email. The row is written first:
 // a mail server being down must not lose the subscription.
 func sendConfirmation(ctx context.Context, db *sql.DB, wsID, email, locale, listName, token string) error {
-	svc, err := loadSMTP(ctx, db, wsID)
+	svc, err := LoadSMTP(ctx, db, wsID)
 	if err != nil {
 		return err
 	}
@@ -710,14 +712,14 @@ func Register(api huma.API, a *app.App) {
 		}
 		// Resolve the service before accepting, so a misconfiguration is reported
 		// to the caller rather than discovered halfway through a list.
-		svc, err := loadSMTP(ctx, a.SQLDB, s.WorkspaceID)
+		svc, err := LoadSMTP(ctx, a.SQLDB, s.WorkspaceID)
 		if errors.Is(err, ErrNoService) {
 			return nil, huma.Error409Conflict("configure SMTP for this workspace before sending")
 		}
 		if err != nil {
 			return nil, huma.Error500InternalServerError(err.Error())
 		}
-		if err := startSend(ctx, a, s.WorkspaceID, in.ID, svc); err != nil {
+		if err := StartSend(ctx, a, s.WorkspaceID, in.ID, svc); err != nil {
 			return nil, err
 		}
 		c, err := getCampaign(ctx, a.SQLDB, s.WorkspaceID, in.ID)
@@ -840,7 +842,7 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
 		}
-		svc, err := loadSMTP(ctx, a.SQLDB, s.WorkspaceID)
+		svc, err := LoadSMTP(ctx, a.SQLDB, s.WorkspaceID)
 		if errors.Is(err, ErrNoService) {
 			return nil, huma.Error409Conflict("save the SMTP settings first")
 		}
@@ -938,10 +940,12 @@ func Register(api huma.API, a *app.App) {
 	})
 }
 
-// startSend claims the campaign (draft/failed -> sending, atomically, so two
-// clicks cannot double-send) and delivers in the background. Progress lands on
+// StartSend claims the campaign (draft/failed -> sending, atomically, so two
+// clicks — or a click and an agent — cannot double-send) and delivers in the
+// background. Exported for internal/mcp's send_campaign: one send worker, not
+// a second thinner copy that drifts from this one. Progress lands on
 // the row, so "how far has it got" is a read, not a held connection.
-func startSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SMTP) error {
+func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SMTP) error {
 	var listID, subject, bodyMD, locale string
 	err := a.SQLDB.QueryRowContext(ctx, `
 		UPDATE campaigns SET status = 'sending', sent_count = 0, failed_count = 0, last_error = '', updated_at = now()
