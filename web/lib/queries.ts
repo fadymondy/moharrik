@@ -5,6 +5,11 @@ import useSWR from "swr"
 import {
   api,
   ApiError,
+  type AgentPairing,
+  type AutomationRun,
+  type AutomationSettings,
+  type BrowserAgent,
+  type RunStep,
   type Activity,
   type Campaign,
   type Company,
@@ -193,5 +198,42 @@ export function useNews(workspaceId: string | null | undefined, filter: NewsFilt
     workspaceId ? [path, workspaceId] : null,
     ([p, id]: [string, string]) => api<{ items: NewsItem[]; total: number }>(p, { workspaceId: id }),
     noRetryOn4xx,
+  )
+}
+
+// ── Automation ───────────────────────────────────────────────────────────
+
+export const useBrowsers = (id?: string | null) =>
+  useScoped<{ browsers: BrowserAgent[] | null; pairings: AgentPairing[] | null }>("/api/w/browsers", id)
+
+export const useAutomationSettings = (id?: string | null) =>
+  useScoped<AutomationSettings>("/api/w/automation/settings", id)
+
+/**
+ * Recent runs. A run that is queued or going is polled: it is driven by a
+ * browser out in the world, so nothing on this side can push an event when a
+ * step finishes. Once everything has settled the polling stops.
+ */
+export function useRuns(workspaceId: string | null | undefined, agent?: string) {
+  const path = "/api/w/runs" + (agent ? `?agent=${encodeURIComponent(agent)}` : "")
+  return useSWR<{ runs: AutomationRun[] }>(
+    workspaceId ? [path, workspaceId] : null,
+    ([p, id]: [string, string]) => api<{ runs: AutomationRun[] }>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) => ((data?.runs ?? []).some((r) => r.status === "queued" || r.status === "running") ? 2000 : 0),
+    },
+  )
+}
+
+/** One run with its steps. Polled while it is still going, for the same reason. */
+export function useRun(workspaceId: string | null | undefined, id?: string) {
+  return useSWR<{ run: AutomationRun; steps: RunStep[] }>(
+    workspaceId && id ? [`/api/w/runs/${encodeURIComponent(id)}`, workspaceId] : null,
+    ([p, ws]: [string, string]) => api<{ run: AutomationRun; steps: RunStep[] }>(p, { workspaceId: ws }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) => (data?.run.status === "queued" || data?.run.status === "running" ? 1500 : 0),
+    },
   )
 }

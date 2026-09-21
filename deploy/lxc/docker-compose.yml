@@ -15,8 +15,17 @@ services:
     env_file: .env.prod
     environment:
       PORT: "3120"
+      # The API binds all interfaces INSIDE the container so the port below can
+      # be published. It is published on the LXC's internal address only, so it
+      # is reachable from NPM (10.10.10.100) and from nowhere else.
+      ADDR: "0.0.0.0:8120"
     ports:
       - "0.0.0.0:3120:3120"
+      # The browser socket (MH-61) cannot go through the web app: /api/* is a
+      # Next rewrite, and a Next rewrite cannot carry a protocol upgrade — it
+      # answers 500. NPM routes the single path /api/agents/ws straight here.
+      # Everything else still goes through :3120.
+      - "10.10.10.121:8121:8120"
     volumes:
       # Uploads, mail (.eml) and logs survive a redeploy (force-recreate).
       - moharrik-storage:/app/storage

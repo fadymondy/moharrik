@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -106,6 +108,20 @@ func (w *statusWriter) Flush() {
 }
 
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// Hijack passes the connection through, which is what lets a WebSocket upgrade
+// happen underneath this middleware. Without it the wrapper silently hides the
+// underlying Hijacker and gorilla answers 500 — the browser socket
+// (/api/agents/ws) failed exactly that way, and the failure looks like a server
+// bug rather than a missing method.
+func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, http.ErrNotSupported
+	}
+	w.status, w.wroteHeader = http.StatusSwitchingProtocols, true
+	return h.Hijack()
+}
 
 type onceWindow struct {
 	mu     sync.Mutex

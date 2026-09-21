@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   BellIcon,
+  BotIcon,
   Building2Icon,
   CheckIcon,
   ChevronsUpDownIcon,
@@ -287,6 +288,9 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
       </L>
       <L href={`${base}/inbox`} icon={<InboxIcon />}>
         {t("nav.inbox")}
+      </L>
+      <L href={`${base}/automation`} icon={<BotIcon />}>
+        {t("nav.automation")}
       </L>
       <L href={`${base}/trends`} exact icon={<TrendingUpIcon />}>
         {t("nav.trends")}

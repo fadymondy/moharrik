@@ -382,3 +382,64 @@ export type NewsItem = {
   published_at: string
   saved_at: string | null
 }
+
+// ── Automation ──────────────────────────────────────────────────────────
+
+export type BrowserAgent = {
+  id: string
+  name: string
+  platform: string
+  browser_version: string
+  extension_version: string
+  /** Live, from the socket registry — not the last value written to the row. */
+  status: "online" | "offline"
+  /** Empty allows nothing. */
+  allowed_hosts: string[]
+  token_prefix: string
+  last_seen_at: string
+  revoked_at: string | null
+  created_at: string
+}
+
+export type AgentPairing = {
+  id: string
+  requested_name: string
+  platform: string
+  ip: string
+  status: string
+  expires_at: string
+  created_at: string
+}
+
+export type AutomationSettings = {
+  paused: boolean
+  reason: string
+  paused_at: string | null
+  paused_by: string
+}
+
+export type RunStep = {
+  position: number
+  command: string
+  args: string
+  status: "pending" | "ok" | "failed" | "skipped"
+  summary: string
+  result: string
+  error: string
+  duration_ms: number
+}
+
+export type AutomationRun = {
+  id: string
+  agent_id: string
+  agent_name: string
+  trigger: string
+  requested_by: string
+  status: "queued" | "running" | "ok" | "failed" | "cancelled"
+  error: string
+  step_count: number
+  ok_count: number
+  started_at: string | null
+  finished_at: string | null
+  created_at: string
+}
