@@ -17,13 +17,14 @@ import (
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/crm"
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
+	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/mcp"
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/tenant"
-	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 )
 
@@ -74,6 +75,7 @@ func registerREST(api huma.API, a *app.App) {
 	rest.RegisterRoutes(api, a) // generated CRUD — behind the guard's workspace tier
 	workspaces.Register(api, a)
 	marketing.Register(api, a)
+	crm.Register(api, a)
 	mcp.RegisterTokenRoutes(api, a)
 }
 

@@ -83,3 +83,31 @@ DROP POLICY IF EXISTS tenant_isolation ON smtp_settings;
 CREATE POLICY tenant_isolation ON smtp_settings
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE companies FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON companies;
+CREATE POLICY tenant_isolation ON companies
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE pipeline_stages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pipeline_stages FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON pipeline_stages;
+CREATE POLICY tenant_isolation ON pipeline_stages
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE deals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deals FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON deals;
+CREATE POLICY tenant_isolation ON deals
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activities FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON activities;
+CREATE POLICY tenant_isolation ON activities
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

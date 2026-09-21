@@ -187,9 +187,19 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	if err := a.SysDB.QueryRow(`SELECT id FROM workspace_members WHERE workspace_id = $1`, aID).Scan(&memberID); err != nil {
 		t.Fatal(err)
 	}
-	aIDs := []string{aID, invID, tokID, memberID}
+	// CRM rows: a company, a contact at it, a deal on the pipeline, an activity.
+	coID := alice.must("POST", "/api/w/companies", map[string]any{"name": marker + " Co", "domain": "iso-" + rnd() + ".test"}, 201)["company"].(map[string]any)["id"].(string)
+	ctID := alice.must("POST", "/api/w/contacts", map[string]any{"email": "iso-" + rnd() + "@example.test", "name": marker}, 201)["contact"].(map[string]any)["id"].(string)
+	alice.must("PATCH", "/api/w/contacts/"+ctID, map[string]any{"company_id": coID}, 200)
+	stages := alice.must("GET", "/api/w/pipeline/stages", nil, 200)["stages"].([]any)
+	stageID := stages[0].(map[string]any)["id"].(string)
+	dealID := alice.must("POST", "/api/w/deals", map[string]any{"title": marker + " deal", "value_minor": 1000, "contact_id": ctID, "company_id": coID}, 201)["deal"].(map[string]any)["id"].(string)
+	actID := alice.must("POST", "/api/w/activities", map[string]any{"kind": "task", "body": marker + " task", "deal_id": dealID}, 201)["activity"].(map[string]any)["id"].(string)
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
+		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
 	}
 
 	leaks := func(b []byte) string {
@@ -279,6 +289,22 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	alice.ws = aID
 	if code, b := alice.do("GET", "/api/w/invitations", nil); code != 200 || !strings.Contains(string(b), invID) {
 		t.Errorf("A's invitation was removed from B: %d %s", code, b)
+	}
+
+	if code, b := alice.do("GET", "/api/w/deals/"+dealID, nil); code != 200 || !strings.Contains(string(b), actID) || !strings.Contains(string(b), coID) {
+		t.Errorf("A's deal or its timeline was changed from B: %d %s", code, b)
+	}
+
+	// ---- CRM links cannot cross workspaces (composite FKs) -------------------
+	bob.ws = bID
+	if code, b := bob.do("POST", "/api/w/deals", map[string]any{"title": "steal", "company_id": coID}); code != http.StatusUnprocessableEntity || leaks(b) != "" {
+		t.Errorf("B linking a deal to A's company: got %d, want 422: %s", code, b)
+	}
+	if code, b := bob.do("POST", "/api/w/activities", map[string]any{"kind": "note", "body": "x", "contact_id": ctID}); code != http.StatusUnprocessableEntity || leaks(b) != "" {
+		t.Errorf("B logging an activity on A's contact: got %d, want 422: %s", code, b)
+	}
+	if code, b := bob.do("POST", "/api/w/deals", map[string]any{"title": "steal", "stage_id": stageID}); code != http.StatusUnprocessableEntity || leaks(b) != "" {
+		t.Errorf("B putting a deal on A's stage: got %d, want 422: %s", code, b)
 	}
 
 	// ---- account level: bob's list never shows A ----------------------------

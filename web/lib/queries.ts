@@ -5,7 +5,13 @@ import useSWR from "swr"
 import {
   api,
   ApiError,
+  type Activity,
   type Campaign,
+  type Company,
+  type ContactDetail,
+  type ContactRef,
+  type Deal,
+  type Stage,
   type Contact,
   type CurrentWorkspace,
   type MailList,
@@ -82,3 +88,22 @@ export function useCampaigns(workspaceId?: string | null) {
 }
 
 export const useSmtpSettings = (id?: string | null, enabled = true) => useScoped<SmtpSettings>("/api/w/mail/smtp", id, enabled)
+
+// ── CRM ──────────────────────────────────────────────────────────────────
+
+export const useCompanies = (id?: string | null) => useScoped<{ companies: Company[] | null }>("/api/w/companies", id)
+
+export const useCompany = (wsId?: string | null, id?: string) =>
+  useScoped<{ company: Company; contacts: ContactRef[]; deals: Deal[]; activities: Activity[] }>(
+    `/api/w/companies/${encodeURIComponent(id ?? "")}`,
+    wsId,
+    !!id,
+  )
+
+export const useContact = (wsId?: string | null, id?: string) =>
+  useScoped<{ contact: ContactDetail; deals: Deal[]; activities: Activity[] }>(`/api/w/contacts/${encodeURIComponent(id ?? "")}`, wsId, !!id)
+
+export const useDeals = (id?: string | null) => useScoped<{ deals: Deal[]; stages: Stage[]; currency: string }>("/api/w/deals", id)
+
+export const useDeal = (wsId?: string | null, id?: string) =>
+  useScoped<{ deal: Deal; activities: Activity[] }>(`/api/w/deals/${encodeURIComponent(id ?? "")}`, wsId, !!id)

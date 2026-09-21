@@ -300,8 +300,9 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
 }
 
 function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWrite: boolean; onChange: () => void }) {
-  const { t, formatDate } = useTranslations()
+  const { t, locale, formatDate } = useTranslations()
   const ws = useWorkspace()
+  const base = `/${locale}/w/${ws.slug}`
 
   async function resend(subId: string) {
     try {
@@ -340,9 +341,19 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
           {items.map((c) => (
             <TableRow key={c.id} data-contact-row={c.email}>
               <TableCell className="ps-6">
-                <Ltr>{c.email}</Ltr>
+                <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
+                  <Ltr>{c.email}</Ltr>
+                </Link>
               </TableCell>
-              <TableCell>{c.name || <span className="text-grid-muted">—</span>}</TableCell>
+              <TableCell>
+                {c.name ? (
+                  <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
+                    {c.name}
+                  </Link>
+                ) : (
+                  <span className="text-grid-muted">—</span>
+                )}
+              </TableCell>
               <TableCell>
                 <div className="flex flex-wrap gap-1.5">
                   {(c.subscriptions ?? []).map((s) => (

@@ -4,8 +4,10 @@ import Link from "next/link"
 import { useEffect, useState, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
+  Building2Icon,
   CheckIcon,
   ChevronsUpDownIcon,
+  HandshakeIcon,
   KeyRoundIcon,
   LayoutGridIcon,
   MenuIcon,
@@ -267,8 +269,14 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
       <L href={base} exact icon={<LayoutGridIcon />}>
         {t("nav.overview")}
       </L>
+      <L href={`${base}/companies`} icon={<Building2Icon />}>
+        {t("nav.companies")}
+      </L>
       <L href={`${base}/contacts`} icon={<MailIcon />}>
         {t("nav.contacts")}
+      </L>
+      <L href={`${base}/deals`} icon={<HandshakeIcon />}>
+        {t("nav.deals")}
       </L>
       <L href={`${base}/campaigns`} icon={<SendIcon />}>
         {t("nav.campaigns")}

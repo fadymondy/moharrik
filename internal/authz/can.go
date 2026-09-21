@@ -54,6 +54,10 @@ const (
 	CampaignsWrite = "campaigns:write"
 	CampaignsSend  = "campaigns:send"
 	MailSettings   = "mail:settings"
+	// CRM. Companies, deals and activities are read and written under
+	// contacts:read / contacts:write — the MCP scopes of the same names already
+	// promise "CRM contacts, companies and leads" (internal/mcp/scopes.go).
+	PipelineManage = "pipeline:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -77,6 +81,10 @@ var Matrix = map[string]Role{
 	CampaignsWrite: Manager,
 	CampaignsSend:  Manager,
 	MailSettings:   Admin,
+	// CRM: every member works companies, deals and the timeline (contacts:*);
+	// the stages shape everyone's board, so renaming or reordering them is a
+	// manager's call.
+	PipelineManage: Manager,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

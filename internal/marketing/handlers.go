@@ -68,6 +68,10 @@ type ContactOut struct {
 	Name          string            `json:"name"`
 	Locale        string            `json:"locale"`
 	Source        string            `json:"source"`
+	Phone         string            `json:"phone"`
+	Title         string            `json:"title"`
+	CompanyID     *string           `json:"company_id"`
+	CompanyName   string            `json:"company_name"`
 	CreatedAt     time.Time         `json:"created_at"`
 	Subscriptions []SubscriptionOut `json:"subscriptions"`
 }
@@ -195,7 +199,9 @@ func sendConfirmation(ctx context.Context, db *sql.DB, wsID, email, locale, list
 }
 
 func listContacts(ctx context.Context, db *sql.DB, wsID, listID string) ([]ContactOut, error) {
-	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.created_at FROM contacts c WHERE c.workspace_id = $1`
+	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, c.company_id, coalesce(co.name, ''), c.created_at
+		FROM contacts c LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
+		WHERE c.workspace_id = $1`
 	args := []any{wsID}
 	if listID != "" {
 		q += ` AND EXISTS (SELECT 1 FROM list_subscriptions s WHERE s.workspace_id = $1 AND s.contact_id = c.id AND s.list_id = $2)`
@@ -211,7 +217,7 @@ func listContacts(ctx context.Context, db *sql.DB, wsID, listID string) ([]Conta
 	idx := map[string]int{}
 	for rows.Next() {
 		var c ContactOut
-		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		c.Subscriptions = []SubscriptionOut{}
@@ -397,14 +403,14 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-add-contact", Method: http.MethodPost, Path: "/api/w/contacts",
-		DefaultStatus: http.StatusCreated, Summary: "Add a contact to a list (double opt-in when the list asks for it)", Tags: tags,
+		DefaultStatus: http.StatusCreated, Summary: "Add a contact, optionally to a list (double opt-in when the list asks for it)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body struct {
 			Email  string `json:"email" minLength:"3" maxLength:"254"`
 			Name   string `json:"name,omitempty" maxLength:"120"`
 			Locale string `json:"locale,omitempty" enum:"en,ar"`
-			ListID string `json:"list_id" minLength:"1"`
+			ListID string `json:"list_id,omitempty" doc:"Omit to add the contact to the CRM without subscribing it anywhere."`
 		}
 	}) (*body[AddContactResult], error) {
 		s, err := scope(ctx, authz.ContactsWrite)
@@ -417,6 +423,29 @@ func Register(api huma.API, a *app.App) {
 		}
 		email := strings.ToLower(addr.Address)
 		locale := normLocale(in.Body.Locale)
+
+		// A CRM contact with no list: no subscription, no consent email.
+		if in.Body.ListID == "" {
+			var contactID string
+			if err := a.SQLDB.QueryRowContext(ctx, `
+				INSERT INTO contacts (workspace_id, email, name, locale, source) VALUES ($1, $2, $3, $4, 'crm')
+				ON CONFLICT (workspace_id, email) DO UPDATE SET
+				  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
+				  updated_at = now()
+				RETURNING id`, s.WorkspaceID, email, strings.TrimSpace(in.Body.Name), locale,
+			).Scan(&contactID); err != nil {
+				return nil, huma.Error500InternalServerError("could not add the contact")
+			}
+			res := AddContactResult{Status: "crm", Confirmation: "not_needed"}
+			if list, err := listContacts(ctx, a.SQLDB, s.WorkspaceID, ""); err == nil {
+				for _, c := range list {
+					if c.ID == contactID {
+						res.Contact = c
+					}
+				}
+			}
+			return out(res), nil
+		}
 
 		var listName string
 		var doi bool

@@ -19,7 +19,8 @@ import (
 // TenantTables get DML grants for the app role. Everything else (users, auth
 // plugin tables, admin_mcp_tokens) gets none.
 var TenantTables = []string{"workspaces", "workspace_members", "invitations", "mcp_tokens",
-	"mail_lists", "contacts", "list_subscriptions", "campaigns", "smtp_settings"}
+	"mail_lists", "contacts", "list_subscriptions", "campaigns", "smtp_settings",
+	"companies", "pipeline_stages", "deals", "activities"}
 
 var roleName = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 

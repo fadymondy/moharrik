@@ -158,6 +158,10 @@ export type Contact = {
   name: string
   locale: "en" | "ar"
   source: string
+  phone: string
+  title: string
+  company_id: string | null
+  company_name: string
   created_at: string
   subscriptions: Subscription[] | null
 }
@@ -190,4 +194,77 @@ export type SmtpSettings = {
   from_email: string
   tls_mode: "none" | "starttls" | "tls"
   updated_at: string | null
+}
+
+// ── CRM ──────────────────────────────────────────────────────────────────
+
+export type Ref = { id: string; name: string }
+export type ContactRef = { id: string; email: string; name: string; title: string }
+
+export type CompanySize = "" | "1-10" | "11-50" | "51-200" | "201-1000" | "1000+"
+export const COMPANY_SIZES: CompanySize[] = ["1-10", "11-50", "51-200", "201-1000", "1000+"]
+
+export type Company = {
+  id: string
+  name: string
+  domain: string
+  industry: string
+  size: CompanySize
+  notes: string
+  owner_user_id: string | null
+  contact_count: number
+  open_deals: number
+  created_at: string
+}
+
+export type StageKind = "open" | "won" | "lost"
+
+export type Stage = { id: string; name: string; position: number; kind: StageKind; deal_count: number; value_minor: number }
+
+export type Deal = {
+  id: string
+  title: string
+  value_minor: number
+  currency: string
+  stage_id: string
+  stage_name: string
+  stage_kind: StageKind
+  position: number
+  contact: ContactRef | null
+  company: Ref | null
+  owner_user_id: string | null
+  expected_close: string | null
+  closed_at: string | null
+  created_at: string
+}
+
+export type ActivityKind = "note" | "call" | "meeting" | "task"
+export const ACTIVITY_KINDS: ActivityKind[] = ["note", "call", "meeting", "task"]
+
+export type Activity = {
+  id: string
+  kind: ActivityKind
+  body: string
+  due_at: string | null
+  done_at: string | null
+  contact: ContactRef | null
+  company: Ref | null
+  deal: Ref | null
+  created_by: string
+  created_at: string
+}
+
+export type ContactDetail = {
+  id: string
+  email: string
+  name: string
+  locale: "en" | "ar"
+  source: string
+  phone: string
+  title: string
+  tags: string[]
+  company: Ref | null
+  owner_user_id: string | null
+  created_at: string
+  subscriptions: Subscription[]
 }
