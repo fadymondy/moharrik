@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Moharrik",
+  "version": "0.1.0",
+  "description": "Lets a Moharrik workspace drive this browser through the steps you approved, on the sites you allowed.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://app.moharrik.com/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Moharrik"
+  },
+  "icons": {
+    "128": "icon128.png"
+  }
+}

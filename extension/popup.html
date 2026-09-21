@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Moharrik</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --line: color-mix(in oklab, currentColor 15%, transparent);
+      }
+      body {
+        width: 320px;
+        margin: 0;
+        padding: 14px;
+        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 14px;
+      }
+      label {
+        display: block;
+        margin: 10px 0 3px;
+        font-size: 12px;
+        opacity: 0.75;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+      }
+      button {
+        margin-top: 10px;
+        padding: 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #4b00b6;
+        border-color: #4b00b6;
+        color: #fff;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .code {
+        font: 600 26px/1.2 ui-monospace, monospace;
+        letter-spacing: 4px;
+        margin: 8px 0;
+      }
+      .muted {
+        opacity: 0.7;
+        font-size: 12px;
+      }
+      .state {
+        display: inline-block;
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 12px;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 14px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Moharrik</h1>
+    <div class="row">
+      <span class="state" id="state">…</span>
+      <span class="muted" id="name"></span>
+    </div>
+    <p class="muted" id="error" hidden></p>
+
+    <div id="pair">
+      <label for="site">Site</label>
+      <input id="site" type="url" spellcheck="false" />
+      <label for="api">API (only if it differs)</label>
+      <input id="api" type="url" spellcheck="false" placeholder="same as the site" />
+      <label for="workspace">Workspace</label>
+      <input id="workspace" spellcheck="false" placeholder="the slug in /w/…" />
+      <div class="row">
+        <button class="primary" id="start">Connect this browser</button>
+      </div>
+      <div id="codebox" hidden>
+        <p class="code" id="code"></p>
+        <p class="muted">Approve this code on the workspace's Automation page. It expires in ten minutes.</p>
+      </div>
+    </div>
+
+    <div id="paired" hidden>
+      <p class="muted" id="hosts"></p>
+      <div class="row">
+        <button id="grant">Allow those sites</button>
+        <button id="halt">Stop everything</button>
+        <button id="forget">Disconnect</button>
+      </div>
+    </div>
+
+    <hr />
+    <p class="muted">
+      This browser only runs the steps your workspace sends, and only on the sites listed above.
+    </p>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

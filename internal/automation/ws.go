@@ -16,6 +16,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/pgtext"
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -268,6 +269,12 @@ func (h *Hub) setStatus(ctx context.Context, a *app.App, agent Connected, status
 		UPDATE browser_agents SET status = $3, last_seen_at = now(), updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`, agent.WorkspaceID, agent.AgentID, status); err != nil {
 		h.log.Warn("browser status write failed", "agent", agent.AgentID, "err", err)
+	}
+	// A browser connecting is the one thing nobody on the page can cause, so
+	// nothing there has a reason to refetch: pairing a browser and watching it
+	// say "Not connected" for ever was exactly that.
+	if a.Events != nil {
+		a.Events.Publish(agent.WorkspaceID, realtime.Event{Kind: "browser"})
 	}
 }
 

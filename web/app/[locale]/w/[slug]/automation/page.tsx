@@ -40,6 +40,13 @@ export default function AutomationPage() {
   // left open showed "waiting" long after the run had finished, because
   // nothing on this side had any reason to refetch.
   useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind === "browser") {
+      // A browser connecting or going away is not something this page can
+      // cause, so nothing here would otherwise refetch — it showed "Not
+      // connected" indefinitely after a successful pairing.
+      void browsers.mutate()
+      return
+    }
     if (e.kind !== "schedule") return
     void schedules.mutate()
     void runs.mutate()

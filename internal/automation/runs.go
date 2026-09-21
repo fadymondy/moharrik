@@ -271,6 +271,7 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 }
 
 func (h *Hub) finish(ctx context.Context, a *app.App, workspaceID, runID, status, errText string, okCount int) {
+	h.endRun(workspaceID, runID)
 	if _, err := a.SQLDB.ExecContext(ctx, `
 		UPDATE automation_runs SET status = $3, error = $4, ok_count = $5, finished_at = now(), updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, runID, status, trim(errText, 500), okCount); err != nil {
@@ -311,4 +312,21 @@ func trim(s string, n int) string {
 		return string(r[:n]) + "…"
 	}
 	return s
+}
+
+// endRun tells the browser it can close the tab this run opened. Best-effort
+// and unacknowledged: the run is already over, and a browser that has gone
+// away has no tab to close.
+func (h *Hub) endRun(workspaceID, runID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, c := range h.conns {
+		if c.agent.WorkspaceID != workspaceID {
+			continue
+		}
+		frame, err := json.Marshal(Envelope{Type: "run.end", Run: runID})
+		if err == nil {
+			c.trySend(frame)
+		}
+	}
 }

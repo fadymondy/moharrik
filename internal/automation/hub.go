@@ -35,9 +35,16 @@ const (
 	// retrying so it comes back by itself when someone resumes automation.
 	CloseHalted = 4001
 
-	writeWait  = 10 * time.Second
-	pongWait   = 60 * time.Second
-	pingPeriod = (pongWait * 9) / 10
+	writeWait = 10 * time.Second
+	pongWait  = 45 * time.Second
+
+	// 20 seconds, and the number matters: the peer is an MV3 service worker,
+	// which Chrome terminates after 30 SECONDS of inactivity — taking the
+	// socket with it. Traffic on the socket resets that timer, so the server
+	// pings inside the window rather than at the usual "nine tenths of the
+	// pong deadline", which would have been 54s and let every browser fall
+	// asleep between runs. It looked exactly like a flaky connection.
+	pingPeriod = 20 * time.Second
 
 	// How long a freshly opened socket may stay silent before it must have
 	// authenticated. A browser's WebSocket API cannot set headers, so the token
