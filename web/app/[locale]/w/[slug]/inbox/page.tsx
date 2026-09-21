@@ -16,6 +16,9 @@ import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Conversation, type ConversationStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { useSWRConfig } from "swr"
+
+import { useWorkspaceEvents } from "@/lib/events"
 import { useConversation, useConversations } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
@@ -36,6 +39,14 @@ export default function InboxPage() {
   const [selected, setSelected] = useState<string | null>(null)
 
   const list = useConversations(ws.id, { status: status || undefined, unread })
+
+  // No timer: the API tells this tab when a message actually arrives, and the
+  // affected thread is revalidated by key so an open conversation updates too.
+  const { mutate } = useSWRConfig()
+  useWorkspaceEvents(ws.id, (e) => {
+    void list.mutate()
+    if (e.conversation_id) void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, ws.id])
+  })
   const items = list.data?.conversations ?? []
 
   const statusOpts = [

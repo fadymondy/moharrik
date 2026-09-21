@@ -14,6 +14,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -194,6 +195,9 @@ func Register(api huma.API, a *app.App) {
 			UPDATE conversations SET last_message_at = now(), unread = false, updated_at = now(),
 			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
 			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
+		// Two members can have the same thread open; the one who did not type
+		// should see the reply appear, not a stale thread.
+		a.Events.Publish(s.WorkspaceID, realtime.Event{Kind: "message", ConversationID: in.ID})
 		uid := s.UserID
 		return out(struct {
 			Message MessageOut `json:"message"`
@@ -572,6 +576,10 @@ func registerPublicChat(api huma.API, a *app.App) {
 		_, _ = a.SQLDB.ExecContext(sctx, `UPDATE conversations SET last_message_at = now(), unread = true, updated_at = now(),
 			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
 			WHERE workspace_id = $1 AND id = $2`, wsID, convID)
+
+		// The owner is told the moment a visitor writes, rather than up to ten
+		// seconds later when a poll happens to come round (fadymondy.com 01b5345).
+		a.Events.Publish(wsID, realtime.Event{Kind: "message", ConversationID: convID})
 
 		return out(struct {
 			VisitorToken string `json:"visitor_token" doc:"Keep this to continue the conversation."`

@@ -27,6 +27,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/mcp"
 	"github.com/fadymondy/moharrik/internal/notifications"
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
@@ -76,6 +77,18 @@ func Boot() *app.App {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, `{"status":"ok","service":"moharrik","togo":%q}`, togoVersion())
 	})
+
+	// The workspace's own event stream. Mounted on the router rather than through
+	// huma because SSE is a long-lived response, not a request/response body —
+	// but it sits under /api/w/, so it goes through the same guard tier as every
+	// other workspace route and inherits session + membership from it.
+	k.Router.Get("/api/w/events", realtime.Handler(a.Events, func(r *http.Request) string {
+		s, ok := tenant.From(r.Context())
+		if !ok {
+			return ""
+		}
+		return s.WorkspaceID
+	}))
 
 	// Deliberately NOT mounted from the scaffold:
 	//   /events               — one global SSE stream; would broadcast every

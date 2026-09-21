@@ -18,6 +18,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	db "github.com/fadymondy/moharrik/internal/db/gen"
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -47,6 +48,12 @@ type App struct {
 	Queue    togo.Queue
 	Storage  togo.Storage
 	Realtime togo.Broker
+
+	// Events is Moharrik's own stream: per-workspace, so a subscriber can only
+	// receive what was published for the workspace it is in. Kernel.Realtime
+	// (above) is the framework's global broker and is deliberately not used for
+	// tenant data — see internal/realtime.
+	Events *realtime.Hub
 }
 
 // New builds the container from the kernel, opening both pools if configured.
@@ -60,6 +67,7 @@ func New(ctx context.Context, k *togo.Kernel) *App {
 		Queue:    k.Queue,
 		Storage:  k.Storage,
 		Realtime: k.Realtime,
+		Events:   realtime.NewHub(),
 	}
 	if sysDB, err := k.SQL(ctx); err == nil {
 		a.SysDB = sysDB

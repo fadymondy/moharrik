@@ -141,7 +141,14 @@ export function useNotifications(workspaceId: string | null | undefined, filter:
 
 export type ConversationFilter = { status?: string; unread?: boolean; channel?: string }
 
-/** The inbox list. Polls while it is on screen, so a new customer message lands without a reload. */
+/**
+ * The inbox list.
+ *
+ * No polling: the page subscribes to the workspace's event stream
+ * (useWorkspaceEvents) and revalidates when a message actually arrives. SWR
+ * still revalidates on focus and reconnect, which covers the case of a stream
+ * that dropped while the tab was in the background.
+ */
 export function useConversations(workspaceId: string | null | undefined, filter: ConversationFilter = {}) {
   const qs = new URLSearchParams()
   if (filter.status) qs.set("status", filter.status)
@@ -151,16 +158,16 @@ export function useConversations(workspaceId: string | null | undefined, filter:
   return useSWR<{ conversations: Conversation[]; unread_count: number }>(
     workspaceId ? [path, workspaceId] : null,
     ([p, id]: [string, string]) => api<{ conversations: Conversation[]; unread_count: number }>(p, { workspaceId: id }),
-    { ...noRetryOn4xx, refreshInterval: 10000 },
+    noRetryOn4xx,
   )
 }
 
-/** One thread. Polls too — a reply from a teammate should appear while you are reading. */
+/** One thread. Same as the list: revalidated by the event stream, not by a timer. */
 export function useConversation(workspaceId: string | null | undefined, id?: string) {
   return useSWR<{ conversation: Conversation; messages: InboxMessage[] }>(
     workspaceId && id ? [`/api/w/conversations/${encodeURIComponent(id)}`, workspaceId] : null,
     ([p, ws]: [string, string]) => api<{ conversation: Conversation; messages: InboxMessage[] }>(p, { workspaceId: ws }),
-    { ...noRetryOn4xx, refreshInterval: 10000 },
+    noRetryOn4xx,
   )
 }
 
