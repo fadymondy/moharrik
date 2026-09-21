@@ -48,6 +48,7 @@ func Boot() *app.App {
 
 	installErrors()
 	installProblemReports(k) // outermost: sees what the guard and handlers answer
+	installChatCORS(k)       // before the guard: a preflight carries no session
 	installGuard(k, a)
 
 	api := humachi.New(k.Router, huma.DefaultConfig("Moharrik API", "0.1.0"))
