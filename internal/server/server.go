@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime/debug"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -27,6 +29,7 @@ import (
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/tenant"
+	"github.com/fadymondy/moharrik/internal/trends"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 )
 
@@ -56,6 +59,13 @@ func Boot() *app.App {
 
 	mcp.Mount(k, a)
 
+	// The trends collector: one in-process ticker polling the feeds that are due.
+	// TRENDS_COLLECTOR=off turns it off, which is what the tests and the OpenAPI
+	// export want — neither should reach out to the internet.
+	if os.Getenv("TRENDS_COLLECTOR") != "off" {
+		trends.StartCollector(a, 5*time.Minute, 20*time.Minute, 25)
+	}
+
 	gql := handler.NewDefaultServer(graphgen.NewExecutableSchema(graphgen.Config{
 		Resolvers: &resolvers.Resolver{App: a},
 	}))
@@ -81,6 +91,7 @@ func registerREST(api huma.API, a *app.App) {
 	crm.Register(api, a)
 	notifications.Register(api, a)
 	inbox.Register(api, a)
+	trends.Register(api, a)
 	mcp.RegisterTokenRoutes(api, a)
 }
 

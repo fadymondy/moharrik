@@ -345,3 +345,40 @@ export type ChatWidget = {
   embed: string
   created_at: string
 }
+
+// ── Trends ──────────────────────────────────────────────────────────────
+
+export type FeedSource = {
+  id: string
+  name: string
+  url: string
+  kind: "rss" | "atom"
+  enabled: boolean
+  last_fetched_at: string | null
+  last_error: string
+  last_error_at: string | null
+  item_count: number
+  created_at: string
+}
+
+export type Topic = {
+  id: string
+  name: string
+  keywords: string[]
+  enabled: boolean
+  item_count: number
+  created_at: string
+}
+
+export type NewsItem = {
+  id: string
+  source_id: string | null
+  source_name: string
+  title: string
+  url: string
+  summary: string
+  author: string
+  topic_ids: string[]
+  published_at: string
+  saved_at: string | null
+}

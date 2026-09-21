@@ -72,6 +72,11 @@ const (
 	InboxRead   = "inbox:read"
 	InboxWrite  = "inbox:write"
 	InboxManage = "inbox:manage"
+	// Trends: everyone reads the timeline; adding or removing a feed or a topic
+	// changes what the whole workspace collects, so it is a manager's call —
+	// the same line notifications:manage and inbox:manage draw.
+	TrendsRead   = "trends:read"
+	TrendsManage = "trends:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -109,9 +114,11 @@ var Matrix = map[string]Role{
 	// Inbox: every member reads and answers; only a manager or above creates or
 	// revokes a chat widget, because its public key is what lets an outside site
 	// write into this workspace at all.
-	InboxRead:   Member,
-	InboxWrite:  Member,
-	InboxManage: Manager,
+	InboxRead:    Member,
+	InboxWrite:   Member,
+	InboxManage:  Manager,
+	TrendsRead:   Member,
+	TrendsManage: Manager,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

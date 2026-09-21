@@ -21,6 +21,7 @@ import {
   SendIcon,
   ServerIcon,
   WebhookIcon,
+  TrendingUpIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -286,6 +287,9 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
       </L>
       <L href={`${base}/inbox`} icon={<InboxIcon />}>
         {t("nav.inbox")}
+      </L>
+      <L href={`${base}/trends`} exact icon={<TrendingUpIcon />}>
+        {t("nav.trends")}
       </L>
       <L href={`${base}/notifications`} exact icon={<BellIcon />}>
         {t("nav.notifications")}

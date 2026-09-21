@@ -23,7 +23,10 @@ import {
   type ChatWidget,
   type Conversation,
   type InboxMessage,
+  type FeedSource,
+  type NewsItem,
   type NotificationItem,
+  type Topic,
   type User,
   type WebhookSource,
   type WorkspaceSummary,
@@ -162,3 +165,26 @@ export function useConversation(workspaceId: string | null | undefined, id?: str
 }
 
 export const useChatWidgets = (id?: string | null) => useScoped<{ widgets: ChatWidget[] | null }>("/api/w/chat_widgets", id)
+
+// ── Trends ───────────────────────────────────────────────────────────────
+
+export const useFeedSources = (id?: string | null) => useScoped<{ sources: FeedSource[] | null }>("/api/w/feed_sources", id)
+
+export const useTopics = (id?: string | null) => useScoped<{ topics: Topic[] | null }>("/api/w/topics", id)
+
+export type NewsFilter = { topic?: string; source?: string; saved?: boolean; q?: string }
+
+/** The collected timeline. Filters vary, so this builds its own key. */
+export function useNews(workspaceId: string | null | undefined, filter: NewsFilter = {}) {
+  const qs = new URLSearchParams()
+  if (filter.topic) qs.set("topic", filter.topic)
+  if (filter.source) qs.set("source", filter.source)
+  if (filter.saved) qs.set("saved", "true")
+  if (filter.q) qs.set("q", filter.q)
+  const path = "/api/w/news" + (qs.toString() ? `?${qs.toString()}` : "")
+  return useSWR<{ items: NewsItem[]; total: number }>(
+    workspaceId ? [path, workspaceId] : null,
+    ([p, id]: [string, string]) => api<{ items: NewsItem[]; total: number }>(p, { workspaceId: id }),
+    noRetryOn4xx,
+  )
+}

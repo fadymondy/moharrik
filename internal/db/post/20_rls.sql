@@ -154,3 +154,27 @@ DROP POLICY IF EXISTS tenant_isolation ON messages;
 CREATE POLICY tenant_isolation ON messages
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- Trends. The collector runs on the app pool inside tenant.WithWorkspace for one
+-- workspace at a time (internal/trends/collector.go), so these policies apply to
+-- it exactly as they do to a request.
+ALTER TABLE feed_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feed_sources FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON feed_sources;
+CREATE POLICY tenant_isolation ON feed_sources
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE topics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE topics FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON topics;
+CREATE POLICY tenant_isolation ON topics
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE news_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE news_items FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON news_items;
+CREATE POLICY tenant_isolation ON news_items
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
