@@ -473,3 +473,22 @@ export type WhatsAppLink = {
   /** false when this deployment has no WhatsApp server configured at all. */
   available: boolean
 }
+
+export type AutomationSchedule = {
+  id: string
+  name: string
+  agent_id: string
+  agent_name: string
+  cron: string
+  timezone: string
+  catch_up: "skip" | "once"
+  enabled: boolean
+  steps: { command: string; args?: Record<string, unknown>; continue_on_error?: boolean }[]
+  next_run_at: string | null
+  last_run_at: string | null
+  /** running | ok | failed | missed | waiting — "missed" and "waiting" are first-class. */
+  last_status: string
+  last_error: string
+  last_run_id: string
+  created_at: string
+}

@@ -13,11 +13,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type AutomationRun, type BrowserAgent } from "@/lib/api"
+import { api, ApiError, type AutomationRun, type AutomationSchedule, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useAutomationSettings, useBrowsers, useRuns } from "@/lib/queries"
+import { useWorkspaceEvents } from "@/lib/events"
+import { useAutomationSettings, useBrowsers, useRuns, useSchedules } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
 export default function AutomationPage() {
@@ -30,6 +33,16 @@ export default function AutomationPage() {
   const browsers = useBrowsers(ws.id)
   const settings = useAutomationSettings(ws.id)
   const runs = useRuns(ws.id)
+  const schedules = useSchedules(ws.id)
+
+  // A schedule fires with nobody watching, by definition. Without this a page
+  // left open showed "waiting" long after the run had finished, because
+  // nothing on this side had any reason to refetch.
+  useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind !== "schedule") return
+    void schedules.mutate()
+    void runs.mutate()
+  })
 
   const list = browsers.data?.browsers ?? []
   const pairings = browsers.data?.pairings ?? []
@@ -122,6 +135,40 @@ export default function AutomationPage() {
         ) : null}
 
         {canManage ? <ApproveForm onApproved={() => browsers.mutate()} /> : null}
+      </section>
+
+      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+
+      {/* ---- schedules ---- */}
+      <section>
+        <h2 className="px-6 pb-1 text-base font-medium">{t("automation.schedules")}</h2>
+        <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.schedulesHint")}</p>
+
+        {schedules.error ? (
+          <ErrorState error={schedules.error} />
+        ) : schedules.isLoading ? (
+          <LoadingRows rows={2} />
+        ) : (schedules.data?.schedules ?? []).length === 0 ? (
+          <EmptyState title={t("automation.noSchedules")} body={canRun ? t("automation.noSchedulesBody") : undefined} />
+        ) : (
+          <ul className="divide-y divide-line border-y border-line">
+            {(schedules.data?.schedules ?? []).map((sc) => (
+              <ScheduleRow
+                key={sc.id}
+                schedule={sc}
+                canRun={canRun}
+                onChange={() => {
+                  schedules.mutate()
+                  runs.mutate()
+                }}
+              />
+            ))}
+          </ul>
+        )}
+
+        {canRun && list.some((b) => !b.revoked_at) ? (
+          <AddSchedule browsers={list.filter((b) => !b.revoked_at)} onAdded={() => schedules.mutate()} />
+        ) : null}
       </section>
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
@@ -415,5 +462,178 @@ function RunRow({ run, href }: { run: AutomationRun; href: string }) {
         {t("automation.openRun")}
       </Button>
     </li>
+  )
+}
+
+function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSchedule; canRun: boolean; onChange: () => void }) {
+  const { t, formatDate } = useTranslations()
+  const ws = useWorkspace()
+  const [busy, setBusy] = useState(false)
+
+  async function toggle() {
+    try {
+      await api(`/api/w/schedules/${encodeURIComponent(schedule.id)}`, { method: "PATCH", json: { enabled: !schedule.enabled }, workspaceId: ws.id })
+      onChange()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    }
+  }
+
+  async function runNow() {
+    setBusy(true)
+    try {
+      await api(`/api/w/schedules/${encodeURIComponent(schedule.id)}/run`, { method: "POST", workspaceId: ws.id })
+      toast.success(t("automation.runStarted"))
+      onChange()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove() {
+    await api(`/api/w/schedules/${encodeURIComponent(schedule.id)}`, { method: "DELETE", workspaceId: ws.id })
+    toast.success(t("automation.scheduleDeleted"))
+    onChange()
+  }
+
+  return (
+    <li className="flex flex-wrap items-start gap-3 px-6 py-4" data-schedule={schedule.name} data-schedule-status={schedule.last_status || "new"}>
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          {schedule.name}
+          <Badge variant={schedule.enabled ? "default" : "outline"}>{schedule.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")}</Badge>
+          {schedule.last_status ? <Badge variant="secondary">{t(`automation.last.${schedule.last_status}`)}</Badge> : null}
+        </p>
+        <p className="text-xs text-grid-muted">
+          <Ltr mono>{schedule.cron}</Ltr> · {schedule.timezone} · {schedule.agent_name || t("automation.unnamedBrowser")} · {t(`automation.catchUp.${schedule.catch_up}`)}
+        </p>
+        <p className="text-xs text-grid-muted">
+          {schedule.next_run_at ? t("automation.nextRun", { date: formatDate(schedule.next_run_at) }) : ""}
+          {schedule.last_run_at ? ` · ${t("automation.lastRun", { date: formatDate(schedule.last_run_at) })}` : ""}
+        </p>
+        {/* A miss is shown, not swallowed: "there is no data for Tuesday" has
+            to have an answer on the page. */}
+        {schedule.last_error ? (
+          <p className="mt-1 text-xs text-grid-danger-text" data-schedule-error>
+            {schedule.last_error}
+          </p>
+        ) : null}
+      </div>
+      {canRun ? (
+        <div className="flex items-center gap-2">
+          <Switch checked={schedule.enabled} onCheckedChange={toggle} aria-label={schedule.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")} />
+          <Button variant="ghost" size="sm" onClick={runNow} disabled={busy}>
+            <PlayIcon />
+            {busy ? t("common.working") : t("automation.runNow")}
+          </Button>
+          <ConfirmButton
+            label={t("common.delete")}
+            title={t("automation.deleteScheduleTitle")}
+            description={t("automation.deleteScheduleBody", { name: schedule.name })}
+            confirmLabel={t("common.delete")}
+            onConfirm={remove}
+          />
+        </div>
+      ) : null}
+    </li>
+  )
+}
+
+function AddSchedule({ browsers, onAdded }: { browsers: BrowserAgent[]; onAdded: () => void }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [name, setName] = useState("")
+  const [agent, setAgent] = useState(browsers[0]?.id ?? "")
+  const [cron, setCron] = useState("0 7 * * *")
+  // The browser's own timezone: "07:00" means where the person is, and making
+  // them work that out in UTC is how a schedule ends up two hours wrong.
+  const [zone, setZone] = useState(typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC")
+  const [catchUp, setCatchUp] = useState("skip")
+  const [steps, setSteps] = useState('[{"command":"goto","args":{"url":"https://example.com"}}]')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setErr(null)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(steps)
+    } catch {
+      setErr(t("automation.stepsNotJson"))
+      return
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      setErr(t("automation.stepsNotArray"))
+      return
+    }
+    setBusy(true)
+    try {
+      await api("/api/w/schedules", {
+        json: { name: name.trim(), agent_id: agent, cron: cron.trim(), timezone: zone, catch_up: catchUp, steps: parsed },
+        workspaceId: ws.id,
+      })
+      toast.success(t("automation.scheduleCreated"))
+      setName("")
+      onAdded()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="px-6 pt-6" data-form="schedule">
+      <FieldGroup>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="sc-name">{t("automation.scheduleName")}</FieldLabel>
+            <Input id="sc-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="sc-agent">{t("automation.browsers")}</FieldLabel>
+            <PickSelect id="sc-agent" value={agent} onChange={setAgent} options={browsers.map((b) => ({ value: b.id, label: b.name }))} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="sc-cron">{t("automation.cron")}</FieldLabel>
+            <Input id="sc-cron" dir="ltr" className="font-mono" value={cron} onChange={(e) => setCron(e.target.value)} />
+            <FieldDescription>{t("automation.cronHint")}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="sc-zone">{t("automation.timezone")}</FieldLabel>
+            <Input id="sc-zone" dir="ltr" value={zone} onChange={(e) => setZone(e.target.value)} />
+            <FieldDescription>{t("automation.timezoneHint")}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="sc-catchup">{t("automation.catchUpLabel")}</FieldLabel>
+            <PickSelect
+              id="sc-catchup"
+              value={catchUp}
+              onChange={setCatchUp}
+              options={[
+                { value: "skip", label: t("automation.catchUp.skip") },
+                { value: "once", label: t("automation.catchUp.once") },
+              ]}
+            />
+            <FieldDescription>{t("automation.catchUpHint")}</FieldDescription>
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor="sc-steps">{t("automation.steps")}</FieldLabel>
+          <Textarea id="sc-steps" dir="ltr" rows={3} className="font-mono text-xs" value={steps} onChange={(e) => setSteps(e.target.value)} />
+          <FieldDescription>{t("automation.stepsHint")}</FieldDescription>
+        </Field>
+        <div>
+          <Button type="submit" disabled={busy || !name.trim()}>
+            <PlusIcon />
+            {busy ? t("common.working") : t("automation.addSchedule")}
+          </Button>
+        </div>
+      </FieldGroup>
+      {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+    </form>
   )
 }

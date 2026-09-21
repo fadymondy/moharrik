@@ -276,6 +276,8 @@ func (h *Hub) finish(ctx context.Context, a *app.App, workspaceID, runID, status
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, runID, status, trim(errText, 500), okCount); err != nil {
 		h.log.Error("run finish write failed", "run", runID, "err", err)
 	}
+	// If a schedule started this run, its row says "running" until now.
+	Settle(ctx, a, workspaceID, runID)
 }
 
 func cancelled(ctx context.Context, a *app.App, workspaceID, runID string) bool {

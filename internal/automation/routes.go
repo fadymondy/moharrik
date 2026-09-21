@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
@@ -736,4 +737,14 @@ func runError(err error) error {
 		return huma.Error404NotFound("no such browser")
 	}
 	return huma.Error500InternalServerError("could not start that run")
+}
+
+// pgCode returns a Postgres error code, so a unique-violation can be answered
+// as a conflict rather than a 500.
+func pgCode(err error) string {
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) {
+		return pg.Code
+	}
+	return ""
 }

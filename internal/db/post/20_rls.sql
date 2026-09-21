@@ -237,3 +237,13 @@ DROP POLICY IF EXISTS tenant_isolation ON whatsapp_links;
 CREATE POLICY tenant_isolation ON whatsapp_links
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- Automation schedules. The scheduler reads its queue on the owner pool ("which
+-- workspaces have work due" is cross-tenant by definition) and then does
+-- everything for one schedule inside that schedule's own workspace.
+ALTER TABLE automation_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE automation_schedules FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON automation_schedules;
+CREATE POLICY tenant_isolation ON automation_schedules
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

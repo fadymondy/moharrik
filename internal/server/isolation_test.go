@@ -165,6 +165,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	// sockets nobody asked for and its timing depends on them.
 	t.Setenv("TRENDS_COLLECTOR", "off")
 	t.Setenv("MAIL_COLLECTOR", "off")
+	t.Setenv("SCHEDULER", "off")
 
 	// Migrate the test database exactly as `togo migrate` would.
 	k0 := togo.New()

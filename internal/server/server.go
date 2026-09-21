@@ -89,6 +89,14 @@ func Boot() *app.App {
 		return inbox.FileWhatsApp(ctx, a, workspaceID, phone, name, text, externalID)
 	})
 
+	// The automation scheduler: one in-process clock firing the schedules that
+	// are due. SCHEDULER=off turns it off for the tests and the OpenAPI export.
+	// In-process, like the other two tickers — a second replica would need a
+	// lock, and the note is here rather than assumed.
+	if os.Getenv("SCHEDULER") != "off" {
+		agentHub.StartScheduler(a)
+	}
+
 	// The inbox's mail collector: one in-process ticker polling the mailboxes
 	// that are due. MAIL_COLLECTOR=off turns it off — the tests and the OpenAPI
 	// export must not open a connection to anyone's mail server.
@@ -137,6 +145,7 @@ func registerREST(api huma.API, a *app.App) {
 	whatsapp.Register(api, a)
 	trends.Register(api, a)
 	automation.Register(api, a, automation.Default())
+	automation.RegisterSchedules(api, a, automation.Default())
 	mcp.RegisterTokenRoutes(api, a)
 }
 
