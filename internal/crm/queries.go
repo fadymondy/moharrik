@@ -11,9 +11,11 @@ type scanner interface{ Scan(dest ...any) error }
 
 // ---- stages ---------------------------------------------------------------
 
-// ensureStages seeds the default pipeline the first time a workspace touches
-// the CRM. The advisory lock makes two first requests racing each other seed once.
-func ensureStages(ctx context.Context, db *sql.DB, wsID string) error {
+// EnsureStages seeds the default pipeline the first time a workspace touches
+// the CRM — from a REST request or (internal/mcp's create_deal) an MCP tool
+// call, whichever gets there first. The advisory lock makes two racing first
+// touches seed once.
+func EnsureStages(ctx context.Context, db *sql.DB, wsID string) error {
 	var n int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM pipeline_stages WHERE workspace_id = $1`, wsID).Scan(&n); err != nil {
 		return err

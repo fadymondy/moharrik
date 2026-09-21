@@ -13,16 +13,15 @@ import (
 )
 
 /*
-UserTools is the user MCP registry. P0 ships the context tools; the contacts,
-inbox, campaign, automation, notification, research and trends tools arrive
-with the phases that build those tables — a tool is not registered
-before the thing it operates on exists.
+UserTools is the user MCP registry. Tools arrive with the phases that build
+the tables they operate on — the inbox, automation, research and trends
+tools are not registered yet, because those tables do not exist yet.
 
 Every tool reads its workspace from the token (tenant.Scope on ctx), never
 from an argument.
 */
 func UserTools() []Tool {
-	return []Tool{
+	tools := []Tool{
 		{
 			Name:        "whoami",
 			Description: "Who this token acts as: workspace, user, role, and the scopes in effect.",
@@ -64,6 +63,10 @@ func UserTools() []Tool {
 			},
 		},
 	}
+	tools = append(tools, CrmTools()...)
+	tools = append(tools, MarketingTools()...)
+	tools = append(tools, NotificationTools()...)
+	return tools
 }
 
 var _ = time.Now

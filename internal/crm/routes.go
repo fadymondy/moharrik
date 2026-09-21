@@ -62,7 +62,7 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if err := ensureStages(ctx, db(), s.WorkspaceID); err != nil {
+		if err := EnsureStages(ctx, db(), s.WorkspaceID); err != nil {
 			return nil, huma.Error500InternalServerError("could not prepare the pipeline")
 		}
 		st, err := listStages(ctx, db(), s.WorkspaceID)
@@ -99,7 +99,7 @@ func Register(api huma.API, a *app.App) {
 		if !open {
 			return nil, huma.Error422UnprocessableEntity("the pipeline needs at least one open stage")
 		}
-		if err := ensureStages(ctx, db(), s.WorkspaceID); err != nil {
+		if err := EnsureStages(ctx, db(), s.WorkspaceID); err != nil {
 			return nil, huma.Error500InternalServerError("could not prepare the pipeline")
 		}
 		tx, err := db().BeginTx(ctx, nil)
@@ -188,7 +188,7 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if err := ensureStages(ctx, db(), s.WorkspaceID); err != nil {
+		if err := EnsureStages(ctx, db(), s.WorkspaceID); err != nil {
 			return nil, huma.Error500InternalServerError("could not prepare the pipeline")
 		}
 		res := dealsOut{}
@@ -223,7 +223,7 @@ func Register(api huma.API, a *app.App) {
 		if title == "" {
 			return nil, huma.Error422UnprocessableEntity("a title is required")
 		}
-		if err := ensureStages(ctx, db(), s.WorkspaceID); err != nil {
+		if err := EnsureStages(ctx, db(), s.WorkspaceID); err != nil {
 			return nil, huma.Error500InternalServerError("could not prepare the pipeline")
 		}
 		stageID, kind := "", ""
