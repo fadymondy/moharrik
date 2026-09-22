@@ -1,9 +1,9 @@
 # Moharrik — one production image: the Go API and the Next.js web, deployed by Hosbah.
 #
-# The web process is the public one (PORT, default 3000); it proxies /api and /graphql to the API,
-# which listens only inside the container (127.0.0.1:8120), so the session and CSRF cookies stay
-# first-party exactly as in development. Hosbah's health check (/api/health) goes through the web
-# to the API, so a release takes traffic only when both answer.
+# The Go API is the public process (PORT, default 3000): it serves /api, /graphql and /docs and
+# proxies every other path to Next, which listens only inside the container (WEB_PORT, 3001).
+# One port, one container; websocket upgrades pass through the proxy, so the browser socket
+# (/api/agents/ws) needs no route of its own. Hosbah's health check hits /api/health directly.
 #
 # Generated code (internal/db/gen, internal/graph/gen) is not committed; it is produced here with
 # the same sqlc and gqlgen versions `togo generate` uses.
@@ -40,8 +40,6 @@ RUN apk add --no-cache ca-certificates tini tzdata
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     APP_ENV=production \
-    ADDR=127.0.0.1:8120 \
-    API_ORIGIN=http://127.0.0.1:8120 \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
     LOCALE_DIR=/app/lang \

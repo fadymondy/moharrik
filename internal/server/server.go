@@ -81,6 +81,10 @@ func Boot() *app.App {
 
 	mcp.Mount(k, a, researchEngine)
 
+	// Last, so every registered route wins: unknown paths go to Next when the API is the
+	// public process (WEB_ORIGIN; see webproxy.go).
+	installWebProxy(k)
+
 	// The trends collector: one in-process ticker polling the feeds that are due.
 	// TRENDS_COLLECTOR=off turns it off, which is what the tests and the OpenAPI
 	// export want — neither should reach out to the internet.
