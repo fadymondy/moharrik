@@ -74,6 +74,10 @@ type ContactOut struct {
 	CompanyName   string            `json:"company_name"`
 	CreatedAt     time.Time         `json:"created_at"`
 	Subscriptions []SubscriptionOut `json:"subscriptions"`
+	// WhatsApp consent (MH-320), its own thing and never implied by a list.
+	// Both kept: "never agreed" and "asked us to stop" are different facts.
+	WhatsAppOptInAt  *time.Time `json:"whatsapp_opt_in_at"`
+	WhatsAppOptOutAt *time.Time `json:"whatsapp_opt_out_at"`
 }
 
 type CampaignOut struct {
@@ -213,7 +217,8 @@ func sendConfirmation(ctx context.Context, db *sql.DB, wsID, email, locale, list
 }
 
 func listContacts(ctx context.Context, db *sql.DB, wsID, listID string) ([]ContactOut, error) {
-	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, c.company_id, coalesce(co.name, ''), c.created_at
+	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
+		       c.whatsapp_opt_in_at, c.whatsapp_opt_out_at
 		FROM contacts c LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
 		WHERE c.workspace_id = $1`
 	args := []any{wsID}
@@ -231,7 +236,8 @@ func listContacts(ctx context.Context, db *sql.DB, wsID, listID string) ([]Conta
 	idx := map[string]int{}
 	for rows.Next() {
 		var c ContactOut
-		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
+			&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt); err != nil {
 			return nil, err
 		}
 		c.Subscriptions = []SubscriptionOut{}
@@ -616,6 +622,10 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
 		Campaigns      []CampaignOut `json:"campaigns"`
 		SMTPConfigured bool          `json:"smtp_configured"`
+		// Whether a WhatsApp number is linked (MH-320). Carried here so the
+		// campaigns page can say "link one first" instead of offering a send
+		// that would 409 — without needing the inbox permission to ask.
+		WhatsAppLinked bool `json:"whatsapp_linked"`
 	}], error) {
 		s, err := scope(ctx, authz.CampaignsRead)
 		if err != nil {
@@ -633,6 +643,7 @@ func Register(api huma.API, a *app.App) {
 		res := out(struct {
 			Campaigns      []CampaignOut `json:"campaigns"`
 			SMTPConfigured bool          `json:"smtp_configured"`
+			WhatsAppLinked bool          `json:"whatsapp_linked"`
 		}{Campaigns: []CampaignOut{}})
 		for rows.Next() {
 			var c CampaignOut
@@ -643,6 +654,7 @@ func Register(api huma.API, a *app.App) {
 			res.Body.Campaigns = append(res.Body.Campaigns, c)
 		}
 		_ = a.SQLDB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM smtp_settings WHERE workspace_id = $1)`, s.WorkspaceID).Scan(&res.Body.SMTPConfigured)
+		_ = a.SQLDB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM whatsapp_links WHERE workspace_id = $1 AND state = 'open')`, s.WorkspaceID).Scan(&res.Body.WhatsAppLinked)
 		return res, nil
 	})
 

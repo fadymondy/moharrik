@@ -55,15 +55,7 @@ var ErrNoWhatsApp = errors.New("link a WhatsApp number for this workspace before
 //	phone present           — nothing to send to otherwise
 func WhatsAppAudience(ctx context.Context, db *sql.DB, wsID, listID string) ([]WhatsAppRecipient, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT c.id, c.phone, c.name
-		FROM list_subscriptions s
-		JOIN contacts c ON c.id = s.contact_id AND c.workspace_id = s.workspace_id
-		WHERE s.workspace_id = $1
-		  AND s.list_id = $2
-		  AND s.status <> 'unsubscribed'
-		  AND c.whatsapp_opt_in_at IS NOT NULL
-		  AND c.whatsapp_opt_out_at IS NULL
-		  AND coalesce(c.phone, '') <> ''
+		SELECT c.id, c.phone, c.name `+whatsappAudienceFrom+`
 		ORDER BY s.created_at
 		LIMIT 50000`, wsID, listID)
 	if err != nil {
@@ -80,6 +72,53 @@ func WhatsAppAudience(ctx context.Context, db *sql.DB, wsID, listID string) ([]W
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// whatsappAudienceFrom is the audience rule, written ONCE so the count shown
+// before sending and the list actually sent to can never disagree.
+const whatsappAudienceFrom = `
+		FROM list_subscriptions s
+		JOIN contacts c ON c.id = s.contact_id AND c.workspace_id = s.workspace_id
+		WHERE s.workspace_id = $1
+		  AND s.list_id = $2
+		  AND s.status <> 'unsubscribed'
+		  AND c.whatsapp_opt_in_at IS NOT NULL
+		  AND c.whatsapp_opt_out_at IS NULL
+		  AND coalesce(c.phone, '') <> ''`
+
+// CountWhatsAppAudience is how many contacts a broadcast to a list would reach
+// right now — the number shown before anyone presses send.
+func CountWhatsAppAudience(ctx context.Context, db *sql.DB, wsID, listID string) (int64, error) {
+	var n int64
+	err := db.QueryRowContext(ctx, `SELECT count(*) `+whatsappAudienceFrom, wsID, listID).Scan(&n)
+	return n, err
+}
+
+// ErrWhatsAppOptedOut is an opt-in attempted for a contact who said STOP.
+var ErrWhatsAppOptedOut = errors.New("this contact asked to stop WhatsApp messages; only an explicit reversal can let them back in")
+
+// ErrNoSuchContact is a contact id this workspace does not have.
+var ErrNoSuchContact = errors.New("contact not found")
+
+// RecordWhatsAppOptIn is SetWhatsAppOptIn for a person acting in the
+// workspace: unlike the form path, it TELLS the caller when nothing happened
+// because the contact had opted out, so the UI can offer the explicit
+// reversal instead of pretending the tick took.
+func RecordWhatsAppOptIn(ctx context.Context, db *sql.DB, wsID, contactID string) error {
+	var optedOut bool
+	err := db.QueryRowContext(ctx, `
+		SELECT whatsapp_opt_out_at IS NOT NULL FROM contacts WHERE workspace_id = $1 AND id = $2`,
+		wsID, contactID).Scan(&optedOut)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNoSuchContact
+	}
+	if err != nil {
+		return err
+	}
+	if optedOut {
+		return ErrWhatsAppOptedOut
+	}
+	return SetWhatsAppOptIn(ctx, db, wsID, contactID)
 }
 
 // SetWhatsAppOptIn records that a contact agreed to be messaged on WhatsApp.

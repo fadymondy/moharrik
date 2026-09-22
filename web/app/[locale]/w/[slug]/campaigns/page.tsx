@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { MailWarningIcon, SendIcon } from "lucide-react"
+import { MailWarningIcon, MessageCircleWarningIcon, SendIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -27,9 +27,9 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type Campaign, type CampaignStatus, type MailList } from "@/lib/api"
+import { api, ApiError, type Campaign, type CampaignChannel, type CampaignStatus, type MailList } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useCampaigns, useMailLists } from "@/lib/queries"
+import { useCampaigns, useMailLists, useWhatsAppAudience } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
 const statusVariant: Record<CampaignStatus, "default" | "secondary" | "outline" | "destructive"> = {
@@ -50,6 +50,7 @@ export default function CampaignsPage() {
   const campaigns = useCampaigns(ws.id)
   const lists = useMailLists(ws.id)
   const smtpReady = !!campaigns.data?.smtp_configured
+  const whatsappLinked = !!campaigns.data?.whatsapp_linked
 
   return (
     <>
@@ -82,14 +83,16 @@ export default function CampaignsPage() {
           items={campaigns.data?.campaigns ?? []}
           lists={lists.data?.lists ?? []}
           canWrite={canWrite}
-          canSend={canSend && smtpReady}
+          canSend={canSend}
+          smtpReady={smtpReady}
+          whatsappLinked={whatsappLinked}
           onChange={() => campaigns.mutate()}
         />
       )}
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
       {canWrite ? (
-        <NewCampaign lists={lists.data?.lists ?? []} onCreated={() => campaigns.mutate()} />
+        <NewCampaign lists={lists.data?.lists ?? []} whatsappLinked={whatsappLinked} onCreated={() => campaigns.mutate()} />
       ) : ws.current ? (
         <p className="px-6 py-6 text-sm text-grid-muted">{t("campaigns.readOnly")}</p>
       ) : null}
@@ -97,17 +100,58 @@ export default function CampaignsPage() {
   )
 }
 
-function NewCampaign({ lists, onCreated }: { lists: MailList[]; onCreated: () => void }) {
+/** Where to link a WhatsApp number, or who to ask — never a send that would 409. */
+function WhatsAppMissing() {
+  const { t, locale } = useTranslations()
+  const ws = useWorkspace()
+  return (
+    <p className="flex items-start gap-2 text-sm text-grid-muted" role="status" data-whatsapp-missing>
+      <MessageCircleWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+      {ws.can("inbox:manage") ? (
+        <span>
+          {t("campaigns.whatsappMissing")}{" "}
+          <Link className="underline underline-offset-4" href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}>
+            {t("campaigns.whatsappLink")}
+          </Link>
+        </span>
+      ) : (
+        <span>{t("campaigns.whatsappMissingMember")}</span>
+      )}
+    </p>
+  )
+}
+
+/** The live WhatsApp audience of a list: the number a broadcast would reach now. */
+function Reachable({ listId }: { listId: string }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const aud = useWhatsAppAudience(ws.id, listId)
+  if (aud.error) return <p className="text-sm text-grid-danger-text">{t("campaigns.reachableError")}</p>
+  return (
+    <div className="text-sm" data-whatsapp-reachable={aud.data?.reachable ?? ""}>
+      <p className="font-medium">{aud.data ? t("campaigns.reachable", { count: aud.data.reachable }) : t("common.working")}</p>
+      <p className="text-grid-muted">{t("campaigns.reachableRule")}</p>
+    </div>
+  )
+}
+
+function NewCampaign({ lists, whatsappLinked, onCreated }: { lists: MailList[]; whatsappLinked: boolean; onCreated: () => void }) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const [listId, setListId] = useState("")
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
   const [lang, setLang] = useState<string>(locale === "ar" ? "ar" : "en")
+  const [channel, setChannel] = useState<CampaignChannel>("email")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const chosen = listId || lists[0]?.id || ""
+  const wa = channel === "whatsapp"
+  const channelItems = [
+    { value: "email", label: t("campaigns.channel.email") },
+    { value: "whatsapp", label: t("campaigns.channel.whatsapp") },
+  ]
   const listItems = lists.map((l) => ({ value: l.id, label: l.name }))
   const langItems = [
     { value: "en", label: t("lang.en") },
@@ -119,7 +163,7 @@ function NewCampaign({ lists, onCreated }: { lists: MailList[]; onCreated: () =>
     setBusy(true)
     setErr(null)
     try {
-      await api("/api/w/campaigns", { json: { list_id: chosen, subject: subject.trim(), body, locale: lang }, workspaceId: ws.id })
+      await api("/api/w/campaigns", { json: { list_id: chosen, channel, subject: subject.trim(), body, locale: lang }, workspaceId: ws.id })
       toast.success(t("campaigns.created"))
       setSubject("")
       setBody("")
@@ -144,6 +188,21 @@ function NewCampaign({ lists, onCreated }: { lists: MailList[]; onCreated: () =>
         <form onSubmit={onSubmit} noValidate className="mt-5 max-w-3xl" data-form="new-campaign">
           <FieldGroup>
             <div className="flex flex-col gap-4 sm:flex-row">
+              <Field className="sm:w-40">
+                <FieldLabel htmlFor="campaign-channel">{t("campaigns.channel")}</FieldLabel>
+                <Select items={channelItems} value={channel} onValueChange={(v) => setChannel(v === "whatsapp" ? "whatsapp" : "email")}>
+                  <SelectTrigger id="campaign-channel" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {channelItems.map((i) => (
+                      <SelectItem key={i.value} value={i.value}>
+                        {i.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field className="sm:flex-1">
                 <FieldLabel htmlFor="campaign-list">{t("campaigns.list")}</FieldLabel>
                 <Select items={listItems} value={chosen} onValueChange={(v) => setListId(String(v ?? ""))}>
@@ -175,14 +234,21 @@ function NewCampaign({ lists, onCreated }: { lists: MailList[]; onCreated: () =>
                 </Select>
               </Field>
             </div>
+            {wa ? (
+              <div className="flex flex-col gap-3 border border-line bg-grid-card px-4 py-3" data-whatsapp-panel>
+                <Reachable listId={chosen} />
+                {!whatsappLinked ? <WhatsAppMissing /> : null}
+              </div>
+            ) : null}
             <Field>
-              <FieldLabel htmlFor="campaign-subject">{t("campaigns.subject")}</FieldLabel>
+              <FieldLabel htmlFor="campaign-subject">{wa ? t("campaigns.internalName") : t("campaigns.subject")}</FieldLabel>
               <Input id="campaign-subject" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} dir={lang === "ar" ? "rtl" : "ltr"} />
+              {wa ? <FieldDescription>{t("campaigns.internalNameHint")}</FieldDescription> : null}
             </Field>
             <Field>
-              <FieldLabel htmlFor="campaign-body">{t("campaigns.body")}</FieldLabel>
+              <FieldLabel htmlFor="campaign-body">{wa ? t("campaigns.message") : t("campaigns.body")}</FieldLabel>
               <Textarea id="campaign-body" rows={10} value={body} onChange={(e) => setBody(e.target.value)} dir={lang === "ar" ? "rtl" : "ltr"} />
-              <FieldDescription>{t("campaigns.bodyHint")}</FieldDescription>
+              <FieldDescription>{wa ? t("campaigns.whatsappBodyHint") : t("campaigns.bodyHint")}</FieldDescription>
             </Field>
             <div>
               <Button type="submit" disabled={busy || !subject.trim() || !body.trim() || !chosen}>
@@ -202,15 +268,19 @@ function CampaignTable({
   lists,
   canWrite,
   canSend,
+  smtpReady,
+  whatsappLinked,
   onChange,
 }: {
   items: Campaign[]
   lists: MailList[]
   canWrite: boolean
   canSend: boolean
+  smtpReady: boolean
+  whatsappLinked: boolean
   onChange: () => void
 }) {
-  const { t, formatDate } = useTranslations()
+  const { t, locale, formatDate } = useTranslations()
   const ws = useWorkspace()
 
   async function remove(id: string) {
@@ -229,6 +299,7 @@ function CampaignTable({
         <TableHeader>
           <TableRow>
             <TableHead className="ps-6">{t("campaigns.subject")}</TableHead>
+            <TableHead>{t("campaigns.channel")}</TableHead>
             <TableHead>{t("campaigns.list")}</TableHead>
             <TableHead>{t("campaigns.status")}</TableHead>
             <TableHead>{t("campaigns.progress")}</TableHead>
@@ -241,6 +312,8 @@ function CampaignTable({
         <TableBody>
           {items.map((c) => {
             const subscribed = lists.find((l) => l.id === c.list_id)?.subscribed ?? 0
+            const wa = c.channel === "whatsapp"
+            const sendable = c.status === "draft" || c.status === "failed"
             return (
               <TableRow key={c.id} data-campaign-row={c.subject}>
                 <TableCell className="ps-6">
@@ -252,6 +325,11 @@ function CampaignTable({
                       {t("campaigns.lastError", { error: c.last_error })}
                     </div>
                   ) : null}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" data-channel={wa ? "whatsapp" : "email"}>
+                    {t(wa ? "campaigns.channel.whatsapp" : "campaigns.channel.email")}
+                  </Badge>
                 </TableCell>
                 <TableCell>{c.list_name}</TableCell>
                 <TableCell>
@@ -266,7 +344,17 @@ function CampaignTable({
                   <Ltr>{formatDate(c.sent_at ?? c.created_at)}</Ltr>
                 </TableCell>
                 <TableCell className="pe-6 text-end whitespace-nowrap">
-                  {canSend && (c.status === "draft" || c.status === "failed") ? (
+                  {canSend && sendable && wa && !whatsappLinked ? (
+                    ws.can("inbox:manage") ? (
+                      <Link className="me-2 text-xs underline underline-offset-4" href={`/${locale}/w/${ws.slug}/inbox/whatsapp`} data-send-blocked="whatsapp">
+                        {t("campaigns.whatsappLinkToSend")}
+                      </Link>
+                    ) : (
+                      <span className="me-2 text-xs text-grid-muted" data-send-blocked="whatsapp">
+                        {t("campaigns.whatsappNotLinkedShort")}
+                      </span>
+                    )
+                  ) : canSend && sendable && (wa || smtpReady) ? (
                     <SendButton campaign={c} count={subscribed} onSent={onChange} />
                   ) : null}
                   {canWrite && c.status !== "sending" ? (
@@ -293,6 +381,9 @@ function SendButton({ campaign, count, onSent }: { campaign: Campaign; count: nu
   const ws = useWorkspace()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const wa = campaign.channel === "whatsapp"
+  const aud = useWhatsAppAudience(ws.id, wa && open ? campaign.list_id : null)
+  const reachable = aud.data?.reachable
 
   async function send() {
     setBusy(true)
@@ -318,13 +409,19 @@ function SendButton({ campaign, count, onSent }: { campaign: Campaign; count: nu
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("campaigns.sendTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("campaigns.sendBody", { subject: campaign.subject, list: campaign.list_name, count })}
+            <AlertDialogDescription data-send-reachable={wa ? (reachable ?? "") : undefined}>
+              {wa
+                ? reachable === undefined
+                  ? t("common.working")
+                  : reachable === 0
+                    ? t("campaigns.sendNobodyWhatsApp", { list: campaign.list_name })
+                    : t("campaigns.sendBodyWhatsApp", { subject: campaign.subject, list: campaign.list_name, count: reachable })
+                : t("campaigns.sendBody", { subject: campaign.subject, list: campaign.list_name, count })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction disabled={busy} onClick={send}>
+            <AlertDialogAction disabled={busy || (wa && !reachable)} onClick={send}>
               {busy ? t("common.working") : t("campaigns.send")}
             </AlertDialogAction>
           </AlertDialogFooter>

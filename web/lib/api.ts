@@ -164,14 +164,21 @@ export type Contact = {
   company_name: string
   created_at: string
   subscriptions: Subscription[] | null
+  /** WhatsApp consent (MH-320) — its own, never implied by a list. */
+  whatsapp_opt_in_at: string | null
+  /** Set when the contact said STOP. Only an explicit reversal clears it. */
+  whatsapp_opt_out_at: string | null
 }
 
 export type CampaignStatus = "draft" | "sending" | "sent" | "failed"
+
+export type CampaignChannel = "email" | "whatsapp"
 
 export type Campaign = {
   id: string
   list_id: string
   list_name: string
+  channel: CampaignChannel
   subject: string
   body: string
   locale: "en" | "ar"

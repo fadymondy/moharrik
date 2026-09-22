@@ -2,6 +2,7 @@ package marketing_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -425,5 +426,60 @@ func TestSubscribeWhatsAppAudienceIsScopedToItsWorkspace(t *testing.T) {
 	got := audiencePhones(t, a, wsA, listA)
 	if len(got) != 1 || !got["+20 100 000 1111"] {
 		t.Fatalf("audience = %v; the other workspace's contact leaked in", got)
+	}
+}
+
+func TestSubscribeWhatsAppCountIsTheAudience(t *testing.T) {
+	// The number shown before sending must be the number sent to. Both read the
+	// same predicate; this pins that they cannot drift.
+	a := testApp(t)
+	wsID, listID := listIn(t, a, false)
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+
+	count := func() int64 {
+		n, err := marketing.CountWhatsAppAudience(sctx, a.SQLDB, wsID, listID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	id := contactOn(t, a, wsID, listID, "counted@example.com")
+	setPhone(t, a, wsID, id, "+20 100 999 0001")
+	if n := count(); n != 0 {
+		t.Fatalf("count = %d before any opt-in; list membership is not WhatsApp consent", n)
+	}
+
+	if err := marketing.RecordWhatsAppOptIn(sctx, a.SQLDB, wsID, id); err != nil {
+		t.Fatal(err)
+	}
+	if n, want := count(), int64(len(audiencePhones(t, a, wsID, listID))); n != 1 || n != want {
+		t.Fatalf("count = %d, audience = %d; want both 1", n, want)
+	}
+}
+
+func TestSubscribeWhatsAppRecordOptInRefusesAnOptedOutContact(t *testing.T) {
+	// The workspace path must SAY it did nothing, so the page offers the
+	// explicit reversal instead of showing a tick that did not take.
+	a := testApp(t)
+	wsID, listID := listIn(t, a, false)
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+
+	id := contactOn(t, a, wsID, listID, "refused@example.com")
+	setPhone(t, a, wsID, id, "+20 100 999 0002")
+	if err := marketing.SetWhatsAppOptOut(sctx, a.SQLDB, wsID, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := marketing.RecordWhatsAppOptIn(sctx, a.SQLDB, wsID, id); !errors.Is(err, marketing.ErrWhatsAppOptedOut) {
+		t.Fatalf("err = %v; want ErrWhatsAppOptedOut", err)
+	}
+	if len(audiencePhones(t, a, wsID, listID)) != 0 {
+		t.Fatal("a refused opt-in still reached the audience")
+	}
+
+	// A contact from another workspace is not found, not silently opted in.
+	wsB, _ := listIn(t, a, false)
+	if err := marketing.RecordWhatsAppOptIn(tenant.WithWorkspace(context.Background(), wsB), a.SQLDB, wsB, id); !errors.Is(err, marketing.ErrNoSuchContact) {
+		t.Fatalf("cross-workspace opt-in err = %v; want ErrNoSuchContact", err)
 	}
 }

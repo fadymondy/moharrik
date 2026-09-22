@@ -175,6 +175,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	workspaces.Register(api, a)
 	marketing.Register(api, a)
 	marketing.RegisterSubscribeForms(api, a)
+	marketing.RegisterWhatsAppConsent(api, a)
 	crm.Register(api, a)
 	notifications.Register(api, a)
 	inbox.Register(api, a)

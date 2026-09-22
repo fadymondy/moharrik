@@ -94,15 +94,20 @@ export const useContacts = (id?: string | null) => useScoped<{ contacts: Contact
 
 /** Polls while a campaign is sending, so progress moves on screen. */
 export function useCampaigns(workspaceId?: string | null) {
-  return useSWR<{ campaigns: Campaign[] | null; smtp_configured: boolean }>(
+  type R = { campaigns: Campaign[] | null; smtp_configured: boolean; whatsapp_linked: boolean }
+  return useSWR<R>(
     workspaceId ? ["/api/w/campaigns", workspaceId] : null,
-    ([p, id]: [string, string]) => api<{ campaigns: Campaign[] | null; smtp_configured: boolean }>(p, { workspaceId: id }),
+    ([p, id]: [string, string]) => api<R>(p, { workspaceId: id }),
     {
       ...noRetryOn4xx,
       refreshInterval: (data) => ((data?.campaigns ?? []).some((c) => c.status === "sending") ? 2000 : 0),
     },
   )
 }
+
+/** Who a WhatsApp broadcast to a list would reach right now (MH-320). */
+export const useWhatsAppAudience = (workspaceId?: string | null, listId?: string | null) =>
+  useScoped<{ reachable: number }>(`/api/w/mail/lists/${encodeURIComponent(listId ?? "")}/whatsapp-audience`, workspaceId, !!listId)
 
 export const useSmtpSettings = (id?: string | null, enabled = true) => useScoped<SmtpSettings>("/api/w/mail/smtp", id, enabled)
 
