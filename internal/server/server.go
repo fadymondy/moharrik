@@ -97,6 +97,12 @@ func Boot() *app.App {
 		agentHub.StartScheduler(a)
 	}
 
+	// Run retention: finished runs are deleted past each workspace's window
+	// (MH-234). It reads SCHEDULER itself, so it is off wherever the scheduler
+	// is — a sweeper that deletes rows under a test is exactly the thing not
+	// to leave running.
+	automation.StartRetention(a, k.Log)
+
 	// The inbox's mail collector: one in-process ticker polling the mailboxes
 	// that are due. MAIL_COLLECTOR=off turns it off — the tests and the OpenAPI
 	// export must not open a connection to anyone's mail server.

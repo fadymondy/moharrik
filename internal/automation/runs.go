@@ -151,42 +151,24 @@ func (h *Hub) Start(ctx context.Context, a *app.App, workspaceID, userID, trigge
 		return "", err
 	}
 
-	// One run at a time per browser. Checked here AND enforced by the partial
-	// index the query reads, so two requests racing cannot both pass.
-	var live int
-	if err := a.SQLDB.QueryRowContext(sctx, `
-		SELECT count(*) FROM automation_runs
-		WHERE workspace_id = $1 AND agent_id = $2 AND status IN ('queued', 'running')`,
-		workspaceID, agentID).Scan(&live); err != nil {
-		return "", err
-	}
-	if live > 0 {
-		return "", ErrBusy
-	}
-
 	params, err := json.Marshal(map[string]any{"steps": steps})
 	if err != nil {
 		return "", err
 	}
 
-	var runID string
-	if err := a.SQLDB.QueryRowContext(sctx, `
-		INSERT INTO automation_runs (workspace_id, agent_id, trigger, requested_by, params, status, step_count)
-		VALUES ($1, $2, $3, $4, $5, 'queued', $6) RETURNING id`,
-		workspaceID, agentID, trigger, userID, string(params), len(steps)).Scan(&runID); err != nil {
+	// The two capacity checks and the insert happen together, under a lock and
+	// in one transaction (MH-234).
+	//
+	// They used to be a bare count followed by an insert, with a comment
+	// claiming the partial index enforced it. The index was not unique, so it
+	// enforced nothing: two requests arriving together both counted zero and
+	// both inserted, and the same signed-in browser was driven twice at once.
+	// The index IS unique now, and this lock is what turns the resulting
+	// constraint violation into a queue rather than an error — and what makes
+	// the workspace-wide count safe, which no index can express.
+	runID, err := h.claimSlot(sctx, a, workspaceID, agentID, trigger, userID, string(params), steps)
+	if err != nil {
 		return "", err
-	}
-	for i, s := range steps {
-		args, _ := json.Marshal(s.Args)
-		if len(args) == 0 {
-			args = []byte("{}")
-		}
-		if _, err := a.SQLDB.ExecContext(sctx, `
-			INSERT INTO automation_run_steps (workspace_id, run_id, position, command, args, status)
-			VALUES ($1, $2, $3, $4, $5, 'pending')`,
-			workspaceID, runID, i, s.Command, string(args)); err != nil {
-			return "", err
-		}
 	}
 
 	// Detached from the request: the caller gets the run id now and watches it.

@@ -60,6 +60,12 @@ type SettingsOut struct {
 	Reason   string     `json:"reason"`
 	PausedAt *time.Time `json:"paused_at"`
 	PausedBy string     `json:"paused_by"`
+	// The workspace's ceilings, and how much of the parallel one is in use
+	// right now (MH-234). Carried here because a page that shows the kill
+	// switch is the page that shows the limits.
+	MaxParallelRuns int `json:"max_parallel_runs"`
+	RetentionDays   int `json:"retention_days"`
+	LiveRuns        int `json:"live_runs"`
 }
 
 type wsHeader struct {
@@ -367,6 +373,11 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 			return nil, huma.Error500InternalServerError("could not read the setting")
 		}
 		o.PausedAt = timep(pausedAt)
+
+		limits := ReadLimits(ctx, a, s.WorkspaceID)
+		o.MaxParallelRuns = limits.MaxParallelRuns
+		o.RetentionDays = limits.RetentionDays
+		o.LiveRuns, _ = LiveRuns(ctx, a, s.WorkspaceID)
 		return out(o), nil
 	})
 
@@ -378,6 +389,11 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		Body struct {
 			Paused bool   `json:"paused"`
 			Reason string `json:"reason,omitempty" maxLength:"200"`
+			// Pointers, so "not sent" is distinguishable from "set to zero":
+			// the pause button posts neither, and must not reset the limits
+			// somebody configured (MH-234).
+			MaxParallelRuns *int `json:"max_parallel_runs,omitempty" minimum:"1" maximum:"50"`
+			RetentionDays   *int `json:"retention_days,omitempty" minimum:"0" maximum:"3650"`
 		}
 	}) (*body[SettingsOut], error) {
 		s, err := scope(ctx, authz.AutomationManage)
@@ -396,8 +412,28 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		} else if err := Resume(ctx, a, s.WorkspaceID); err != nil {
 			return nil, huma.Error500InternalServerError("could not resume automation")
 		}
+		if in.Body.MaxParallelRuns != nil || in.Body.RetentionDays != nil {
+			limits := ReadLimits(ctx, a, s.WorkspaceID)
+			if in.Body.MaxParallelRuns != nil {
+				limits.MaxParallelRuns = *in.Body.MaxParallelRuns
+			}
+			if in.Body.RetentionDays != nil {
+				limits.RetentionDays = *in.Body.RetentionDays
+			}
+			if err := SetLimits(ctx, a, s.WorkspaceID, limits); err != nil {
+				return nil, huma.Error422UnprocessableEntity(err.Error())
+			}
+		}
+
 		paused, reason, _ := IsPaused(ctx, a, s.WorkspaceID)
-		return out(SettingsOut{Paused: paused, Reason: reason}), nil
+		limits := ReadLimits(ctx, a, s.WorkspaceID)
+		live, _ := LiveRuns(ctx, a, s.WorkspaceID)
+		return out(SettingsOut{
+			Paused: paused, Reason: reason,
+			MaxParallelRuns: limits.MaxParallelRuns,
+			RetentionDays:   limits.RetentionDays,
+			LiveRuns:        live,
+		}), nil
 	})
 
 	// ---- runs -------------------------------------------------------------
@@ -722,6 +758,10 @@ func runError(err error) error {
 		return huma.Error409Conflict(err.Error())
 	case errors.Is(err, ErrBusy):
 		return huma.Error409Conflict(err.Error())
+	// Distinct from ErrBusy on purpose: "that browser is occupied" is fixed by
+	// choosing another one, "the workspace is full" is not (MH-234).
+	case errors.Is(err, ErrAtCapacity):
+		return huma.Error429TooManyRequests(err.Error())
 	case errors.Is(err, ErrOffline):
 		return huma.Error409Conflict(err.Error())
 	case errors.Is(err, ErrRevoked):
