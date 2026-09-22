@@ -219,6 +219,13 @@ func (h *Hub) readPump(a *app.App, c *conn) {
 		case env.Type == "ping":
 			frame, _ := json.Marshal(Envelope{ID: env.ID, Type: "pong"})
 			c.trySend(frame)
+		case env.Type == "recording":
+			// What the operator just did, on its way to becoming a workflow
+			// (MH-235). Handled on this goroutine rather than detached: the
+			// browser is waiting for the reply to know whether to clear what
+			// it recorded, and losing a recording to a silent failure is the
+			// one outcome worth avoiding here.
+			h.saveRecording(a, c, env)
 		case env.Type == "halt":
 			// "Stop everything", pressed in a browser's own popup. Honoured from
 			// any authenticated browser on purpose: a kill switch that only the
@@ -314,4 +321,38 @@ func lookupAgent(ctx context.Context, sys *sql.DB, tokenHash string) (Connected,
 		return Connected{}, nil, ErrRevoked
 	}
 	return c, hosts, nil
+}
+
+// saveRecording turns a pushed recording into a workflow and answers the
+// browser with the result — or with the refusal, which the extension keeps so
+// the operator can fix the allow-list and send it again rather than losing
+// what they did.
+func (h *Hub) saveRecording(a *app.App, c *conn, env Envelope) {
+	reply := Envelope{ID: env.ID, Type: "recording.saved"}
+
+	var rec Recording
+	if err := json.Unmarshal(env.Payload, &rec); err != nil {
+		reply.Error = "that recording could not be read"
+		if frame, err := json.Marshal(reply); err == nil {
+			c.trySend(frame)
+		}
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	saved, err := SaveRecording(ctx, a, c.agent.WorkspaceID, c.agent.AgentID, rec)
+	if err != nil {
+		h.log.Warn("recording refused", "agent", c.agent.AgentID, "err", err)
+		reply.Error = err.Error()
+	} else {
+		h.log.Info("recording saved as a workflow",
+			"agent", c.agent.AgentID, "workflow", saved.WorkflowID, "steps", saved.Steps)
+		reply.Payload, _ = json.Marshal(saved)
+	}
+
+	if frame, err := json.Marshal(reply); err == nil {
+		c.trySend(frame)
+	}
 }

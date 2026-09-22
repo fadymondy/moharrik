@@ -2,7 +2,9 @@ package automation_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -293,5 +295,210 @@ func TestCapacitySweepKeepsEverythingWhenRetentionIsZero(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatal("retention_days = 0 deleted a three-year-old run; it must mean keep for ever")
+	}
+}
+
+// ── recordings (MH-235) ──────────────────────────────────────────────────
+
+func recording(steps ...automation.RecordedStep) automation.Recording {
+	return automation.Recording{StartURL: "https://example.com/start", Steps: steps}
+}
+
+func rawArgs(t *testing.T, v map[string]any) []byte {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func TestCapacityRecordingBecomesAWorkflow(t *testing.T) {
+	a := testApp(t)
+	wsID, agentID := workspace(t, a)
+	ctx := context.Background()
+
+	saved, err := automation.SaveRecording(ctx, a, wsID, agentID, recording(
+		automation.RecordedStep{Command: "navigate", Args: rawArgs(t, map[string]any{"url": "https://example.com/start"})},
+		automation.RecordedStep{Command: "click", Args: rawArgs(t, map[string]any{"selector": "#go"})},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Steps != 2 {
+		t.Fatalf("steps = %d, want 2", saved.Steps)
+	}
+
+	sctx := tenant.WithWorkspace(ctx, wsID)
+	var name, steps string
+	if err := a.SQLDB.QueryRowContext(sctx, `
+		SELECT name, steps::text FROM automation_workflows WHERE workspace_id = $1 AND id = $2`,
+		wsID, saved.WorkflowID).Scan(&name, &steps); err != nil {
+		t.Fatalf("the recording did not land as a workflow: %v", err)
+	}
+	if !strings.Contains(steps, "example.com/start") {
+		t.Fatalf("the workflow does not hold the recorded steps: %s", steps)
+	}
+}
+
+func TestCapacityRecordingRefusesAHostOffTheAllowList(t *testing.T) {
+	// The whole recording is refused, not just the offending step. A recording
+	// that quietly dropped half of itself would replay as something the
+	// operator never did.
+	a := testApp(t)
+	wsID, agentID := workspace(t, a)
+
+	_, err := automation.SaveRecording(context.Background(), a, wsID, agentID, recording(
+		automation.RecordedStep{Command: "navigate", Args: rawArgs(t, map[string]any{"url": "https://example.com/start"})},
+		automation.RecordedStep{Command: "navigate", Args: rawArgs(t, map[string]any{"url": "https://evil.test/collect"})},
+	))
+	if err == nil {
+		t.Fatal("a recording that navigated off the allow-list was accepted")
+	}
+	if !strings.Contains(err.Error(), "evil.test") {
+		t.Fatalf("the refusal does not name the host: %v", err)
+	}
+
+	var n int
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+	if err := a.SQLDB.QueryRowContext(sctx, `
+		SELECT count(*) FROM automation_workflows WHERE workspace_id = $1`, wsID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatal("a refused recording still wrote a workflow")
+	}
+}
+
+func TestCapacityRecordingNeverKeepsASecret(t *testing.T) {
+	// A password recorded verbatim would live in the workflow, in every run it
+	// produced, and in front of any model handed those runs. It becomes a
+	// placeholder with a secret parameter, which MH-233 redacts.
+	a := testApp(t)
+	wsID, agentID := workspace(t, a)
+	ctx := context.Background()
+
+	saved, err := automation.SaveRecording(ctx, a, wsID, agentID, recording(
+		automation.RecordedStep{Command: "navigate", Args: rawArgs(t, map[string]any{"url": "https://example.com/start"})},
+		automation.RecordedStep{
+			Command: "type",
+			Args:    rawArgs(t, map[string]any{"selector": "#pass", "text": "hunter2"}),
+			Secret:  true,
+		},
+		// Not marked by the extension, but the selector says password — the
+		// server must not depend on the extension having got it right.
+		automation.RecordedStep{
+			Command: "type",
+			Args:    rawArgs(t, map[string]any{"selector": "input[name=password]", "text": "swordfish"}),
+		},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sctx := tenant.WithWorkspace(ctx, wsID)
+	var steps, params string
+	if err := a.SQLDB.QueryRowContext(sctx, `
+		SELECT steps::text, params::text FROM automation_workflows WHERE workspace_id = $1 AND id = $2`,
+		wsID, saved.WorkflowID).Scan(&steps, &params); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, secret := range []string{"hunter2", "swordfish"} {
+		if strings.Contains(steps, secret) {
+			t.Fatalf("a recorded password was stored in the workflow steps: %s", steps)
+		}
+	}
+	if !strings.Contains(steps, "{{password}}") {
+		t.Fatalf("the secret field did not become a placeholder: %s", steps)
+	}
+	// jsonb is read back with Postgres's own spacing, so the check is made
+	// against the parsed value rather than against the rendered text.
+	var declared []automation.Param
+	if err := json.Unmarshal([]byte(params), &declared); err != nil {
+		t.Fatalf("params are not readable: %v", err)
+	}
+	if len(declared) == 0 {
+		t.Fatal("the secret field declared no parameter")
+	}
+	for _, p := range declared {
+		if !p.Secret || !p.Required {
+			t.Errorf("parameter %q must be secret and required, got %+v", p.Name, p)
+		}
+	}
+}
+
+func TestCapacityRecordingDropsCommandsItCannotHaveObserved(t *testing.T) {
+	// "close" ends a run and "extract" reads a page; neither is something an
+	// operator can be watched doing, so neither may arrive by way of a
+	// recording.
+	a := testApp(t)
+	wsID, agentID := workspace(t, a)
+	ctx := context.Background()
+
+	saved, err := automation.SaveRecording(ctx, a, wsID, agentID, recording(
+		automation.RecordedStep{Command: "navigate", Args: rawArgs(t, map[string]any{"url": "https://example.com/start"})},
+		automation.RecordedStep{Command: "close"},
+		automation.RecordedStep{Command: "extract", Args: rawArgs(t, map[string]any{"selector": "body"})},
+		automation.RecordedStep{Command: "click", Args: rawArgs(t, map[string]any{"selector": "#ok"})},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Steps != 2 {
+		t.Fatalf("steps = %d, want 2 (navigate + click)", saved.Steps)
+	}
+
+	sctx := tenant.WithWorkspace(ctx, wsID)
+	var steps string
+	if err := a.SQLDB.QueryRowContext(sctx, `
+		SELECT steps::text FROM automation_workflows WHERE workspace_id = $1 AND id = $2`,
+		wsID, saved.WorkflowID).Scan(&steps); err != nil {
+		t.Fatal(err)
+	}
+	for _, banned := range []string{`"close"`, `"extract"`} {
+		if strings.Contains(steps, banned) {
+			t.Errorf("%s survived into the workflow: %s", banned, steps)
+		}
+	}
+}
+
+func TestCapacityRecordingRefusesAnUnknownBrowserAndAnEmptyOne(t *testing.T) {
+	a := testApp(t)
+	wsID, agentID := workspace(t, a)
+	ctx := context.Background()
+
+	if _, err := automation.SaveRecording(ctx, a, wsID, "not-a-browser", recording(
+		automation.RecordedStep{Command: "click", Args: rawArgs(t, map[string]any{"selector": "#x"})},
+	)); err == nil {
+		t.Fatal("a recording from an unknown browser was accepted")
+	}
+
+	if _, err := automation.SaveRecording(ctx, a, wsID, agentID, automation.Recording{
+		StartURL: "https://example.com/start",
+	}); err == nil {
+		t.Fatal("an empty recording was accepted")
+	}
+
+	// A recording has to start on a real page: "about:blank" replays as nothing.
+	if _, err := automation.SaveRecording(ctx, a, wsID, agentID, automation.Recording{
+		StartURL: "about:blank",
+		Steps:    []automation.RecordedStep{{Command: "click", Args: rawArgs(t, map[string]any{"selector": "#x"})}},
+	}); err == nil {
+		t.Fatal("a recording starting nowhere was accepted")
+	}
+}
+
+func TestCapacityRecordingIsScopedToTheSocketsWorkspace(t *testing.T) {
+	// The workspace comes from the socket, never the payload. A browser paired
+	// with A must not be able to write a workflow into B by naming it.
+	a := testApp(t)
+	_, agentA := workspace(t, a)
+	wsB, _ := workspace(t, a)
+
+	if _, err := automation.SaveRecording(context.Background(), a, wsB, agentA, recording(
+		automation.RecordedStep{Command: "click", Args: rawArgs(t, map[string]any{"selector": "#x"})},
+	)); err == nil {
+		t.Fatal("a browser from another workspace recorded into this one")
 	}
 }

@@ -109,6 +109,18 @@
         <button id="halt">Stop everything</button>
         <button id="forget">Disconnect</button>
       </div>
+
+      <!--
+        The recorder (MH-235). Do the task by hand once; what you did becomes
+        a workflow you can review, fill in and schedule.
+      -->
+      <hr />
+      <p class="muted" id="recstate">Not recording</p>
+      <div class="row">
+        <button class="primary" id="rec">Record what I do</button>
+        <button id="recstop" hidden>Stop and save</button>
+        <button id="recdiscard" hidden>Discard</button>
+      </div>
     </div>
 
     <hr />

@@ -13,6 +13,7 @@ gone and opens a new one. That is why this file is mostly about coming back.
 
 import { KEYS, get, loadSettings, set, socketURL } from "./config.js"
 import { closeRun, runStep } from "./driver.js"
+import { addStep, discardRecording, recordingState, startRecording, stopRecording } from "./recorder.js"
 
 let sock = null
 let attempt = 0
@@ -54,6 +55,30 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (sock) sock.close()
     setStatus({ state: "off" })
     reply({ ok: true })
+    return true
+  }
+  // The recorder (MH-235). The page half sends record.step on every action and
+  // record.stop when the operator presses Stop on the in-page bar.
+  if (msg?.type === "record.step") {
+    addStep(_sender?.tab?.id, msg.step).then((count) => reply({ count })).catch(() => reply({}))
+    return true
+  }
+  if (msg?.type === "record.start") {
+    startRecording().then(reply).catch((e) => reply({ error: String(e?.message || e) }))
+    return true
+  }
+  if (msg?.type === "record.stop") {
+    stopRecording({ sendToSite: sendRecording })
+      .then(reply)
+      .catch((e) => reply({ error: String(e?.message || e) }))
+    return true
+  }
+  if (msg?.type === "record.discard") {
+    discardRecording().then(() => reply({ ok: true }))
+    return true
+  }
+  if (msg?.type === "record.state") {
+    recordingState().then(reply)
     return true
   }
   if (msg?.type === "halt") {
@@ -122,6 +147,8 @@ async function connect(force = false) {
     } catch {
       return
     }
+
+    if (env.type === "recording.saved" && settleRecording(env)) return
 
     if (env.type === "hello.ok") {
       attempt = 0
@@ -195,3 +222,43 @@ async function browserFingerprint() {
 }
 
 connect()
+
+/*
+Sending a recording, and waiting for the site's answer (MH-235).
+
+The socket is normally the server asking and this browser answering. A
+recording goes the other way, so this keeps its own pending map keyed by the
+frame id — the same correlation the server does, in the other direction.
+
+It REJECTS rather than resolving silently on failure, because the caller keeps
+the recording when it fails: losing a task the operator just performed by hand
+is the one outcome worth engineering against here.
+*/
+const pendingRecordings = new Map()
+
+function sendRecording(payload) {
+  return new Promise((resolve, reject) => {
+    if (!sock || sock.readyState !== WebSocket.OPEN) {
+      reject(new Error("this browser is not connected to the workspace"))
+      return
+    }
+    const id = "rec-" + Math.random().toString(36).slice(2) + Date.now().toString(36)
+    const timer = setTimeout(() => {
+      pendingRecordings.delete(id)
+      reject(new Error("the workspace did not answer in time"))
+    }, 20000)
+
+    pendingRecordings.set(id, { resolve, reject, timer })
+    send({ id, type: "recording", payload })
+  })
+}
+
+function settleRecording(env) {
+  const waiter = pendingRecordings.get(env.id)
+  if (!waiter) return false
+  pendingRecordings.delete(env.id)
+  clearTimeout(waiter.timer)
+  if (env.error) waiter.reject(new Error(env.error))
+  else waiter.resolve(env.payload || {})
+  return true
+}

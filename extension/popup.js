@@ -133,6 +133,64 @@ async function pollForApproval(settings, pollToken) {
   }
 }
 
+/*
+The recorder's controls (MH-235).
+
+Its state lives in the service worker, because the popup is closed most of the
+time and a recording outlives it — so this asks rather than remembers.
+*/
+async function renderRecorder() {
+  const rec = await chrome.runtime.sendMessage({ type: "record.state" }).catch(() => null)
+  if (!rec) return
+
+  const recording = !!rec.active
+  $("rec").hidden = recording
+  $("recstop").hidden = !recording && !rec.steps
+  $("recdiscard").hidden = !recording && !rec.steps
+
+  if (rec.blocked) {
+    // Still recording, but this page is off the allow-list, so nothing here is
+    // being watched. Saying so beats a step count that quietly stops rising.
+    $("recstate").textContent = `Recording · ${rec.steps} steps · paused here: ${rec.blocked}`
+  } else if (recording) {
+    $("recstate").textContent = `Recording · ${rec.steps} step${rec.steps === 1 ? "" : "s"}`
+  } else if (rec.steps) {
+    // Held rather than lost: a dropped socket must not cost the operator the
+    // task they just performed by hand.
+    $("recstate").textContent = rec.error
+      ? `${rec.steps} steps not saved — ${rec.error}`
+      : `${rec.steps} steps waiting to be saved`
+  } else {
+    $("recstate").textContent = "Not recording"
+  }
+}
+
+$("rec").addEventListener("click", async () => {
+  const out = await chrome.runtime.sendMessage({ type: "record.start" }).catch(() => ({ error: "could not start" }))
+  $("error").hidden = !out?.error
+  if (out?.error) $("error").textContent = out.error
+  renderRecorder()
+})
+
+$("recstop").addEventListener("click", async () => {
+  $("recstate").textContent = "Saving…"
+  const out = await chrome.runtime.sendMessage({ type: "record.stop" }).catch(() => ({ error: "could not save" }))
+  if (out?.error) {
+    $("error").hidden = false
+    $("error").textContent = out.error
+  } else if (out?.saved) {
+    $("error").hidden = false
+    $("error").textContent = `Saved as "${out.saved.name}" — ${out.saved.steps} steps. Review it before scheduling it.`
+  }
+  renderRecorder()
+})
+
+$("recdiscard").addEventListener("click", async () => {
+  await chrome.runtime.sendMessage({ type: "record.discard" }).catch(() => {})
+  $("error").hidden = true
+  renderRecorder()
+})
+
 $("grant").addEventListener("click", async () => {
   const agent = (await get(KEYS.agent)) || {}
   const hosts = agent.allowedHosts || []
@@ -159,3 +217,7 @@ $("forget").addEventListener("click", async () => {
 })
 
 render()
+renderRecorder()
+// A recording changes while the popup is open (the in-page Stop button, a
+// navigation off the allow-list), so the count would otherwise go stale.
+setInterval(renderRecorder, 1000)
