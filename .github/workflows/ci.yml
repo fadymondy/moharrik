@@ -40,6 +40,20 @@ jobs:
           TEST_APP_DATABASE_URL: postgres://moharrik_app_test:test@localhost:5432/moharrik_test?sslmode=disable
         run: go test -count=1 ./internal/server/ -run Isolation -v
 
+  extension:
+    # The driver replays every step the recorder emits (MH-398), against jsdom.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+
   web:
     runs-on: ubuntu-latest
     defaults:

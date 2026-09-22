@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Replay fixture</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; margin: 24px; }
+      #spacer { height: 2400px; background: linear-gradient(#f4f1fb, #d9cff0); }
+    </style>
+  </head>
+  <body>
+    <!--
+      MH-398: the three recorded steps the driver used to refuse, on one page.
+        - a search form with no button, submitted by Enter (press)
+        - a dropdown whose choice is shown when it changes (select)
+        - a button far below the fold (scroll, then click)
+      The page's own script runs in a real browser; the jsdom test attaches the
+      same behaviour itself, because jsdom here does not run page scripts.
+    -->
+    <h1 id="title">Replay fixture</h1>
+    <form id="search" action="/results" method="get">
+      <input id="q" name="q" autocomplete="off" />
+    </form>
+    <p id="searched">not searched</p>
+
+    <label for="country">Country</label>
+    <select id="country" name="country">
+      <option value="">Choose one</option>
+      <option value="eg">Egypt</option>
+      <option value="uk">United Kingdom</option>
+      <option value="fr">France</option>
+      <option value="xx" disabled>Nowhere</option>
+    </select>
+    <p id="chosen">nothing chosen</p>
+
+    <div id="spacer"></div>
+    <button id="deep" type="button">Deep button</button>
+    <p id="clicked">not clicked</p>
+
+    <script>
+      // Present only for the real-browser check; jsdom ignores it.
+      document.getElementById("search").addEventListener("submit", (e) => {
+        e.preventDefault()
+        document.getElementById("searched").textContent = "searched: " + document.getElementById("q").value
+      })
+      document.getElementById("country").addEventListener("change", (e) => {
+        document.getElementById("chosen").textContent = "chosen: " + e.target.value
+      })
+      document.getElementById("deep").addEventListener("click", () => {
+        document.getElementById("clicked").textContent = "clicked at scrollY " + Math.round(window.scrollY)
+      })
+    </script>
+  </body>
+</html>
