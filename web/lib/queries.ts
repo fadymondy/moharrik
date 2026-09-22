@@ -16,6 +16,7 @@ import {
   type RunStep,
   type Activity,
   type Campaign,
+  type SubscribeForm,
   type Company,
   type ContactDetail,
   type ContactRef,
@@ -108,6 +109,8 @@ export function useCampaigns(workspaceId?: string | null) {
 /** Who a WhatsApp broadcast to a list would reach right now (MH-320). */
 export const useWhatsAppAudience = (workspaceId?: string | null, listId?: string | null) =>
   useScoped<{ reachable: number }>(`/api/w/mail/lists/${encodeURIComponent(listId ?? "")}/whatsapp-audience`, workspaceId, !!listId)
+
+export const useSubscribeForms = (id?: string | null) => useScoped<{ forms: SubscribeForm[] | null }>("/api/w/subscribe-forms", id)
 
 export const useSmtpSettings = (id?: string | null, enabled = true) => useScoped<SmtpSettings>("/api/w/mail/smtp", id, enabled)
 

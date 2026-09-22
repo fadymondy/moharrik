@@ -65,6 +65,59 @@ type FormOut struct {
 	ThanksEN       string    `json:"thanks_en"`
 	ThanksAR       string    `json:"thanks_ar"`
 	CreatedAt      time.Time `json:"created_at"`
+	// Where a customer's page posts, and a minimal form that does it. Built
+	// here rather than in the page because only the server knows its public
+	// URL — the same reason the chat widget's snippet is (internal/inbox).
+	Endpoint string `json:"endpoint"`
+	Embed    string `json:"embed" doc:"A minimal HTML form to paste on the customer's site."`
+}
+
+func subscribeEndpoint(key string) string { return publicBase() + "/api/subscribe/" + key }
+
+// subscribeSnippet is a dependency-free form: email, optional name and phone,
+// and the WhatsApp consent as its OWN unticked box (MH-320) — sent only with a
+// phone, because consent to a number nobody gave means nothing.
+func subscribeSnippet(key string) string {
+	id := "moharrik-subscribe-" + key
+	return `<form id="` + id + `">
+  <input type="email" name="email" required placeholder="Email">
+  <input type="text" name="name" placeholder="Name (optional)">
+  <input type="tel" name="phone" placeholder="Phone (optional)">
+  <label><input type="checkbox" name="whatsapp_opt_in"> Also message me on WhatsApp</label>
+  <button type="submit">Subscribe</button>
+  <p role="status" data-message></p>
+</form>
+<script>
+(function () {
+  var f = document.getElementById("` + id + `");
+  f.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var d = new FormData(f), msg = f.querySelector("[data-message]"), phone = (d.get("phone") || "").trim();
+    fetch("` + subscribeEndpoint(key) + `", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: d.get("email"),
+        name: d.get("name") || "",
+        phone: phone,
+        whatsapp_opt_in: !!phone && d.get("whatsapp_opt_in") === "on",
+        locale: (document.documentElement.lang || "en").slice(0, 2)
+      })
+    }).then(function (r) {
+      return r.json().then(function (j) {
+        msg.textContent = r.ok ? j.thanks : (j.error || j.detail || "Something went wrong.");
+        if (r.ok) f.reset();
+      });
+    }).catch(function () { msg.textContent = "Could not reach the server."; });
+  });
+})();
+</script>`
+}
+
+func withEmbed(f FormOut) FormOut {
+	f.Endpoint = subscribeEndpoint(f.PublicKey)
+	f.Embed = subscribeSnippet(f.PublicKey)
+	return f
 }
 
 // originAllowed checks a browser Origin against a comma-separated allow-list.
@@ -130,7 +183,7 @@ func registerFormAdmin(api huma.API, a *app.App) {
 				return nil, huma.Error500InternalServerError("could not read the forms")
 			}
 			f.AllowedOrigins = splitOrigins(origins)
-			forms = append(forms, f)
+			forms = append(forms, withEmbed(f))
 		}
 		return out(struct {
 			Forms []FormOut `json:"forms"`
@@ -186,11 +239,11 @@ func registerFormAdmin(api huma.API, a *app.App) {
 
 		return out(struct {
 			Form FormOut `json:"form"`
-		}{FormOut{
+		}{withEmbed(FormOut{
 			ID: id, ListID: in.Body.ListID, ListName: listName, Name: strings.TrimSpace(in.Body.Name),
 			PublicKey: key, AllowedOrigins: splitOrigins(origins), Enabled: true,
 			ThanksEN: in.Body.ThanksEN, ThanksAR: in.Body.ThanksAR, CreatedAt: createdAt,
-		}}), nil
+		})}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -201,6 +254,7 @@ func registerFormAdmin(api huma.API, a *app.App) {
 		ID   string `path:"id"`
 		Body struct {
 			Name           *string  `json:"name,omitempty" maxLength:"80"`
+			ListID         *string  `json:"list_id,omitempty" doc:"Point the form at another list of this workspace."`
 			AllowedOrigins []string `json:"allowed_origins,omitempty" maxItems:"50"`
 			Enabled        *bool    `json:"enabled,omitempty"`
 			ThanksEN       *string  `json:"thanks_en,omitempty" maxLength:"300"`
@@ -212,6 +266,17 @@ func registerFormAdmin(api huma.API, a *app.App) {
 		s, err := scope(ctx, authz.CampaignsWrite)
 		if err != nil {
 			return nil, err
+		}
+
+		if in.Body.ListID != nil {
+			var ok bool
+			if err := a.SQLDB.QueryRowContext(ctx,
+				`SELECT EXISTS (SELECT 1 FROM mail_lists WHERE workspace_id = $1 AND id = $2)`,
+				s.WorkspaceID, *in.Body.ListID).Scan(&ok); err != nil {
+				return nil, huma.Error500InternalServerError("could not read the list")
+			} else if !ok {
+				return nil, huma.Error404NotFound("list not found")
+			}
 		}
 
 		// COALESCE on a nullable parameter: a field that was not sent keeps its
@@ -227,11 +292,12 @@ func registerFormAdmin(api huma.API, a *app.App) {
 			  name = COALESCE($3, name),
 			  allowed_origins = COALESCE($4, allowed_origins),
 			  enabled = COALESCE($5, enabled),
+			  list_id = COALESCE($8, list_id),
 			  thanks_en = COALESCE($6, thanks_en),
 			  thanks_ar = COALESCE($7, thanks_ar),
 			  updated_at = now()
 			WHERE workspace_id = $1 AND id = $2`,
-			s.WorkspaceID, in.ID, in.Body.Name, origins, in.Body.Enabled, in.Body.ThanksEN, in.Body.ThanksAR)
+			s.WorkspaceID, in.ID, in.Body.Name, origins, in.Body.Enabled, in.Body.ThanksEN, in.Body.ThanksAR, in.Body.ListID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not update the form")
 		}

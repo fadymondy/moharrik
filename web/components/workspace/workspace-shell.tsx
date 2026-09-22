@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   BellIcon,
   BotIcon,
+  ClipboardListIcon,
   Building2Icon,
   CheckIcon,
   ChevronsUpDownIcon,
@@ -285,6 +286,9 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
       </L>
       <L href={`${base}/campaigns`} icon={<SendIcon />}>
         {t("nav.campaigns")}
+      </L>
+      <L href={`${base}/subscribe-forms`} icon={<ClipboardListIcon />}>
+        {t("nav.subscribeForms")}
       </L>
       <L href={`${base}/inbox`} icon={<InboxIcon />}>
         {t("nav.inbox")}

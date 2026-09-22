@@ -191,6 +191,24 @@ export type Campaign = {
   created_at: string
 }
 
+export type SubscribeForm = {
+  id: string
+  list_id: string
+  list_name: string
+  name: string
+  public_key: string
+  /** Empty allows NO site to submit. */
+  allowed_origins: string[] | null
+  enabled: boolean
+  thanks_en: string
+  thanks_ar: string
+  created_at: string
+  /** Where a customer's page posts. */
+  endpoint: string
+  /** A minimal HTML form, built by the API (it knows its public URL). */
+  embed: string
+}
+
 export type SmtpSettings = {
   configured: boolean
   host: string

@@ -174,3 +174,23 @@ func TestStopHintIsOnEveryBroadcast(t *testing.T) {
 		t.Errorf("the Arabic hint does not say how to stop: %q", ar)
 	}
 }
+
+func TestSubscribeSnippetPostsToItsOwnKeyAndKeepsWhatsAppSeparate(t *testing.T) {
+	t.Setenv("PUBLIC_URL", "https://app.example.test/")
+	s := subscribeSnippet("sf_k1")
+	for _, want := range []string{
+		`fetch("https://app.example.test/api/subscribe/sf_k1"`,
+		`name="whatsapp_opt_in"`,
+		// This API's errors carry "error"; the visitor should see the reason.
+		`j.error ||`,
+		// Consent to WhatsApp is sent only alongside a phone, and never pre-ticked.
+		`whatsapp_opt_in: !!phone && d.get("whatsapp_opt_in") === "on"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("snippet missing %q", want)
+		}
+	}
+	if strings.Contains(s, "checked") {
+		t.Error("the WhatsApp box must not be pre-ticked")
+	}
+}

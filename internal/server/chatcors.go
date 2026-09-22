@@ -23,11 +23,27 @@ match; this only lets the browser read that answer, so the widget can say "this
 chat is not available on this site" instead of failing silently. No credentials
 are allowed — the widget authenticates with the key in the path and its
 visitor_token, never with cookies.
+
+/api/subscribe/{key} (MH-318) is the same shape — a form on the customer's
+site, the key in the path, the Origin checked against the form's own
+allow-list — and needs the same headers, or no browser can ever submit it.
 */
+
+// publicCrossOrigin is the set of prefixes a customer's page calls directly.
+var publicCrossOrigin = []string{"/api/chat/", "/api/subscribe/"}
+
+func isPublicCrossOrigin(path string) bool {
+	for _, p := range publicCrossOrigin {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
 func installChatCORS(k *togo.Kernel) {
 	k.UseMiddleware(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !strings.HasPrefix(r.URL.Path, "/api/chat/") {
+			if !isPublicCrossOrigin(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
