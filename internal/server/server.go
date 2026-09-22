@@ -20,6 +20,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/automation"
+	"github.com/fadymondy/moharrik/internal/clientip"
 	"github.com/fadymondy/moharrik/internal/crm"
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
@@ -55,6 +56,7 @@ func Boot() *app.App {
 
 	installErrors()
 	installProblemReports(k) // outermost: sees what the guard and handlers answer
+	installClientIP(k)       // the visitor's address, from the TRUSTED proxy chain only
 	installChatCORS(k)       // before the guard: a preflight carries no session
 	installGuard(k, a)
 
@@ -186,6 +188,29 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterWorkflows(api, a, automation.Default())
 	research.Register(api, a, researchEngine)
 	mcp.RegisterTokenRoutes(api, a)
+}
+
+/*
+installClientIP puts the request's real client address on its context, for the
+public chat limiter (internal/inbox/ratelimit.go). Which forwarding header is
+believed, and from whom, is TRUSTED_PROXIES / CLIENT_IP_HEADER — the reasoning
+and the production values are in internal/clientip.
+
+A malformed TRUSTED_PROXIES stops the boot: silently falling back would change
+who the limiter thinks it is talking to.
+*/
+func installClientIP(k *togo.Kernel) {
+	r, configured, err := clientip.FromEnv()
+	if err != nil {
+		panic("moharrik: " + err.Error())
+	}
+	if !configured && os.Getenv("APP_ENV") == "production" {
+		// Behind NPM every visitor would then share NPM's address, so the
+		// per-address chat limit becomes one bucket for everybody. Fails
+		// closed (tighter, not looser), but it is not the intended limit.
+		k.Log.Warn("TRUSTED_PROXIES is unset: only loopback proxies are believed, so behind a reverse proxy every visitor shares one address for rate limiting (see internal/clientip)")
+	}
+	k.UseMiddleware(clientip.Middleware(r))
 }
 
 // togoVersion reports the togo framework version this app is built against.
