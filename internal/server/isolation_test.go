@@ -24,7 +24,6 @@ Run it with a dedicated database (it creates users and workspaces):
 
 import (
 	"bytes"
-	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -35,17 +34,15 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/togo-framework/togo"
 
-	"github.com/fadymondy/moharrik/internal/db/migrate"
 	"github.com/fadymondy/moharrik/internal/mcp"
 	_ "github.com/fadymondy/moharrik/internal/plugins"
+	"github.com/fadymondy/moharrik/internal/testdb"
 )
 
 func rnd() string {
@@ -151,10 +148,11 @@ func mcpCall(c *client, endpoint, tool string, args map[string]any) (int, string
 }
 
 func TestCrossWorkspaceIsolation(t *testing.T) {
-	owner, appURL := os.Getenv("TEST_DATABASE_URL"), os.Getenv("TEST_APP_DATABASE_URL")
-	if owner == "" || appURL == "" {
-		t.Skip("set TEST_DATABASE_URL and TEST_APP_DATABASE_URL (a throwaway database) to run the isolation sweep")
-	}
+	// Its own database (internal/testdb). The sweep boots the whole app and
+	// walks every route; another package migrating the same database mid-sweep
+	// invalidates pgx's cached statement descriptions and this fails with
+	// something that has nothing to do with isolation.
+	owner, appURL := testdb.Setup(t, "server", "../..")
 	t.Setenv("DATABASE_URL", owner)
 	t.Setenv("APP_DATABASE_URL", appURL)
 	t.Setenv("DB_DRIVER", "pgx")
@@ -167,16 +165,9 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	t.Setenv("MAIL_COLLECTOR", "off")
 	t.Setenv("SCHEDULER", "off")
 
-	// Migrate the test database exactly as `togo migrate` would.
-	k0 := togo.New()
-	sys, err := k0.SQL(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := migrate.Run(context.Background(), sys, appURL, "../..", t.Logf); err != nil {
-		t.Fatal(err)
-	}
-	k0.Close()
+	// testdb.Setup already migrated this package's own database, under a lock
+	// held on the shared base database — the app ROLE is cluster-global, so
+	// two packages creating it at once collide on the same catalogue row.
 
 	a := Boot()
 	defer a.Kernel.Close()

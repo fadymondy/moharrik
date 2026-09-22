@@ -92,6 +92,26 @@ func Boot() *app.App {
 	// it: neither package imports the other, so the wiring happens here.
 	whatsapp.RegisterHook(k.Router, a)
 	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string) error {
+		// "STOP" is the ONLY way out of a WhatsApp broadcast — there is no
+		// unsubscribe header the way email has one — so it is honoured before
+		// anything else happens to the message (MH-320).
+		//
+		// The message is still filed afterwards: the owner should see the
+		// customer asking to stop in the thread, not just find a flag changed.
+		if stopped, err := marketing.HandleStopWord(ctx, a, workspaceID, phone, text); err != nil {
+			a.Log.Warn("could not record a WhatsApp opt-out", "workspace", workspaceID, "err", err)
+		} else if stopped {
+			var locale string
+			_ = a.SQLDB.QueryRowContext(tenant.WithWorkspace(ctx, workspaceID), `
+				SELECT coalesce(locale, 'en') FROM contacts
+				WHERE workspace_id = $1 AND regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = $2
+				LIMIT 1`, workspaceID, marketing.OnlyDigits(phone)).Scan(&locale)
+			// Confirmed once, in their language. Silence after a STOP reads as
+			// having been ignored.
+			if _, err := whatsapp.Send(ctx, a, workspaceID, phone, marketing.StopConfirmation(locale)); err != nil {
+				a.Log.Warn("could not confirm a WhatsApp opt-out", "workspace", workspaceID, "err", err)
+			}
+		}
 		return inbox.FileWhatsApp(ctx, a, workspaceID, phone, name, text, externalID)
 	})
 

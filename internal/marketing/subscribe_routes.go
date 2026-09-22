@@ -285,6 +285,12 @@ func registerPublicSubscribe(api huma.API, a *app.App) {
 			Email  string `json:"email" minLength:"3" maxLength:"320"`
 			Name   string `json:"name,omitempty" maxLength:"120"`
 			Locale string `json:"locale,omitempty" maxLength:"5"`
+			Phone  string `json:"phone,omitempty" maxLength:"32"`
+			// A SEPARATE tick, never implied by subscribing (MH-320). Agreeing
+			// to a newsletter is not agreeing to a message on your phone, and a
+			// form that treated it as one would be making a promise on the
+			// visitor's behalf.
+			WhatsAppOptIn bool `json:"whatsapp_opt_in,omitempty" doc:"The visitor ticked a box agreeing to WhatsApp messages. Requires a phone."`
 		}
 	}) (*body[SubscribeResponse], error) {
 		email := strings.ToLower(strings.TrimSpace(in.Body.Email))
@@ -329,6 +335,25 @@ func registerPublicSubscribe(api huma.API, a *app.App) {
 		if err != nil {
 			a.Log.Error("public subscribe failed", "workspace", wsID, "err", err)
 			return nil, huma.Error500InternalServerError("could not record that subscription")
+		}
+
+		// The phone and the WhatsApp consent, if the visitor gave them. Recorded
+		// after the subscription so a failure here cannot cost the subscription
+		// itself — the email consent is the one they definitely gave.
+		if phone := strings.TrimSpace(in.Body.Phone); phone != "" {
+			if _, err := a.SQLDB.ExecContext(sctx, `
+				UPDATE contacts SET phone = $3, updated_at = now()
+				WHERE workspace_id = $1 AND id = $2 AND coalesce(phone, '') = ''`,
+				wsID, res.ContactID, phone); err != nil {
+				a.Log.Warn("could not store a phone from a subscribe form", "workspace", wsID, "err", err)
+			}
+			if in.Body.WhatsAppOptIn {
+				// SetWhatsAppOptIn will not override an earlier STOP, which is
+				// the point: a form cannot un-say it on someone's behalf.
+				if err := SetWhatsAppOptIn(sctx, a.SQLDB, wsID, res.ContactID); err != nil {
+					a.Log.Warn("could not record a WhatsApp opt-in", "workspace", wsID, "err", err)
+				}
+			}
 		}
 
 		if res.NeedsConfirmation {

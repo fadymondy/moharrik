@@ -77,9 +77,12 @@ type ContactOut struct {
 }
 
 type CampaignOut struct {
-	ID             string     `json:"id"`
-	ListID         string     `json:"list_id"`
-	ListName       string     `json:"list_name"`
+	ID       string `json:"id"`
+	ListID   string `json:"list_id"`
+	ListName string `json:"list_name"`
+	// email | whatsapp (MH-320). Defaulted in the database, so every campaign
+	// that existed before broadcasts still reads as the email one it was.
+	Channel        string     `json:"channel"`
 	Subject        string     `json:"subject"`
 	Body           string     `json:"body"`
 	Locale         string     `json:"locale"`
@@ -139,6 +142,15 @@ func isUnique(err error) bool {
 func isFK(err error) bool {
 	var pg *pgconn.PgError
 	return errors.As(err, &pg) && pg.Code == "23503"
+}
+
+// normChannel defaults to email: an unspecified channel must mean the thing
+// that was always true, never a broadcast somebody did not ask for.
+func normChannel(v string) string {
+	if strings.ToLower(strings.TrimSpace(v)) == "whatsapp" {
+		return "whatsapp"
+	}
+	return "email"
 }
 
 func normLocale(l string) string {
@@ -253,11 +265,11 @@ func listContacts(ctx context.Context, db *sql.DB, wsID, listID string) ([]Conta
 func getCampaign(ctx context.Context, db *sql.DB, wsID, id string) (*CampaignOut, error) {
 	var c CampaignOut
 	err := db.QueryRowContext(ctx, `
-		SELECT c.id, c.list_id, l.name, c.subject, c.body, c.locale, c.status, c.recipient_count,
+		SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
 		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at
 		FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 		WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
-	).Scan(&c.ID, &c.ListID, &c.ListName, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
+	).Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
 		&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt)
 	if err != nil {
 		return nil, err
@@ -610,7 +622,7 @@ func Register(api huma.API, a *app.App) {
 			return nil, err
 		}
 		rows, err := a.SQLDB.QueryContext(ctx, `
-			SELECT c.id, c.list_id, l.name, c.subject, c.body, c.locale, c.status, c.recipient_count,
+			SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
 			       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at
 			FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 			WHERE c.workspace_id = $1 ORDER BY c.created_at DESC LIMIT 500`, s.WorkspaceID)
@@ -624,7 +636,7 @@ func Register(api huma.API, a *app.App) {
 		}{Campaigns: []CampaignOut{}})
 		for rows.Next() {
 			var c CampaignOut
-			if err := rows.Scan(&c.ID, &c.ListID, &c.ListName, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
+			if err := rows.Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
 				&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt); err != nil {
 				return nil, huma.Error500InternalServerError("could not list campaigns")
 			}
@@ -641,7 +653,8 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		Body struct {
 			ListID  string `json:"list_id" minLength:"1"`
-			Subject string `json:"subject" minLength:"1" maxLength:"200"`
+			Channel string `json:"channel,omitempty" enum:"email,whatsapp" doc:"Defaults to email. A WhatsApp campaign reaches only contacts who opted in to WhatsApp specifically."`
+			Subject string `json:"subject" minLength:"1" maxLength:"200" doc:"The email subject. For a WhatsApp campaign it is the internal name; it is not sent."`
 			Body    string `json:"body" minLength:"1" maxLength:"100000"`
 			Locale  string `json:"locale,omitempty" enum:"en,ar"`
 		}
@@ -654,9 +667,10 @@ func Register(api huma.API, a *app.App) {
 		}
 		var id string
 		err = a.SQLDB.QueryRowContext(ctx, `
-			INSERT INTO campaigns (workspace_id, list_id, subject, body, locale, created_by)
-			SELECT $1, l.id, $3, $4, $5, $6 FROM mail_lists l WHERE l.workspace_id = $1 AND l.id = $2
-			RETURNING id`, s.WorkspaceID, in.Body.ListID, strings.TrimSpace(in.Body.Subject), in.Body.Body,
+			INSERT INTO campaigns (workspace_id, list_id, channel, subject, body, locale, created_by)
+			SELECT $1, l.id, $3, $4, $5, $6, $7 FROM mail_lists l WHERE l.workspace_id = $1 AND l.id = $2
+			RETURNING id`, s.WorkspaceID, in.Body.ListID, normChannel(in.Body.Channel),
+			strings.TrimSpace(in.Body.Subject), in.Body.Body,
 			normLocale(in.Body.Locale), s.UserID).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("list not found")
@@ -709,6 +723,36 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
+		// Which channel this campaign goes out on decides everything below, so
+		// it is read before anything is resolved (MH-320).
+		var channel string
+		if err := a.SQLDB.QueryRowContext(ctx,
+			`SELECT channel FROM campaigns WHERE workspace_id = $1 AND id = $2`,
+			s.WorkspaceID, in.ID).Scan(&channel); errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("campaign not found")
+		} else if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the campaign")
+		}
+
+		if channel == "whatsapp" {
+			if err := StartWhatsAppSend(ctx, a, s.WorkspaceID, in.ID); err != nil {
+				switch {
+				case errors.Is(err, ErrNoWhatsApp):
+					return nil, huma.Error409Conflict(err.Error())
+				case errors.Is(err, ErrNotSendable):
+					return nil, huma.Error409Conflict("this campaign has already been sent")
+				}
+				return nil, huma.Error500InternalServerError("could not start the broadcast")
+			}
+			c, err := getCampaign(ctx, a.SQLDB, s.WorkspaceID, in.ID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not read the campaign")
+			}
+			return out(struct {
+				Campaign CampaignOut `json:"campaign"`
+			}{*c}), nil
+		}
+
 		// Resolve the service before accepting, so a misconfiguration is reported
 		// to the caller rather than discovered halfway through a list.
 		svc, err := LoadSMTP(ctx, a.SQLDB, s.WorkspaceID)

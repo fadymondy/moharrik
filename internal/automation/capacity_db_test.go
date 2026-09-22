@@ -3,15 +3,14 @@ package automation_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/automation"
-	"github.com/fadymondy/moharrik/internal/db/migrate"
 	"github.com/fadymondy/moharrik/internal/tenant"
+	"github.com/fadymondy/moharrik/internal/testdb"
 	"github.com/togo-framework/togo"
 )
 
@@ -35,10 +34,11 @@ Run them the way the isolation sweep runs:
 func testApp(t *testing.T) *app.App {
 	t.Helper()
 
-	owner, appURL := os.Getenv("TEST_DATABASE_URL"), os.Getenv("TEST_APP_DATABASE_URL")
-	if owner == "" || appURL == "" {
-		t.Skip("set TEST_DATABASE_URL and TEST_APP_DATABASE_URL (a throwaway database) to run the capacity tests")
-	}
+	// Its own database (internal/testdb): three packages migrating ONE database
+	// interfere — an ALTER from another package invalidates the statement
+	// descriptions pgx has cached, and this suite then fails with something
+	// that looks unrelated to it.
+	owner, appURL := testdb.Setup(t, "automation", "../..")
 
 	t.Setenv("DATABASE_URL", owner)
 	t.Setenv("APP_DATABASE_URL", appURL)
@@ -52,15 +52,9 @@ func testApp(t *testing.T) *app.App {
 	t.Setenv("MAIL_COLLECTOR", "off")
 
 	ctx := context.Background()
-	k0 := togo.New()
-	sys, err := k0.SQL(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := migrate.Run(ctx, sys, appURL, "../..", t.Logf); err != nil {
-		t.Fatal(err)
-	}
-	k0.Close()
+	// testdb.Setup already migrated this package's own database, under a lock
+	// held on the shared base database — the app ROLE is cluster-global, so
+	// two packages creating it at once collide on the same catalogue row.
 
 	k := togo.New()
 	a := app.New(ctx, k)

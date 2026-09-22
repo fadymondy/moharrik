@@ -2,14 +2,13 @@ package marketing_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
-	"github.com/fadymondy/moharrik/internal/db/migrate"
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/tenant"
+	"github.com/fadymondy/moharrik/internal/testdb"
 	"github.com/togo-framework/togo"
 )
 
@@ -30,10 +29,11 @@ Run as the other DB-backed suites do:
 func testApp(t *testing.T) *app.App {
 	t.Helper()
 
-	owner, appURL := os.Getenv("TEST_DATABASE_URL"), os.Getenv("TEST_APP_DATABASE_URL")
-	if owner == "" || appURL == "" {
-		t.Skip("set TEST_DATABASE_URL and TEST_APP_DATABASE_URL (a throwaway database) to run the subscribe tests")
-	}
+	// Its own database (internal/testdb): three packages migrating ONE database
+	// interfere — an ALTER from another package invalidates the statement
+	// descriptions pgx has cached, and this suite then fails with something
+	// that looks unrelated to it.
+	owner, appURL := testdb.Setup(t, "marketing", "../..")
 
 	t.Setenv("DATABASE_URL", owner)
 	t.Setenv("APP_DATABASE_URL", appURL)
@@ -45,15 +45,9 @@ func testApp(t *testing.T) *app.App {
 	t.Setenv("MAIL_COLLECTOR", "off")
 
 	ctx := context.Background()
-	k0 := togo.New()
-	sys, err := k0.SQL(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := migrate.Run(ctx, sys, appURL, "../..", t.Logf); err != nil {
-		t.Fatal(err)
-	}
-	k0.Close()
+	// testdb.Setup already migrated this package's own database, under a lock
+	// held on the shared base database — the app ROLE is cluster-global, so
+	// two packages creating it at once collide on the same catalogue row.
 
 	k := togo.New()
 	a := app.New(ctx, k)
@@ -252,5 +246,184 @@ func TestSubscribeRefusesAListFromAnotherWorkspace(t *testing.T) {
 	sctx := tenant.WithWorkspace(context.Background(), wsA)
 	if _, err := marketing.Subscribe(sctx, a.SQLDB, wsA, listB, "x@example.com", "", "en", "form"); err == nil {
 		t.Fatal("subscribed someone to another workspace's list")
+	}
+}
+
+// ── WhatsApp broadcasts (MH-320) ─────────────────────────────────────────
+
+// contactOn subscribes an address and returns its contact id.
+func contactOn(t *testing.T, a *app.App, wsID, listID, email string) string {
+	t.Helper()
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+	res, err := marketing.Subscribe(sctx, a.SQLDB, wsID, listID, email, "", "en", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.ContactID
+}
+
+func setPhone(t *testing.T, a *app.App, wsID, contactID, phone string) {
+	t.Helper()
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+	if _, err := a.SQLDB.ExecContext(sctx,
+		`UPDATE contacts SET phone = $3 WHERE workspace_id = $1 AND id = $2`, wsID, contactID, phone); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func audiencePhones(t *testing.T, a *app.App, wsID, listID string) map[string]bool {
+	t.Helper()
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+	got, err := marketing.WhatsAppAudience(sctx, a.SQLDB, wsID, listID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := map[string]bool{}
+	for _, r := range got {
+		set[r.Phone] = true
+	}
+	return set
+}
+
+func TestSubscribeWhatsAppAudienceRequiresItsOwnConsent(t *testing.T) {
+	// The rule the whole feature rests on: being on a mailing list is NOT
+	// agreeing to a message on your phone. Every contact below is on the list;
+	// only one of them may be broadcast to.
+	a := testApp(t)
+	wsID, listID := listIn(t, a, false)
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+
+	// Opted in, with a phone — the only one who should be reached.
+	yes := contactOn(t, a, wsID, listID, "yes@example.com")
+	setPhone(t, a, wsID, yes, "+20 100 000 0001")
+	if err := marketing.SetWhatsAppOptIn(sctx, a.SQLDB, wsID, yes); err != nil {
+		t.Fatal(err)
+	}
+
+	// On the list, has a phone, never agreed to WhatsApp.
+	noConsent := contactOn(t, a, wsID, listID, "noconsent@example.com")
+	setPhone(t, a, wsID, noConsent, "+20 100 000 0002")
+
+	// Agreed, but there is nothing to send to.
+	noPhone := contactOn(t, a, wsID, listID, "nophone@example.com")
+	if err := marketing.SetWhatsAppOptIn(sctx, a.SQLDB, wsID, noPhone); err != nil {
+		t.Fatal(err)
+	}
+
+	// Agreed once, then said STOP.
+	stopped := contactOn(t, a, wsID, listID, "stopped@example.com")
+	setPhone(t, a, wsID, stopped, "+20 100 000 0004")
+	if err := marketing.SetWhatsAppOptIn(sctx, a.SQLDB, wsID, stopped); err != nil {
+		t.Fatal(err)
+	}
+	if err := marketing.SetWhatsAppOptOut(sctx, a.SQLDB, wsID, stopped); err != nil {
+		t.Fatal(err)
+	}
+
+	// Agreed to WhatsApp, but unsubscribed from the list. An unsubscribe is
+	// "stop sending me this", and it is honoured across channels.
+	left := contactOn(t, a, wsID, listID, "left@example.com")
+	setPhone(t, a, wsID, left, "+20 100 000 0005")
+	if err := marketing.SetWhatsAppOptIn(sctx, a.SQLDB, wsID, left); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SQLDB.ExecContext(sctx, `
+		UPDATE list_subscriptions SET status = 'unsubscribed'
+		WHERE workspace_id = $1 AND contact_id = $2`, wsID, left); err != nil {
+		t.Fatal(err)
+	}
+
+	got := audiencePhones(t, a, wsID, listID)
+	if len(got) != 1 || !got["+20 100 000 0001"] {
+		t.Fatalf("audience = %v; only the opted-in contact with a phone may be broadcast to", got)
+	}
+}
+
+func TestSubscribeWhatsAppOptInCannotUndoASTOP(t *testing.T) {
+	// A form re-ticking a box must not silently put somebody back on a list
+	// they asked to leave. Only an explicit action reverses a STOP.
+	a := testApp(t)
+	wsID, listID := listIn(t, a, false)
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+
+	id := contactOn(t, a, wsID, listID, "stopper@example.com")
+	setPhone(t, a, wsID, id, "+20 111 111 1111")
+	if err := marketing.SetWhatsAppOptIn(sctx, a.SQLDB, wsID, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := marketing.SetWhatsAppOptOut(sctx, a.SQLDB, wsID, id); err != nil {
+		t.Fatal(err)
+	}
+
+	// The form tries again.
+	if err := marketing.SetWhatsAppOptIn(sctx, a.SQLDB, wsID, id); err != nil {
+		t.Fatal(err)
+	}
+	if len(audiencePhones(t, a, wsID, listID)) != 0 {
+		t.Fatal("an opt-in put a contact who had said STOP back into the audience")
+	}
+
+	// The deliberate reversal does work, or somebody could never come back.
+	if err := marketing.ClearWhatsAppOptOut(sctx, a.SQLDB, wsID, id); err != nil {
+		t.Fatal(err)
+	}
+	if len(audiencePhones(t, a, wsID, listID)) != 1 {
+		t.Fatal("clearing the opt-out did not let the contact back in")
+	}
+}
+
+func TestSubscribeWhatsAppStopWordMatchesAPhoneWrittenDifferently(t *testing.T) {
+	// The number WhatsApp delivers is not the one typed into the CRM.
+	a := testApp(t)
+	wsID, listID := listIn(t, a, false)
+	sctx := tenant.WithWorkspace(context.Background(), wsID)
+
+	id := contactOn(t, a, wsID, listID, "reply@example.com")
+	setPhone(t, a, wsID, id, "+20 100 222 3333")
+	if err := marketing.SetWhatsAppOptIn(sctx, a.SQLDB, wsID, id); err != nil {
+		t.Fatal(err)
+	}
+
+	stopped, err := marketing.HandleStopWord(context.Background(), a, wsID, "201002223333@s.whatsapp.net", "STOP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stopped {
+		t.Fatal("a STOP from a differently formatted number was not matched to its contact")
+	}
+	if len(audiencePhones(t, a, wsID, listID)) != 0 {
+		t.Fatal("the contact is still in the audience after saying STOP")
+	}
+
+	// An ordinary message is not a STOP.
+	again, err := marketing.HandleStopWord(context.Background(), a, wsID, "201002223333", "hello, is this still available?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again {
+		t.Fatal("an ordinary message was treated as a STOP")
+	}
+}
+
+func TestSubscribeWhatsAppAudienceIsScopedToItsWorkspace(t *testing.T) {
+	a := testApp(t)
+	wsA, listA := listIn(t, a, false)
+	wsB, listB := listIn(t, a, false)
+
+	for _, c := range []struct{ ws, list, email, phone string }{
+		{wsA, listA, "a@example.com", "+20 100 000 1111"},
+		{wsB, listB, "b@example.com", "+20 100 000 2222"},
+	} {
+		sctx := tenant.WithWorkspace(context.Background(), c.ws)
+		id := contactOn(t, a, c.ws, c.list, c.email)
+		setPhone(t, a, c.ws, id, c.phone)
+		if err := marketing.SetWhatsAppOptIn(sctx, a.SQLDB, c.ws, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := audiencePhones(t, a, wsA, listA)
+	if len(got) != 1 || !got["+20 100 000 1111"] {
+		t.Fatalf("audience = %v; the other workspace's contact leaked in", got)
 	}
 }
