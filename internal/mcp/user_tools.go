@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/research"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 )
@@ -20,7 +21,7 @@ tools are not registered yet, because those tables do not exist yet.
 Every tool reads its workspace from the token (tenant.Scope on ctx), never
 from an argument.
 */
-func UserTools() []Tool {
+func UserTools(researchEngine *research.Engine) []Tool {
 	tools := []Tool{
 		{
 			Name:        "whoami",
@@ -68,6 +69,7 @@ func UserTools() []Tool {
 	tools = append(tools, NotificationTools()...)
 	tools = append(tools, AutomationTools()...)
 	tools = append(tools, WorkflowTools()...)
+	tools = append(tools, ResearchTools(researchEngine)...)
 	return tools
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/notifications"
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
 	"github.com/fadymondy/moharrik/internal/realtime"
+	"github.com/fadymondy/moharrik/internal/research"
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
@@ -70,10 +71,15 @@ func Boot() *app.App {
 	automation.SetDefault(agentHub)
 	k.Router.Get("/api/agents/ws", agentHub.Handler(a))
 
-	api := humachi.New(k.Router, huma.DefaultConfig("Moharrik API", "0.1.0"))
-	registerREST(api, a)
+	// The research engine: search, reader and model, resolved from the
+	// environment once. Each tier is independently optional, and a run says
+	// which ones it had rather than failing opaquely (MH-227).
+	researchEngine := research.NewEngine(k.Log)
 
-	mcp.Mount(k, a)
+	api := humachi.New(k.Router, huma.DefaultConfig("Moharrik API", "0.1.0"))
+	registerREST(api, a, researchEngine)
+
+	mcp.Mount(k, a, researchEngine)
 
 	// The trends collector: one in-process ticker polling the feeds that are due.
 	// TRENDS_COLLECTOR=off turns it off, which is what the tests and the OpenAPI
@@ -140,7 +146,7 @@ func Boot() *app.App {
 	return a
 }
 
-func registerREST(api huma.API, a *app.App) {
+func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	rest.RegisterRoutes(api, a) // generated CRUD — behind the guard's workspace tier
 	workspaces.Register(api, a)
 	marketing.Register(api, a)
@@ -153,6 +159,7 @@ func registerREST(api huma.API, a *app.App) {
 	automation.Register(api, a, automation.Default())
 	automation.RegisterSchedules(api, a, automation.Default())
 	automation.RegisterWorkflows(api, a, automation.Default())
+	research.Register(api, a, researchEngine)
 	mcp.RegisterTokenRoutes(api, a)
 }
 
@@ -173,6 +180,9 @@ func OpenAPI() ([]byte, error) {
 	router := chi.NewMux()
 	installErrors()
 	api := humachi.New(router, huma.DefaultConfig("Moharrik API", "0.1.0"))
-	registerREST(api, nil)
+	// A zero engine, not a configured one: the export must not read the
+	// environment or reach a search service. Every tier reads as absent, which
+	// changes no route — only the capability flags a live server reports.
+	registerREST(api, nil, &research.Engine{})
 	return api.OpenAPI().YAML()
 }

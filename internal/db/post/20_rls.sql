@@ -255,3 +255,20 @@ DROP POLICY IF EXISTS tenant_isolation ON automation_workflows;
 CREATE POLICY tenant_isolation ON automation_workflows
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- Research runs and their sources (MH-227). A run reads the public web and
+-- writes what it found; the sources are the evidence for the summary, so they
+-- are isolated exactly as strictly as the run itself.
+ALTER TABLE research_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE research_runs FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON research_runs;
+CREATE POLICY tenant_isolation ON research_runs
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+ALTER TABLE research_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE research_sources FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON research_sources;
+CREATE POLICY tenant_isolation ON research_sources
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

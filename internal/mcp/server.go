@@ -24,6 +24,7 @@ import (
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/research"
 )
 
 // protocolVersion is the default MCP revision. Newer clients that ask for a
@@ -77,8 +78,8 @@ type rpcResponse struct {
 
 // Mount registers both MCP endpoints on the kernel router, rate-limited per
 // token when the ratelimit plugin is installed.
-func Mount(k *togo.Kernel, a *app.App) {
-	user := &server{name: "moharrik-mcp", tools: UserTools(), auth: authUser}
+func Mount(k *togo.Kernel, a *app.App, researchEngine *research.Engine) {
+	user := &server{name: "moharrik-mcp", tools: UserTools(researchEngine), auth: authUser}
 	admin := &server{name: "moharrik-admin-mcp", tools: AdminTools(), auth: authAdmin}
 
 	wrap := func(h http.Handler) http.Handler { return h }

@@ -83,6 +83,11 @@ const (
 	// manager right, and pairing a browser, changing where it may be driven, or
 	// lifting the kill switch is an admin right. A wrong guess elsewhere in this
 	// file leaks a list; a wrong guess here drives somebody's signed-in browser.
+	// Research: reading a past run is a member right, but STARTING one reaches
+	// out to the public web and spends a model call, so it is a manager's
+	// call — the same line campaigns:send draws for the same reason.
+	ResearchRead     = "research:read"
+	ResearchRun      = "research:run"
 	AutomationRead   = "automation:read"
 	AutomationRun    = "automation:run"
 	AutomationManage = "automation:manage"
@@ -128,6 +133,8 @@ var Matrix = map[string]Role{
 	InboxManage:      Manager,
 	TrendsRead:       Member,
 	TrendsManage:     Manager,
+	ResearchRead:     Member,
+	ResearchRun:      Manager,
 	AutomationRead:   Member,
 	AutomationRun:    Manager,
 	AutomationManage: Admin,

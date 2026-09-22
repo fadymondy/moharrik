@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/research"
 )
 
 // TestEveryToolDeclaresAScope is the CI guard for FM-22: a tool without a
@@ -31,10 +32,10 @@ func TestEveryToolDeclaresAScope(t *testing.T) {
 			}
 		}
 	}
-	check("user", UserTools(), func(s string) bool { _, ok := userScope(s); return ok })
+	check("user", UserTools(&research.Engine{}), func(s string) bool { _, ok := userScope(s); return ok })
 	check("admin", AdminTools(), adminScope)
 
-	for _, tool := range UserTools() {
+	for _, tool := range UserTools(&research.Engine{}) {
 		if adminScope(tool.Scope) {
 			t.Errorf("user tool %q uses an admin scope", tool.Name)
 		}
