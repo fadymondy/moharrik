@@ -150,6 +150,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	rest.RegisterRoutes(api, a) // generated CRUD — behind the guard's workspace tier
 	workspaces.Register(api, a)
 	marketing.Register(api, a)
+	marketing.RegisterSubscribeForms(api, a)
 	crm.Register(api, a)
 	notifications.Register(api, a)
 	inbox.Register(api, a)

@@ -269,7 +269,6 @@ func getCampaign(ctx context.Context, db *sql.DB, wsID, id string) (*CampaignOut
 
 // Register mounts the email-marketing endpoints. `a` may be nil (OpenAPI export).
 func Register(api huma.API, a *app.App) {
-	tags := []string{"Email marketing"}
 
 	// ---- lists ----
 

@@ -89,6 +89,14 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/chat/") {
 		return tierPublic
 	}
+	// A visitor typing their address into an embedded subscribe form: no
+	// session, no X-Workspace-ID — the form key in the path plus the Origin
+	// allow-list are the authorization (internal/marketing/subscribe_routes.go),
+	// exactly as for the chat widget above. Without this the endpoint sits in
+	// the workspace tier and no website can reach it at all.
+	if strings.HasPrefix(path, "/api/subscribe/") {
+		return tierPublic
+	}
 	// The browser socket and the pairing handshake: no session and no
 	// X-Workspace-ID, because the extension has neither yet. The socket
 	// authenticates with a token in its FIRST FRAME (a browser WebSocket cannot

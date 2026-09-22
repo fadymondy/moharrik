@@ -272,3 +272,14 @@ DROP POLICY IF EXISTS tenant_isolation ON research_sources;
 CREATE POLICY tenant_isolation ON research_sources
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
+
+-- Subscribe forms (MH-318). The PUBLIC endpoint resolves a form on the owner
+-- pool — it has no workspace in hand until the key is matched — and then does
+-- everything else inside that workspace, so this policy still governs every
+-- write a visitor's submission causes.
+ALTER TABLE subscribe_forms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscribe_forms FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON subscribe_forms;
+CREATE POLICY tenant_isolation ON subscribe_forms
+    USING (workspace_id = current_setting('app.workspace_id', true))
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));

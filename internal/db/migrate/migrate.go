@@ -26,9 +26,13 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"feed_sources", "topics", "news_items",
 	"browser_agents", "agent_pairings", "automation_runs", "automation_run_steps", "automation_settings",
 	"mailboxes", "whatsapp_links", "automation_schedules", "automation_workflows",
-	"research_runs", "research_sources"}
+	"research_runs", "research_sources", "subscribe_forms"}
 
 var roleName = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
+
+// migrationLockKey is an arbitrary constant shared by every process that
+// migrates this database. Its only job is to be the same number everywhere.
+const migrationLockKey = 8_242_517
 
 // Run applies internal/db/schema/*.sql, then the app role + grants, then
 // internal/db/post/*.sql (constraints, RLS). Idempotent. root is the repo root.
@@ -44,6 +48,28 @@ func Run(ctx context.Context, owner *sql.DB, appURL, root string, logf func(stri
 	if !super && !bypass {
 		return fmt.Errorf("DATABASE_URL's role must be superuser or BYPASSRLS (as a superuser: ALTER ROLE <owner> BYPASSRLS)")
 	}
+	// ONE migration at a time, across every process sharing this database.
+	//
+	// "CREATE TABLE IF NOT EXISTS" is idempotent but NOT concurrency-safe: two
+	// sessions both see "not exists", both create, and one dies with a
+	// duplicate key on pg_class. That is not hypothetical — two test packages
+	// migrating the same throwaway database hit it immediately, and two API
+	// instances booting together would hit it in production.
+	//
+	// A session-level advisory lock on a fixed key. It is released explicitly
+	// below and, failing that, when the connection closes.
+	conn, err := owner.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, migrationLockKey); err != nil {
+		return fmt.Errorf("could not take the migration lock: %w", err)
+	}
+	defer func() {
+		_, _ = conn.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, migrationLockKey)
+	}()
+
 	if err := applyDir(ctx, owner, filepath.Join(root, "internal", "db", "schema"), logf); err != nil {
 		return err
 	}
