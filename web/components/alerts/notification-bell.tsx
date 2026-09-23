@@ -231,7 +231,7 @@ export function NotificationBell({
         <BellIcon />
         {count > 0 ? (
           <Badge
-            className="pointer-events-none absolute -top-1 -end-1 h-4 min-w-4 rounded-full px-1 text-[10px] leading-none tabular-nums"
+            className="pointer-events-none absolute -top-1 -end-1 h-4.5 min-w-4.5 rounded-full px-1 text-xs leading-none tabular-nums"
             data-bell-count={count}
           >
             {count > 99 ? "99+" : count}
