@@ -55,9 +55,16 @@ const (
 	CampaignsSend  = "campaigns:send"
 	MailSettings   = "mail:settings"
 	// CRM. Companies, deals and activities are read and written under
-	// contacts:read / contacts:write — the MCP scopes of the same names already
-	// promise "CRM contacts, companies and leads" (internal/mcp/scopes.go).
+	// contacts:read / contacts:write — the MCP scopes of the same names
+	// (internal/mcp/scopes.go). Leads have their own pair, below.
 	PipelineManage = "pipeline:manage"
+	// Leads (MH-390): inquiries from a customer's website. Reading them and
+	// working them — changing the status, converting one into a contact,
+	// company and deal — is a member right, the same line contacts:* draws:
+	// answering new business is the job. Creating the FORM that lets a
+	// website file leads is campaigns:write, like every public form.
+	LeadsRead  = "leads:read"
+	LeadsWrite = "leads:write"
 	// Notifications: reading the feed, marking read and saving is a member
 	// right, analogous to contacts:read/write. Creating, renaming, disabling,
 	// rotating or deleting a webhook source is a manager right, analogous to
@@ -118,6 +125,10 @@ var Matrix = map[string]Role{
 	// the stages shape everyone's board, so renaming or reordering them is a
 	// manager's call.
 	PipelineManage: Manager,
+	// Leads: every member reads and works them (converting also needs
+	// contacts:write, which every member holds).
+	LeadsRead:  Member,
+	LeadsWrite: Member,
 	// Notifications: every member reads the feed and marks/saves items; only a
 	// manager or above creates, renames, disables, rotates or deletes a
 	// webhook source (it decides what the whole workspace collects, and a

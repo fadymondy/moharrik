@@ -13,10 +13,16 @@
 CREATE TABLE IF NOT EXISTS subscribe_forms (
     id              text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
     workspace_id    text        NOT NULL,
+    -- What the form collects (MH-390): 'subscribe' puts an address on a list;
+    -- 'inquiry' files a lead (internal/leads). One table, one key namespace and
+    -- one origin allow-list for both, because the risk is the same — a public
+    -- key that lets a stranger's browser write into this workspace.
+    kind            text        NOT NULL DEFAULT 'subscribe',
     -- Which list a submission lands on. The form is the public face of one
     -- list, so a site can have several (newsletter, product updates) without
-    -- exposing which lists exist.
-    list_id         text        NOT NULL,
+    -- exposing which lists exist. NULL for an inquiry form, which has no list
+    -- (the CHECK is in internal/db/post/32_leads.sql).
+    list_id         text,
     name            text        NOT NULL,
     -- The value in the URL. Unique across the WHOLE table, not per workspace:
     -- the lookup happens before any workspace is known, exactly as

@@ -264,12 +264,36 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	convID := convs[0].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID}
+	// Leads (MH-390): an inquiry form, then a real submission through the
+	// PUBLIC route, so the lead exists the way a visitor's website makes it.
+	inq := alice.must("POST", "/api/w/subscribe-forms", map[string]any{"kind": "inquiry", "name": marker + " Inquiry", "allowed_origins": []string{"https://iso.test"}}, 201)
+	formID := inq["form"].(map[string]any)["id"].(string)
+	inqKey := inq["form"].(map[string]any)["public_key"].(string)
+	lreq, _ := http.NewRequest("POST", srv.URL+"/api/inquiry/"+inqKey, bytes.NewReader([]byte(`{"email":"lead-`+rnd()+`@iso.test","name":"`+marker+`","message":"`+marker+` inquiry","utm_source":"`+marker+`"}`)))
+	lreq.Header.Set("Content-Type", "application/json")
+	lreq.Header.Set("Origin", "https://iso.test")
+	lres, err := http.DefaultClient.Do(lreq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lres.StatusCode != 200 {
+		b, _ := io.ReadAll(lres.Body)
+		t.Fatalf("POST /api/inquiry/{key}: got %d want 200: %s", lres.StatusCode, b)
+	}
+	lres.Body.Close()
+	leadList := alice.must("GET", "/api/w/leads", nil, 200)["leads"].([]any)
+	if len(leadList) == 0 {
+		t.Fatal("the inquiry did not produce a lead")
+	}
+	leadID := leadList[0].(map[string]any)["id"].(string)
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
 		"webhook_sources": srcID, "notifications": itemID,
 		"chat_widgets": widgetID, "conversations": convID,
+		"subscribe-forms": formID, "leads": leadID,
 	}
 
 	leaks := func(b []byte) string {
@@ -392,6 +416,23 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		hres2.Body.Close()
 	}
 	alice.ws = aID
+
+	// Leads: the sweep's empty bodies are refused by validation, so try the
+	// writes with VALID bodies from B too. A's lead must stay new, unconverted.
+	bob.ws = bID
+	if code, b := bob.do("PATCH", "/api/w/leads/"+leadID, map[string]any{"status": "spam"}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B changing A's lead: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("POST", "/api/w/leads/"+leadID+"/convert", nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B converting A's lead: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("PATCH", "/api/w/subscribe-forms/"+formID, map[string]any{"allowed_origins": []string{"https://bob.test"}}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B opening A's inquiry form to its own site: got %d, want 404: %s", code, b)
+	}
+	alice.ws = aID
+	if l := alice.must("GET", "/api/w/leads/"+leadID, nil, 200)["lead"].(map[string]any); l["status"] != "new" || l["converted_deal"] != nil {
+		t.Errorf("A's lead was changed from B: %+v", l)
+	}
 
 	if code, b := alice.do("GET", "/api/w/deals/"+dealID, nil); code != 200 || !strings.Contains(string(b), actID) || !strings.Contains(string(b), coID) {
 		t.Errorf("A's deal or its timeline was changed from B: %d %s", code, b)

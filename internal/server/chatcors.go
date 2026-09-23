@@ -27,10 +27,12 @@ visitor_token, never with cookies.
 /api/subscribe/{key} (MH-318) is the same shape — a form on the customer's
 site, the key in the path, the Origin checked against the form's own
 allow-list — and needs the same headers, or no browser can ever submit it.
+/api/inquiry/{key} (MH-390) is the inquiry form of the same machinery, for
+the same reason.
 */
 
 // publicCrossOrigin is the set of prefixes a customer's page calls directly.
-var publicCrossOrigin = []string{"/api/chat/", "/api/subscribe/"}
+var publicCrossOrigin = []string{"/api/chat/", "/api/subscribe/", "/api/inquiry/"}
 
 func isPublicCrossOrigin(path string) bool {
 	for _, p := range publicCrossOrigin {

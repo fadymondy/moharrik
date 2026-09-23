@@ -97,6 +97,13 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/subscribe/") {
 		return tierPublic
 	}
+	// A visitor sending an inquiry from an embedded contact form (MH-390): the
+	// same shape as /api/subscribe/ above — the form key plus the Origin
+	// allow-list are the authorization (marketing.ResolvePublicForm), and the
+	// lead is filed inside the workspace the key resolves to.
+	if strings.HasPrefix(path, "/api/inquiry/") {
+		return tierPublic
+	}
 	// The browser socket and the pairing handshake: no session and no
 	// X-Workspace-ID, because the extension has neither yet. The socket
 	// authenticates with a token in its FIRST FRAME (a browser WebSocket cannot

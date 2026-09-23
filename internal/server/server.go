@@ -25,6 +25,7 @@ import (
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
 	"github.com/fadymondy/moharrik/internal/inbox"
+	"github.com/fadymondy/moharrik/internal/leads"
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/mcp"
 	"github.com/fadymondy/moharrik/internal/notifications"
@@ -178,6 +179,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	marketing.Register(api, a)
 	marketing.RegisterSubscribeForms(api, a)
 	marketing.RegisterWhatsAppConsent(api, a)
+	leads.Register(api, a) // the public inquiry endpoint + the Leads API (MH-390)
 	crm.Register(api, a)
 	notifications.Register(api, a)
 	inbox.Register(api, a)

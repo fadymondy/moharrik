@@ -23,6 +23,8 @@ import {
   type ContactDetail,
   type ContactRef,
   type Deal,
+  type Lead,
+  type LeadStatus,
   type Stage,
   type Contact,
   type CurrentWorkspace,
@@ -134,6 +136,23 @@ export const useDeals = (id?: string | null) => useScoped<{ deals: Deal[]; stage
 
 export const useDeal = (wsId?: string | null, id?: string) =>
   useScoped<{ deal: Deal; activities: Activity[] }>(`/api/w/deals/${encodeURIComponent(id ?? "")}`, wsId, !!id)
+
+// ── Leads (MH-390) ───────────────────────────────────────────────────────
+
+export type LeadFilter = { status?: LeadStatus | ""; q?: string }
+
+/** The Leads list. Filters vary, so this builds its own key (like useNews). */
+export function useLeads(workspaceId: string | null | undefined, filter: LeadFilter = {}) {
+  const qs = new URLSearchParams()
+  if (filter.status) qs.set("status", filter.status)
+  if (filter.q?.trim()) qs.set("q", filter.q.trim())
+  const path = "/api/w/leads" + (qs.toString() ? `?${qs.toString()}` : "")
+  type R = { leads: Lead[] | null; counts: Record<LeadStatus, number> }
+  return useSWR<R>(workspaceId ? [path, workspaceId] : null, ([p, id]: [string, string]) => api<R>(p, { workspaceId: id }), noRetryOn4xx)
+}
+
+export const useLead = (wsId?: string | null, id?: string) =>
+  useScoped<{ lead: Lead }>(`/api/w/leads/${encodeURIComponent(id ?? "")}`, wsId, !!id)
 
 // ── Notifications ────────────────────────────────────────────────────────
 
