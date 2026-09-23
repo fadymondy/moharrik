@@ -38,6 +38,7 @@ import {
   type Conversation,
   type InboxMessage,
   type FeedSource,
+  type GoogleConnections,
   type NewsItem,
   type NotificationItem,
   type Topic,
@@ -322,3 +323,8 @@ export function useResearchContent(workspaceId: string | null | undefined, id: s
     noRetryOn4xx,
   )
 }
+
+// ── Integrations ────────────────────────────────────────────────────────
+
+export const useGoogleConnections = (id?: string | null, enabled = true) =>
+  useScoped<GoogleConnections>("/api/w/google/connections", id, enabled)

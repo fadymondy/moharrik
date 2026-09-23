@@ -75,6 +75,13 @@ func classify(r *http.Request) tier {
 		return tierPublic
 	case "/api/invitations/accept":
 		return tierSignedIn
+	// Google's redirect back after a workspace connects an account (MH-439).
+	// No X-Workspace-ID: the workspace comes from the single-use state row.
+	// But not public: the callback must come back to the SAME signed-in user
+	// who started the connect, so it needs the session this tier checks. The
+	// session cookie is SameSite=Lax, so Google's top-level redirect carries it.
+	case "/api/google/oauth/callback":
+		return tierSignedIn
 	}
 	// A webhook delivery: no session, no X-Workspace-ID — the id in the path
 	// plus its HMAC signature over the raw body are the authorization

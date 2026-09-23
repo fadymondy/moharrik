@@ -654,3 +654,35 @@ export type LeadConversion = {
   deal_id: string
   activity_id: string
 }
+
+// ── Integrations: Google (MH-439) ───────────────────────────────────────
+
+export type GoogleProduct = "analytics" | "search_console" | "youtube"
+export const GOOGLE_PRODUCTS: GoogleProduct[] = ["analytics", "search_console", "youtube"]
+
+/** A connected Google account. No token of any kind is ever in it. */
+export type GoogleConnection = {
+  id: string
+  email: string
+  /** Derived from what Google actually granted, not from what was asked for. */
+  products: GoogleProduct[] | null
+  scopes: string[] | null
+  /** YouTube revenue reporting was granted. */
+  revenue: boolean
+  /** "" = working; "reauth" = Google refused the stored grant. */
+  status: "" | "reauth"
+  auth_error: string
+  connected_by: string
+  connected_by_email: string
+  created_at: string
+  updated_at: string
+}
+
+export type GoogleConnections = {
+  /** false = this server has no Google OAuth client configured. */
+  configured: boolean
+  redirect_url: string
+  connections: GoogleConnection[] | null
+}
+
+export type GoogleDisconnected = { revoked: boolean; shared: boolean; revoke_error?: string }

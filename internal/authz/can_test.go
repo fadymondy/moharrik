@@ -56,3 +56,16 @@ func TestGeneratedDefaultDeny(t *testing.T) {
 		t.Error("token hashes must not be readable through generated CRUD")
 	}
 }
+
+func TestIntegrationsNeedAdmin(t *testing.T) {
+	for _, r := range []string{"client", "member", "manager"} {
+		if Can(r, IntegrationsManage) {
+			t.Errorf("%s must not connect or disconnect Google accounts", r)
+		}
+	}
+	for _, r := range []string{"admin", "owner"} {
+		if !Can(r, IntegrationsManage) {
+			t.Errorf("%s connects Google accounts", r)
+		}
+	}
+}

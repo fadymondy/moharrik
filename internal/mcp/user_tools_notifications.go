@@ -2,32 +2,24 @@ package mcp
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/secret"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
 // NotificationTools: the feed (notifications:read) and marking/configuring
 // (notifications:write — scopes.go already describes that scope as covering
 // both "mark, save" and "configure notification sources and webhooks", so one
-// scope gates both here). The secret-sealing here duplicates
-// internal/notifications/secret.go's construction exactly (same domain
-// string, so a source created from either package can be rotated from the
-// other) — this package cannot import internal/notifications's unexported
-// seal/unseal, and duplication is this codebase's own convention for a few
-// lines shared between otherwise-independent packages (see internal/crm and
-// internal/marketing's separate body[T]/out helpers).
+// scope gates both here). The signing secret is sealed with internal/secret
+// under the same domain as internal/notifications, so a source created from
+// either package can be rotated from the other.
 func NotificationTools() []Tool {
 	return []Tool{
 		{
@@ -258,31 +250,6 @@ func publicBaseMCP() string {
 	return "http://localhost:3120"
 }
 
-func webhookSecretKey() ([]byte, error) {
-	sec := os.Getenv("AUTH_SECRET")
-	if len(sec) < 16 {
-		return nil, errors.New("AUTH_SECRET is not set; cannot seal a webhook secret")
-	}
-	k := sha256.Sum256([]byte("moharrik/webhook-secret/v1:" + sec))
-	return k[:], nil
-}
+var webhookSecretBox = secret.New(secret.DomainWebhookSecret, "the webhook secret", "rotate it")
 
-func sealWebhookSecret(plain string) (string, error) {
-	k, err := webhookSecretKey()
-	if err != nil {
-		return "", err
-	}
-	block, err := aes.NewCipher(k)
-	if err != nil {
-		return "", err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(gcm.Seal(nonce, nonce, []byte(plain), nil)), nil
-}
+func sealWebhookSecret(plain string) (string, error) { return webhookSecretBox.Seal(plain) }

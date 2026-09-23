@@ -22,6 +22,7 @@ import {
   PlusIcon,
   SearchCheckIcon,
   SendIcon,
+  PlugIcon,
   ServerIcon,
   WebhookIcon,
   TrendingUpIcon,
@@ -319,6 +320,9 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       {mini ? <div className="mt-3 border-t border-line pt-3" /> : <p className="grid-micro mt-4 border-t border-line px-4 pt-4 pb-1">{t("nav.settings")}</p>}
       <L href={`${base}/settings/email`} icon={<ServerIcon />}>
         {t("nav.email")}
+      </L>
+      <L href={`${base}/settings/integrations`} icon={<PlugIcon />}>
+        {t("nav.integrations")}
       </L>
       <L href={`${base}/notifications/sources`} icon={<WebhookIcon />}>
         {t("notifications.sources")}

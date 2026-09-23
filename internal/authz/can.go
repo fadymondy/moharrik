@@ -98,6 +98,12 @@ const (
 	AutomationRead   = "automation:read"
 	AutomationRun    = "automation:run"
 	AutomationManage = "automation:manage"
+	// Integrations: connecting a Google account hands this workspace a
+	// standing grant to that account's Analytics, Search Console or YouTube
+	// data, and disconnecting revokes it at Google. That is the owner's
+	// business relationship with Google, so it is an admin right — the same
+	// line mail:settings draws for the sending credentials (MH-439).
+	IntegrationsManage = "integrations:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -149,6 +155,8 @@ var Matrix = map[string]Role{
 	AutomationRead:   Member,
 	AutomationRun:    Manager,
 	AutomationManage: Admin,
+	// Integrations: admins and owners connect and disconnect Google accounts.
+	IntegrationsManage: Admin,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

@@ -22,6 +22,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/clientip"
 	"github.com/fadymondy/moharrik/internal/crm"
+	"github.com/fadymondy/moharrik/internal/google"
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
 	"github.com/fadymondy/moharrik/internal/inbox"
@@ -78,6 +79,12 @@ func Boot() *app.App {
 	// environment once. Each tier is independently optional, and a run says
 	// which ones it had rather than failing opaquely (MH-227).
 	researchEngine := research.NewEngine(k.Log)
+
+	// A fake-Google override that production ignores is still worth a line in
+	// the log: whoever set it expected it to do something (MH-439).
+	if google.FakeRefused() {
+		k.Log.Warn("GOOGLE_API_BASE is set but ignored: it is honoured only on a local, non-production APP_URL")
+	}
 
 	api := humachi.New(k.Router, huma.DefaultConfig("Moharrik API", "0.1.0"))
 	registerREST(api, a, researchEngine)
@@ -191,6 +198,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterWorkflows(api, a, automation.Default())
 	research.Register(api, a, researchEngine)
 	mcp.RegisterTokenRoutes(api, a)
+	google.Register(api, a)
 }
 
 /*

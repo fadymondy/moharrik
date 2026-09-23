@@ -24,6 +24,7 @@ Run it with a dedicated database (it creates users and workspaces):
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -42,6 +43,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/fadymondy/moharrik/internal/google"
+	"github.com/fadymondy/moharrik/internal/google/googletest"
 	"github.com/fadymondy/moharrik/internal/mcp"
 	_ "github.com/fadymondy/moharrik/internal/plugins"
 	"github.com/fadymondy/moharrik/internal/testdb"
@@ -166,6 +169,13 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	t.Setenv("TRENDS_COLLECTOR", "off")
 	t.Setenv("MAIL_COLLECTOR", "off")
 	t.Setenv("SCHEDULER", "off")
+	// Google connections (MH-439) against the fake Google, never the real one.
+	fakeGoogle := googletest.New()
+	defer fakeGoogle.Close()
+	t.Setenv("APP_URL", "http://127.0.0.1")
+	t.Setenv("GOOGLE_API_BASE", fakeGoogle.URL)
+	t.Setenv("GOOGLE_INTEGRATIONS_CLIENT_ID", fakeGoogle.ClientID)
+	t.Setenv("GOOGLE_INTEGRATIONS_CLIENT_SECRET", fakeGoogle.ClientSecret)
 
 	// testdb.Setup already migrated this package's own database, under a lock
 	// held on the shared base database — the app ROLE is cluster-global, so
@@ -175,6 +185,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	defer a.Kernel.Close()
 	srv := httptest.NewServer(a.Kernel.Handler())
 	defer srv.Close()
+	t.Setenv("APP_URL", srv.URL)
 
 	// ---- two tenants -------------------------------------------------------
 	marker := "ISO-A-SECRET-" + rnd()
@@ -287,13 +298,40 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	leadID := leadList[0].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID}
+	// A Google account connected to A through the real flow: consent at the
+	// fake Google, then the callback with alice's session and state cookie.
+	googleEmail := "iso-a-" + rnd() + "@example.test"
+	fakeGoogle.Set(func(s *googletest.Server) {
+		s.Account = googletest.Account{Sub: "iso-sub-" + rnd(), Email: googleEmail}
+	})
+	consentURL := alice.must("GET", "/api/w/google/connect?product=analytics", nil, 200)["url"].(string)
+	back, err := fakeGoogle.Consent(consentURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noFollow := &http.Client{Jar: alice.http.Jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	gres, err := noFollow.Get(back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gres.Body.Close()
+	if loc := gres.Header.Get("Location"); gres.StatusCode != http.StatusFound || !strings.Contains(loc, "google=connected") {
+		t.Fatalf("google connect in A: %d %s", gres.StatusCode, loc)
+	}
+	gconns := alice.must("GET", "/api/w/google/connections", nil, 200)["connections"].([]any)
+	if len(gconns) != 1 {
+		t.Fatalf("A's google connections: %v", gconns)
+	}
+	googleID := gconns[0].(map[string]any)["id"].(string)
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
 		"webhook_sources": srcID, "notifications": itemID,
 		"chat_widgets": widgetID, "conversations": convID,
 		"subscribe-forms": formID, "leads": leadID,
+		"google": googleID,
 	}
 
 	leaks := func(b []byte) string {
@@ -432,6 +470,31 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	alice.ws = aID
 	if l := alice.must("GET", "/api/w/leads/"+leadID, nil, 200)["lead"].(map[string]any); l["status"] != "new" || l["converted_deal"] != nil {
 		t.Errorf("A's lead was changed from B: %+v", l)
+	}
+
+	// Google (MH-439): B cannot list, disconnect or draw tokens from A's
+	// connection, and A's grant survives every attempt — not revoked at Google.
+	bob.ws = bID
+	if code, b := bob.do("DELETE", "/api/w/google/connections/"+googleID, nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B disconnecting A's Google account: got %d, want 404: %s", code, b)
+	}
+	if _, b := bob.do("GET", "/api/w/google/connections", nil); leaks(b) != "" {
+		t.Errorf("B's Google list leaked A: %s", b)
+	}
+	if _, err := google.TokenSource(context.Background(), a, bID, googleID); err == nil {
+		t.Error("a token source in B must not open A's connection")
+	}
+	if n := fakeGoogle.Calls("revoke"); n != 0 {
+		t.Errorf("A's Google grant was revoked %d times during the sweep", n)
+	}
+	alice.ws = aID
+	if code, b := alice.do("GET", "/api/w/google/connections", nil); code != 200 || !strings.Contains(string(b), googleID) {
+		t.Errorf("A's Google connection did not survive the sweep: %d %s", code, b)
+	}
+	if src, err := google.TokenSource(context.Background(), a, aID, googleID); err != nil {
+		t.Errorf("A's own token source: %v", err)
+	} else if _, err := src.Token(context.Background(), google.ScopeAnalytics); err != nil {
+		t.Errorf("A's grant stopped working after the sweep: %v", err)
 	}
 
 	if code, b := alice.do("GET", "/api/w/deals/"+dealID, nil); code != 200 || !strings.Contains(string(b), actID) || !strings.Contains(string(b), coID) {
