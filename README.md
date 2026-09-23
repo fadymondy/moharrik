@@ -83,6 +83,21 @@ Ported from fadymondy.com-v2 (`internal/mail`, subscribe/confirm/unsubscribe, ca
   `AUTH_SECRET`, never returned. Campaigns send in the background with progress on the row.
 - `node web/e2e/marketing-check.mjs [base]` drives it end to end with a local SMTP sink on :2525.
 
+## Leads (MH-390)
+
+- **Inquiry forms** are `subscribe_forms` rows with `kind = 'inquiry'` (no list), created on the
+  Website forms page. Their embed snippet captures UTM parameters, gclid, referrer and landing page
+  in the visitor's browser and posts to the public `POST /api/inquiry/{key}` — the same gate as the
+  subscribe form (`marketing.ResolvePublicForm`: key of the right kind, form on, Origin on the
+  allow-list, empty allows nothing), a honeypot (`nickname`), rate limits per client address and per
+  form, and one identical answer for new and known addresses.
+- Each lead lands in `leads` (RLS, `internal/db/post/32_leads.sql`) and raises a notification-center
+  item. The Leads page filters by status and searches; **Convert** makes the contact (deduped on
+  email), the company from the email domain (never for free mail — `internal/leads/freemail.go`),
+  a deal on the first open stage and the message as its first activity.
+- MCP: `list_leads`, `get_lead` (`leads:read`), `update_lead`, `convert_lead` (`leads:write`;
+  `convert_lead` also needs `contacts:write`).
+
 ## MCP
 
 - **User MCP** `POST /api/mcp` — `mhr_` tokens owned by a user in a workspace, SHA-256 hashed,

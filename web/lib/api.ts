@@ -191,8 +191,13 @@ export type Campaign = {
   created_at: string
 }
 
+export type FormKind = "subscribe" | "inquiry"
+
 export type SubscribeForm = {
   id: string
+  /** subscribe puts an address on a list; inquiry files a lead (MH-390). */
+  kind: FormKind
+  /** Empty for an inquiry form. */
   list_id: string
   list_name: string
   name: string
@@ -548,4 +553,58 @@ export type AutomationWorkflow = {
   placeholders: string[]
   run_count: number
   created_at: string
+}
+
+// ── Leads (MH-390) ──────────────────────────────────────────────────────
+
+export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "spam"
+export const LEAD_STATUSES: LeadStatus[] = ["new", "contacted", "qualified", "converted", "spam"]
+
+export type LeadRef = { id: string; name: string }
+
+export type LeadAttribution = {
+  utm_source: string
+  utm_medium: string
+  utm_campaign: string
+  utm_term: string
+  utm_content: string
+  referrer: string
+  gclid: string
+  landing_page: string
+}
+
+export type Lead = {
+  id: string
+  status: LeadStatus
+  name: string
+  email: string
+  phone: string
+  /** What the visitor typed; the CRM record is converted_company. */
+  company: string
+  message: string
+  locale: string
+  form_id: string | null
+  form_name: string
+  /** The allowed site the form was posted from. */
+  origin: string
+  attribution: LeadAttribution
+  converted_contact: LeadRef | null
+  converted_company: LeadRef | null
+  converted_deal: LeadRef | null
+  converted_at: string | null
+  converted_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type LeadConversion = {
+  lead: Lead
+  contact_id: string
+  contact_created: boolean
+  company_id: string
+  company_created: boolean
+  /** The email is free mail, so no company was made. */
+  free_mail: boolean
+  deal_id: string
+  activity_id: string
 }

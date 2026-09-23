@@ -53,10 +53,20 @@ type SubscribeResponse struct {
 	Thanks string `json:"thanks" doc:"What to show the visitor, in their language."`
 }
 
-// FormOut is a subscribe form as the workspace sees it.
+// Form kinds (MH-390). A subscribe form puts an address on a list; an inquiry
+// form files a lead (internal/leads). They share this table, the key namespace,
+// the origin allow-list and this page, because the risk they carry is the same
+// one: a public key that lets a stranger's browser write into a workspace.
+const (
+	FormSubscribe = "subscribe"
+	FormInquiry   = "inquiry"
+)
+
+// FormOut is a public form as the workspace sees it.
 type FormOut struct {
 	ID             string    `json:"id"`
-	ListID         string    `json:"list_id"`
+	Kind           string    `json:"kind" enum:"subscribe,inquiry"`
+	ListID         string    `json:"list_id" doc:"Empty for an inquiry form, which files a lead instead."`
 	ListName       string    `json:"list_name"`
 	Name           string    `json:"name"`
 	PublicKey      string    `json:"public_key"`
@@ -115,15 +125,130 @@ func subscribeSnippet(key string) string {
 }
 
 func withEmbed(f FormOut) FormOut {
+	if f.Kind == FormInquiry {
+		f.Endpoint = InquiryEndpoint(f.PublicKey)
+		f.Embed = inquirySnippet(f.PublicKey)
+		return f
+	}
 	f.Endpoint = subscribeEndpoint(f.PublicKey)
 	f.Embed = subscribeSnippet(f.PublicKey)
 	return f
 }
 
-// originAllowed checks a browser Origin against a comma-separated allow-list.
+// InquiryEndpoint is where an inquiry form posts (internal/leads registers it).
+func InquiryEndpoint(key string) string { return publicBase() + "/api/inquiry/" + key }
+
+// inquirySnippet is a dependency-free contact form that files a lead (MH-390).
+//
+// The attribution is captured HERE, in the visitor's browser, because it is the
+// only place it exists: the server sees the page that posted, not the ad that
+// brought them. On the first page view — or any later one that arrives with
+// campaign parameters, which is a new touch worth keeping — it stores the UTM
+// parameters, gclid, document.referrer and the landing URL in localStorage, so
+// a visitor who lands on the home page from an ad and fills the form on
+// /contact is still attributed to the ad. The honeypot is a field people never
+// see; a bot that fills it is thanked and filed nowhere.
+func inquirySnippet(key string) string {
+	id := "moharrik-inquiry-" + key
+	return `<form id="` + id + `">
+  <input type="text" name="name" autocomplete="name" placeholder="Name">
+  <input type="email" name="email" required autocomplete="email" placeholder="Email">
+  <input type="tel" name="phone" autocomplete="tel" placeholder="Phone (optional)">
+  <input type="text" name="company" autocomplete="organization" placeholder="Company (optional)">
+  <textarea name="message" required rows="4" placeholder="How can we help?"></textarea>
+  <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden">
+    <label>Leave this empty <input type="text" name="nickname" tabindex="-1" autocomplete="off"></label>
+  </div>
+  <button type="submit">Send</button>
+  <p role="status" data-message></p>
+</form>
+<script>
+(function () {
+  var K = "moharrik-attribution", F = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid"];
+  var q = new URLSearchParams(location.search), a = null;
+  try { a = JSON.parse(localStorage.getItem(K) || "null"); } catch (e) {}
+  if (!a || F.some(function (k) { return q.get(k); })) {
+    a = { referrer: document.referrer || "", landing_page: location.href };
+    F.forEach(function (k) { a[k] = q.get(k) || ""; });
+    try { localStorage.setItem(K, JSON.stringify(a)); } catch (e) {}
+  }
+  var f = document.getElementById("` + id + `");
+  f.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var d = new FormData(f), msg = f.querySelector("[data-message]"), btn = f.querySelector("button");
+    var body = { locale: (document.documentElement.lang || "en").slice(0, 2) };
+    ["name", "email", "phone", "company", "message", "nickname"].forEach(function (k) { body[k] = String(d.get(k) || "").trim(); });
+    F.concat(["referrer", "landing_page"]).forEach(function (k) { body[k] = String(a[k] || "").slice(0, 2000); });
+    btn.disabled = true;
+    fetch("` + InquiryEndpoint(key) + `", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().then(function (j) {
+        msg.textContent = r.ok ? j.thanks : (j.error || j.detail || "Something went wrong.");
+        if (r.ok) f.reset();
+      });
+    }).catch(function () { msg.textContent = "Could not reach the server."; })
+      .then(function () { btn.disabled = false; });
+  });
+})();
+</script>`
+}
+
+// PublicForm is what a public endpoint knows once a key has resolved.
+type PublicForm struct {
+	ID          string
+	WorkspaceID string
+	Name        string
+	ListID      string
+	ThanksEN    string
+	ThanksAR    string
+}
+
+// ResolvePublicForm is the one gate in front of BOTH public form endpoints:
+// the key must exist AND be of the kind that endpoint serves, the form must be
+// on, and the browser Origin must be on its allow-list (empty allows nothing).
+//
+// It runs on the OWNER pool — which workspace a key belongs to is a
+// cross-tenant question, and there is no session to answer it — and returns
+// only what the caller needs to continue inside that workspace. A subscribe key
+// posted to the inquiry endpoint (or the other way round) "does not exist": the
+// kinds must not be interchangeable, or a newsletter form becomes a way to file
+// leads and a contact form a way to subscribe strangers.
+func ResolvePublicForm(ctx context.Context, sysDB *sql.DB, key, kind, origin string) (PublicForm, error) {
+	noun := "subscribe form"
+	if kind == FormInquiry {
+		noun = "form"
+	}
+	var f PublicForm
+	var list sql.NullString
+	var origins string
+	var enabled bool
+	err := sysDB.QueryRowContext(ctx, `
+		SELECT id, workspace_id, name, list_id, allowed_origins, enabled, thanks_en, thanks_ar
+		FROM subscribe_forms WHERE public_key = $1 AND kind = $2`, key, kind).
+		Scan(&f.ID, &f.WorkspaceID, &f.Name, &list, &origins, &enabled, &f.ThanksEN, &f.ThanksAR)
+	if errors.Is(err, sql.ErrNoRows) {
+		return f, huma.Error404NotFound("this " + noun + " does not exist")
+	}
+	if err != nil {
+		return f, huma.Error500InternalServerError("could not resolve the form")
+	}
+	if !enabled {
+		return f, huma.Error403Forbidden("this " + noun + " is turned off")
+	}
+	if !OriginAllowed(origins, origin) {
+		return f, huma.Error403Forbidden("this origin is not allowed for this " + noun)
+	}
+	f.ListID = list.String
+	return f, nil
+}
+
+// OriginAllowed checks a browser Origin against a comma-separated allow-list.
 // An empty list allows NOTHING: a form with no origins set is closed, which is
 // the safe direction for the mistake.
-func originAllowed(list, origin string) bool {
+func OriginAllowed(list, origin string) bool {
 	origin = strings.TrimRight(strings.TrimSpace(strings.ToLower(origin)), "/")
 	if origin == "" {
 		return false
@@ -164,7 +289,7 @@ func registerFormAdmin(api huma.API, a *app.App) {
 			return nil, err
 		}
 		rows, err := a.SQLDB.QueryContext(ctx, `
-			SELECT f.id, f.list_id, coalesce(l.name, ''), f.name, f.public_key, f.allowed_origins,
+			SELECT f.id, f.kind, coalesce(f.list_id, ''), coalesce(l.name, ''), f.name, f.public_key, f.allowed_origins,
 			       f.enabled, f.thanks_en, f.thanks_ar, f.created_at
 			FROM subscribe_forms f
 			LEFT JOIN mail_lists l ON l.workspace_id = f.workspace_id AND l.id = f.list_id
@@ -178,7 +303,7 @@ func registerFormAdmin(api huma.API, a *app.App) {
 		for rows.Next() {
 			var f FormOut
 			var origins string
-			if err := rows.Scan(&f.ID, &f.ListID, &f.ListName, &f.Name, &f.PublicKey, &origins,
+			if err := rows.Scan(&f.ID, &f.Kind, &f.ListID, &f.ListName, &f.Name, &f.PublicKey, &origins,
 				&f.Enabled, &f.ThanksEN, &f.ThanksAR, &f.CreatedAt); err != nil {
 				return nil, huma.Error500InternalServerError("could not read the forms")
 			}
@@ -193,11 +318,12 @@ func registerFormAdmin(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-subscribe-form-create", Method: http.MethodPost, Path: "/api/w/subscribe-forms",
 		DefaultStatus: http.StatusCreated,
-		Summary:       "Create a subscribe form for a list", Tags: tags,
+		Summary:       "Create a public form: a subscribe form for a list, or an inquiry form that files leads", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body struct {
-			ListID         string   `json:"list_id"`
+			Kind           string   `json:"kind,omitempty" enum:"subscribe,inquiry" doc:"subscribe (default) puts an address on list_id; inquiry files a lead and takes no list."`
+			ListID         string   `json:"list_id,omitempty" doc:"Required for a subscribe form; must be empty for an inquiry form."`
 			Name           string   `json:"name" minLength:"1" maxLength:"80"`
 			AllowedOrigins []string `json:"allowed_origins,omitempty" maxItems:"50" doc:"Browser origins, e.g. https://example.com. Empty allows nothing."`
 			ThanksEN       string   `json:"thanks_en,omitempty" maxLength:"300"`
@@ -214,24 +340,42 @@ func registerFormAdmin(api huma.API, a *app.App) {
 			return nil, err
 		}
 
+		kind := in.Body.Kind
+		if kind == "" {
+			kind = FormSubscribe
+		}
 		var listName string
-		if err := a.SQLDB.QueryRowContext(ctx,
-			`SELECT name FROM mail_lists WHERE workspace_id = $1 AND id = $2`,
-			s.WorkspaceID, in.Body.ListID).Scan(&listName); errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("list not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the list")
+		var listID any // NULL for an inquiry form (the CHECK in 32_leads.sql)
+		switch kind {
+		case FormInquiry:
+			if strings.TrimSpace(in.Body.ListID) != "" {
+				return nil, huma.Error422UnprocessableEntity("an inquiry form files a lead, not a subscription — leave the list empty")
+			}
+		default:
+			if err := a.SQLDB.QueryRowContext(ctx,
+				`SELECT name FROM mail_lists WHERE workspace_id = $1 AND id = $2`,
+				s.WorkspaceID, in.Body.ListID).Scan(&listName); errors.Is(err, sql.ErrNoRows) {
+				return nil, huma.Error404NotFound("list not found")
+			} else if err != nil {
+				return nil, huma.Error500InternalServerError("could not read the list")
+			}
+			listID = in.Body.ListID
 		}
 
+		// The prefix tells a reader of a snippet which endpoint the key is for;
+		// the kind column is what is actually enforced.
 		key := "sf_" + newToken()
+		if kind == FormInquiry {
+			key = "if_" + newToken()
+		}
 		origins := strings.Join(splitOrigins(strings.Join(in.Body.AllowedOrigins, ",")), ",")
 
 		var id string
 		var createdAt time.Time
 		if err := a.SQLDB.QueryRowContext(ctx, `
-			INSERT INTO subscribe_forms (workspace_id, list_id, name, public_key, allowed_origins, thanks_en, thanks_ar, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at`,
-			s.WorkspaceID, in.Body.ListID, strings.TrimSpace(in.Body.Name), key, origins,
+			INSERT INTO subscribe_forms (workspace_id, kind, list_id, name, public_key, allowed_origins, thanks_en, thanks_ar, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at`,
+			s.WorkspaceID, kind, listID, strings.TrimSpace(in.Body.Name), key, origins,
 			strings.TrimSpace(in.Body.ThanksEN), strings.TrimSpace(in.Body.ThanksAR), s.UserID,
 		).Scan(&id, &createdAt); err != nil {
 			return nil, huma.Error500InternalServerError("could not create the form")
@@ -240,7 +384,7 @@ func registerFormAdmin(api huma.API, a *app.App) {
 		return out(struct {
 			Form FormOut `json:"form"`
 		}{withEmbed(FormOut{
-			ID: id, ListID: in.Body.ListID, ListName: listName, Name: strings.TrimSpace(in.Body.Name),
+			ID: id, Kind: kind, ListID: strings.TrimSpace(in.Body.ListID), ListName: listName, Name: strings.TrimSpace(in.Body.Name),
 			PublicKey: key, AllowedOrigins: splitOrigins(origins), Enabled: true,
 			ThanksEN: in.Body.ThanksEN, ThanksAR: in.Body.ThanksAR, CreatedAt: createdAt,
 		})}), nil
@@ -269,6 +413,18 @@ func registerFormAdmin(api huma.API, a *app.App) {
 		}
 
 		if in.Body.ListID != nil {
+			// An inquiry form has no list; giving it one would break the CHECK
+			// in 32_leads.sql as a 500. Say so as what it is.
+			var kind string
+			if err := a.SQLDB.QueryRowContext(ctx,
+				`SELECT kind FROM subscribe_forms WHERE workspace_id = $1 AND id = $2`,
+				s.WorkspaceID, in.ID).Scan(&kind); errors.Is(err, sql.ErrNoRows) {
+				return nil, huma.Error404NotFound("form not found")
+			} else if err != nil {
+				return nil, huma.Error500InternalServerError("could not read the form")
+			} else if kind == FormInquiry {
+				return nil, huma.Error422UnprocessableEntity("an inquiry form files a lead, not a subscription — it has no list")
+			}
 			var ok bool
 			if err := a.SQLDB.QueryRowContext(ctx,
 				`SELECT EXISTS (SELECT 1 FROM mail_lists WHERE workspace_id = $1 AND id = $2)`,
@@ -365,25 +521,13 @@ func registerPublicSubscribe(api huma.API, a *app.App) {
 		}
 
 		// Resolved on the OWNER pool: which workspace a key belongs to is a
-		// cross-tenant question, and there is no session to answer it.
-		var wsID, listID, origins, thanksEN, thanksAR string
-		var enabled bool
-		err := a.SysDB.QueryRowContext(ctx, `
-			SELECT workspace_id, list_id, allowed_origins, enabled, thanks_en, thanks_ar
-			FROM subscribe_forms WHERE public_key = $1`, in.Key).
-			Scan(&wsID, &listID, &origins, &enabled, &thanksEN, &thanksAR)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("this subscribe form does not exist")
-		}
+		// cross-tenant question, and there is no session to answer it. The
+		// same gate the inquiry endpoint uses (ResolvePublicForm).
+		form, err := ResolvePublicForm(ctx, a.SysDB, in.Key, FormSubscribe, in.Origin)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not resolve the form")
+			return nil, err
 		}
-		if !enabled {
-			return nil, huma.Error403Forbidden("this subscribe form is turned off")
-		}
-		if !originAllowed(origins, in.Origin) {
-			return nil, huma.Error403Forbidden("this origin is not allowed for this subscribe form")
-		}
+		wsID, listID, thanksEN, thanksAR := form.WorkspaceID, form.ListID, form.ThanksEN, form.ThanksAR
 
 		locale := strings.ToLower(strings.TrimSpace(in.Body.Locale))
 		if locale != "ar" {

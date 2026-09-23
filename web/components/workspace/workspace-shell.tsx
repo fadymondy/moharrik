@@ -24,6 +24,7 @@ import {
   ServerIcon,
   WebhookIcon,
   TrendingUpIcon,
+  UserPlusIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -274,6 +275,9 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
     <nav className="flex flex-col py-3" aria-label={t("shell.navigation")}>
       <L href={base} exact icon={<LayoutGridIcon />}>
         {t("nav.overview")}
+      </L>
+      <L href={`${base}/leads`} icon={<UserPlusIcon />}>
+        {t("nav.leads")}
       </L>
       <L href={`${base}/companies`} icon={<Building2Icon />}>
         {t("nav.companies")}

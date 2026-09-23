@@ -15,12 +15,12 @@ func TestOriginAllowedDeniesByDefault(t *testing.T) {
 	// A form with no origins set is CLOSED. This is the one that matters: a
 	// newly created form must not accept submissions from anywhere until
 	// somebody says where it lives.
-	if originAllowed("", "https://example.com") {
+	if OriginAllowed("", "https://example.com") {
 		t.Fatal("an empty allow-list accepted an origin; a new form would be open to the whole web")
 	}
 	// A request with no Origin header at all — curl, a script, a server — is
 	// not a browser on an allowed page.
-	if originAllowed("https://example.com", "") {
+	if OriginAllowed("https://example.com", "") {
 		t.Fatal("a missing Origin was accepted")
 	}
 }
@@ -34,7 +34,7 @@ func TestOriginAllowedMatchesExactlyAndNotBySuffix(t *testing.T) {
 		"https://EXAMPLE.com",  // case is not significant in a host
 		"https://example.com/", // a trailing slash is not a different origin
 	} {
-		if !originAllowed(list, ok) {
+		if !OriginAllowed(list, ok) {
 			t.Errorf("%q should be allowed", ok)
 		}
 	}
@@ -54,7 +54,7 @@ func TestOriginAllowedMatchesExactlyAndNotBySuffix(t *testing.T) {
 		// because a site redirects between apex and www, an origin is exact.
 		"https://blog.example.com",
 	} {
-		if originAllowed(list, bad) {
+		if OriginAllowed(list, bad) {
 			t.Errorf("%q must not be allowed", bad)
 		}
 	}
@@ -192,5 +192,43 @@ func TestSubscribeSnippetPostsToItsOwnKeyAndKeepsWhatsAppSeparate(t *testing.T) 
 	}
 	if strings.Contains(s, "checked") {
 		t.Error("the WhatsApp box must not be pre-ticked")
+	}
+}
+
+func TestInquirySnippetPostsToTheInquiryEndpointWithAttributionAndAHoneypot(t *testing.T) {
+	t.Setenv("PUBLIC_URL", "https://app.example.test/")
+	s := inquirySnippet("if_k1")
+	for _, want := range []string{
+		`fetch("https://app.example.test/api/inquiry/if_k1"`,
+		// Every attribution field the endpoint takes is collected in the browser.
+		`"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid"`,
+		`referrer: document.referrer`,
+		`landing_page: location.href`,
+		// The honeypot is present, out of sight and out of the tab order.
+		`name="nickname" tabindex="-1" autocomplete="off"`,
+		`aria-hidden="true"`,
+		// The two required fields are required in the markup too.
+		`name="email" required`,
+		`name="message" required`,
+		`j.error ||`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("inquiry snippet missing %q", want)
+		}
+	}
+	if strings.Contains(s, "/api/subscribe/") {
+		t.Error("an inquiry snippet must never post to the subscribe endpoint")
+	}
+}
+
+func TestWithEmbedPicksTheSnippetForTheFormKind(t *testing.T) {
+	t.Setenv("PUBLIC_URL", "https://app.example.test")
+	sub := withEmbed(FormOut{Kind: FormSubscribe, PublicKey: "sf_a"})
+	inq := withEmbed(FormOut{Kind: FormInquiry, PublicKey: "if_b"})
+	if sub.Endpoint != "https://app.example.test/api/subscribe/sf_a" || !strings.Contains(sub.Embed, "whatsapp_opt_in") {
+		t.Errorf("subscribe form got the wrong embed: %q", sub.Endpoint)
+	}
+	if inq.Endpoint != "https://app.example.test/api/inquiry/if_b" || !strings.Contains(inq.Embed, `name="message"`) {
+		t.Errorf("inquiry form got the wrong embed: %q", inq.Endpoint)
 	}
 }

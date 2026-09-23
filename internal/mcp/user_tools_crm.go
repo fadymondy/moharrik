@@ -25,9 +25,8 @@ func pgCode(err error) string {
 }
 
 // CrmTools: companies, deals and the activity timeline, over contacts:read /
-// contacts:write — the same scope pair internal/crm's REST routes use
-// (scopes.go's own comment already promises "CRM contacts, companies and
-// leads" under that name). Queries run on the app pool; ctx carries the
+// contacts:write — the same scope pair internal/crm's REST routes use (leads
+// have their own pair since MH-390, user_tools_leads.go). Queries run on the app pool; ctx carries the
 // workspace, so RLS confines every row the same way the REST handlers are —
 // each query still names workspace_id explicitly too, matching that package's
 // defense-in-depth convention.

@@ -20,8 +20,14 @@ ahead of the phases that add tools — they grant nothing until a tool declares 
 */
 var UserScopes = []ScopeDef{
 	{"members:read", "See the workspace, your role and its members (whoami, list_members)", authz.Member},
-	{"contacts:read", "Read CRM contacts, companies and leads", authz.Member},
-	{"contacts:write", "Create and change CRM contacts, companies and leads", authz.Member},
+	{"contacts:read", "Read CRM contacts, companies, deals and the timeline", authz.Member},
+	{"contacts:write", "Create and change CRM contacts, companies, deals and the timeline", authz.Member},
+	// Leads have their own pair (MH-390): a lead is unverified text from a
+	// stranger's browser, and an agent that triages the inbound queue should
+	// not need the whole CRM to do it. convert_lead needs contacts:write as
+	// well, because converting is what creates the CRM rows.
+	{"leads:read", "Read leads from website inquiry forms, with their message and attribution", authz.Member},
+	{"leads:write", "Change a lead's status and convert it (converting also needs contacts:write)", authz.Member},
 	{"inbox:read", "Read conversations across chat, email and WhatsApp", authz.Member},
 	{"inbox:write", "Reply to, assign and close conversations", authz.Member},
 	{"campaigns:read", "Read email and WhatsApp campaigns and their results", authz.Member},

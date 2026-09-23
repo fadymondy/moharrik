@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { PencilIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
+import { MessageSquareTextIcon, PencilIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { SectionHeader } from "@/components/public-frame"
@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type MailList, type SubscribeForm } from "@/lib/api"
+import { api, ApiError, type FormKind, type MailList, type SubscribeForm } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMailLists, useSubscribeForms } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
@@ -37,7 +37,8 @@ export default function SubscribeFormsPage() {
   const canManage = ws.can("campaigns:write")
   const forms = useSubscribeForms(ws.id)
   const lists = useMailLists(ws.id)
-  const [editing, setEditing] = useState<SubscribeForm | "new" | null>(null)
+  // "new-subscribe" / "new-inquiry" open the dialog for that kind (MH-390).
+  const [editing, setEditing] = useState<SubscribeForm | `new-${FormKind}` | null>(null)
   const items = forms.data?.forms ?? []
   const listItems = lists.data?.lists ?? []
 
@@ -48,11 +49,20 @@ export default function SubscribeFormsPage() {
         title={t("nav.subscribeForms")}
         description={t("forms.hint")}
         action={
-          canManage && listItems.length > 0 ? (
-            <Button onClick={() => setEditing("new")} disabled={!forms.data}>
-              <PlusIcon />
-              {t("forms.add")}
-            </Button>
+          canManage ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* An inquiry form needs no list, so it is available from the start. */}
+              <Button variant="outline" onClick={() => setEditing("new-inquiry")} disabled={!forms.data} data-new-form="inquiry">
+                <MessageSquareTextIcon />
+                {t("forms.addInquiry")}
+              </Button>
+              {listItems.length > 0 ? (
+                <Button onClick={() => setEditing("new-subscribe")} disabled={!forms.data} data-new-form="subscribe">
+                  <PlusIcon />
+                  {t("forms.add")}
+                </Button>
+              ) : null}
+            </div>
           ) : undefined
         }
       />
@@ -82,8 +92,9 @@ export default function SubscribeFormsPage() {
 
       {editing ? (
         <FormDialog
-          key={editing === "new" ? "new" : editing.id}
-          form={editing === "new" ? null : editing}
+          key={typeof editing === "string" ? editing : editing.id}
+          form={typeof editing === "string" ? null : editing}
+          kind={typeof editing === "string" ? (editing === "new-inquiry" ? "inquiry" : "subscribe") : editing.kind}
           lists={listItems}
           onClose={() => setEditing(null)}
           onSaved={() => forms.mutate()}
@@ -99,6 +110,7 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
   const [saving, setSaving] = useState(false)
   const origins = form.allowed_origins ?? []
   const blocked = origins.length === 0
+  const inquiry = form.kind === "inquiry"
 
   async function toggle() {
     setSaving(true)
@@ -124,10 +136,11 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
   }
 
   return (
-    <li className="px-6 py-5" data-form-row={form.name}>
+    <li className="px-6 py-5" data-form-row={form.name} data-form-kind={form.kind}>
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm font-medium">{form.name}</p>
-        <Badge variant="outline">{t("forms.toList", { list: form.list_name || "—" })}</Badge>
+        <Badge variant="secondary">{inquiry ? t("forms.kind.inquiry") : t("forms.kind.subscribe")}</Badge>
+        <Badge variant="outline">{inquiry ? t("forms.toLeads") : t("forms.toList", { list: form.list_name || "—" })}</Badge>
         <Badge variant={form.enabled ? "default" : "outline"}>{form.enabled ? t("forms.enabled") : t("forms.disabled")}</Badge>
         {blocked ? (
           <span className="flex items-center gap-1 text-xs text-grid-warn-text" data-no-origins>
@@ -150,7 +163,7 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
             <ConfirmButton
               label={t("common.delete")}
               title={t("forms.deleteTitle")}
-              description={t("forms.deleteBody", { name: form.name })}
+              description={t(inquiry ? "forms.deleteBodyInquiry" : "forms.deleteBody", { name: form.name })}
               confirmLabel={t("common.delete")}
               onConfirm={remove}
             />
@@ -172,16 +185,29 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
       <div className="mt-3 space-y-1.5">
         <p className="grid-micro">{t("forms.embed")}</p>
         <CopyField value={form.embed} label={t("forms.embed")} />
-        <p className="text-xs text-grid-muted">{t("forms.embedHint")}</p>
+        <p className="text-xs text-grid-muted">{t(inquiry ? "forms.embedHintInquiry" : "forms.embedHint")}</p>
       </div>
     </li>
   )
 }
 
-function FormDialog({ form, lists, onClose, onSaved }: { form: SubscribeForm | null; lists: MailList[]; onClose: () => void; onSaved: () => void }) {
+function FormDialog({
+  form,
+  kind,
+  lists,
+  onClose,
+  onSaved,
+}: {
+  form: SubscribeForm | null
+  kind: FormKind
+  lists: MailList[]
+  onClose: () => void
+  onSaved: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState(form?.name ?? "")
+  const inquiry = kind === "inquiry"
   const [listId, setListId] = useState(form?.list_id ?? lists[0]?.id ?? "")
   const [origins, setOrigins] = useState((form?.allowed_origins ?? []).join("\n"))
   const [thanksEn, setThanksEn] = useState(form?.thanks_en ?? "")
@@ -195,7 +221,9 @@ function FormDialog({ form, lists, onClose, onSaved }: { form: SubscribeForm | n
     e.preventDefault()
     setBusy(true)
     setErr(null)
-    const json = { name: name.trim(), list_id: listId, allowed_origins: parsed, thanks_en: thanksEn.trim(), thanks_ar: thanksAr.trim() }
+    // An inquiry form has no list; its kind is fixed when it is created.
+    const common = { name: name.trim(), allowed_origins: parsed, thanks_en: thanksEn.trim(), thanks_ar: thanksAr.trim() }
+    const json = inquiry ? (form ? common : { ...common, kind }) : { ...common, list_id: listId }
     try {
       if (form) {
         await api(`/api/w/subscribe-forms/${encodeURIComponent(form.id)}`, { method: "PATCH", json, workspaceId: ws.id })
@@ -216,16 +244,23 @@ function FormDialog({ form, lists, onClose, onSaved }: { form: SubscribeForm | n
   return (
     <Dialog open onOpenChange={(v) => (v ? null : onClose())}>
       <DialogContent className="sm:max-w-lg">
-        <form onSubmit={submit} className="flex flex-col gap-4" data-form="subscribe-form">
+        <form onSubmit={submit} className="flex flex-col gap-4" data-form={inquiry ? "inquiry-form" : "subscribe-form"}>
           <DialogHeader>
-            <DialogTitle>{form ? t("forms.editTitle") : t("forms.add")}</DialogTitle>
-            <DialogDescription>{t("forms.dialogHint")}</DialogDescription>
+            <DialogTitle>{form ? t(inquiry ? "forms.editTitleInquiry" : "forms.editTitle") : t(inquiry ? "forms.addInquiry" : "forms.add")}</DialogTitle>
+            <DialogDescription>{t(inquiry ? "forms.dialogHintInquiry" : "forms.dialogHint")}</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="form-name">{t("forms.name")}</FieldLabel>
-              <Input id="form-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={t("forms.namePlaceholder")} />
+              <Input
+                id="form-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={80}
+                placeholder={t(inquiry ? "forms.namePlaceholderInquiry" : "forms.namePlaceholder")}
+              />
             </Field>
+            {inquiry ? null : (
             <Field>
               <FieldLabel htmlFor="form-list">{t("forms.list")}</FieldLabel>
               <Select items={listItems} value={listId} onValueChange={(v) => setListId(String(v ?? ""))}>
@@ -241,6 +276,7 @@ function FormDialog({ form, lists, onClose, onSaved }: { form: SubscribeForm | n
                 </SelectContent>
               </Select>
             </Field>
+            )}
             <Field>
               <FieldLabel htmlFor="form-origins">{t("forms.allowedOrigins")}</FieldLabel>
               <Textarea
@@ -270,12 +306,12 @@ function FormDialog({ form, lists, onClose, onSaved }: { form: SubscribeForm | n
                 {t("forms.thanksAr")} <span className="text-grid-muted">({t("common.optional")})</span>
               </FieldLabel>
               <Input id="form-thanks-ar" dir="rtl" value={thanksAr} onChange={(e) => setThanksAr(e.target.value)} maxLength={300} />
-              <FieldDescription>{t("forms.thanksHint")}</FieldDescription>
+              <FieldDescription>{t(inquiry ? "forms.thanksHintInquiry" : "forms.thanksHint")}</FieldDescription>
             </Field>
           </FieldGroup>
           {err ? <FieldError>{err}</FieldError> : null}
           <DialogFooter>
-            <Button type="submit" disabled={busy || !name.trim() || !listId}>
+            <Button type="submit" disabled={busy || !name.trim() || (!inquiry && !listId)}>
               {busy ? t("common.working") : form ? t("common.save") : t("forms.create")}
             </Button>
           </DialogFooter>
