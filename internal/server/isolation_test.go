@@ -211,7 +211,12 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	// CRM rows: a company, a contact at it, a deal on the pipeline, an activity.
 	coID := alice.must("POST", "/api/w/companies", map[string]any{"name": marker + " Co", "domain": "iso-" + rnd() + ".test"}, 201)["company"].(map[string]any)["id"].(string)
-	ctID := alice.must("POST", "/api/w/contacts", map[string]any{"email": "iso-" + rnd() + "@example.test", "name": marker}, 201)["contact"].(map[string]any)["id"].(string)
+	ctEmail := "iso-" + rnd() + "@example.test"
+	ctID := alice.must("POST", "/api/w/contacts", map[string]any{"email": ctEmail, "name": marker}, 201)["contact"].(map[string]any)["id"].(string)
+	// A mailing list with that contact on it (MH-408: unsubscribe-from-one-list,
+	// list edit and the CSV export all name a list and a contact in the path).
+	listID := alice.must("POST", "/api/w/mail/lists", map[string]any{"name": marker + " List", "double_opt_in": false}, 201)["list"].(map[string]any)["id"].(string)
+	alice.must("POST", "/api/w/contacts", map[string]any{"email": ctEmail, "list_id": listID}, 201)
 	alice.must("PATCH", "/api/w/contacts/"+ctID, map[string]any{"company_id": coID}, 200)
 	stages := alice.must("GET", "/api/w/pipeline/stages", nil, 200)["stages"].([]any)
 	stageID := stages[0].(map[string]any)["id"].(string)
@@ -324,7 +329,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	googleID := gconns[0].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail}
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -332,6 +337,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"chat_widgets": widgetID, "conversations": convID,
 		"subscribe-forms": formID, "leads": leadID,
 		"google": googleID,
+		"mail": listID,
 	}
 
 	leaks := func(b []byte) string {
@@ -495,6 +501,41 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Errorf("A's own token source: %v", err)
 	} else if _, err := src.Token(context.Background(), google.ScopeAnalytics); err != nil {
 		t.Errorf("A's grant stopped working after the sweep: %v", err)
+	}
+	// Subscriber admin (MH-408), with VALID bodies from B: B cannot take A's
+	// contact off A's list, rename A's list or turn its opt-in off, download it,
+	// or find A's contacts through the new search, filter or cursor.
+	bob.ws = bID
+	if code, b := bob.do("POST", "/api/w/contacts/"+ctID+"/lists/"+listID+"/unsubscribe", nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B unsubscribing A's contact from A's list: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("PATCH", "/api/w/mail/lists/"+listID, map[string]any{"name": "bob owns this", "double_opt_in": false}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B editing A's list: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("GET", "/api/w/mail/lists/"+listID+"/export.csv", nil); code != http.StatusNotFound || leaks(b) != "" || strings.Contains(string(b), ctEmail) {
+		t.Errorf("B exporting A's list: got %d, want 404: %s", code, b)
+	}
+	for _, q := range []string{"?list_id=" + listID, "?list_id=" + listID + "&status=subscribed", "?q=" + marker, "?q=" + ctEmail} {
+		code, b := bob.do("GET", "/api/w/contacts"+q, nil)
+		if leaks(b) != "" || strings.Contains(string(b), ctEmail) || (code == 200 && !strings.Contains(string(b), `"total":0`)) {
+			t.Errorf("B's contacts%s found A's rows (status %d): %s", q, code, b)
+		}
+	}
+	alice.ws = aID
+	var subStatus, listName string
+	var subBy *string
+	if err := a.SysDB.QueryRow(`SELECT s.status, s.unsubscribed_by, l.name FROM list_subscriptions s JOIN mail_lists l ON l.id = s.list_id
+		WHERE s.workspace_id = $1 AND s.list_id = $2 AND s.contact_id = $3`, aID, listID, ctID).Scan(&subStatus, &subBy, &listName); err != nil {
+		t.Errorf("A's subscription or list is gone after the sweep: %v", err)
+	} else if subStatus != "subscribed" || subBy != nil || listName != marker+" List" {
+		t.Errorf("A's subscription or list was changed from B: status %q by %v name %q", subStatus, subBy, listName)
+	}
+	// Alice herself can still do all three — the 404s above are about B.
+	if code, b := alice.do("GET", "/api/w/contacts?list_id="+listID+"&q="+ctEmail, nil); code != 200 || !strings.Contains(string(b), `"total":1`) {
+		t.Errorf("A searching her own list: %d %s", code, b)
+	}
+	if code, b := alice.do("GET", "/api/w/mail/lists/"+listID+"/export.csv", nil); code != 200 || !strings.Contains(string(b), ctEmail) {
+		t.Errorf("A exporting her own list: %d %s", code, b)
 	}
 
 	if code, b := alice.do("GET", "/api/w/deals/"+dealID, nil); code != 200 || !strings.Contains(string(b), actID) || !strings.Contains(string(b), coID) {

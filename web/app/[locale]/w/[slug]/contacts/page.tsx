@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useState, type FormEvent } from "react"
-import { MailWarningIcon } from "lucide-react"
+import { useEffect, useState, type FormEvent } from "react"
+import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, EllipsisIcon, MailWarningIcon, PencilIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -17,20 +17,38 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
+import { useDebounced } from "@/components/crm/contact-picker"
+import { EditListDialog, exportList, UnsubscribeDialog, type UnsubscribeTarget } from "@/components/mail/subscriber-admin"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Contact, type MailList, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useContacts, useMailLists, useSmtpSettings } from "@/lib/queries"
+import { useContactsPage, useMailLists, useSmtpSettings } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+
+const PAGE_SIZE = 50
+const STATUSES: SubscriptionStatus[] = ["subscribed", "pending", "unsubscribed", "bounced"]
+const ALL_LISTS = "__all__"
 
 const statusVariant: Record<SubscriptionStatus, "default" | "secondary" | "outline" | "destructive"> = {
   subscribed: "default",
@@ -46,31 +64,28 @@ export default function ContactsPage() {
 
   const canWrite = ws.can("contacts:write")
   const lists = useMailLists(ws.id)
-  const contacts = useContacts(ws.id)
   const listItems = lists.data?.lists ?? []
+  // Bumped after a write, so the contacts browser refetches the page it is on.
+  const [version, setVersion] = useState(0)
+  const changed = () => {
+    lists.mutate()
+    setVersion((v) => v + 1)
+  }
 
   return (
     <>
       <SectionHeader micro={ws.summary.name} title={t("nav.contacts")} description={t("contacts.hint")} />
-      <ListsSection lists={listItems} loading={lists.isLoading} error={lists.error} onChange={() => { lists.mutate(); contacts.mutate() }} />
+      <ListsSection lists={listItems} loading={lists.isLoading} error={lists.error} onChange={changed} />
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
       {canWrite ? (
-        <AddContact lists={listItems} onAdded={() => { contacts.mutate(); lists.mutate() }} />
+        <AddContact lists={listItems} onAdded={changed} />
       ) : ws.current ? (
         <p className="px-6 py-6 text-sm text-grid-muted">{t("contacts.readOnly")}</p>
       ) : null}
 
-      {contacts.error ? (
-        <ErrorState error={contacts.error} />
-      ) : contacts.isLoading ? (
-        <LoadingRows />
-      ) : (contacts.data?.contacts ?? []).length === 0 ? (
-        <EmptyState title={t("contacts.empty")} body={canWrite ? t("contacts.emptyBody") : undefined} />
-      ) : (
-        <ContactsTable items={contacts.data?.contacts ?? []} canWrite={canWrite} onChange={() => { contacts.mutate(); lists.mutate() }} />
-      )}
+      <ContactsBrowser lists={listItems} version={version} onChange={changed} />
       <div className="pb-8" />
     </>
   )
@@ -81,6 +96,8 @@ function ListsSection({ lists, loading, error, onChange }: { lists: MailList[]; 
   const ws = useWorkspace()
   const canWrite = ws.can("contacts:write")
   const canDelete = ws.can("campaigns:write")
+  const canExport = ws.can("contacts:export")
+  const [editing, setEditing] = useState<MailList | null>(null)
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [doi, setDoi] = useState(true)
@@ -149,15 +166,36 @@ function ListsSection({ lists, loading, error, onChange }: { lists: MailList[]; 
                   <TableCell>{l.subscribed}</TableCell>
                   <TableCell className="text-grid-muted">{l.pending}</TableCell>
                   <TableCell className="pe-6 text-end">
-                    {canDelete ? (
-                      <ConfirmButton
-                        label={t("common.delete")}
-                        title={t("lists.deleteTitle")}
-                        description={t("lists.deleteBody", { name: l.name })}
-                        confirmLabel={t("common.delete")}
-                        onConfirm={() => remove(l.id)}
-                      />
-                    ) : null}
+                    <div className="inline-flex items-center gap-1">
+                      {canExport ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-export-list={l.name}
+                          onClick={() =>
+                            exportList(ws.id, l, {}, { ok: t("contacts.exported"), fail: t("common.networkError") })
+                          }
+                        >
+                          <DownloadIcon />
+                          {t("contacts.export")}
+                        </Button>
+                      ) : null}
+                      {canWrite ? (
+                        <Button variant="ghost" size="sm" data-edit-list={l.name} onClick={() => setEditing(l)}>
+                          <PencilIcon />
+                          {t("common.edit")}
+                        </Button>
+                      ) : null}
+                      {canDelete ? (
+                        <ConfirmButton
+                          label={t("common.delete")}
+                          title={t("lists.deleteTitle")}
+                          description={t("lists.deleteBody", { name: l.name })}
+                          confirmLabel={t("common.delete")}
+                          onConfirm={() => remove(l.id)}
+                        />
+                      ) : null}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -193,6 +231,7 @@ function ListsSection({ lists, loading, error, onChange }: { lists: MailList[]; 
           {err ? <FieldError className="mt-3">{err}</FieldError> : null}
         </form>
       ) : null}
+      <EditListDialog list={editing} onClose={() => setEditing(null)} onSaved={onChange} />
     </section>
   )
 }
@@ -309,10 +348,210 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
   )
 }
 
+/*
+The contacts list (MH-408). It used to be every contact at once — until 1,000,
+where it stopped without a word. Now it is a page at a time with the total said
+out loud, a search that reaches every row, and per-list status filters that say
+how many each holds.
+
+Keyset paging, so "previous" is a stack of the cursors already visited rather
+than an offset: a contact added while somebody is paging does not shift every
+page by one.
+*/
+function ContactsBrowser({ lists, version, onChange }: { lists: MailList[]; version: number; onChange: () => void }) {
+  const { t, formatNumber } = useTranslations()
+  const ws = useWorkspace()
+  const canWrite = ws.can("contacts:write")
+  const canExport = ws.can("contacts:export")
+
+  const [listId, setListId] = useState("")
+  const [status, setStatus] = useState<SubscriptionStatus | "">("")
+  const [search, setSearch] = useState("")
+  const q = useDebounced(search.trim())
+  // cursors[i] opens page i+1; cursors[0] is the first page.
+  const [cursors, setCursors] = useState<string[]>([""])
+
+  // A list that was deleted stops being the filter.
+  const list = lists.find((l) => l.id === listId) ?? null
+  const activeList = list ? listId : ""
+  const activeStatus = activeList ? status : ""
+
+  // Any change of filter starts again from the first page.
+  useEffect(() => setCursors([""]), [activeList, activeStatus, q])
+
+  const page = useContactsPage(ws.id, { listId: activeList, status: activeStatus, q, cursor: cursors[cursors.length - 1], limit: PAGE_SIZE })
+  const { mutate } = page
+  useEffect(() => {
+    if (version > 0) mutate()
+  }, [version, mutate])
+
+  const rows = page.data?.contacts ?? []
+  const total = page.data?.total ?? 0
+  // The index of the page on screen — which, while the next one loads, is still
+  // the previous one.
+  const shownCursor = new URLSearchParams((page.data?.path ?? "").split("?")[1] ?? "").get("cursor") ?? ""
+  const pageIndex = page.current ? cursors.length - 1 : Math.max(0, cursors.lastIndexOf(shownCursor))
+  const from = rows.length ? pageIndex * PAGE_SIZE + 1 : 0
+  const to = pageIndex * PAGE_SIZE + rows.length
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const filtered = !!(activeList || q)
+  const counts = page.data?.counts ?? null
+
+  const listItems = [{ value: ALL_LISTS, label: t("contacts.allContacts") }, ...lists.map((l) => ({ value: l.id, label: l.name }))]
+
+  return (
+    <section data-contacts-browser>
+      <div className="flex flex-col gap-3 px-6 pt-6 pb-4 sm:flex-row sm:items-end">
+        <Field className="sm:flex-1">
+          <FieldLabel htmlFor="contacts-search">{t("contacts.search")}</FieldLabel>
+          <InputGroup>
+            <InputGroupInput
+              id="contacts-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("contacts.searchPlaceholder")}
+              maxLength={200}
+            />
+            <InputGroupAddon>
+              <SearchIcon />
+            </InputGroupAddon>
+          </InputGroup>
+        </Field>
+        <Field className="sm:w-56">
+          <FieldLabel htmlFor="contacts-list-filter">{t("contacts.list")}</FieldLabel>
+          <Select items={listItems} value={activeList || ALL_LISTS} onValueChange={(v) => setListId(v == null || v === ALL_LISTS ? "" : String(v))}>
+            <SelectTrigger id="contacts-list-filter" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {listItems.map((i) => (
+                <SelectItem key={i.value} value={i.value}>
+                  {i.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        {list && canExport ? (
+          <Button
+            variant="outline"
+            data-export-view
+            onClick={() => exportList(ws.id, list, { status: activeStatus, q }, { ok: t("contacts.exported"), fail: t("common.networkError") })}
+          >
+            <DownloadIcon />
+            {t("contacts.exportView")}
+          </Button>
+        ) : null}
+      </div>
+
+      {list ? (
+        <div className="px-6 pb-4">
+          <ToggleGroup
+            variant="outline"
+            size="sm"
+            spacing={0}
+            className="flex-wrap"
+            value={[activeStatus || "all"]}
+            onValueChange={(v) => {
+              const next = v[0]
+              if (next === undefined) return
+              setStatus(next === "all" ? "" : (next as SubscriptionStatus))
+            }}
+            aria-label={t("contacts.statusFilter")}
+          >
+            <ToggleGroupItem value="all" data-status-filter="all">
+              {t("contacts.statusAll")} <span className="text-grid-muted tabular-nums">{counts ? formatNumber(counts.all) : ""}</span>
+            </ToggleGroupItem>
+            {STATUSES.map((st) => (
+              <ToggleGroupItem key={st} value={st} data-status-filter={st}>
+                {t(`sub.${st}`)} <span className="text-grid-muted tabular-nums">{counts ? formatNumber(counts[st]) : ""}</span>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      ) : null}
+
+      {page.error ? (
+        <ErrorState error={page.error} />
+      ) : !page.data ? (
+        <LoadingRows />
+      ) : total === 0 ? (
+        filtered ? (
+          <EmptyState
+            title={t("contacts.noMatch")}
+            body={t("contacts.noMatchBody")}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearch("")
+                  setListId("")
+                  setStatus("")
+                }}
+              >
+                {t("contacts.clearFilters")}
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState title={t("contacts.empty")} body={canWrite ? t("contacts.emptyBody") : undefined} />
+        )
+      ) : (
+        <>
+          <p className="px-6 pb-3 text-sm text-grid-muted" aria-live="polite" data-contacts-summary={`${from}-${to}/${total}`}>
+            {t("contacts.showing", { from: formatNumber(from), to: formatNumber(to), total: formatNumber(total) })}
+          </p>
+          <div className={page.current ? undefined : "opacity-60 transition-opacity"} aria-busy={!page.current} data-contacts-current={page.current ? "yes" : "no"}>
+            <ContactsTable items={rows} canWrite={canWrite} onChange={onChange} />
+          </div>
+          {pages > 1 ? (
+            <Pagination className="px-6 pt-4">
+              <PaginationContent className="gap-2">
+                <PaginationItem>
+                  <Button variant="ghost" disabled={!page.current || cursors.length === 1} onClick={() => setCursors((c) => (c.length > 1 && c[c.length - 1] === shownCursor ? c.slice(0, -1) : c))} data-page="prev">
+                    <ChevronLeftIcon data-icon="inline-start" className="rtl:rotate-180" />
+                    {t("contacts.prevPage")}
+                  </Button>
+                </PaginationItem>
+                <PaginationItem>
+                  <span className="px-2 text-sm text-grid-muted tabular-nums" data-page-of={`${pageIndex + 1}/${pages}`}>
+                    {t("contacts.pageOf", { page: formatNumber(pageIndex + 1), pages: formatNumber(pages) })}
+                  </span>
+                </PaginationItem>
+                <PaginationItem>
+                  <Button
+                    variant="ghost"
+                    disabled={!page.current || !page.data.next_cursor}
+                    onClick={() => {
+                      const next = page.data?.next_cursor
+                      // Only from the page it belongs to: a second click before the
+                      // re-render must not push the same cursor twice.
+                      if (next && page.current) setCursors((c) => (c[c.length - 1] === shownCursor ? [...c, next] : c))
+                    }}
+                    data-page="next"
+                  >
+                    {t("contacts.nextPage")}
+                    <ChevronRightIcon data-icon="inline-end" className="rtl:rotate-180" />
+                  </Button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          ) : null}
+        </>
+      )}
+    </section>
+  )
+}
+
 function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWrite: boolean; onChange: () => void }) {
   const { t, locale, formatDate } = useTranslations()
   const ws = useWorkspace()
   const base = `/${locale}/w/${ws.slug}`
+  const [leaving, setLeaving] = useState<UnsubscribeTarget | null>(null)
+  const [deleting, setDeleting] = useState<Contact | null>(null)
+  const [busy, setBusy] = useState(false)
 
   async function resend(subId: string) {
     try {
@@ -323,13 +562,17 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
     }
   }
 
-  async function remove(id: string) {
+  async function remove(c: Contact) {
+    setBusy(true)
     try {
-      await api(`/api/w/contacts/${encodeURIComponent(id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/contacts/${encodeURIComponent(c.id)}`, { method: "DELETE", workspaceId: ws.id })
       toast.success(t("contacts.deleted"))
+      setDeleting(null)
       onChange()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -349,59 +592,108 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.map((c) => (
-            <TableRow key={c.id} data-contact-row={c.email}>
-              <TableCell className="ps-6">
-                <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
-                  <Ltr>{c.email}</Ltr>
-                </Link>
-              </TableCell>
-              <TableCell>
-                {c.name ? (
+          {items.map((c) => {
+            const leavable = (c.subscriptions ?? []).filter((s) => s.status !== "unsubscribed")
+            return (
+              <TableRow key={c.id} data-contact-row={c.email}>
+                <TableCell className="ps-6">
                   <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
-                    {c.name}
+                    <Ltr>{c.email}</Ltr>
                   </Link>
-                ) : (
-                  <span className="text-grid-muted">—</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <div className="flex flex-wrap gap-1.5">
-                  {(c.subscriptions ?? []).map((s) => (
-                    <span key={s.id} className="inline-flex items-center gap-1">
-                      <Badge variant={statusVariant[s.status]} title={t(`sub.${s.status}`)}>
-                        {s.list_name} · {t(`sub.${s.status}`)}
-                      </Badge>
-                      {canWrite && s.status === "pending" ? (
-                        <Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={() => resend(s.id)}>
-                          {t("contacts.resend")}
-                        </Button>
-                      ) : null}
-                    </span>
-                  ))}
-                </div>
-              </TableCell>
-              <TableCell>
-                <WhatsAppConsent contact={c} onChange={onChange} />
-              </TableCell>
-              <TableCell className="text-grid-muted">
-                <Ltr>{formatDate(c.created_at)}</Ltr>
-              </TableCell>
-              <TableCell className="pe-6 text-end">
-                {canWrite ? (
-                  <ConfirmButton
-                    label={t("common.delete")}
-                    title={t("contacts.deleteTitle")}
-                    description={t("contacts.deleteBody", { email: c.email })}
-                    confirmLabel={t("common.delete")}
-                    onConfirm={() => remove(c.id)}
-                  />
-                ) : null}
-              </TableCell>
-            </TableRow>
-          ))}
+                </TableCell>
+                <TableCell>
+                  {c.name ? (
+                    <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
+                      {c.name}
+                    </Link>
+                  ) : (
+                    <span className="text-grid-muted">—</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(c.subscriptions ?? []).map((s) => (
+                      <span key={s.id} className="inline-flex items-center gap-1">
+                        <Badge
+                          variant={statusVariant[s.status]}
+                          data-sub={`${s.list_name}:${s.status}`}
+                          title={
+                            s.status === "unsubscribed" && s.unsubscribed_by_workspace
+                              ? t("contacts.unsubscribedByTeam", { date: formatDate(s.unsubscribed_at) })
+                              : t(`sub.${s.status}`)
+                          }
+                        >
+                          {s.list_name} · {t(`sub.${s.status}`)}
+                        </Badge>
+                        {canWrite && s.status === "pending" ? (
+                          <Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={() => resend(s.id)}>
+                            {t("contacts.resend")}
+                          </Button>
+                        ) : null}
+                      </span>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <WhatsAppConsent contact={c} onChange={onChange} />
+                </TableCell>
+                <TableCell className="text-grid-muted">
+                  <Ltr>{formatDate(c.created_at)}</Ltr>
+                </TableCell>
+                <TableCell className="pe-6 text-end">
+                  {canWrite ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={<Button variant="ghost" size="icon-sm" aria-label={t("contacts.actionsFor", { who: c.email })} data-row-actions={c.email} />}
+                      >
+                        <EllipsisIcon />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-56">
+                        {leavable.length > 0 ? (
+                          <>
+                            <DropdownMenuGroup>
+                              <DropdownMenuLabel>{t("contacts.unsubscribeFrom")}</DropdownMenuLabel>
+                              {leavable.map((s) => (
+                                <DropdownMenuItem
+                                  key={s.id}
+                                  data-unsubscribe-from={s.list_name}
+                                  onClick={() => setLeaving({ contactId: c.id, who: c.name || c.email, listId: s.list_id, listName: s.list_name })}
+                                >
+                                  {s.list_name}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuGroup>
+                            <DropdownMenuSeparator />
+                          </>
+                        ) : null}
+                        <DropdownMenuItem variant="destructive" data-delete-contact onClick={() => setDeleting(c)}>
+                          {t("contacts.deleteContact")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
+
+      <UnsubscribeDialog target={leaving} onClose={() => setLeaving(null)} onDone={onChange} />
+      <AlertDialog open={deleting !== null} onOpenChange={(v) => (v ? null : setDeleting(null))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("contacts.deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("contacts.deleteBody", { email: deleting?.email ?? "" })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={busy} onClick={() => deleting && remove(deleting)}>
+              {busy ? t("common.working") : t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

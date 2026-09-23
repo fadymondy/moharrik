@@ -51,6 +51,11 @@ export function useTranslations() {
     [locale],
   )
 
+  const formatNumber = useMemo(() => {
+    const nf = new Intl.NumberFormat(intlTag(locale))
+    return (n: number) => nf.format(n)
+  }, [locale])
+
   const dir = dirForLocale(locale)
-  return { t, locale, dir, isRtl: dir === "rtl", formatDate }
+  return { t, locale, dir, isRtl: dir === "rtl", formatDate, formatNumber }
 }

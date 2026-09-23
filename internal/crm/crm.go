@@ -116,6 +116,11 @@ type ListSubscription struct {
 	ListID   string `json:"list_id"`
 	ListName string `json:"list_name"`
 	Status   string `json:"status"`
+	// The same three the contacts list carries (marketing.SubscriptionOut,
+	// MH-408), so one type serves both pages.
+	ConfirmedAt    *time.Time `json:"confirmed_at"`
+	UnsubscribedAt *time.Time `json:"unsubscribed_at"`
+	ByWorkspace    bool       `json:"unsubscribed_by_workspace"`
 }
 
 type ContactDetail struct {

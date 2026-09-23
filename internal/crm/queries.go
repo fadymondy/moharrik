@@ -181,7 +181,7 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 	c.OwnerUserID = strp(owner)
 	c.Subscriptions = []ListSubscription{}
 	rows, err := db.QueryContext(ctx, `
-		SELECT s.id, s.list_id, l.name, s.status
+		SELECT s.id, s.list_id, l.name, s.status, s.confirmed_at, s.unsubscribed_at, s.unsubscribed_by IS NOT NULL
 		FROM list_subscriptions s JOIN mail_lists l ON l.id = s.list_id AND l.workspace_id = s.workspace_id
 		WHERE s.workspace_id = $1 AND s.contact_id = $2 ORDER BY lower(l.name)`, wsID, id)
 	if err != nil {
@@ -190,7 +190,7 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 	defer rows.Close()
 	for rows.Next() {
 		var s ListSubscription
-		if err := rows.Scan(&s.ID, &s.ListID, &s.ListName, &s.Status); err != nil {
+		if err := rows.Scan(&s.ID, &s.ListID, &s.ListName, &s.Status, &s.ConfirmedAt, &s.UnsubscribedAt, &s.ByWorkspace); err != nil {
 			return nil, err
 		}
 		c.Subscriptions = append(c.Subscriptions, s)
