@@ -15,6 +15,14 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
+  /* The grid's AA text tones for status colours. grid-tailwind.css exposes the base
+     --grid-ok/warn/danger but not these, so `text-grid-warn-text` and
+     `text-grid-danger-text` (26 uses: warnings, Delete buttons, refusal reasons)
+     generated no CSS and rendered in the body colour (found in MH-381 by reading
+     computed styles). Belongs upstream in the bridge; mapped here until it is. */
+  --color-grid-ok-text: var(--grid-ok-text);
+  --color-grid-warn-text: var(--grid-warn-text);
+  --color-grid-danger-text: var(--grid-danger-text);
   --font-sans: var(--grid-font-sans);
   --font-mono: var(--grid-font-mono);
   --color-background: var(--background);

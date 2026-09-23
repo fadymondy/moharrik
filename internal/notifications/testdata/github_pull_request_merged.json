@@ -1,0 +1,30 @@
+{
+  "action": "closed",
+  "number": 42,
+  "pull_request": {
+    "url": "https://api.github.com/repos/fadymondy/moharrik/pulls/42",
+    "id": 1,
+    "html_url": "https://github.com/fadymondy/moharrik/pull/42",
+    "number": 42,
+    "state": "closed",
+    "locked": false,
+    "title": "Verify Sentry and GitHub webhooks",
+    "user": { "login": "octocat", "id": 583231 },
+    "body": "Closes MH-381.\n\nDetails follow.",
+    "created_at": "2026-09-22T08:00:00Z",
+    "closed_at": "2026-09-22T10:00:00Z",
+    "merged_at": "2026-09-22T10:00:00Z",
+    "merged": true,
+    "merged_by": { "login": "fadymondy", "id": 1 },
+    "head": { "ref": "mh-381-webhook-verify", "sha": "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c" },
+    "base": { "ref": "main", "sha": "6113728f27ae82c7b1a177c8d03f9e96e0adf246" }
+  },
+  "repository": {
+    "id": 1296269,
+    "name": "moharrik",
+    "full_name": "fadymondy/moharrik",
+    "private": true,
+    "html_url": "https://github.com/fadymondy/moharrik"
+  },
+  "sender": { "login": "fadymondy", "id": 1, "type": "User" }
+}

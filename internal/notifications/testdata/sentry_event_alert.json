@@ -1,0 +1,59 @@
+{
+  "action": "triggered",
+  "installation": {
+    "uuid": "a8e5d37a-696c-4c54-adb5-b3f28d64c7de"
+  },
+  "data": {
+    "event": {
+      "_ref": 1293919,
+      "_ref_version": 2,
+      "contexts": {
+        "browser": { "name": "Chrome", "type": "browser", "version": "75.0.3770" },
+        "os": { "name": "Mac OS X", "type": "os", "version": "10.14.0" }
+      },
+      "culprit": "sentry.tasks.integrations.slack.post_message",
+      "datetime": "2026-09-21T20:58:37.391000Z",
+      "dist": null,
+      "event_id": "4d2de9b7a0ad4b4c8b9bb0e7e3d3b1a5",
+      "exception": {
+        "values": [
+          {
+            "type": "ApiError",
+            "value": "Unable to post message to Slack channel",
+            "stacktrace": { "frames": [{ "filename": "sentry/tasks/integrations/slack.py", "lineno": 71, "function": "post_message" }] }
+          }
+        ]
+      },
+      "fingerprint": ["{{ default }}"],
+      "groupID": 1170820242,
+      "hashes": ["29f8a1b4c3d2e1f0a9b8c7d6e5f4a3b2"],
+      "issue_id": "1170820242",
+      "issue_url": "https://sentry.io/api/0/issues/1170820242/",
+      "key_id": "667532",
+      "level": "error",
+      "location": "sentry/tasks/integrations/slack.py",
+      "logger": "",
+      "message": "",
+      "metadata": { "filename": "sentry/tasks/integrations/slack.py", "type": "ApiError", "value": "Unable to post message to Slack channel" },
+      "platform": "python",
+      "project": 1,
+      "received": 1758488317.391,
+      "release": "checkout@2.14.0",
+      "sdk": { "name": "sentry.python", "version": "2.12.0" },
+      "tags": [["level", "error"], ["environment", "production"]],
+      "timestamp": 1758488317.391,
+      "title": "ApiError: Unable to post message to Slack channel",
+      "type": "error",
+      "url": "https://sentry.io/api/0/projects/acme/checkout/events/4d2de9b7a0ad4b4c8b9bb0e7e3d3b1a5/",
+      "user": { "ip_address": "10.0.0.1" },
+      "version": "7",
+      "web_url": "https://acme.sentry.io/issues/1170820242/events/4d2de9b7a0ad4b4c8b9bb0e7e3d3b1a5/"
+    },
+    "triggered_rule": "Checkout errors in production"
+  },
+  "actor": {
+    "type": "application",
+    "id": "sentry",
+    "name": "Sentry"
+  }
+}

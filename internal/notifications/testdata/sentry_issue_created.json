@@ -1,0 +1,44 @@
+{
+  "action": "created",
+  "installation": {
+    "uuid": "a8e5d37a-696c-4c54-adb5-b3f28d64c7de"
+  },
+  "data": {
+    "issue": {
+      "id": "1170820243",
+      "shareId": null,
+      "shortId": "CHECKOUT-2F",
+      "title": "Slow DB query: SELECT * FROM orders WHERE ...",
+      "culprit": "/api/orders",
+      "permalink": null,
+      "logger": null,
+      "level": "warning",
+      "status": "unresolved",
+      "statusDetails": {},
+      "isPublic": false,
+      "platform": "python",
+      "project": { "id": "1", "name": "checkout", "slug": "checkout", "platform": "python" },
+      "type": "performance",
+      "metadata": { "title": "Slow DB query" },
+      "numComments": 0,
+      "assignedTo": null,
+      "isBookmarked": false,
+      "isSubscribed": false,
+      "hasSeen": false,
+      "annotations": [],
+      "isUnhandled": false,
+      "count": "1",
+      "userCount": 0,
+      "firstSeen": "2026-09-21T21:02:11.121000Z",
+      "lastSeen": "2026-09-21T21:02:11.121000Z",
+      "url": "https://sentry.io/api/0/organizations/acme/issues/1170820243/",
+      "web_url": "https://acme.sentry.io/issues/1170820243/",
+      "project_url": "https://acme.sentry.io/projects/checkout/"
+    }
+  },
+  "actor": {
+    "type": "application",
+    "id": "sentry",
+    "name": "Sentry"
+  }
+}

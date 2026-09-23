@@ -35,8 +35,10 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -212,12 +214,17 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	hookCreate := alice.must("POST", "/api/w/webhook_sources", map[string]any{"name": marker + " Hook"}, 201)
 	srcID := hookCreate["source"].(map[string]any)["id"].(string)
 	secret := hookCreate["secret"].(string)
+	// A new generic source takes only the timestamped scheme (MH-381):
+	// HMAC(secret, timestamp + "." + body), timestamp within 5 minutes.
 	rawBody := []byte(`{"title":"` + marker + ` alert"}`)
+	stamp := strconv.FormatInt(time.Now().Unix(), 10)
 	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(stamp + "."))
 	mac.Write(rawBody)
 	sig := hex.EncodeToString(mac.Sum(nil))
 	hreq, _ := http.NewRequest("POST", srv.URL+"/api/hooks/"+srcID, bytes.NewReader(rawBody))
 	hreq.Header.Set("Content-Type", "application/json")
+	hreq.Header.Set("X-Webhook-Timestamp", stamp)
 	hreq.Header.Set("X-Webhook-Signature", "sha256="+sig)
 	hres, err := http.DefaultClient.Do(hreq)
 	if err != nil {
@@ -353,6 +360,38 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	if code, b := alice.do("GET", "/api/w/invitations", nil); code != 200 || !strings.Contains(string(b), invID) {
 		t.Errorf("A's invitation was removed from B: %d %s", code, b)
 	}
+
+	// The sweep's empty body is refused by validation before the handler runs,
+	// so try the webhook secret and signing writes with VALID bodies too: from
+	// B they must not reach A's source. A secret overwritten from B would let B
+	// forge A's notifications (MH-381).
+	bob.ws = bID
+	if code, b := bob.do("PUT", "/api/w/webhook_sources/"+srcID+"/secret", map[string]any{"secret": "bob-controls-this-secret-now"}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B setting A's webhook secret: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("PATCH", "/api/w/webhook_sources/"+srcID, map[string]any{"legacy_signing": false, "enabled": false}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B patching A's webhook source: got %d, want 404: %s", code, b)
+	}
+	// A's source still verifies with A's secret, and is still enabled.
+	stamp2 := strconv.FormatInt(time.Now().Unix(), 10)
+	body2 := []byte(`{"title":"` + marker + ` after the sweep"}`)
+	mac2 := hmac.New(sha256.New, []byte(secret))
+	mac2.Write([]byte(stamp2 + "."))
+	mac2.Write(body2)
+	hreq2, _ := http.NewRequest("POST", srv.URL+"/api/hooks/"+srcID, bytes.NewReader(body2))
+	hreq2.Header.Set("X-Webhook-Timestamp", stamp2)
+	hreq2.Header.Set("X-Webhook-Signature", "sha256="+hex.EncodeToString(mac2.Sum(nil)))
+	if hres2, err := http.DefaultClient.Do(hreq2); err != nil || hres2.StatusCode != 202 {
+		code := 0
+		if hres2 != nil {
+			code = hres2.StatusCode
+			hres2.Body.Close()
+		}
+		t.Errorf("A's webhook stopped verifying with A's secret after the sweep: %v %d", err, code)
+	} else {
+		hres2.Body.Close()
+	}
+	alice.ws = aID
 
 	if code, b := alice.do("GET", "/api/w/deals/"+dealID, nil); code != 200 || !strings.Contains(string(b), actID) || !strings.Contains(string(b), coID) {
 		t.Errorf("A's deal or its timeline was changed from B: %d %s", code, b)

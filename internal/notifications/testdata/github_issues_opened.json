@@ -1,0 +1,22 @@
+{
+  "action": "opened",
+  "issue": {
+    "url": "https://api.github.com/repos/fadymondy/moharrik/issues/7",
+    "html_url": "https://github.com/fadymondy/moharrik/issues/7",
+    "id": 444500041,
+    "number": 7,
+    "title": "Webhook deliveries from Sentry return 401",
+    "user": { "login": "octocat", "id": 583231 },
+    "labels": [{ "name": "bug" }],
+    "state": "open",
+    "body": "Every Sentry delivery fails.\nSteps to reproduce below.",
+    "created_at": "2026-09-20T12:00:00Z"
+  },
+  "repository": {
+    "id": 1296269,
+    "name": "moharrik",
+    "full_name": "fadymondy/moharrik",
+    "html_url": "https://github.com/fadymondy/moharrik"
+  },
+  "sender": { "login": "octocat", "id": 583231, "type": "User" }
+}

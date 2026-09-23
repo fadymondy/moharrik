@@ -1,0 +1,28 @@
+{
+  "action": "completed",
+  "workflow_run": {
+    "id": 30433642,
+    "name": "CI",
+    "node_id": "MDEyOldvcmtmbG93IFJ1bjI2OTI4OQ==",
+    "head_branch": "main",
+    "head_sha": "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+    "display_title": "feat(notifications): Sentry and GitHub webhooks verify",
+    "run_number": 562,
+    "event": "push",
+    "status": "completed",
+    "conclusion": "failure",
+    "workflow_id": 159038,
+    "url": "https://api.github.com/repos/fadymondy/moharrik/actions/runs/30433642",
+    "html_url": "https://github.com/fadymondy/moharrik/actions/runs/30433642",
+    "created_at": "2026-09-22T10:01:00Z",
+    "updated_at": "2026-09-22T10:06:00Z"
+  },
+  "workflow": { "id": 159038, "name": "CI", "path": ".github/workflows/ci.yml" },
+  "repository": {
+    "id": 1296269,
+    "name": "moharrik",
+    "full_name": "fadymondy/moharrik",
+    "html_url": "https://github.com/fadymondy/moharrik"
+  },
+  "sender": { "login": "fadymondy", "id": 1, "type": "User" }
+}

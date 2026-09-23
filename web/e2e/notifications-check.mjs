@@ -40,6 +40,12 @@ function sign(secret, body) {
   return crypto.createHmac("sha256", secret).update(body).digest("hex")
 }
 
+// A generic source signs timestamp + "." + body and sends the timestamp (MH-381).
+function genericHeaders(secret, body) {
+  const ts = String(Math.floor(Date.now() / 1000))
+  return { "Content-Type": "application/json", "X-Webhook-Timestamp": ts, "X-Webhook-Signature": `sha256=${sign(secret, `${ts}.${body}`)}` }
+}
+
 const out = {}
 const ctxA = await newCtx()
 const pageA = ctxA.pages()[0]
@@ -48,25 +54,32 @@ pageA.on("pageerror", (e) => errs.push(String(e).slice(0, 200)))
 const { slug: slugA } = await signUpAndEnterWorkspace(pageA, "NC A " + Date.now())
 out.slugA = slugA
 
-// ---- create a webhook source, capture the secret from the "shown once" dialog ----
+// ---- create webhook sources, capture each secret from the "shown once" dialog ----
 await pageA.goto(`${base}/en/w/${slugA}/notifications/sources`, { waitUntil: "networkidle" })
-await pageA.click('button:has-text("Add source")')
-await pageA.waitForSelector("#source-name", { timeout: 10000 })
-await pageA.fill("#source-name", "GitHub")
-await pageA.click("#source-kind")
-await pageA.getByRole("option", { name: "GitHub" }).click({ timeout: 5000 })
-await pageA.click('form:has(#source-name) button[type=submit]')
-await pageA.waitForSelector('text=Webhook source created', { timeout: 10000 })
-// CopyField renders the value in a <code>, not an <input>.
-const codeVals = await pageA.evaluate(() => [...document.querySelectorAll("code")].map((c) => c.textContent?.trim() ?? ""))
-const url = codeVals.find((v) => v.includes("/api/hooks/"))
-const secret = codeVals.find((v) => /^[0-9a-f]{64}$/.test(v))
-out.gotUrlAndSecret = !!url && !!secret
-await pageA.click('button:has-text("I\'ve saved it")')
-await pageA.waitForTimeout(300)
-
-const sourceId = url.split("/api/hooks/")[1]
-const deliverURL = `${base}/api/hooks/${sourceId}` // deliver through the browsers base origin, not the public URL shown on the page
+async function createSource(name, kindLabel) {
+  await pageA.click('button:has-text("Add source")')
+  await pageA.waitForSelector("#source-name", { timeout: 10000 })
+  await pageA.fill("#source-name", name)
+  await pageA.click("#source-kind")
+  await pageA.getByRole("option", { name: kindLabel, exact: true }).click({ timeout: 5000 })
+  await pageA.click('form:has(#source-name) button[type=submit]')
+  await pageA.waitForSelector('text=Webhook source created', { timeout: 10000 })
+  // CopyField renders the value in a <code>, not an <input>.
+  const codeVals = await pageA.evaluate(() => [...document.querySelectorAll("[data-secret-dialog] code")].map((c) => c.textContent?.trim() ?? ""))
+  const url = codeVals.find((v) => v.includes("/api/hooks/"))
+  const secret = codeVals.find((v) => /^[0-9a-f]{64}$/.test(v))
+  await pageA.click('button:has-text("I\'ve saved it")')
+  await pageA.waitForTimeout(300)
+  const id = url?.split("/api/hooks/")[1]
+  // deliver through the browser's base origin, not the public URL shown on the page
+  return { url, secret, id, deliverURL: `${base}/api/hooks/${id}` }
+}
+// Two sources since MH-381 verifies per kind: GitHub signs its way, a generic
+// sender signs a timestamp with the body.
+const gh = await createSource("GitHub", "GitHub")
+const mon = await createSource("Monitor", "Generic (JSON)")
+out.gotUrlAndSecret = !!gh.url && !!gh.secret && !!mon.url && !!mon.secret
+const { secret, id: sourceId, deliverURL } = gh
 
 // ---- deliver a signed GitHub-shaped payload, and an unsigned/garbage one ----
 const ghBody = JSON.stringify({
@@ -77,14 +90,14 @@ const ghBody = JSON.stringify({
 const sig = sign(secret, ghBody)
 const delivered = await fetch(deliverURL, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Webhook-Signature": `sha256=${sig}`, "X-GitHub-Event": "pull_request" },
+  headers: { "Content-Type": "application/json", "X-Hub-Signature-256": `sha256=${sig}`, "X-GitHub-Event": "pull_request" },
   body: ghBody,
 })
 out.deliveredStatus = delivered.status
 
 const badSig = await fetch(deliverURL, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Webhook-Signature": "sha256=deadbeef" },
+  headers: { "Content-Type": "application/json", "X-Hub-Signature-256": "sha256=deadbeef", "X-GitHub-Event": "issues" },
   body: JSON.stringify({ title: "forged" }),
 })
 out.badSignatureStatus = badSig.status
@@ -96,15 +109,18 @@ const unknown = await fetch(`${base}/api/hooks/00000000-0000-0000-0000-000000000
 })
 out.unknownSourceStatus = unknown.status
 
-// A second, generic-shaped delivery with an explicit severity, so severity + filter can be checked.
+// A second, generic-shaped delivery to the generic source, with an explicit
+// severity, so severity + filter can be checked.
 const genericBody = JSON.stringify({ title: "Disk almost full", severity: "warning", actor: "monitor" })
-const gsig = sign(secret, genericBody)
-const generic = await fetch(deliverURL, {
+const generic = await fetch(mon.deliverURL, { method: "POST", headers: genericHeaders(mon.secret, genericBody), body: genericBody })
+out.genericDeliveredStatus = generic.status
+// The same body signed the pre-MH-381 way (body only, no timestamp): a new source refuses it.
+const bodyOnly = await fetch(mon.deliverURL, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Webhook-Signature": `sha256=${gsig}` },
+  headers: { "Content-Type": "application/json", "X-Webhook-Signature": `sha256=${sign(mon.secret, genericBody)}` },
   body: genericBody,
 })
-out.genericDeliveredStatus = generic.status
+out.genericBodyOnlyStatus = bodyOnly.status
 
 // ---- feed shows both, unread, with the right severity ----
 await pageA.goto(`${base}/en/w/${slugA}/notifications`, { waitUntil: "networkidle" })
@@ -143,7 +159,7 @@ await pageA.click('[data-source-row="GitHub"] [role="switch"]')
 await pageA.waitForTimeout(500)
 const disabledDelivery = await fetch(deliverURL, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Webhook-Signature": `sha256=${sign(secret, "{}")}` },
+  headers: { "Content-Type": "application/json", "X-Hub-Signature-256": `sha256=${sign(secret, "{}")}`, "X-GitHub-Event": "ping" },
   body: "{}",
 })
 out.disabledSourceDeliveryStatus = disabledDelivery.status

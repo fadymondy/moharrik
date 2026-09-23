@@ -139,7 +139,7 @@ func NotificationTools() []Tool {
 				if !ok {
 					return "", errNotFound
 				}
-				rows, err := a.SQLDB.QueryContext(ctx, `SELECT name, kind, enabled, delivery_count FROM webhook_sources WHERE workspace_id = $1 ORDER BY lower(name)`, s.WorkspaceID)
+				rows, err := a.SQLDB.QueryContext(ctx, `SELECT name, kind, enabled, delivery_count, legacy_signing, secret_sealed <> '' FROM webhook_sources WHERE workspace_id = $1 ORDER BY lower(name)`, s.WorkspaceID)
 				if err != nil {
 					return "", fmt.Errorf("could not list webhook sources: %w", err)
 				}
@@ -148,15 +148,21 @@ func NotificationTools() []Tool {
 				n := 0
 				for rows.Next() {
 					var name, kind string
-					var enabled bool
+					var enabled, legacy, hasSecret bool
 					var deliveries int64
-					if err := rows.Scan(&name, &kind, &enabled, &deliveries); err != nil {
+					if err := rows.Scan(&name, &kind, &enabled, &deliveries, &legacy, &hasSecret); err != nil {
 						return "", fmt.Errorf("could not list webhook sources: %w", err)
 					}
 					n++
 					status := "enabled"
 					if !enabled {
 						status = "disabled"
+					}
+					if legacy {
+						status += ", legacy signing (replayable)"
+					}
+					if !hasSecret {
+						status += ", no secret set"
 					}
 					fmt.Fprintf(&b, "%s [%s, %s] — %d deliveries\n", name, kind, status, deliveries)
 				}
@@ -168,18 +174,19 @@ func NotificationTools() []Tool {
 		},
 		{
 			Name:        "create_webhook_source",
-			Description: "Create a webhook source (e.g. for GitHub or Sentry) and return its URL and one-time signing secret.",
+			Description: "Create a webhook source (e.g. for GitHub or Sentry) and return its URL and one-time signing secret. For sentry, pass the Sentry integration's Client Secret as secret (Sentry generates it); without it the source refuses every delivery until one is set on the sources page.",
 			Scope:       "notifications:write",
 			InputSchema: schema([]string{"name"}, map[string]any{
-				"name": prop("string", ""),
-				"kind": map[string]any{"type": "string", "enum": []string{"generic", "github", "sentry"}, "description": "Default generic"},
+				"name":   prop("string", ""),
+				"kind":   map[string]any{"type": "string", "enum": []string{"generic", "github", "sentry"}, "description": "Default generic"},
+				"secret": prop("string", "sentry only: the integration's Client Secret, from Sentry"),
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
 				if !ok {
 					return "", errNotFound
 				}
-				var in struct{ Name, Kind string }
+				var in struct{ Name, Kind, Secret string }
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", fmt.Errorf("bad arguments: %w", err)
 				}
@@ -194,14 +201,29 @@ func NotificationTools() []Tool {
 				if kind != "generic" && kind != "github" && kind != "sentry" {
 					return "", fmt.Errorf("kind must be generic, github or sentry")
 				}
-				secretBytes := make([]byte, 32)
-				if _, err := rand.Read(secretBytes); err != nil {
-					return "", fmt.Errorf("could not generate a secret: %w", err)
+				// Sentry generates its own signing secret (the Client Secret),
+				// so a sentry source takes the one it is given, or none yet.
+				// Every other kind gets a generated one. New sources are never
+				// legacy_signing (MH-381): generic ones need the timestamped scheme.
+				plain := strings.TrimSpace(in.Secret)
+				if kind != "sentry" {
+					if plain != "" {
+						return "", fmt.Errorf("secret can only be given for sentry sources; the others get a generated one")
+					}
+					secretBytes := make([]byte, 32)
+					if _, err := rand.Read(secretBytes); err != nil {
+						return "", fmt.Errorf("could not generate a secret: %w", err)
+					}
+					plain = hex.EncodeToString(secretBytes)
+				} else if plain != "" && len(plain) < 16 {
+					return "", fmt.Errorf("the Sentry Client Secret must be at least 16 characters")
 				}
-				plain := hex.EncodeToString(secretBytes)
-				sealed, err := sealWebhookSecret(plain)
-				if err != nil {
-					return "", err
+				sealed := ""
+				if plain != "" {
+					var err error
+					if sealed, err = sealWebhookSecret(plain); err != nil {
+						return "", err
+					}
 				}
 				var id string
 				if err := a.SQLDB.QueryRowContext(ctx, `
@@ -212,7 +234,16 @@ func NotificationTools() []Tool {
 					return "", fmt.Errorf("could not create the webhook source: %w", err)
 				}
 				url := publicBaseMCP() + "/api/hooks/" + id
-				return fmt.Sprintf("Created %q. URL: %s\nSigning secret (shown once — save it now): %s", name, url, plain), nil
+				switch kind {
+				case "sentry":
+					if plain == "" {
+						return fmt.Sprintf("Created %q. URL: %s\nPut this URL in your Sentry internal integration, then set its Client Secret on the sources page. Deliveries are refused until you do.", name, url), nil
+					}
+					return fmt.Sprintf("Created %q. URL: %s\nVerified with the Sentry Client Secret you gave (Sentry-Hook-Signature).", name, url), nil
+				case "github":
+					return fmt.Sprintf("Created %q. URL: %s\nSigning secret (shown once — save it now): %s\nIn GitHub: Payload URL = the URL, Content type = application/json, Secret = the secret.", name, url, plain), nil
+				}
+				return fmt.Sprintf("Created %q. URL: %s\nSigning secret (shown once — save it now): %s\nSign each delivery with X-Webhook-Timestamp: <unix seconds> and X-Webhook-Signature: sha256=<hex HMAC-SHA256(secret, timestamp + \".\" + body)>. Timestamps more than 5 minutes off are refused.", name, url, plain), nil
 			},
 		},
 	}
