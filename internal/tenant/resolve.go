@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/togo-framework/auth"
 )
@@ -24,7 +25,11 @@ var ErrNotMember = errors.New("workspace not found")
 // question "which workspaces is this user in" is by definition cross-tenant.
 func Resolve(ctx context.Context, sys *sql.DB, userID, ref string) (*Scope, error) {
 	ref = strings.TrimSpace(ref)
-	if ref == "" || userID == "" {
+	// A reference no workspace can have is not a question for the database:
+	// bytes Postgres refuses (invalid UTF-8, NUL) failed the query, and the
+	// failure answered 500 on every workspace route (MH-472). An id is 36
+	// characters and a slug is short; anything this long names nothing.
+	if ref == "" || userID == "" || len(ref) > 200 || !utf8.ValidString(ref) || strings.ContainsRune(ref, 0) {
 		return nil, ErrNotMember
 	}
 	s := &Scope{UserID: userID}

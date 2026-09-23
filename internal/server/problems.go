@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,6 +29,15 @@ key it is a no-op apart from panic recovery.
 func installProblemReports(k *togo.Kernel) {
 	c := feedback.New(feedback.Config{})
 	dedupe := newOnceWindow(10 * time.Minute)
+	// Which deployment answered. The report's page URL is MAHAAM_APP_URL, a
+	// fixed origin the feedback key allows, so every report read "on
+	// app.moharrik.com" even when a developer's local API filed it — MH-472..474
+	// could not be reproduced on production for exactly that reason. The body
+	// names the real one.
+	servedBy := strings.TrimSpace(os.Getenv("APP_URL"))
+	if servedBy == "" {
+		servedBy = "unknown (APP_URL unset)"
+	}
 
 	k.UseMiddleware(func(next http.Handler) http.Handler {
 		// Recover sits inside, so a panic is reported once (by the SDK) and
@@ -46,7 +57,7 @@ func installProblemReports(k *togo.Kernel) {
 			go func(ctx context.Context) {
 				_, _ = c.Report(ctx, feedback.Report{
 					Title:    fmt.Sprintf("%d on %s %s", sw.status, r.Method, routePattern(r)),
-					Body:     fmt.Sprintf("%s %s answered %d.", r.Method, r.URL.Path, sw.status),
+					Body:     fmt.Sprintf("%s %s answered %d.\n\nServed by %s (Host: %s).", r.Method, r.URL.Path, sw.status, servedBy, r.Host),
 					Type:     "bug",
 					Priority: "high",
 					Extra:    map[string]string{"route": r.URL.Path, "user_agent": r.UserAgent()},
