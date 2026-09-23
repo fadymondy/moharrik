@@ -710,6 +710,19 @@ const FEEDS = [
   log(`news items collected: ${news.total}`)
 }
 
+// ---- Inbox: canned replies (en + ar; the thread's language picks the variant) ---------------
+
+const CANNED = [
+  { title: "Opening hours", body_en: "We're open every day from 8 am to 11 pm, and until midnight on Thursdays and Fridays.", body_ar: "نفتح يوميًا من 8 صباحًا حتى 11 مساءً، وحتى منتصف الليل يومي الخميس والجمعة." },
+  { title: "Wholesale enquiry", body_en: "Thanks for your interest in wholesale! Could you share your café's name, city and roughly how many kilos a month you need? Our team will reply within one working day.", body_ar: "شكرًا لاهتمامك بالجملة! ممكن تشاركنا اسم المقهى والمدينة وتقريبًا كم كيلو تحتاج شهريًا؟ فريقنا هيرد عليك خلال يوم عمل." },
+  { title: "Order status", body_en: "Let me check that for you. Could you send your order number? It's in the confirmation email.", body_ar: "خليني أتأكد لك. ممكن تبعت رقم الطلب؟ هتلاقيه في إيميل التأكيد." },
+]
+{
+  const { replies } = await s.get("/api/w/canned_replies")
+  for (const c of CANNED) if (!replies.some((r) => r.title === c.title)) await s.post("/api/w/canned_replies", c)
+  log(`canned replies: ${CANNED.length}`)
+}
+
 // ---- Research: one real run --------------------------------------------------------------------
 
 {
