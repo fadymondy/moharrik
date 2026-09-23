@@ -288,6 +288,10 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal("the visitor message did not produce a conversation")
 	}
 	convID := convs[0].(map[string]any)["id"].(string)
+	// MH-379: the conversation linked to A's contact and turned into a deal,
+	// so the contact, company and deal pages all carry it.
+	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"contact_id": ctID}, 200)
+	convDealID := alice.must("POST", "/api/w/conversations/"+convID+"/deal", map[string]any{"title": marker + " chat deal"}, 201)["deal_id"].(string)
 
 	// Leads (MH-390): an inquiry form, then a real submission through the
 	// PUBLIC route, so the lead exists the way a visitor's website makes it.
@@ -402,7 +406,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatalf("the schedule list handed back a secret value: %s", b)
 	}
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret}
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -572,6 +576,32 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	alice.ws = aID
 	if l := alice.must("GET", "/api/w/leads/"+leadID, nil, 200)["lead"].(map[string]any); l["status"] != "new" || l["converted_deal"] != nil {
 		t.Errorf("A's lead was changed from B: %+v", l)
+	}
+
+	// Inbox → CRM (MH-379), with VALID bodies from B: B cannot hang its
+	// contact on A's conversation, make a contact from it or open a deal from it.
+	bob.ws = bID
+	bobContact := bob.must("POST", "/api/w/contacts", map[string]any{"email": "bob-ct-" + rnd() + "@example.test"}, 201)["contact"].(map[string]any)["id"].(string)
+	for _, w := range []struct {
+		method, path string
+		body         map[string]any
+	}{
+		{"PATCH", "/api/w/conversations/" + convID, map[string]any{"contact_id": bobContact}},
+		{"POST", "/api/w/conversations/" + convID + "/contact", map[string]any{"email": "bob-steals-" + rnd() + "@example.test"}},
+		{"POST", "/api/w/conversations/" + convID + "/deal", map[string]any{"title": "steal"}},
+	} {
+		if code, b := bob.do(w.method, w.path, w.body); code != http.StatusNotFound || leaks(b) != "" {
+			t.Errorf("B %s %s: got %d, want 404: %s", w.method, w.path, code, b)
+		}
+	}
+	// And A's own side of it cannot point outside A: linking B's contact fails.
+	alice.ws = aID
+	if code, b := alice.do("PATCH", "/api/w/conversations/"+convID, map[string]any{"contact_id": bobContact}); code != http.StatusUnprocessableEntity {
+		t.Errorf("A linking B's contact: got %d, want 422: %s", code, b)
+	}
+	if cv := alice.must("GET", "/api/w/conversations/"+convID, nil, 200)["conversation"].(map[string]any); cv["contact_id"] != ctID || cv["status"] != "open" ||
+		cv["deal"].(map[string]any)["id"] != convDealID {
+		t.Errorf("A's conversation was changed from B: %+v", cv)
 	}
 
 	// Google (MH-439): B cannot list, disconnect or draw tokens from A's

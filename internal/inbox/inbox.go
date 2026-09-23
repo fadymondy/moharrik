@@ -35,23 +35,47 @@ var statuses = map[string]bool{"open": true, "snoozed": true, "closed": true}
 // ---- wire types -----------------------------------------------------------
 
 type ConversationOut struct {
-	ID             string     `json:"id"`
-	Channel        string     `json:"channel"`
-	Subject        string     `json:"subject"`
-	Status         string     `json:"status"`
-	CustomerName   string     `json:"customer_name"`
-	CustomerEmail  string     `json:"customer_email"`
-	ContactID      *string    `json:"contact_id"`
-	AssigneeUserID *string    `json:"assignee_user_id"`
-	Unread         bool       `json:"unread"`
-	LastMessageAt  time.Time  `json:"last_message_at"`
-	CreatedAt      time.Time  `json:"created_at"`
-	Preview        string     `json:"preview" doc:"The most recent message, trimmed."`
-	MessageCount   int        `json:"message_count"`
-	PageURL        string     `json:"page_url" doc:"The page a chat visitor opened the conversation from; empty for other channels."`
-	UserAgent      string     `json:"user_agent" doc:"The chat visitor's browser, as it identified itself."`
-	Locale         string     `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
-	ClosedHint     *time.Time `json:"-"`
+	ID             string    `json:"id"`
+	Channel        string    `json:"channel"`
+	Subject        string    `json:"subject"`
+	Status         string    `json:"status"`
+	CustomerName   string    `json:"customer_name"`
+	CustomerEmail  string    `json:"customer_email"`
+	ContactID      *string   `json:"contact_id"`
+	AssigneeUserID *string   `json:"assignee_user_id"`
+	Unread         bool      `json:"unread"`
+	LastMessageAt  time.Time `json:"last_message_at"`
+	CreatedAt      time.Time `json:"created_at"`
+	Preview        string    `json:"preview" doc:"The most recent message, trimmed."`
+	MessageCount   int       `json:"message_count"`
+	PageURL        string    `json:"page_url" doc:"The page a chat visitor opened the conversation from; empty for other channels."`
+	UserAgent      string    `json:"user_agent" doc:"The chat visitor's browser, as it identified itself."`
+	Locale         string    `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
+	CustomerPhone  string    `json:"customer_phone" doc:"A WhatsApp customer's number; empty for other channels."`
+	// The CRM side (MH-379).
+	Contact  *LinkedContact `json:"contact" doc:"The CRM contact this conversation is linked to, if any."`
+	LinkedBy string         `json:"contact_link" enum:",auto,manual" doc:"How the contact was linked: auto (an exact email or phone match when the message was filed) or manual (by a member). manual with no contact means a member unlinked it, and no automatic match will relink it."`
+	Deal     *LinkedDeal    `json:"deal" doc:"The deal this conversation was turned into, if any."`
+}
+
+// LinkedContact is the CRM contact on a conversation.
+type LinkedContact struct {
+	ID      string     `json:"id"`
+	Name    string     `json:"name"`
+	Email   string     `json:"email"`
+	Company *LinkedRef `json:"company"`
+}
+
+// LinkedRef names a CRM row.
+type LinkedRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// LinkedDeal is the deal a conversation became.
+type LinkedDeal struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
 }
 
 type MessageOut struct {

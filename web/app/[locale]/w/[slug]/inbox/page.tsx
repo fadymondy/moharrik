@@ -7,6 +7,7 @@ import { MessageSquareIcon, SettingsIcon, MailIcon, MessageCircleIcon } from "lu
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
+import { ThreadCRM } from "@/components/inbox/thread-crm"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
@@ -244,7 +245,12 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
 
   if (detail.error) return <ErrorState error={detail.error} />
   if (!detail.data) return <LoadingRows rows={4} />
-  const { conversation: c, messages } = detail.data
+  const { conversation: c, messages, visitor } = detail.data
+
+  function refresh() {
+    detail.mutate()
+    onChanged()
+  }
 
   async function send(e: FormEvent) {
     e.preventDefault()
@@ -255,8 +261,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
     try {
       await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, { json: { body: text }, workspaceId: ws.id })
       setReply("")
-      detail.mutate()
-      onChanged()
+      refresh()
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -268,8 +273,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
     try {
       await api(`/api/w/conversations/${encodeURIComponent(id)}`, { method: "PATCH", json, workspaceId: ws.id })
       toast.success(done)
-      detail.mutate()
-      onChanged()
+      refresh()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     }
@@ -280,9 +284,10 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   return (
     <section data-thread={id}>
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-6 py-4">
-        <div className="min-w-0 flex-1">
+        {/* Its own row on a phone: beside the assignee and status controls it was cut to one letter. */}
+        <div className="min-w-0 flex-1 max-sm:basis-full">
           <BdiBlock as="p" className="truncate text-sm font-medium">
-            {c.customer_name || c.customer_email || t("inbox.anonymous")}
+            {c.customer_name || c.customer_email || c.customer_phone || t("inbox.anonymous")}
           </BdiBlock>
           {/* On an email thread the SUBJECT is what the thread is about, and it
               was nowhere on this page — the e2e caught that. Chat has no
@@ -298,6 +303,12 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
               <>
                 {" · "}
                 <Ltr>{c.customer_email}</Ltr>
+              </>
+            ) : null}
+            {c.customer_phone ? (
+              <>
+                {" · "}
+                <Ltr>{c.customer_phone}</Ltr>
               </>
             ) : null}
           </p>
@@ -316,6 +327,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
             <Button
               variant="outline"
               size="sm"
+              data-action={c.status === "closed" ? "reopen" : "close"}
               onClick={() => patch({ status: c.status === "closed" ? "open" : "closed" }, c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"))}
             >
               {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
@@ -324,6 +336,8 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
         ) : null}
         <VisitorContext c={c} />
       </header>
+
+      <ThreadCRM c={c} visitor={visitor} onChanged={refresh} />
 
       <ol className="flex flex-col gap-3 px-6 py-4" data-messages>
         {messages.map((m) => (
@@ -348,9 +362,17 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
             <FieldLabel htmlFor="reply-body" className="sr-only">
               {t("inbox.replyLabel")}
             </FieldLabel>
-            <Textarea id="reply-body" value={reply} onChange={(e) => setReply(e.target.value)} rows={3} placeholder={t("inbox.replyPlaceholder")} maxLength={8000} />
+            <Textarea
+              id="reply-body"
+              dir="auto"
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              rows={3}
+              placeholder={t("inbox.replyPlaceholder")}
+              maxLength={8000}
+            />
           </Field>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={busy || !reply.trim()}>
               <MessageSquareIcon />
               {busy ? t("common.working") : t("inbox.send")}

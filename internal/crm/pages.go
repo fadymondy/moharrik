@@ -58,6 +58,13 @@ type ActivityPage struct {
 	Total      int64         `json:"total"`
 	Limit      int           `json:"limit"`
 	NextCursor string        `json:"next_cursor"`
+	// The inbox conversations linked to the record whose latest message falls
+	// in this page's stretch of time (MH-379): newer than the previous page's
+	// last activity, and — unless this is the last page — no older than this
+	// page's last activity. Paged with the activities, so the timeline never
+	// shows a conversation below activities it has not loaded yet. Empty without
+	// inbox:read.
+	Conversations []ConversationRef `json:"conversations"`
 }
 
 func likeEscape(s string) string {

@@ -13,6 +13,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/paging"
+	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
 // TimelineOut is the first page of a record's timeline, embedded in its page.
@@ -22,14 +23,17 @@ type TimelineOut struct {
 	// ones are behind activities_next_cursor (GET /api/w/activities).
 	ActivitiesTotal      int64  `json:"activities_total"`
 	ActivitiesNextCursor string `json:"activities_next_cursor"`
+	// The linked inbox conversations in the first page's stretch of time
+	// (MH-379); older ones come with the activity pages that reach them.
+	Conversations []ConversationRef `json:"conversations" doc:"Inbox conversations linked to this record whose latest message is in the first page's stretch of time; GET /api/w/activities pages carry the older ones. Empty without inbox:read."`
 }
 
-func firstTimelinePage(ctx context.Context, db *sql.DB, wsID, where, id string) (TimelineOut, error) {
-	p, err := timelinePage(ctx, db, wsID, where, id, "", DefaultTimelinePage)
+func firstTimelinePage(ctx context.Context, db *sql.DB, s *tenant.Scope, where, id string) (TimelineOut, error) {
+	p, err := timelinePage(ctx, db, s.WorkspaceID, where, id, "", DefaultTimelinePage, canReadInbox(s))
 	if err != nil {
 		return TimelineOut{}, err
 	}
-	return TimelineOut{Activities: p.Activities, ActivitiesTotal: p.Total, ActivitiesNextCursor: p.NextCursor}, nil
+	return TimelineOut{Activities: p.Activities, ActivitiesTotal: p.Total, ActivitiesNextCursor: p.NextCursor, Conversations: p.Conversations}, nil
 }
 
 // The record pages, named so the OpenAPI schema has one name for each.
@@ -361,7 +365,7 @@ func Register(api huma.API, a *app.App) {
 		} else if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the deal")
 		}
-		tl, err := firstTimelinePage(ctx, db(), s.WorkspaceID, timelineDeal, in.ID)
+		tl, err := firstTimelinePage(ctx, db(), s, timelineDeal, in.ID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the timeline")
 		}
@@ -569,7 +573,7 @@ func Register(api huma.API, a *app.App) {
 		if res.Body.Deals, res.Body.DealsTotal, err = relatedDeals(ctx, db(), s.WorkspaceID, "AND d.company_id = $2", in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the company")
 		}
-		if res.Body.TimelineOut, err = firstTimelinePage(ctx, db(), s.WorkspaceID, timelineCompany, in.ID); err != nil {
+		if res.Body.TimelineOut, err = firstTimelinePage(ctx, db(), s, timelineCompany, in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the timeline")
 		}
 		return res, nil
@@ -669,7 +673,7 @@ func Register(api huma.API, a *app.App) {
 		if res.Body.Deals, res.Body.DealsTotal, err = relatedDeals(ctx, db(), s.WorkspaceID, "AND d.contact_id = $2", in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the contact")
 		}
-		if res.Body.TimelineOut, err = firstTimelinePage(ctx, db(), s.WorkspaceID, timelineContact, in.ID); err != nil {
+		if res.Body.TimelineOut, err = firstTimelinePage(ctx, db(), s, timelineContact, in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the timeline")
 		}
 		return res, nil
@@ -778,7 +782,7 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
-		page, err := timelinePage(ctx, db(), s.WorkspaceID, where, id, in.Cursor, limit)
+		page, err := timelinePage(ctx, db(), s.WorkspaceID, where, id, in.Cursor, limit, canReadInbox(s))
 		if errors.Is(err, paging.ErrBadCursor) {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		} else if err != nil {

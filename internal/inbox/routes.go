@@ -40,21 +40,41 @@ const conversationSelect = `
 	       c.assignee_user_id, c.unread, c.last_message_at, c.created_at, c.page_url, c.user_agent, c.locale,
 	       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
 	                 ORDER BY m.created_at DESC LIMIT 1), ''),
-	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id)
-	FROM conversations c WHERE c.workspace_id = $1`
+	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id),
+	       c.customer_phone, c.contact_link, ct.name, ct.email, ct.company_id, co.name, c.deal_id, d.title
+	FROM conversations c
+	LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
+	LEFT JOIN companies co ON co.workspace_id = ct.workspace_id AND co.id = ct.company_id
+	LEFT JOIN deals d ON d.workspace_id = c.workspace_id AND d.id = c.deal_id
+	WHERE c.workspace_id = $1`
 
 func scanConversation(row interface{ Scan(...any) error }) (ConversationOut, error) {
 	var c ConversationOut
-	var contactID, assignee sql.NullString
+	var contactID, assignee, ctName, ctEmail, companyID, coName, dealID, dealTitle sql.NullString
 	var preview string
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
-		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount); err != nil {
+		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount,
+		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle); err != nil {
 		return c, err
 	}
 	c.ContactID = strp(contactID)
 	c.AssigneeUserID = strp(assignee)
 	c.Preview = trim(preview, 140)
+	if contactID.Valid {
+		c.Contact = &LinkedContact{ID: contactID.String, Name: ctName.String, Email: ctEmail.String}
+		if companyID.Valid {
+			c.Contact.Company = &LinkedRef{ID: companyID.String, Name: coName.String}
+		}
+	}
+	if dealID.Valid {
+		c.Deal = &LinkedDeal{ID: dealID.String, Title: dealTitle.String}
+	}
 	return c, nil
+}
+
+// readConversation is one conversation by id, in the list's shape.
+func readConversation(ctx context.Context, db *sql.DB, wsID, id string) (ConversationOut, error) {
+	return scanConversation(db.QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, wsID, id))
 }
 
 // Register mounts the inbox endpoints. `a` may be nil (OpenAPI export).
@@ -124,16 +144,12 @@ func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-conversation", Method: http.MethodGet, Path: "/api/w/conversations/{id}",
 		Summary: "One conversation and its whole thread (opening it marks it read)", Tags: tags,
-	}, func(ctx context.Context, in *idPath) (*body[struct {
-		Conversation ConversationOut `json:"conversation"`
-		Messages     []MessageOut    `json:"messages"`
-	}], error) {
+	}, func(ctx context.Context, in *idPath) (*body[conversationDetail], error) {
 		s, err := scope(ctx, authz.InboxRead)
 		if err != nil {
 			return nil, err
 		}
-		row := db().QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, s.WorkspaceID, in.ID)
-		c, err := scanConversation(row)
+		c, err := readConversation(ctx, db(), s.WorkspaceID, in.ID)
 		if notFound(err) {
 			return nil, huma.Error404NotFound("conversation not found")
 		} else if err != nil {
@@ -151,10 +167,11 @@ func Register(api huma.API, a *app.App) {
 			// Every other tab's bell drops its count.
 			changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "conversation", ConversationID: in.ID})
 		}
-		return out(struct {
-			Conversation ConversationOut `json:"conversation"`
-			Messages     []MessageOut    `json:"messages"`
-		}{c, msgs}), nil
+		lang, err := replyLanguageFor(ctx, db(), s.WorkspaceID, c, msgs)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the conversation")
+		}
+		return out(conversationDetail{Conversation: c, Messages: msgs, Visitor: guessVisitor(c, msgs, lang), ReplyLanguage: lang}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -237,13 +254,16 @@ func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-update-conversation", Method: http.MethodPatch, Path: "/api/w/conversations/{id}",
 		Summary: "Assign, close, reopen or retitle a conversation, or link it to a CRM contact", Tags: tags,
+		Description: "Snoozing: send `snoozed_until` (a future time, at most a year ahead) and the conversation becomes snoozed until then, " +
+			"when it reopens as unread. `status: snoozed` with no time snoozes it until the customer writes again. " +
+			"Any status other than snoozed clears the time; closing records `closed_at` for the inbox stats.",
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
 		Body struct {
 			Status         *string `json:"status,omitempty" enum:"open,snoozed,closed"`
 			AssigneeUserID *string `json:"assignee_user_id,omitempty" doc:"A member's user id; empty string unassigns."`
-			ContactID      *string `json:"contact_id,omitempty" doc:"A CRM contact id; empty string unlinks."`
+			ContactID      *string `json:"contact_id,omitempty" doc:"A CRM contact id; empty string unlinks (and stops the automatic email/phone match relinking it)."`
 			Subject        *string `json:"subject,omitempty" maxLength:"200"`
 			Unread         *bool   `json:"unread,omitempty"`
 		}
@@ -269,6 +289,9 @@ func Register(api huma.API, a *app.App) {
 		}
 		if in.Body.ContactID != nil {
 			u.set("contact_id", nullable(*in.Body.ContactID))
+			// A member's choice, linking or unlinking, is final: the automatic
+			// match on the next email or WhatsApp message leaves it alone.
+			u.sets = append(u.sets, "contact_link = 'manual'")
 		}
 		if in.Body.Subject != nil {
 			u.set("subject", strings.TrimSpace(*in.Body.Subject))
@@ -459,6 +482,7 @@ func Register(api huma.API, a *app.App) {
 		return &struct{}{}, nil
 	})
 
+	registerCRM(api, a)
 	registerPublicChat(api, a)
 }
 
@@ -632,8 +656,7 @@ func registerPublicChat(api huma.API, a *app.App) {
 			return nil, huma.Error500InternalServerError("could not send the message")
 		}
 		// An inbound message makes the thread unread for the team again.
-		_, _ = a.SQLDB.ExecContext(sctx, `UPDATE conversations SET last_message_at = now(), unread = true, updated_at = now(),
-			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
+		_, _ = a.SQLDB.ExecContext(sctx, `UPDATE conversations SET last_message_at = now(), unread = true, updated_at = now(), `+reopenOnInbound+`
 			WHERE workspace_id = $1 AND id = $2`, wsID, convID)
 
 		// The team is told the moment a visitor writes, rather than up to ten

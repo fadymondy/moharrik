@@ -4,16 +4,19 @@ import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 
+import { MailIcon, MessageCircleIcon, MessageSquareIcon } from "lucide-react"
+
 import { ActivityIcon, useMemberNames } from "@/components/crm/shared"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState } from "@/components/states"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { ACTIVITY_KINDS, api, ApiError, type Activity, type ActivityKind } from "@/lib/api"
+import { ACTIVITY_KINDS, api, ApiError, type Activity, type ActivityKind, type ConversationRef } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMe } from "@/lib/queries"
 import { Bdi } from "@/components/bidi"
@@ -23,6 +26,10 @@ type Target = { contact_id?: string; company_id?: string; deal_id?: string }
 /**
  * A record's timeline: a composer (note / call / meeting / task) and the history,
  * open tasks first. Used by the contact, company and deal pages.
+ *
+ * `conversations` are the inbox threads linked to the record (MH-379). They sit
+ * in the history by their latest message, among the activities, each linking
+ * back to the thread in the inbox.
  */
 export function Timeline({
   items,
@@ -30,6 +37,7 @@ export function Timeline({
   nextCursor,
   target,
   onChange,
+  conversations = [],
 }: {
   items: Activity[]
   /** Every entry on the timeline; more than items.length means older ones are behind nextCursor. */
@@ -37,18 +45,35 @@ export function Timeline({
   nextCursor: string
   target: Target
   onChange: () => void
+  /**
+   * The linked inbox conversations in the first page's stretch of time (MH-379). Each older
+   * page brings the ones in its own stretch, so a conversation never shows below activities
+   * that have not been loaded yet, and "Showing N of M" stays a count of the activities.
+   */
+  conversations?: ConversationRef[]
 }) {
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const canWrite = ws.can("contacts:write")
   // Older pages, fetched on demand (MH-467: the timeline used to stop at the newest 500). They
   // belong to one first page: when it is refetched (an entry added or changed), they are dropped.
-  const [older, setOlder] = useState<{ from: string; items: Activity[]; cursor: string }>({ from: nextCursor, items: [], cursor: nextCursor })
+  const [older, setOlder] = useState<{ from: string; items: Activity[]; conversations: ConversationRef[]; cursor: string }>({
+    from: nextCursor,
+    items: [],
+    conversations: [],
+    cursor: nextCursor,
+  })
   const [loading, setLoading] = useState(false)
-  const fresh = older.from === nextCursor ? older : { from: nextCursor, items: [], cursor: nextCursor }
+  const fresh = older.from === nextCursor ? older : { from: nextCursor, items: [], conversations: [], cursor: nextCursor }
   const all = [...items, ...fresh.items.filter((a) => !items.some((b) => b.id === a.id))]
+  const allConversations = [...conversations, ...fresh.conversations.filter((c) => !conversations.some((d) => d.id === c.id))]
   const open = all.filter((a) => a.kind === "task" && !a.done_at)
   const rest = all.filter((a) => !(a.kind === "task" && !a.done_at))
+  // Newest first, activities and conversations together.
+  const history = [
+    ...rest.map((a) => ({ at: a.created_at, activity: a, conversation: null as ConversationRef | null })),
+    ...allConversations.map((c) => ({ at: c.last_message_at, activity: null as Activity | null, conversation: c })),
+  ].sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0))
 
   async function loadOlder() {
     if (!fresh.cursor) return
@@ -56,8 +81,15 @@ export function Timeline({
     try {
       const qs = new URLSearchParams(Object.entries(target).filter(([, v]) => !!v) as [string, string][])
       qs.set("cursor", fresh.cursor)
-      const page = await api<{ activities: Activity[]; next_cursor: string }>(`/api/w/activities?${qs}`, { workspaceId: ws.id })
-      setOlder({ from: nextCursor, items: [...fresh.items, ...page.activities], cursor: page.next_cursor })
+      const page = await api<{ activities: Activity[]; next_cursor: string; conversations?: ConversationRef[] }>(`/api/w/activities?${qs}`, {
+        workspaceId: ws.id,
+      })
+      setOlder({
+        from: nextCursor,
+        items: [...fresh.items, ...page.activities],
+        conversations: [...fresh.conversations, ...(page.conversations ?? [])],
+        cursor: page.next_cursor,
+      })
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -81,13 +113,17 @@ export function Timeline({
         </>
       ) : null}
       <p className="grid-micro px-6 pt-4 pb-2">{t("timeline.history")}</p>
-      {rest.length === 0 && !fresh.cursor ? (
+      {history.length === 0 && !fresh.cursor ? (
         <EmptyState title={t("timeline.empty")} body={canWrite ? t("timeline.emptyBody") : undefined} />
       ) : (
         <ul className="divide-y divide-line border-y border-line">
-          {rest.map((a) => (
-            <Item key={a.id} a={a} target={target} onChange={onChange} />
-          ))}
+          {history.map((h) =>
+            h.activity ? (
+              <Item key={h.activity.id} a={h.activity} target={target} onChange={onChange} />
+            ) : h.conversation ? (
+              <ConversationItem key={`c-${h.conversation.id}`} c={h.conversation} target={target} />
+            ) : null,
+          )}
         </ul>
       )}
       {total > items.length ? (
@@ -236,7 +272,7 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <p dir="auto" className={`text-start text-sm break-words whitespace-pre-wrap ${a.done_at ? "text-grid-muted line-through" : ""}`}>{a.body}</p>
+        <ActivityBody body={a.body} done={!!a.done_at} />
         <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-grid-muted">
           <span>{t(`activity.${a.kind}`)}</span>
           <span aria-hidden>·</span>
@@ -274,3 +310,81 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
   )
 }
 
+
+const channelIcon = { chat: MessageSquareIcon, email: MailIcon, whatsapp: MessageCircleIcon }
+
+/** An inbox conversation on a CRM timeline (MH-379): who, where, how much, and the way back to the thread. */
+function ConversationItem({ c, target }: { c: ConversationRef; target: Target }) {
+  const { t, locale, formatDate } = useTranslations()
+  const ws = useWorkspace()
+  const base = `/${locale}/w/${ws.slug}`
+  const Icon = channelIcon[c.channel] ?? MessageSquareIcon
+  // On a company page the conversation names which of its people wrote.
+  const person = c.contact && c.contact.id !== target.contact_id ? c.contact : null
+
+  return (
+    <li className="flex items-start gap-3 px-6 py-4" data-timeline-conversation={c.id}>
+      <span className="mt-0.5 text-grid-muted [&_svg]:size-4" aria-hidden>
+        <Icon />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm">
+          <span className="font-medium">
+            {t("timeline.conversation")} · {t(`inbox.channel.${c.channel}`)}
+          </span>
+          {c.channel === "email" && c.subject ? (
+            <span className="text-grid-muted">
+              {" · "}
+              <Bdi>{c.subject}</Bdi>
+            </span>
+          ) : null}
+        </p>
+        {c.preview ? (
+          <p dir="auto" className="mt-0.5 line-clamp-2 text-start text-sm break-words text-grid-muted">
+            {c.preview}
+          </p>
+        ) : null}
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
+          <Badge variant={c.status === "open" ? "default" : c.status === "snoozed" ? "secondary" : "outline"}>{t(`inbox.status.${c.status}`)}</Badge>
+          <span>{t("inbox.messageCount", { n: c.message_count })}</span>
+          <span aria-hidden>·</span>
+          <Ltr>{formatDate(c.last_message_at)}</Ltr>
+          {person ? (
+            <>
+              <span aria-hidden>·</span>
+              <Link className="underline underline-offset-4" href={`${base}/contacts/${person.id}`}>
+                <Bdi>{person.name || person.email}</Bdi>
+              </Link>
+            </>
+          ) : null}
+          <span aria-hidden>·</span>
+          <Link className="underline underline-offset-4" href={`${base}/inbox?c=${encodeURIComponent(c.id)}`} data-open-in-inbox>
+            {t("timeline.openInInbox")}
+          </Link>
+        </p>
+      </div>
+    </li>
+  )
+}
+
+// A chat transcript can be long (MH-379): past this many lines the body is
+// clamped, with a button to read the rest in place.
+const CLAMP_LINES = 12
+
+function ActivityBody({ body, done }: { body: string; done: boolean }) {
+  const { t } = useTranslations()
+  const [all, setAll] = useState(false)
+  const long = body.split("\n").length > CLAMP_LINES || body.length > 1200
+  return (
+    <>
+      <p dir="auto" className={`text-start text-sm break-words whitespace-pre-wrap ${done ? "text-grid-muted line-through" : ""} ${long && !all ? "line-clamp-[12]" : ""}`}>
+        {body}
+      </p>
+      {long ? (
+        <Button variant="link" size="xs" className="px-0" onClick={() => setAll((v) => !v)} aria-expanded={all} data-activity-more>
+          {all ? t("timeline.showLess") : t("timeline.showAll")}
+        </Button>
+      ) : null}
+    </>
+  )
+}

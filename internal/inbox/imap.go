@@ -215,11 +215,15 @@ func File(ctx context.Context, a *app.App, workspaceID string, e *Email) error {
 	// An inbound message makes the thread unread for the team again, and
 	// reopens it rather than answering into a closed conversation.
 	_, err = db.ExecContext(sctx, `
-		UPDATE conversations SET last_message_at = GREATEST(last_message_at, $3), unread = true, updated_at = now(),
-		  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
+		UPDATE conversations SET last_message_at = GREATEST(last_message_at, $3), unread = true, updated_at = now(), `+reopenOnInbound+`
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, convID, e.Date)
 	if err != nil {
 		return err
+	}
+	// A sender the CRM already knows by this exact address is linked to the
+	// thread (MH-379). Best effort: the message is filed either way.
+	if err := autoLink(sctx, db, workspaceID, convID); err != nil {
+		a.Log.Warn("could not match an email to a contact", "workspace", workspaceID, "err", err)
 	}
 	// Email used to arrive in silence: nothing published, so an open inbox did
 	// not even refresh. Now it is announced like every other channel — once,

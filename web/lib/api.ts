@@ -331,7 +331,13 @@ export type Stage = {
 export type Page = { total: number; limit: number; next_cursor: string }
 
 /** The first page of a record's timeline, carried on the record's own page. */
-export type TimelinePage = { activities: Activity[]; activities_total: number; activities_next_cursor: string }
+export type TimelinePage = {
+  activities: Activity[]
+  activities_total: number
+  activities_next_cursor: string
+  /** Linked inbox conversations in the first page's stretch of time (MH-379); older pages carry the rest. */
+  conversations: ConversationRef[]
+}
 
 export type Deal = {
   id: string
@@ -446,6 +452,40 @@ export type Conversation = {
   page_url: string
   user_agent: string
   locale: string
+  /** A WhatsApp customer's number; "" for other channels. */
+  customer_phone: string
+  /** The CRM contact it is linked to (MH-379). */
+  contact: { id: string; name: string; email: string; company: Ref | null } | null
+  /** auto: matched on the exact email/phone when filed; manual: a member linked (or unlinked) it. */
+  contact_link: "" | "auto" | "manual"
+  /** The deal it was turned into. */
+  deal: { id: string; title: string } | null
+}
+
+export type VisitorGuess = { name: string; email: string; phone: string; locale: "en" | "ar" }
+
+export type ConversationDetail = {
+  conversation: Conversation
+  messages: InboxMessage[]
+  /** What the visitor gave, to prefill a new contact. */
+  visitor: VisitorGuess
+  /** The language to answer in; canned replies insert this variant. */
+  reply_language: "en" | "ar"
+}
+
+/** An inbox conversation as a CRM timeline shows it (MH-379). */
+export type ConversationRef = {
+  id: string
+  channel: ConversationChannel
+  subject: string
+  status: ConversationStatus
+  customer_name: string
+  preview: string
+  message_count: number
+  contact: ContactRef | null
+  deal_id: string | null
+  last_message_at: string
+  created_at: string
 }
 
 export type InboxMessage = {

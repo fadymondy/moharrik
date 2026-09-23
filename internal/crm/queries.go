@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/paging"
+	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
 type scanner interface{ Scan(dest ...any) error }
@@ -286,23 +289,29 @@ const (
 // used to be the newest 500 and nothing else). Keyset on (created_at, id), so a
 // note added while somebody reads does not shift the next page. Open tasks are
 // not buried under later notes because the UI groups them separately.
-func timelinePage(ctx context.Context, db *sql.DB, wsID, where, id, after string, limit int) (*ActivityPage, error) {
+//
+// With inbox (the caller may read the inbox), the page also carries the linked
+// conversations in its stretch of time (ActivityPage.Conversations, MH-379).
+func timelinePage(ctx context.Context, db *sql.DB, wsID, where, id, after string, limit int, inbox bool) (*ActivityPage, error) {
 	cur, err := paging.Decode(after, 2)
 	if err != nil {
 		return nil, err
 	}
-	page := &ActivityPage{Activities: []ActivityOut{}, Limit: limit}
+	page := &ActivityPage{Activities: []ActivityOut{}, Limit: limit, Conversations: []ConversationRef{}}
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM activities a WHERE a.workspace_id = $1 `+where, wsID, id).Scan(&page.Total); err != nil {
 		return nil, err
 	}
 	args := []any{wsID, id}
 	q := activitySelect + " " + where
+	var cursorAt *time.Time
 	if cur != nil {
 		us, err := strconv.ParseInt(cur[0], 10, 64)
 		if err != nil {
 			return nil, paging.ErrBadCursor
 		}
-		args = append(args, time.UnixMicro(us).UTC(), cur[1])
+		at := time.UnixMicro(us).UTC()
+		cursorAt = &at
+		args = append(args, at, cur[1])
 		q += ` AND (a.created_at, a.id) < ($3, $4)`
 	}
 	args = append(args, limit+1)
@@ -322,10 +331,20 @@ func timelinePage(ctx context.Context, db *sql.DB, wsID, where, id, after string
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	var lastAt *time.Time
 	if len(page.Activities) > limit {
 		page.Activities = page.Activities[:limit]
 		last := page.Activities[limit-1]
 		page.NextCursor = paging.Encode(strconv.FormatInt(last.CreatedAt.UnixMicro(), 10), last.ID)
+		// Microseconds, as the cursor carries, so this page's lower bound is
+		// exactly the next page's upper one.
+		at := time.UnixMicro(last.CreatedAt.UnixMicro()).UTC()
+		lastAt = &at
+	}
+	if convWhere, ok := conversationScopes[where]; ok && inbox {
+		if page.Conversations, err = conversationsInWindow(ctx, db, wsID, convWhere, id, cursorAt, lastAt); err != nil {
+			return nil, err
+		}
 	}
 	return page, nil
 }
@@ -339,3 +358,95 @@ func getActivity(ctx context.Context, db *sql.DB, wsID, id string) (*ActivityOut
 }
 
 func notFound(err error) bool { return errors.Is(err, sql.ErrNoRows) }
+
+// ---- conversations (MH-379) --------------------------------------------------
+
+// ConversationRef is an inbox conversation as a CRM timeline shows it: enough
+// to say who wrote, on which channel, how much, and to link to the thread.
+type ConversationRef struct {
+	ID            string      `json:"id"`
+	Channel       string      `json:"channel"`
+	Subject       string      `json:"subject"`
+	Status        string      `json:"status"`
+	CustomerName  string      `json:"customer_name"`
+	Preview       string      `json:"preview" doc:"The most recent message, trimmed."`
+	MessageCount  int64       `json:"message_count"`
+	Contact       *ContactRef `json:"contact"`
+	DealID        *string     `json:"deal_id"`
+	LastMessageAt time.Time   `json:"last_message_at"`
+	CreatedAt     time.Time   `json:"created_at"`
+}
+
+// Conversation scopes, keyed by the timeline scope they go with. Each narrows
+// the select with $2 = the record's id.
+var conversationScopes = map[string]string{
+	// A contact's are the threads linked to it.
+	timelineContact: `AND c.contact_id = $2`,
+	// A company's are its people's.
+	timelineCompany: `AND ct.company_id = $2`,
+	// A deal's is the one it was opened from.
+	timelineDeal: `AND c.deal_id = $2`,
+}
+
+// maxWindowConversations bounds one timeline page's conversations. A page's
+// stretch of time holding more than this many threads for one record is not a
+// case this product meets; the bound is here so it can never be unbounded.
+const maxWindowConversations = 200
+
+// conversationsInWindow lists a record's linked conversations whose latest
+// message falls in one timeline page's stretch of time, newest first: before
+// `newerThan` (the previous page's last activity; nil on the first page) and
+// at or after `notBefore` (this page's last activity; nil on the last page, so
+// it takes everything older). Consecutive pages' windows meet without overlap,
+// so every conversation shows up on exactly one page.
+func conversationsInWindow(ctx context.Context, db *sql.DB, wsID, where, id string, newerThan, notBefore *time.Time) ([]ConversationRef, error) {
+	args := []any{wsID, id}
+	if newerThan != nil {
+		args = append(args, *newerThan)
+		where += ` AND c.last_message_at < $` + strconv.Itoa(len(args))
+	}
+	if notBefore != nil {
+		args = append(args, *notBefore)
+		where += ` AND c.last_message_at >= $` + strconv.Itoa(len(args))
+	}
+	args = append(args, maxWindowConversations)
+	rows, err := db.QueryContext(ctx, `
+		SELECT c.id, c.channel, c.subject, c.status, c.customer_name,
+		       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
+		                 ORDER BY m.created_at DESC LIMIT 1), ''),
+		       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id),
+		       c.contact_id, ct.email, ct.name, ct.title, c.deal_id, c.last_message_at, c.created_at
+		FROM conversations c
+		LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
+		WHERE c.workspace_id = $1 `+where+`
+		ORDER BY c.last_message_at DESC, c.id DESC LIMIT $`+strconv.Itoa(len(args)), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list := []ConversationRef{}
+	for rows.Next() {
+		var c ConversationRef
+		var contactID, cEmail, cName, cTitle, dealID sql.NullString
+		if err := rows.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.Preview, &c.MessageCount,
+			&contactID, &cEmail, &cName, &cTitle, &dealID, &c.LastMessageAt, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		if r := []rune(strings.Join(strings.Fields(c.Preview), " ")); len(r) > 140 {
+			c.Preview = string(r[:140]) + "…"
+		} else {
+			c.Preview = string(r)
+		}
+		if contactID.Valid {
+			c.Contact = &ContactRef{ID: contactID.String, Email: cEmail.String, Name: cName.String, Title: cTitle.String}
+		}
+		c.DealID = strp(dealID)
+		list = append(list, c)
+	}
+	return list, rows.Err()
+}
+
+// canReadInbox is whether a caller's timeline pages carry conversations: a
+// role that may read the CRM but not the inbox sees no threads, rather than
+// an error.
+func canReadInbox(s *tenant.Scope) bool { return authz.Can(s.Role, authz.InboxRead) }

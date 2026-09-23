@@ -43,6 +43,8 @@ import {
   type Member,
   type ChatWidget,
   type Conversation,
+  type ConversationDetail,
+  type ConversationRef,
   type InboxMessage,
   type FeedSource,
   type GoogleConnections,
@@ -271,14 +273,18 @@ export function useConversations(workspaceId: string | null | undefined, filter:
 
 /** One thread. Same as the list: revalidated by the event stream, not by a timer. */
 export function useConversation(workspaceId: string | null | undefined, id?: string) {
-  return useSWR<{ conversation: Conversation; messages: InboxMessage[] }>(
+  return useSWR<ConversationDetail>(
     workspaceId && id ? [`/api/w/conversations/${encodeURIComponent(id)}`, workspaceId] : null,
-    ([p, ws]: [string, string]) => api<{ conversation: Conversation; messages: InboxMessage[] }>(p, { workspaceId: ws }),
+    ([p, ws]: [string, string]) => api<ConversationDetail>(p, { workspaceId: ws }),
     noRetryOn4xx,
   )
 }
 
 export const useChatWidgets = (id?: string | null) => useScoped<{ widgets: ChatWidget[] | null }>("/api/w/chat_widgets", id)
+
+/** The pipeline's stages, for opening a deal from a conversation (MH-379). */
+export const usePipelineStages = (id?: string | null, enabled = true) =>
+  useScoped<{ stages: Stage[] | null }>("/api/w/pipeline/stages", id, enabled)
 
 // ── Trends ───────────────────────────────────────────────────────────────
 

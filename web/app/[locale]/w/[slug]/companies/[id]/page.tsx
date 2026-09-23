@@ -99,7 +99,7 @@ export default function CompanyDetailPage() {
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
-      <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} target={{ company_id: company.id }} onChange={() => detail.mutate()} />
+      <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} conversations={detail.data.conversations ?? []} target={{ company_id: company.id }} onChange={() => detail.mutate()} />
       <div className="pb-8" />
     </>
   )
