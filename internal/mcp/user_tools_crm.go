@@ -13,6 +13,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/crm"
+	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -113,44 +114,73 @@ func CrmTools() []Tool {
 			},
 		},
 		{
-			Name:        "list_contacts",
-			Description: "CRM contacts, with their company and lifecycle status.",
-			Scope:       "contacts:read",
-			InputSchema: schema(nil, map[string]any{}),
-			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
+			// MH-408: this used to stop at 500 contacts without saying so. It
+			// now reads through marketing.ListContactsPage — the same page,
+			// filter and total the contacts screen uses — and says how many
+			// there are and how to get the next page.
+			Name: "list_contacts",
+			Description: "CRM contacts, newest first, one page at a time: with their company and their status on each mailing list. " +
+				"The reply says how many match in total; pass its cursor to get the next page.",
+			Scope: "contacts:read",
+			InputSchema: schema(nil, map[string]any{
+				"q":      prop("string", "Search name, email, phone and company"),
+				"list":   prop("string", "Only contacts on this mailing list (its exact name)"),
+				"status": map[string]any{"type": "string", "enum": []string{"subscribed", "pending", "unsubscribed", "bounced"}, "description": "With list: only this status on that list"},
+				"cursor": prop("string", "The cursor from the previous reply, for the next page"),
+				"limit":  prop("number", "Page size, default 100, at most 200"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
 				if !ok {
 					return "", errNotFound
 				}
-				rows, err := a.SQLDB.QueryContext(ctx, `
-					SELECT c.email, c.name, c.title, coalesce(co.name, '')
-					FROM contacts c LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
-					WHERE c.workspace_id = $1 ORDER BY lower(c.email) LIMIT 500`, s.WorkspaceID)
+				args := decodeArgs(raw)
+				f := marketing.ContactFilter{Q: str(args, "q"), Status: str(args, "status")}
+				if list := str(args, "list"); list != "" {
+					if err := a.SQLDB.QueryRowContext(ctx, `SELECT id FROM mail_lists WHERE workspace_id = $1 AND lower(name) = lower($2)`,
+						s.WorkspaceID, list).Scan(&f.ListID); err != nil {
+						if errNoRows(err) {
+							return "", fmt.Errorf("no mailing list named %q — call list_mail_lists to see them", list)
+						}
+						return "", fmt.Errorf("could not read the list: %w", err)
+					}
+				}
+				page, err := marketing.ListContactsPage(ctx, a.SQLDB, s.WorkspaceID, f, str(args, "cursor"), intArg(args, "limit", 100))
 				if err != nil {
 					return "", fmt.Errorf("could not list contacts: %w", err)
 				}
-				defer rows.Close()
+				if page.Total == 0 {
+					if f.Q != "" || f.ListID != "" {
+						return "No contacts match.", nil
+					}
+					return "No contacts yet.", nil
+				}
 				var b strings.Builder
-				n := 0
-				for rows.Next() {
-					var email, name, title, company string
-					if err := rows.Scan(&email, &name, &title, &company); err != nil {
-						return "", fmt.Errorf("could not list contacts: %w", err)
+				for _, c := range page.Contacts {
+					b.WriteString(c.Email)
+					if c.Name != "" {
+						fmt.Fprintf(&b, " (%s)", c.Name)
 					}
-					n++
-					fmt.Fprintf(&b, "%s", email)
-					if name != "" {
-						fmt.Fprintf(&b, " (%s)", name)
+					switch {
+					case c.Title != "" && c.CompanyName != "":
+						fmt.Fprintf(&b, " — %s at %s", c.Title, c.CompanyName)
+					case c.Title != "" || c.CompanyName != "":
+						fmt.Fprintf(&b, " — %s", c.Title+c.CompanyName)
 					}
-					if title != "" || company != "" {
-						fmt.Fprintf(&b, " — %s", strings.TrimSpace(strings.Join([]string{title, company}, " at ")))
+					if len(c.Subscriptions) > 0 {
+						subs := make([]string, 0, len(c.Subscriptions))
+						for _, sub := range c.Subscriptions {
+							subs = append(subs, sub.ListName+": "+sub.Status)
+						}
+						fmt.Fprintf(&b, " [%s]", strings.Join(subs, ", "))
 					}
 					b.WriteByte('\n')
 				}
-				if n == 0 {
-					return "No contacts yet.", nil
+				head := fmt.Sprintf("Showing %d of %d contact(s):\n", len(page.Contacts), page.Total)
+				if page.NextCursor != "" {
+					return head + b.String() + "More: call list_contacts again with cursor=" + page.NextCursor, nil
 				}
-				return fmt.Sprintf("%d contact(s):\n%s", n, b.String()), nil
+				return head + b.String(), nil
 			},
 		},
 		{

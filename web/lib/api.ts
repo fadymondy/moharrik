@@ -94,6 +94,47 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   return (type.includes("json") ? await res.json() : await res.text()) as T
 }
 
+/**
+ * Download a file the API streams (a CSV export) and hand it to the browser as a
+ * download. A plain link cannot do this: the workspace travels in a header.
+ *
+ * Read as a Blob, never as text: Response.text() decodes UTF-8 and silently drops
+ * the byte-order mark, and the BOM is what makes Excel read Arabic correctly.
+ */
+export async function downloadFile(path: string, opts: { workspaceId?: string | null; fallbackName: string }): Promise<void> {
+  const headers: Record<string, string> = { Accept: "text/csv, */*" }
+  if (opts.workspaceId) headers["X-Workspace-ID"] = opts.workspaceId
+  const res = await fetch(path, { headers, credentials: "same-origin", cache: "no-store" })
+  if (!res.ok) throw new ApiError(res.status, await errorMessage(res))
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  try {
+    const a = document.createElement("a")
+    a.href = url
+    a.download = fileNameFrom(res.headers.get("content-disposition")) ?? opts.fallbackName
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  }
+}
+
+/** The name in Content-Disposition, preferring the UTF-8 filename* form (an Arabic list name). */
+function fileNameFrom(header: string | null): string | null {
+  if (!header) return null
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(header)
+  if (star) {
+    try {
+      return decodeURIComponent(star[1])
+    } catch {
+      /* fall through to the ASCII name */
+    }
+  }
+  const plain = /filename="([^"]+)"/i.exec(header)
+  return plain ? plain[1] : null
+}
+
 // ── Contract types ───────────────────────────────────────────────────────
 
 export type User = { id: string | number; email: string; roles?: string[] | null }
@@ -150,7 +191,30 @@ export type MailList = {
   created_at: string
 }
 
-export type Subscription = { id: string; list_id: string; list_name: string; status: SubscriptionStatus }
+export type Subscription = {
+  id: string
+  list_id: string
+  list_name: string
+  status: SubscriptionStatus
+  confirmed_at: string | null
+  unsubscribed_at: string | null
+  /** A member took the address off this list (MH-408); who is on the contact's timeline. */
+  unsubscribed_by_workspace: boolean
+}
+
+export type StatusCounts = Record<SubscriptionStatus | "all", number>
+
+/** One page of GET /api/w/contacts (MH-408): keyset-paged, with the filter's total. */
+export type ContactPage = {
+  contacts: Contact[] | null
+  /** Every contact matching the filter, across all pages. */
+  total: number
+  limit: number
+  /** Fetches the next page; empty on the last one. */
+  next_cursor: string
+  /** One list's contacts by status, under the same search. Null without a list. */
+  counts: StatusCounts | null
+}
 
 export type Contact = {
   id: string

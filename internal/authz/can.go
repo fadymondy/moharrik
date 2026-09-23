@@ -50,6 +50,9 @@ const (
 	// Email marketing.
 	ContactsRead   = "contacts:read"
 	ContactsWrite  = "contacts:write"
+	// ContactsExport is downloading a list as a file (MH-408). See Matrix for
+	// why it is not simply contacts:read.
+	ContactsExport = "contacts:export"
 	CampaignsRead  = "campaigns:read"
 	CampaignsWrite = "campaigns:write"
 	CampaignsSend  = "campaigns:send"
@@ -117,6 +120,16 @@ var Matrix = map[string]Role{
 	// admins own the sending credentials.
 	ContactsRead:   Member,
 	ContactsWrite:  Member,
+	// Export is a manager's call although a member can page through the same
+	// rows on screen. Reading contacts one page at a time is doing the job;
+	// one click that puts the whole audience — names, addresses, phones, in a
+	// file that leaves the workspace and cannot be recalled — is a bulk
+	// disclosure of personal data. It is the classic way a list walks out with
+	// someone who is leaving, and under GDPR/PDPL it is the kind of processing
+	// a business should be able to say who is allowed to do. Managers already
+	// own the list as a whole (they compose and send to all of it), so this
+	// draws the line where campaigns:write does.
+	ContactsExport: Manager,
 	CampaignsRead:  Member,
 	CampaignsWrite: Manager,
 	CampaignsSend:  Manager,

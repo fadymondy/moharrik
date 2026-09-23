@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, type FormEvent } from "react"
+import { LogOutIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DealsTable } from "@/components/crm/deals"
@@ -10,6 +11,7 @@ import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { Timeline } from "@/components/crm/timeline"
 import { Ltr } from "@/components/copy-field"
 import { ConfirmButton } from "@/components/confirm-button"
+import { UnsubscribeDialog, type UnsubscribeTarget } from "@/components/mail/subscriber-admin"
 import { NotFoundState } from "@/components/not-found-state"
 import { SectionHeader } from "@/components/public-frame"
 import { Badge } from "@/components/ui/badge"
@@ -36,6 +38,7 @@ export default function ContactDetailPage() {
   const ws = useWorkspace()
   const canWrite = ws.can("contacts:write")
   const detail = useContact(ws.id, id)
+  const [leaving, setLeaving] = useState<UnsubscribeTarget | null>(null)
   useDocumentTitle(detail.data ? `${detail.data.contact.name || detail.data.contact.email} · ${ws.summary.name}` : t("contacts.detailTitle"))
   const base = `/${locale}/w/${ws.slug}`
 
@@ -71,14 +74,28 @@ export default function ContactDetailPage() {
       />
 
       {(contact.subscriptions ?? []).length > 0 ? (
-        <div className="flex flex-wrap gap-1.5 px-6 pb-6">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 pb-6" data-contact-subscriptions>
           {contact.subscriptions.map((s) => (
-            <Badge key={s.id} variant={statusVariant[s.status]}>
-              {s.list_name} · {t(`sub.${s.status}`)}
-            </Badge>
+            <span key={s.id} className="inline-flex items-center gap-1">
+              <Badge variant={statusVariant[s.status]} data-sub={`${s.list_name}:${s.status}`}>
+                {s.list_name} · {t(`sub.${s.status}`)}
+              </Badge>
+              {canWrite && s.status !== "unsubscribed" ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  data-unsubscribe-from={s.list_name}
+                  onClick={() => setLeaving({ contactId: contact.id, who: contact.name || contact.email, listId: s.list_id, listName: s.list_name })}
+                >
+                  <LogOutIcon />
+                  {t("contacts.unsubscribe")}
+                </Button>
+              ) : null}
+            </span>
           ))}
         </div>
       ) : null}
+      <UnsubscribeDialog target={leaving} onClose={() => setLeaving(null)} onDone={() => detail.mutate()} />
 
       {canWrite ? <EditContact contact={contact} onSaved={() => detail.mutate()} /> : null}
 

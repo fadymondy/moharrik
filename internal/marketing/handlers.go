@@ -60,6 +60,14 @@ type SubscriptionOut struct {
 	ListID   string `json:"list_id"`
 	ListName string `json:"list_name"`
 	Status   string `json:"status"`
+	// When the address confirmed (or was subscribed directly on a list
+	// without double opt-in), and when it left (MH-408).
+	ConfirmedAt    *time.Time `json:"confirmed_at"`
+	UnsubscribedAt *time.Time `json:"unsubscribed_at"`
+	// True when a member took the address off this list from the workspace,
+	// rather than the person using the link in an email. Who it was is on the
+	// contact's timeline.
+	ByWorkspace bool `json:"unsubscribed_by_workspace"`
 }
 
 type ContactOut struct {
@@ -216,58 +224,6 @@ func sendConfirmation(ctx context.Context, db *sql.DB, wsID, email, locale, list
 	})
 }
 
-func listContacts(ctx context.Context, db *sql.DB, wsID, listID string) ([]ContactOut, error) {
-	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
-		       c.whatsapp_opt_in_at, c.whatsapp_opt_out_at
-		FROM contacts c LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
-		WHERE c.workspace_id = $1`
-	args := []any{wsID}
-	if listID != "" {
-		q += ` AND EXISTS (SELECT 1 FROM list_subscriptions s WHERE s.workspace_id = $1 AND s.contact_id = c.id AND s.list_id = $2)`
-		args = append(args, listID)
-	}
-	q += ` ORDER BY c.created_at DESC LIMIT 1000`
-	rows, err := db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	list := []ContactOut{}
-	idx := map[string]int{}
-	for rows.Next() {
-		var c ContactOut
-		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
-			&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt); err != nil {
-			return nil, err
-		}
-		c.Subscriptions = []SubscriptionOut{}
-		idx[c.ID] = len(list)
-		list = append(list, c)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	srows, err := db.QueryContext(ctx, `
-		SELECT s.id, s.contact_id, s.list_id, l.name, s.status
-		FROM list_subscriptions s JOIN mail_lists l ON l.id = s.list_id AND l.workspace_id = s.workspace_id
-		WHERE s.workspace_id = $1 ORDER BY lower(l.name)`, wsID)
-	if err != nil {
-		return nil, err
-	}
-	defer srows.Close()
-	for srows.Next() {
-		var s SubscriptionOut
-		var contactID string
-		if err := srows.Scan(&s.ID, &contactID, &s.ListID, &s.ListName, &s.Status); err != nil {
-			return nil, err
-		}
-		if i, ok := idx[contactID]; ok {
-			list[i].Subscriptions = append(list[i].Subscriptions, s)
-		}
-	}
-	return list, srows.Err()
-}
-
 func getCampaign(ctx context.Context, db *sql.DB, wsID, id string) (*CampaignOut, error) {
 	var c CampaignOut
 	err := db.QueryRowContext(ctx, `
@@ -392,25 +348,31 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-contacts", Method: http.MethodGet, Path: "/api/w/contacts",
-		Summary: "Contacts, with their per-list subscription status", Tags: tags,
+		Summary: "Contacts, one page at a time, with their per-list subscription status",
+		Description: "Newest first. `total` is every contact matching the filter; follow `next_cursor` for the next page " +
+			"(empty on the last one). With `list_id`, `counts` breaks that list down by status under the same search.",
+		Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ListID string `query:"list_id" doc:"Only contacts on this list"`
-	}) (*body[struct {
-		Contacts []ContactOut `json:"contacts"`
-	}], error) {
+		Status string `query:"status" doc:"subscribed, pending, unsubscribed or bounced. With list_id: only this status on that list"`
+		Q      string `query:"q" maxLength:"200" doc:"Search name, email, phone and company"`
+		Cursor string `query:"cursor" doc:"next_cursor from the previous page"`
+		Limit  int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
+	}) (*body[ContactPage], error) {
 		s, err := scope(ctx, authz.ContactsRead)
 		if err != nil {
 			return nil, err
 		}
-		list, err := listContacts(ctx, a.SQLDB, s.WorkspaceID, in.ListID)
-		if err != nil {
+		page, err := ListContactsPage(ctx, a.SQLDB, s.WorkspaceID, ContactFilter{ListID: in.ListID, Status: in.Status, Q: in.Q}, in.Cursor, in.Limit)
+		switch {
+		case errors.Is(err, ErrBadCursor), errors.Is(err, ErrStatusNeedsList), errors.Is(err, ErrBadStatus):
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		case err != nil:
 			slog.ErrorContext(ctx, "list contacts", "err", err)
 			return nil, huma.Error500InternalServerError("could not list contacts")
 		}
-		return out(struct {
-			Contacts []ContactOut `json:"contacts"`
-		}{list}), nil
+		return out(*page), nil
 	})
 
 	type AddContactResult struct {
@@ -456,12 +418,8 @@ func Register(api huma.API, a *app.App) {
 				return nil, huma.Error500InternalServerError("could not add the contact")
 			}
 			res := AddContactResult{Status: "crm", Confirmation: "not_needed"}
-			if list, err := listContacts(ctx, a.SQLDB, s.WorkspaceID, ""); err == nil {
-				for _, c := range list {
-					if c.ID == contactID {
-						res.Contact = c
-					}
-				}
+			if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
+				res.Contact = *c
 			}
 			return out(res), nil
 		}
@@ -525,7 +483,7 @@ func Register(api huma.API, a *app.App) {
 			}
 			token = newToken()
 			if _, err := tx.ExecContext(ctx, `
-				UPDATE list_subscriptions SET status = $3, token = $4, unsubscribed_at = NULL,
+				UPDATE list_subscriptions SET status = $3, token = $4, unsubscribed_at = NULL, unsubscribed_by = NULL,
 				  confirmed_at = CASE WHEN $3 = 'subscribed' THEN now() ELSE confirmed_at END, updated_at = now()
 				WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, subID, status, token); err != nil {
 				return nil, huma.Error500InternalServerError("could not add the contact")
@@ -544,13 +502,8 @@ func Register(api huma.API, a *app.App) {
 				res.Confirmation = "sent"
 			}
 		}
-		list, err := listContacts(ctx, a.SQLDB, s.WorkspaceID, "")
-		if err == nil {
-			for _, c := range list {
-				if c.ID == contactID {
-					res.Contact = c
-				}
-			}
+		if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
+			res.Contact = *c
 		}
 		return out(res), nil
 	})
@@ -723,6 +676,7 @@ func Register(api huma.API, a *app.App) {
 	})
 
 	registerCampaignEdit(api, a)
+	registerSubscriberAdmin(api, a)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-send-campaign", Method: http.MethodPost, Path: "/api/w/campaigns/{id}/send",
@@ -966,7 +920,11 @@ func Register(api huma.API, a *app.App) {
 			q = `UPDATE list_subscriptions SET status = 'subscribed', confirmed_at = coalesce(confirmed_at, now()), updated_at = now()
 			     WHERE workspace_id = $1 AND token = $2 AND status IN ('pending', 'subscribed') RETURNING status, list_id`
 		} else {
-			q = `UPDATE list_subscriptions SET status = 'unsubscribed', unsubscribed_at = coalesce(unsubscribed_at, now()), updated_at = now()
+			// The same columns an admin unsubscribe writes (unsubscribeOne), so
+			// the two are indistinguishable to everything downstream except the
+			// record of who did it — which stays with whoever did it FIRST.
+			q = `UPDATE list_subscriptions SET status = 'unsubscribed', unsubscribed_at = coalesce(unsubscribed_at, now()),
+			       unsubscribed_by = CASE WHEN status = 'unsubscribed' THEN unsubscribed_by END, updated_at = now()
 			     WHERE workspace_id = $1 AND token = $2 RETURNING status, list_id`
 		}
 		var listID string

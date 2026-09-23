@@ -26,7 +26,7 @@ import {
   type Lead,
   type LeadStatus,
   type Stage,
-  type Contact,
+  type ContactPage,
   type CurrentWorkspace,
   type MailList,
   type SmtpSettings,
@@ -95,7 +95,35 @@ export const useMcpTokens = (id?: string | null) =>
 
 export const useMailLists = (id?: string | null) => useScoped<{ lists: MailList[] | null }>("/api/w/mail/lists", id)
 
-export const useContacts = (id?: string | null) => useScoped<{ contacts: Contact[] | null }>("/api/w/contacts", id)
+export type ContactQuery = { listId?: string; status?: string; q?: string; cursor?: string; limit?: number }
+
+export function contactsPath(p: ContactQuery): string {
+  const qs = new URLSearchParams()
+  if (p.listId) qs.set("list_id", p.listId)
+  if (p.listId && p.status) qs.set("status", p.status)
+  if (p.q?.trim()) qs.set("q", p.q.trim())
+  if (p.cursor) qs.set("cursor", p.cursor)
+  if (p.limit) qs.set("limit", String(p.limit))
+  const s = qs.toString()
+  return s ? `/api/w/contacts?${s}` : "/api/w/contacts"
+}
+
+/**
+ * One page of contacts (MH-408). The list used to arrive whole and silently stop
+ * at 1,000; now it is paged, and `total` says how many match.
+ */
+export function useContactsPage(workspaceId: string | null | undefined, p: ContactQuery, enabled = true) {
+  const path = contactsPath(p)
+  const res = useSWR<ContactPage & { path: string }>(
+    workspaceId && enabled ? [path, workspaceId] : null,
+    ([key, id]: [string, string]) => api<ContactPage>(key, { workspaceId: id }).then((d) => ({ ...d, path: key })),
+    { ...noRetryOn4xx, keepPreviousData: true },
+  )
+  // keepPreviousData shows the last page while the next one loads. `current` says
+  // whether what is on screen is the page that was asked for — a pager that acts
+  // on a stale page's next_cursor would fetch the same page twice.
+  return { ...res, current: res.data?.path === path }
+}
 
 /** Polls while a campaign is sending, so progress moves on screen. */
 export function useCampaigns(workspaceId?: string | null) {

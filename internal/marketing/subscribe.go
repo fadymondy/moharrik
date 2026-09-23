@@ -136,7 +136,7 @@ func Subscribe(ctx context.Context, db *sql.DB, wsID, listID, email, name, local
 		}
 		token = newToken()
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE list_subscriptions SET status = $3, token = $4, unsubscribed_at = NULL,
+			UPDATE list_subscriptions SET status = $3, token = $4, unsubscribed_at = NULL, unsubscribed_by = NULL,
 			  confirmed_at = CASE WHEN $3 = 'subscribed' THEN now() ELSE confirmed_at END, updated_at = now()
 			WHERE workspace_id = $1 AND id = $2`, wsID, subID, status, token); err != nil {
 			return res, err

@@ -22,7 +22,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useCompanies, useContacts } from "@/lib/queries"
+import { useCompanies } from "@/lib/queries"
+import { ContactPicker } from "@/components/crm/contact-picker"
 
 // ── board ────────────────────────────────────────────────────────────────
 
@@ -298,7 +299,6 @@ export function DealForm({
   const { t } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
-  const contacts = useContacts(ws.id)
   const companies = useCompanies(ws.id)
   const [title, setTitle] = useState(deal?.title ?? "")
   const [cur, setCur] = useState(deal?.currency ?? currency)
@@ -312,7 +312,6 @@ export function DealForm({
   const [err, setErr] = useState<string | null>(null)
 
   const stageOpts = stages.map((s) => ({ value: s.id, label: s.name }))
-  const contactOpts = (contacts.data?.contacts ?? []).map((c) => ({ value: c.id, label: c.name ? `${c.name} · ${c.email}` : c.email }))
   const companyOpts = (companies.data?.companies ?? []).map((c) => ({ value: c.id, label: c.name }))
   const id = (f: string) => `${formId}-${f}`
 
@@ -384,7 +383,7 @@ export function DealForm({
         </Field>
         <Field>
           <FieldLabel htmlFor={id("contact")}>{t("deals.contact")}</FieldLabel>
-          <PickSelect id={id("contact")} value={contactId} onChange={setContactId} options={contactOpts} noneLabel={t("crm.none")} />
+          <ContactPicker id={id("contact")} value={contactId} selected={deal?.contact ?? null} onChange={setContactId} />
         </Field>
         <Field>
           <FieldLabel htmlFor={id("close")}>{t("deals.expectedClose")}</FieldLabel>
