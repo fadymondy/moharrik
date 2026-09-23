@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
+import { ConnectClients } from "@/components/mcp/connect-clients"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type McpScope, type McpToken } from "@/lib/api"
@@ -49,13 +50,15 @@ export default function McpTokensPage() {
   }
 
   const list = tokens.data?.tokens ?? []
+  // Owners and admins see every member's tokens (MH-396), so the table says whose each one is.
+  const all = !!tokens.data?.all
 
   return (
     <>
       <SectionHeader
         micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.mcpTokens")}
-        description={t("mcp.hint")}
+        description={all ? t("mcp.hintAll") : t("mcp.hint")}
         action={
           <Button onClick={() => setCreating(true)} disabled={!tokens.data}>
             <PlusIcon />
@@ -76,8 +79,10 @@ export default function McpTokensPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="ps-6">{t("mcp.name")}</TableHead>
+                {all ? <TableHead>{t("mcp.holder")}</TableHead> : null}
                 <TableHead>{t("mcp.prefix")}</TableHead>
                 <TableHead>{t("mcp.scopes")}</TableHead>
+                <TableHead>{t("mcp.created")}</TableHead>
                 <TableHead>{t("mcp.lastUsed")}</TableHead>
                 <TableHead>{t("mcp.expires")}</TableHead>
                 <TableHead className="pe-6 text-end">
@@ -87,12 +92,24 @@ export default function McpTokensPage() {
             </TableHeader>
             <TableBody>
               {list.map((tok) => (
-                <TokenRow key={tok.id} tok={tok} formatDate={formatDate} onRevoke={() => revoke(tok.id)} />
+                <TokenRow key={tok.id} tok={tok} showHolder={all} formatDate={formatDate} onRevoke={() => revoke(tok.id)} />
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+
+      <section className="border-t border-line px-6 py-8" aria-labelledby="mcp-connect">
+        <div className="mb-4 max-w-2xl space-y-1.5">
+          <h2 id="mcp-connect" className="grid-title text-lg">
+            {t("mcp.connectTitle")}
+          </h2>
+          <p className="grid-body text-sm">{t("mcp.connectHint")}</p>
+        </div>
+        <div className="max-w-3xl">
+          <ConnectClients url={`${MCP_ORIGIN}/api/mcp`} />
+        </div>
+      </section>
 
       {tokens.data ? (
         <CreateTokenDialog
@@ -106,7 +123,17 @@ export default function McpTokensPage() {
   )
 }
 
-function TokenRow({ tok, formatDate, onRevoke }: { tok: McpToken; formatDate: (v: string | null | undefined) => string; onRevoke: () => Promise<void> }) {
+function TokenRow({
+  tok,
+  showHolder,
+  formatDate,
+  onRevoke,
+}: {
+  tok: McpToken
+  showHolder: boolean
+  formatDate: (v: string | null | undefined) => string
+  onRevoke: () => Promise<void>
+}) {
   const { t } = useTranslations()
   const expired = !!tok.expires_at && new Date(tok.expires_at).getTime() < Date.now()
   return (
@@ -114,6 +141,14 @@ function TokenRow({ tok, formatDate, onRevoke }: { tok: McpToken; formatDate: (v
       <TableCell className="ps-6 font-medium">
         <Bdi>{tok.name}</Bdi>
       </TableCell>
+      {showHolder ? (
+        <TableCell>
+          <span className="flex flex-wrap items-center gap-1.5">
+            <Ltr className="text-sm">{tok.user_email || tok.user_id}</Ltr>
+            {tok.mine ? <Badge variant="secondary">{t("mcp.you")}</Badge> : null}
+          </span>
+        </TableCell>
+      ) : null}
       <TableCell>
         <Ltr mono className="text-xs">
           {tok.prefix}…
@@ -128,6 +163,9 @@ function TokenRow({ tok, formatDate, onRevoke }: { tok: McpToken; formatDate: (v
           ))}
         </div>
       </TableCell>
+      <TableCell className="text-grid-muted">
+        <Ltr>{formatDate(tok.created_at)}</Ltr>
+      </TableCell>
       <TableCell className="text-grid-muted">{tok.last_used_at ? <Ltr>{formatDate(tok.last_used_at)}</Ltr> : t("mcp.never")}</TableCell>
       <TableCell className="text-grid-muted">
         {tok.expires_at ? <Ltr>{formatDate(tok.expires_at)}</Ltr> : t("mcp.noExpiry")}
@@ -141,7 +179,11 @@ function TokenRow({ tok, formatDate, onRevoke }: { tok: McpToken; formatDate: (v
           <ConfirmButton
             label={t("common.revoke")}
             title={t("mcp.revokeTitle")}
-            description={t("mcp.revokeBody", { name: isolate(tok.name) })}
+            description={
+              tok.mine
+                ? t("mcp.revokeBody", { name: isolate(tok.name) })
+                : t("mcp.revokeOtherBody", { name: isolate(tok.name), who: isolate(tok.user_email) })
+            }
             confirmLabel={t("common.revoke")}
             onConfirm={onRevoke}
           />
@@ -215,7 +257,7 @@ function CreateTokenDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
         {plaintext ? (
           <div className="flex flex-col gap-4">
             <DialogHeader>
@@ -231,11 +273,8 @@ function CreateTokenDialog({
               <CopyField value={plaintext} label={t("mcp.token")} />
             </div>
             <div className="space-y-1.5">
-              <p className="grid-micro">{t("mcp.claudeCode")}</p>
-              <CopyField
-                value={`claude mcp add --transport http moharrik ${MCP_ORIGIN}/api/mcp --header "Authorization: Bearer ${plaintext}"`}
-                label={t("mcp.claudeCode")}
-              />
+              <p className="grid-micro">{t("mcp.connectTitle")}</p>
+              <ConnectClients url={`${MCP_ORIGIN}/api/mcp`} token={plaintext} />
             </div>
             <DialogFooter>
               <Button onClick={() => handleOpenChange(false)}>{t("mcp.savedIt")}</Button>

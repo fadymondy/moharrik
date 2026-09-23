@@ -376,137 +376,18 @@ func Register(api huma.API, a *app.App) {
 		return out(*page), nil
 	})
 
-	type AddContactResult struct {
-		Contact      ContactOut `json:"contact"`
-		Status       string     `json:"status"`
-		Confirmation string     `json:"confirmation" doc:"sent | not_needed | not_sent"`
-		Error        string     `json:"error,omitempty"`
-	}
-
 	huma.Register(api, huma.Operation{
 		OperationID: "w-add-contact", Method: http.MethodPost, Path: "/api/w/contacts",
 		DefaultStatus: http.StatusCreated, Summary: "Add a contact, optionally to a list (double opt-in when the list asks for it)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Body struct {
-			Email  string `json:"email" minLength:"3" maxLength:"254"`
-			Name   string `json:"name,omitempty" maxLength:"120"`
-			Locale string `json:"locale,omitempty" enum:"en,ar"`
-			ListID string `json:"list_id,omitempty" doc:"Omit to add the contact to the CRM without subscribing it anywhere."`
-		}
+		Body AddContactInput
 	}) (*body[AddContactResult], error) {
-		s, err := scope(ctx, authz.ContactsWrite)
+		res, err := AddContact(ctx, a, in.Body)
 		if err != nil {
 			return nil, err
 		}
-		addr, err := mail.ParseAddress(strings.TrimSpace(in.Body.Email))
-		if err != nil {
-			return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
-		}
-		email := strings.ToLower(addr.Address)
-		locale := normLocale(in.Body.Locale)
-
-		// A CRM contact with no list: no subscription, no consent email.
-		if in.Body.ListID == "" {
-			var contactID string
-			if err := a.SQLDB.QueryRowContext(ctx, `
-				INSERT INTO contacts (workspace_id, email, name, locale, source) VALUES ($1, $2, $3, $4, 'crm')
-				ON CONFLICT (workspace_id, email) DO UPDATE SET
-				  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
-				  updated_at = now()
-				RETURNING id`, s.WorkspaceID, email, strings.TrimSpace(in.Body.Name), locale,
-			).Scan(&contactID); err != nil {
-				return nil, huma.Error500InternalServerError("could not add the contact")
-			}
-			res := AddContactResult{Status: "crm", Confirmation: "not_needed"}
-			if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
-				res.Contact = *c
-			}
-			return out(res), nil
-		}
-
-		var listName string
-		var doi bool
-		err = a.SQLDB.QueryRowContext(ctx,
-			`SELECT name, double_opt_in FROM mail_lists WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.Body.ListID,
-		).Scan(&listName, &doi)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("list not found")
-		}
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the list")
-		}
-
-		tx, err := a.SQLDB.BeginTx(ctx, nil)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not add the contact")
-		}
-		defer tx.Rollback() //nolint:errcheck
-		var contactID string
-		if err := tx.QueryRowContext(ctx, `
-			INSERT INTO contacts (workspace_id, email, name, locale, source) VALUES ($1, $2, $3, $4, 'manual')
-			ON CONFLICT (workspace_id, email) DO UPDATE SET
-			  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
-			  updated_at = now()
-			RETURNING id`, s.WorkspaceID, email, strings.TrimSpace(in.Body.Name), locale,
-		).Scan(&contactID); err != nil {
-			slog.ErrorContext(ctx, "upsert contact", "err", err)
-			return nil, huma.Error500InternalServerError("could not add the contact")
-		}
-
-		var subID, status, token string
-		err = tx.QueryRowContext(ctx, `
-			SELECT id, status, token FROM list_subscriptions WHERE workspace_id = $1 AND list_id = $2 AND contact_id = $3`,
-			s.WorkspaceID, in.Body.ListID, contactID).Scan(&subID, &status, &token)
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			status = StatusPending
-			if !doi {
-				status = StatusSubscribed
-			}
-			token = newToken()
-			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO list_subscriptions (workspace_id, list_id, contact_id, status, token, confirmed_at)
-				VALUES ($1, $2, $3, $4, $5, CASE WHEN $4 = 'subscribed' THEN now() END)`,
-				s.WorkspaceID, in.Body.ListID, contactID, status, token); err != nil {
-				slog.ErrorContext(ctx, "subscribe", "err", err)
-				return nil, huma.Error500InternalServerError("could not add the contact")
-			}
-		case err != nil:
-			return nil, huma.Error500InternalServerError("could not add the contact")
-		case status == StatusSubscribed:
-			// Already in; nothing to do.
-		default:
-			// Pending, unsubscribed or bounced: a re-add must not skip consent.
-			status = StatusPending
-			if !doi {
-				status = StatusSubscribed
-			}
-			token = newToken()
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE list_subscriptions SET status = $3, token = $4, unsubscribed_at = NULL, unsubscribed_by = NULL,
-				  confirmed_at = CASE WHEN $3 = 'subscribed' THEN now() ELSE confirmed_at END, updated_at = now()
-				WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, subID, status, token); err != nil {
-				return nil, huma.Error500InternalServerError("could not add the contact")
-			}
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, huma.Error500InternalServerError("could not add the contact")
-		}
-
-		res := AddContactResult{Status: status, Confirmation: "not_needed"}
-		if status == StatusPending {
-			if err := sendConfirmation(ctx, a.SQLDB, s.WorkspaceID, email, locale, listName, token); err != nil {
-				res.Confirmation, res.Error = "not_sent", err.Error()
-				a.Log.Warn("confirmation email not sent", "workspace", s.WorkspaceID, "err", err)
-			} else {
-				res.Confirmation = "sent"
-			}
-		}
-		if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
-			res.Contact = *c
-		}
-		return out(res), nil
+		return out(*res), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -1058,4 +939,137 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 			WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, status, sent, failed, lastErr)
 	}()
 	return nil
+}
+
+// AddContactInput is a new contact, optionally subscribed to one list.
+type AddContactInput struct {
+	Email  string `json:"email" minLength:"3" maxLength:"254"`
+	Name   string `json:"name,omitempty" maxLength:"120"`
+	Locale string `json:"locale,omitempty" enum:"en,ar"`
+	ListID string `json:"list_id,omitempty" doc:"Omit to add the contact to the CRM without subscribing it anywhere."`
+}
+
+type AddContactResult struct {
+	Contact      ContactOut `json:"contact"`
+	Status       string     `json:"status"`
+	Confirmation string     `json:"confirmation" doc:"sent | not_needed | not_sent"`
+	Error        string     `json:"error,omitempty"`
+}
+
+// AddContact adds a contact — or finds the one with that email — and, given a
+// list, subscribes it, with the double opt-in email when the list asks for
+// one. The REST route and internal/mcp's create_contact both call this.
+func AddContact(ctx context.Context, a *app.App, in AddContactInput) (*AddContactResult, error) {
+	s, err := scope(ctx, authz.ContactsWrite)
+	if err != nil {
+		return nil, err
+	}
+	addr, err := mail.ParseAddress(strings.TrimSpace(in.Email))
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
+	}
+	email := strings.ToLower(addr.Address)
+	locale := normLocale(in.Locale)
+
+	// A CRM contact with no list: no subscription, no consent email.
+	if in.ListID == "" {
+		var contactID string
+		if err := a.SQLDB.QueryRowContext(ctx, `
+			INSERT INTO contacts (workspace_id, email, name, locale, source) VALUES ($1, $2, $3, $4, 'crm')
+			ON CONFLICT (workspace_id, email) DO UPDATE SET
+			  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
+			  updated_at = now()
+			RETURNING id`, s.WorkspaceID, email, strings.TrimSpace(in.Name), locale,
+		).Scan(&contactID); err != nil {
+			return nil, huma.Error500InternalServerError("could not add the contact")
+		}
+		res := AddContactResult{Status: "crm", Confirmation: "not_needed"}
+		if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
+			res.Contact = *c
+		}
+		return &res, nil
+	}
+
+	var listName string
+	var doi bool
+	err = a.SQLDB.QueryRowContext(ctx,
+		`SELECT name, double_opt_in FROM mail_lists WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ListID,
+	).Scan(&listName, &doi)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, huma.Error404NotFound("list not found")
+	}
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the list")
+	}
+
+	tx, err := a.SQLDB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not add the contact")
+	}
+	defer tx.Rollback() //nolint:errcheck
+	var contactID string
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO contacts (workspace_id, email, name, locale, source) VALUES ($1, $2, $3, $4, 'manual')
+		ON CONFLICT (workspace_id, email) DO UPDATE SET
+		  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
+		  updated_at = now()
+		RETURNING id`, s.WorkspaceID, email, strings.TrimSpace(in.Name), locale,
+	).Scan(&contactID); err != nil {
+		slog.ErrorContext(ctx, "upsert contact", "err", err)
+		return nil, huma.Error500InternalServerError("could not add the contact")
+	}
+
+	var subID, status, token string
+	err = tx.QueryRowContext(ctx, `
+		SELECT id, status, token FROM list_subscriptions WHERE workspace_id = $1 AND list_id = $2 AND contact_id = $3`,
+		s.WorkspaceID, in.ListID, contactID).Scan(&subID, &status, &token)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		status = StatusPending
+		if !doi {
+			status = StatusSubscribed
+		}
+		token = newToken()
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO list_subscriptions (workspace_id, list_id, contact_id, status, token, confirmed_at)
+			VALUES ($1, $2, $3, $4, $5, CASE WHEN $4 = 'subscribed' THEN now() END)`,
+			s.WorkspaceID, in.ListID, contactID, status, token); err != nil {
+			slog.ErrorContext(ctx, "subscribe", "err", err)
+			return nil, huma.Error500InternalServerError("could not add the contact")
+		}
+	case err != nil:
+		return nil, huma.Error500InternalServerError("could not add the contact")
+	case status == StatusSubscribed:
+		// Already in; nothing to do.
+	default:
+		// Pending, unsubscribed or bounced: a re-add must not skip consent.
+		status = StatusPending
+		if !doi {
+			status = StatusSubscribed
+		}
+		token = newToken()
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE list_subscriptions SET status = $3, token = $4, unsubscribed_at = NULL, unsubscribed_by = NULL,
+			  confirmed_at = CASE WHEN $3 = 'subscribed' THEN now() ELSE confirmed_at END, updated_at = now()
+			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, subID, status, token); err != nil {
+			return nil, huma.Error500InternalServerError("could not add the contact")
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, huma.Error500InternalServerError("could not add the contact")
+	}
+
+	res := AddContactResult{Status: status, Confirmation: "not_needed"}
+	if status == StatusPending {
+		if err := sendConfirmation(ctx, a.SQLDB, s.WorkspaceID, email, locale, listName, token); err != nil {
+			res.Confirmation, res.Error = "not_sent", err.Error()
+			a.Log.Warn("confirmation email not sent", "workspace", s.WorkspaceID, "err", err)
+		} else {
+			res.Confirmation = "sent"
+		}
+	}
+	if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
+		res.Contact = *c
+	}
+	return &res, nil
 }

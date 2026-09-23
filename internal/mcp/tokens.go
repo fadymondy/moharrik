@@ -81,7 +81,11 @@ func authUser(r *http.Request, a *app.App, token string) (context.Context, []str
 // ---- token management endpoints (Settings → Developer → MCP tokens) -----
 
 type tokenOut struct {
-	ID         string     `json:"id"`
+	ID string `json:"id"`
+	// Who the token acts as (MH-396): an owner or admin sees every member's.
+	UserID     string     `json:"user_id"`
+	UserEmail  string     `json:"user_email"`
+	Mine       bool       `json:"mine"`
 	Name       string     `json:"name"`
 	Prefix     string     `json:"prefix"`
 	Scopes     []string   `json:"scopes"`
@@ -106,48 +110,20 @@ type wsHeader struct {
 func RegisterTokenRoutes(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-my-mcp-tokens", Method: http.MethodGet, Path: "/api/w/mcp_tokens",
-		Summary: "My MCP tokens in this workspace, and the scopes I may grant", Tags: []string{"MCP"},
+		Summary: "MCP tokens in this workspace — your own, or every member's for an owner or admin — and the scopes you may grant",
+		Tags:    []string{"MCP"},
 	}, func(ctx context.Context, _ *wsHeader) (*struct {
-		Body struct {
-			Tokens []tokenOut `json:"tokens"`
-			Scopes []scopeOut `json:"scopes"`
-		}
+		Body tokenList
 	}, error) {
 		s, ok := tenant.From(ctx)
 		if !ok {
 			return nil, huma.Error404NotFound("workspace not found")
 		}
-		rows, err := a.SQLDB.QueryContext(ctx, `
-			SELECT id, name, prefix, scopes, expires_at, last_used_at, revoked_at, created_at
-			FROM mcp_tokens WHERE workspace_id = $1 AND user_id = $2 ORDER BY created_at DESC`,
-			s.WorkspaceID, s.UserID)
+		list, err := ListTokens(ctx, a, s)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not list tokens")
 		}
-		defer rows.Close()
-		out := &struct {
-			Body struct {
-				Tokens []tokenOut `json:"tokens"`
-				Scopes []scopeOut `json:"scopes"`
-			}
-		}{}
-		out.Body.Tokens = []tokenOut{}
-		for rows.Next() {
-			var t tokenOut
-			var raw string
-			if err := rows.Scan(&t.ID, &t.Name, &t.Prefix, &raw, &t.ExpiresAt, &t.LastUsedAt, &t.RevokedAt, &t.CreatedAt); err != nil {
-				return nil, huma.Error500InternalServerError("could not list tokens")
-			}
-			t.Scopes = parseScopes(raw)
-			out.Body.Tokens = append(out.Body.Tokens, t)
-		}
-		for _, d := range UserScopes {
-			out.Body.Scopes = append(out.Body.Scopes, scopeOut{
-				Scope: d.Scope, Description: d.Description, MinRole: string(d.MinRole),
-				Allowed: authz.Role(s.Role).AtLeast(d.MinRole),
-			})
-		}
-		return out, nil
+		return &struct{ Body tokenList }{*list}, nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -221,6 +197,7 @@ func RegisterTokenRoutes(api huma.API, a *app.App) {
 			return nil, huma.Error500InternalServerError("could not create the token")
 		}
 		t.Scopes = scopes
+		t.UserID, t.UserEmail, t.Mine = s.UserID, s.Email, true
 		out.Body.Plaintext = plain
 		return out, nil
 	})
@@ -250,6 +227,85 @@ func RegisterTokenRoutes(api huma.API, a *app.App) {
 		}
 		return &struct{}{}, nil
 	})
+}
+
+type tokenList struct {
+	Tokens []tokenOut `json:"tokens"`
+	Scopes []scopeOut `json:"scopes"`
+	// All is true when the list is every member's tokens (owner/admin), false
+	// when it is only the caller's own.
+	All bool `json:"all"`
+}
+
+/*
+ListTokens is the token list for Settings → MCP (MH-396).
+
+An owner or admin holds TokensRevokeAny: they may revoke any token in the
+workspace, so they must be able to SEE them all — who holds it, its name, its
+scopes, when it was made, last used and expires. The list used to filter on
+the caller's own user id, which left an admin able to revoke tokens they had
+no way to find. A member still sees only their own.
+*/
+func ListTokens(ctx context.Context, a *app.App, s *tenant.Scope) (*tokenList, error) {
+	all := authz.Can(s.Role, authz.TokensRevokeAny)
+	rows, err := a.SQLDB.QueryContext(ctx, `
+		SELECT id, user_id, name, prefix, scopes, expires_at, last_used_at, revoked_at, created_at
+		FROM mcp_tokens WHERE workspace_id = $1 AND (user_id = $2 OR $3)
+		ORDER BY revoked_at IS NOT NULL, created_at DESC`,
+		s.WorkspaceID, s.UserID, all)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := &tokenList{Tokens: []tokenOut{}, Scopes: []scopeOut{}, All: all}
+	ids := map[string]bool{}
+	for rows.Next() {
+		var t tokenOut
+		var raw string
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &raw, &t.ExpiresAt, &t.LastUsedAt, &t.RevokedAt, &t.CreatedAt); err != nil {
+			return nil, err
+		}
+		t.Scopes = parseScopes(raw)
+		t.Mine = t.UserID == s.UserID
+		ids[t.UserID] = true
+		out.Tokens = append(out.Tokens, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Emails come from the owner pool (the app role has no grant on users),
+	// for exactly the ids this workspace's tokens name — including a member
+	// who has since left, whose tokens already stopped working with the
+	// membership but still belong in the list.
+	if len(ids) > 0 {
+		list := make([]string, 0, len(ids))
+		for id := range ids {
+			list = append(list, id)
+		}
+		raw, _ := json.Marshal(list)
+		emails := map[string]string{}
+		urows, err := a.SysDB.QueryContext(ctx, `SELECT id, email FROM users WHERE id IN (SELECT jsonb_array_elements_text($1::jsonb))`, string(raw))
+		if err != nil {
+			return nil, err
+		}
+		for urows.Next() {
+			var id, email string
+			if urows.Scan(&id, &email) == nil {
+				emails[id] = email
+			}
+		}
+		urows.Close()
+		for i := range out.Tokens {
+			out.Tokens[i].UserEmail = emails[out.Tokens[i].UserID]
+		}
+	}
+	for _, d := range UserScopes {
+		out.Scopes = append(out.Scopes, scopeOut{
+			Scope: d.Scope, Description: d.Description, MinRole: string(d.MinRole),
+			Allowed: authz.Role(s.Role).AtLeast(d.MinRole),
+		})
+	}
+	return out, nil
 }
 
 // errNotFound is what tools return for anything outside the caller's reach.

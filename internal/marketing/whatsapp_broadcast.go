@@ -283,7 +283,7 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 		for i, r := range audience {
 			// The same text the preview shows (campaign_edit.go).
 			text := WhatsAppText(locale, bodyText)
-			if _, err := whatsapp.Send(bg, a, wsID, r.Phone, text); err != nil {
+			if _, err := whatsapp.SendAs(bg, a, wsID, r.Phone, text, whatsapp.KindBroadcast); err != nil {
 				failed++
 				lastErr = err.Error()
 			} else {
@@ -320,7 +320,7 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 var ErrNotSendable = errors.New("this campaign is not a WhatsApp draft")
 
 // whatsappPace is the gap between messages in a broadcast.
-const whatsappPace = 1200 * time.Millisecond
+const whatsappPace = whatsapp.Pace
 
 // stopHint is the way out, on every broadcast. Email has a header for this;
 // WhatsApp has only the message itself, so it has to be in the text.

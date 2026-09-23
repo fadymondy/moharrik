@@ -267,35 +267,53 @@ func TestListCapsAreGone(t *testing.T) {
 	})
 
 	t.Run("MCP list_companies and list_deals state their totals and page", func(t *testing.T) {
+		// MH-393: both answer in JSON — total, the rows with their ids, and
+		// next_cursor — so an agent can act on a row it read.
 		tok := alice.must("POST", "/api/w/mcp_tokens", map[string]any{"name": "caps-crm", "scopes": []string{"contacts:read"}}, 201)
 		bot := newClient(t, srv.URL)
 		bot.bearer = tok["plaintext"].(string)
 		for _, c := range []struct {
-			tool, head, row string
-			limit, want     int
+			tool, rows  string
+			limit, want int
 		}{
-			{"list_companies", " of 2001 compan", "open deal(s)", 200, 2001},
-			{"list_deals", " of 2001 deal(s)", "Caps deal ", 500, 2001},
+			{"list_companies", "companies", 200, 2001},
+			{"list_deals", "deals", 500, 2001},
 		} {
-			cursor, seen := "", 0
+			cursor := ""
+			seen := map[string]bool{}
 			for pages := 0; pages < 50; pages++ {
 				args := map[string]any{"limit": c.limit}
 				if cursor != "" {
 					args["cursor"] = cursor
 				}
 				_, text, isErr := mcpCall(bot, "/api/mcp", c.tool, args)
-				if isErr || !strings.Contains(text, c.head) {
-					t.Fatalf("%s: %v %.120s", c.tool, isErr, text)
+				var page struct {
+					Total      int64            `json:"total"`
+					NextCursor string           `json:"next_cursor"`
+					Companies  []map[string]any `json:"companies"`
+					Deals      []map[string]any `json:"deals"`
 				}
-				seen += strings.Count(text, c.row)
-				i := strings.Index(text, "cursor=")
-				if i < 0 {
+				if isErr || json.Unmarshal([]byte(text), &page) != nil || page.Total != int64(c.want) {
+					t.Fatalf("%s: %v %.160s", c.tool, isErr, text)
+				}
+				rows := page.Companies
+				if c.rows == "deals" {
+					rows = page.Deals
+				}
+				for _, r := range rows {
+					id, _ := r["id"].(string)
+					if id == "" || seen[id] {
+						t.Fatalf("%s: a row with no id, or twice: %v", c.tool, r)
+					}
+					seen[id] = true
+				}
+				if page.NextCursor == "" {
 					break
 				}
-				cursor = strings.TrimSpace(text[i+len("cursor="):])
+				cursor = page.NextCursor
 			}
-			if seen != c.want {
-				t.Errorf("%s paged %d rows, want %d", c.tool, seen, c.want)
+			if len(seen) != c.want {
+				t.Errorf("%s paged %d rows, want %d", c.tool, len(seen), c.want)
 			}
 		}
 	})

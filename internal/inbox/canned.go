@@ -61,22 +61,9 @@ func registerCanned(api huma.API, a *app.App) {
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
 		Replies []CannedReplyOut `json:"replies"`
 	}], error) {
-		s, err := scope(ctx, authz.InboxRead)
+		list, err := ListCannedReplies(ctx, a)
 		if err != nil {
 			return nil, err
-		}
-		rows, err := db().QueryContext(ctx, cannedSelect+` ORDER BY position, lower(title), created_at LIMIT 500`, s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list canned replies")
-		}
-		defer rows.Close()
-		list := []CannedReplyOut{}
-		for rows.Next() {
-			c, err := scanCanned(rows)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not list canned replies")
-			}
-			list = append(list, c)
 		}
 		return out(struct {
 			Replies []CannedReplyOut `json:"replies"`

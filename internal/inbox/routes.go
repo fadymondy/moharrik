@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,9 +14,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/clientip"
-	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
-	"github.com/fadymondy/moharrik/internal/whatsapp"
 )
 
 var tags = []string{"Inbox"}
@@ -98,94 +95,31 @@ func Register(api huma.API, a *app.App) {
 		Summary: "The inbox: conversations, most recent first", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Status  string `query:"status" enum:",open,snoozed,closed"`
-		Unread  bool   `query:"unread" doc:"Only conversations the team has not opened since the last inbound message."`
-		Channel string `query:"channel" enum:",chat,email,whatsapp"`
-		Limit   int    `query:"limit" minimum:"1" maximum:"200"`
-	}) (*body[struct {
-		Conversations []ConversationOut `json:"conversations"`
-		UnreadCount   int64             `json:"unread_count"`
-	}], error) {
-		s, err := scope(ctx, authz.InboxRead)
+		Status    string `query:"status" enum:",open,snoozed,closed"`
+		Unread    bool   `query:"unread" doc:"Only conversations the team has not opened since the last inbound message."`
+		Channel   string `query:"channel" enum:",chat,email,whatsapp"`
+		ContactID string `query:"contact_id" doc:"Only conversations linked to this CRM contact."`
+		Q         string `query:"q" maxLength:"200" doc:"Search the customer's name, email and phone and the subject."`
+		Limit     int    `query:"limit" minimum:"1" maximum:"200"`
+	}) (*body[ConversationList], error) {
+		res, err := ListConversations(ctx, a, ConversationFilter{
+			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, Q: in.Q, Limit: in.Limit,
+		})
 		if err != nil {
 			return nil, err
 		}
-		// A snooze that has run out is over whether or not the waker has come
-		// round yet: the list never shows a thread as snoozed past its time.
-		wakeDue(ctx, a, s.WorkspaceID)
-		q := conversationSelect
-		args := []any{s.WorkspaceID}
-		if in.Status != "" {
-			args = append(args, in.Status)
-			q += ` AND c.status = $` + strconv.Itoa(len(args))
-		}
-		if in.Channel != "" {
-			args = append(args, in.Channel)
-			q += ` AND c.channel = $` + strconv.Itoa(len(args))
-		}
-		if in.Unread {
-			q += ` AND c.unread`
-		}
-		limit := in.Limit
-		if limit <= 0 {
-			limit = 100
-		}
-		q += ` ORDER BY c.last_message_at DESC LIMIT ` + strconv.Itoa(limit)
-		rows, err := db().QueryContext(ctx, q, args...)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list conversations")
-		}
-		defer rows.Close()
-		list := []ConversationOut{}
-		for rows.Next() {
-			c, err := scanConversation(rows)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not list conversations")
-			}
-			list = append(list, c)
-		}
-		var unread int64
-		if err := db().QueryRowContext(ctx, `SELECT count(*) FROM conversations WHERE workspace_id = $1 AND unread`, s.WorkspaceID).Scan(&unread); err != nil {
-			return nil, huma.Error500InternalServerError("could not count unread conversations")
-		}
-		return out(struct {
-			Conversations []ConversationOut `json:"conversations"`
-			UnreadCount   int64             `json:"unread_count"`
-		}{list, unread}), nil
+		return out(*res), nil
 	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-conversation", Method: http.MethodGet, Path: "/api/w/conversations/{id}",
 		Summary: "One conversation and its whole thread (opening it marks it read)", Tags: tags,
 	}, func(ctx context.Context, in *idPath) (*body[conversationDetail], error) {
-		s, err := scope(ctx, authz.InboxRead)
+		res, err := GetConversation(ctx, a, in.ID)
 		if err != nil {
 			return nil, err
 		}
-		wakeDue(ctx, a, s.WorkspaceID)
-		c, err := readConversation(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("conversation not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
-		msgs, err := thread(ctx, db(), s.WorkspaceID, in.ID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the thread")
-		}
-		// Opening a thread is what "read" means here; a member with inbox:read
-		// only is still allowed to clear it — seeing it IS reading it.
-		if c.Unread {
-			_, _ = db().ExecContext(ctx, `UPDATE conversations SET unread = false, updated_at = now() WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
-			c.Unread = false
-			// Every other tab's bell drops its count.
-			changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "conversation", ConversationID: in.ID})
-		}
-		lang, err := replyLanguageFor(ctx, db(), s.WorkspaceID, c, msgs)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
-		return out(conversationDetail{Conversation: c, Messages: msgs, Visitor: guessVisitor(c, msgs, lang), ReplyLanguage: lang}), nil
+		return out(*res), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -200,70 +134,13 @@ func Register(api huma.API, a *app.App) {
 	}) (*body[struct {
 		Message MessageOut `json:"message"`
 	}], error) {
-		s, err := scope(ctx, authz.InboxWrite)
+		m, err := Reply(ctx, a, in.ID, in.Body.Body)
 		if err != nil {
 			return nil, err
 		}
-		text := strings.TrimSpace(in.Body.Body)
-		if text == "" {
-			return nil, huma.Error422UnprocessableEntity("a message is required")
-		}
-		var channel, customerEmail, customerPhone, subject string
-		if err := db().QueryRowContext(ctx, `
-			SELECT channel, customer_email, customer_phone, subject FROM conversations WHERE workspace_id = $1 AND id = $2`,
-			s.WorkspaceID, in.ID).Scan(&channel, &customerEmail, &customerPhone, &subject); err != nil {
-			if notFound(err) {
-				return nil, huma.Error404NotFound("conversation not found")
-			}
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
-
-		// An email thread is answered by EMAIL, and the send happens before the
-		// row is written: a reply the customer never received must not sit in
-		// the thread looking sent. Chat is the other way round (the widget polls
-		// for it), which is why this is here rather than after the insert.
-		var sentID string
-		switch channel {
-		case "email":
-			sentID, err = SendEmailReply(ctx, a, s.WorkspaceID, in.ID, customerEmail, subject, text)
-			if err != nil {
-				return nil, mailError(err)
-			}
-		case "whatsapp":
-			// Same rule as email: send first, write the row after. A reply the
-			// customer never received must not sit in the thread looking sent.
-			sentID, err = whatsapp.Send(ctx, a, s.WorkspaceID, customerPhone, text)
-			if err != nil {
-				return nil, whatsappError(err)
-			}
-		}
-		var id string
-		var createdAt time.Time
-		// sentID is the Message-ID this reply went out with: storing it is what
-		// lets the customer's answer thread back onto this conversation.
-		if err := db().QueryRowContext(ctx, `
-			INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body, external_id)
-			VALUES ($1, $2, 'out', $3, $4, $5) RETURNING id, created_at`,
-			s.WorkspaceID, in.ID, s.UserID, text, sentID,
-		).Scan(&id, &createdAt); err != nil {
-			return nil, huma.Error500InternalServerError("could not send the reply")
-		}
-		// A reply is the team's answer: the thread stops being unread, and it
-		// reopens a closed conversation rather than replying into a closed one.
-		_, _ = db().ExecContext(ctx, `
-			UPDATE conversations SET last_message_at = now(), unread = false, updated_at = now(),
-			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END,
-			  closed_at = NULL
-			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
-		// Two members can have the same thread open; the one who did not type
-		// should see the reply appear, not a stale thread.
-		// It names its author, so the author's own tab is never alerted by it
-		// (replies never alert anyone; see realtime.Event.For).
-		changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "message", Direction: "out", ConversationID: in.ID, AuthorUserID: s.UserID})
-		uid := s.UserID
 		return out(struct {
 			Message MessageOut `json:"message"`
-		}{MessageOut{ID: id, Direction: "out", AuthorUserID: &uid, AuthorEmail: s.Email, Body: text, CreatedAt: createdAt}}), nil
+		}{*m}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -275,112 +152,17 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body struct {
-			Status         *string `json:"status,omitempty" enum:"open,snoozed,closed"`
-			SnoozedUntil   *string `json:"snoozed_until,omitempty" doc:"RFC 3339. Snoozes the conversation until then (it must be in the future). Empty string wakes it."`
-			AssigneeUserID *string `json:"assignee_user_id,omitempty" doc:"A member's user id; empty string unassigns."`
-			ContactID      *string `json:"contact_id,omitempty" doc:"A CRM contact id; empty string unlinks (and stops the automatic email/phone match relinking it)."`
-			Subject        *string `json:"subject,omitempty" maxLength:"200"`
-			Unread         *bool   `json:"unread,omitempty"`
-		}
+		Body ConversationPatch
 	}) (*body[struct {
 		Conversation ConversationOut `json:"conversation"`
 	}], error) {
-		s, err := scope(ctx, authz.InboxWrite)
+		c, err := UpdateConversation(ctx, a, in.ID, in.Body)
 		if err != nil {
 			return nil, err
 		}
-		u := &update{}
-		status := ""
-		if in.Body.Status != nil {
-			if !statuses[*in.Body.Status] {
-				return nil, huma.Error422UnprocessableEntity("unknown status")
-			}
-			status = *in.Body.Status
-		}
-		if in.Body.SnoozedUntil != nil {
-			raw := strings.TrimSpace(*in.Body.SnoozedUntil)
-			if raw == "" {
-				// Waking it: back to open, unless the same request says otherwise.
-				if status == "" || status == "snoozed" {
-					status = "open"
-				}
-			} else {
-				until, err := time.Parse(time.RFC3339, raw)
-				if err != nil {
-					return nil, huma.Error422UnprocessableEntity("snoozed_until must be an RFC 3339 time")
-				}
-				if !until.After(time.Now()) {
-					return nil, huma.Error422UnprocessableEntity("snoozed_until must be in the future")
-				}
-				if until.After(time.Now().AddDate(1, 0, 0)) {
-					return nil, huma.Error422UnprocessableEntity("a conversation can be snoozed for a year at most")
-				}
-				if status != "" && status != "snoozed" {
-					return nil, huma.Error422UnprocessableEntity("snoozed_until only goes with status snoozed")
-				}
-				status = "snoozed"
-				u.set("snoozed_until", until.UTC())
-			}
-		}
-		if status != "" {
-			u.set("status", status)
-			if status != "snoozed" {
-				u.sets = append(u.sets, "snoozed_until = NULL")
-			} else if in.Body.SnoozedUntil == nil || strings.TrimSpace(*in.Body.SnoozedUntil) == "" {
-				// Snoozed with no time: until the customer writes again.
-				u.sets = append(u.sets, "snoozed_until = NULL")
-			}
-			// When it was closed is what the stats' time to resolution reads. A
-			// close of an already-closed thread keeps the first time.
-			if status == "closed" {
-				u.sets = append(u.sets, "closed_at = CASE WHEN status = 'closed' AND closed_at IS NOT NULL THEN closed_at ELSE now() END")
-			} else {
-				u.sets = append(u.sets, "closed_at = NULL")
-			}
-		}
-		if in.Body.AssigneeUserID != nil {
-			if err := checkMember(ctx, db(), s.WorkspaceID, *in.Body.AssigneeUserID); err != nil {
-				return nil, err
-			}
-			u.set("assignee_user_id", nullable(*in.Body.AssigneeUserID))
-		}
-		if in.Body.ContactID != nil {
-			u.set("contact_id", nullable(*in.Body.ContactID))
-			// A member's choice, linking or unlinking, is final: the automatic
-			// match on the next email or WhatsApp message leaves it alone.
-			u.sets = append(u.sets, "contact_link = 'manual'")
-		}
-		if in.Body.Subject != nil {
-			u.set("subject", strings.TrimSpace(*in.Body.Subject))
-		}
-		if in.Body.Unread != nil {
-			u.set("unread", *in.Body.Unread)
-		}
-		if len(u.sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE conversations SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
-			if err != nil {
-				if pgCode(err) == "23503" {
-					return nil, huma.Error422UnprocessableEntity("that contact or member is not in this workspace")
-				}
-				return nil, huma.Error500InternalServerError("could not update the conversation")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("conversation not found")
-			}
-			changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "conversation", ConversationID: in.ID, AuthorUserID: s.UserID})
-		}
-		row := db().QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, s.WorkspaceID, in.ID)
-		c, err := scanConversation(row)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("conversation not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
 		return out(struct {
 			Conversation ConversationOut `json:"conversation"`
-		}{c}), nil
+		}{*c}), nil
 	})
 
 	// ---- chat widgets ------------------------------------------------------

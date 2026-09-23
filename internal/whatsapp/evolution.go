@@ -188,23 +188,34 @@ func (c *Client) State(ctx context.Context) (string, error) {
 	return firstNonEmpty(out.Instance.State, out.State, "unknown"), nil
 }
 
-// Create makes the instance and returns its first QR code.
-func (c *Client) Create(ctx context.Context) (QRCode, error) {
+// Create makes the instance and returns its first QR code. With a number
+// (digits, country code first) Evolution also returns a pairing code to type
+// on that phone, for when scanning a QR is not possible.
+func (c *Client) Create(ctx context.Context, number string) (QRCode, error) {
 	var out struct {
 		QRCode QRCode `json:"qrcode"`
 	}
-	err := c.do(ctx, http.MethodPost, "/instance/create", map[string]any{
+	body := map[string]any{
 		"instanceName": c.Instance,
 		"qrcode":       true,
 		"integration":  "WHATSAPP-BAILEYS",
-	}, &out)
+	}
+	if number != "" {
+		body["number"] = number
+	}
+	err := c.do(ctx, http.MethodPost, "/instance/create", body, &out)
 	return out.QRCode, err
 }
 
-// Connect asks for a fresh QR code for an instance that already exists.
-func (c *Client) Connect(ctx context.Context) (QRCode, error) {
+// Connect asks for a fresh QR code for an instance that already exists, and a
+// pairing code when a number is given.
+func (c *Client) Connect(ctx context.Context, number string) (QRCode, error) {
 	var out QRCode
-	err := c.do(ctx, http.MethodGet, "/instance/connect/"+c.inst(), nil, &out)
+	path := "/instance/connect/" + c.inst()
+	if number != "" {
+		path += "?number=" + url.QueryEscape(number)
+	}
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
 	return out, err
 }
 

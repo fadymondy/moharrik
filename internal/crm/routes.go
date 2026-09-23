@@ -3,16 +3,13 @@ package crm
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
-	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -65,27 +62,6 @@ type RelatedDealsOut struct {
 type idPath struct {
 	wsHeader
 	ID string `path:"id"`
-}
-
-type companyBody struct {
-	Name        *string `json:"name,omitempty" maxLength:"120"`
-	Domain      *string `json:"domain,omitempty" maxLength:"253"`
-	Industry    *string `json:"industry,omitempty" maxLength:"80"`
-	Size        *string `json:"size,omitempty" enum:",1-10,11-50,51-200,201-1000,1000+"`
-	Notes       *string `json:"notes,omitempty" maxLength:"5000"`
-	OwnerUserID *string `json:"owner_user_id,omitempty" doc:"A member's user id; empty string unassigns."`
-}
-
-type dealBody struct {
-	Title         *string  `json:"title,omitempty" maxLength:"160"`
-	ValueMinor    *int64   `json:"value_minor,omitempty" minimum:"0" doc:"Minor units (cents)."`
-	Currency      *string  `json:"currency,omitempty" pattern:"^[A-Z]{3}$"`
-	StageID       *string  `json:"stage_id,omitempty"`
-	Position      *float64 `json:"position,omitempty" doc:"Order inside the stage column; omitted on a stage change = last."`
-	ContactID     *string  `json:"contact_id,omitempty" doc:"Empty string unlinks."`
-	CompanyID     *string  `json:"company_id,omitempty" doc:"Empty string unlinks."`
-	OwnerUserID   *string  `json:"owner_user_id,omitempty"`
-	ExpectedClose *string  `json:"expected_close,omitempty" doc:"YYYY-MM-DD; empty string clears."`
 }
 
 type stageIn struct {
@@ -237,29 +213,9 @@ func Register(api huma.API, a *app.App) {
 		Cursor  string `query:"cursor" doc:"next_cursor from the previous page (or a stage's)"`
 		Limit   int    `query:"limit" minimum:"0" maximum:"500" doc:"Board: deals per stage (default 100). List: page size (default 50). At most 500."`
 	}) (*body[DealsPage], error) {
-		s, err := scope(ctx, authz.ContactsRead)
+		page, err := DealsPageFor(ctx, db(), DealsQuery{View: in.View, StageID: in.StageID, Cursor: in.Cursor, Limit: in.Limit})
 		if err != nil {
 			return nil, err
-		}
-		if err := EnsureStages(ctx, db(), s.WorkspaceID); err != nil {
-			return nil, huma.Error500InternalServerError("could not prepare the pipeline")
-		}
-		def := DefaultDealsPerStage
-		if in.View == "list" {
-			def = DefaultDealsPage
-		}
-		limit, err := paging.Limit(in.Limit, def, MaxDealsPage)
-		if err != nil {
-			return nil, huma.Error422UnprocessableEntity(err.Error())
-		}
-		page, err := ListDealsPage(ctx, db(), s.WorkspaceID, DealsQuery{View: in.View, StageID: strings.TrimSpace(in.StageID), Cursor: in.Cursor, Limit: limit})
-		switch {
-		case errors.Is(err, paging.ErrBadCursor):
-			return nil, huma.Error422UnprocessableEntity(err.Error())
-		case errors.Is(err, ErrNoSuchStage):
-			return nil, huma.Error404NotFound(err.Error())
-		case err != nil:
-			return nil, huma.Error500InternalServerError("could not list deals")
 		}
 		return out(*page), nil
 	})
@@ -269,82 +225,13 @@ func Register(api huma.API, a *app.App) {
 		DefaultStatus: http.StatusCreated, Summary: "Open a deal (first open stage, workspace currency and you as owner unless given)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Body dealBody
+		Body DealFields
 	}) (*body[struct {
 		Deal DealOut `json:"deal"`
 	}], error) {
-		s, err := scope(ctx, authz.ContactsWrite)
+		d, err := CreateDeal(ctx, db(), in.Body)
 		if err != nil {
 			return nil, err
-		}
-		b := in.Body
-		title := ""
-		if b.Title != nil {
-			title = strings.TrimSpace(*b.Title)
-		}
-		if title == "" {
-			return nil, huma.Error422UnprocessableEntity("a title is required")
-		}
-		if err := EnsureStages(ctx, db(), s.WorkspaceID); err != nil {
-			return nil, huma.Error500InternalServerError("could not prepare the pipeline")
-		}
-		stageID, kind := "", ""
-		if b.StageID != nil && *b.StageID != "" {
-			err = db().QueryRowContext(ctx, `SELECT id, kind FROM pipeline_stages WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, *b.StageID).Scan(&stageID, &kind)
-		} else {
-			err = db().QueryRowContext(ctx, `SELECT id, kind FROM pipeline_stages WHERE workspace_id = $1 AND kind = 'open' ORDER BY position LIMIT 1`, s.WorkspaceID).Scan(&stageID, &kind)
-		}
-		if notFound(err) {
-			return nil, huma.Error422UnprocessableEntity("stage not found in this pipeline")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the pipeline")
-		}
-		currency := ""
-		if b.Currency != nil {
-			currency = *b.Currency
-		}
-		if currency == "" {
-			_ = db().QueryRowContext(ctx, `SELECT currency FROM workspaces WHERE id = $1`, s.WorkspaceID).Scan(&currency)
-		}
-		owner := any(s.UserID)
-		if b.OwnerUserID != nil {
-			if err := checkOwner(ctx, db(), s.WorkspaceID, b.OwnerUserID); err != nil {
-				return nil, err
-			}
-			owner = nullable(*b.OwnerUserID)
-		}
-		var value int64
-		if b.ValueMinor != nil {
-			value = *b.ValueMinor
-		}
-		var expected any
-		if b.ExpectedClose != nil {
-			if expected, err = parseDate(*b.ExpectedClose); err != nil {
-				return nil, err
-			}
-		}
-		str := func(p *string) any {
-			if p == nil {
-				return nil
-			}
-			return nullable(*p)
-		}
-		var id string
-		err = db().QueryRowContext(ctx, `
-			INSERT INTO deals (workspace_id, title, value_minor, currency, stage_id, position, contact_id, company_id,
-			                   owner_user_id, expected_close, closed_at, created_by)
-			VALUES ($1, $2, $3, $4, $5,
-			        (SELECT coalesce(max(position), 0) + 1 FROM deals WHERE workspace_id = $1 AND stage_id = $5),
-			        $6, $7, $8, $9::date, CASE WHEN $10 = 'open' THEN NULL ELSE now() END, $11)
-			RETURNING id`,
-			s.WorkspaceID, title, value, currency, stageID, str(b.ContactID), str(b.CompanyID), owner, expected, kind, s.UserID,
-		).Scan(&id)
-		if err != nil {
-			return nil, linkErr(err, "could not create the deal")
-		}
-		d, err := getDeal(ctx, db(), s.WorkspaceID, id)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the deal")
 		}
 		return out(struct {
 			Deal DealOut `json:"deal"`
@@ -355,21 +242,11 @@ func Register(api huma.API, a *app.App) {
 		OperationID: "w-deal", Method: http.MethodGet, Path: "/api/w/deals/{id}",
 		Summary: "One deal and its timeline", Tags: tags,
 	}, func(ctx context.Context, in *idPath) (*body[DealDetailOut], error) {
-		s, err := scope(ctx, authz.ContactsRead)
+		d, err := GetDealDetail(ctx, db(), in.ID)
 		if err != nil {
 			return nil, err
 		}
-		d, err := getDeal(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("deal not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the deal")
-		}
-		tl, err := firstTimelinePage(ctx, db(), s, timelineDeal, in.ID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the timeline")
-		}
-		return out(DealDetailOut{*d, tl}), nil
+		return out(*d), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -378,82 +255,13 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body dealBody
+		Body DealFields
 	}) (*body[struct {
 		Deal DealOut `json:"deal"`
 	}], error) {
-		s, err := scope(ctx, authz.ContactsWrite)
+		d, err := UpdateDeal(ctx, db(), in.ID, in.Body)
 		if err != nil {
 			return nil, err
-		}
-		b := in.Body
-		u := &update{}
-		if b.Title != nil {
-			t := strings.TrimSpace(*b.Title)
-			if t == "" {
-				return nil, huma.Error422UnprocessableEntity("a title is required")
-			}
-			u.set("title", t)
-		}
-		if b.ValueMinor != nil {
-			u.set("value_minor", *b.ValueMinor)
-		}
-		if b.Currency != nil && *b.Currency != "" {
-			u.set("currency", *b.Currency)
-		}
-		if b.ContactID != nil {
-			u.set("contact_id", nullable(*b.ContactID))
-		}
-		if b.CompanyID != nil {
-			u.set("company_id", nullable(*b.CompanyID))
-		}
-		if b.OwnerUserID != nil {
-			if err := checkOwner(ctx, db(), s.WorkspaceID, b.OwnerUserID); err != nil {
-				return nil, err
-			}
-			u.set("owner_user_id", nullable(*b.OwnerUserID))
-		}
-		if b.ExpectedClose != nil {
-			v, err := parseDate(*b.ExpectedClose)
-			if err != nil {
-				return nil, err
-			}
-			u.set("expected_close", v)
-		}
-		if b.StageID != nil && *b.StageID != "" {
-			var kind string
-			err := db().QueryRowContext(ctx, `SELECT kind FROM pipeline_stages WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, *b.StageID).Scan(&kind)
-			if notFound(err) {
-				return nil, huma.Error422UnprocessableEntity("stage not found in this pipeline")
-			} else if err != nil {
-				return nil, huma.Error500InternalServerError("could not read the pipeline")
-			}
-			u.set("stage_id", *b.StageID)
-			u.args = append(u.args, kind)
-			u.sets = append(u.sets, "closed_at = CASE WHEN $"+strconv.Itoa(len(u.args)+2)+" = 'open' THEN NULL ELSE coalesce(closed_at, now()) END")
-			if b.Position == nil {
-				u.args = append(u.args, *b.StageID)
-				u.sets = append(u.sets, "position = (SELECT coalesce(max(position), 0) + 1 FROM deals WHERE workspace_id = $1 AND stage_id = $"+strconv.Itoa(len(u.args)+2)+")")
-			}
-		}
-		if b.Position != nil {
-			u.set("position", *b.Position)
-		}
-		if len(u.sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE deals SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
-			if err != nil {
-				return nil, linkErr(err, "could not update the deal")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("deal not found")
-			}
-		}
-		d, err := getDeal(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("deal not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the deal")
 		}
 		return out(struct {
 			Deal DealOut `json:"deal"`
@@ -481,19 +289,9 @@ func Register(api huma.API, a *app.App) {
 		Cursor string `query:"cursor" doc:"next_cursor from the previous page"`
 		Limit  int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
 	}) (*body[CompanyPage], error) {
-		s, err := scope(ctx, authz.ContactsRead)
+		page, err := CompaniesPage(ctx, db(), in.Q, in.Cursor, in.Limit)
 		if err != nil {
 			return nil, err
-		}
-		limit, err := paging.Limit(in.Limit, DefaultCompanyPage, MaxCompanyPage)
-		if err != nil {
-			return nil, huma.Error422UnprocessableEntity(err.Error())
-		}
-		page, err := ListCompaniesPage(ctx, db(), s.WorkspaceID, in.Q, in.Cursor, limit)
-		if errors.Is(err, paging.ErrBadCursor) {
-			return nil, huma.Error422UnprocessableEntity(err.Error())
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not list companies")
 		}
 		return out(*page), nil
 	})
@@ -503,49 +301,13 @@ func Register(api huma.API, a *app.App) {
 		DefaultStatus: http.StatusCreated, Summary: "Add a company (one per domain)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Body companyBody
+		Body CompanyFields
 	}) (*body[struct {
 		Company CompanyOut `json:"company"`
 	}], error) {
-		s, err := scope(ctx, authz.ContactsWrite)
+		c, err := CreateCompany(ctx, db(), in.Body)
 		if err != nil {
 			return nil, err
-		}
-		b := in.Body
-		val := func(p *string) string {
-			if p == nil {
-				return ""
-			}
-			return strings.TrimSpace(*p)
-		}
-		name := val(b.Name)
-		if name == "" {
-			return nil, huma.Error422UnprocessableEntity("a name is required")
-		}
-		if !companySizes[val(b.Size)] {
-			return nil, huma.Error422UnprocessableEntity("unknown company size")
-		}
-		owner := any(s.UserID)
-		if b.OwnerUserID != nil {
-			if err := checkOwner(ctx, db(), s.WorkspaceID, b.OwnerUserID); err != nil {
-				return nil, err
-			}
-			owner = nullable(*b.OwnerUserID)
-		}
-		var id string
-		err = db().QueryRowContext(ctx, `
-			INSERT INTO companies (workspace_id, name, domain, industry, size, notes, owner_user_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-			s.WorkspaceID, name, normDomain(val(b.Domain)), val(b.Industry), val(b.Size), val(b.Notes), owner,
-		).Scan(&id)
-		if pgCode(err) == "23505" {
-			return nil, huma.Error409Conflict("a company with that domain already exists")
-		} else if err != nil {
-			return nil, linkErr(err, "could not add the company")
-		}
-		c, err := getCompany(ctx, db(), s.WorkspaceID, id)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the company")
 		}
 		return out(struct {
 			Company CompanyOut `json:"company"`
@@ -556,27 +318,11 @@ func Register(api huma.API, a *app.App) {
 		OperationID: "w-company", Method: http.MethodGet, Path: "/api/w/companies/{id}",
 		Summary: "One company: its people, deals and timeline", Tags: tags,
 	}, func(ctx context.Context, in *idPath) (*body[CompanyDetailOut], error) {
-		s, err := scope(ctx, authz.ContactsRead)
+		d, err := GetCompanyDetail(ctx, db(), in.ID)
 		if err != nil {
 			return nil, err
 		}
-		c, err := getCompany(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("company not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the company")
-		}
-		res := out(CompanyDetailOut{Company: *c})
-		if res.Body.Contacts, err = companyContacts(ctx, db(), s.WorkspaceID, in.ID); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the company")
-		}
-		if res.Body.Deals, res.Body.DealsTotal, err = relatedDeals(ctx, db(), s.WorkspaceID, "AND d.company_id = $2", in.ID); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the company")
-		}
-		if res.Body.TimelineOut, err = firstTimelinePage(ctx, db(), s, timelineCompany, in.ID); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the timeline")
-		}
-		return res, nil
+		return out(*d), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -585,61 +331,13 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body companyBody
+		Body CompanyFields
 	}) (*body[struct {
 		Company CompanyOut `json:"company"`
 	}], error) {
-		s, err := scope(ctx, authz.ContactsWrite)
+		c, err := UpdateCompany(ctx, db(), in.ID, in.Body)
 		if err != nil {
 			return nil, err
-		}
-		b := in.Body
-		u := &update{}
-		if b.Name != nil {
-			n := strings.TrimSpace(*b.Name)
-			if n == "" {
-				return nil, huma.Error422UnprocessableEntity("a name is required")
-			}
-			u.set("name", n)
-		}
-		if b.Domain != nil {
-			u.set("domain", normDomain(*b.Domain))
-		}
-		if b.Industry != nil {
-			u.set("industry", strings.TrimSpace(*b.Industry))
-		}
-		if b.Size != nil {
-			if !companySizes[*b.Size] {
-				return nil, huma.Error422UnprocessableEntity("unknown company size")
-			}
-			u.set("size", *b.Size)
-		}
-		if b.Notes != nil {
-			u.set("notes", strings.TrimSpace(*b.Notes))
-		}
-		if b.OwnerUserID != nil {
-			if err := checkOwner(ctx, db(), s.WorkspaceID, b.OwnerUserID); err != nil {
-				return nil, err
-			}
-			u.set("owner_user_id", nullable(*b.OwnerUserID))
-		}
-		if len(u.sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE companies SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
-			if pgCode(err) == "23505" {
-				return nil, huma.Error409Conflict("a company with that domain already exists")
-			} else if err != nil {
-				return nil, linkErr(err, "could not update the company")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("company not found")
-			}
-		}
-		c, err := getCompany(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("company not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the company")
 		}
 		return out(struct {
 			Company CompanyOut `json:"company"`
@@ -659,24 +357,11 @@ func Register(api huma.API, a *app.App) {
 		OperationID: "w-contact", Method: http.MethodGet, Path: "/api/w/contacts/{id}",
 		Summary: "One contact: CRM fields, list subscriptions, deals and timeline", Tags: tags,
 	}, func(ctx context.Context, in *idPath) (*body[ContactPageOut], error) {
-		s, err := scope(ctx, authz.ContactsRead)
+		c, err := GetContactPage(ctx, db(), in.ID)
 		if err != nil {
 			return nil, err
 		}
-		c, err := getContact(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("contact not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the contact")
-		}
-		res := out(ContactPageOut{Contact: *c})
-		if res.Body.Deals, res.Body.DealsTotal, err = relatedDeals(ctx, db(), s.WorkspaceID, "AND d.contact_id = $2", in.ID); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the contact")
-		}
-		if res.Body.TimelineOut, err = firstTimelinePage(ctx, db(), s, timelineContact, in.ID); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the timeline")
-		}
-		return res, nil
+		return out(*c), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -685,60 +370,13 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body struct {
-			Name        *string   `json:"name,omitempty" maxLength:"120"`
-			Phone       *string   `json:"phone,omitempty" maxLength:"40"`
-			Title       *string   `json:"title,omitempty" maxLength:"120"`
-			CompanyID   *string   `json:"company_id,omitempty" doc:"Empty string unlinks."`
-			OwnerUserID *string   `json:"owner_user_id,omitempty"`
-			Tags        *[]string `json:"tags,omitempty" maxItems:"20"`
-		}
+		Body ContactFields
 	}) (*body[struct {
 		Contact ContactDetail `json:"contact"`
 	}], error) {
-		s, err := scope(ctx, authz.ContactsWrite)
+		c, err := UpdateContact(ctx, db(), in.ID, in.Body)
 		if err != nil {
 			return nil, err
-		}
-		b := in.Body
-		u := &update{}
-		if b.Name != nil {
-			u.set("name", strings.TrimSpace(*b.Name))
-		}
-		if b.Phone != nil {
-			u.set("phone", strings.TrimSpace(*b.Phone))
-		}
-		if b.Title != nil {
-			u.set("title", strings.TrimSpace(*b.Title))
-		}
-		if b.CompanyID != nil {
-			u.set("company_id", nullable(*b.CompanyID))
-		}
-		if b.OwnerUserID != nil {
-			if err := checkOwner(ctx, db(), s.WorkspaceID, b.OwnerUserID); err != nil {
-				return nil, err
-			}
-			u.set("owner_user_id", nullable(*b.OwnerUserID))
-		}
-		if b.Tags != nil {
-			u.args = append(u.args, tagsJSON(normTags(*b.Tags)))
-			u.sets = append(u.sets, "tags = ARRAY(SELECT jsonb_array_elements_text($"+strconv.Itoa(len(u.args)+2)+"::jsonb))")
-		}
-		if len(u.sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE contacts SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
-			if err != nil {
-				return nil, linkErr(err, "could not update the contact")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("contact not found ")
-			}
-		}
-		c, err := getContact(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("contact not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the contact")
 		}
 		return out(struct {
 			Contact ContactDetail `json:"contact"`
@@ -761,32 +399,9 @@ func Register(api huma.API, a *app.App) {
 		Cursor    string `query:"cursor" doc:"next_cursor from the previous page"`
 		Limit     int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
 	}) (*body[ActivityPage], error) {
-		s, err := scope(ctx, authz.ContactsRead)
+		page, err := TimelinePage(ctx, db(), TimelineQuery{ContactID: in.ContactID, CompanyID: in.CompanyID, DealID: in.DealID, Cursor: in.Cursor, Limit: in.Limit})
 		if err != nil {
 			return nil, err
-		}
-		var where, id string
-		n := 0
-		for _, t := range []struct{ id, where string }{
-			{in.ContactID, timelineContact}, {in.CompanyID, timelineCompany}, {in.DealID, timelineDeal},
-		} {
-			if strings.TrimSpace(t.id) != "" {
-				n++
-				where, id = t.where, strings.TrimSpace(t.id)
-			}
-		}
-		if n != 1 {
-			return nil, huma.Error422UnprocessableEntity("name exactly one of contact_id, company_id or deal_id")
-		}
-		limit, err := paging.Limit(in.Limit, DefaultTimelinePage, MaxTimelinePage)
-		if err != nil {
-			return nil, huma.Error422UnprocessableEntity(err.Error())
-		}
-		page, err := timelinePage(ctx, db(), s.WorkspaceID, where, id, in.Cursor, limit, canReadInbox(s))
-		if errors.Is(err, paging.ErrBadCursor) {
-			return nil, huma.Error422UnprocessableEntity(err.Error())
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the timeline")
 		}
 		return out(*page), nil
 	})
@@ -796,50 +411,13 @@ func Register(api huma.API, a *app.App) {
 		DefaultStatus: http.StatusCreated, Summary: "Log a note, call or meeting, or add a task, on a contact, company and/or deal", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Body struct {
-			Kind      string `json:"kind" enum:"note,call,meeting,task"`
-			Body      string `json:"body" minLength:"1" maxLength:"5000"`
-			DueAt     string `json:"due_at,omitempty" doc:"Tasks only. RFC 3339 or YYYY-MM-DD."`
-			ContactID string `json:"contact_id,omitempty"`
-			CompanyID string `json:"company_id,omitempty"`
-			DealID    string `json:"deal_id,omitempty"`
-		}
+		Body ActivityInput
 	}) (*body[struct {
 		Activity ActivityOut `json:"activity"`
 	}], error) {
-		s, err := scope(ctx, authz.ContactsWrite)
+		act, err := CreateActivity(ctx, db(), in.Body)
 		if err != nil {
 			return nil, err
-		}
-		b := in.Body
-		if !activityKinds[b.Kind] {
-			return nil, huma.Error422UnprocessableEntity("unknown activity kind")
-		}
-		text := strings.TrimSpace(b.Body)
-		if text == "" {
-			return nil, huma.Error422UnprocessableEntity("write something")
-		}
-		if nullable(b.ContactID) == nil && nullable(b.CompanyID) == nil && nullable(b.DealID) == nil {
-			return nil, huma.Error422UnprocessableEntity("an activity belongs to a contact, a company or a deal")
-		}
-		var due any
-		if b.Kind == "task" {
-			if due, err = parseTime(b.DueAt); err != nil {
-				return nil, err
-			}
-		}
-		var id string
-		err = db().QueryRowContext(ctx, `
-			INSERT INTO activities (workspace_id, kind, body, due_at, contact_id, company_id, deal_id, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-			s.WorkspaceID, b.Kind, text, due, nullable(b.ContactID), nullable(b.CompanyID), nullable(b.DealID), s.UserID,
-		).Scan(&id)
-		if err != nil {
-			return nil, linkErr(err, "could not save the activity")
-		}
-		act, err := getActivity(ctx, db(), s.WorkspaceID, id)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the activity")
 		}
 		return out(struct {
 			Activity ActivityOut `json:"activity"`

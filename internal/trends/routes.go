@@ -4,10 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -155,22 +153,9 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
 		Sources []SourceOut `json:"sources"`
 	}], error) {
-		s, err := scope(ctx, authz.TrendsRead)
+		list, err := ListSources(ctx, a)
 		if err != nil {
 			return nil, err
-		}
-		rows, err := db().QueryContext(ctx, `SELECT `+sourceColumns+` FROM feed_sources WHERE workspace_id = $1 ORDER BY lower(name)`, s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list sources")
-		}
-		defer rows.Close()
-		list := []SourceOut{}
-		for rows.Next() {
-			so, err := scanSource(rows)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not list sources")
-			}
-			list = append(list, so)
 		}
 		return out(struct {
 			Sources []SourceOut `json:"sources"`
@@ -189,92 +174,27 @@ func Register(api huma.API, a *app.App) {
 		Tags:          tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Body struct {
-			CatalogKey      string `json:"catalog_key,omitempty" maxLength:"80" doc:"A key from GET /api/w/feed_catalog. Takes the entry's name, URL, provider and interval."`
-			Name            string `json:"name,omitempty" maxLength:"120" doc:"Defaults to the catalog name, or the feed's own title."`
-			URL             string `json:"url,omitempty" maxLength:"2000" doc:"An RSS or Atom feed; required without catalog_key."`
-			IntervalMinutes int    `json:"interval_minutes,omitempty" doc:"360, 720 or 1440. Defaults to the catalog's suggestion, else 720."`
-		}
+		Body AddSourceInput
 	}) (*body[createdFeedSource], error) {
-		s, err := scope(ctx, authz.TrendsManage)
+		so, added, err := CreateSource(ctx, a, in.Body)
 		if err != nil {
 			return nil, err
 		}
-		src := Source{WorkspaceID: s.WorkspaceID, Provider: ProviderFeed, Params: map[string]string{}}
-		interval := 720
-		catalogKey := ""
-		if key := strings.TrimSpace(in.Body.CatalogKey); key != "" {
-			entry, ok := CatalogEntryFor(key)
-			if !ok {
-				return nil, huma.Error422UnprocessableEntity("there is no catalog source called " + key)
-			}
-			catalogKey = entry.Key
-			src.Name, src.URL, src.Provider, interval = entry.Name, entry.URL, entry.Provider, entry.Interval
-			for k, v := range entry.Params {
-				src.Params[k] = v
-			}
-		} else {
-			src.URL = strings.TrimSpace(in.Body.URL)
-			if src.URL == "" {
-				return nil, huma.Error422UnprocessableEntity("pick a source from the catalog, or give a feed URL")
-			}
-			if !strings.HasPrefix(src.URL, "http://") && !strings.HasPrefix(src.URL, "https://") {
-				return nil, huma.Error422UnprocessableEntity("the URL must start with http:// or https://")
-			}
-			src.Name = src.URL
-		}
-		if n := strings.TrimSpace(in.Body.Name); n != "" {
-			src.Name = n
-		}
-		if in.Body.IntervalMinutes != 0 {
-			if !validInterval(in.Body.IntervalMinutes) {
-				return nil, huma.Error422UnprocessableEntity("the interval must be 360, 720 or 1440 minutes")
-			}
-			interval = in.Body.IntervalMinutes
-		}
-		kind := "rss"
-		if src.Provider != ProviderFeed {
-			kind = "api"
-		}
-		params, _ := json.Marshal(src.Params)
-		err = db().QueryRowContext(ctx, `
-			INSERT INTO feed_sources (workspace_id, name, url, kind, provider, params, catalog_key, interval_minutes, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9) RETURNING id`,
-			s.WorkspaceID, src.Name, src.URL, kind, src.Provider, string(params), catalogKey, interval, s.UserID).Scan(&src.ID)
-		if pgCode(err) == "23505" {
-			return nil, huma.Error409Conflict("this workspace already watches that source")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not add the source")
-		}
+		return out(createdFeedSource{*so, added}), nil
+	})
 
-		// Fetch once now: a typo'd URL should fail while the person who typed it
-		// is still looking, not silently on a schedule hours later.
-		added, ferr := Collect(ctx, a, src)
-		if errors.Is(ferr, ErrNotAFeed) && catalogKey == "" {
-			// A URL that is not a feed at all will never become one, so the source
-			// is not kept: otherwise a typo leaves a dead row the collector retries
-			// forever. A host that was merely down is a different error and IS
-			// kept, with last_error set.
-			_, _ = db().ExecContext(ctx, `DELETE FROM feed_sources WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, src.ID)
-			return nil, huma.Error422UnprocessableEntity(ferr.Error())
-		}
-		if ferr == nil && catalogKey == "" && strings.TrimSpace(in.Body.Name) == "" {
-			// Name it after the feed once we know what it calls itself.
-			if title := feedTitle(ctx, src.URL); title != "" {
-				_, _ = db().ExecContext(ctx, `UPDATE feed_sources SET name = $3, updated_at = now() WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, src.ID, title)
-			}
-		}
-		if added > 0 {
-			if _, err := Recluster(ctx, a, s.WorkspaceID); err != nil {
-				a.Log.Warn("trends: clustering failed", "workspace", s.WorkspaceID, "err", err)
-			}
-			publish(a, s.WorkspaceID)
-		}
-		so, err := getSource(ctx, db(), s.WorkspaceID, src.ID)
+	huma.Register(api, huma.Operation{
+		OperationID: "w-collect-feed-sources", Method: http.MethodPost, Path: "/api/w/feed_sources/collect",
+		Summary: "Fetch every enabled source now, within today's budget; new items are clustered at once",
+		Description: "Each fetch spends one of the day's budget, as the collector's do. Once it is spent the remaining " +
+			"sources are reported over_budget and stay due. A source that fails is reported, not fatal to the others.",
+		Tags: tags,
+	}, func(ctx context.Context, _ *wsHeader) (*body[CollectResult], error) {
+		res, err := CollectWorkspace(ctx, a)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the source")
+			return nil, err
 		}
-		return out(createdFeedSource{so, added}), nil
+		return out(*res), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -283,57 +203,17 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body struct {
-			Name            *string `json:"name,omitempty" maxLength:"120"`
-			Enabled         *bool   `json:"enabled,omitempty"`
-			IntervalMinutes *int    `json:"interval_minutes,omitempty" doc:"360, 720 or 1440."`
-		}
+		Body FeedSourcePatch
 	}) (*body[struct {
 		Source SourceOut `json:"source"`
 	}], error) {
-		s, err := scope(ctx, authz.TrendsManage)
+		so, err := UpdateSource(ctx, a, in.ID, in.Body)
 		if err != nil {
 			return nil, err
 		}
-		sets, args := []string{}, []any{}
-		if in.Body.Name != nil {
-			n := strings.TrimSpace(*in.Body.Name)
-			if n == "" {
-				return nil, huma.Error422UnprocessableEntity("a name is required")
-			}
-			args = append(args, n)
-			sets = append(sets, "name = $"+strconv.Itoa(len(args)+2))
-		}
-		if in.Body.Enabled != nil {
-			args = append(args, *in.Body.Enabled)
-			sets = append(sets, "enabled = $"+strconv.Itoa(len(args)+2))
-		}
-		if in.Body.IntervalMinutes != nil {
-			if !validInterval(*in.Body.IntervalMinutes) {
-				return nil, huma.Error422UnprocessableEntity("the interval must be 360, 720 or 1440 minutes")
-			}
-			args = append(args, *in.Body.IntervalMinutes)
-			sets = append(sets, "interval_minutes = $"+strconv.Itoa(len(args)+2))
-		}
-		if len(sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE feed_sources SET `+strings.Join(sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, args...)...)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not update the source")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("source not found")
-			}
-		}
-		so, err := getSource(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("source not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the source")
-		}
 		return out(struct {
 			Source SourceOut `json:"source"`
-		}{so}), nil
+		}{*so}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -343,37 +223,14 @@ func Register(api huma.API, a *app.App) {
 		Source SourceOut `json:"source"`
 		Added  int       `json:"added"`
 	}], error) {
-		s, err := scope(ctx, authz.TrendsManage)
+		so, added, err := FetchSource(ctx, a, in.ID)
 		if err != nil {
 			return nil, err
-		}
-		src := Source{ID: in.ID, WorkspaceID: s.WorkspaceID}
-		var params string
-		if err := db().QueryRowContext(ctx, `SELECT name, url, provider, params::text FROM feed_sources WHERE workspace_id = $1 AND id = $2`,
-			s.WorkspaceID, in.ID).Scan(&src.Name, &src.URL, &src.Provider, &params); err != nil {
-			if notFound(err) {
-				return nil, huma.Error404NotFound("source not found")
-			}
-			return nil, huma.Error500InternalServerError("could not read the source")
-		}
-		src.Params = paramsOf(params)
-		added, _ := Collect(ctx, a, src)
-		if added > 0 {
-			if _, err := Recluster(ctx, a, s.WorkspaceID); err != nil {
-				a.Log.Warn("trends: clustering failed", "workspace", s.WorkspaceID, "err", err)
-			}
-			publish(a, s.WorkspaceID)
-		}
-		// A failed or refused fetch answers 200 with the reason on the source:
-		// "the feed is broken" or "the budget is spent" is an answer, not a fault.
-		so, err := getSource(ctx, db(), s.WorkspaceID, in.ID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the source")
 		}
 		return out(struct {
 			Source SourceOut `json:"source"`
 			Added  int       `json:"added"`
-		}{so, added}), nil
+		}{*so, added}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -400,15 +257,6 @@ func Register(api huma.API, a *app.App) {
 }
 
 func registerNews(api huma.API, a *app.App) {
-	db := func() *sql.DB { return a.SQLDB }
-
-	type newsPageOut struct {
-		Items      []NewsOut `json:"items"`
-		Total      int64     `json:"total" doc:"Every item in the workspace, whatever the filters."`
-		HasMore    bool      `json:"has_more"`
-		NextCursor string    `json:"next_cursor,omitempty"`
-	}
-
 	huma.Register(api, huma.Operation{
 		OperationID: "w-news", Method: http.MethodGet, Path: "/api/w/news",
 		Summary: "Collected items, newest first, a page at a time", Tags: tags,
@@ -422,68 +270,13 @@ func registerNews(api huma.API, a *app.App) {
 		Day     string `query:"day" doc:"YYYY-MM-DD (UTC): only items published that day."`
 		Cursor  string `query:"cursor" doc:"next_cursor from the previous page."`
 		Limit   int    `query:"limit" minimum:"1" maximum:"200" doc:"Default 30."`
-	}) (*body[newsPageOut], error) {
-		s, err := scope(ctx, authz.TrendsRead)
+	}) (*body[NewsPage], error) {
+		page, err := ListNews(ctx, a, NewsFilter{TopicID: in.Topic, SourceID: in.Source, ClusterID: in.Cluster, Saved: in.Saved,
+			Q: in.Q, Day: in.Day, Cursor: in.Cursor, Limit: in.Limit})
 		if err != nil {
 			return nil, err
 		}
-		q := `SELECT id, source_id, source_name, outlet, provider, title, url, summary, author, topic_ids, cluster_id,
-		             rank, points, comments, published_at, saved_at
-		      FROM news_items WHERE workspace_id = $1`
-		args := []any{s.WorkspaceID}
-		add := func(clause string, v any) {
-			args = append(args, v)
-			q += " AND " + strings.ReplaceAll(clause, "?", "$"+strconv.Itoa(len(args)))
-		}
-		if in.Topic != "" {
-			add(`? = ANY (topic_ids)`, in.Topic)
-		}
-		if in.Source != "" {
-			add(`source_id = ?`, in.Source)
-		}
-		if in.Cluster != "" {
-			add(`cluster_id = ?`, in.Cluster)
-		}
-		if in.Saved {
-			q += ` AND saved_at IS NOT NULL`
-		}
-		if t := strings.TrimSpace(in.Q); t != "" {
-			add(`(lower(title) LIKE ? ESCAPE '\' OR lower(summary) LIKE ? ESCAPE '\')`, likePattern(t))
-		}
-		if in.Day != "" {
-			d, err := time.Parse("2006-01-02", in.Day)
-			if err != nil {
-				return nil, huma.Error422UnprocessableEntity("day must be YYYY-MM-DD")
-			}
-			add(`published_at >= ?`, d)
-			add(`published_at < ?`, d.Add(24*time.Hour))
-		}
-		if in.Cursor != "" {
-			at, id, err := decodeNewsCursor(in.Cursor)
-			if err != nil {
-				return nil, huma.Error422UnprocessableEntity("cursor is not valid")
-			}
-			args = append(args, at, id)
-			q += ` AND (published_at, id) < ($` + strconv.Itoa(len(args)-1) + `, $` + strconv.Itoa(len(args)) + `)`
-		}
-		limit := in.Limit
-		if limit <= 0 {
-			limit = 30
-		}
-		q += ` ORDER BY published_at DESC, id DESC LIMIT ` + strconv.Itoa(limit+1)
-		list, err := queryNews(ctx, db(), q, args...)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list the items")
-		}
-		page := newsPageOut{Items: list}
-		if len(list) > limit {
-			page.Items = list[:limit]
-			last := page.Items[limit-1]
-			page.HasMore = true
-			page.NextCursor = encodeNewsCursor(last.PublishedAt, last.ID)
-		}
-		_ = db().QueryRowContext(ctx, `SELECT count(*) FROM news_items WHERE workspace_id = $1`, s.WorkspaceID).Scan(&page.Total)
-		return out(page), nil
+		return out(*page), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -498,23 +291,11 @@ func registerNews(api huma.API, a *app.App) {
 	}) (*body[struct {
 		Saved bool `json:"saved"`
 	}], error) {
-		s, err := scope(ctx, authz.TrendsRead)
-		if err != nil {
-			return nil, err
-		}
 		if in.Body.Saved == nil {
 			return nil, huma.Error422UnprocessableEntity("nothing to change")
 		}
-		var val any
-		if *in.Body.Saved {
-			val = time.Now()
-		}
-		res, err := db().ExecContext(ctx, `UPDATE news_items SET saved_at = $3 WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID, val)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not update the item")
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, huma.Error404NotFound("item not found")
+		if err := SetSaved(ctx, a, in.ID, *in.Body.Saved); err != nil {
+			return nil, err
 		}
 		return out(struct {
 			Saved bool `json:"saved"`

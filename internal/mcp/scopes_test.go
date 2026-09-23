@@ -30,6 +30,15 @@ func TestEveryToolDeclaresAScope(t *testing.T) {
 			if tool.Run == nil {
 				t.Errorf("%s: tool %q has no Run", server, tool.Name)
 			}
+			// A tool the model cannot read the purpose of is a tool it will
+			// misuse or never pick. Short ones are almost always a name
+			// restated, so this asks for a sentence.
+			if d := strings.TrimSpace(tool.Description); len(d) < 20 {
+				t.Errorf("%s: tool %q has no real description (%q)", server, tool.Name, d)
+			}
+			if tool.InputSchema == nil || tool.InputSchema["type"] != "object" {
+				t.Errorf("%s: tool %q has no object input schema", server, tool.Name)
+			}
 		}
 	}
 	check("user", UserTools(&research.Engine{}), func(s string) bool { _, ok := userScope(s); return ok })
@@ -43,6 +52,26 @@ func TestEveryToolDeclaresAScope(t *testing.T) {
 	for _, tool := range AdminTools() {
 		if _, ok := userScope(tool.Scope); ok {
 			t.Errorf("admin tool %q uses a user scope", tool.Name)
+		}
+	}
+}
+
+// TestEveryOfferedScopeHasATool: a scope on the token page that no tool
+// declares grants nothing, which is how trends:read sat offered and empty
+// until MH-386. Every user scope must now be used by at least one tool.
+func TestEveryOfferedScopeHasATool(t *testing.T) {
+	used := map[string]bool{}
+	for _, tool := range UserTools(&research.Engine{}) {
+		used[tool.Scope] = true
+	}
+	// convert_lead also demands contacts:write in-band (user_tools_leads.go),
+	// which the loop above cannot see; contacts:write has tools of its own.
+	for _, s := range UserScopes {
+		if !used[s.Scope] {
+			t.Errorf("scope %q is offered on the token page but no tool declares it", s.Scope)
+		}
+		if strings.TrimSpace(s.Description) == "" {
+			t.Errorf("scope %q has no description", s.Scope)
 		}
 	}
 }

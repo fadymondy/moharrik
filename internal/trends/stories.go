@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
-	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/pgtext"
 )
 
@@ -262,8 +260,6 @@ func getSettings(ctx context.Context, db *sql.DB, wsID string) (TrendSettings, e
 
 // registerStories mounts the trending topics, the catalog and the budget.
 func registerStories(api huma.API, a *app.App) {
-	db := func() *sql.DB { return a.SQLDB }
-
 	huma.Register(api, huma.Operation{
 		OperationID: "w-trend-topics", Method: http.MethodGet, Path: "/api/w/trends",
 		Summary: "Trending topics: stories clustered across sources, newest day first and best first, a page at a time",
@@ -277,146 +273,22 @@ func registerStories(api huma.API, a *app.App) {
 		Cursor string `query:"cursor" doc:"next_cursor from the previous page."`
 		Limit  int    `query:"limit" minimum:"1" maximum:"100" doc:"Default 20."`
 	}) (*body[TrendTopicPage], error) {
-		s, err := scope(ctx, authz.TrendsRead)
+		page, err := ListTrendTopics(ctx, a, TopicFilter{State: in.State, Day: in.Day, SourceID: in.Source, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit})
 		if err != nil {
 			return nil, err
 		}
-		stateSQL, ok := stateClause(in.State)
-		if !ok {
-			return nil, huma.Error422UnprocessableEntity("state must be open, saved, reviewed, dismissed or all")
-		}
-		// The filters every count shares: day, source, search.
-		base := `workspace_id = $1`
-		args := []any{s.WorkspaceID}
-		add := func(clause string, v any) {
-			args = append(args, v)
-			base += " AND " + strings.ReplaceAll(clause, "?", "$"+strconv.Itoa(len(args)))
-		}
-		if in.Source != "" {
-			add(`? = ANY (source_ids)`, in.Source)
-		}
-		if t := strings.TrimSpace(in.Q); t != "" {
-			add(`(lower(title) LIKE ? ESCAPE '\' OR lower(summary) LIKE ? ESCAPE '\')`, likePattern(t))
-		}
-		baseNoDay, argsNoDay := base, append([]any{}, args...)
-		if in.Day != "" {
-			if _, err := time.Parse("2006-01-02", in.Day); err != nil {
-				return nil, huma.Error422UnprocessableEntity("day must be YYYY-MM-DD")
-			}
-			add(`day = ?::date`, in.Day)
-		}
-
-		where, listArgs := base, append([]any{}, args...)
-		if stateSQL != "" {
-			where += " AND " + stateSQL
-		}
-		if in.Cursor != "" {
-			c, ok := decodeStoryCursor(in.Cursor)
-			if !ok {
-				return nil, huma.Error422UnprocessableEntity("cursor is not valid")
-			}
-			n := len(listArgs)
-			listArgs = append(listArgs, c.Day, c.Score, c.ID)
-			where += ` AND (day, score, id) < ($` + strconv.Itoa(n+1) + `::date, $` + strconv.Itoa(n+2) + `::double precision, $` + strconv.Itoa(n+3) + `)`
-		}
-		limit := in.Limit
-		if limit <= 0 {
-			limit = 20
-		}
-		rows, err := db().QueryContext(ctx, `SELECT `+storyColumns+` FROM trend_clusters WHERE `+where+`
-			ORDER BY day DESC, score DESC, id DESC LIMIT `+strconv.Itoa(limit+1), listArgs...)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list the topics")
-		}
-		page := TrendTopicPage{Topics: []TrendTopicOut{}, Days: []TrendDay{}}
-		for rows.Next() {
-			st, err := scanStory(rows)
-			if err != nil {
-				rows.Close()
-				return nil, huma.Error500InternalServerError("could not list the topics")
-			}
-			page.Topics = append(page.Topics, st)
-		}
-		rows.Close()
-		if len(page.Topics) > limit {
-			page.Topics = page.Topics[:limit]
-			last := page.Topics[limit-1]
-			page.HasMore = true
-			page.NextCursor = encodeStoryCursor(storyCursor{last.Day, last.Score, last.ID})
-		}
-		if err := attachItems(ctx, db(), s.WorkspaceID, page.Topics, 3); err != nil {
-			return nil, huma.Error500InternalServerError("could not list the topics")
-		}
-
-		if err := db().QueryRowContext(ctx, `SELECT
-			count(*) FILTER (WHERE reviewed_at IS NULL AND dismissed_at IS NULL AND saved_at IS NULL),
-			count(*) FILTER (WHERE saved_at IS NOT NULL),
-			count(*) FILTER (WHERE reviewed_at IS NOT NULL AND dismissed_at IS NULL),
-			count(*) FILTER (WHERE dismissed_at IS NOT NULL),
-			count(*)
-			FROM trend_clusters WHERE `+base, args...).Scan(&page.Counts.Open, &page.Counts.Saved, &page.Counts.Reviewed,
-			&page.Counts.Dismissed, &page.Counts.All); err != nil {
-			return nil, huma.Error500InternalServerError("could not count the topics")
-		}
-		dayWhere := baseNoDay
-		if stateSQL != "" {
-			dayWhere += " AND " + stateSQL
-		}
-		drows, err := db().QueryContext(ctx, `SELECT day, count(*) FROM trend_clusters WHERE `+dayWhere+`
-			GROUP BY day ORDER BY day DESC LIMIT 30`, argsNoDay...)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list the days")
-		}
-		defer drows.Close()
-		for drows.Next() {
-			var d time.Time
-			var f TrendDay
-			if drows.Scan(&d, &f.Count) == nil {
-				f.Day = d.UTC().Format("2006-01-02")
-				page.Days = append(page.Days, f)
-			}
-		}
-		return out(page), nil
+		return out(*page), nil
 	})
-
-	type trendTopicDetail struct {
-		Topic   TrendTopicOut `json:"topic"`
-		Outlets []TrendOutlet `json:"outlets" doc:"Every outlet that carried it, most items first."`
-	}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-trend-topic", Method: http.MethodGet, Path: "/api/w/trends/{id}",
 		Summary: "One trending topic with every linked item and outlet", Tags: tags,
-	}, func(ctx context.Context, in *idPath) (*body[trendTopicDetail], error) {
-		s, err := scope(ctx, authz.TrendsRead)
+	}, func(ctx context.Context, in *idPath) (*body[TrendTopicDetail], error) {
+		d, err := GetTrendTopic(ctx, a, in.ID)
 		if err != nil {
 			return nil, err
 		}
-		st, err := getStory(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("topic not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the topic")
-		}
-		list := []TrendTopicOut{st}
-		if err := attachItems(ctx, db(), s.WorkspaceID, list, 0); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the topic")
-		}
-		counts := map[string]int{}
-		for _, n := range list[0].Items {
-			counts[n.Outlet]++
-		}
-		outlets := []TrendOutlet{}
-		for o, c := range counts {
-			outlets = append(outlets, TrendOutlet{o, c})
-		}
-		sort.Slice(outlets, func(i, j int) bool {
-			if outlets[i].Count != outlets[j].Count {
-				return outlets[i].Count > outlets[j].Count
-			}
-			return outlets[i].Outlet < outlets[j].Outlet
-		})
-		return out(trendTopicDetail{list[0], outlets}), nil
+		return out(*d), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -427,118 +299,33 @@ func registerStories(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body struct {
-			Reviewed  *bool `json:"reviewed,omitempty"`
-			Dismissed *bool `json:"dismissed,omitempty"`
-			Saved     *bool `json:"saved,omitempty"`
-		}
+		Body TopicReview
 	}) (*body[struct {
 		Topic TrendTopicOut `json:"topic"`
 	}], error) {
-		s, err := scope(ctx, authz.TrendsRead)
+		t, err := ReviewTrendTopic(ctx, a, in.ID, in.Body)
 		if err != nil {
 			return nil, err
 		}
-		sets := []string{}
-		on := func(col string, v bool) {
-			if v {
-				sets = append(sets, col+" = now()")
-			} else {
-				sets = append(sets, col+" = NULL")
-			}
-		}
-		if in.Body.Reviewed != nil {
-			on("reviewed_at", *in.Body.Reviewed)
-			if *in.Body.Reviewed {
-				sets = append(sets, "reviewed_by = $3")
-			}
-		}
-		if in.Body.Dismissed != nil {
-			on("dismissed_at", *in.Body.Dismissed)
-			if *in.Body.Dismissed && in.Body.Saved == nil {
-				sets = append(sets, "saved_at = NULL")
-			}
-		}
-		if in.Body.Saved != nil {
-			on("saved_at", *in.Body.Saved)
-			if *in.Body.Saved && in.Body.Dismissed == nil {
-				sets = append(sets, "dismissed_at = NULL")
-			}
-		}
-		if len(sets) == 0 {
-			return nil, huma.Error422UnprocessableEntity("nothing to change")
-		}
-		args := []any{s.WorkspaceID, in.ID}
-		if strings.Contains(strings.Join(sets, ","), "$3") {
-			args = append(args, s.UserID)
-		}
-		res, err := db().ExecContext(ctx, `UPDATE trend_clusters SET `+strings.Join(sets, ", ")+`, updated_at = now()
-			WHERE workspace_id = $1 AND id = $2`, args...)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not update the topic")
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, huma.Error404NotFound("topic not found")
-		}
-		st, err := getStory(ctx, db(), s.WorkspaceID, in.ID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the topic")
-		}
-		list := []TrendTopicOut{st}
-		_ = attachItems(ctx, db(), s.WorkspaceID, list, 3)
-		publish(a, s.WorkspaceID)
 		return out(struct {
 			Topic TrendTopicOut `json:"topic"`
-		}{list[0]}), nil
+		}{*t}), nil
 	})
 
 	// ---- the catalog --------------------------------------------------------
-
-	type feedCatalogOut struct {
-		FeedCatalogEntry
-		SourceID *string `json:"source_id" doc:"This workspace's source for the entry, when it has added it."`
-	}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-feed-catalog", Method: http.MethodGet, Path: "/api/w/feed_catalog",
 		Summary: "Sources a workspace can add in one click, and which it already has", Tags: tags,
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
-		Entries []feedCatalogOut `json:"entries"`
+		Entries []CatalogOut `json:"entries"`
 	}], error) {
-		s, err := scope(ctx, authz.TrendsRead)
+		list, err := ListCatalog(ctx, a)
 		if err != nil {
 			return nil, err
 		}
-		byKey, byURL := map[string]string{}, map[string]string{}
-		rows, err := db().QueryContext(ctx, `SELECT id, catalog_key, lower(url) FROM feed_sources WHERE workspace_id = $1`, s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the catalog")
-		}
-		for rows.Next() {
-			var id, key, u string
-			if rows.Scan(&id, &key, &u) == nil {
-				if key != "" {
-					byKey[key] = id
-				}
-				byURL[u] = id
-			}
-		}
-		rows.Close()
-		list := make([]feedCatalogOut, 0, len(Catalog))
-		for _, e := range Catalog {
-			c := feedCatalogOut{FeedCatalogEntry: e}
-			if c.Params == nil {
-				c.Params = map[string]string{}
-			}
-			if id, ok := byKey[e.Key]; ok {
-				c.SourceID = &id
-			} else if id, ok := byURL[strings.ToLower(e.URL)]; ok {
-				c.SourceID = &id
-			}
-			list = append(list, c)
-		}
 		return out(struct {
-			Entries []feedCatalogOut `json:"entries"`
+			Entries []CatalogOut `json:"entries"`
 		}{list}), nil
 	})
 
@@ -550,17 +337,13 @@ func registerStories(api huma.API, a *app.App) {
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
 		Settings TrendSettings `json:"settings"`
 	}], error) {
-		s, err := scope(ctx, authz.TrendsRead)
+		st, err := GetBudget(ctx, a)
 		if err != nil {
 			return nil, err
 		}
-		st, err := getSettings(ctx, db(), s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the budget")
-		}
 		return out(struct {
 			Settings TrendSettings `json:"settings"`
-		}{st}), nil
+		}{*st}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -574,25 +357,12 @@ func registerStories(api huma.API, a *app.App) {
 	}) (*body[struct {
 		Settings TrendSettings `json:"settings"`
 	}], error) {
-		s, err := scope(ctx, authz.TrendsManage)
+		st, err := SetBudget(ctx, a, in.Body.FetchBudgetPerDay)
 		if err != nil {
 			return nil, err
 		}
-		if in.Body.FetchBudgetPerDay < 1 || in.Body.FetchBudgetPerDay > MaxBudget {
-			return nil, huma.Error422UnprocessableEntity("the budget must be between 1 and 500 fetches a day")
-		}
-		if _, err := db().ExecContext(ctx, `
-			INSERT INTO trend_settings (workspace_id, fetch_budget_per_day, budget_day) VALUES ($1, $2, (now() AT TIME ZONE 'UTC')::date)
-			ON CONFLICT (workspace_id) DO UPDATE SET fetch_budget_per_day = EXCLUDED.fetch_budget_per_day, updated_at = now()`,
-			s.WorkspaceID, in.Body.FetchBudgetPerDay); err != nil {
-			return nil, huma.Error500InternalServerError("could not save the budget")
-		}
-		st, err := getSettings(ctx, db(), s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the budget")
-		}
 		return out(struct {
 			Settings TrendSettings `json:"settings"`
-		}{st}), nil
+		}{*st}), nil
 	})
 }

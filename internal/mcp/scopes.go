@@ -28,17 +28,37 @@ var UserScopes = []ScopeDef{
 	// well, because converting is what creates the CRM rows.
 	{"leads:read", "Read leads from website inquiry forms, with their message and attribution", authz.Member},
 	{"leads:write", "Change a lead's status and convert it (converting also needs contacts:write)", authz.Member},
-	{"inbox:read", "Read conversations across chat, email and WhatsApp", authz.Member},
+	{"inbox:read", "Read conversations across chat, email and WhatsApp, and the WhatsApp number's status", authz.Member},
 	{"inbox:write", "Reply to, assign and close conversations", authz.Member},
+	// inbox:manage is the line authz.InboxManage draws: linking the
+	// workspace's WhatsApp number decides what can write into its inbox, the
+	// same weight as creating a chat widget (MH-409).
+	{"inbox:manage", "Link the workspace's WhatsApp number", authz.Manager},
+	// whatsapp:send is its own scope, apart from inbox:write (MH-409):
+	// answering somebody who wrote in is not the same act as an agent
+	// messaging a customer first. It reaches only contacts who opted in to
+	// WhatsApp and have not said STOP (MH-320), and a new thread needs a
+	// one-time confirmation code.
+	{"whatsapp:send", "Message an opted-in CRM contact on WhatsApp (a new thread needs a confirmation code)", authz.Member},
 	{"campaigns:read", "Read email and WhatsApp campaigns and their results", authz.Member},
 	{"campaigns:write", "Draft, edit and send campaigns", authz.Manager},
 	{"automation:read", "Read automations, browser agents and their runs", authz.Member},
 	{"automation:run", "Start and cancel automation runs", authz.Manager},
-	{"notifications:read", "Read the notification center", authz.Member},
-	{"notifications:write", "Mark, save and configure notification sources and webhooks", authz.Manager},
+	// Notifications follow authz's own split (MH-380): marking and saving
+	// items is a member right (notifications:write), while creating, rotating,
+	// enabling or disabling a webhook source changes what the whole workspace
+	// collects and shows a secret once, so it is a manager's (…:manage).
+	{"notifications:read", "Read the notification center and its webhook sources", authz.Member},
+	{"notifications:write", "Mark notifications read or unread, and save them for later", authz.Member},
+	{"notifications:manage", "Create, rotate, enable and disable webhook sources", authz.Manager},
 	{"research:read", "Read research runs and collected evidence", authz.Member},
 	{"research:run", "Start research runs", authz.Member},
-	{"trends:read", "Read trend topics and news items", authz.Member},
+	// Trends (MH-386): reading and saving are member rights, as in the REST
+	// routes; adding or changing a feed, or fetching them all now, changes
+	// what the whole workspace collects, so it is a manager's (authz.TrendsManage).
+	{"trends:read", "Read sources, the catalog, the budget, collected items and trending topics", authz.Member},
+	{"trends:write", "Save items, and review, dismiss or save trending topics", authz.Member},
+	{"trends:manage", "Add and change sources, and collect now (spends the daily budget)", authz.Manager},
 }
 
 // AdminScopes is the closed list for the platform admin MCP. Admin tokens are

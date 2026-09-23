@@ -26,9 +26,17 @@ type LinkOut struct {
 	Phone     string     `json:"phone"`
 	QRBase64  string     `json:"qr_base64,omitempty" doc:"Present while a phone still has to scan."`
 	QRCode    string     `json:"qr_code,omitempty"`
-	LastError string     `json:"last_error"`
-	LinkedAt  *time.Time `json:"linked_at"`
-	Available bool       `json:"available" doc:"false when this deployment has no WhatsApp server configured."`
+	// PairingCode is the alternative to scanning, when a number was given.
+	PairingCode string     `json:"pairing_code,omitempty" doc:"Type this on the phone (Linked devices → Link with phone number) instead of scanning."`
+	LastError   string     `json:"last_error"`
+	LinkedAt    *time.Time `json:"linked_at"`
+	Available   bool       `json:"available" doc:"false when this deployment has no WhatsApp server configured."`
+	// Webhook is whether Evolution will deliver inbound messages here (MH-409).
+	Webhook WebhookHealth `json:"webhook"`
+	// SentToday / FailedToday count this number's sends since midnight in the
+	// workspace's time zone: replies, broadcasts and agent messages alike.
+	SentToday   int64 `json:"sent_today"`
+	FailedToday int64 `json:"failed_today"`
 }
 
 type wsHeader struct {
@@ -67,84 +75,33 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-whatsapp", Method: http.MethodGet, Path: "/api/w/whatsapp",
-		Summary: "The WhatsApp number linked to this workspace", Tags: tags,
+		Summary: "The WhatsApp number linked to this workspace: state, webhook health and today's sends", Tags: tags,
 	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[LinkOut], error) {
-		s, err := scope(ctx, authz.InboxRead)
+		o, err := Status(ctx, a)
 		if err != nil {
 			return nil, err
 		}
-		// "close" rather than "": the page renders this straight into a label
-		// key, and an empty state showed the raw key instead of "Not linked".
-		o := LinkOut{Available: cfg.Configured(), State: "close"}
-		l, err := Load(ctx, a, s.WorkspaceID)
-		if errors.Is(err, ErrNoLink) {
-			return out(o), nil
-		}
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the WhatsApp link")
-		}
-		o.Linked, o.Phone, o.LastError, o.LinkedAt = true, l.Phone, l.LastError, l.LinkedAt
-		o.State = firstNonEmpty(l.State, "close")
-
-		// The live state, not the stored one: a phone that was unlinked from
-		// the handset shows as open here for ever otherwise.
-		if cfg.Configured() {
-			if state, err := ClientFor(cfg, l).State(ctx); err == nil {
-				o.State = state
-				if state != l.State {
-					SetState(ctx, a, s.WorkspaceID, state, "")
-				}
-			}
-		}
-		return out(o), nil
+		return out(*o), nil
 	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-whatsapp-link", Method: http.MethodPost, Path: "/api/w/whatsapp/link",
-		Summary: "Link a WhatsApp number: returns a QR code to scan", Tags: tags,
-	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[LinkOut], error) {
-		// Linking a number is the same weight as creating a chat widget: it
-		// decides what can write into this workspace's inbox.
-		s, err := scope(ctx, authz.InboxManage)
+		Summary: "Link a WhatsApp number: returns a QR code to scan (or a pairing code, given the number)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Body *struct {
+			Number string `json:"number,omitempty" maxLength:"32" doc:"The number to link, with country code, to get a pairing code instead of a QR."`
+		}
+	}) (*body[LinkOut], error) {
+		number := ""
+		if in.Body != nil {
+			number = in.Body.Number
+		}
+		o, err := StartLink(ctx, a, number)
 		if err != nil {
 			return nil, err
 		}
-		if !cfg.Configured() {
-			return nil, huma.Error503ServiceUnavailable(ErrNotConfigured.Error())
-		}
-		if cfg.HookBase == "" {
-			return nil, huma.Error503ServiceUnavailable("this deployment has no public URL set (APP_URL), so WhatsApp could not call back")
-		}
-
-		l, err := Ensure(ctx, a, s.WorkspaceID, s.UserID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not prepare the link")
-		}
-		c := ClientFor(cfg, l)
-
-		// Create, or connect if the instance is already there. Evolution
-		// answers 403 for an existing instance, which is not an error here.
-		qr, err := c.Create(ctx)
-		if err != nil {
-			if qr, err = c.Connect(ctx); err != nil {
-				SetError(ctx, a, s.WorkspaceID, err)
-				return nil, evolutionErr(err)
-			}
-		}
-		hookURL := cfg.HookBase + "/api/whatsapp/hook/" + l.HookID
-		if err := c.SetWebhook(ctx, hookURL, l.Token); err != nil {
-			// Without the webhook nothing would ever arrive, so this is a
-			// failure of the whole link rather than a detail.
-			SetError(ctx, a, s.WorkspaceID, err)
-			return nil, evolutionErr(err)
-		}
-
-		state, _ := c.State(ctx)
-		SetState(ctx, a, s.WorkspaceID, firstNonEmpty(state, "connecting"), "")
-		return out(LinkOut{
-			Linked: true, State: firstNonEmpty(state, "connecting"),
-			QRBase64: qr.Base64, QRCode: qr.Code, Available: true,
-		}), nil
+		return out(*o), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -200,6 +157,9 @@ func RegisterHook(r chi.Router, a *app.App) {
 			return
 		}
 
+		// A delivery with the right token is what "the webhook works" means.
+		MarkHook(ctx, a, l.WorkspaceID)
+
 		raw, err := io.ReadAll(io.LimitReader(r.Body, maxBody))
 		if err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
@@ -243,20 +203,6 @@ func RegisterHook(r chi.Router, a *app.App) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
-}
-
-// Send delivers one reply as this workspace's linked number and returns
-// WhatsApp's id for it.
-func Send(ctx context.Context, a *app.App, workspaceID, phone, text string) (string, error) {
-	cfg := LoadConfig()
-	if !cfg.Configured() {
-		return "", ErrNotConfigured
-	}
-	l, err := Load(ctx, a, workspaceID)
-	if err != nil {
-		return "", err
-	}
-	return ClientFor(cfg, l).SendText(ctx, phone, text)
 }
 
 func evolutionErr(err error) error {

@@ -15,11 +15,13 @@ import (
 
 /*
 UserTools is the user MCP registry. Tools arrive with the phases that build
-the tables they operate on — the inbox, automation, research and trends
-tools are not registered yet, because those tables do not exist yet.
+the tables they operate on.
 
 Every tool reads its workspace from the token (tenant.Scope on ctx), never
-from an argument.
+from an argument, declares a scope from scopes.go and a description
+(scopes_test.go fails the build otherwise), and — since the MCP surface cards
+(MH-380, MH-386, MH-393, MH-409) — calls the same package function the REST
+route for the same thing calls, and answers with the ids other tools take.
 */
 func UserTools(researchEngine *research.Engine) []Tool {
 	tools := []Tool{
@@ -43,7 +45,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 		},
 		{
 			Name:        "list_members",
-			Description: "Members of the token's workspace with their roles.",
+			Description: "Members of the token's workspace: user id, email, role and status. The user id (or the email) is what assign_conversation and the owner fields take.",
 			Scope:       "members:read",
 			InputSchema: schema(nil, map[string]any{}),
 			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
@@ -55,12 +57,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 				if err != nil {
 					return "", fmt.Errorf("could not list members: %w", err)
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "%d member(s) of %s:\n", len(list), s.WorkspaceSlug)
-				for _, m := range list {
-					fmt.Fprintf(&b, "  %-8s %s  (%s)\n", m.Role, m.Email, m.Status)
-				}
-				return b.String(), nil
+				return jsonResult(map[string]any{"workspace": s.WorkspaceSlug, "count": len(list), "members": list})
 			},
 		},
 	}
@@ -68,6 +65,9 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, LeadTools()...)
 	tools = append(tools, MarketingTools()...)
 	tools = append(tools, NotificationTools()...)
+	tools = append(tools, InboxTools()...)
+	tools = append(tools, WhatsAppTools()...)
+	tools = append(tools, TrendsTools()...)
 	tools = append(tools, AutomationTools()...)
 	tools = append(tools, WorkflowTools()...)
 	tools = append(tools, ResearchTools(researchEngine)...)
