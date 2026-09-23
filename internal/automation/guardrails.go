@@ -11,6 +11,13 @@ every control here fails CLOSED:
 	                  refused before anything is queued. An empty list allows
 	                  nothing, so a newly paired browser can do nothing until
 	                  someone says where it may go.
+	PAGE HOST         A goto is not the only way to reach a host: a link, a
+	                  submitted form or a redirect moves the tab too. The
+	                  extension checks the page its tab is ACTUALLY on before
+	                  and after every step, and at every navigation it commits,
+	                  against the list the server sends with each step. Leaving
+	                  the list stops the run (CodeLeftAllowedSites), whatever
+	                  the step's continue_on_error says (MH-422).
 	KILL SWITCH       One flag per workspace. While it is on, every queued and
 	                  running run is cancelled and no new run is accepted.
 	ONE AT A TIME     A browser runs one run at a time. Two runs sharing a
@@ -56,7 +63,18 @@ var (
 	ErrBusy = errors.New("this browser is already running something")
 	// ErrOffline is a browser that is not connected right now.
 	ErrOffline = errors.New("this browser is not connected")
+	// ErrLeftAllowedSites is a run whose tab reached a host off the list by a
+	// route no goto check could see — a link, a form, a redirect (MH-422). The
+	// browser reports it as an AgentError carrying CodeLeftAllowedSites.
+	ErrLeftAllowedSites = errors.New("the run left this browser's allowed sites")
 )
+
+// CodeLeftAllowedSites is the code the extension puts on a step's error when
+// the run's tab has left the allowed sites. It is the run's failure reason:
+// the run stops there, and its error is the browser's sentence naming the step
+// and the host ("step 4 went to evil.example, which isn't on this browser's
+// allowed sites").
+const CodeLeftAllowedSites = "left_allowed_sites"
 
 // HostAllowed reports whether host is on list.
 //
@@ -115,9 +133,10 @@ func normaliseHost(v string) string {
 }
 
 // StepHost returns the host a step will navigate to, and whether the step
-// navigates at all. Only a navigation leaves the page the browser is already
-// on, so only a navigation is checked against the allow-list — a click is
-// constrained by whatever the navigation already allowed.
+// navigates at all. Only a goto names its destination in advance, so only a
+// goto can be checked here, before anything is queued. A click, an Enter or a
+// dropdown can navigate too, to wherever the page sends it; that destination
+// only exists in the browser, and the extension checks it there (MH-422).
 func StepHost(command string, args map[string]any) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(command)) {
 	case "goto", "navigate", "open":

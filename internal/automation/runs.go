@@ -191,6 +191,23 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 	okCount := 0
 	runErr := ""
 
+	// stop ends the run at step i: that step failed, and nothing after it runs.
+	// The remaining steps are marked skipped rather than left pending: "pending"
+	// on a finished run reads as "still going".
+	stop := func(i int, runError string) {
+		_, _ = a.SQLDB.ExecContext(sctx, `
+			UPDATE automation_run_steps SET status = 'skipped', updated_at = now()
+			WHERE workspace_id = $1 AND run_id = $2 AND position > $3 AND status = 'pending'`,
+			workspaceID, runID, i)
+		h.finish(sctx, a, workspaceID, runID, "failed", runError, okCount)
+	}
+	failStep := func(i int, stepErr string) {
+		_, _ = a.SQLDB.ExecContext(sctx, `
+			UPDATE automation_run_steps SET status = 'failed', error = $4, updated_at = now()
+			WHERE workspace_id = $1 AND run_id = $2 AND position = $3`,
+			workspaceID, runID, i, trim(stepErr, 500))
+	}
+
 	for i, step := range steps {
 		// The kill switch is re-read between steps: "stop" has to stop a run
 		// that is already going, not only refuse the next one.
@@ -203,11 +220,40 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 			return
 		}
 		if cancelled(sctx, a, workspaceID, runID) {
-			return // someone cancelled it; the row already says so
+			// Someone cancelled it; the row already says so. The browser is
+			// still told the run is over, or the run's tab stays open in a
+			// signed-in browser on whatever page it had reached.
+			h.endRun(workspaceID, runID)
+			Settle(sctx, a, workspaceID, runID)
+			return
+		}
+
+		// The allowed sites are re-read for every step, not taken from when the
+		// run was accepted: a site removed from the list mid-run is off it for
+		// the rest of the run. They travel WITH the step, because the browser
+		// checks the page it lands on against them (MH-422) and the list it was
+		// given at connect goes stale the moment someone edits it.
+		hosts, err := allowedHosts(sctx, a, workspaceID, agentID)
+		if err != nil {
+			// Fail closed: a run that cannot say where it may go goes nowhere.
+			failStep(i, "the allowed sites could not be read")
+			stop(i, (&StepError{Position: i, Err: errors.New("the allowed sites could not be read")}).Error())
+			return
+		}
+		if host, navigates := StepHost(step.Command, step.Args); navigates && !HostAllowed(hosts, host) {
+			se := &StepError{Position: i, Host: host, Err: ErrHostNotAllowed}
+			failStep(i, se.Error())
+			stop(i, se.Error())
+			return
 		}
 
 		args, _ := json.Marshal(step.Args)
-		payload, _ := json.Marshal(map[string]any{"command": step.Command, "args": json.RawMessage(args)})
+		payload, _ := json.Marshal(map[string]any{
+			"command":       step.Command,
+			"args":          json.RawMessage(args),
+			"allowed_hosts": hosts,
+			"step":          i + 1, // 1-based, as a person counts, so the browser can name it
+		})
 
 		started := time.Now()
 		reply, err := h.Call(ctx, workspaceID, agentID, Envelope{Type: "run.step", Run: runID, Payload: payload}, DefaultStepTimeout)
@@ -230,14 +276,17 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 			WHERE workspace_id = $1 AND run_id = $2 AND position = $3`,
 			workspaceID, runID, i, status, trim(summary, 300), trim(result, 200_000), trim(stepErr, 500), duration)
 
+		// Leaving the allowed sites is not a step that failed; it is the run
+		// breaking the one promise a paired browser makes. It stops the run even
+		// where the step said to continue on error, and its reason is the
+		// browser's own sentence — it already names the step and the host.
+		if errors.Is(err, ErrLeftAllowedSites) {
+			h.log.Warn("run left the allowed sites", "run", runID, "agent", agentID, "step", i+1, "reason", err.Error())
+			stop(i, err.Error())
+			return
+		}
 		if err != nil && !step.ContinueOnError {
-			// The remaining steps are marked skipped rather than left pending:
-			// "pending" on a finished run reads as "still going".
-			_, _ = a.SQLDB.ExecContext(sctx, `
-				UPDATE automation_run_steps SET status = 'skipped', updated_at = now()
-				WHERE workspace_id = $1 AND run_id = $2 AND position > $3 AND status = 'pending'`,
-				workspaceID, runID, i)
-			h.finish(sctx, a, workspaceID, runID, "failed", (&StepError{Position: i, Err: err}).Error(), okCount)
+			stop(i, (&StepError{Position: i, Err: err}).Error())
 			return
 		}
 		if err != nil {
@@ -254,13 +303,34 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 
 func (h *Hub) finish(ctx context.Context, a *app.App, workspaceID, runID, status, errText string, okCount int) {
 	h.endRun(workspaceID, runID)
+	// A run that was cancelled while a step was in flight STAYS cancelled. The
+	// kill switch drops the browser's socket, so the step in flight comes back
+	// "this browser is not connected" — and writing that over the row would
+	// record a stop someone pressed as a failure nobody explained.
 	if _, err := a.SQLDB.ExecContext(ctx, `
-		UPDATE automation_runs SET status = $3, error = $4, ok_count = $5, finished_at = now(), updated_at = now()
+		UPDATE automation_runs SET
+			status = CASE WHEN status = 'cancelled' THEN status ELSE $3 END,
+			error = CASE WHEN status = 'cancelled' AND error <> '' THEN error ELSE $4 END,
+			ok_count = $5, finished_at = now(), updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, runID, status, trim(errText, 500), okCount); err != nil {
 		h.log.Error("run finish write failed", "run", runID, "err", err)
 	}
 	// If a schedule started this run, its row says "running" until now.
 	Settle(ctx, a, workspaceID, runID)
+}
+
+// allowedHosts is the browser's list as it stands now.
+func allowedHosts(ctx context.Context, a *app.App, workspaceID, agentID string) ([]string, error) {
+	var hosts pgtext.Array
+	if err := a.SQLDB.QueryRowContext(ctx, `
+		SELECT allowed_hosts FROM browser_agents WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, agentID).Scan(&hosts); err != nil {
+		return nil, err
+	}
+	if hosts == nil {
+		return []string{}, nil // an empty list, sent as [] — never null, which reads as "no list"
+	}
+	return hosts, nil
 }
 
 func cancelled(ctx context.Context, a *app.App, workspaceID, runID string) bool {
