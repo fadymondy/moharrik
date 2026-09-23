@@ -12,3 +12,5 @@ internal/graph/gen
 web/node_modules
 web/.next
 web/.env*
+extension/node_modules
+extension/dist

@@ -10,6 +10,7 @@ import {
   type AutomationSchedule,
   type AutomationWorkflow,
   type AutomationSettings,
+  type ExtensionInfo,
   type BrowserAgent,
   type MailboxSettings,
   type WhatsAppLink,
@@ -269,7 +270,11 @@ export function useNews(workspaceId: string | null | undefined, filter: NewsFilt
 // ── Automation ───────────────────────────────────────────────────────────
 
 export const useBrowsers = (id?: string | null) =>
-  useScoped<{ browsers: BrowserAgent[] | null; pairings: AgentPairing[] | null }>("/api/w/browsers", id)
+  useScoped<{ browsers: BrowserAgent[] | null; pairings: AgentPairing[] | null; latest_extension_version: string }>("/api/w/browsers", id)
+
+/** The extension this server offers for download (MH-399). Not workspace-scoped. */
+export const useExtension = () =>
+  useSWR<ExtensionInfo>("/api/automation/extension", (p: string) => api<ExtensionInfo>(p), noRetryOn4xx)
 
 export const useAutomationSettings = (id?: string | null) =>
   useScoped<AutomationSettings>("/api/w/automation/settings", id)

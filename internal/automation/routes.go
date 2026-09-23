@@ -32,17 +32,21 @@ const pairingTTL = 10 * time.Minute
 // ---- wire types -----------------------------------------------------------
 
 type AgentOut struct {
-	ID               string     `json:"id"`
-	Name             string     `json:"name"`
-	Platform         string     `json:"platform"`
-	BrowserVersion   string     `json:"browser_version"`
-	ExtensionVersion string     `json:"extension_version"`
-	Status           string     `json:"status" doc:"online | offline — live, from the socket registry."`
-	AllowedHosts     []string   `json:"allowed_hosts" doc:"Empty allows nothing."`
-	TokenPrefix      string     `json:"token_prefix"`
-	LastSeenAt       time.Time  `json:"last_seen_at"`
-	RevokedAt        *time.Time `json:"revoked_at"`
-	CreatedAt        time.Time  `json:"created_at"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Platform         string `json:"platform"`
+	BrowserVersion   string `json:"browser_version"`
+	ExtensionVersion string `json:"extension_version"`
+	// Older than the extension this server offers (MH-399). The extension
+	// reports its version on every connect, so this changes by itself once
+	// the browser is updated.
+	UpdateAvailable bool       `json:"update_available"`
+	Status          string     `json:"status" doc:"online | offline — live, from the socket registry."`
+	AllowedHosts    []string   `json:"allowed_hosts" doc:"Empty allows nothing."`
+	TokenPrefix     string     `json:"token_prefix"`
+	LastSeenAt      time.Time  `json:"last_seen_at"`
+	RevokedAt       *time.Time `json:"revoked_at"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 type PairingOut struct {
@@ -143,6 +147,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[struct {
 		Browsers []AgentOut   `json:"browsers"`
 		Pairings []PairingOut `json:"pairings" doc:"Pairing requests still waiting for someone to approve them."`
+		Latest   string       `json:"latest_extension_version" doc:"The extension version this server offers; empty when none is packaged."`
 	}], error) {
 		s, err := scope(ctx, authz.AutomationRead)
 		if err != nil {
@@ -161,6 +166,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		// the column is the last thing that was written, and a process that
 		// restarted would otherwise show every browser as still online.
 		online := hub.OnlineIn(s.WorkspaceID)
+		latest := LatestExtension()
 
 		list := []AgentOut{}
 		for rows.Next() {
@@ -180,6 +186,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 			if online[x.ID] {
 				x.Status = "online"
 			}
+			x.UpdateAvailable = x.RevokedAt == nil && Outdated(x.ExtensionVersion, latest)
 			list = append(list, x)
 		}
 
@@ -201,10 +208,15 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 			pairings = append(pairings, p)
 		}
 
+		latestVersion := ""
+		if latest != nil {
+			latestVersion = latest.Version
+		}
 		return out(struct {
 			Browsers []AgentOut   `json:"browsers"`
 			Pairings []PairingOut `json:"pairings" doc:"Pairing requests still waiting for someone to approve them."`
-		}{list, pairings}), nil
+			Latest   string       `json:"latest_extension_version" doc:"The extension version this server offers; empty when none is packaged."`
+		}{list, pairings, latestVersion}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -721,6 +733,7 @@ func getAgent(ctx context.Context, db *sql.DB, hub *Hub, workspaceID, id string)
 	if hub.Online(x.ID) {
 		x.Status = "online"
 	}
+	x.UpdateAvailable = x.RevokedAt == nil && Outdated(x.ExtensionVersion, LatestExtension())
 	return x, nil
 }
 

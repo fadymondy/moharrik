@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { CheckIcon, OctagonXIcon, PlayIcon, PlusIcon, ShieldCheckIcon } from "lucide-react"
+import { CheckIcon, DownloadIcon, OctagonXIcon, PlayIcon, PlusIcon, ShieldCheckIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
+import { ApproveForm } from "@/components/automation/approve-form"
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -75,7 +76,12 @@ export default function AutomationPage() {
         title={t("nav.automation")}
         description={t("automation.hint")}
         action={
-          canManage ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/extension`} />} data-install-link>
+              <DownloadIcon />
+              {t("automation.ext.link")}
+            </Button>
+            {canManage ? (
             paused ? (
               <Button size="sm" onClick={() => setPaused(false)}>
                 <PlayIcon />
@@ -95,7 +101,8 @@ export default function AutomationPage() {
                 onConfirm={() => setPaused(true)}
               />
             )
-          ) : undefined
+          ) : null}
+          </div>
         }
       />
 
@@ -119,7 +126,16 @@ export default function AutomationPage() {
         ) : browsers.isLoading ? (
           <LoadingRows rows={2} />
         ) : list.length === 0 ? (
-          <EmptyState title={t("automation.noBrowsers")} body={canManage ? t("automation.noBrowsersBody") : undefined} />
+          <EmptyState
+            title={t("automation.noBrowsers")}
+            body={t("automation.noBrowsersBody")}
+            action={
+              <Button size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/extension`} />}>
+                <DownloadIcon />
+                {t("automation.ext.link")}
+              </Button>
+            }
+          />
         ) : (
           <ul className="divide-y divide-line border-y border-line">
             {list.map((b) => (
@@ -189,7 +205,22 @@ export default function AutomationPage() {
         ) : schedules.isLoading ? (
           <LoadingRows rows={2} />
         ) : (schedules.data?.schedules ?? []).length === 0 ? (
-          <EmptyState title={t("automation.noSchedules")} body={canRun ? t("automation.noSchedulesBody") : undefined} />
+          // A schedule runs in a paired browser. With none paired, "add a
+          // schedule" was a dead end: say what is missing and where to get it.
+          !list.some((b) => !b.revoked_at) ? (
+            <EmptyState
+              title={t("automation.sched.needBrowserTitle")}
+              body={t("automation.sched.needBrowserBody")}
+              action={
+                <Button size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/extension`} />} data-schedule-install>
+                  <DownloadIcon />
+                  {t("automation.ext.link")}
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState title={t("automation.noSchedules")} body={canRun ? t("automation.noSchedulesBody") : undefined} />
+          )
         ) : (
           <ul className="divide-y divide-line border-y border-line">
             {(schedules.data?.schedules ?? []).map((sc) => (
@@ -242,7 +273,7 @@ export default function AutomationPage() {
 }
 
 function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; canManage: boolean; onChange: () => void }) {
-  const { t, formatDate } = useTranslations()
+  const { t, formatDate, locale } = useTranslations()
   const ws = useWorkspace()
   const [editing, setEditing] = useState(false)
   const [hosts, setHosts] = useState(browser.allowed_hosts.join(", "))
@@ -287,6 +318,13 @@ function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; c
                 {browser.status === "online" ? t("automation.online") : t("automation.offline")}
               </Badge>
             )}
+            {browser.update_available ? (
+              // The extension reports its version on every connect, so this
+              // clears by itself once the browser is updated (MH-399).
+              <Link href={`/${locale}/w/${ws.slug}/automation/extension`} data-update-available>
+                <Badge variant="secondary">{t("automation.ext.outdated", { version: browser.extension_version || "?" })}</Badge>
+              </Link>
+            ) : null}
           </p>
           <p className="text-xs text-grid-muted">
             {[browser.platform, browser.browser_version, browser.extension_version].filter(Boolean).join(" · ") || t("automation.unknownPlatform")}
@@ -336,71 +374,6 @@ function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; c
         </form>
       ) : null}
     </li>
-  )
-}
-
-function ApproveForm({ onApproved }: { onApproved: () => void }) {
-  const { t } = useTranslations()
-  const ws = useWorkspace()
-  const [code, setCode] = useState("")
-  const [name, setName] = useState("")
-  const [hosts, setHosts] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setErr(null)
-    try {
-      await api("/api/w/browsers/approve", {
-        json: {
-          code: code.trim(),
-          name: name.trim(),
-          allowed_hosts: hosts.split(",").map((h) => h.trim()).filter(Boolean),
-        },
-        workspaceId: ws.id,
-      })
-      toast.success(t("automation.paired"))
-      setCode("")
-      setName("")
-      setHosts("")
-      onApproved()
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} noValidate className="px-6 pt-6" data-form="approve">
-      <p className="pb-3 text-sm text-grid-muted">{t("automation.approveHint", { slug: ws.slug })}</p>
-      <FieldGroup className="sm:flex-row sm:items-end">
-        <Field className="sm:w-40">
-          <FieldLabel htmlFor="pair-code">{t("automation.code")}</FieldLabel>
-          <Input id="pair-code" dir="ltr" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} maxLength={12} />
-        </Field>
-        <Field className="sm:w-56">
-          <FieldLabel htmlFor="pair-name">
-            {t("automation.browserName")} <span className="text-grid-muted">({t("common.optional")})</span>
-          </FieldLabel>
-          <Input id="pair-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
-        </Field>
-        <Field className="sm:flex-1">
-          <FieldLabel htmlFor="pair-hosts">
-            {t("automation.allowedHosts")} <span className="text-grid-muted">({t("common.optional")})</span>
-          </FieldLabel>
-          <Input id="pair-hosts" dir="ltr" value={hosts} onChange={(e) => setHosts(e.target.value)} placeholder="example.com" />
-          <FieldDescription>{t("automation.allowedHostsHint")}</FieldDescription>
-        </Field>
-        <Button type="submit" disabled={busy || !code.trim()}>
-          <PlusIcon />
-          {busy ? t("common.working") : t("automation.approve")}
-        </Button>
-      </FieldGroup>
-      {err ? <FieldError className="mt-3">{err}</FieldError> : null}
-    </form>
   )
 }
 

@@ -76,6 +76,8 @@ func Boot() *app.App {
 	agentHub := automation.NewHub(k.Log)
 	automation.SetDefault(agentHub)
 	k.Router.Get("/api/agents/ws", agentHub.Handler(a))
+	// The extension zip (MH-399): a file, not a JSON body, so a plain route.
+	automation.MountExtensionDownload(k.Router, a)
 
 	// The research engine: search, reader and model, resolved from the
 	// environment once. Each tier is independently optional, and a run says
@@ -200,6 +202,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.Register(api, a, automation.Default())
 	automation.RegisterSchedules(api, a, automation.Default())
 	automation.RegisterWorkflows(api, a, automation.Default())
+	automation.RegisterExtension(api)
 	research.Register(api, a, researchEngine)
 	mcp.RegisterTokenRoutes(api, a)
 	google.Register(api, a)

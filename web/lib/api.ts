@@ -495,6 +495,8 @@ export type BrowserAgent = {
   platform: string
   browser_version: string
   extension_version: string
+  /** Older than the extension this server offers (MH-399). */
+  update_available: boolean
   /** Live, from the socket registry — not the last value written to the row. */
   status: "online" | "offline"
   /** Empty allows nothing. */
@@ -597,6 +599,21 @@ export type AutomationSchedule = {
   created_at: string
 }
 
+
+/** The downloadable extension (MH-399). */
+export type ExtensionInfo = {
+  available: boolean
+  reason?: string
+  version?: string
+  file?: string
+  bytes?: number
+  sha256?: string
+  site?: string
+  dev?: boolean
+  built_at?: string
+  commit?: string
+  download_url?: string
+}
 
 export type WorkflowParam = {
   name: string

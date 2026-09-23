@@ -6,6 +6,7 @@
 /internal/graph/gen/
 /web/node_modules/
 /extension/node_modules/
+/extension/dist/
 /web/.next/
 /web/.env*
 !/web/.env.example

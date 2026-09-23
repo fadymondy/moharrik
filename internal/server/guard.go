@@ -82,6 +82,12 @@ func classify(r *http.Request) tier {
 	// session cookie is SameSite=Lax, so Google's top-level redirect carries it.
 	case "/api/google/oauth/callback":
 		return tierSignedIn
+	// The browser extension's build info and zip (MH-399). The same file for
+	// every workspace, fetched by a plain link that cannot carry
+	// X-Workspace-ID — and nothing in it is secret: a browser is useless until
+	// an admin of a workspace approves its pairing.
+	case "/api/automation/extension", "/api/automation/extension/download":
+		return tierSignedIn
 	}
 	// A webhook delivery: no session, no X-Workspace-ID — the id in the path
 	// plus its HMAC signature over the raw body are the authorization

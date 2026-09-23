@@ -33,6 +33,19 @@ ARG NEXT_PUBLIC_MAHAAM_EMBED_ORIGIN=https://console.mahaam.app
 ENV NEXT_PUBLIC_MAHAAM_EMBED_ORIGIN=$NEXT_PUBLIC_MAHAAM_EMBED_ORIGIN
 RUN npm run build
 
+# ── Extension: the downloadable zip (MH-399) ───────────────────────────────────────────────────
+# Chrome loads the extension directory as it is, so "building" it is packaging: a versioned zip
+# of extension/ without its test harness, and build.json with the zip's sha256. The API serves
+# both (GET /api/automation/extension and …/download) and refuses a zip that no longer matches
+# its recorded checksum. EXTENSION_SITE bakes another deployment's origin in; the default is
+# production. The zip is built here, never committed.
+FROM node:24-alpine AS extension
+WORKDIR /src
+COPY extension/ ./extension/
+ARG EXTENSION_SITE=https://app.moharrik.com
+ARG GIT_COMMIT=
+RUN GIT_COMMIT=$GIT_COMMIT node extension/build.mjs --site "$EXTENSION_SITE" --out /out/extension
+
 # ── Runtime ────────────────────────────────────────────────────────────────────────────────────
 FROM node:24-alpine
 WORKDIR /app
@@ -49,6 +62,7 @@ COPY --from=api /out/ /app/bin/
 COPY internal/db/schema /app/internal/db/schema
 COPY internal/db/post /app/internal/db/post
 COPY lang /app/lang
+COPY --from=extension /out/extension /app/extension/dist
 COPY --from=web /web/.next/standalone /app/web
 COPY --from=web /web/.next/static /app/web/.next/static
 COPY --from=web /web/public /app/web/public
