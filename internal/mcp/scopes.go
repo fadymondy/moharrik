@@ -59,6 +59,12 @@ var UserScopes = []ScopeDef{
 	{"trends:read", "Read sources, the catalog, the budget, collected items and trending topics", authz.Member},
 	{"trends:write", "Save items, and review, dismiss or save trending topics", authz.Member},
 	{"trends:manage", "Add and change sources, and collect now (spends the daily budget)", authz.Manager},
+	// Google data (MH-447): what the workspace reads from GA4, Search Console
+	// and YouTube. The write scope spends a site's shared URL-inspection
+	// budget and submits sitemaps to Google, so it is a manager's, like
+	// search_console:write in internal/authz.
+	{"analytics:read", "Read the workspace's Google Analytics, Search Console and YouTube data", authz.Member},
+	{"search_console:write", "Inspect URLs and submit sitemaps in Search Console", authz.Manager},
 }
 
 // AdminScopes is the closed list for the platform admin MCP. Admin tokens are
