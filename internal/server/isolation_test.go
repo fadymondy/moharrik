@@ -64,6 +64,8 @@ type client struct {
 	csrf   string
 	ws     string
 	bearer string
+	// The approval page's browser key (MH-478), sent as X-Connect-Key.
+	connectKey string
 }
 
 func newClient(t *testing.T, base string) *client {
@@ -85,6 +87,9 @@ func (c *client) do(method, path string, body any) (int, []byte) {
 	}
 	if c.bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+c.bearer)
+	}
+	if c.connectKey != "" {
+		req.Header.Set("X-Connect-Key", c.connectKey)
 	}
 	if method != http.MethodGet && method != http.MethodHead && c.bearer == "" {
 		if c.csrf == "" {
@@ -762,6 +767,34 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	if code, b := bob.do("POST", "/api/w/deals", map[string]any{"title": "steal", "stage_id": stageID}); code != http.StatusUnprocessableEntity || leaks(b) != "" {
 		t.Errorf("B putting a deal on A's stage: got %d, want 422: %s", code, b)
 	}
+
+	// ---- connecting a browser by approval (MH-478) ----------------------------
+	// The request belongs to no workspace until it is approved, and the member
+	// picks the workspace in the body — so the tenant check is the handler's,
+	// not the guard's. Bob holds the page's key and still cannot approve into A;
+	// alice approves into A, and nothing of it reaches B.
+	cs := map[string]string{}
+	{
+		anonC := newClient(t, srv.URL)
+		code, b := anonC.do("POST", "/api/agents/connect/start", map[string]any{"name": marker + " connecting", "fingerprint": "iso-fp-" + rnd()})
+		if code != http.StatusCreated {
+			t.Fatalf("connect/start: %d %s", code, b)
+		}
+		_ = json.Unmarshal(b, &cs)
+	}
+	bob.ws = bID
+	if code, b := bob.do("POST", "/api/agents/connect/approve", map[string]any{"code": cs["code"], "key": cs["browser_key"], "workspace": aID, "name": "bob's"}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B approving a browser into A: got %d, want 404: %s", code, b)
+	}
+	alice.ws = aID
+	alice.must("POST", "/api/agents/connect/approve", map[string]any{"code": cs["code"], "key": cs["browser_key"], "workspace": aID, "name": marker + " connected"}, 200)
+	bob.ws = bID
+	for _, p := range []string{"/api/w/browsers", "/api/agents/connect/" + cs["code"]} {
+		if _, b := bob.do("GET", p, nil); leaks(b) != "" || strings.Contains(string(b), aID) {
+			t.Errorf("B: GET %s leaked A's connected browser: %s", p, b)
+		}
+	}
+	alice.ws = aID
 
 	// ---- account level: bob's list never shows A ----------------------------
 	bob.ws = ""

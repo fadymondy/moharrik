@@ -221,6 +221,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	whatsapp.Register(api, a)
 	trends.Register(api, a)
 	automation.Register(api, a, automation.Default())
+	automation.RegisterConnect(api, a, automation.Default()) // connect a browser by approval (MH-478)
 	automation.RegisterSchedules(api, a, automation.Default())
 	automation.RegisterWorkflows(api, a, automation.Default())
 	automation.RegisterExtension(api)

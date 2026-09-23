@@ -59,6 +59,8 @@ export type ApiOptions = {
   form?: FormData
   /** Sends X-Workspace-ID for workspace-scoped endpoints. */
   workspaceId?: string | null
+  /** Extra request headers, e.g. the connect page's X-Connect-Key (MH-478). */
+  headers?: Record<string, string>
   signal?: AbortSignal
 }
 
@@ -67,7 +69,7 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   const mutating = method !== "GET"
 
   const send = async (forceCsrf: boolean) => {
-    const headers: Record<string, string> = { Accept: "application/json" }
+    const headers: Record<string, string> = { Accept: "application/json", ...(opts.headers ?? {}) }
     if (opts.json !== undefined) headers["Content-Type"] = "application/json"
     if (opts.workspaceId) headers["X-Workspace-ID"] = opts.workspaceId
     if (mutating) headers["X-CSRF-Token"] = await getCsrf(forceCsrf)
@@ -695,14 +697,25 @@ export type BrowserAgent = {
   created_at: string
 }
 
-export type AgentPairing = {
-  id: string
+/** A workspace the signed-in member could connect a browser to (MH-478). */
+export type ConnectWorkspace = { id: string; slug: string; name: string; role: Role; can_approve: boolean }
+
+/** A browser asking to connect, as the approval page sees it (MH-478). */
+export type ConnectRequest = {
+  code: string
+  /** Everything below this line is what the browser SAYS about itself, shown only with the page's key. */
   requested_name: string
   platform: string
+  browser_version: string
+  extension_version: string
   ip: string
-  status: string
+  status: "pending" | "approved" | "claimed" | "denied" | "expired"
   expires_at: string
-  created_at: string
+  /** Whether this page holds the browser key the extension put in its address. */
+  key_ok: boolean
+  workspaces: ConnectWorkspace[]
+  /** Only for whoever decided it. */
+  workspace?: ConnectWorkspace
 }
 
 export type AutomationSettings = {

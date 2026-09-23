@@ -33,6 +33,7 @@ import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { connectExtension } from "./connect-helper.mjs"
 
 const apiBase = (process.argv[2] ?? "http://127.0.0.1:8422").replace(/\/$/, "")
 const webBase = (process.env.WEB_BASE ?? "").replace(/\/$/, "")
@@ -167,30 +168,12 @@ try {
   const { workspace } = await call("POST", "/api/me/workspaces", { name: `MH-422 ${Date.now()}` })
   out.workspace = workspace.slug
 
-  // ---- pair through the extension's own popup ----
-  const popup = await ctx.newPage()
-  await popup.goto(`chrome-extension://${extensionID}/popup.html`)
-  await popup.fill("#site", apiBase)
-  await popup.fill("#api", apiBase)
-  await popup.fill("#workspace", workspace.slug)
-  await popup.click("#start")
-  await popup.waitForSelector("#codebox:not([hidden])", { timeout: 20000 })
-  const code = (await popup.textContent("#code")).replace(/\s/g, "")
-  const approved = await call(
-    "POST",
-    "/api/w/browsers/approve",
-    { code, name: "MH-422 Chromium", allowed_hosts: [ALLOWED] },
-    workspace.id,
-  )
-  const agentID = approved.browser.id
-  let online = false
-  for (let i = 0; i < 40 && !online; i++) {
-    const { browsers } = await call("GET", "/api/w/browsers", undefined, workspace.id)
-    const b = browsers.find((x) => x.id === agentID)
-    online = b?.status === "online"
-    if (online) out.reportedVersion = b.extension_version
-    if (!online) await new Promise((r) => setTimeout(r, 1500))
-  }
+  // ---- connect through the extension's own popup (MH-478) ----
+  const { browser: connected, online, popup } = await connectExtension({
+    ctx, extensionID, site: apiBase, api: apiBase, call, workspaceID: workspace.id,
+    name: "MH-422 Chromium", hosts: [ALLOWED],
+  })
+  const agentID = connected.id
   check("extension paired and connected by itself", online)
   if (!online) throw new Error("the extension never came online")
   check("the browser reports the bumped extension version", out.reportedVersion === version && version.split(".").map(Number).reduce((acc, n) => acc * 1000 + n, 0) >= 1002, {

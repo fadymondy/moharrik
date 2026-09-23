@@ -6,7 +6,6 @@ import useSWRInfinite from "swr/infinite"
 import {
   api,
   ApiError,
-  type AgentPairing,
   type AutomationRun,
   type AutomationSchedule,
   type AutomationWorkflow,
@@ -375,7 +374,7 @@ export const useTrendSettings = (id?: string | null) => useScoped<{ settings: Tr
 // ── Automation ───────────────────────────────────────────────────────────
 
 export const useBrowsers = (id?: string | null) =>
-  useScoped<{ browsers: BrowserAgent[] | null; pairings: AgentPairing[] | null; latest_extension_version: string }>("/api/w/browsers", id)
+  useScoped<{ browsers: BrowserAgent[] | null; latest_extension_version: string }>("/api/w/browsers", id)
 
 /** The extension this server offers for download (MH-399). Not workspace-scoped. */
 export const useExtension = () =>
