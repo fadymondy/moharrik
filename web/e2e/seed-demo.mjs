@@ -672,7 +672,6 @@ const INQUIRIES = [
 
 const FEEDS = [
   { name: "Daily Coffee News", url: "https://dailycoffeenews.com/feed/" },
-  { name: "Hacker News", url: "https://news.ycombinator.com/rss" },
   { name: "BBC News — Business", url: "https://feeds.bbci.co.uk/news/business/rss.xml" },
   { name: "بي بي سي عربي", url: "https://feeds.bbci.co.uk/arabic/rss.xml" },
 ]
@@ -687,6 +686,12 @@ const FEEDS = [
       src = r.source
       log(`feed ${f.name}: added, ${r.added} items on first fetch`)
     }
+  }
+  // Hacker News is read through its API (MH-387), from the catalog: the API
+  // gives each story's front-page rank and points, which the RSS mirror does not.
+  if (!(await s.get("/api/w/feed_sources")).sources.some((x) => x.catalog_key === "hackernews")) {
+    const r = await s.post("/api/w/feed_sources", { catalog_key: "hackernews" }, { allow: [409] })
+    log(`source Hacker News (API, from the catalog): added, ${r?.added ?? "?"} items on first fetch`)
   }
   const TOPICS = [
     { name: "coffee prices", keywords: ["coffee price", "coffee prices", "arabica", "robusta", "futures", "tariff", "أسعار القهوة", "البن"] },
