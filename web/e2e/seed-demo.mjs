@@ -337,18 +337,82 @@ const DEALS = [
 ]
 const dealId = {}
 const newDeals = new Set()
+// The stages a deal walks through to reach where it ends (MH-394): the board records every move,
+// so the Reports funnel sees how far each deal got — including the ones that were lost.
+const WALK = {
+  lead: [], qualified: ["qualified"], proposal: ["qualified", "proposal"],
+  won: ["qualified", "proposal", "won"], lost: ["qualified", "lost"], lostLate: ["qualified", "proposal", "lost"],
+}
+const closedDay = (iso) => (iso ? iso.slice(0, 10) : "")
+/** Open a deal in the first stage and move it, stage by stage, to where it ends. */
+async function openAndWalk(body, walk, closedOn) {
+  const r = await s.post("/api/w/deals", { ...body, stage_id: stage.lead })
+  const steps = WALK[walk] ?? []
+  for (const [i, st] of steps.entries()) {
+    const last = i === steps.length - 1
+    const target = st
+    await s.patch(`/api/w/deals/${r.deal.id}`, { stage_id: stage[target], ...(last && closedOn && (target === "won" || target === "lost") ? { closed_on: closedOn } : {}) })
+  }
+  return r.deal.id
+}
 {
   const have = Object.fromEntries(board.deals.map((d) => [d.title, d]))
+  let redated = 0
   for (const [title, usd, st, co, email, days] of DEALS) {
-    if (have[title]) { dealId[title] = have[title].id; continue }
-    const r = await s.post("/api/w/deals", {
-      title, value_minor: money(usd), stage_id: stage[st], company_id: companyId[co], contact_id: contactId[email], expected_close: inDays(days),
-    })
-    dealId[title] = r.deal.id
+    const closing = st === "won" || st === "lost"
+    const h = have[title]
+    if (h) {
+      dealId[title] = h.id
+      // A won/lost deal made before close dates existed closed the moment it was created: give it
+      // the day it really closed (its expected close), once — a deal already re-dated is left alone.
+      if (closing && h.closed_at && closedDay(h.closed_at) === closedDay(h.created_at) && days < 0) {
+        await s.patch(`/api/w/deals/${h.id}`, { closed_on: inDays(days) })
+        redated++
+      }
+      continue
+    }
+    dealId[title] = await openAndWalk(
+      { title, value_minor: money(usd), company_id: companyId[co], contact_id: contactId[email], expected_close: inDays(days) },
+      st, closing ? inDays(Math.min(days, 0)) : "",
+    )
     newDeals.add(title)
     created.deals++
   }
-  log(`deals: ${Object.keys(dealId).length} (${created.deals} new) in ${CUR}`)
+  log(`deals: ${Object.keys(dealId).length} (${created.deals} new, ${redated} given their close day) in ${CUR}`)
+}
+
+// ---- CRM: the year behind (MH-394) ---------------------------------------------------------
+// Deals won and lost over the last eleven months, so Reports has a history to draw: wins and
+// losses per month, a win rate, an average deal. Each walks the stages it went through and closes
+// on the day it closed. Re-runnable: skipped by title.
+// [title, usd, walk, company, contact email, closed N days ago]
+const HISTORY = [
+  ["Bean & Brew — Ramadan iftar blend, 3 branches", 6200, "won", "bnb", "hana.elsayed@beanandbrew.example", 330],
+  ["Qahwa House — trial shipment, 120 kg", 4800, "won", "qahwa", "reem@qahwahouse.example", 300],
+  ["Red Sea Resorts — summer season top-up", 16500, "lost", "redsea", "purchasing@redsearesorts.example", 285],
+  ["Nile Residence — 2026 banqueting coffee", 21000, "won", "nile", "m.shawky@nileresidence.example", 260],
+  ["Marina Workspace — pilot at JLT", 2900, "won", "marina", "daniel.k@marinaworkspace.example", 230],
+  ["Delta Tech — pantry RFQ 2026", 27000, "lostLate", "delta", "procurement@deltatech.example", 205],
+  ["مخبز الماسة — خلطة إسبريسو لركن القهوة", 5400, "won", "masa", "mona.saleh@almasa.example", 180],
+  ["Desert Rose — Founding Day event bar", 7300, "lost", "rose", "sami@desertrose.example", 160],
+  ["Bay Leaf — guest espresso, one month", 1800, "won", "bayleaf", "chloe@bayleaf.example", 140],
+  ["Corniche Grand — lobby lounge trial", 3600, "lostLate", "corniche", "s.hamdy@cornichegrand.example", 115],
+  ["Maadi Hub — coffee for the members' summit", 1500, "won", "maadi", "amr@maadihub.example", 95],
+  ["Zamalek Books — holiday gift boxes", 2100, "won", "zbooks", "youssef@zamalekbooks.example", 70],
+  ["Qahwa House — Al Malqa branch opening", 9800, "won", "qahwa", "f.alqahtani@qahwahouse.example", 52],
+  ["Red Sea Resorts — El Gouna outlet espresso", 8700, "lost", "redsea", "elgouna.fb@redsearesorts.example", 38],
+  ["Bean & Brew — New Cairo branch launch", 7600, "won", "bnb", "karim.fouad@beanandbrew.example", 24],
+  ["Delta Tech — town-hall coffee service", 2200, "lost", "delta", "h.farouk@deltatech.example", 12],
+]
+{
+  const have = new Set(board.deals.map((d) => d.title))
+  let n = 0
+  for (const [title, usd, walk, co, email, ago] of HISTORY) {
+    if (have.has(title)) continue
+    await openAndWalk({ title, value_minor: money(usd), company_id: companyId[co], contact_id: contactId[email], expected_close: inDays(-ago) }, walk, inDays(-ago))
+    n++
+  }
+  log(`history: ${n} closed deals over the last eleven months`)
 }
 
 // Activities only on records made in THIS run, so a re-run does not double the timeline.
@@ -536,6 +600,21 @@ const INQUIRIES = [
   const act = async (email, fn) => { const l = by[email]; if (l) await fn(l) }
   for (const email of ["mostafa@cairobites.example", "sara@alnakheel-hotel.example"]) {
     await act(email, async (l) => { if (l.status !== "converted") await s.post(`/api/w/leads/${l.id}/convert`, {}) })
+  }
+  // The Google Ads lead from Cairo Bites became a customer (MH-394: Reports credits the won deal
+  // to the lead's source). Walked through the stages once; a deal already past Lead is left alone.
+  {
+    const cb = (await s.get("/api/w/leads")).leads.find((l) => l.email === "mostafa@cairobites.example")
+    const dealRef = cb?.converted_deal
+    if (dealRef) {
+      const { deal } = await s.get(`/api/w/deals/${dealRef.id}`)
+      if (deal.stage_id === stage.lead) {
+        await s.patch(`/api/w/deals/${deal.id}`, { title: "Cairo Bites — espresso blend for 3 New Cairo cafés", value_minor: money(5400) })
+        for (const st of ["qualified", "proposal"]) await s.patch(`/api/w/deals/${deal.id}`, { stage_id: stage[st] })
+        await s.patch(`/api/w/deals/${deal.id}`, { stage_id: stage.won, closed_on: inDays(-1) })
+        log("leads: the Cairo Bites deal is won")
+      }
+    }
   }
   await act("growth@seo-rank-fast.example", async (l) => { if (l.status !== "spam") await s.patch(`/api/w/leads/${l.id}`, { status: "spam" }) })
   await act("olivia.grant@deskhive.example", async (l) => { if (l.status === "new") await s.patch(`/api/w/leads/${l.id}`, { status: "contacted" }) })

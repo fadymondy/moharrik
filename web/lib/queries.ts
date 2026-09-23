@@ -6,6 +6,7 @@ import useSWRInfinite from "swr/infinite"
 import {
   api,
   ApiError,
+  type CrmReport,
   type AutomationRun,
   type AutomationSchedule,
   type AutomationWorkflow,
@@ -622,3 +623,8 @@ export function useOverview(workspaceId: string | null | undefined) {
     },
   )
 }
+
+// ── Reports (MH-394) ─────────────────────────────────────────────────────
+
+/** `range` is the query string: `days=30`, or `from=YYYY-MM-DD&to=YYYY-MM-DD`. */
+export const useCrmReport = (id: string | null | undefined, range: string) => useScoped<CrmReport>(`/api/w/reports/crm?${range}`, id)

@@ -1511,3 +1511,51 @@ export type OverviewTraffic = {
     last_error: string
   }[] | null
 }
+
+// ── CRM report (MH-394) ────────────────────────────────────────────────────
+// GET /api/w/reports/crm: every figure is the API's SQL; money is minor units of `currency`.
+
+export type ReportStage = { id: string; name: string; deal_count: number; value_minor: number }
+export type ReportConversionStep = {
+  stage_id: string
+  name: string
+  kind: "open" | "won"
+  reached: number
+  from_previous: number | null
+  from_start: number | null
+}
+export type ReportBucket = { start: string; won: number; lost: number; won_value_minor: number; lost_value_minor: number }
+export type ReportLeadSource = { source: string; leads: number; converted: number; won_deals: number; won_value_minor: number }
+export type ReportChannel = {
+  channel: ConversationChannel | "all"
+  conversations: number
+  answered: number
+  awaiting: number
+  median_seconds: number | null
+  mean_seconds: number | null
+}
+export type CrmReport = {
+  from: string
+  to: string
+  days: number
+  timezone: string
+  currency: string
+  bucket: "day" | "week" | "month"
+  generated_at: string
+  pipeline: { stages: ReportStage[] | null; open_deals: number; open_value_minor: number; other_currency_deals: number }
+  deals: {
+    opened: number
+    won: number
+    lost: number
+    win_rate: number | null
+    won_value_minor: number
+    lost_value_minor: number
+    avg_won_value_minor: number | null
+    other_currency_won: number
+    other_currency_lost: number
+  }
+  conversion: { opened: number; lost: number; steps: ReportConversionStep[] | null }
+  timeline: ReportBucket[] | null
+  lead_sources: { leads: number; spam: number; converted: number; sources: ReportLeadSource[] | null } | null
+  inbox: { channels: ReportChannel[] | null; total: ReportChannel } | null
+}

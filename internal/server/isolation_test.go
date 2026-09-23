@@ -48,6 +48,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/google/googletest"
 	"github.com/fadymondy/moharrik/internal/mcp"
 	_ "github.com/fadymondy/moharrik/internal/plugins"
+	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/testdb"
 )
 
@@ -784,6 +785,29 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	bob.ws = aID
 	if code, b := bob.do("GET", "/api/w/overview", nil); code != http.StatusNotFound || leaks(b) != "" {
 		t.Errorf("B asking for A's overview: got %d, want 404: %s", code, b)
+	}
+
+	// The CRM report (MH-394) aggregates deals, stage history, leads and the
+	// inbox. A's lead carries the marker as its utm_source, so A's report names
+	// it; B's report must show none of A's figures, and A's id from B is a 404.
+	alice.ws = aID
+	if code, b := alice.do("GET", "/api/w/reports/crm", nil); code != 200 || !strings.Contains(strings.ToLower(string(b)), strings.ToLower(marker)) ||
+		!strings.Contains(string(b), `"opened":2`) {
+		t.Errorf("A's report does not show A's own deals and lead source: %d %s", code, b)
+	}
+	bob.ws = bID
+	if code, b := bob.do("GET", "/api/w/reports/crm", nil); code != 200 || leaks(b) != "" ||
+		strings.Contains(strings.ToLower(string(b)), strings.ToLower(marker)) || !strings.Contains(string(b), `"opened":0`) ||
+		!strings.Contains(string(b), `"open_deals":0`) || !strings.Contains(string(b), `"leads":0`) {
+		t.Errorf("B's report leaked or counted A's rows: %d %s", code, b)
+	}
+	var bobEvents int
+	if err := a.SQLDB.QueryRowContext(tenant.WithWorkspace(context.Background(), bID), `SELECT count(*) FROM deal_stage_events`).Scan(&bobEvents); err != nil || bobEvents != 0 {
+		t.Errorf("B's workspace reads %d stage events through RLS (%v)", bobEvents, err)
+	}
+	bob.ws = aID
+	if code, b := bob.do("GET", "/api/w/reports/crm", nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B asking for A's report: got %d, want 404: %s", code, b)
 	}
 	alice.ws = aID
 

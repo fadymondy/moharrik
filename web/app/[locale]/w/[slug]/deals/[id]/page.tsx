@@ -1,6 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import { useParams } from "next/navigation"
+import { CalendarIcon } from "lucide-react"
 
 import { DealForm, DealValue } from "@/components/crm/deals"
 import { stageTone } from "@/components/crm/shared"
@@ -9,6 +11,10 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { NotFoundState } from "@/components/not-found-state"
 import { SectionHeader } from "@/components/public-frame"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type StageKind } from "@/lib/api"
@@ -71,6 +77,7 @@ export default function DealDetailPage() {
         <p className="px-6 pb-4 -mt-2 text-sm text-grid-muted">
           <Badge variant={closedTone[deal.stage_kind]}>{t(`deals.closed.${deal.stage_kind === "lost" ? "lost" : "won"}`)}</Badge>{" "}
           {t("deals.closedOn", { date: dateFormat(locale).format(new Date(deal.closed_at)) })}
+          {canWrite ? <ClosedOnEdit dealId={deal.id} closedAt={deal.closed_at} onSaved={() => detail.mutate()} /> : null}
         </p>
       ) : null}
 
@@ -85,5 +92,56 @@ export default function DealDetailPage() {
       <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} conversations={detail.data.conversations ?? []} target={{ deal_id: deal.id }} onChange={() => detail.mutate()} />
       <div className="pb-8" />
     </>
+  )
+}
+
+/**
+ * The day a won or lost deal really closed (MH-394): a result logged after the fact gets its own
+ * day, which is the day the Reports page counts it on. Never a future day (the API refuses one).
+ */
+function ClosedOnEdit({ dealId, closedAt, onSaved }: { dealId: string; closedAt: string; onSaved: () => void }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [open, setOpen] = useState(false)
+  const [day, setDay] = useState(closedAt.slice(0, 10))
+  const [error, setError] = useState("")
+  const [busy, setBusy] = useState(false)
+  const today = new Date().toISOString().slice(0, 10)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger render={<Button variant="ghost" size="sm" className="ms-1 h-7" data-closed-on-edit />}>
+        <CalendarIcon />
+        {t("deals.changeClosedOn")}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72">
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            setBusy(true)
+            setError("")
+            try {
+              await api(`/api/w/deals/${encodeURIComponent(dealId)}`, { method: "PATCH", workspaceId: ws.id, json: { closed_on: day } })
+              setOpen(false)
+              onSaved()
+            } catch (err) {
+              setError(err instanceof ApiError ? err.message : t("common.networkError"))
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <Field>
+            <FieldLabel htmlFor="deal-closed-on">{t("deals.closedOnLabel")}</FieldLabel>
+            <Input id="deal-closed-on" type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} dir="ltr" required />
+            <FieldDescription>{t("deals.closedOnHint")}</FieldDescription>
+          </Field>
+          {error ? <p className="text-sm text-grid-danger-text">{error}</p> : null}
+          <Button type="submit" size="sm" disabled={busy || !day}>
+            {t("common.save")}
+          </Button>
+        </form>
+      </PopoverContent>
+    </Popover>
   )
 }

@@ -63,6 +63,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	}
 	tools = append(tools, CrmTools()...)
 	tools = append(tools, LeadTools()...)
+	tools = append(tools, ReportTools()...) // crm_report (MH-394)
 	tools = append(tools, MarketingTools()...)
 	tools = append(tools, NotificationTools()...)
 	tools = append(tools, InboxTools()...)

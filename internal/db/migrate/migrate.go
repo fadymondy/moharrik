@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -27,6 +28,7 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"browser_agents", "agent_pairings", "automation_runs", "automation_run_steps", "automation_settings",
 	"mailboxes", "whatsapp_links", "automation_schedules", "automation_workflows", "automation_workflow_versions",
 	"research_runs", "research_sources", "subscribe_forms", "leads",
+	"deal_stage_events",
 	"google_connections", "google_oauth_states", "push_subscriptions",
 	"google_resources", "google_discoveries",
 	"ga4_reports", "ga4_daily",
@@ -167,7 +169,7 @@ func attachAuditTriggers(ctx context.Context, db *sql.DB, logf func(string, ...a
 
 func applyDir(ctx context.Context, db *sql.DB, dir string, logf func(string, ...any)) error {
 	files, _ := filepath.Glob(filepath.Join(dir, "*.sql"))
-	sort.Strings(files)
+	sortMigrations(files)
 	for _, f := range files {
 		b, err := os.ReadFile(f)
 		if err != nil {
@@ -179,6 +181,38 @@ func applyDir(ctx context.Context, db *sql.DB, dir string, logf func(string, ...
 		logf("applied %s", filepath.Base(f))
 	}
 	return nil
+}
+
+// sortMigrations orders files by their leading number, numerically, then by
+// name. A plain string sort put "105_x.sql" before "10_constraints.sql" ('5'
+// sorts before '_'), so a three-digit post file (the batch blocks from 100 up)
+// would have run before the tables and constraints it builds on. Files without
+// a number keep sorting after the numbered ones, by name, exactly as before;
+// for the one- and two-digit names this is the order a string sort gave.
+func sortMigrations(files []string) {
+	num := func(f string) (int, bool) {
+		base := filepath.Base(f)
+		i := 0
+		for i < len(base) && base[i] >= '0' && base[i] <= '9' {
+			i++
+		}
+		if i == 0 {
+			return 0, false
+		}
+		n, err := strconv.Atoi(base[:i])
+		return n, err == nil
+	}
+	sort.SliceStable(files, func(i, j int) bool {
+		ni, oki := num(files[i])
+		nj, okj := num(files[j])
+		switch {
+		case oki && okj && ni != nj:
+			return ni < nj
+		case oki != okj:
+			return oki
+		}
+		return filepath.Base(files[i]) < filepath.Base(files[j])
+	})
 }
 
 // ensureAppRole creates/updates the role named in APP_DATABASE_URL: login,

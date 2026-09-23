@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   BellIcon,
   BellRingIcon,
+  ChartColumnBigIcon,
   ChartLineIcon,
   BotIcon,
   ClipboardListIcon,
@@ -322,6 +323,12 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/deals`} icon={<HandshakeIcon />}>
         {t("nav.deals")}
       </L>
+      {/* The CRM report (MH-394); hidden, not disabled, for a role that cannot read the CRM. */}
+      {can?.includes("contacts:read") ? (
+        <L href={`${base}/reports`} icon={<ChartColumnBigIcon />}>
+          {t("nav.reports")}
+        </L>
+      ) : null}
       <L href={`${base}/campaigns`} icon={<SendIcon />}>
         {t("nav.campaigns")}
       </L>
