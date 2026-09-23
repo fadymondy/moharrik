@@ -63,6 +63,7 @@ func Boot() *app.App {
 
 	installErrors()
 	installProblemReports(k) // outermost: sees what the guard and handlers answer
+	installInputGuard(k)     // text Postgres cannot store is a 400 before any query sees it
 	installClientIP(k)       // the visitor's address, from the TRUSTED proxy chain only
 	installChatCORS(k)       // before the guard: a preflight carries no session
 	installGuard(k, a)
