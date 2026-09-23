@@ -72,6 +72,9 @@ type Envelope struct {
 type Connected struct {
 	AgentID     string    `json:"agent_id"`
 	WorkspaceID string    `json:"workspace_id"`
+	// The workspace's name and slug, told to the browser at hello (MH-478).
+	WorkspaceName string `json:"workspace_name"`
+	WorkspaceSlug string `json:"workspace_slug"`
 	Name        string    `json:"name"`
 	Platform    string    `json:"platform"`
 	Version     string    `json:"extension_version"`

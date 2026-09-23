@@ -32,6 +32,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { execFileSync } from "node:child_process"
+import { connectExtension } from "./connect-helper.mjs"
 
 const web = (process.argv[2] ?? "http://localhost:3506").replace(/\/$/, "")
 const apiBase = (process.argv[3] ?? "http://localhost:8506").replace(/\/$/, "")
@@ -139,22 +140,12 @@ try {
   // The workspace's own zone, which the schedule form must use by default.
   execFileSync("docker", ["exec", "pg", "psql", "-U", "postgres", "-d", APP_DB, "-c", `UPDATE workspaces SET timezone = 'Africa/Cairo' WHERE id = '${workspace.id}'`])
 
-  // ---- pair ----
-  const popup = await ctx.newPage()
-  await popup.goto(`chrome-extension://${extensionID}/popup.html`)
-  await popup.fill("#site", web)
-  await popup.fill("#api", apiBase)
-  await popup.fill("#workspace", workspace.slug)
-  await popup.click("#start")
-  await popup.waitForSelector("#codebox:not([hidden])", { timeout: 20000 })
-  const code = (await popup.textContent("#code")).replace(/\s/g, "")
-  const { browser } = await call("POST", "/api/w/browsers/approve", { code, name: "MH-400 Chromium", allowed_hosts: ["127.0.0.1"] }, workspace.id)
-  let online = false
-  for (let i = 0; i < 40 && !online; i++) {
-    const { browsers } = await call("GET", "/api/w/browsers", undefined, workspace.id)
-    online = browsers.some((b) => b.id === browser.id && b.status === "online")
-    if (!online) await sleep(1500)
-  }
+  // ---- connect through the extension's own popup (MH-478) ----
+  const { browser: connected, online, popup } = await connectExtension({
+    ctx, extensionID, site: web, api: apiBase, call, workspaceID: workspace.id,
+    name: "MH-400 Chromium", hosts: ["127.0.0.1"],
+  })
+  const browser = connected
   check("extension paired and online", online)
   if (!online) throw new Error("never came online")
   await sleep(1000)

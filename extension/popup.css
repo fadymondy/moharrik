@@ -1,0 +1,342 @@
+/*
+The popup, in the site's clothes (MH-478).
+
+Laid out section by section like fadymondy.com's extension popup, which the
+owner named as the reference: a mono micro-label on the left, the value on the
+right, hairline rules between, square corners. The COLOURS are Moharrik's —
+web/app/styles/moharrik-brand.css and the grid's paper/ink scale — so the
+action colour is the brand teal with ink on it (5.75:1 light, 8.61:1 dark), not
+fadymondy.com's orange. Copied rather than imported: an extension popup cannot
+reach the site's stylesheet.
+
+Fonts: Geist and JetBrains Mono (both OFL), shipped with the extension.
+*/
+
+@font-face {
+  font-family: "Geist Variable";
+  src: url("fonts/geist-latin-wght-normal.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  src: url("fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2-variations");
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+:root {
+  --background: #f0ebe1; /* paper */
+  --card: #f7f4ec;
+  --foreground: #0b1429; /* ink */
+  --body: #4a4438;
+  --muted-foreground: #6e6551;
+  --muted: #ede7db;
+  --line: #ded5c4;
+  --brand: #00a0a8; /* Moharrik action */
+  --brand-accent: #c9a227; /* gold marker */
+  --on-brand: #0b1429;
+  --ok: #157f3d;
+  --bad: #b3261e;
+
+  --font-sans: "Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", monospace;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b1429;
+    --card: #0e1a3c;
+    --foreground: #f0ebe1;
+    --body: #c8d0e4;
+    --muted-foreground: #8a97b8;
+    --muted: #1a2747;
+    --line: #25355c;
+    --brand: #2ec4cb; /* lifted, as on the app's dark ground */
+    --on-brand: #0b1429;
+    --ok: #4ade80;
+    --bad: #f87171;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 330px;
+  margin: 0;
+  background: var(--background);
+  color: var(--body);
+  font: 13px/1.5 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.mark {
+  width: 20px;
+  height: 16px;
+}
+.mark--dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  .mark--light {
+    display: none;
+  }
+  .mark--dark {
+    display: inline;
+  }
+}
+
+.wordmark {
+  flex: 1;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Square, like everything else here. */
+.dot {
+  width: 7px;
+  height: 7px;
+  background: var(--muted-foreground);
+}
+.dot--on {
+  background: var(--ok);
+}
+.dot--off {
+  background: var(--bad);
+}
+.dot--wait {
+  background: var(--brand-accent);
+}
+
+.body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.row--switch {
+  align-items: center;
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.label {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.value {
+  color: var(--foreground);
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.detail {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.detail--bad {
+  color: var(--bad);
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.hint--note {
+  border-left: 2px solid var(--brand-accent);
+  padding-left: 8px;
+}
+
+.code {
+  margin: 2px 0;
+  color: var(--foreground);
+  font: 600 20px/1.2 var(--font-mono);
+  letter-spacing: 0.18em;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.actions--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.btn:hover {
+  border-color: var(--brand);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.btn--primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+  font-weight: 600;
+}
+
+.btn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn--danger {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.btn--danger:hover {
+  background: var(--bad);
+  color: var(--background);
+}
+
+/* The pause switch: square, and teal only when it is ON — "paused" is the state
+   the operator needs to see at a glance. */
+#pause {
+  appearance: none;
+  width: 34px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--line);
+  background: var(--muted);
+  position: relative;
+  cursor: pointer;
+}
+#pause::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--muted-foreground);
+  transition: left 0.15s ease;
+}
+#pause:checked {
+  border-color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 22%, transparent);
+}
+#pause:checked::after {
+  left: 18px;
+  background: var(--brand);
+}
+
+.section {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.section .row {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.settings {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.settings summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.field input {
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--card);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.field input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+}

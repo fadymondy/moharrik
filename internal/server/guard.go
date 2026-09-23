@@ -117,14 +117,22 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/inquiry/") {
 		return tierPublic
 	}
-	// The browser socket and the pairing handshake: no session and no
-	// X-Workspace-ID, because the extension has neither yet. The socket
-	// authenticates with a token in its FIRST FRAME (a browser WebSocket cannot
-	// set headers), and pairing can only create a REQUEST that does nothing
-	// until an admin of that workspace approves it on screen. Same shape as
-	// /api/hooks/ and /api/chat/ above.
-	if path == "/api/agents/ws" || strings.HasPrefix(path, "/api/agents/pair") {
+	// The browser socket and the two extension halves of connecting by
+	// approval (MH-478): no session and no X-Workspace-ID, because the
+	// extension has neither yet. The socket authenticates with a token in its
+	// FIRST FRAME (a browser WebSocket cannot set headers); connect/start can
+	// only create a REQUEST that does nothing until a member approves it on the
+	// site; connect/poll hands out nothing without the poll token that only the
+	// requesting extension holds. Same shape as /api/hooks/ and /api/chat/.
+	if path == "/api/agents/ws" || path == "/api/agents/connect/start" || path == "/api/agents/connect/poll" {
 		return tierPublic
+	}
+	// The member's half of connecting — seeing the request, approving it into a
+	// workspace, refusing it — needs a session but no X-Workspace-ID: the
+	// member CHOOSES the workspace on that page, and the handler checks their
+	// membership and role in the one they chose (automation/connect.go).
+	if strings.HasPrefix(path, "/api/agents/connect/") {
+		return tierSignedIn
 	}
 	// A WhatsApp delivery from the Evolution server: no session and no
 	// X-Workspace-ID. The unguessable id in the path plus the token it sends

@@ -11,7 +11,8 @@ silently. The alarm below wakes it; the reconnect loop then finds the socket
 gone and opens a new one. That is why this file is mostly about coming back.
 */
 
-import { KEYS, get, loadSettings, set, socketURL } from "./config.js"
+import { KEYS, clear, get, loadSettings, set, socketURL } from "./config.js"
+import { createConnect } from "./connect.js"
 import { closeRun, runStep } from "./driver.js"
 import { cancelPicks, pickElement } from "./pick.js"
 import { addStep, discardRecording, recordingState, startRecording, stopRecording } from "./recorder.js"
@@ -28,7 +29,36 @@ chrome.alarms.create(KEEPALIVE, { periodInMinutes: 1 })
 chrome.runtime.onInstalled.addListener(() => connect())
 chrome.runtime.onStartup.addListener(() => connect())
 chrome.alarms.onAlarm.addListener((a) => {
-  if (a.name === KEEPALIVE) connect()
+  if (a.name === KEEPALIVE) {
+    connect()
+    // A worker stopped while waiting for an approval picks the wait up again.
+    void connector.resume()
+  }
+})
+
+/*
+Connecting by approval (MH-478). The popup's "Connect to the site" lands in
+connect.js, which opens the site's approval page and waits for the decision
+here in the worker — the popup is gone the moment the new tab opens.
+*/
+const connector = createConnect({
+  settings: loadSettings,
+  get,
+  set,
+  clear,
+  fetch: (url, init) => fetch(url, init),
+  openTab: async (url) => {
+    await chrome.tabs.create({ url, active: true })
+  },
+  describe: async () => ({
+    name: await suggestedName(),
+    fingerprint: await browserFingerprint(),
+    platform: await platformName(),
+    browser_version: browserVersion(),
+    extension_version: chrome.runtime.getManifest().version,
+  }),
+  sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  keys: { pairing: KEYS.pairing, token: KEYS.token, agent: KEYS.agent },
 })
 
 // The token appearing IS the signal to connect. Relying on the popup's message
@@ -41,6 +71,16 @@ chrome.storage.onChanged.addListener((changes, area) => {
     stopped = false
     connect(true)
   }
+  // Paused from the popup: the socket goes, and nothing can reach this
+  // browser until it is switched back — the same as fadymondy.com's switch.
+  if (KEYS.paused in changes) {
+    if (changes[KEYS.paused].newValue === true) {
+      if (sock) sock.close(1000, "paused")
+      setStatus({ state: "held", error: "" })
+    } else {
+      connect(true)
+    }
+  }
 })
 
 // The popup asks for these.
@@ -49,6 +89,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     stopped = false
     connect(true)
     reply({ ok: true })
+    return true
+  }
+  if (msg?.type === "connect.start") {
+    connector
+      .start({ languages: msg.languages || [] })
+      .then((out) => reply({ ok: true, ...out }))
+      .catch((e) => reply({ ok: false, error: String(e?.message || e) }))
+    return true
+  }
+  if (msg?.type === "connect.reopen") {
+    connector.reopen().then((ok) => reply({ ok }))
+    return true
+  }
+  if (msg?.type === "connect.cancel") {
+    connector.cancel().then(() => reply({ ok: true }))
     return true
   }
   if (msg?.type === "disconnect") {
@@ -100,9 +155,14 @@ async function setStatus(patch) {
 
 async function connect(force = false) {
   if (stopped) return
+  if ((await get(KEYS.paused)) === true) {
+    await setStatus({ state: "held" })
+    return
+  }
   if (sock && (sock.readyState === WebSocket.OPEN || sock.readyState === WebSocket.CONNECTING) && !force) return
 
   const fp = await browserFingerprint()
+  const platform = await platformName()
   const token = await get(KEYS.token)
   if (!token) {
     await setStatus({ state: "unpaired" })
@@ -133,8 +193,8 @@ async function connect(force = false) {
         payload: {
           token,
           fingerprint: fp,
-          platform: navigator.userAgent.includes("Windows") ? "Windows" : navigator.platform || "unknown",
-          browser_version: (navigator.userAgent.match(/Chrome\/([\d.]+)/) || [])[1] || "",
+          platform,
+          browser_version: browserVersion(),
           extension_version: chrome.runtime.getManifest().version,
         },
       }),
@@ -154,17 +214,31 @@ async function connect(force = false) {
     if (env.type === "hello.ok") {
       attempt = 0
       const ack = env.payload || {}
-      await set(KEYS.agent, { id: ack.agent_id, name: ack.name, allowedHosts: ack.allowed_hosts || [] })
+      await set(KEYS.agent, {
+        id: ack.agent_id,
+        name: ack.name,
+        allowedHosts: ack.allowed_hosts || [],
+        // Which workspace this browser answers to (MH-478): a browser connected
+        // by approval did not know it when it asked.
+        workspaceName: ack.workspace_name || "",
+        workspaceSlug: ack.workspace_slug || "",
+        latestVersion: ack.latest_version || "",
+      })
       await setStatus({ state: "connected", name: ack.name, error: "" })
       return
     }
 
     if (env.type === "run.step") {
       const step = env.payload || {}
+      const started = Date.now()
+      const command = String(step.command || "")
       try {
         const result = await runStep(env.run, step)
         send({ id: env.id, type: "run.step.result", payload: result })
+        // What the popup's LAST COMMAND line shows.
+        await setStatus({ lastCommand: { type: command, at: started, ok: true, ms: Date.now() - started } })
       } catch (e) {
+        await setStatus({ lastCommand: { type: command, at: started, ok: false, error: String(e?.message || e).slice(0, 120) } })
         // The browser's own words: "nothing on the page matches #submit" is
         // what the person reading the run needs, not "step failed".
         // A code travels with the words when the failure is one the server must
@@ -217,7 +291,12 @@ async function connect(force = false) {
       await setStatus({ state: "unpaired", error: event.reason || "this browser is no longer paired" })
       return
     }
-    await setStatus({ state: event.code === 4001 ? "paused" : "offline", error: event.reason || "" })
+    // A close we asked for ourselves (Pause) is not a problem to report.
+    if ((await get(KEYS.paused)) === true) {
+      await setStatus({ state: "held", error: "" })
+      return
+    }
+    await setStatus({ state: event.code === 4001 ? "stopped" : "offline", error: event.reason || "" })
     if (stopped) return
     const wait = Math.min(30000, 1000 * 2 ** attempt++)
     setTimeout(connect, wait)
@@ -251,7 +330,33 @@ async function browserFingerprint() {
   return id
 }
 
+async function platformName() {
+  try {
+    const info = await chrome.runtime.getPlatformInfo()
+    const os = { win: "Windows", mac: "macOS", linux: "Linux", cros: "ChromeOS" }[info.os] || info.os
+    return `${os} ${info.arch}`
+  } catch {
+    return navigator.platform || "unknown"
+  }
+}
+
+function browserVersion() {
+  const match = navigator.userAgent.match(/Chrom(?:e|ium)\/([\d.]+)/)
+  return match ? `Chrome ${match[1]}` : navigator.userAgent.slice(0, 60)
+}
+
+/** A first guess at a name; whoever approves renames it. */
+async function suggestedName() {
+  try {
+    const info = await chrome.runtime.getPlatformInfo()
+    return `${{ win: "Windows", mac: "Mac", linux: "Linux", cros: "ChromeOS" }[info.os] || info.os} browser`
+  } catch {
+    return "Browser"
+  }
+}
+
 connect()
+void connector.resume()
 
 /*
 Sending a recording, and waiting for the site's answer (MH-235).

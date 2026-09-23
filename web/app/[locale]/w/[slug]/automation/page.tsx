@@ -18,7 +18,6 @@ import {
 import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
-import { ApproveForm } from "@/components/automation/approve-form"
 import { ScheduleForm } from "@/components/automation/schedule-form"
 import { StepEditor, fromEditorSteps, toEditorSteps, type EditorStep } from "@/components/automation/step-editor"
 import { PickSelect } from "@/components/crm/shared"
@@ -29,7 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { CopyField, Ltr } from "@/components/copy-field"
+import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationRun, type AutomationSchedule, type AutomationWorkflow, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -70,7 +69,6 @@ export default function AutomationPage() {
 
   const list = browsers.data?.browsers ?? []
   const active = list.filter((b) => !b.revoked_at)
-  const pairings = browsers.data?.pairings ?? []
   const paused = settings.data?.paused ?? false
   const hasBrowser = active.length > 0
   const hasSites = active.some((b) => b.allowed_hosts.length > 0)
@@ -189,25 +187,14 @@ export default function AutomationPage() {
               <p className="text-sm text-grid-muted">
                 {hasBrowser ? t("automation.flow.pair.done", { n: active.length }) : t("automation.flow.pair.body")}
               </p>
-              {!hasBrowser || managing ? (
-                <div className="max-w-md min-w-0 space-y-1">
-                  <p className="text-xs text-grid-muted">{t("automation.ext.workspaceField")}</p>
-                  <CopyField value={ws.slug} nowrap />
-                </div>
+              {/* Connecting is done from the extension (MH-478): its button opens an
+                  approval page on this site where the workspace is chosen. Nothing
+                  is typed here, so this step only says where to press. */}
+              {!canManage ? (
+                <p className="text-sm text-grid-muted" data-connect-how>
+                  {t("automation.flow.pair.askAdmin")}
+                </p>
               ) : null}
-              {pairings.length > 0 ? (
-                <ul className="space-y-1 text-sm text-grid-muted" data-waiting-pairings>
-                  <li className="grid-micro">{t("automation.waiting", { n: pairings.length })}</li>
-                  {pairings.map((p) => (
-                    <li key={p.id} data-pairing={p.id}>
-                      {p.requested_name || t("automation.unnamedBrowser")} · {p.platform || t("automation.unknownPlatform")}
-                      {p.ip ? ` · ${p.ip}` : ""}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {!canManage ? <p className="text-sm text-grid-muted">{t("automation.ext.s7AskAdmin")}</p> : null}
-              {canManage && (!hasBrowser || managing) ? <ApproveForm embedded onApproved={() => browsers.mutate()} /> : null}
             </FlowStep>
 
             <FlowStep n={3} state={hasSites ? "done" : hasBrowser ? "current" : "waiting"} title={t("automation.flow.sites.title")} data="sites">
@@ -491,8 +478,26 @@ function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; c
   // that is the setup step it is waiting on.
   const [editing, setEditing] = useState(canManage && !browser.revoked_at && browser.allowed_hosts.length === 0)
   const [hosts, setHosts] = useState(browser.allowed_hosts.join(", "))
+  const [renaming, setRenaming] = useState(false)
+  const [name, setName] = useState(browser.name)
   const [busy, setBusy] = useState(false)
   const revoked = !!browser.revoked_at
+
+  async function saveName(e: FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) return
+    setBusy(true)
+    try {
+      await api(`/api/w/browsers/${encodeURIComponent(browser.id)}`, { method: "PATCH", json: { name: name.trim() }, workspaceId: ws.id })
+      toast.success(t("automation.renamed"))
+      setRenaming(false)
+      onChange()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function saveHosts(e: FormEvent) {
     e.preventDefault()
@@ -557,7 +562,11 @@ function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; c
           </p>
         </div>
         {canManage && !revoked ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setRenaming((v) => !v)} data-rename-browser>
+              <PencilIcon />
+              {t("automation.rename")}
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
               {t("automation.editHosts")}
             </Button>
@@ -571,6 +580,21 @@ function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; c
           </div>
         ) : null}
       </div>
+
+      {renaming ? (
+        <form onSubmit={saveName} className="mt-3" data-form="rename">
+          <FieldGroup className="sm:flex-row sm:items-end">
+            <Field className="sm:flex-1">
+              <FieldLabel htmlFor={`name-${browser.id}`}>{t("automation.browserName")}</FieldLabel>
+              <Input id={`name-${browser.id}`} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Button type="submit" disabled={busy || !name.trim()}>
+              <CheckIcon />
+              {busy ? t("common.working") : t("common.save")}
+            </Button>
+          </FieldGroup>
+        </form>
+      ) : null}
 
       {editing ? (
         <form onSubmit={saveHosts} className="mt-3" data-form="hosts">

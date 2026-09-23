@@ -175,11 +175,24 @@ func (h *Hub) authenticate(ctx context.Context, a *app.App, ws *websocket.Conn) 
 	// The browser learns its own identity, and the hosts it may be driven
 	// against: Chrome requires a click per host to grant access, and nobody
 	// should have to type that list twice.
-	ack, _ := json.Marshal(map[string]any{
-		"agent_id":      agent.AgentID,
-		"name":          agent.Name,
-		"allowed_hosts": hosts,
-	})
+	//
+	// And which workspace it belongs to (MH-478): a browser connected by
+	// approval did not know its workspace when it asked, and the popup has to
+	// be able to say where this browser answers to.
+	if hosts == nil {
+		hosts = []string{}
+	}
+	helloAck := map[string]any{
+		"agent_id":       agent.AgentID,
+		"name":           agent.Name,
+		"allowed_hosts":  hosts,
+		"workspace_name": agent.WorkspaceName,
+		"workspace_slug": agent.WorkspaceSlug,
+	}
+	if latest := LatestExtension(); latest != nil {
+		helloAck["latest_version"] = latest.Version
+	}
+	ack, _ := json.Marshal(helloAck)
 	frame, _ := json.Marshal(Envelope{ID: env.ID, Type: "hello.ok", Payload: ack})
 	_ = ws.SetWriteDeadline(time.Now().Add(writeWait))
 	if ws.WriteMessage(websocket.TextMessage, frame) != nil {
@@ -312,9 +325,11 @@ func lookupAgent(ctx context.Context, sys *sql.DB, tokenHash string) (Connected,
 	var revoked sql.NullTime
 	var hosts pgtext.Array
 	err := sys.QueryRowContext(ctx, `
-		SELECT id, workspace_id, name, platform, extension_version, revoked_at, allowed_hosts
-		FROM browser_agents WHERE token_hash = $1`, tokenHash,
-	).Scan(&c.AgentID, &c.WorkspaceID, &c.Name, &c.Platform, &c.Version, &revoked, &hosts)
+		SELECT b.id, b.workspace_id, b.name, b.platform, b.extension_version, b.revoked_at, b.allowed_hosts,
+		       w.name, w.slug
+		FROM browser_agents b JOIN workspaces w ON w.id = b.workspace_id
+		WHERE b.token_hash = $1`, tokenHash,
+	).Scan(&c.AgentID, &c.WorkspaceID, &c.Name, &c.Platform, &c.Version, &revoked, &hosts, &c.WorkspaceName, &c.WorkspaceSlug)
 	if err != nil {
 		return Connected{}, nil, err
 	}

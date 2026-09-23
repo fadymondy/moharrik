@@ -7,14 +7,13 @@ There used to be no way in: pairing worked, but only for someone who could
 load the extension's source folder by hand. This page hands out the packaged
 zip — its version, size and the sha256 of the exact file the download serves —
 walks through loading it unpacked, and ends at the pairing step, with the
-code box right here so nobody has to find it on another page.
+extension's own Connect button, which opens the approval page (MH-478).
 */
 
 import Link from "next/link"
 import { useMemo } from "react"
 import { ArrowLeftIcon, DownloadIcon, PuzzleIcon, TriangleAlertIcon } from "lucide-react"
 
-import { ApproveForm } from "@/components/automation/approve-form"
 import { CopyField } from "@/components/copy-field"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -39,7 +38,6 @@ export default function ExtensionInstallPage() {
   })
   const info = ext.data
   const when = useMemo(() => new Intl.DateTimeFormat(intlTag(locale), { dateStyle: "medium", timeStyle: "short" }), [locale])
-  const pairings = browsers.data?.pairings ?? []
   const paired = (browsers.data?.browsers ?? []).filter((b) => !b.revoked_at)
   const fileName = info?.file ?? "moharrik-extension.zip"
 
@@ -125,36 +123,16 @@ export default function ExtensionInstallPage() {
         <h2 className="px-6 pb-1 text-base font-medium">{t("automation.ext.pairTitle")}</h2>
         <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.ext.pairHint")}</p>
         <ol className="divide-y divide-line border-y border-line">
-          <Step n={6} title={t("automation.ext.s6Title")} body={t("automation.ext.s6Body")}>
-            {/* Stacked, full width up to a comfortable measure: a slug or an
-                address broken mid-word is a slug or an address someone types
-                wrong. */}
-            <div className="grid max-w-2xl gap-3 lg:grid-cols-2">
-              <div className="min-w-0 space-y-1">
-                <p className="text-xs text-grid-muted">{t("automation.ext.workspaceField")}</p>
-                <CopyField value={ws.slug} nowrap />
-              </div>
-              {info?.site ? (
-                <div className="min-w-0 space-y-1">
-                  <p className="text-xs text-grid-muted">{t("automation.ext.siteField")}</p>
-                  <CopyField value={info.site} nowrap />
-                </div>
-              ) : null}
-            </div>
-          </Step>
+          <Step n={6} title={t("automation.ext.s6Title")} body={t("automation.ext.s6Body")} />
           <Step n={7} title={t("automation.ext.s7Title")} body={canManage ? t("automation.ext.s7Body") : t("automation.ext.s7AskAdmin")}>
-            {pairings.length > 0 ? (
-              <ul className="space-y-1 text-sm" data-waiting-pairings>
-                {pairings.map((p) => (
-                  <li key={p.id} className="text-grid-muted">
-                    {t("automation.ext.waitingOne", { name: p.requested_name || t("automation.unnamedBrowser"), platform: p.platform || t("automation.unknownPlatform") })}
-                  </li>
-                ))}
-              </ul>
+            {info?.site ? (
+              <div className="max-w-md min-w-0 space-y-1">
+                <p className="text-xs text-grid-muted">{t("automation.ext.siteField")}</p>
+                <CopyField value={info.site} nowrap />
+              </div>
             ) : null}
           </Step>
         </ol>
-        {canManage ? <ApproveForm onApproved={() => browsers.mutate()} /> : null}
         {paired.length > 0 ? (
           <p className="px-6 pt-6 text-sm" data-paired-count={paired.length}>
             {t("automation.ext.pairedSoFar", { n: paired.length })}{" "}

@@ -16,7 +16,6 @@ export const DEFAULTS = {
   // Empty means "same as the site", which is right once the proxy routes
   // /api/agents/ws to the API.
   apiOrigin: "",
-  workspace: "",
 }
 
 export const KEYS = {
@@ -25,6 +24,8 @@ export const KEYS = {
   agent: "moh.agent",
   pairing: "moh.pairing",
   status: "moh.status",
+  // This browser's own pause (MH-478): disconnected until switched back.
+  paused: "moh.paused",
 }
 
 export async function loadSettings() {

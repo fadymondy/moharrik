@@ -2,131 +2,103 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Moharrik</title>
-    <style>
-      :root {
-        color-scheme: light dark;
-        --line: color-mix(in oklab, currentColor 15%, transparent);
-      }
-      body {
-        width: 320px;
-        margin: 0;
-        padding: 14px;
-        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-      }
-      h1 {
-        margin: 0 0 10px;
-        font-size: 14px;
-      }
-      label {
-        display: block;
-        margin: 10px 0 3px;
-        font-size: 12px;
-        opacity: 0.75;
-      }
-      input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 6px 8px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: transparent;
-        color: inherit;
-        font: inherit;
-      }
-      button {
-        margin-top: 10px;
-        padding: 6px 12px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        cursor: pointer;
-      }
-      button.primary {
-        background: #4b00b6;
-        border-color: #4b00b6;
-        color: #fff;
-      }
-      .row {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-      .code {
-        font: 600 26px/1.2 ui-monospace, monospace;
-        letter-spacing: 4px;
-        margin: 8px 0;
-      }
-      .muted {
-        opacity: 0.7;
-        font-size: 12px;
-      }
-      .state {
-        display: inline-block;
-        padding: 2px 8px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        font-size: 12px;
-      }
-      hr {
-        border: 0;
-        border-top: 1px solid var(--line);
-        margin: 14px 0;
-      }
-    </style>
+    <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>Moharrik</h1>
-    <div class="row">
-      <span class="state" id="state">…</span>
-      <span class="muted" id="name"></span>
-    </div>
-    <p class="muted" id="error" hidden></p>
+    <!-- The Moharrik mark only — never the wordmark lockup. -->
+    <header class="head">
+      <img class="mark mark--light" src="icons/mark.svg" alt="Moharrik" />
+      <img class="mark mark--dark" src="icons/mark-dark.svg" alt="Moharrik" />
+      <span class="wordmark">Automation</span>
+      <span id="dot" class="dot" title="connection"></span>
+    </header>
 
-    <div id="pair">
-      <label for="site">Site</label>
-      <input id="site" type="url" spellcheck="false" />
-      <label for="api">API (only if it differs)</label>
-      <input id="api" type="url" spellcheck="false" placeholder="same as the site" />
-      <label for="workspace">Workspace</label>
-      <input id="workspace" spellcheck="false" placeholder="the slug in /w/…" />
-      <div class="row">
-        <button class="primary" id="start">Connect this browser</button>
-      </div>
-      <div id="codebox" hidden>
-        <p class="code" id="code"></p>
-        <p class="muted">Approve this code on the workspace's Automation page. It expires in ten minutes.</p>
-      </div>
-    </div>
+    <main class="body">
+      <section class="row">
+        <span class="label">This browser</span>
+        <span id="agent-name" class="value mono">—</span>
+      </section>
 
-    <div id="paired" hidden>
-      <p class="muted" id="hosts"></p>
-      <div class="row">
-        <button id="grant">Allow those sites</button>
-        <button id="halt">Stop everything</button>
-        <button id="forget">Disconnect</button>
+      <section class="row" id="workspace-row" hidden>
+        <span class="label">Workspace</span>
+        <span id="workspace-name" class="value"></span>
+      </section>
+
+      <section class="row">
+        <span class="label">Connection</span>
+        <span id="state" class="value">checking…</span>
+      </section>
+
+      <p id="detail" class="detail"></p>
+
+      <!-- Waiting for approval (MH-478): the code the site's page shows too. -->
+      <div id="waiting" class="section" hidden>
+        <span class="label">Code</span>
+        <p class="code" id="code" dir="ltr"></p>
+        <div class="actions actions--inline">
+          <button id="reopen" class="btn" type="button">Open the approval page again</button>
+          <button id="cancel" class="btn" type="button">Cancel</button>
+        </div>
       </div>
 
-      <!--
-        The recorder (MH-235). Do the task by hand once; what you did becomes
-        a workflow you can review, fill in and schedule.
-      -->
-      <hr />
-      <p class="muted" id="recstate">Not recording</p>
-      <div class="row">
-        <button class="primary" id="rec">Record what I do</button>
-        <button id="recstop" hidden>Stop and save</button>
-        <button id="recdiscard" hidden>Discard</button>
-      </div>
-    </div>
+      <!-- Shown only when the site offers a newer build than this one. A note,
+           not an auto-update: an unpacked extension cannot update itself. -->
+      <p id="update" class="hint hint--note" hidden></p>
 
-    <hr />
-    <p class="muted">
-      This browser only runs the steps your workspace sends, and only on the sites listed above.
-    </p>
+      <section class="row" id="last-row">
+        <span class="label">Last command</span>
+        <span id="last-command" class="value mono">none yet</span>
+      </section>
+
+      <section class="row row--switch" id="pause-row">
+        <label class="label" for="pause">Paused</label>
+        <input id="pause" type="checkbox" role="switch" />
+      </section>
+      <p class="hint" id="pause-hint">Paused disconnects this browser. Nothing can be run in it until you switch it back.</p>
+
+      <p class="hint">This browser only runs the steps its workspace sends, and only on the sites allowed for it.</p>
+      <p class="hint" id="hosts"></p>
+
+      <!-- Record (MH-235): what you do in this tab becomes a workflow on the site. -->
+      <section id="record-box" class="section" hidden>
+        <div class="row">
+          <span class="label">Record</span>
+          <span id="record-state" class="value">off</span>
+        </div>
+        <p id="record-note" class="hint"></p>
+        <div class="actions actions--inline">
+          <button id="rec" class="btn btn--primary" type="button">Record this tab</button>
+          <button id="recstop" class="btn btn--danger" type="button" hidden>Stop and save</button>
+          <button id="recdiscard" class="btn" type="button" hidden>Discard</button>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="connect" class="btn btn--primary" type="button">Connect to the site</button>
+        <button id="reconnect" class="btn" type="button" hidden>Reconnect now</button>
+        <!-- Chrome only grants a site after a click in the browser; this is that click. -->
+        <button id="grant" class="btn" type="button" hidden>Allow the sites this browser may drive</button>
+        <button id="forget" class="btn" type="button" hidden>Forget this browser</button>
+        <!-- The kill switch: stops EVERY browser of the workspace, not just this one. -->
+        <button id="halt" class="btn btn--danger" type="button" hidden>Stop all automation</button>
+      </div>
+
+      <details class="settings">
+        <summary>Site</summary>
+        <label class="field">
+          <span>Website</span>
+          <input id="site" type="url" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span>API (blank = same as the website)</span>
+          <input id="api" type="url" spellcheck="false" placeholder="https://…" />
+        </label>
+        <button id="save-site" class="btn" type="button">Save</button>
+        <p id="site-note" class="hint"></p>
+      </details>
+    </main>
 
     <script type="module" src="popup.js"></script>
   </body>

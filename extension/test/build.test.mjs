@@ -53,7 +53,7 @@ test("the zip is the extension, without its test harness, and its checksum is th
 
   const files = unzip(zip)
   const names = Object.keys(files)
-  for (const needed of ["manifest.json", "background.js", "driver.js", "pick.js", "hosts.js", "popup.html", "icon128.png"]) {
+  for (const needed of ["manifest.json", "background.js", "driver.js", "pick.js", "hosts.js", "popup.html", "connect.js", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "icons/icon-128.png"]) {
     assert.ok(names.includes(needed), `${needed} is shipped`)
   }
   for (const name of names) {
