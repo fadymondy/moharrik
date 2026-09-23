@@ -313,7 +313,25 @@ export type Company = {
 
 export type StageKind = "open" | "won" | "lost"
 
-export type Stage = { id: string; name: string; position: number; kind: StageKind; deal_count: number; value_minor: number }
+/**
+ * A pipeline stage. deal_count and value_minor cover the WHOLE stage (value in the workspace
+ * currency), not just the cards sent; next_cursor (board view) fetches the stage's next cards.
+ */
+export type Stage = {
+  id: string
+  name: string
+  position: number
+  kind: StageKind
+  deal_count: number
+  value_minor: number
+  next_cursor?: string
+}
+
+/** One page of a keyset-paged list (MH-408, MH-467). */
+export type Page = { total: number; limit: number; next_cursor: string }
+
+/** The first page of a record's timeline, carried on the record's own page. */
+export type TimelinePage = { activities: Activity[]; activities_total: number; activities_next_cursor: string }
 
 export type Deal = {
   id: string

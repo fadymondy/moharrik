@@ -22,7 +22,8 @@ import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useCompanies, useContact } from "@/lib/queries"
+import { useContact } from "@/lib/queries"
+import { CompanyPicker } from "@/components/crm/company-picker"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -104,12 +105,12 @@ export default function ContactDetailPage() {
 
       <section>
         <h2 className="px-6 py-4 text-base font-medium">{t("nav.deals")}</h2>
-        <DealsTable deals={deals} empty={t("contacts.noDeals")} />
+        <DealsTable deals={deals} total={detail.data.deals_total} empty={t("contacts.noDeals")} />
       </section>
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
-      <Timeline items={activities} target={{ contact_id: contact.id }} onChange={() => detail.mutate()} />
+      <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} target={{ contact_id: contact.id }} onChange={() => detail.mutate()} />
       <div className="pb-8" />
     </>
   )
@@ -125,7 +126,6 @@ function EditContact({
   const { t } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
-  const companies = useCompanies(ws.id)
   const [name, setName] = useState(contact.name)
   const [phone, setPhone] = useState(contact.phone)
   const [title, setTitle] = useState(contact.title)
@@ -134,7 +134,6 @@ function EditContact({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const companyOpts = (companies.data?.companies ?? []).map((c) => ({ value: c.id, label: c.name }))
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -172,7 +171,7 @@ function EditContact({
         </Field>
         <Field>
           <FieldLabel htmlFor="edit-contact-company">{t("companies.title")}</FieldLabel>
-          <PickSelect id="edit-contact-company" value={companyId} onChange={setCompanyId} options={companyOpts} noneLabel={t("crm.none")} />
+          <CompanyPicker id="edit-contact-company" value={companyId} selected={contact.company} onChange={setCompanyId} />
         </Field>
         <Field>
           <FieldLabel htmlFor="edit-contact-owner">{t("crm.owner")}</FieldLabel>

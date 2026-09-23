@@ -1313,5 +1313,22 @@
   "resources.turnOff": "أوقف قراءة {name}",
   "resources.permission.siteOwner": "مالك",
   "resources.permission.siteFullUser": "مستخدم كامل",
-  "resources.permission.siteRestrictedUser": "مستخدم مقيّد"
+  "resources.permission.siteRestrictedUser": "مستخدم مقيّد",
+  "common.showing": "عرض {from}–{to} من {total}",
+  "common.pageOf": "صفحة {page} من {pages}",
+  "common.prevPage": "السابق",
+  "common.nextPage": "التالي",
+  "common.showingSome": "عرض {shown} من {total}",
+  "common.loadMore": "تحميل المزيد",
+  "timeline.showing": "عرض {shown} من {total} إدخالًا",
+  "timeline.loadOlder": "تحميل الإدخالات الأقدم",
+  "deals.showingInStage": "عرض {shown} من {total}",
+  "deals.relatedMore": "تُعرض أول {shown} من {total} صفقة. اطّلع عليها كلها في صفحة الصفقات.",
+  "companies.search": "ابحث في الشركات",
+  "companies.noMatch": "لا توجد شركات مطابقة.",
+  "companies.pickPlaceholder": "ابحث في الشركات…",
+  "companies.pickNone": "لا توجد شركات مطابقة",
+  "companies.pickMore": "عرض {shown} من {total} — تابع الكتابة لتضييق النتائج",
+  "campaigns.audienceTooLarge": "في هذه القائمة {count} مستلمًا. الإرسال الواحد يصل إلى {max} كحد أقصى، لذا سيُرفض. قسّم القائمة وأرسل لكل جزء.",
+  "campaigns.audienceLimit": "الإرسال الواحد يصل إلى {max} مستلم كحد أقصى."
 }

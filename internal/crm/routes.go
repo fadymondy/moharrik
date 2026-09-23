@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,7 +12,51 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/paging"
 )
+
+// TimelineOut is the first page of a record's timeline, embedded in its page.
+type TimelineOut struct {
+	Activities []ActivityOut `json:"activities"`
+	// Every activity on the timeline; more than len(activities) means older
+	// ones are behind activities_next_cursor (GET /api/w/activities).
+	ActivitiesTotal      int64  `json:"activities_total"`
+	ActivitiesNextCursor string `json:"activities_next_cursor"`
+}
+
+func firstTimelinePage(ctx context.Context, db *sql.DB, wsID, where, id string) (TimelineOut, error) {
+	p, err := timelinePage(ctx, db, wsID, where, id, "", DefaultTimelinePage)
+	if err != nil {
+		return TimelineOut{}, err
+	}
+	return TimelineOut{Activities: p.Activities, ActivitiesTotal: p.Total, ActivitiesNextCursor: p.NextCursor}, nil
+}
+
+// The record pages, named so the OpenAPI schema has one name for each.
+type DealDetailOut struct {
+	Deal DealOut `json:"deal"`
+	TimelineOut
+}
+
+type CompanyDetailOut struct {
+	Company  CompanyOut   `json:"company"`
+	Contacts []ContactRef `json:"contacts"`
+	RelatedDealsOut
+	TimelineOut
+}
+
+type ContactPageOut struct {
+	Contact ContactDetail `json:"contact"`
+	RelatedDealsOut
+	TimelineOut
+}
+
+// RelatedDealsOut is a contact's or company's deals: at most MaxRelatedDeals,
+// and the total, so a page past that says so.
+type RelatedDealsOut struct {
+	Deals      []DealOut `json:"deals"`
+	DealsTotal int64     `json:"deals_total"`
+}
 
 type idPath struct {
 	wsHeader
@@ -174,16 +219,20 @@ func Register(api huma.API, a *app.App) {
 
 	// ---- deals ---------------------------------------------------------------
 
-	type dealsOut struct {
-		Deals    []DealOut  `json:"deals"`
-		Stages   []StageOut `json:"stages"`
-		Currency string     `json:"currency" doc:"The workspace's default currency."`
-	}
-
 	huma.Register(api, huma.Operation{
 		OperationID: "w-deals", Method: http.MethodGet, Path: "/api/w/deals",
-		Summary: "Every deal with the pipeline it sits on (board and list views)", Tags: tags,
-	}, func(ctx context.Context, _ *wsHeader) (*body[dealsOut], error) {
+		Summary: "The pipeline and its deals, a page at a time (board and list views)",
+		Description: "view=board (default) sends the first `limit` deals of EVERY stage; a stage with more carries " +
+			"next_cursor, and ?stage_id=&cursor= fetches that stage's next page. view=list pages the whole pipeline in " +
+			"board order. `total` is every deal the view covers. A limit over 500 is refused, not clamped (MH-467).",
+		Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		View    string `query:"view" enum:"board,list," doc:"board (default) or list"`
+		StageID string `query:"stage_id" doc:"Board: one stage's next page (with cursor)"`
+		Cursor  string `query:"cursor" doc:"next_cursor from the previous page (or a stage's)"`
+		Limit   int    `query:"limit" minimum:"0" maximum:"500" doc:"Board: deals per stage (default 100). List: page size (default 50). At most 500."`
+	}) (*body[DealsPage], error) {
 		s, err := scope(ctx, authz.ContactsRead)
 		if err != nil {
 			return nil, err
@@ -191,15 +240,24 @@ func Register(api huma.API, a *app.App) {
 		if err := EnsureStages(ctx, db(), s.WorkspaceID); err != nil {
 			return nil, huma.Error500InternalServerError("could not prepare the pipeline")
 		}
-		res := dealsOut{}
-		if res.Deals, err = listDeals(ctx, db(), s.WorkspaceID, ""); err != nil {
+		def := DefaultDealsPerStage
+		if in.View == "list" {
+			def = DefaultDealsPage
+		}
+		limit, err := paging.Limit(in.Limit, def, MaxDealsPage)
+		if err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+		page, err := ListDealsPage(ctx, db(), s.WorkspaceID, DealsQuery{View: in.View, StageID: strings.TrimSpace(in.StageID), Cursor: in.Cursor, Limit: limit})
+		switch {
+		case errors.Is(err, paging.ErrBadCursor):
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		case errors.Is(err, ErrNoSuchStage):
+			return nil, huma.Error404NotFound(err.Error())
+		case err != nil:
 			return nil, huma.Error500InternalServerError("could not list deals")
 		}
-		if res.Stages, err = listStages(ctx, db(), s.WorkspaceID); err != nil {
-			return nil, huma.Error500InternalServerError("could not list stages")
-		}
-		_ = db().QueryRowContext(ctx, `SELECT currency FROM workspaces WHERE id = $1`, s.WorkspaceID).Scan(&res.Currency)
-		return out(res), nil
+		return out(*page), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -292,10 +350,7 @@ func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-deal", Method: http.MethodGet, Path: "/api/w/deals/{id}",
 		Summary: "One deal and its timeline", Tags: tags,
-	}, func(ctx context.Context, in *idPath) (*body[struct {
-		Deal       DealOut       `json:"deal"`
-		Activities []ActivityOut `json:"activities"`
-	}], error) {
+	}, func(ctx context.Context, in *idPath) (*body[DealDetailOut], error) {
 		s, err := scope(ctx, authz.ContactsRead)
 		if err != nil {
 			return nil, err
@@ -306,14 +361,11 @@ func Register(api huma.API, a *app.App) {
 		} else if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the deal")
 		}
-		acts, err := timeline(ctx, db(), s.WorkspaceID, timelineDeal, in.ID)
+		tl, err := firstTimelinePage(ctx, db(), s.WorkspaceID, timelineDeal, in.ID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the timeline")
 		}
-		return out(struct {
-			Deal       DealOut       `json:"deal"`
-			Activities []ActivityOut `json:"activities"`
-		}{*d, acts}), nil
+		return out(DealDetailOut{*d, tl}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -415,30 +467,31 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-companies", Method: http.MethodGet, Path: "/api/w/companies",
-		Summary: "Companies with their contact and open-deal counts", Tags: tags,
-	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
-		Companies []CompanyOut `json:"companies"`
-	}], error) {
+		Summary: "Companies with their contact and open-deal counts, a page at a time",
+		Description: "A-Z. `total` is every company matching `q`; follow `next_cursor` for the next page. " +
+			"A limit over 200 is refused, not clamped (MH-467).",
+		Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Q      string `query:"q" maxLength:"200" doc:"Search name and domain"`
+		Cursor string `query:"cursor" doc:"next_cursor from the previous page"`
+		Limit  int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
+	}) (*body[CompanyPage], error) {
 		s, err := scope(ctx, authz.ContactsRead)
 		if err != nil {
 			return nil, err
 		}
-		rows, err := db().QueryContext(ctx, companySelect+` ORDER BY lower(co.name) LIMIT 2000`, s.WorkspaceID)
+		limit, err := paging.Limit(in.Limit, DefaultCompanyPage, MaxCompanyPage)
 		if err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+		page, err := ListCompaniesPage(ctx, db(), s.WorkspaceID, in.Q, in.Cursor, limit)
+		if errors.Is(err, paging.ErrBadCursor) {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		} else if err != nil {
 			return nil, huma.Error500InternalServerError("could not list companies")
 		}
-		defer rows.Close()
-		list := []CompanyOut{}
-		for rows.Next() {
-			c, err := scanCompany(rows)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not list companies")
-			}
-			list = append(list, c)
-		}
-		return out(struct {
-			Companies []CompanyOut `json:"companies"`
-		}{list}), nil
+		return out(*page), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -498,12 +551,7 @@ func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-company", Method: http.MethodGet, Path: "/api/w/companies/{id}",
 		Summary: "One company: its people, deals and timeline", Tags: tags,
-	}, func(ctx context.Context, in *idPath) (*body[struct {
-		Company    CompanyOut    `json:"company"`
-		Contacts   []ContactRef  `json:"contacts"`
-		Deals      []DealOut     `json:"deals"`
-		Activities []ActivityOut `json:"activities"`
-	}], error) {
+	}, func(ctx context.Context, in *idPath) (*body[CompanyDetailOut], error) {
 		s, err := scope(ctx, authz.ContactsRead)
 		if err != nil {
 			return nil, err
@@ -514,19 +562,14 @@ func Register(api huma.API, a *app.App) {
 		} else if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the company")
 		}
-		res := out(struct {
-			Company    CompanyOut    `json:"company"`
-			Contacts   []ContactRef  `json:"contacts"`
-			Deals      []DealOut     `json:"deals"`
-			Activities []ActivityOut `json:"activities"`
-		}{Company: *c})
+		res := out(CompanyDetailOut{Company: *c})
 		if res.Body.Contacts, err = companyContacts(ctx, db(), s.WorkspaceID, in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the company")
 		}
-		if res.Body.Deals, err = listDeals(ctx, db(), s.WorkspaceID, "AND d.company_id = $2", in.ID); err != nil {
+		if res.Body.Deals, res.Body.DealsTotal, err = relatedDeals(ctx, db(), s.WorkspaceID, "AND d.company_id = $2", in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the company")
 		}
-		if res.Body.Activities, err = timeline(ctx, db(), s.WorkspaceID, timelineCompany, in.ID); err != nil {
+		if res.Body.TimelineOut, err = firstTimelinePage(ctx, db(), s.WorkspaceID, timelineCompany, in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the timeline")
 		}
 		return res, nil
@@ -611,11 +654,7 @@ func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-contact", Method: http.MethodGet, Path: "/api/w/contacts/{id}",
 		Summary: "One contact: CRM fields, list subscriptions, deals and timeline", Tags: tags,
-	}, func(ctx context.Context, in *idPath) (*body[struct {
-		Contact    ContactDetail `json:"contact"`
-		Deals      []DealOut     `json:"deals"`
-		Activities []ActivityOut `json:"activities"`
-	}], error) {
+	}, func(ctx context.Context, in *idPath) (*body[ContactPageOut], error) {
 		s, err := scope(ctx, authz.ContactsRead)
 		if err != nil {
 			return nil, err
@@ -626,15 +665,11 @@ func Register(api huma.API, a *app.App) {
 		} else if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the contact")
 		}
-		res := out(struct {
-			Contact    ContactDetail `json:"contact"`
-			Deals      []DealOut     `json:"deals"`
-			Activities []ActivityOut `json:"activities"`
-		}{Contact: *c})
-		if res.Body.Deals, err = listDeals(ctx, db(), s.WorkspaceID, "AND d.contact_id = $2", in.ID); err != nil {
+		res := out(ContactPageOut{Contact: *c})
+		if res.Body.Deals, res.Body.DealsTotal, err = relatedDeals(ctx, db(), s.WorkspaceID, "AND d.contact_id = $2", in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the contact")
 		}
-		if res.Body.Activities, err = timeline(ctx, db(), s.WorkspaceID, timelineContact, in.ID); err != nil {
+		if res.Body.TimelineOut, err = firstTimelinePage(ctx, db(), s.WorkspaceID, timelineContact, in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not read the timeline")
 		}
 		return res, nil
@@ -707,6 +742,50 @@ func Register(api huma.API, a *app.App) {
 	})
 
 	// ---- activities ----------------------------------------------------------
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-activities", Method: http.MethodGet, Path: "/api/w/activities",
+		Summary: "One record's timeline, a page at a time (newest first)",
+		Description: "Exactly one of contact_id, company_id or deal_id. The record pages (GET /api/w/contacts/{id} etc.) " +
+			"carry the first page; follow `next_cursor` here for older ones. A limit over 200 is refused (MH-467).",
+		Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ContactID string `query:"contact_id"`
+		CompanyID string `query:"company_id"`
+		DealID    string `query:"deal_id"`
+		Cursor    string `query:"cursor" doc:"next_cursor from the previous page"`
+		Limit     int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
+	}) (*body[ActivityPage], error) {
+		s, err := scope(ctx, authz.ContactsRead)
+		if err != nil {
+			return nil, err
+		}
+		var where, id string
+		n := 0
+		for _, t := range []struct{ id, where string }{
+			{in.ContactID, timelineContact}, {in.CompanyID, timelineCompany}, {in.DealID, timelineDeal},
+		} {
+			if strings.TrimSpace(t.id) != "" {
+				n++
+				where, id = t.where, strings.TrimSpace(t.id)
+			}
+		}
+		if n != 1 {
+			return nil, huma.Error422UnprocessableEntity("name exactly one of contact_id, company_id or deal_id")
+		}
+		limit, err := paging.Limit(in.Limit, DefaultTimelinePage, MaxTimelinePage)
+		if err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+		page, err := timelinePage(ctx, db(), s.WorkspaceID, where, id, in.Cursor, limit)
+		if errors.Is(err, paging.ErrBadCursor) {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		} else if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the timeline")
+		}
+		return out(*page), nil
+	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-create-activity", Method: http.MethodPost, Path: "/api/w/activities",

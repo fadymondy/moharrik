@@ -24,7 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useCompanies } from "@/lib/queries"
+import { CompanyPicker } from "@/components/crm/company-picker"
 import { ContactPicker } from "@/components/crm/contact-picker"
 import { Bdi, BdiBlock } from "@/components/bidi"
 
@@ -46,13 +46,21 @@ export function PipelineBoard({
   currency,
   onMove,
   onChanged,
+  cursorOf,
+  onLoadMore,
+  loadingStage,
 }: {
   stages: Stage[]
   deals: Deal[]
   currency: string
   onMove: MoveFn
   onChanged?: () => void
+  /** The cursor for a stage's next cards, "" when every card is on the board (MH-467). */
+  cursorOf?: (stageId: string) => string
+  onLoadMore?: (stageId: string) => void
+  loadingStage?: string | null
 }) {
+  const { t: tr, formatNumber } = useTranslations()
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<{ stage: string; before: string | null } | null>(null)
   const byStage = useMemo(() => {
@@ -85,7 +93,10 @@ export function PipelineBoard({
       <div className="flex min-w-max divide-x divide-line rtl:divide-x-reverse">
         {stages.map((s) => {
           const list = byStage.get(s.id) ?? []
-          const total = list.filter((d) => d.currency === currency).reduce((n, d) => n + d.value_minor, 0)
+          // The stage's own count and value, from the server: the whole column, not just the
+          // cards on screen, which since MH-467 may be the first page of it.
+          const total = s.value_minor
+          const more = cursorOf?.(s.id) ?? ""
           const hot = over?.stage === s.id && dragging
           return (
             <section
@@ -107,8 +118,8 @@ export function PipelineBoard({
                   <BdiBlock as="h3" className="truncate text-sm font-medium">
                     {s.name}
                   </BdiBlock>
-                  <span className="ms-auto text-xs text-grid-muted tabular-nums" data-stage-count>
-                    {list.length}
+                  <span className="ms-auto text-xs text-grid-muted tabular-nums" data-stage-count={s.deal_count}>
+                    {formatNumber(s.deal_count)}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-grid-muted">
@@ -149,6 +160,18 @@ export function PipelineBoard({
                   </li>
                 ))}
               </ol>
+              {list.length < s.deal_count ? (
+                <div className="flex flex-col items-start gap-2 border-t border-line px-4 py-3" data-stage-more={`${list.length}/${s.deal_count}`}>
+                  <span className="text-xs text-grid-muted">
+                    {tr("deals.showingInStage", { shown: formatNumber(list.length), total: formatNumber(s.deal_count) })}
+                  </span>
+                  {more && onLoadMore ? (
+                    <Button variant="outline" size="sm" onClick={() => onLoadMore(s.id)} disabled={loadingStage === s.id} data-stage-load-more>
+                      {loadingStage === s.id ? tr("common.working") : tr("common.loadMore")}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </section>
           )
         })}
@@ -342,14 +365,20 @@ function DealValueEditor({ deal, onSaved }: { deal: Deal; onSaved?: () => void }
 
 // ── list ─────────────────────────────────────────────────────────────────
 
-export function DealsTable({ deals, empty }: { deals: Deal[]; empty?: string }) {
-  const { t, locale, formatDate } = useTranslations()
+export function DealsTable({ deals, empty, total }: { deals: Deal[]; empty?: string; total?: number }) {
+  const { t, locale, formatDate, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
   const base = `/${locale}/w/${ws.slug}`
   if (deals.length === 0) return <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">{empty ?? t("deals.empty")}</p>
   return (
     <div className="border-y border-line">
+      {total !== undefined && total > deals.length ? (
+        // A contact or company page lists its first deals only; it says so (MH-467).
+        <p className="border-b border-line px-6 py-3 text-sm text-grid-muted" data-deals-more={`${deals.length}/${total}`}>
+          {t("deals.relatedMore", { shown: formatNumber(deals.length), total: formatNumber(total) })}
+        </p>
+      ) : null}
       <Table>
         <TableHeader>
           <TableRow>
@@ -430,7 +459,6 @@ export function DealForm({
   const { t } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
-  const companies = useCompanies(ws.id)
   const [title, setTitle] = useState(deal?.title ?? "")
   const [cur, setCur] = useState(deal?.currency ?? currency)
   const [value, setValue] = useState(deal?.value_minor ? toMajor(deal.value_minor, deal.currency) : "")
@@ -443,7 +471,6 @@ export function DealForm({
   const [err, setErr] = useState<string | null>(null)
 
   const stageOpts = stages.map((s) => ({ value: s.id, label: s.name }))
-  const companyOpts = (companies.data?.companies ?? []).map((c) => ({ value: c.id, label: c.name }))
   const id = (f: string) => `${formId}-${f}`
 
   async function submit(e: FormEvent) {
@@ -510,7 +537,7 @@ export function DealForm({
         </Field>
         <Field>
           <FieldLabel htmlFor={id("company")}>{t("deals.company")}</FieldLabel>
-          <PickSelect id={id("company")} value={companyId} onChange={setCompanyId} options={companyOpts} noneLabel={t("crm.none")} />
+          <CompanyPicker id={id("company")} value={companyId} selected={deal?.company ?? null} onChange={setCompanyId} />
         </Field>
         <Field>
           <FieldLabel htmlFor={id("contact")}>{t("deals.contact")}</FieldLabel>

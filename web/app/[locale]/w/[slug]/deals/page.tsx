@@ -15,11 +15,14 @@ import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useDeals } from "@/lib/queries"
+import { useDeals, useDealsList } from "@/lib/queries"
+import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi } from "@/components/bidi"
 
 type View = "board" | "list"
+
+const LIST_PAGE = 50
 
 export default function DealsPage() {
   const { t } = useTranslations()
@@ -29,6 +32,32 @@ export default function DealsPage() {
   const canManagePipeline = ws.can("pipeline:manage")
   const deals = useDeals(ws.id)
   const [view, setView] = useState<View>("board")
+  // Board: cards past each stage's first page, fetched per stage on demand (MH-467: the board
+  // used to stop at 2,000 deals without saying so). The fresh first page wins over these by id.
+  const [extra, setExtra] = useState<Record<string, { deals: Deal[]; cursor: string }>>({})
+  const [loadingStage, setLoadingStage] = useState<string | null>(null)
+  const firstIds = new Set((deals.data?.deals ?? []).map((d) => d.id))
+  const boardDeals = [...(deals.data?.deals ?? []), ...Object.values(extra).flatMap((e) => e.deals.filter((d) => !firstIds.has(d.id)))]
+  const cursorOf = (stageId: string) => extra[stageId]?.cursor ?? deals.data?.stages.find((s) => s.id === stageId)?.next_cursor ?? ""
+  async function loadMore(stageId: string) {
+    const cursor = cursorOf(stageId)
+    if (!cursor) return
+    setLoadingStage(stageId)
+    try {
+      const page = await api<{ deals: Deal[]; next_cursor: string }>(
+        `/api/w/deals?stage_id=${encodeURIComponent(stageId)}&cursor=${encodeURIComponent(cursor)}`,
+        { workspaceId: ws.id },
+      )
+      setExtra((x) => ({ ...x, [stageId]: { deals: [...(x[stageId]?.deals ?? []), ...page.deals], cursor: page.next_cursor } }))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setLoadingStage(null)
+    }
+  }
+  // List view: the whole pipeline a page at a time.
+  const pager = useCursorStack(view)
+  const list = useDealsList(ws.id, { cursor: pager.cursor, limit: LIST_PAGE }, view === "list")
   const [creating, setCreating] = useState(false)
   const [managing, setManaging] = useState(false)
 
@@ -37,6 +66,8 @@ export default function DealsPage() {
     // Optimistic: the board should not snap back while the request is in flight.
     const prev = deals.data
     const stage = prev.stages.find((s) => s.id === stageId)
+    const moved = (d: Deal) => (d.id === dealId ? { ...d, stage_id: stageId, stage_name: stage?.name ?? d.stage_name, stage_kind: stage?.kind ?? d.stage_kind, position: position ?? d.position } : d)
+    setExtra((x) => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, { ...v, deals: v.deals.map(moved) }])))
     deals.mutate(
       { ...prev, deals: prev.deals.map((d) => (d.id === dealId ? { ...d, stage_id: stageId, stage_name: stage?.name ?? d.stage_name, stage_kind: stage?.kind ?? d.stage_kind, position: position ?? d.position } : d)) },
       { revalidate: false },
@@ -81,7 +112,7 @@ export default function DealsPage() {
         <ErrorState error={deals.error} />
       ) : !deals.data ? (
         <LoadingRows rows={4} />
-      ) : deals.data.deals.length === 0 ? (
+      ) : deals.data.total === 0 ? (
         <div className="border-y border-line px-6 py-12 text-center">
           <p className="text-sm font-medium">{t("deals.empty")}</p>
           {canWrite ? (
@@ -89,9 +120,38 @@ export default function DealsPage() {
           ) : null}
         </div>
       ) : view === "board" ? (
-        <PipelineBoard stages={deals.data.stages} deals={deals.data.deals} currency={deals.data.currency} onMove={move} onChanged={() => deals.mutate()} />
+        <PipelineBoard
+          stages={deals.data.stages}
+          deals={boardDeals}
+          currency={deals.data.currency}
+          onMove={move}
+          onChanged={() => {
+            deals.mutate()
+            setExtra({})
+          }}
+          cursorOf={cursorOf}
+          onLoadMore={loadMore}
+          loadingStage={loadingStage}
+        />
+      ) : !list.data ? (
+        <LoadingRows rows={4} />
       ) : (
-        <DealsTable deals={deals.data.deals} />
+        <>
+          <PageSummary index={pager.index} pageSize={LIST_PAGE} shown={list.data.deals.length} total={list.data.total} name="deals" />
+          <div className={list.current ? undefined : "opacity-60 transition-opacity"} aria-busy={!list.current}>
+            <DealsTable deals={list.data.deals} />
+          </div>
+          <PageNav
+            index={pager.index}
+            pageSize={LIST_PAGE}
+            total={list.data.total}
+            nextCursor={list.data.next_cursor}
+            busy={!list.current}
+            onNext={pager.next}
+            onPrev={pager.prev}
+            name="deals"
+          />
+        </>
       )}
       <div className="pb-8" />
 

@@ -1313,5 +1313,22 @@
   "resources.turnOff": "Stop reading {name}",
   "resources.permission.siteOwner": "Owner",
   "resources.permission.siteFullUser": "Full user",
-  "resources.permission.siteRestrictedUser": "Restricted user"
+  "resources.permission.siteRestrictedUser": "Restricted user",
+  "common.showing": "Showing {from}–{to} of {total}",
+  "common.pageOf": "Page {page} of {pages}",
+  "common.prevPage": "Previous",
+  "common.nextPage": "Next",
+  "common.showingSome": "Showing {shown} of {total}",
+  "common.loadMore": "Load more",
+  "timeline.showing": "Showing {shown} of {total} entries",
+  "timeline.loadOlder": "Load older entries",
+  "deals.showingInStage": "Showing {shown} of {total}",
+  "deals.relatedMore": "Showing the first {shown} of {total} deals. See them all on the Deals page.",
+  "companies.search": "Search companies",
+  "companies.noMatch": "No companies match.",
+  "companies.pickPlaceholder": "Search companies…",
+  "companies.pickNone": "No companies match",
+  "companies.pickMore": "Showing {shown} of {total} — keep typing to narrow it down",
+  "campaigns.audienceTooLarge": "This list has {count} recipients. One send reaches at most {max}, so it will be refused. Split the list and send each part.",
+  "campaigns.audienceLimit": "One send reaches at most {max} recipients."
 }

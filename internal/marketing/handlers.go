@@ -20,6 +20,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -569,43 +570,44 @@ func Register(api huma.API, a *app.App) {
 
 	// ---- campaigns ----
 
-	huma.Register(api, huma.Operation{
-		OperationID: "w-campaigns", Method: http.MethodGet, Path: "/api/w/campaigns",
-		Summary: "Campaigns and their delivery progress", Tags: tags,
-	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
-		Campaigns      []CampaignOut `json:"campaigns"`
-		SMTPConfigured bool          `json:"smtp_configured"`
+	type campaignsOut struct {
+		CampaignPage
+		SMTPConfigured bool `json:"smtp_configured"`
 		// Whether a WhatsApp number is linked (MH-320). Carried here so the
 		// campaigns page can say "link one first" instead of offering a send
 		// that would 409 — without needing the inbox permission to ask.
 		WhatsAppLinked bool `json:"whatsapp_linked"`
-	}], error) {
+		// The most recipients one send reaches (MH-467). A larger audience is
+		// refused before sending, never cut short.
+		MaxAudience int `json:"max_audience"`
+	}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-campaigns", Method: http.MethodGet, Path: "/api/w/campaigns",
+		Summary: "Campaigns and their delivery progress, a page at a time",
+		Description: "Newest first. `total` is every campaign; follow `next_cursor` for the next page. " +
+			"A limit over 200 is refused, not clamped (MH-467).",
+		Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Cursor string `query:"cursor" doc:"next_cursor from the previous page"`
+		Limit  int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
+	}) (*body[campaignsOut], error) {
 		s, err := scope(ctx, authz.CampaignsRead)
 		if err != nil {
 			return nil, err
 		}
-		rows, err := a.SQLDB.QueryContext(ctx, `
-			SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
-			       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at
-			FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
-			WHERE c.workspace_id = $1 ORDER BY c.created_at DESC LIMIT 500`, s.WorkspaceID)
+		limit, err := paging.Limit(in.Limit, DefaultCampaignPage, MaxCampaignPage)
 		if err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+		page, err := ListCampaignsPage(ctx, a.SQLDB, s.WorkspaceID, in.Cursor, limit)
+		if errors.Is(err, paging.ErrBadCursor) {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		} else if err != nil {
 			return nil, huma.Error500InternalServerError("could not list campaigns")
 		}
-		defer rows.Close()
-		res := out(struct {
-			Campaigns      []CampaignOut `json:"campaigns"`
-			SMTPConfigured bool          `json:"smtp_configured"`
-			WhatsAppLinked bool          `json:"whatsapp_linked"`
-		}{Campaigns: []CampaignOut{}})
-		for rows.Next() {
-			var c CampaignOut
-			if err := rows.Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
-				&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt); err != nil {
-				return nil, huma.Error500InternalServerError("could not list campaigns")
-			}
-			res.Body.Campaigns = append(res.Body.Campaigns, c)
-		}
+		res := out(campaignsOut{CampaignPage: *page, MaxAudience: MaxSendAudience})
 		_ = a.SQLDB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM smtp_settings WHERE workspace_id = $1)`, s.WorkspaceID).Scan(&res.Body.SMTPConfigured)
 		_ = a.SQLDB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM whatsapp_links WHERE workspace_id = $1 AND state = 'open')`, s.WorkspaceID).Scan(&res.Body.WhatsAppLinked)
 		return res, nil
@@ -709,6 +711,10 @@ func Register(api huma.API, a *app.App) {
 					return nil, huma.Error409Conflict(err.Error())
 				case errors.Is(err, ErrNotSendable):
 					return nil, huma.Error409Conflict("this campaign has already been sent")
+				}
+				var tooLarge *AudienceTooLargeError
+				if errors.As(err, &tooLarge) {
+					return nil, huma.Error409Conflict(tooLarge.Error())
 				}
 				return nil, huma.Error500InternalServerError("could not start the broadcast")
 			}
@@ -961,6 +967,14 @@ func Register(api huma.API, a *app.App) {
 // a second thinner copy that drifts from this one. Progress lands on
 // the row, so "how far has it got" is a read, not a held connection.
 func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SMTP) error {
+	// Over the stated limit is refused before the claim (MH-467), so the
+	// campaign stays a draft and nobody is half-sent to.
+	var tooLarge *AudienceTooLargeError
+	if err := checkAudience(ctx, a.SQLDB, wsID, campaignID); errors.As(err, &tooLarge) {
+		return huma.Error409Conflict(tooLarge.Error())
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return huma.Error500InternalServerError("could not count the audience")
+	}
 	var listID, subject, bodyMD, locale string
 	err := a.SQLDB.QueryRowContext(ctx, `
 		UPDATE campaigns SET status = 'sending', sent_count = 0, failed_count = 0, last_error = '', updated_at = now()
@@ -983,7 +997,7 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 		SELECT s.id, c.email, s.token FROM list_subscriptions s
 		JOIN contacts c ON c.id = s.contact_id AND c.workspace_id = s.workspace_id
 		WHERE s.workspace_id = $1 AND s.list_id = $2 AND s.status = 'subscribed'
-		ORDER BY s.created_at LIMIT 50000`, wsID, listID)
+		ORDER BY s.created_at, s.id LIMIT $3`, wsID, listID, MaxSendAudience+1)
 	if err != nil {
 		_, _ = a.SQLDB.ExecContext(ctx, `UPDATE campaigns SET status = 'failed', last_error = 'could not read recipients' WHERE workspace_id = $1 AND id = $2`, wsID, campaignID)
 		return huma.Error500InternalServerError("could not read recipients")
@@ -996,6 +1010,13 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 		}
 	}
 	rows.Close()
+	// The list grew past the limit between the check and the claim: fail the
+	// campaign rather than send to the first MaxSendAudience of it.
+	if len(list) > MaxSendAudience {
+		tooLarge := &AudienceTooLargeError{Audience: int64(len(list)), Max: MaxSendAudience}
+		_, _ = a.SQLDB.ExecContext(ctx, `UPDATE campaigns SET status = 'failed', last_error = $3 WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, tooLarge.Error())
+		return huma.Error409Conflict(tooLarge.Error())
+	}
 	_, _ = a.SQLDB.ExecContext(ctx, `UPDATE campaigns SET recipient_count = $3 WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, int64(len(list)))
 
 	go func() {

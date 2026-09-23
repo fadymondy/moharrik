@@ -192,7 +192,8 @@ const COMPANIES = [
 const created = { companies: 0, contacts: 0, subscriptions: 0, whatsappOptIns: 0, deals: 0, activities: 0 }
 const companyId = {}
 {
-  const { companies } = await s.get("/api/w/companies")
+  // Paged since MH-467; a demo workspace fits one page of 200.
+  const { companies } = await s.get("/api/w/companies?limit=200")
   for (const c of COMPANIES) {
     const have = companies.find((x) => x.name === c.name || (c.domain && x.domain === c.domain))
     if (have) { companyId[c.key] = have.id; continue }
@@ -439,7 +440,7 @@ Your October reorder window is open until Thursday. Reply *1* to repeat last mon
   },
 ]
 {
-  const { campaigns } = await s.get("/api/w/campaigns")
+  const { campaigns } = await s.get("/api/w/campaigns?limit=200")
   let n = 0
   for (const c of CAMPAIGNS) {
     if (campaigns.some((x) => x.subject === c.subject)) continue
@@ -762,7 +763,7 @@ skipped.push(["SMTP settings", "Real SMTP credentials would be needed; left unco
 // ---- read back ----------------------------------------------------------------------------------
 
 const [co, ct, dl, ls, cp, fm, ld, cv, wg, whs, nt, fs, tp, nw, rs, wf] = await Promise.all([
-  s.get("/api/w/companies"), s.get("/api/w/contacts"), s.get("/api/w/deals"), s.get("/api/w/mail/lists"), s.get("/api/w/campaigns"),
+  s.get("/api/w/companies?limit=200"), s.get("/api/w/contacts"), s.get("/api/w/deals"), s.get("/api/w/mail/lists"), s.get("/api/w/campaigns?limit=200"),
   s.get("/api/w/subscribe-forms"), s.get("/api/w/leads"), s.get("/api/w/conversations"), s.get("/api/w/chat_widgets"),
   s.get("/api/w/webhook_sources"), s.get("/api/w/notifications"), s.get("/api/w/feed_sources"), s.get("/api/w/topics"),
   s.get("/api/w/news?limit=1"), s.get("/api/w/research"), s.get("/api/w/workflows"),
@@ -770,12 +771,12 @@ const [co, ct, dl, ls, cp, fm, ld, cv, wg, whs, nt, fs, tp, nw, rs, wf] = await 
 const tally = (arr, key) => arr.reduce((m, x) => ((m[x[key]] = (m[x[key]] ?? 0) + 1), m), {})
 const summary = {
   workspace: { id: ws.id, slug: ws.slug, name: WS_NAME, currency: CUR, url: `${base}/en/w/${ws.slug}` },
-  companies: co.companies.length,
+  companies: co.total,
   contacts: ct.contacts.length,
   contacts_with_phone: ct.contacts.filter((c) => c.phone).length,
   whatsapp_opted_in: ct.contacts.filter((c) => c.whatsapp_opt_in_at).length,
   lists: ls.lists.map((l) => `${l.name}: ${l.subscribed} subscribed, ${l.pending} pending`),
-  deals: dl.deals.length,
+  deals: dl.total,
   deals_by_stage: tally(dl.deals, "stage_name"),
   pipeline_value: dl.stages.map((x) => `${x.name}: ${x.deal_count} deals, ${(x.value_minor / 100).toLocaleString("en")} ${CUR}`),
   campaigns: cp.campaigns.map((c) => `${c.channel}/${c.locale} ${c.status}: ${c.subject}`),

@@ -56,8 +56,8 @@ var ErrNoWhatsApp = errors.New("link a WhatsApp number for this workspace before
 func WhatsAppAudience(ctx context.Context, db *sql.DB, wsID, listID string) ([]WhatsAppRecipient, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT c.id, c.phone, c.name `+whatsappAudienceFrom+`
-		ORDER BY s.created_at
-		LIMIT 50000`, wsID, listID)
+		ORDER BY s.created_at, s.id
+		LIMIT $3`, wsID, listID, MaxSendAudience+1)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +239,10 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 	if _, err := whatsapp.Load(ctx, a, wsID); err != nil {
 		return ErrNoWhatsApp
 	}
+	// Over the stated limit is refused before the claim (MH-467).
+	if err := checkAudience(ctx, a.SQLDB, wsID, campaignID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
 
 	var listID, bodyText, locale string
 	err := a.SQLDB.QueryRowContext(ctx, `
@@ -258,6 +262,14 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 			UPDATE campaigns SET status = 'failed', last_error = 'could not read recipients', updated_at = now()
 			WHERE workspace_id = $1 AND id = $2`, wsID, campaignID)
 		return err
+	}
+	// Grew past the limit between the check and the claim: fail, never truncate.
+	if len(audience) > MaxSendAudience {
+		tooLarge := &AudienceTooLargeError{Audience: int64(len(audience)), Max: MaxSendAudience}
+		_, _ = a.SQLDB.ExecContext(ctx, `
+			UPDATE campaigns SET status = 'failed', last_error = $3, updated_at = now()
+			WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, tooLarge.Error())
+		return tooLarge
 	}
 	_, _ = a.SQLDB.ExecContext(ctx, `
 		UPDATE campaigns SET recipient_count = $3, updated_at = now()

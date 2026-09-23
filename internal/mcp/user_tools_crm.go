@@ -14,6 +14,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/marketing"
+	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -34,49 +35,52 @@ func pgCode(err error) string {
 func CrmTools() []Tool {
 	return []Tool{
 		{
-			Name:        "list_companies",
-			Description: "Companies in the CRM, with their contact and open-deal counts.",
-			Scope:       "contacts:read",
-			InputSchema: schema(nil, map[string]any{}),
-			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
+			// MH-467: this stopped at 200 companies without saying so.
+			Name: "list_companies",
+			Description: "Companies in the CRM, A-Z, with their contact and open-deal counts, one page at a time. " +
+				"The reply says how many match in total; pass its cursor to get the next page.",
+			Scope: "contacts:read",
+			InputSchema: schema(nil, map[string]any{
+				"q":      prop("string", "Search name and domain"),
+				"cursor": prop("string", "The cursor from the previous reply, for the next page"),
+				"limit":  prop("number", "Page size, default 50, at most 200"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
 				if !ok {
 					return "", errNotFound
 				}
-				rows, err := a.SQLDB.QueryContext(ctx, `
-					SELECT name, domain, industry, size, (SELECT count(*) FROM contacts c WHERE c.workspace_id = co.workspace_id AND c.company_id = co.id),
-					       (SELECT count(*) FROM deals d JOIN pipeline_stages ps ON ps.workspace_id = d.workspace_id AND ps.id = d.stage_id WHERE d.workspace_id = co.workspace_id AND d.company_id = co.id AND ps.kind = 'open')
-					FROM companies co WHERE workspace_id = $1 ORDER BY lower(name) LIMIT 200`, s.WorkspaceID)
+				args := decodeArgs(raw)
+				limit, err := paging.Limit(intArg(args, "limit", 0), crm.DefaultCompanyPage, crm.MaxCompanyPage)
+				if err != nil {
+					return "", err
+				}
+				page, err := crm.ListCompaniesPage(ctx, a.SQLDB, s.WorkspaceID, str(args, "q"), str(args, "cursor"), limit)
 				if err != nil {
 					return "", fmt.Errorf("could not list companies: %w", err)
 				}
-				defer rows.Close()
-				var b strings.Builder
-				n := 0
-				for rows.Next() {
-					var name, domain, industry, size string
-					var contacts, openDeals int
-					if err := rows.Scan(&name, &domain, &industry, &size, &contacts, &openDeals); err != nil {
-						return "", fmt.Errorf("could not list companies: %w", err)
+				if page.Total == 0 {
+					if str(args, "q") != "" {
+						return "No companies match.", nil
 					}
-					n++
-					fmt.Fprintf(&b, "%s", name)
-					if domain != "" {
-						fmt.Fprintf(&b, " (%s)", domain)
-					}
-					fmt.Fprintf(&b, " — %d contact(s), %d open deal(s)", contacts, openDeals)
-					if industry != "" {
-						fmt.Fprintf(&b, ", %s", industry)
-					}
-					if size != "" {
-						fmt.Fprintf(&b, ", %s employees", size)
-					}
-					b.WriteByte('\n')
-				}
-				if n == 0 {
 					return "No companies yet.", nil
 				}
-				return fmt.Sprintf("%d compan%s:\n%s", n, plural(n, "y", "ies"), b.String()), nil
+				var b strings.Builder
+				for _, c := range page.Companies {
+					b.WriteString(c.Name)
+					if c.Domain != "" {
+						fmt.Fprintf(&b, " (%s)", c.Domain)
+					}
+					if c.Industry != "" || c.Size != "" {
+						fmt.Fprintf(&b, " — %s", strings.TrimSpace(strings.Join([]string{c.Industry, c.Size}, " ")))
+					}
+					fmt.Fprintf(&b, " — %d contact(s), %d open deal(s)\n", c.ContactCount, c.OpenDeals)
+				}
+				head := fmt.Sprintf("Showing %d of %d compan(ies):\n", len(page.Companies), page.Total)
+				if page.NextCursor != "" {
+					return head + b.String() + "More: call list_companies again with cursor=" + page.NextCursor, nil
+				}
+				return head + b.String(), nil
 			},
 		},
 		{
@@ -184,45 +188,60 @@ func CrmTools() []Tool {
 			},
 		},
 		{
-			Name:        "list_deals",
-			Description: "The pipeline: every deal, its stage and value.",
-			Scope:       "contacts:read",
-			InputSchema: schema(nil, map[string]any{}),
-			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
+			// MH-467: this stopped at 500 deals without saying so. It pages the
+			// pipeline in board order through crm.ListDealsPage.
+			Name: "list_deals",
+			Description: "The pipeline: deals in board order (stage, then position), with stage and value, one page at a time. " +
+				"The reply says how many there are in total; pass its cursor to get the next page.",
+			Scope: "contacts:read",
+			InputSchema: schema(nil, map[string]any{
+				"cursor": prop("string", "The cursor from the previous reply, for the next page"),
+				"limit":  prop("number", "Page size, default 100, at most 500"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
 				if !ok {
 					return "", errNotFound
 				}
-				rows, err := a.SQLDB.QueryContext(ctx, `
-					SELECT d.title, ps.name, ps.kind, d.value_minor, d.currency, coalesce(co.name, ''), coalesce(ct.email, '')
-					FROM deals d
-					JOIN pipeline_stages ps ON ps.workspace_id = d.workspace_id AND ps.id = d.stage_id
-					LEFT JOIN companies co ON co.workspace_id = d.workspace_id AND co.id = d.company_id
-					LEFT JOIN contacts ct ON ct.workspace_id = d.workspace_id AND ct.id = d.contact_id
-					WHERE d.workspace_id = $1 ORDER BY ps.position, d.position LIMIT 500`, s.WorkspaceID)
+				args := decodeArgs(raw)
+				limit, err := paging.Limit(intArg(args, "limit", 0), 100, crm.MaxDealsPage)
+				if err != nil {
+					return "", err
+				}
+				if err := crm.EnsureStages(ctx, a.SQLDB, s.WorkspaceID); err != nil {
+					return "", fmt.Errorf("could not prepare the pipeline: %w", err)
+				}
+				page, err := crm.ListDealsPage(ctx, a.SQLDB, s.WorkspaceID, crm.DealsQuery{View: "list", Cursor: str(args, "cursor"), Limit: limit})
 				if err != nil {
 					return "", fmt.Errorf("could not list deals: %w", err)
 				}
-				defer rows.Close()
+				if page.Total == 0 {
+					return "No deals yet.", nil
+				}
 				var b strings.Builder
-				n := 0
-				for rows.Next() {
-					var title, stage, kind, currency, company, contact string
-					var valueMinor int64
-					if err := rows.Scan(&title, &stage, &kind, &valueMinor, &currency, &company, &contact); err != nil {
-						return "", fmt.Errorf("could not list deals: %w", err)
+				for _, d := range page.Deals {
+					value := "no value yet"
+					if d.ValueMinor > 0 {
+						value = money(d.ValueMinor, d.Currency) + " " + d.Currency
 					}
-					n++
-					fmt.Fprintf(&b, "%s — %s [%s] %s %s", title, stage, kind, money(valueMinor, currency), currency)
-					if company != "" || contact != "" {
-						fmt.Fprintf(&b, " — %s", strings.TrimSpace(strings.Join([]string{company, contact}, " / ")))
+					fmt.Fprintf(&b, "%s — %s [%s] %s", d.Title, d.StageName, d.StageKind, value)
+					var who []string
+					if d.Company != nil {
+						who = append(who, d.Company.Name)
+					}
+					if d.Contact != nil {
+						who = append(who, d.Contact.Email)
+					}
+					if len(who) > 0 {
+						fmt.Fprintf(&b, " — %s", strings.Join(who, " / "))
 					}
 					b.WriteByte('\n')
 				}
-				if n == 0 {
-					return "No deals yet.", nil
+				head := fmt.Sprintf("Showing %d of %d deal(s):\n", len(page.Deals), page.Total)
+				if page.NextCursor != "" {
+					return head + b.String() + "More: call list_deals again with cursor=" + page.NextCursor, nil
 				}
-				return fmt.Sprintf("%d deal(s):\n%s", n, b.String()), nil
+				return head + b.String(), nil
 			},
 		},
 		{
