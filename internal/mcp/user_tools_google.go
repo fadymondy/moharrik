@@ -23,7 +23,8 @@ switched on in Settings → Integrations.
 
 	analytics:read          google_resources, ga4_report, gsc_performance,
 	                        gsc_inspections, gsc_sitemaps, youtube_channel,
-	                        youtube_videos, youtube_video, youtube_analytics
+	                        youtube_videos, youtube_video, youtube_analytics,
+	                        youtube_reports
 	search_console:write    gsc_inspect_url, gsc_submit_sitemap (manager: they
 	                        spend the site's shared inspection budget and act
 	                        on Google)
@@ -449,6 +450,49 @@ func GoogleTools() []Tool {
 						ans = " (answered)"
 					}
 					fmt.Fprintf(&b, "- %s%s · %d likes · %d replies: %s\n  reply: %s\n", c.Author, ans, c.Likes, c.Replies, firstLine(c.Text), c.ReplyURL)
+				}
+				return b.String(), nil
+			},
+		},
+		{
+			Name:        "youtube_reports",
+			Description: "YouTube Reporting for an enabled channel: its daily report jobs and the reports copied so far (newest first). A report's CSV is at GET /api/w/youtube/reports/{report_id}/csv.",
+			Scope:       "analytics:read",
+			InputSchema: schema(nil, map[string]any{"resource": resourceProp, "limit": prop("integer", "At most this many reports (default 30, max 200)")}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				args := decodeArgs(raw)
+				s, r, err := resolve(ctx, a, google.KindYT, args)
+				if err != nil {
+					return "", err
+				}
+				out, err := youtube.ListReports(tenant.WithWorkspace(ctx, s.WorkspaceID), a.SQLDB, s.WorkspaceID, r.ID, intArg(args, "limit", 30))
+				if err != nil {
+					return "", err
+				}
+				var b strings.Builder
+				if out.CheckedAt == nil {
+					b.WriteString("Not checked with YouTube Reporting yet (it runs with the channel's next sync).\n")
+				}
+				if len(out.Jobs) == 0 {
+					b.WriteString("No report jobs yet.\n")
+				}
+				for _, j := range out.Jobs {
+					if j.Reports == 0 {
+						created := "—"
+						if j.CreatedAt != nil {
+							created = j.CreatedAt.UTC().Format("2006-01-02")
+						}
+						fmt.Fprintf(&b, "job %s: no reports yet (created %s; YouTube publishes the first about two days later)\n", j.ReportTypeID, created)
+						continue
+					}
+					fmt.Fprintf(&b, "job %s: %d reports, newest %s\n", j.ReportTypeID, j.Reports, j.LatestDay.UTC().Format("2006-01-02"))
+				}
+				for _, rep := range out.Reports {
+					day := "—"
+					if rep.StartTime != nil {
+						day = rep.StartTime.UTC().Format("2006-01-02")
+					}
+					fmt.Fprintf(&b, "- %s %s · %d rows · report_id=%s\n", day, rep.ReportTypeID, rep.RowCount, rep.ReportID)
 				}
 				return b.String(), nil
 			},

@@ -91,8 +91,8 @@ func TestYouTube(t *testing.T) {
 				t.Errorf("step %+v", st)
 			}
 		}
-		if len(out.Channel.Steps) != 4 {
-			t.Errorf("four steps: %+v", out.Channel.Steps)
+		if len(out.Channel.Steps) != 5 {
+			t.Errorf("five steps: %+v", out.Channel.Steps)
 		}
 		if int(out.Quota.WorkspaceUsed) != dataCalls(f) || out.Quota.WorkspaceLimit != 2000 || out.Quota.GlobalLimit != 9000 {
 			t.Errorf("ledger %+v vs %d Data API calls", out.Quota, dataCalls(f))
@@ -449,6 +449,120 @@ func TestYouTubeWithoutAPIKey(t *testing.T) {
 		}
 		if out.Resource.LastError != "" {
 			t.Errorf("last_error is for the channel and uploads only: %q", out.Resource.LastError)
+		}
+	})
+}
+
+// MH-443: YouTube Reporting — jobs created once and adopted, reports copied
+// as Google publishes them, downloadable as CSV.
+func TestYouTubeReporting(t *testing.T) {
+	f := newFixture(t)
+	t.Setenv("GOOGLE_SYNC_INLINE", "")
+	t.Setenv("YOUTUBE_API_KEY", f.fake.APIKey)
+	alice := f.newUser(t)
+	wsID, _ := alice.workspace(t)
+	const sub = "sub-rep"
+	f.setAccount(sub, "rep@example.test")
+	if r, _ := alice.connect(t, "product=youtube"); r != google.ResultConnected {
+		t.Fatal(r)
+	}
+	google.WaitBackground()
+	ch := alice.resources(t, "?kind=yt_channel").Resources[0]
+
+	t.Run("the first sync creates one job per family, newest version; no reports yet, and that is said", func(t *testing.T) {
+		out := getJSON[youtube.YTReports](t, alice, "/api/w/youtube/reports")
+		types := []string{}
+		for _, j := range out.Jobs {
+			types = append(types, j.ReportTypeID)
+			if !j.CreatedHere || j.CreatedAt == nil || j.Reports != 0 {
+				t.Errorf("%+v", j)
+			}
+		}
+		if strings.Join(types, ",") != "channel_basic_a3,channel_device_os_a2,channel_traffic_source_a2" {
+			t.Errorf("jobs: %v", types)
+		}
+		if len(out.Reports) != 0 || out.CheckedAt == nil {
+			t.Errorf("%+v", out)
+		}
+	})
+
+	t.Run("published reports are copied, once, and download as CSV", func(t *testing.T) {
+		f.fake.PublishReports(sub, 5)
+		code, b, _ := alice.do(t, "POST", "/api/w/youtube/reports/refresh", nil)
+		if code != 200 {
+			t.Fatalf("%d %s", code, b)
+		}
+		var out youtube.YTReports
+		_ = json.Unmarshal(b, &out)
+		if len(out.Reports) != 15 {
+			t.Fatalf("3 families × 5 days: %d", len(out.Reports))
+		}
+		var basic youtube.YTStoredReport
+		for _, r := range out.Reports {
+			if strings.HasPrefix(r.ReportTypeID, "channel_basic") {
+				basic = r
+				break
+			}
+		}
+		if basic.RowCount != 6 || basic.StartTime == nil {
+			t.Errorf("one row per video: %+v", basic)
+		}
+		code, csv, res := alice.do(t, "GET", "/api/w/youtube/reports/"+basic.ReportID+"/csv", nil)
+		if code != 200 || !strings.HasPrefix(string(csv), "date,channel_id,video_id") || !strings.Contains(res.Header.Get("Content-Disposition"), "channel_basic_a3-") {
+			t.Errorf("csv: %d %q %s", code, res.Header.Get("Content-Disposition"), csv[:min(80, len(csv))])
+		}
+		calls := f.fake.Calls("api:ytReporting")
+		alice.do(t, "POST", "/api/w/youtube/reports/refresh", nil)
+		again := getJSON[youtube.YTReports](t, alice, "/api/w/youtube/reports")
+		if len(again.Reports) != 15 || f.fake.Calls("api:ytReporting")-calls != 4 { // jobs + 3 lists, no downloads
+			t.Errorf("a second pass downloads nothing again: %d reports, %d calls", len(again.Reports), f.fake.Calls("api:ytReporting")-calls)
+		}
+	})
+
+	t.Run("another workspace on the same channel adopts the jobs rather than duplicating them", func(t *testing.T) {
+		bob := f.newUser(t)
+		bob.workspace(t)
+		if r, _ := bob.connect(t, "product=youtube"); r != google.ResultConnected {
+			t.Fatal(r)
+		}
+		google.WaitBackground()
+		out := getJSON[youtube.YTReports](t, bob, "/api/w/youtube/reports")
+		if len(out.Jobs) != 3 || out.Jobs[0].CreatedHere || len(out.Reports) != 15 {
+			t.Errorf("%+v", out)
+		}
+		if code, _, _ := bob.do(t, "GET", "/api/w/youtube/reports/nope/csv", nil); code != 404 {
+			t.Errorf("unknown report: %d", code)
+		}
+	})
+
+	t.Run("a member reads and downloads but does not act on YouTube; a failing pass does not fail the sync", func(t *testing.T) {
+		m := f.newUser(t)
+		addMember(t, f, wsID, m.email, "member")
+		m.ws = wsID
+		if out := getJSON[youtube.YTReports](t, m, "/api/w/youtube/reports"); len(out.Reports) != 15 {
+			t.Errorf("member list: %d", len(out.Reports))
+		}
+		if code, _, _ := m.do(t, "POST", "/api/w/youtube/reports/refresh", nil); code != 403 {
+			t.Errorf("member refresh: %d", code)
+		}
+		_, _ = f.a.SysDB.Exec(`UPDATE youtube_channels SET reports_checked_at = NULL WHERE resource_id = $1`, ch.ID)
+		f.fake.Fail("ytReporting", 403, "forbidden", -1)
+		defer f.fake.ClearFailures()
+		if err := google.RunSync(context.Background(), f.a, wsID, ch.ID); err != nil {
+			t.Fatalf("a failing reporting pass must not fail the sync: %v", err)
+		}
+		out := getJSON[channelOut](t, alice, "/api/w/youtube/channel")
+		found := false
+		for _, st := range out.Channel.Steps {
+			if st.Name == "reports" {
+				found = true
+				if st.State != "failed" || !strings.Contains(st.Error, "refused access") {
+					t.Errorf("%+v", st)
+				}
+			}
+		}
+		if !found || out.Resource.LastError != "" {
+			t.Errorf("steps %+v, last_error %q", out.Channel.Steps, out.Resource.LastError)
 		}
 	})
 }

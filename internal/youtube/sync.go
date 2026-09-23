@@ -110,7 +110,7 @@ type channelState struct {
 
 // YTSyncStep is how one part of the last sync went.
 type YTSyncStep struct {
-	Name string `json:"name" enum:"channel,uploads,comments,analytics"`
+	Name string `json:"name" enum:"channel,uploads,comments,analytics,reports"`
 	// ok | failed | unavailable (this server cannot do it: say why) | skipped
 	State string    `json:"state" enum:"ok,failed,unavailable,skipped"`
 	At    time.Time `json:"at"`
@@ -118,7 +118,7 @@ type YTSyncStep struct {
 }
 
 // StepNames are the steps, in the order a sync runs them.
-var StepNames = []string{"channel", "uploads", "comments", "analytics"}
+var StepNames = []string{"channel", "uploads", "comments", "analytics", "reports"}
 
 // ErrCommentsUnavailable: this server has no way to read comments. Google
 // lets comments be read with a user's token only under youtube.force-ssl — a
@@ -179,6 +179,7 @@ func Sync(ctx context.Context, a *app.App, r google.Resource) error {
 	_, cerr := syncNewComments(ctx, a, ws, r, st)
 	record("comments", cerr)
 	record("analytics", refreshChannelSnapshot(ctx, a, ws, r))
+	record("reports", refreshReports(ctx, a, ws, r, false))
 	saveSteps(ctx, a, ws, r.ID, steps)
 	return uerr
 }

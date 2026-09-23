@@ -161,6 +161,23 @@ func (c *Client) Post(ctx context.Context, u string, in, out any) error {
 	return c.Do(ctx, http.MethodPost, u, in, out)
 }
 
+// GetRaw GETs u and returns the body as it is (a report's CSV), at most
+// limit bytes, with the same token, retry and error rules as Do.
+func (c *Client) GetRaw(ctx context.Context, u string, limit int64) ([]byte, error) {
+	var raw rawBody
+	raw.limit = limit
+	if err := c.Do(ctx, http.MethodGet, u, nil, &raw); err != nil {
+		return nil, err
+	}
+	return raw.b, nil
+}
+
+// rawBody receives a body without decoding it: Do hands it the bytes.
+type rawBody struct {
+	b     []byte
+	limit int64
+}
+
 // Do is one API call with the retry rules above.
 func (c *Client) Do(ctx context.Context, method, u string, in, out any) error {
 	var payload []byte
@@ -178,6 +195,13 @@ func (c *Client) Do(ctx context.Context, method, u string, in, out any) error {
 		}
 		body, err := send(ctx, method, u, tok, payload)
 		if err == nil {
+			if rb, ok := out.(*rawBody); ok {
+				if rb.limit > 0 && int64(len(body)) > rb.limit {
+					return fmt.Errorf("google api: the answer is larger than %d bytes", rb.limit)
+				}
+				rb.b = body
+				return nil
+			}
 			if out == nil || len(bytes.TrimSpace(body)) == 0 {
 				return nil
 			}

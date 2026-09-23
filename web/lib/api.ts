@@ -1174,7 +1174,7 @@ export type YtChannel = {
 }
 
 export type YtSyncStep = {
-  name: "channel" | "uploads" | "comments" | "analytics"
+  name: "channel" | "uploads" | "comments" | "analytics" | "reports"
   /** unavailable: this server cannot do it (the error says why). */
   state: "ok" | "failed" | "unavailable" | "skipped"
   at: string
@@ -1243,6 +1243,15 @@ export type YtAnalytics = {
 }
 
 export type YtAnalyticsOut = { resource: GoogleResource | null; analytics: YtAnalytics | null; error?: string }
+
+// ── YouTube Reporting (MH-443) ───────────────────────────────────────────
+
+export type YtReports = {
+  jobs: { job_id: string; report_type_id: string; name: string; created_at: string | null; created_here: boolean; reports: number; latest_day: string | null }[] | null
+  reports: { report_id: string; report_type_id: string; start_time: string | null; end_time: string | null; row_count: number; bytes: number; downloaded_at: string }[] | null
+  /** The last reporting pass; null when none has run. */
+  checked_at: string | null
+}
 
 // ── Alerts and web push (MH-378) ─────────────────────────────────────────
 

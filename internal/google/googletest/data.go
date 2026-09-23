@@ -274,7 +274,7 @@ func (s *Server) takeFailure(api string) *failSpec {
 // grpcStyle: the Analytics APIs and URL inspection answer gRPC-style errors.
 func grpcStyle(api string) bool {
 	switch api {
-	case "admin", "runReport", "inspect":
+	case "admin", "runReport", "inspect", "ytReporting":
 		return true
 	}
 	return false
@@ -441,6 +441,16 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		} else {
 			s.Fail(q.Get("api"), status, q.Get("reason"), times)
 		}
+		w.WriteHeader(http.StatusNoContent)
+	case p == "/_fake/publish-reports" && r.Method == http.MethodPost:
+		// The dev check's stand-in for Google publishing Reporting reports:
+		// ?email=<the channel's account>&days=5
+		q := r.URL.Query()
+		days, _ := strconv.Atoi(q.Get("days"))
+		if days <= 0 {
+			days = 5
+		}
+		s.PublishReports("sub-"+hexOf(q.Get("email"))[:16], days)
 		w.WriteHeader(http.StatusNoContent)
 	case p == "/_fake/comment" && r.Method == http.MethodPost:
 		// The dev check's viewer: ?email=<the channel's Google account>&text=…

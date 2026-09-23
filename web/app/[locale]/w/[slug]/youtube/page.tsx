@@ -16,6 +16,7 @@ import { Ltr } from "@/components/copy-field"
 import { DataError, NoResource, ResourceSwitcher, useEnabled } from "@/components/google/data-page"
 import { SyncStatus } from "@/components/google/resource-picker"
 import { YouTubeAnalytics } from "@/components/google/youtube-analytics"
+import { YouTubeReports } from "@/components/google/youtube-reports"
 import { useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState } from "@/components/states"
@@ -98,6 +99,7 @@ function YouTube() {
           <ChannelHeader out={out} />
           <YouTubeAnalytics resourceId={resourceId} onOpenVideo={(id) => set({ video: id })} />
           <Videos resourceId={resourceId} onOpen={(id) => set({ video: id })} />
+          <YouTubeReports resourceId={resourceId} />
         </div>
       )}
       <Sheet open={!!open && !!resourceId} onOpenChange={(v) => !v && set({ video: "" })}>

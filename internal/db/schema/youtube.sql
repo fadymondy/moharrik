@@ -103,3 +103,37 @@ CREATE TABLE IF NOT EXISTS youtube_quota (
     updated_at    timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (day, workspace_id)
 );
+
+-- YouTube Reporting (MH-443): the report jobs this workspace's channel has
+-- (created once per report family) and every daily report downloaded, kept
+-- beyond Google's 60 days. Numbered with the rest of YouTube (83), whose
+-- files re-apply idempotently on every deploy.
+CREATE TABLE IF NOT EXISTS youtube_report_jobs (
+    workspace_id       text        NOT NULL,
+    resource_id        text        NOT NULL,
+    job_id             text        NOT NULL,
+    report_type_id     text        NOT NULL DEFAULT '',
+    name               text        NOT NULL DEFAULT '',
+    google_created_at  timestamptz,
+    -- This workspace created it (rather than finding it already there).
+    created_here       boolean     NOT NULL DEFAULT false,
+    PRIMARY KEY (workspace_id, resource_id, job_id)
+);
+
+CREATE TABLE IF NOT EXISTS youtube_reports (
+    workspace_id       text        NOT NULL,
+    resource_id        text        NOT NULL,
+    report_id          text        NOT NULL,
+    job_id             text        NOT NULL DEFAULT '',
+    report_type_id     text        NOT NULL DEFAULT '',
+    -- The day the report covers (Google: one day per report).
+    start_time         timestamptz,
+    end_time           timestamptz,
+    google_created_at  timestamptz,
+    -- The CSV, as downloaded (capped at download).
+    content            text        NOT NULL DEFAULT '',
+    row_count          bigint      NOT NULL DEFAULT 0,
+    bytes              bigint      NOT NULL DEFAULT 0,
+    downloaded_at      timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (workspace_id, resource_id, report_id)
+);

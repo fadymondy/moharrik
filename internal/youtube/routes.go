@@ -158,6 +158,102 @@ func Register(api huma.API, a *app.App) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "w-youtube-reports", Method: http.MethodGet, Path: "/api/w/youtube/reports",
+		Summary: "YouTube Reporting: the channel's report jobs and the daily reports downloaded (MH-443)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Resource string `query:"resource"`
+	}) (*body[YTReports], error) {
+		s, _, err := google.ReadScope(ctx)
+		if err != nil {
+			return nil, err
+		}
+		r, err := resolve(ctx, a, s.WorkspaceID, in.Resource)
+		if err != nil {
+			return nil, err
+		}
+		if r == nil {
+			return nil, huma.Error404NotFound("no YouTube channel is enabled in this workspace")
+		}
+		out, err := ListReports(tenant.WithWorkspace(ctx, s.WorkspaceID), a.SQLDB, s.WorkspaceID, r.ID, 60)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not list the reports")
+		}
+		return &body[YTReports]{*out}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-youtube-reports-refresh", Method: http.MethodPost, Path: "/api/w/youtube/reports/refresh",
+		Summary:     "Check YouTube Reporting now: create the missing report jobs and download new reports",
+		Description: "Creating a job acts on the channel's YouTube account, so this needs integrations:manage.",
+		Tags:        tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Resource string `query:"resource"`
+	}) (*body[YTReports], error) {
+		s, manage, err := google.ReadScope(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !manage {
+			return nil, huma.Error403Forbidden("checking YouTube Reporting needs the admin role in this workspace")
+		}
+		r, err := resolve(ctx, a, s.WorkspaceID, in.Resource)
+		if err != nil {
+			return nil, err
+		}
+		if r == nil {
+			return nil, huma.Error404NotFound("no YouTube channel is enabled in this workspace")
+		}
+		if err := RefreshReports(ctx, a, s.WorkspaceID, *r); err != nil {
+			return nil, huma.Error502BadGateway(google.Describe(err))
+		}
+		out, err := ListReports(tenant.WithWorkspace(ctx, s.WorkspaceID), a.SQLDB, s.WorkspaceID, r.ID, 60)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not list the reports")
+		}
+		return &body[YTReports]{*out}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-youtube-report-csv", Method: http.MethodGet, Path: "/api/w/youtube/reports/{id}/csv",
+		Summary: "Download one stored YouTube report as CSV", Tags: tags,
+		Responses: map[string]*huma.Response{
+			"200": {Description: "CSV", Content: map[string]*huma.MediaType{"text/csv": {Schema: &huma.Schema{Type: "string"}}}},
+		},
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID       string `path:"id" maxLength:"200"`
+		Resource string `query:"resource"`
+	}) (*huma.StreamResponse, error) {
+		s, _, err := google.ReadScope(ctx)
+		if err != nil {
+			return nil, err
+		}
+		r, err := resolve(ctx, a, s.WorkspaceID, in.Resource)
+		if err != nil {
+			return nil, err
+		}
+		if r == nil {
+			return nil, huma.Error404NotFound("no YouTube channel is enabled in this workspace")
+		}
+		content, name, err := ReportCSV(tenant.WithWorkspace(ctx, s.WorkspaceID), a.SQLDB, s.WorkspaceID, r.ID, in.ID)
+		if errors.Is(err, ErrNotFound) {
+			return nil, huma.Error404NotFound("that report is not stored here")
+		}
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the report")
+		}
+		return &huma.StreamResponse{Body: func(hctx huma.Context) {
+			hctx.SetHeader("Content-Type", "text/csv; charset=utf-8")
+			hctx.SetHeader("Content-Disposition", `attachment; filename="`+name+`"`)
+			hctx.SetHeader("Cache-Control", "no-store")
+			hctx.SetHeader("X-Content-Type-Options", "nosniff")
+			_, _ = hctx.BodyWriter().Write([]byte(content))
+		}}, nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "w-youtube-video", Method: http.MethodGet, Path: "/api/w/youtube/videos/{id}",
 		Summary:     "One upload with its top comments",
 		Description: "Top comments are re-read from YouTube when older than an hour and the quota allows; comment_note says why they may be older.",

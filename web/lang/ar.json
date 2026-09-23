@@ -1832,5 +1832,21 @@
   "gscs.pending": "بانتظار جوجل",
   "gscs.read": "قُرئت {when}",
   "gscs.issuesN": "{e} أخطاء · {w} تحذيرات",
-  "gscs.noIssues": "لا شيء"
+  "gscs.noIssues": "لا شيء",
+  "yt.step.reports": "التقارير",
+  "ytr.title": "التقارير اليومية",
+  "ytr.hint": "تقارير CSV اليومية من يوتيوب لهذه القناة: مجاميع القناة، ومصادر الزيارات، والأجهزة. تحتفظ بها جوجل 60 يومًا؛ ويحتفظ محرّك بنسخة.",
+  "ytr.check": "تحقّق الآن",
+  "ytr.checking": "جارٍ التحقق…",
+  "ytr.checked": "تم التحقق مع يوتيوب.",
+  "ytr.noJobs": "لا توجد مهام تقارير لهذه القناة بعد.",
+  "ytr.notChecked": "لم يُتحقق مع يوتيوب بعد: يحدث ذلك مع المزامنة القادمة للقناة.",
+  "ytr.jobReports": "{n} تقارير · الأحدث {day}",
+  "ytr.jobWaiting": "أُنشئت المهمة {when}. ينشر يوتيوب أول التقارير بعد نحو يومين من إنشاء المهمة.",
+  "ytr.family.channel_basic": "مجاميع القناة",
+  "ytr.family.channel_traffic_source": "مصادر الزيارات",
+  "ytr.family.channel_device_os": "الأجهزة والأنظمة",
+  "ytr.day": "اليوم",
+  "ytr.report": "التقرير",
+  "ytr.rows": "الصفوف"
 }

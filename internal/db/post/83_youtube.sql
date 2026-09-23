@@ -33,3 +33,24 @@ ALTER TABLE youtube_quota FORCE ROW LEVEL SECURITY;
 -- Analytics): one step failing no longer reads as the whole sync failing,
 -- and each says why. Added after 83 first shipped, so ALTER, idempotently.
 ALTER TABLE youtube_channels ADD COLUMN IF NOT EXISTS step_status jsonb NOT NULL DEFAULT '{}';
+
+-- YouTube Reporting (MH-443): the jobs and the downloaded reports, isolated
+-- like the rest of YouTube. The last reporting pass is on the channel row.
+DO $$
+DECLARE t text;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['youtube_report_jobs', 'youtube_reports'] LOOP
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = t || '_resource_fk') THEN
+            EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (workspace_id, resource_id)
+                REFERENCES google_resources (workspace_id, id) ON DELETE CASCADE', t, t || '_resource_fk');
+        END IF;
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
+        EXECUTE format($p$CREATE POLICY tenant_isolation ON %I
+            USING (workspace_id = current_setting('app.workspace_id', true))
+            WITH CHECK (workspace_id = current_setting('app.workspace_id', true))$p$, t);
+    END LOOP;
+END $$;
+CREATE INDEX IF NOT EXISTS youtube_reports_day_idx ON youtube_reports (workspace_id, resource_id, start_time DESC);
+ALTER TABLE youtube_channels ADD COLUMN IF NOT EXISTS reports_checked_at timestamptz;

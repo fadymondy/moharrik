@@ -1832,5 +1832,21 @@
   "gscs.pending": "Waiting for Google",
   "gscs.read": "Read {when}",
   "gscs.issuesN": "{e} errors · {w} warnings",
-  "gscs.noIssues": "None"
+  "gscs.noIssues": "None",
+  "yt.step.reports": "Reports",
+  "ytr.title": "Daily reports",
+  "ytr.hint": "YouTube Reporting's daily CSV reports for this channel: channel totals, traffic sources, and devices. Google keeps them 60 days; Moharrik keeps a copy.",
+  "ytr.check": "Check now",
+  "ytr.checking": "Checking…",
+  "ytr.checked": "Checked with YouTube.",
+  "ytr.noJobs": "This channel has no report jobs yet.",
+  "ytr.notChecked": "Not checked with YouTube yet: this happens with the channel's next sync.",
+  "ytr.jobReports": "{n} reports · newest {day}",
+  "ytr.jobWaiting": "Job created {when}. YouTube publishes the first reports about two days after a job is created.",
+  "ytr.family.channel_basic": "Channel totals",
+  "ytr.family.channel_traffic_source": "Traffic sources",
+  "ytr.family.channel_device_os": "Devices and systems",
+  "ytr.day": "Day",
+  "ytr.report": "Report",
+  "ytr.rows": "Rows"
 }

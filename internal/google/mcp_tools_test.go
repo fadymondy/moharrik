@@ -96,6 +96,7 @@ func TestGoogleMCPTools(t *testing.T) {
 			"youtube_channel":   {"Demo Channel", "subscribers 12,840", "uploads read 6", "YouTube quota today"},
 			"youtube_videos":    {"6 uploads match", "How we plan a launch"},
 			"youtube_analytics": {"views ", "not published by YouTube yet", "traffic: YT_SEARCH"},
+			"youtube_reports":   {"job channel_basic_a3: no reports yet"},
 		}
 		for tool, wants := range cases {
 			text, isErr := f.mcp(t, read, tool, map[string]any{"days": 28, "compare": true})

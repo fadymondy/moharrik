@@ -91,6 +91,8 @@ type Server struct {
 	// APIKey is the API key public-data calls may carry (X-Goog-Api-Key)
 	// instead of a token: YouTube comments, which read-only OAuth cannot read.
 	APIKey string
+	// jobs are the YouTube Reporting jobs per account (ytreporting.go).
+	jobs map[string][]*fakeJob
 	// DataFor, when set, picks an account's data the first time it is seen
 	// (the dev check: "many@…" sees several of each). nil or a nil answer: Demo.
 	DataFor  func(Account) *AccountData
@@ -126,7 +128,7 @@ func build() (*Server, http.Handler) {
 		Account: Account{Sub: "100000000000000000001", Email: "brand@example.test"},
 		codes:   map[string]codeGrant{}, access: map[string]accessGrant{}, refresh: map[string]*refreshGrant{},
 		granted: map[string]map[string]bool{}, calls: map[string]int{}, lastForm: map[string]url.Values{},
-		data: map[string]*AccountData{}, failures: map[string]*failSpec{}, APIKey: "fake-api-key",
+		data: map[string]*AccountData{}, failures: map[string]*failSpec{}, APIKey: "fake-api-key", jobs: map[string][]*fakeJob{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/o/oauth2/v2/auth", s.authorize)

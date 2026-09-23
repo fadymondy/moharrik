@@ -62,6 +62,7 @@ import {
   type GscSitemapsOut,
   type YtChannelOut,
   type YtAnalyticsOut,
+  type YtReports,
   type YtVideoDetail,
   type YtVideoPage,
   type NewsItem,
@@ -560,6 +561,10 @@ export function useYtAnalytics(workspaceId: string | null | undefined, resource:
     { ...noRetryOn4xx, keepPreviousData: true },
   )
 }
+
+/** YouTube Reporting jobs and downloaded reports (MH-443). */
+export const useYtReports = (workspaceId: string | null | undefined, resource: string) =>
+  useScoped<YtReports>(`/api/w/youtube/reports?resource=${encodeURIComponent(resource)}`, workspaceId, !!resource)
 
 /** One upload with its top comments. */
 export function useYtVideo(workspaceId: string | null | undefined, resource: string, id: string | null) {

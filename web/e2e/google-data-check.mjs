@@ -30,6 +30,7 @@ const ok = (cond, msg) => {
 }
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "gd-")), {
+  acceptDownloads: true,
   executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
   headless: true,
   viewport: { width: 1440, height: 900 },
@@ -417,6 +418,37 @@ if (want("mh446")) {
   await page.goto(pageURL(slug, "ar", "/search-console?tab=sitemaps"))
   await page.waitForSelector("[data-sitemap]", { timeout: 20000 })
   await page.screenshot({ path: `${shots}/mh446-sitemaps-ar-dark-390.png`, fullPage: true })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.emulateMedia({ colorScheme: "light" })
+}
+
+// ---- MH-443: YouTube Reporting ------------------------------------------------------------
+if (want("mh443")) {
+  const slug = await newOwner("ytrep")
+  const email = `ytrep-${RUN}@brand.test`
+  await connect(slug, "youtube", email)
+  await page.goto(pageURL(slug, "en", "/youtube"))
+  await page.waitForSelector("[data-yt-reports] [data-report-job]", { timeout: 60000 })
+  ok((await page.locator("[data-report-job]").count()) === 3, "one job per report family")
+  ok((await page.locator("[data-yt-reports]").innerText()).includes("about two days"), "no reports yet, and why")
+  await page.screenshot({ path: `${shots}/mh443-waiting-en-light-1440.png`, fullPage: true })
+  await fetch(`http://${FAKE}/_fake/publish-reports?email=${encodeURIComponent(email)}&days=5`, { method: "POST" })
+  await page.click("[data-reports-check]")
+  await page.waitForSelector("[data-reports-table] [data-report]", { timeout: 30000 })
+  ok((await page.locator("[data-report]").count()) === 15, "15 daily reports copied")
+  const dl = page.waitForEvent("download")
+  await page.locator("[data-report-download]").first().click()
+  const file = await dl
+  ok(/\.csv$/.test(file.suggestedFilename()), `a report downloads as CSV (${file.suggestedFilename()})`)
+  for (const [locale, scheme, width] of [["en", "light", 1440], ["ar", "dark", 1440], ["en", "dark", 390], ["ar", "light", 390]]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    await page.emulateMedia({ colorScheme: scheme })
+    await page.goto(pageURL(slug, locale, "/youtube"))
+    await page.waitForSelector("[data-reports-table]", { timeout: 30000 })
+    await page.locator("[data-yt-reports]").scrollIntoViewIfNeeded()
+    await page.waitForTimeout(300)
+    await page.locator("[data-yt-reports]").screenshot({ path: `${shots}/mh443-${locale}-${scheme}-${width}.png` })
+  }
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.emulateMedia({ colorScheme: "light" })
 }
