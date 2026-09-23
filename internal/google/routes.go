@@ -66,6 +66,7 @@ func stateCookie(value string, maxAge int) http.Cookie {
 // X-Workspace-ID, so it re-derives the workspace from the state, but it must
 // come back to the same signed-in user, so a session is required.
 func Register(api huma.API, a *app.App) {
+	RegisterResources(api, a) // the property / site / channel picker (MH-440)
 	huma.Register(api, huma.Operation{
 		OperationID: "w-google-connections", Method: http.MethodGet, Path: "/api/w/google/connections",
 		Summary: "The Google accounts this workspace has connected (no token is ever returned)", Tags: tags,

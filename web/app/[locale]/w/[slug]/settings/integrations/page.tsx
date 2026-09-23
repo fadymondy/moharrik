@@ -6,6 +6,7 @@ import { ChartLineIcon, CheckCircle2Icon, RefreshCwIcon, SearchIcon, TriangleAle
 import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
+import { ResourcePicker } from "@/components/google/resource-picker"
 import { Ltr } from "@/components/copy-field"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -74,6 +75,8 @@ function Integrations() {
           </section>
 
           {!google.data.configured ? <NotConfigured redirectURL={google.data.redirect_url} /> : <ConnectProducts />}
+
+          {list.length > 0 ? <ResourcePicker emails={Object.fromEntries(list.map((c) => [c.id, c.email]))} /> : null}
 
           <div className="grid-separator-contained hatch-band mt-6" aria-hidden />
           <section className="pt-6 pb-10">

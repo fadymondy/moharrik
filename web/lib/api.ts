@@ -859,6 +859,55 @@ export type GoogleConnections = {
 
 export type GoogleDisconnected = { revoked: boolean; shared: boolean; revoke_error?: string }
 
+// ── Google resources (MH-440) ────────────────────────────────────────────
+
+export type GoogleKind = "ga4_property" | "gsc_site" | "yt_channel"
+export const GOOGLE_KINDS: GoogleKind[] = ["ga4_property", "gsc_site", "yt_channel"]
+
+/** A GA4 property, Search Console site or YouTube channel a connected account can see. */
+export type GoogleResource = {
+  id: string
+  connection_id: string
+  /** The account it is read through — only for integrations:manage. */
+  connection_email?: string
+  kind: GoogleKind
+  /** As Google names it: properties/123, sc-domain:example.com, UC… */
+  external_id: string
+  display_name: string
+  /** The GA4 account, or the site's permission level. */
+  parent_name: string
+  details: { handle?: string; avatar_url?: string; permission_level?: string; account?: string; property_type?: string } | null
+  /** Still returned by the latest discovery. */
+  available: boolean
+  enabled: boolean
+  auto_enabled: boolean
+  last_synced_at: string | null
+  next_sync_at: string
+  syncing: boolean
+  /** Google asked to slow down; nothing is fetched on demand before this. */
+  backoff_until: string | null
+  /** The last sync's failure, in plain words ("" = fine). */
+  last_error: string
+  /** The account needs reconnecting. */
+  reauth: boolean
+}
+
+export type GoogleDiscovery = {
+  connection_id: string
+  product: GoogleProduct
+  discovered_at: string
+  found: number
+  error: string
+}
+
+export type GoogleResources = {
+  resources: GoogleResource[] | null
+  discoveries: GoogleDiscovery[] | null
+  needs_choice: GoogleKind[] | null
+  available: GoogleKind[] | null
+  can_manage: boolean
+}
+
 // ── Alerts and web push (MH-378) ─────────────────────────────────────────
 
 export type BellItem = {

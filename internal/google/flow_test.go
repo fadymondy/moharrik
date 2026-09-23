@@ -218,6 +218,12 @@ func newFixture(t *testing.T) *fixture {
 	t.Setenv("TRENDS_COLLECTOR", "off")
 	t.Setenv("MAIL_COLLECTOR", "off")
 	t.Setenv("SCHEDULER", "off")
+	// The Google data collector never runs in a test; the connect flow's own
+	// background discovery is off here and switched on by the tests that
+	// exercise it (resources_test.go), so these counts stay exact.
+	t.Setenv("GOOGLE_COLLECTOR", "off")
+	t.Setenv("GOOGLE_SYNC_INLINE", "off")
+	google.RetryBase = 5 * time.Millisecond
 	t.Setenv("APP_ENV", "test")
 	t.Setenv("APP_URL", "http://127.0.0.1") // local, so GOOGLE_API_BASE is honoured; the port is set below
 

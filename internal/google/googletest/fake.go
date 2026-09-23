@@ -77,12 +77,19 @@ type Server struct {
 	RotateRefresh bool     // a refresh returns a NEW refresh token and kills the old one
 	TokenTTL      int      // seconds; default 3600
 
-	codes    map[string]codeGrant
-	access   map[string]accessGrant
-	refresh  map[string]*refreshGrant
-	granted  map[string]map[string]bool // sub -> scopes granted to this client (include_granted_scopes)
-	revoked  []string
-	calls    map[string]int
+	codes   map[string]codeGrant
+	access  map[string]accessGrant
+	refresh map[string]*refreshGrant
+	granted map[string]map[string]bool // sub -> scopes granted to this client (include_granted_scopes)
+	revoked []string
+	calls   map[string]int
+	// The data APIs (data.go): what each account can see, injected failures.
+	data          map[string]*AccountData
+	failures      map[string]*failSpec
+	AdminPageSize int // accountSummaries per page; default 2, to exercise paging
+	// DataFor, when set, picks an account's data the first time it is seen
+	// (the dev check: "many@…" sees several of each). nil or a nil answer: Demo.
+	DataFor  func(Account) *AccountData
 	lastAuth url.Values
 	lastForm map[string]url.Values
 }
@@ -115,12 +122,14 @@ func build() (*Server, http.Handler) {
 		Account: Account{Sub: "100000000000000000001", Email: "brand@example.test"},
 		codes:   map[string]codeGrant{}, access: map[string]accessGrant{}, refresh: map[string]*refreshGrant{},
 		granted: map[string]map[string]bool{}, calls: map[string]int{}, lastForm: map[string]url.Values{},
+		data: map[string]*AccountData{}, failures: map[string]*failSpec{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/o/oauth2/v2/auth", s.authorize)
 	mux.HandleFunc("/token", s.token)
 	mux.HandleFunc("/revoke", s.revoke)
 	mux.HandleFunc("/v1/userinfo", s.userinfo)
+	mux.HandleFunc("/", s.api) // every data API (data.go)
 	return s, mux
 }
 
@@ -137,7 +146,9 @@ func (s *Server) count(name string) {
 }
 
 // Calls is how many times an endpoint was hit ("token:authorization_code",
-// "token:refresh_token", "revoke", "userinfo").
+// "token:refresh_token", "revoke", "userinfo", and "api:<name>" per data API:
+// admin, runReport, sites, searchAnalytics, sitemaps, inspect, channels,
+// playlistItems, videos, commentThreads, ytAnalytics).
 func (s *Server) Calls(name string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

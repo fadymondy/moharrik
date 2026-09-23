@@ -169,6 +169,9 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	t.Setenv("TRENDS_COLLECTOR", "off")
 	t.Setenv("MAIL_COLLECTOR", "off")
 	t.Setenv("SCHEDULER", "off")
+	// The Google data collector's ticker is off; the connect's own background
+	// discovery and first sync run (against the fake), as in production.
+	t.Setenv("GOOGLE_COLLECTOR", "off")
 	// Google connections (MH-439) against the fake Google, never the real one.
 	fakeGoogle := googletest.New()
 	defer fakeGoogle.Close()
@@ -333,6 +336,14 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatalf("A's google connections: %v", gconns)
 	}
 	googleID := gconns[0].(map[string]any)["id"].(string)
+	// The connect discovered A's GA4 property in the background (MH-440).
+	google.WaitBackground()
+	gres2 := alice.must("GET", "/api/w/google/resources", nil, 200)["resources"].([]any)
+	if len(gres2) != 1 {
+		t.Fatalf("A's google resources: %v", gres2)
+	}
+	googleResID := gres2[0].(map[string]any)["id"].(string)
+	googleResExt := gres2[0].(map[string]any)["external_id"].(string)
 
 	// Alerts: one of alice's devices. The endpoint carries the marker, so a
 	// response that leaked it would be caught like any other of A's data.
@@ -363,7 +374,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID}
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -522,6 +533,21 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	if _, b := bob.do("GET", "/api/w/google/connections", nil); leaks(b) != "" {
 		t.Errorf("B's Google list leaked A: %s", b)
+	}
+	// MH-440: B cannot switch, sync or read A's property.
+	for _, try := range []struct {
+		method, path string
+		body         any
+	}{
+		{"PATCH", "/api/w/google/resources/" + googleResID, map[string]any{"enabled": false}},
+		{"POST", "/api/w/google/resources/" + googleResID + "/sync", nil},
+	} {
+		if code, b := bob.do(try.method, try.path, try.body); code != http.StatusNotFound || leaks(b) != "" {
+			t.Errorf("B %s %s: got %d, want 404: %s", try.method, try.path, code, b)
+		}
+	}
+	if _, b := bob.do("GET", "/api/w/google/resources", nil); leaks(b) != "" {
+		t.Errorf("B's resource list leaked A: %s", b)
 	}
 	if _, err := google.TokenSource(context.Background(), a, bID, googleID); err == nil {
 		t.Error("a token source in B must not open A's connection")

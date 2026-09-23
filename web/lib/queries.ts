@@ -48,6 +48,8 @@ import {
   type TrendSettings,
   type TrendTopicDetail,
   type TrendTopicPage,
+  type GoogleResources,
+  type NewsItem,
   type NotificationItem,
   type Overview,
   type Topic,
@@ -415,6 +417,22 @@ export function useResearchContent(workspaceId: string | null | undefined, id: s
 
 export const useGoogleConnections = (id?: string | null, enabled = true) =>
   useScoped<GoogleConnections>("/api/w/google/connections", id, enabled)
+
+/**
+ * The properties, sites and channels (MH-440). An admin gets all of them; a reader the enabled
+ * ones. Polled while one is syncing, so its "last synced" / error lands without a reload.
+ */
+export function useGoogleResources(workspaceId: string | null | undefined, kind?: string, enabled = true) {
+  const path = kind ? `/api/w/google/resources?kind=${kind}` : "/api/w/google/resources"
+  return useSWR<GoogleResources>(
+    workspaceId && enabled ? [path, workspaceId] : null,
+    ([p, id]: [string, string]) => api<GoogleResources>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) => (data?.resources?.some((r) => r.syncing) ? 3000 : 0),
+    },
+  )
+}
 
 // ── Alerts (MH-378) ──────────────────────────────────────────────────────
 

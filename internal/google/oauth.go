@@ -318,6 +318,13 @@ func Callback(ctx context.Context, a *app.App, in CallbackInput) CallbackOutcome
 		return out
 	}
 	cacheAccess(id, tok.RefreshToken, tok.AccessToken, tok.ExpiresIn)
+	// A reconnect repairs whatever was waiting on it: its resources are due
+	// now, and discovery runs at once so a new account's data appears
+	// without another step (MH-440).
+	_, _ = a.SQLDB.ExecContext(tenant.WithWorkspace(ctx, st.workspaceID), `
+		UPDATE google_resources SET next_sync_at = now(), failures = 0, backoff_until = NULL
+		WHERE workspace_id = $1 AND connection_id = $2`, st.workspaceID, id)
+	DiscoverSoon(a, st.workspaceID, id)
 	out.Result = ResultConnected
 	return out
 }
