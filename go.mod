@@ -20,7 +20,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/togo-framework/auth v0.8.0
-	github.com/togo-framework/auth-oauth v0.2.0
+	github.com/togo-framework/auth-oauth v0.2.1-0.20260923005224-2113e0d8757c
 	github.com/togo-framework/cache v0.3.0
 	github.com/togo-framework/db-postgres v0.1.0
 	github.com/togo-framework/faker v0.1.0
