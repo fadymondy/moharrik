@@ -192,7 +192,7 @@ func TestHookGeneric(t *testing.T) {
 func TestHookLegacySource(t *testing.T) {
 	f := newHookFixture(t)
 	src := f.create(t, "generic")
-	// What 30_webhook_signing.sql does to a source that existed before MH-381.
+	// What 31_webhook_signing.sql does to a source that existed before MH-381.
 	if _, err := f.a.SysDB.Exec(`UPDATE webhook_sources SET legacy_signing = true WHERE id = $1`, src.Source.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestHookSentry(t *testing.T) {
 // webhook_sources, so the real table is untouched.
 func TestHookMigrationMarksExistingSourcesLegacy(t *testing.T) {
 	f := newHookFixture(t)
-	sql, err := os.ReadFile(filepath.Join("..", "db", "post", "30_webhook_signing.sql"))
+	sql, err := os.ReadFile(filepath.Join("..", "db", "post", "31_webhook_signing.sql"))
 	if err != nil {
 		t.Fatal(err)
 	}

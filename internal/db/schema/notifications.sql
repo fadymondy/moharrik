@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS webhook_sources (
     last_error       text        NOT NULL DEFAULT '',
     last_error_at    timestamptz,
     -- MH-381: true only for sources created before timestamped signing, which
-    -- still accept the old body-only signature (see 30_webhook_signing.sql for
+    -- still accept the old body-only signature (see 31_webhook_signing.sql for
     -- why existing rows are true and new ones false). last_legacy_at is the last
     -- delivery that verified ONLY that way.
     legacy_signing   boolean     NOT NULL DEFAULT false,
