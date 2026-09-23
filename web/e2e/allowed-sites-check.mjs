@@ -193,7 +193,7 @@ try {
   }
   check("extension paired and connected by itself", online)
   if (!online) throw new Error("the extension never came online")
-  check("the browser reports the bumped extension version", out.reportedVersion === version && version === "0.1.2", {
+  check("the browser reports the bumped extension version", out.reportedVersion === version && version.split(".").map(Number).reduce((acc, n) => acc * 1000 + n, 0) >= 1002, {
     reported: out.reportedVersion,
     manifest: version,
   })

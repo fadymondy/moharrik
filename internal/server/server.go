@@ -203,6 +203,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterSchedules(api, a, automation.Default())
 	automation.RegisterWorkflows(api, a, automation.Default())
 	automation.RegisterExtension(api)
+	automation.RegisterPick(api, a, automation.Default())
 	research.Register(api, a, researchEngine)
 	mcp.RegisterTokenRoutes(api, a)
 	google.Register(api, a)
