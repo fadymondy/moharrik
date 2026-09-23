@@ -1,6 +1,7 @@
 package clientip
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -146,5 +147,80 @@ func TestBucketGroupsIPv6ByPrefix(t *testing.T) {
 	}
 	if got := Bucket("198.51.100.7"); got != "198.51.100.7" {
 		t.Fatalf("IPv4 bucket = %q", got)
+	}
+}
+
+// MH-486: production is Cloudflare -> NPM -> Caddy -> app. NPM's X-Real-IP is the
+// Cloudflare edge; the visitor is in CF-Connecting-IP, believed only from an edge.
+func TestEdgeVisitorOnlyFromTheEdge(t *testing.T) {
+	base, err := New([]string{"172.17.0.1"}, "X-Real-IP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := base.WithEdge([]string{"cloudflare"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(remote string, hdrs map[string]string) string {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = remote
+		for k, v := range hdrs {
+			req.Header.Set(k, v)
+		}
+		return r.IP(req)
+	}
+	cases := []struct {
+		name   string
+		remote string
+		hdrs   map[string]string
+		want   string
+	}{
+		{"through Cloudflare: the visitor", "172.17.0.1:5000",
+			map[string]string{"X-Real-IP": "172.69.68.86", "CF-Connecting-IP": "41.33.12.7"}, "41.33.12.7"},
+		{"through Cloudflare over IPv6: the visitor", "172.17.0.1:5000",
+			map[string]string{"X-Real-IP": "2a06:98c0:3600::103", "CF-Connecting-IP": "2001:db8::9"}, "2001:db8::9"},
+		{"straight to NPM with a forged header: the real peer", "172.17.0.1:5000",
+			map[string]string{"X-Real-IP": "198.51.100.23", "CF-Connecting-IP": "1.2.3.4"}, "198.51.100.23"},
+		{"an edge that sent no visitor header: the edge", "172.17.0.1:5000",
+			map[string]string{"X-Real-IP": "172.69.68.86"}, "172.69.68.86"},
+		{"garbage visitor header: the edge", "172.17.0.1:5000",
+			map[string]string{"X-Real-IP": "172.69.68.86", "CF-Connecting-IP": "not-an-ip"}, "172.69.68.86"},
+		{"an untrusted peer claiming to be the edge: the peer", "203.0.113.9:5000",
+			map[string]string{"X-Real-IP": "172.69.68.86", "CF-Connecting-IP": "1.2.3.4"}, "203.0.113.9"},
+	}
+	for _, c := range cases {
+		if got := get(c.remote, c.hdrs); got != c.want {
+			t.Errorf("%s: got %s, want %s", c.name, got, c.want)
+		}
+	}
+	// Without EDGE_PROXIES nothing changes: the edge address stands.
+	if got := base.IP(func() *http.Request {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = "172.17.0.1:5000"
+		req.Header.Set("X-Real-IP", "172.69.68.86")
+		req.Header.Set("CF-Connecting-IP", "41.33.12.7")
+		return req
+	}()); got != "172.69.68.86" {
+		t.Errorf("no edge configured: got %s", got)
+	}
+	if _, err := base.WithEdge([]string{"cloudflare", "nonsense"}, ""); err == nil {
+		t.Error("a bad EDGE_PROXIES entry must be refused")
+	}
+}
+
+func TestFromEnvReadsEdge(t *testing.T) {
+	t.Setenv("TRUSTED_PROXIES", "172.17.0.1/32")
+	t.Setenv("CLIENT_IP_HEADER", "X-Real-IP")
+	t.Setenv("EDGE_PROXIES", "cloudflare")
+	r, configured, err := FromEnv()
+	if err != nil || !configured {
+		t.Fatalf("FromEnv: %v %v", configured, err)
+	}
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "172.17.0.1:1"
+	req.Header.Set("X-Real-IP", "162.158.1.1")
+	req.Header.Set("CF-Connecting-IP", "41.33.12.7")
+	if got := r.IP(req); got != "41.33.12.7" {
+		t.Errorf("got %s", got)
 	}
 }

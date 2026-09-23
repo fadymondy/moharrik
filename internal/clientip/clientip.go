@@ -37,6 +37,18 @@ Production is Cloudflare -> NPM -> container. Two correct configurations:
     ranges (https://www.cloudflare.com/ips/) to TRUSTED_PROXIES as well, so the
     right-to-left walk steps over the Cloudflare edge to the visitor.
 
+  - Behind proxies that rewrite X-Forwarded-For (Hosbah's Caddy does), keep
+    CLIENT_IP_HEADER=X-Real-IP (NPM's peer, i.e. the Cloudflare edge) and add
+    EDGE_PROXIES=cloudflare. When the address found above is a Cloudflare edge,
+    the visitor is read from CF-Connecting-IP, which Cloudflare always
+    overwrites. A request that reaches NPM without Cloudflare has a non-edge
+    peer, so a forged CF-Connecting-IP from it is never believed (MH-486).
+
+	EDGE_PROXIES        "cloudflare" (the published ranges below) and/or
+	                    IPs/CIDRs of a CDN in front of the trusted proxies.
+	EDGE_CLIENT_HEADER  the header that edge supplies the visitor in.
+	                    Default CF-Connecting-IP.
+
 Left unset in production every visitor appears to come from NPM, and per-IP
 limits collapse into one shared bucket. That fails CLOSED (visitors are limited
 harder, never less) and Boot logs a warning about it.
@@ -57,6 +69,49 @@ import (
 type Resolver struct {
 	trusted []netip.Prefix
 	header  string // canonical header name
+	// edge is a CDN in front of the trusted proxies. When the address the
+	// proxies report is inside it, the visitor is read from edgeHeader.
+	edge       []netip.Prefix
+	edgeHeader string
+}
+
+// cloudflareRanges is https://www.cloudflare.com/ips (fetched 2026-09-23).
+var cloudflareRanges = []string{
+	"173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+	"141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+	"197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+	"104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+	"2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32",
+	"2405:8100::/32", "2a06:98c0::/29", "2c0f:f248::/32",
+}
+
+// WithEdge returns r with a CDN edge in front of its trusted proxies. edges are
+// IPs/CIDRs or "cloudflare"; header "" means CF-Connecting-IP.
+func (r *Resolver) WithEdge(edges []string, header string) (*Resolver, error) {
+	out := *r
+	out.edge = nil
+	out.edgeHeader = http.CanonicalHeaderKey(strings.TrimSpace(header))
+	if out.edgeHeader == "" {
+		out.edgeHeader = "Cf-Connecting-Ip"
+	}
+	for _, raw := range edges {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		list := []string{raw}
+		if strings.EqualFold(raw, "cloudflare") {
+			list = cloudflareRanges
+		}
+		for _, one := range list {
+			p, err := parsePrefix(one)
+			if err != nil {
+				return nil, fmt.Errorf("EDGE_PROXIES: %q is not an IP, CIDR or \"cloudflare\"", one)
+			}
+			out.edge = append(out.edge, p)
+		}
+	}
+	return &out, nil
 }
 
 // defaultTrusted is loopback: a proxy on this host. Nothing that arrives over
@@ -99,6 +154,12 @@ func FromEnv() (r *Resolver, configured bool, err error) {
 		proxies = strings.Split(raw, ",")
 	}
 	r, err = New(proxies, os.Getenv("CLIENT_IP_HEADER"))
+	if err != nil {
+		return nil, configured, err
+	}
+	if edges := strings.TrimSpace(os.Getenv("EDGE_PROXIES")); edges != "" {
+		r, err = r.WithEdge(strings.Split(edges, ","), os.Getenv("EDGE_CLIENT_HEADER"))
+	}
 	return r, configured, err
 }
 
@@ -143,6 +204,30 @@ func parseAddr(s string) (netip.Addr, bool) {
 // IP returns the client address for req. Never empty for a request that came
 // over a socket: it falls back to the peer when no header can be believed.
 func (r *Resolver) IP(req *http.Request) string {
+	hop := r.hop(req)
+	if len(r.edge) == 0 {
+		return hop
+	}
+	// The proxies handed us an edge address: the edge names the visitor.
+	if a, ok := parseAddr(hop); ok && inAny(r.edge, a) {
+		if v, ok := parseAddr(req.Header.Get(r.edgeHeader)); ok {
+			return v.String()
+		}
+	}
+	return hop
+}
+
+func inAny(ps []netip.Prefix, a netip.Addr) bool {
+	for _, p := range ps {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// hop is the address the trusted proxies say they received the request from.
+func (r *Resolver) hop(req *http.Request) string {
 	peer, ok := parseAddr(req.RemoteAddr)
 	if !ok {
 		return req.RemoteAddr
