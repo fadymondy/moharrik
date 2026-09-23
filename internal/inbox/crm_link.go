@@ -27,7 +27,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"net/mail"
 	"regexp"
 	"strings"
 	"time"
@@ -37,9 +36,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
-	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/marketing"
-	"github.com/fadymondy/moharrik/internal/realtime"
 )
 
 // VisitorGuess prefills "create a contact" from what the visitor gave.
@@ -402,8 +399,6 @@ type dealResult struct {
 }
 
 func registerCRM(api huma.API, a *app.App) {
-	db := func() *sql.DB { return a.SQLDB }
-
 	huma.Register(api, huma.Operation{
 		OperationID: "w-conversation-create-contact", Method: http.MethodPost, Path: "/api/w/conversations/{id}/contact",
 		DefaultStatus: http.StatusCreated, Summary: "Create a CRM contact from a conversation and link it", Tags: tags,
@@ -412,74 +407,13 @@ func registerCRM(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body struct {
-			Email  string `json:"email" minLength:"3" maxLength:"254"`
-			Name   string `json:"name,omitempty" maxLength:"120"`
-			Phone  string `json:"phone,omitempty" maxLength:"40"`
-			Locale string `json:"locale,omitempty" enum:"en,ar"`
-		}
+		Body NewContactInput
 	}) (*body[contactResult], error) {
-		wsID, userID, err := crmScope(ctx)
+		res, err := CreateContactFromConversation(ctx, a, in.ID, in.Body)
 		if err != nil {
 			return nil, err
 		}
-		addr, err := mail.ParseAddress(strings.TrimSpace(in.Body.Email))
-		if err != nil {
-			return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
-		}
-		email := strings.ToLower(addr.Address)
-		locale := "en"
-		if in.Body.Locale == "ar" {
-			locale = "ar"
-		}
-		tx, err := db().BeginTx(ctx, nil)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not create the contact")
-		}
-		defer tx.Rollback() //nolint:errcheck
-		var exists string
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM conversations WHERE workspace_id = $1 AND id = $2 FOR UPDATE`, wsID, in.ID).Scan(&exists); err != nil {
-			if notFound(err) {
-				return nil, huma.Error404NotFound("conversation not found")
-			}
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
-		res := contactResult{}
-		// xmax = 0 is true only for a row this statement inserted.
-		if err := tx.QueryRowContext(ctx, `
-			INSERT INTO contacts (workspace_id, email, name, phone, locale, source) VALUES ($1, $2, $3, $4, $5, 'inbox')
-			ON CONFLICT (workspace_id, email) DO UPDATE SET
-			  name = CASE WHEN contacts.name = '' THEN EXCLUDED.name ELSE contacts.name END,
-			  phone = CASE WHEN contacts.phone = '' THEN EXCLUDED.phone ELSE contacts.phone END,
-			  updated_at = now()
-			RETURNING id, (xmax = 0)`,
-			wsID, email, strings.TrimSpace(in.Body.Name), strings.TrimSpace(in.Body.Phone), locale,
-		).Scan(&res.ContactID, &res.ContactCreated); err != nil {
-			return nil, huma.Error500InternalServerError("could not create the contact")
-		}
-		// A company the workspace already keeps under this domain; never a new one.
-		if at := strings.LastIndex(email, "@"); at > 0 {
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE contacts SET company_id = (SELECT id FROM companies WHERE workspace_id = $1 AND lower(domain) = $3 LIMIT 1), updated_at = now()
-				WHERE workspace_id = $1 AND id = $2 AND company_id IS NULL
-				  AND EXISTS (SELECT 1 FROM companies WHERE workspace_id = $1 AND lower(domain) = $3)`,
-				wsID, res.ContactID, email[at+1:]); err != nil {
-				return nil, huma.Error500InternalServerError("could not create the contact")
-			}
-		}
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE conversations SET contact_id = $3, contact_link = 'manual', updated_at = now()
-			WHERE workspace_id = $1 AND id = $2`, wsID, in.ID, res.ContactID); err != nil {
-			return nil, huma.Error500InternalServerError("could not link the contact")
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, huma.Error500InternalServerError("could not create the contact")
-		}
-		if res.Conversation, err = readConversation(ctx, db(), wsID, in.ID); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
-		changed(ctx, a, wsID, realtime.Event{Kind: "conversation", ConversationID: in.ID, AuthorUserID: userID})
-		return out(res), nil
+		return out(*res), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -490,139 +424,12 @@ func registerCRM(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body struct {
-			Title      string `json:"title,omitempty" maxLength:"160" doc:"Defaults to who wrote and on which channel."`
-			StageID    string `json:"stage_id,omitempty" doc:"Defaults to the pipeline's first open stage."`
-			ValueMinor int64  `json:"value_minor,omitempty" minimum:"0" doc:"In the currency's minor unit."`
-			Currency   string `json:"currency,omitempty" pattern:"^[A-Z]{3}$" doc:"Defaults to the workspace's."`
-		}
+		Body NewDealInput
 	}) (*body[dealResult], error) {
-		wsID, userID, err := crmScope(ctx)
+		res, err := OpenDealFromConversation(ctx, a, in.ID, in.Body)
 		if err != nil {
 			return nil, err
 		}
-		// Outside the transaction: EnsureStages takes its own lock and commits.
-		if err := crm.EnsureStages(ctx, db(), wsID); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the pipeline")
-		}
-		c, err := readConversation(ctx, db(), wsID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("conversation not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
-		msgs, err := thread(ctx, db(), wsID, in.ID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the thread")
-		}
-		if len(msgs) == 0 {
-			return nil, huma.Error422UnprocessableEntity("this conversation has no messages to attach")
-		}
-		var wsLocale, currency, zone string
-		if err := db().QueryRowContext(ctx, `SELECT locale, currency, timezone FROM workspaces WHERE id = $1`, wsID).Scan(&wsLocale, &currency, &zone); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the workspace")
-		}
-		if in.Body.Currency != "" {
-			currency = in.Body.Currency
-		}
-		loc, err := time.LoadLocation(strings.TrimSpace(zone))
-		if err != nil || strings.TrimSpace(zone) == "" {
-			loc = time.UTC
-		}
-		lang := "en"
-		if wsLocale == "ar" {
-			lang = "ar"
-		}
-		transcript := Transcript(c, msgs, memberEmails(ctx, a, wsID), lang, loc)
-
-		title := strings.TrimSpace(in.Body.Title)
-		if title == "" {
-			who := firstNonEmpty(strings.TrimSpace(c.CustomerName), c.CustomerEmail, c.CustomerPhone)
-			if c.Contact != nil {
-				who = firstNonEmpty(c.Contact.Name, c.Contact.Email)
-			}
-			if who == "" {
-				who = map[bool]string{false: "Visitor", true: "زائر"}[lang == "ar"]
-			}
-			label := map[string][2]string{"chat": {"chat", "دردشة"}, "email": {"email", "بريد إلكتروني"}, "whatsapp": {"WhatsApp", "واتساب"}}[c.Channel]
-			if lang == "ar" {
-				title = who + " — " + label[1]
-			} else {
-				title = who + " — " + label[0]
-			}
-		}
-		if r := []rune(title); len(r) > 160 {
-			title = string(r[:160])
-		}
-
-		tx, err := db().BeginTx(ctx, nil)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not open the deal")
-		}
-		defer tx.Rollback() //nolint:errcheck
-		// FOR UPDATE: two members clicking at once open one deal, not two.
-		var existing, contactID sql.NullString
-		if err := tx.QueryRowContext(ctx, `SELECT deal_id, contact_id FROM conversations WHERE workspace_id = $1 AND id = $2 FOR UPDATE`,
-			wsID, in.ID).Scan(&existing, &contactID); err != nil {
-			if notFound(err) {
-				return nil, huma.Error404NotFound("conversation not found")
-			}
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
-		if existing.Valid {
-			return nil, huma.Error409Conflict("this conversation already opened a deal: " + existing.String)
-		}
-		var companyID sql.NullString
-		if contactID.Valid {
-			if err := tx.QueryRowContext(ctx, `SELECT company_id FROM contacts WHERE workspace_id = $1 AND id = $2`, wsID, contactID.String).Scan(&companyID); err != nil && !notFound(err) {
-				return nil, huma.Error500InternalServerError("could not read the contact")
-			}
-		}
-		stageID := strings.TrimSpace(in.Body.StageID)
-		if stageID == "" {
-			if err := tx.QueryRowContext(ctx, `SELECT id FROM pipeline_stages WHERE workspace_id = $1 AND kind = 'open'
-				ORDER BY position, created_at LIMIT 1`, wsID).Scan(&stageID); err != nil {
-				return nil, huma.Error422UnprocessableEntity("the pipeline has no open stage to put a deal in")
-			}
-		}
-		var stageKind string
-		if err := tx.QueryRowContext(ctx, `SELECT kind FROM pipeline_stages WHERE workspace_id = $1 AND id = $2`, wsID, stageID).Scan(&stageKind); err != nil {
-			if notFound(err) {
-				return nil, huma.Error422UnprocessableEntity("that stage is not in this workspace's pipeline")
-			}
-			return nil, huma.Error500InternalServerError("could not read the pipeline")
-		}
-		res := dealResult{}
-		if err := tx.QueryRowContext(ctx, `
-			INSERT INTO deals (workspace_id, title, value_minor, currency, stage_id, position, contact_id, company_id, owner_user_id, created_by, closed_at)
-			VALUES ($1, $2, $3, $4, $5, (SELECT coalesce(max(position), 0) + 1 FROM deals WHERE workspace_id = $1 AND stage_id = $5),
-			        $6, $7, $8, $8, CASE WHEN $9 <> 'open' THEN now() END)
-			RETURNING id`,
-			wsID, title, in.Body.ValueMinor, currency, stageID, contactID, companyID, userID, stageKind,
-		).Scan(&res.DealID); err != nil {
-			return nil, huma.Error500InternalServerError("could not open the deal")
-		}
-		// The transcript is the deal's first activity, dated when the customer
-		// first wrote rather than when the deal was opened.
-		if err := tx.QueryRowContext(ctx, `
-			INSERT INTO activities (workspace_id, kind, body, contact_id, company_id, deal_id, created_by, created_at)
-			VALUES ($1, 'note', $2, $3, $4, $5, $6, $7)
-			RETURNING id`,
-			wsID, transcript, contactID, companyID, res.DealID, userID, msgs[0].CreatedAt,
-		).Scan(&res.ActivityID); err != nil {
-			return nil, huma.Error500InternalServerError("could not attach the transcript")
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE conversations SET deal_id = $3, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-			wsID, in.ID, res.DealID); err != nil {
-			return nil, huma.Error500InternalServerError("could not link the deal")
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, huma.Error500InternalServerError("could not open the deal")
-		}
-		if res.Conversation, err = readConversation(ctx, db(), wsID, in.ID); err != nil {
-			return nil, huma.Error500InternalServerError("could not read the conversation")
-		}
-		changed(ctx, a, wsID, realtime.Event{Kind: "conversation", ConversationID: in.ID, AuthorUserID: userID})
-		return out(res), nil
+		return out(*res), nil
 	})
 }

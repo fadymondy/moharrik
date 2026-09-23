@@ -34,8 +34,13 @@ var UserScopes = []ScopeDef{
 	{"campaigns:write", "Draft, edit and send campaigns", authz.Manager},
 	{"automation:read", "Read automations, browser agents and their runs", authz.Member},
 	{"automation:run", "Start and cancel automation runs", authz.Manager},
-	{"notifications:read", "Read the notification center", authz.Member},
-	{"notifications:write", "Mark, save and configure notification sources and webhooks", authz.Manager},
+	// Notifications follow authz's own split (MH-380): marking and saving
+	// items is a member right (notifications:write), while creating, rotating,
+	// enabling or disabling a webhook source changes what the whole workspace
+	// collects and shows a secret once, so it is a manager's (…:manage).
+	{"notifications:read", "Read the notification center and its webhook sources", authz.Member},
+	{"notifications:write", "Mark notifications read or unread, and save them for later", authz.Member},
+	{"notifications:manage", "Create, rotate, enable and disable webhook sources", authz.Manager},
 	{"research:read", "Read research runs and collected evidence", authz.Member},
 	{"research:run", "Start research runs", authz.Member},
 	{"trends:read", "Read trend topics and news items", authz.Member},

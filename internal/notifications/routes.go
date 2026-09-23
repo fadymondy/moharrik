@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -49,23 +48,9 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
 		Sources []WebhookSourceOut `json:"sources"`
 	}], error) {
-		s, err := scope(ctx, authz.NotificationsRead)
+		list, err := ListSources(ctx, a)
 		if err != nil {
 			return nil, err
-		}
-		rows, err := db().QueryContext(ctx, webhookSourceSelect+` ORDER BY lower(name)`, s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list webhook sources")
-		}
-		defer rows.Close()
-		base := publicBase()
-		list := []WebhookSourceOut{}
-		for rows.Next() {
-			src, err := scanSource(rows, base)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not list webhook sources")
-			}
-			list = append(list, src)
 		}
 		return out(struct {
 			Sources []WebhookSourceOut `json:"sources"`
@@ -82,50 +67,11 @@ func Register(api huma.API, a *app.App) {
 			Kind string `json:"kind,omitempty" enum:"generic,github,sentry"`
 		}
 	}) (*body[WebhookSourceWithSecret], error) {
-		s, err := scope(ctx, authz.NotificationsManage)
+		res, err := CreateSource(ctx, a, in.Body.Name, in.Body.Kind, "")
 		if err != nil {
 			return nil, err
 		}
-		name := strings.TrimSpace(in.Body.Name)
-		if name == "" {
-			return nil, huma.Error422UnprocessableEntity("a name is required")
-		}
-		kind := in.Body.Kind
-		if kind == "" {
-			kind = "generic"
-		}
-		if !sourceKinds[kind] {
-			return nil, huma.Error422UnprocessableEntity("unknown source kind")
-		}
-		// Sentry signs with the integration's own Client Secret, which Sentry
-		// generates and nobody can choose, so a sentry source starts with no
-		// secret and refuses every delivery until one is set (PUT .../secret).
-		// Every other kind gets a generated one, shown once. legacy_signing is
-		// left at its default, false: new sources are timestamped from day one.
-		var plain, sealed string
-		if kind != "sentry" {
-			if plain, err = newSecret(); err != nil {
-				return nil, huma.Error500InternalServerError("could not generate a secret")
-			}
-			if sealed, err = seal(plain); err != nil {
-				return nil, huma.Error500InternalServerError(err.Error())
-			}
-		}
-		var id string
-		err = db().QueryRowContext(ctx, `
-			INSERT INTO webhook_sources (workspace_id, name, kind, secret_sealed, created_by)
-			VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-			s.WorkspaceID, name, kind, sealed, s.UserID,
-		).Scan(&id)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not create the webhook source")
-		}
-		row := db().QueryRowContext(ctx, webhookSourceSelect+` AND id = $2`, s.WorkspaceID, id)
-		src, err := scanSource(row, publicBase())
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the webhook source")
-		}
-		return out(WebhookSourceWithSecret{Source: src, Secret: plain}), nil
+		return out(*res), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -134,100 +80,28 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body struct {
-			Name    *string `json:"name,omitempty" maxLength:"80"`
-			Enabled *bool   `json:"enabled,omitempty"`
-			// One way only. Turning it back on would reopen replay for a
-			// source whose owner already closed it; a sender still on the old
-			// scheme is fixed at the sender.
-			LegacySigning *bool `json:"legacy_signing,omitempty" doc:"Only false is accepted: stop accepting the pre-MH-381 body-only signature."`
-		}
+		Body SourcePatch
 	}) (*body[struct {
 		Source WebhookSourceOut `json:"source"`
 	}], error) {
-		s, err := scope(ctx, authz.NotificationsManage)
+		src, err := UpdateSource(ctx, a, in.ID, in.Body)
 		if err != nil {
 			return nil, err
 		}
-		u := &update{}
-		if in.Body.Name != nil {
-			n := strings.TrimSpace(*in.Body.Name)
-			if n == "" {
-				return nil, huma.Error422UnprocessableEntity("a name is required")
-			}
-			u.set("name", n)
-		}
-		if in.Body.Enabled != nil {
-			u.set("enabled", *in.Body.Enabled)
-		}
-		if in.Body.LegacySigning != nil {
-			if *in.Body.LegacySigning {
-				return nil, huma.Error422UnprocessableEntity("legacy signing cannot be turned back on; sign deliveries with X-Webhook-Timestamp instead")
-			}
-			u.set("legacy_signing", false)
-		}
-		if len(u.sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE webhook_sources SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not update the webhook source")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("webhook source not found")
-			}
-		}
-		row := db().QueryRowContext(ctx, webhookSourceSelect+` AND id = $2`, s.WorkspaceID, in.ID)
-		src, err := scanSource(row, publicBase())
-		if notFound(err) {
-			return nil, huma.Error404NotFound("webhook source not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the webhook source")
-		}
 		return out(struct {
 			Source WebhookSourceOut `json:"source"`
-		}{src}), nil
+		}{*src}), nil
 	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-rotate-webhook-source", Method: http.MethodPost, Path: "/api/w/webhook_sources/{id}/rotate",
 		Summary: "Replace a webhook source's signing secret; the old one stops working immediately", Tags: tags,
 	}, func(ctx context.Context, in *idPath) (*body[WebhookSourceWithSecret], error) {
-		s, err := scope(ctx, authz.NotificationsManage)
+		res, err := RotateSource(ctx, a, in.ID)
 		if err != nil {
 			return nil, err
 		}
-		var kind string
-		err = db().QueryRowContext(ctx, `SELECT kind FROM webhook_sources WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID).Scan(&kind)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("webhook source not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the webhook source")
-		}
-		if kind == "sentry" {
-			return nil, huma.Error422UnprocessableEntity("Sentry generates this secret: rotate it in Sentry, then set the new Client Secret here")
-		}
-		plain, err := newSecret()
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not generate a secret")
-		}
-		sealed, err := seal(plain)
-		if err != nil {
-			return nil, huma.Error500InternalServerError(err.Error())
-		}
-		res, err := db().ExecContext(ctx, `UPDATE webhook_sources SET secret_sealed = $3, rotated_at = now(), updated_at = now()
-			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID, sealed)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not rotate the secret")
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, huma.Error404NotFound("webhook source not found")
-		}
-		row := db().QueryRowContext(ctx, webhookSourceSelect+` AND id = $2`, s.WorkspaceID, in.ID)
-		src, err := scanSource(row, publicBase())
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the webhook source")
-		}
-		return out(WebhookSourceWithSecret{Source: src, Secret: plain}), nil
+		return out(*res), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -242,34 +116,13 @@ func Register(api huma.API, a *app.App) {
 	}) (*body[struct {
 		Source WebhookSourceOut `json:"source"`
 	}], error) {
-		s, err := scope(ctx, authz.NotificationsManage)
+		src, err := SetSourceSecret(ctx, a, in.ID, in.Body.Secret)
 		if err != nil {
 			return nil, err
 		}
-		plain := strings.TrimSpace(in.Body.Secret)
-		if len(plain) < 16 {
-			return nil, huma.Error422UnprocessableEntity("the secret must be at least 16 characters")
-		}
-		sealed, err := seal(plain)
-		if err != nil {
-			return nil, huma.Error500InternalServerError(err.Error())
-		}
-		res, err := db().ExecContext(ctx, `UPDATE webhook_sources SET secret_sealed = $3, rotated_at = now(), updated_at = now()
-			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID, sealed)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not set the secret")
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, huma.Error404NotFound("webhook source not found")
-		}
-		row := db().QueryRowContext(ctx, webhookSourceSelect+` AND id = $2`, s.WorkspaceID, in.ID)
-		src, err := scanSource(row, publicBase())
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the webhook source")
-		}
 		return out(struct {
 			Source WebhookSourceOut `json:"source"`
-		}{src}), nil
+		}{*src}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -294,7 +147,7 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-notifications", Method: http.MethodGet, Path: "/api/w/notifications",
-		Summary: "The notification feed, newest first", Tags: tags,
+		Summary: "The notification feed, newest first, one page at a time (follow next_cursor)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Unread   bool   `query:"unread" doc:"Only items not yet marked read."`
@@ -302,56 +155,28 @@ func Register(api huma.API, a *app.App) {
 		SourceID string `query:"source_id"`
 		Severity string `query:"severity" enum:",info,warning,error"`
 		Limit    int    `query:"limit" minimum:"1" maximum:"500"`
-	}) (*body[struct {
-		Items       []NotificationItemOut `json:"items"`
-		UnreadCount int64                 `json:"unread_count"`
-	}], error) {
-		s, err := scope(ctx, authz.NotificationsRead)
+		Cursor   string `query:"cursor" doc:"next_cursor from the previous page"`
+	}) (*body[ItemList], error) {
+		res, err := ListItems(ctx, a, ItemFilter{Unread: in.Unread, Saved: in.Saved, SourceID: in.SourceID, Severity: in.Severity, Limit: in.Limit, Cursor: in.Cursor})
 		if err != nil {
 			return nil, err
 		}
-		q := notificationItemSelect
-		args := []any{s.WorkspaceID}
-		if in.Unread {
-			q += ` AND read_at IS NULL`
-		}
-		if in.Saved {
-			q += ` AND saved_at IS NOT NULL`
-		}
-		if in.SourceID != "" {
-			args = append(args, in.SourceID)
-			q += ` AND source_id = $` + strconv.Itoa(len(args))
-		}
-		if in.Severity != "" {
-			args = append(args, in.Severity)
-			q += ` AND severity = $` + strconv.Itoa(len(args))
-		}
-		limit := in.Limit
-		if limit <= 0 {
-			limit = 200
-		}
-		q += ` ORDER BY occurred_at DESC LIMIT ` + strconv.Itoa(limit)
-		rows, err := db().QueryContext(ctx, q, args...)
+		return out(*res), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-notification", Method: http.MethodGet, Path: "/api/w/notifications/{id}",
+		Summary: "One notification item, with the raw payload it was made from", Tags: tags,
+	}, func(ctx context.Context, in *idPath) (*body[struct {
+		Item NotificationItemOut `json:"item"`
+	}], error) {
+		it, err := GetItem(ctx, a, in.ID)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list notifications")
-		}
-		defer rows.Close()
-		list := []NotificationItemOut{}
-		for rows.Next() {
-			it, err := scanItem(rows)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not list notifications")
-			}
-			list = append(list, it)
-		}
-		var unread int64
-		if err := db().QueryRowContext(ctx, `SELECT count(*) FROM notification_items WHERE workspace_id = $1 AND read_at IS NULL`, s.WorkspaceID).Scan(&unread); err != nil {
-			return nil, huma.Error500InternalServerError("could not count unread notifications")
+			return nil, err
 		}
 		return out(struct {
-			Items       []NotificationItemOut `json:"items"`
-			UnreadCount int64                 `json:"unread_count"`
-		}{list, unread}), nil
+			Item NotificationItemOut `json:"item"`
+		}{*it}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -367,47 +192,13 @@ func Register(api huma.API, a *app.App) {
 	}) (*body[struct {
 		Item NotificationItemOut `json:"item"`
 	}], error) {
-		s, err := scope(ctx, authz.NotificationsWrite)
+		it, err := UpdateItem(ctx, a, in.ID, in.Body.Read, in.Body.Saved)
 		if err != nil {
 			return nil, err
 		}
-		u := &update{}
-		if in.Body.Read != nil {
-			if *in.Body.Read {
-				u.set("read_at", time.Now())
-			} else {
-				u.set("read_at", nil)
-			}
-		}
-		if in.Body.Saved != nil {
-			if *in.Body.Saved {
-				u.set("saved_at", time.Now())
-			} else {
-				u.set("saved_at", nil)
-			}
-		}
-		if len(u.sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE notification_items SET `+strings.Join(u.sets, ", ")+` WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not update the notification")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("notification not found")
-			}
-			// Read/unread moved: every tab's bell recounts.
-			alerts.Emit(ctx, a, s.WorkspaceID, realtime.Event{Kind: "notifications", ItemID: in.ID, AuthorUserID: s.UserID, Permission: authz.NotificationsRead})
-		}
-		row := db().QueryRowContext(ctx, notificationItemSelect+` AND id = $2`, s.WorkspaceID, in.ID)
-		it, err := scanItem(row)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("notification not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the notification")
-		}
 		return out(struct {
 			Item NotificationItemOut `json:"item"`
-		}{it}), nil
+		}{*it}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -416,17 +207,9 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
 		Marked int64 `json:"marked"`
 	}], error) {
-		s, err := scope(ctx, authz.NotificationsWrite)
+		n, err := MarkAllRead(ctx, a, "")
 		if err != nil {
 			return nil, err
-		}
-		res, err := db().ExecContext(ctx, `UPDATE notification_items SET read_at = now() WHERE workspace_id = $1 AND read_at IS NULL`, s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not mark notifications read")
-		}
-		n, _ := res.RowsAffected()
-		if n > 0 {
-			alerts.Emit(ctx, a, s.WorkspaceID, realtime.Event{Kind: "notifications", AuthorUserID: s.UserID, Permission: authz.NotificationsRead})
 		}
 		return out(struct {
 			Marked int64 `json:"marked"`

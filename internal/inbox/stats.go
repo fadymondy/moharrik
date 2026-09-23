@@ -9,7 +9,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
-	"github.com/fadymondy/moharrik/internal/authz"
 )
 
 /*
@@ -140,18 +139,9 @@ func registerStats(api huma.API, a *app.App) {
 		wsHeader
 		Days int `query:"days" minimum:"1" maximum:"365" doc:"The window, in days (default 30)."`
 	}) (*body[InboxStats], error) {
-		s, err := scope(ctx, authz.InboxRead)
+		st, err := InboxStatsFor(ctx, a, in.Days)
 		if err != nil {
 			return nil, err
-		}
-		days := in.Days
-		if days == 0 {
-			days = 30
-		}
-		wakeDue(ctx, a, s.WorkspaceID)
-		st, err := Stats(ctx, a.SQLDB, s.WorkspaceID, days, time.Now())
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not compute the inbox stats")
 		}
 		return out(*st), nil
 	})
