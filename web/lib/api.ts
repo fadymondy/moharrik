@@ -308,6 +308,12 @@ export type WebhookSource = {
   last_delivery_at: string | null
   last_error: string
   last_error_at: string | null
+  /** Predates MH-381: still accepts the body-only signature, which is replayable. */
+  legacy_signing: boolean
+  /** Last delivery that verified only by the legacy scheme. */
+  last_legacy_at: string | null
+  /** False for a Sentry source whose Client Secret has not been pasted yet. */
+  has_secret: boolean
   rotated_at: string
   created_at: string
 }

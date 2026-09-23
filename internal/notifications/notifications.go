@@ -44,8 +44,17 @@ type WebhookSourceOut struct {
 	LastDeliveryAt *time.Time `json:"last_delivery_at"`
 	LastError      string     `json:"last_error"`
 	LastErrorAt    *time.Time `json:"last_error_at"`
-	RotatedAt      time.Time  `json:"rotated_at"`
-	CreatedAt      time.Time  `json:"created_at"`
+	// LegacySigning: this source predates MH-381 and still accepts the old
+	// body-only signature, which can be replayed. New sources are false.
+	LegacySigning bool `json:"legacy_signing" doc:"Still accepts the pre-MH-381 body-only signature (replayable). Switch off with PATCH legacy_signing=false."`
+	// LastLegacyAt is the last delivery that verified ONLY by the legacy
+	// scheme, which tells the owner whether switching off would break a sender.
+	LastLegacyAt *time.Time `json:"last_legacy_at"`
+	// HasSecret is false for a sentry source whose Client Secret is not set
+	// yet; every delivery is refused until it is.
+	HasSecret bool      `json:"has_secret"`
+	RotatedAt time.Time `json:"rotated_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // WebhookSourceWithSecret is the response for the two moments a plaintext
@@ -56,7 +65,7 @@ type WebhookSourceOut struct {
 // at startup (caught by the isolation test booting the real stack).
 type WebhookSourceWithSecret struct {
 	Source WebhookSourceOut `json:"source"`
-	Secret string           `json:"secret" doc:"Shown once. Put it wherever the sending platform asks for a webhook signing secret."`
+	Secret string           `json:"secret" doc:"Shown once. Put it wherever the sending platform asks for a webhook signing secret. Empty for sentry, whose secret Sentry generates: set it with PUT /api/w/webhook_sources/{id}/secret."`
 }
 
 type NotificationItemOut struct {
@@ -140,17 +149,20 @@ func (u *update) set(col string, v any) {
 }
 
 const webhookSourceSelect = `
-	SELECT id, name, kind, enabled, delivery_count, last_delivery_at, last_error, last_error_at, rotated_at, created_at
+	SELECT id, name, kind, enabled, delivery_count, last_delivery_at, last_error, last_error_at,
+		legacy_signing, last_legacy_at, secret_sealed <> '', rotated_at, created_at
 	FROM webhook_sources WHERE workspace_id = $1`
 
 func scanSource(row scanner, base string) (WebhookSourceOut, error) {
 	var s WebhookSourceOut
-	var lastDeliveryAt, lastErrorAt sql.NullTime
-	if err := row.Scan(&s.ID, &s.Name, &s.Kind, &s.Enabled, &s.DeliveryCount, &lastDeliveryAt, &s.LastError, &lastErrorAt, &s.RotatedAt, &s.CreatedAt); err != nil {
+	var lastDeliveryAt, lastErrorAt, lastLegacyAt sql.NullTime
+	if err := row.Scan(&s.ID, &s.Name, &s.Kind, &s.Enabled, &s.DeliveryCount, &lastDeliveryAt, &s.LastError, &lastErrorAt,
+		&s.LegacySigning, &lastLegacyAt, &s.HasSecret, &s.RotatedAt, &s.CreatedAt); err != nil {
 		return s, err
 	}
 	s.LastDeliveryAt = timep(lastDeliveryAt)
 	s.LastErrorAt = timep(lastErrorAt)
+	s.LastLegacyAt = timep(lastLegacyAt)
 	s.URL = base + "/api/hooks/" + s.ID
 	return s, nil
 }

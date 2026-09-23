@@ -2,11 +2,7 @@ package notifications
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
-	"encoding/json"
 	"net/http"
 	"os"
 	"strconv"
@@ -99,13 +95,19 @@ func Register(api huma.API, a *app.App) {
 		if !sourceKinds[kind] {
 			return nil, huma.Error422UnprocessableEntity("unknown source kind")
 		}
-		plain, err := newSecret()
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not generate a secret")
-		}
-		sealed, err := seal(plain)
-		if err != nil {
-			return nil, huma.Error500InternalServerError(err.Error())
+		// Sentry signs with the integration's own Client Secret, which Sentry
+		// generates and nobody can choose, so a sentry source starts with no
+		// secret and refuses every delivery until one is set (PUT .../secret).
+		// Every other kind gets a generated one, shown once. legacy_signing is
+		// left at its default, false: new sources are timestamped from day one.
+		var plain, sealed string
+		if kind != "sentry" {
+			if plain, err = newSecret(); err != nil {
+				return nil, huma.Error500InternalServerError("could not generate a secret")
+			}
+			if sealed, err = seal(plain); err != nil {
+				return nil, huma.Error500InternalServerError(err.Error())
+			}
 		}
 		var id string
 		err = db().QueryRowContext(ctx, `
@@ -126,13 +128,17 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-update-webhook-source", Method: http.MethodPatch, Path: "/api/w/webhook_sources/{id}",
-		Summary: "Rename or enable/disable a webhook source", Tags: tags,
+		Summary: "Rename, enable/disable, or move a webhook source off legacy signing", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
 		Body struct {
 			Name    *string `json:"name,omitempty" maxLength:"80"`
 			Enabled *bool   `json:"enabled,omitempty"`
+			// One way only. Turning it back on would reopen replay for a
+			// source whose owner already closed it; a sender still on the old
+			// scheme is fixed at the sender.
+			LegacySigning *bool `json:"legacy_signing,omitempty" doc:"Only false is accepted: stop accepting the pre-MH-381 body-only signature."`
 		}
 	}) (*body[struct {
 		Source WebhookSourceOut `json:"source"`
@@ -151,6 +157,12 @@ func Register(api huma.API, a *app.App) {
 		}
 		if in.Body.Enabled != nil {
 			u.set("enabled", *in.Body.Enabled)
+		}
+		if in.Body.LegacySigning != nil {
+			if *in.Body.LegacySigning {
+				return nil, huma.Error422UnprocessableEntity("legacy signing cannot be turned back on; sign deliveries with X-Webhook-Timestamp instead")
+			}
+			u.set("legacy_signing", false)
 		}
 		if len(u.sets) > 0 {
 			res, err := db().ExecContext(ctx, `UPDATE webhook_sources SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
@@ -182,6 +194,16 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
+		var kind string
+		err = db().QueryRowContext(ctx, `SELECT kind FROM webhook_sources WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID).Scan(&kind)
+		if notFound(err) {
+			return nil, huma.Error404NotFound("webhook source not found")
+		} else if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the webhook source")
+		}
+		if kind == "sentry" {
+			return nil, huma.Error422UnprocessableEntity("Sentry generates this secret: rotate it in Sentry, then set the new Client Secret here")
+		}
 		plain, err := newSecret()
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not generate a secret")
@@ -204,6 +226,48 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error500InternalServerError("could not read the webhook source")
 		}
 		return out(WebhookSourceWithSecret{Source: src, Secret: plain}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-set-webhook-source-secret", Method: http.MethodPut, Path: "/api/w/webhook_sources/{id}/secret",
+		Summary: "Set a webhook source's signing secret to one the sending platform generated (Sentry's Client Secret)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body struct {
+			Secret string `json:"secret" minLength:"16" maxLength:"256" doc:"Write-only; never returned."`
+		}
+	}) (*body[struct {
+		Source WebhookSourceOut `json:"source"`
+	}], error) {
+		s, err := scope(ctx, authz.NotificationsManage)
+		if err != nil {
+			return nil, err
+		}
+		plain := strings.TrimSpace(in.Body.Secret)
+		if len(plain) < 16 {
+			return nil, huma.Error422UnprocessableEntity("the secret must be at least 16 characters")
+		}
+		sealed, err := seal(plain)
+		if err != nil {
+			return nil, huma.Error500InternalServerError(err.Error())
+		}
+		res, err := db().ExecContext(ctx, `UPDATE webhook_sources SET secret_sealed = $3, rotated_at = now(), updated_at = now()
+			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID, sealed)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not set the secret")
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil, huma.Error404NotFound("webhook source not found")
+		}
+		row := db().QueryRowContext(ctx, webhookSourceSelect+` AND id = $2`, s.WorkspaceID, in.ID)
+		src, err := scanSource(row, publicBase())
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the webhook source")
+		}
+		return out(struct {
+			Source WebhookSourceOut `json:"source"`
+		}{src}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -375,58 +439,65 @@ func Register(api huma.API, a *app.App) {
 // It is listed in internal/server/guard.go's classify() as a public prefix.
 
 type hookIn struct {
-	ID          string `path:"id"`
-	Signature   string `header:"X-Webhook-Signature" doc:"hex HMAC-SHA256 of the raw body with the source's secret, optionally prefixed sha256="`
-	GithubSig   string `header:"X-Hub-Signature-256" doc:"Accepted as an alias, so a GitHub webhook needs no extra configuration."`
-	GithubEvent string `header:"X-GitHub-Event"`
-	RawBody     []byte
+	ID             string `path:"id"`
+	Signature      string `header:"X-Webhook-Signature" doc:"generic: [sha256=]hex HMAC-SHA256(secret, X-Webhook-Timestamp + \".\" + raw body)"`
+	Timestamp      string `header:"X-Webhook-Timestamp" doc:"generic: unix seconds; must be within 300 seconds of the server's clock"`
+	GithubSig      string `header:"X-Hub-Signature-256" doc:"github: sha256=hex HMAC-SHA256(secret, raw body) — sent by GitHub"`
+	GithubEvent    string `header:"X-GitHub-Event" doc:"github: the event name — sent by GitHub"`
+	SentrySig      string `header:"Sentry-Hook-Signature" doc:"sentry: hex HMAC-SHA256(client secret, raw body) — sent by Sentry"`
+	SentryResource string `header:"Sentry-Hook-Resource" doc:"sentry: the resource (issue, event_alert, error, metric_alert) — sent by Sentry"`
+	RawBody        []byte
 }
 
-type genericHookBody struct {
-	Title      string `json:"title"`
-	Body       string `json:"body"`
-	Kind       string `json:"kind"`
-	Severity   string `json:"severity"`
-	Actor      string `json:"actor"`
-	URL        string `json:"url"`
-	ExternalID string `json:"external_id"`
+// headers rebuilds the signature-relevant headers for Verify, which is written
+// against http.Header so it can be tested without huma.
+func (in *hookIn) headers() http.Header {
+	h := http.Header{}
+	set := func(k, v string) {
+		if v != "" {
+			h.Set(k, v)
+		}
+	}
+	set("X-Webhook-Signature", in.Signature)
+	set("X-Webhook-Timestamp", in.Timestamp)
+	set("X-Hub-Signature-256", in.GithubSig)
+	set("X-GitHub-Event", in.GithubEvent)
+	set("Sentry-Hook-Signature", in.SentrySig)
+	set("Sentry-Hook-Resource", in.SentryResource)
+	return h
 }
 
-type githubHookBody struct {
-	Action     string `json:"action"`
-	Ref        string `json:"ref"`
-	Repository struct {
-		FullName string `json:"full_name"`
-		HTMLURL  string `json:"html_url"`
-	} `json:"repository"`
-	Sender struct {
-		Login string `json:"login"`
-	} `json:"sender"`
-	HeadCommit struct {
-		Message string `json:"message"`
-		ID      string `json:"id"`
-	} `json:"head_commit"`
+// HookResult is the receiver's answer. Duplicate is true when the same signed
+// bytes were delivered before — a platform redelivery, or a replay inside the
+// window — and no new item was made.
+type HookResult struct {
+	Received  bool `json:"received"`
+	Duplicate bool `json:"duplicate,omitempty"`
 }
 
 func registerPublicHook(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "receive-webhook", Method: http.MethodPost, Path: "/api/hooks/{id}",
 		DefaultStatus: http.StatusAccepted, Summary: "Receive a delivery for one webhook source (GitHub, Sentry or a generic JSON body)", Tags: tags,
-	}, func(ctx context.Context, in *hookIn) (*body[struct {
-		Received bool `json:"received"`
-	}], error) {
+		Description: "The signature is the authorization. github: X-Hub-Signature-256 over the raw body. " +
+			"sentry: Sentry-Hook-Signature over the raw body, with the integration's Client Secret. " +
+			"generic: X-Webhook-Timestamp (unix seconds, within 300 s) and X-Webhook-Signature = HMAC-SHA256(secret, timestamp + \".\" + body). " +
+			"A delivery that verifies always becomes an item; an unrecognised body gets a plain title.",
+	}, func(ctx context.Context, in *hookIn) (*body[HookResult], error) {
 		if len(in.RawBody) > maxWebhookBody {
 			return nil, huma.Error400BadRequest("the body is too large")
 		}
 		var wsID, name, kind, sealed string
-		var enabled bool
-		err := a.SysDB.QueryRowContext(ctx, `SELECT workspace_id, name, kind, secret_sealed, enabled FROM webhook_sources WHERE id = $1`, in.ID).
-			Scan(&wsID, &name, &kind, &sealed, &enabled)
+		var enabled, legacy bool
+		err := a.SysDB.QueryRowContext(ctx, `SELECT workspace_id, name, kind, secret_sealed, enabled, legacy_signing FROM webhook_sources WHERE id = $1`, in.ID).
+			Scan(&wsID, &name, &kind, &sealed, &enabled, &legacy)
 		if notFound(err) {
 			return nil, huma.Error404NotFound("this webhook does not exist")
 		} else if err != nil {
 			return nil, huma.Error500InternalServerError("could not resolve the webhook")
 		}
+		// A fixed sentence on the source row, for its owner — never a header
+		// value, a signature or a body.
 		fail := func(msg string) {
 			_, _ = a.SysDB.ExecContext(ctx, `UPDATE webhook_sources SET last_error = $2, last_error_at = now(), updated_at = now() WHERE id = $1`, in.ID, msg)
 		}
@@ -439,94 +510,41 @@ func registerPublicHook(api huma.API, a *app.App) {
 			fail("delivery refused: " + err.Error())
 			return nil, huma.Error500InternalServerError("this webhook is misconfigured")
 		}
-		sig := strings.TrimPrefix(in.Signature, "sha256=")
-		if sig == "" {
-			sig = strings.TrimPrefix(in.GithubSig, "sha256=")
-		}
-		if sig == "" {
-			fail("delivery refused: missing signature")
-			return nil, huma.Error401Unauthorized("this webhook requires a signature (X-Webhook-Signature: sha256=<hmac>)")
-		}
-		mac := hmac.New(sha256.New, []byte(secret))
-		mac.Write(in.RawBody)
-		want := hex.EncodeToString(mac.Sum(nil))
-		if !hmac.Equal([]byte(strings.ToLower(sig)), []byte(want)) {
-			fail("delivery refused: invalid signature")
-			return nil, huma.Error401Unauthorized("invalid signature")
+
+		// The signature, over the raw bytes, before anything is parsed.
+		v, err := Verify(kind, secret, legacy, in.headers(), in.RawBody, time.Now())
+		if err != nil {
+			fail("delivery refused: " + err.Error())
+			return nil, huma.Error401Unauthorized("invalid or missing signature")
 		}
 
-		title, itemKind, severity, actor, url, itemBody, externalID := deriveItem(kind, in.GithubEvent, in.RawBody)
-		if title == "" {
-			fail("delivery refused: could not read a title from the body")
-			return nil, huma.Error422UnprocessableEntity(`the body must be JSON with at least a "title" field`)
-		}
-		if externalID == "" {
-			sum := sha256.Sum256(in.RawBody)
-			externalID = hex.EncodeToString(sum[:])
+		// Only now is the body trusted enough to read.
+		it := Normalise(kind, v.Event, name, in.RawBody)
+		externalID := v.Identity
+		if it.ExternalID != "" {
+			// A body-supplied id is covered by the signature, like the body.
+			externalID = it.ExternalID
 		}
 
 		sctx := tenant.WithWorkspace(ctx, wsID)
-		_, err = a.SQLDB.ExecContext(sctx, `
+		res, err := a.SQLDB.ExecContext(sctx, `
 			INSERT INTO notification_items (workspace_id, source_id, source_name, external_id, kind, severity, title, body, actor, url, payload, occurred_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
 			ON CONFLICT (workspace_id, source_id, external_id) WHERE external_id <> '' DO NOTHING`,
-			wsID, in.ID, name, externalID, itemKind, clampSeverity(severity), title, itemBody, actor, url, string(in.RawBody),
+			wsID, in.ID, name, externalID, it.Kind, it.Severity, it.Title, it.Body, it.Actor, it.URL, string(in.RawBody),
 		)
 		if err != nil {
-			fail("delivery refused: " + err.Error())
+			fail("delivery refused: could not store it")
 			return nil, huma.Error500InternalServerError("could not store the delivery")
 		}
-		_, _ = a.SysDB.ExecContext(ctx, `UPDATE webhook_sources SET delivery_count = delivery_count + 1, last_delivery_at = now(), updated_at = now() WHERE id = $1`, in.ID)
+		inserted, _ := res.RowsAffected()
+		legacyAt := "last_legacy_at"
+		if v.Legacy {
+			legacyAt = "now()"
+		}
+		_, _ = a.SysDB.ExecContext(ctx, `UPDATE webhook_sources SET delivery_count = delivery_count + 1, last_delivery_at = now(),
+			last_legacy_at = `+legacyAt+`, updated_at = now() WHERE id = $1`, in.ID)
 
-		return out(struct {
-			Received bool `json:"received"`
-		}{true}), nil
+		return out(HookResult{Received: true, Duplicate: inserted == 0}), nil
 	})
-}
-
-// deriveItem reads the generic {title, body, kind, severity, actor, url,
-// external_id} shape first; a source of kind "github" with no explicit title
-// falls back to reading the event out of the raw GitHub payload. Any other
-// unrecognised shape with no title is rejected (422) rather than guessed at.
-func deriveItem(sourceKind, githubEvent string, raw []byte) (title, kind, severity, actor, url, body, externalID string) {
-	var g genericHookBody
-	_ = json.Unmarshal(raw, &g)
-	if strings.TrimSpace(g.Title) != "" {
-		k := g.Kind
-		if k == "" {
-			k = "event"
-		}
-		return strings.TrimSpace(g.Title), k, g.Severity, g.Actor, g.URL, g.Body, g.ExternalID
-	}
-	if sourceKind == "github" && githubEvent != "" {
-		var gh githubHookBody
-		_ = json.Unmarshal(raw, &gh)
-		t := githubEvent
-		if gh.Repository.FullName != "" {
-			t = githubEvent + " on " + gh.Repository.FullName
-		}
-		if githubEvent == "push" {
-			msg := firstLine(gh.HeadCommit.Message)
-			if msg != "" {
-				t = "push: " + msg
-			}
-			if gh.HeadCommit.ID != "" {
-				externalID = gh.HeadCommit.ID
-			}
-		} else if gh.Action != "" {
-			t = githubEvent + " " + gh.Action
-			if gh.Repository.FullName != "" {
-				t += " on " + gh.Repository.FullName
-			}
-		}
-		return t, githubEvent, "info", gh.Sender.Login, gh.Repository.HTMLURL, "", externalID
-	}
-	return "", "", "", "", "", "", ""
-}
-
-func firstLine(s string) string {
-	if i := strings.IndexAny(s, "\r\n"); i >= 0 {
-		s = s[:i]
-	}
-	return strings.TrimSpace(s)
 }
