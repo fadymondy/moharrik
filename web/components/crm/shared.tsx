@@ -10,6 +10,7 @@ import { COMPANY_SIZES, type ActivityKind, type StageKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { intlTag, isLocale } from "@/lib/i18n-locale"
 import { useMembers } from "@/lib/queries"
+import { Bdi } from "@/components/bidi"
 
 // ── money ────────────────────────────────────────────────────────────────
 // Deals store minor units; how many depends on the currency (JPY 0, KWD 3).
@@ -84,7 +85,7 @@ export function PickSelect({
       <SelectContent>
         {items.map((i) => (
           <SelectItem key={i.value} value={i.value}>
-            {i.label}
+            <Bdi>{i.label}</Bdi>
           </SelectItem>
         ))}
       </SelectContent>

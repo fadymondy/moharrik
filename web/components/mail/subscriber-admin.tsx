@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, downloadFile, type MailList } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { isolate } from "@/components/bidi"
 
 /*
 Subscriber admin (MH-408): the pieces the contacts list and a contact's own page
@@ -56,7 +57,7 @@ export function UnsubscribeDialog({
         `/api/w/contacts/${encodeURIComponent(target.contactId)}/lists/${encodeURIComponent(target.listId)}/unsubscribe`,
         { method: "POST", workspaceId: ws.id },
       )
-      toast.success(res.changed ? t("contacts.unsubscribed", { list: target.listName }) : t("contacts.alreadyUnsubscribed"))
+      toast.success(res.changed ? t("contacts.unsubscribed", { list: isolate(target.listName) }) : t("contacts.alreadyUnsubscribed"))
       onDone()
       onClose()
     } catch (e) {
@@ -70,8 +71,8 @@ export function UnsubscribeDialog({
     <AlertDialog open={target !== null} onOpenChange={(v) => (v ? null : onClose())}>
       <AlertDialogContent data-dialog="unsubscribe">
         <AlertDialogHeader>
-          <AlertDialogTitle>{t("contacts.unsubscribeTitle", { list: target?.listName ?? "" })}</AlertDialogTitle>
-          <AlertDialogDescription>{t("contacts.unsubscribeBody", { who: target?.who ?? "", list: target?.listName ?? "" })}</AlertDialogDescription>
+          <AlertDialogTitle>{t("contacts.unsubscribeTitle", { list: isolate(target?.listName ?? "") })}</AlertDialogTitle>
+          <AlertDialogDescription>{t("contacts.unsubscribeBody", { who: isolate(target?.who ?? ""), list: isolate(target?.listName ?? "") })}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>

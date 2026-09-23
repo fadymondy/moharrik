@@ -29,6 +29,7 @@ import { api, ApiError, type Campaign, type CampaignStatus, type MailList } from
 import { useTranslations } from "@/lib/i18n"
 import { useCampaigns, useMailLists, useWhatsAppAudience } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 const statusVariant: Record<CampaignStatus, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline",
@@ -56,7 +57,7 @@ export default function CampaignsPage() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("nav.campaigns")} description={t("campaigns.hint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.campaigns")} description={t("campaigns.hint")} />
 
       {campaigns.data && !smtpReady ? (
         <p className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted" role="status" data-smtp-missing>
@@ -268,9 +269,9 @@ function CampaignTable({
             const sendable = c.status === "draft" || c.status === "failed"
             return (
               <TableRow key={c.id} data-campaign-row={c.subject}>
-                <TableCell className="ps-6">
-                  <div className="font-medium" dir="auto">
-                    {c.subject}
+                <TableCell className="min-w-56 ps-6 whitespace-normal">
+                  <div className="font-medium">
+                    <Bdi>{c.subject}</Bdi>
                   </div>
                   {c.last_error ? (
                     <div className="max-w-md truncate text-xs text-grid-danger-text" title={c.last_error}>
@@ -283,7 +284,9 @@ function CampaignTable({
                     {t(wa ? "campaigns.channel.whatsapp" : "campaigns.channel.email")}
                   </Badge>
                 </TableCell>
-                <TableCell>{c.list_name}</TableCell>
+                <TableCell>
+                  <Bdi>{c.list_name}</Bdi>
+                </TableCell>
                 <TableCell>
                   <Badge variant={statusVariant[c.status]}>{t(`campaigns.status.${c.status}`)}</Badge>
                 </TableCell>
@@ -319,7 +322,7 @@ function CampaignTable({
                     <ConfirmButton
                       label={t("common.delete")}
                       title={t("campaigns.deleteTitle")}
-                      description={t("campaigns.deleteBody", { subject: c.subject })}
+                      description={t("campaigns.deleteBody", { subject: isolate(c.subject) })}
                       confirmLabel={t("common.delete")}
                       onConfirm={() => remove(c.id)}
                     />
@@ -372,9 +375,9 @@ function SendButton({ campaign, count, onSent }: { campaign: Campaign; count: nu
                 ? reachable === undefined
                   ? t("common.working")
                   : reachable === 0
-                    ? t("campaigns.sendNobodyWhatsApp", { list: campaign.list_name })
-                    : t("campaigns.sendBodyWhatsApp", { subject: campaign.subject, list: campaign.list_name, count: reachable })
-                : t("campaigns.sendBody", { subject: campaign.subject, list: campaign.list_name, count })}
+                    ? t("campaigns.sendNobodyWhatsApp", { list: isolate(campaign.list_name) })
+                    : t("campaigns.sendBodyWhatsApp", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count: reachable })
+                : t("campaigns.sendBody", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

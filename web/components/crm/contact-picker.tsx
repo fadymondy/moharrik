@@ -13,6 +13,7 @@ import {
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import { useContact, useContactsPage } from "@/lib/queries"
+import { BdiBlock } from "@/components/bidi"
 
 type Option = { value: string; label: string }
 
@@ -95,7 +96,7 @@ export function ContactPicker({
         <ComboboxList>
           {(o: Option) => (
             <ComboboxItem key={o.value} value={o}>
-              <span className="truncate">{o.label}</span>
+              <BdiBlock className="truncate">{o.label}</BdiBlock>
             </ComboboxItem>
           )}
         </ComboboxList>

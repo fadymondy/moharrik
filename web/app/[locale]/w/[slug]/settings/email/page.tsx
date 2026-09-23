@@ -17,6 +17,7 @@ import { api, ApiError, type SmtpSettings } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMe, useSmtpSettings } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 export default function EmailSettingsPage() {
   const { t } = useTranslations()
@@ -27,7 +28,7 @@ export default function EmailSettingsPage() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("nav.email")} description={t("smtp.hint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.email")} description={t("smtp.hint")} />
       {!ws.current ? (
         <LoadingRows rows={2} />
       ) : !isAdmin ? (

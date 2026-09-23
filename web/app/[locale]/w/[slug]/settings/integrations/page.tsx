@@ -19,6 +19,7 @@ import { api, ApiError, GOOGLE_PRODUCTS, type GoogleConnection, type GoogleDisco
 import { useTranslations } from "@/lib/i18n"
 import { useGoogleConnections } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 // What the callback can answer (internal/google, Result*). Anything else reads as "failed".
 const RESULTS = ["connected", "cancelled", "access_denied", "state", "forbidden", "failed", "no_refresh", "scope", "no_identity", "not_configured"]
@@ -49,7 +50,7 @@ function Integrations() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("nav.integrations")} description={t("integrations.hint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.integrations")} description={t("integrations.hint")} />
       {outcome.result ? <OutcomeBanner result={outcome.result} product={outcome.product} onClose={outcome.clear} /> : null}
 
       {!ws.current ? (
@@ -294,7 +295,7 @@ function ConnectionRow({ connection: c, configured, onChange }: { connection: Go
           ) : null}
           <ConfirmButton
             label={t("integrations.disconnect")}
-            title={t("integrations.disconnectTitle", { email: c.email })}
+            title={t("integrations.disconnectTitle", { email: isolate(c.email) })}
             description={t("integrations.disconnectBody")}
             confirmLabel={t("integrations.disconnect")}
             onConfirm={disconnect}

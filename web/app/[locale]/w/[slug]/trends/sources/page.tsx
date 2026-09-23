@@ -18,6 +18,7 @@ import { api, ApiError, type FeedSource, type Topic } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useFeedSources, useTopics } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, Meta, isolate } from "@/components/bidi"
 
 export default function TrendSourcesPage() {
   const { t } = useTranslations()
@@ -29,7 +30,7 @@ export default function TrendSourcesPage() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("trends.sources")} description={t("trends.sourcesHint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("trends.sources")} description={t("trends.sourcesHint")} />
 
       <section>
         <h2 className="px-6 pb-1 text-base font-medium">{t("trends.feeds")}</h2>
@@ -111,7 +112,9 @@ function FeedRow({ source, canManage, onChange }: { source: FeedSource; canManag
   return (
     <li className="flex flex-wrap items-start gap-3 px-6 py-4" data-feed-row={source.name}>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{source.name}</p>
+        <p className="text-sm font-medium">
+          <Bdi>{source.name}</Bdi>
+        </p>
         <Ltr className="block truncate text-xs text-grid-muted" mono>
           {source.url}
         </Ltr>
@@ -128,7 +131,7 @@ function FeedRow({ source, canManage, onChange }: { source: FeedSource; canManag
         {source.last_error ? (
           <p className="mt-1 flex items-start gap-1 text-xs text-grid-danger-text">
             <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" />
-            {source.last_error}
+            <Bdi>{source.last_error}</Bdi>
           </p>
         ) : null}
       </div>
@@ -142,7 +145,7 @@ function FeedRow({ source, canManage, onChange }: { source: FeedSource; canManag
           <ConfirmButton
             label={t("common.delete")}
             title={t("trends.deleteFeedTitle")}
-            description={t("trends.deleteFeedBody", { name: source.name })}
+            description={t("trends.deleteFeedBody", { name: isolate(source.name) })}
             confirmLabel={t("common.delete")}
             onConfirm={remove}
           />
@@ -218,16 +221,29 @@ function TopicRow({ topic, canManage, onChange }: { topic: Topic; canManage: boo
   return (
     <li className="flex flex-wrap items-center gap-3 px-6 py-4" data-topic-row={topic.name}>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{topic.name}</p>
-        <p className="text-xs text-grid-muted">
-          {topic.keywords.length > 0 ? topic.keywords.join(", ") : t("trends.matchesOwnName")} · {t("trends.itemsMatched", { n: topic.item_count })}
+        <p className="text-sm font-medium">
+          <Bdi>{topic.name}</Bdi>
+        </p>
+        {/* Each keyword is isolated on its own and the count sits in its own span: a topic
+            with English and Arabic keywords jumbled the count into the list in /ar (MH-465). */}
+        <p className="text-xs text-grid-muted" data-topic-keywords>
+          {topic.keywords.length > 0
+            ? topic.keywords.map((k, i) => (
+                <span key={i}>
+                  {i ? ", " : null}
+                  <Bdi data-keyword>{k}</Bdi>
+                </span>
+              ))
+            : t("trends.matchesOwnName")}
+          {" · "}
+          <Meta data-topic-count>{t("trends.itemsMatched", { n: topic.item_count })}</Meta>
         </p>
       </div>
       {canManage ? (
         <ConfirmButton
           label={t("common.delete")}
           title={t("trends.deleteTopicTitle")}
-          description={t("trends.deleteTopicBody", { name: topic.name })}
+          description={t("trends.deleteTopicBody", { name: isolate(topic.name) })}
           confirmLabel={t("common.delete")}
           onConfirm={remove}
         />

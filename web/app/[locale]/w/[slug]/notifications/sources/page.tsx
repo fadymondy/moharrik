@@ -31,6 +31,7 @@ import { api, ApiError, type WebhookSource, type WebhookSourceKind } from "@/lib
 import { useTranslations } from "@/lib/i18n"
 import { useWebhookSources } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 export default function WebhookSourcesPage() {
   const { t } = useTranslations()
@@ -47,7 +48,7 @@ export default function WebhookSourcesPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("notifications.sources")}
         description={t("notifications.sourcesHint")}
         action={
@@ -170,7 +171,9 @@ function SourceRow({
   return (
     <TableRow data-source-row={source.name}>
       <TableCell className="ps-6">
-        <div className="font-medium">{source.name}</div>
+        <div className="font-medium">
+          <Bdi>{source.name}</Bdi>
+        </div>
         <Ltr className="text-xs text-grid-muted" mono>
           {source.url}
         </Ltr>
@@ -184,7 +187,7 @@ function SourceRow({
         {source.last_error ? (
           <p className="mt-1 flex items-start gap-1 text-xs text-grid-danger-text">
             <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" />
-            {source.last_error}
+            <Bdi>{source.last_error}</Bdi>
           </p>
         ) : null}
       </TableCell>
@@ -219,7 +222,7 @@ function SourceRow({
             <ConfirmButton
               label={t("common.delete")}
               title={t("notifications.deleteSourceTitle")}
-              description={t("notifications.deleteSourceBody", { name: source.name })}
+              description={t("notifications.deleteSourceBody", { name: isolate(source.name) })}
               confirmLabel={t("common.delete")}
               onConfirm={remove}
             />
@@ -250,7 +253,7 @@ function LegacyNotice({ source, canManage, onChange }: { source: WebhookSource; 
         json: { legacy_signing: false },
         workspaceId: ws.id,
       })
-      toast.success(t("notifications.switchedSigning", { name: source.name }))
+      toast.success(t("notifications.switchedSigning", { name: isolate(source.name) }))
       setOpen(false)
       onChange()
     } catch (e) {
@@ -281,7 +284,7 @@ function LegacyNotice({ source, canManage, onChange }: { source: WebhookSource; 
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("notifications.switchSigningTitle", { name: source.name })}</AlertDialogTitle>
+            <AlertDialogTitle>{t("notifications.switchSigningTitle", { name: isolate(source.name) })}</AlertDialogTitle>
             <AlertDialogDescription>
               {source.kind === "generic" ? t("notifications.switchSigningBody") : t("notifications.switchSigningBodyPlatform")}
             </AlertDialogDescription>
@@ -533,7 +536,7 @@ function ClientSecretDialog({ source, onClose, onSaved }: { source: WebhookSourc
         <div className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{t("notifications.setClientSecret")}</DialogTitle>
-            <DialogDescription>{t("notifications.clientSecretHint", { name: source.name })}</DialogDescription>
+            <DialogDescription>{t("notifications.clientSecretHint", { name: isolate(source.name) })}</DialogDescription>
           </DialogHeader>
           <ClientSecretForm source={source} onSaved={onSaved} />
         </div>

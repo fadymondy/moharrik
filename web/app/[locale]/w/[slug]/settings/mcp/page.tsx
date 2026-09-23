@@ -27,6 +27,7 @@ import { api, ApiError, type McpScope, type McpToken } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMcpTokens } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 const MCP_ORIGIN = process.env.NEXT_PUBLIC_MCP_ORIGIN ?? "http://localhost:8120"
 
@@ -52,7 +53,7 @@ export default function McpTokensPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.mcpTokens")}
         description={t("mcp.hint")}
         action={
@@ -110,7 +111,9 @@ function TokenRow({ tok, formatDate, onRevoke }: { tok: McpToken; formatDate: (v
   const expired = !!tok.expires_at && new Date(tok.expires_at).getTime() < Date.now()
   return (
     <TableRow className={tok.revoked_at || expired ? "opacity-60" : undefined}>
-      <TableCell className="ps-6 font-medium">{tok.name}</TableCell>
+      <TableCell className="ps-6 font-medium">
+        <Bdi>{tok.name}</Bdi>
+      </TableCell>
       <TableCell>
         <Ltr mono className="text-xs">
           {tok.prefix}…
@@ -138,7 +141,7 @@ function TokenRow({ tok, formatDate, onRevoke }: { tok: McpToken; formatDate: (v
           <ConfirmButton
             label={t("common.revoke")}
             title={t("mcp.revokeTitle")}
-            description={t("mcp.revokeBody", { name: tok.name })}
+            description={t("mcp.revokeBody", { name: isolate(tok.name) })}
             confirmLabel={t("common.revoke")}
             onConfirm={onRevoke}
           />

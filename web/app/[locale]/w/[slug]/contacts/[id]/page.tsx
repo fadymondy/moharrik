@@ -24,6 +24,7 @@ import { api, ApiError, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useCompanies, useContact } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 const statusVariant: Record<SubscriptionStatus, "default" | "secondary" | "outline" | "destructive"> = {
   subscribed: "default",
@@ -55,14 +56,14 @@ export default function ContactDetailPage() {
     <>
       <SectionHeader
         micro={t("nav.contacts")}
-        title={contact.name || contact.email}
+        title={contact.name ? <Bdi>{contact.name}</Bdi> : <Ltr>{contact.email}</Ltr>}
         description={contact.name ? <Ltr>{contact.email}</Ltr> : undefined}
         action={
           canWrite ? (
             <ConfirmButton
               label={t("common.delete")}
               title={t("contacts.deleteTitle")}
-              description={t("contacts.deleteBody", { email: contact.email })}
+              description={t("contacts.deleteBody", { email: isolate(contact.email) })}
               confirmLabel={t("common.delete")}
               onConfirm={async () => {
                 await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, { method: "DELETE", workspaceId: ws.id })
@@ -78,7 +79,7 @@ export default function ContactDetailPage() {
           {contact.subscriptions.map((s) => (
             <span key={s.id} className="inline-flex items-center gap-1">
               <Badge variant={statusVariant[s.status]} data-sub={`${s.list_name}:${s.status}`}>
-                {s.list_name} · {t(`sub.${s.status}`)}
+                <Bdi>{s.list_name}</Bdi> · {t(`sub.${s.status}`)}
               </Badge>
               {canWrite && s.status !== "unsubscribed" ? (
                 <Button

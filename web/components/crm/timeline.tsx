@@ -16,6 +16,7 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { ACTIVITY_KINDS, api, ApiError, type Activity, type ActivityKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMe } from "@/lib/queries"
+import { Bdi } from "@/components/bidi"
 
 type Target = { contact_id?: string; company_id?: string; deal_id?: string }
 
@@ -189,7 +190,7 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <p className={`text-sm break-words whitespace-pre-wrap ${a.done_at ? "text-grid-muted line-through" : ""}`}>{a.body}</p>
+        <p dir="auto" className={`text-start text-sm break-words whitespace-pre-wrap ${a.done_at ? "text-grid-muted line-through" : ""}`}>{a.body}</p>
         <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-grid-muted">
           <span>{t(`activity.${a.kind}`)}</span>
           <span aria-hidden>·</span>
@@ -208,7 +209,7 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
             <span key={r.href} className="inline-flex gap-2">
               <span aria-hidden>·</span>
               <Link className="underline underline-offset-4" href={r.href}>
-                {r.label}
+                <Bdi>{r.label}</Bdi>
               </Link>
             </span>
           ))}

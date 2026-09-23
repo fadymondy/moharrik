@@ -106,11 +106,11 @@ function Row({
         </span>
       </div>
       <Link href={href} onClick={onOpen} className="min-w-0 flex-1 after:absolute after:inset-0">
-        <p className="truncate text-sm leading-snug font-medium" dir="auto">
+        <p className="bidi-block truncate text-sm leading-snug font-medium" dir="auto">
           {name}
         </p>
         {item.snippet ? (
-          <p className="mt-0.5 truncate text-xs text-grid-muted" dir="auto">
+          <p className="bidi-block mt-0.5 truncate text-xs text-grid-muted" dir="auto">
             {item.snippet}
           </p>
         ) : null}

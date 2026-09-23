@@ -19,6 +19,7 @@ import { api, ApiError, type ChatWidget } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useChatWidgets } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 export default function ChatWidgetsPage() {
   const { t } = useTranslations()
@@ -32,7 +33,7 @@ export default function ChatWidgetsPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("inbox.widgets")}
         description={t("inbox.widgetsHint")}
         action={
@@ -95,7 +96,9 @@ function WidgetRow({ widget, canManage, onChange }: { widget: ChatWidget; canMan
   return (
     <li className="px-6 py-5" data-widget-row={widget.name}>
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm font-medium">{widget.name}</p>
+        <p className="text-sm font-medium">
+          <Bdi>{widget.name}</Bdi>
+        </p>
         <Badge variant={widget.enabled ? "default" : "outline"}>{widget.enabled ? t("inbox.enabled") : t("inbox.disabled")}</Badge>
         {blocked ? (
           <span className="flex items-center gap-1 text-xs text-grid-warn-text">
@@ -114,7 +117,7 @@ function WidgetRow({ widget, canManage, onChange }: { widget: ChatWidget; canMan
               <ConfirmButton
                 label={t("common.delete")}
                 title={t("inbox.deleteWidgetTitle")}
-                description={t("inbox.deleteWidgetBody", { name: widget.name })}
+                description={t("inbox.deleteWidgetBody", { name: isolate(widget.name) })}
                 confirmLabel={t("common.delete")}
                 onConfirm={remove}
               />

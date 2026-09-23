@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { chime, desktopNotify, PUSH_MESSAGE } from "@/lib/alerts"
 import { useWorkspaceEvents, type WorkspaceEvent } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
+import { isolate } from "@/components/bidi"
 
 /*
 A customer's message, told to the member the moment it lands — on ANY page of
@@ -54,7 +55,7 @@ export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: s
       if (a.kind === "message") chime()
       toast(a.title, {
         id: a.key, // a second message on the same thread replaces the first popup
-        description: a.body || undefined,
+        description: a.body ? <span dir="auto">{a.body}</span> : undefined,
         duration: SHOW_MS,
         icon: a.kind === "message" ? <MessageCircleIcon className="size-4 text-grid-action" /> : <BellIcon className="size-4 text-grid-action" />,
         action: { label: t("alerts.open"), onClick: () => router.push(a.url) },
@@ -73,7 +74,7 @@ export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: s
           kind: "message",
           key: `conv-${e.conversation_id}`,
           conversationId: e.conversation_id,
-          title: e.sender ? t("alerts.messageFrom", { name: e.sender }) : t("alerts.newMessage"),
+          title: e.sender ? t("alerts.messageFrom", { name: isolate(e.sender) }) : t("alerts.newMessage"),
           body: e.snippet ?? "",
           url: `/${locale}/w/${slug}/inbox?c=${encodeURIComponent(e.conversation_id)}`,
         }

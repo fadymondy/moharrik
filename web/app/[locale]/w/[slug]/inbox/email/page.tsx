@@ -19,6 +19,7 @@ import { api, ApiError, type MailboxSettings } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMailbox } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 export default function MailboxPage() {
   const { t, locale, formatDate } = useTranslations()
@@ -30,7 +31,7 @@ export default function MailboxPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("mailbox.title")}
         description={t("mailbox.hint")}
         action={

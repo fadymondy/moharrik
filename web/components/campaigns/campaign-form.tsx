@@ -17,6 +17,7 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Campaign, type CampaignChannel, type MailList } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useWhatsAppAudience } from "@/lib/queries"
+import { Bdi } from "@/components/bidi"
 
 /** The live WhatsApp audience of a list: the number a broadcast would reach now. */
 function Reachable({ listId }: { listId: string }) {
@@ -155,7 +156,7 @@ export function CampaignForm({
               <SelectContent>
                 {listItems.map((i) => (
                   <SelectItem key={i.value} value={i.value}>
-                    {i.label}
+                    <Bdi>{i.label}</Bdi>
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -45,6 +45,7 @@ import { api, ApiError, type Contact, type MailList, type SubscriptionStatus } f
 import { useTranslations } from "@/lib/i18n"
 import { useContactsPage, useMailLists, useSmtpSettings } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 const PAGE_SIZE = 50
 const STATUSES: SubscriptionStatus[] = ["subscribed", "pending", "unsubscribed", "bounced"]
@@ -74,7 +75,7 @@ export default function ContactsPage() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("nav.contacts")} description={t("contacts.hint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.contacts")} description={t("contacts.hint")} />
       <ListsSection lists={listItems} loading={lists.isLoading} error={lists.error} onChange={changed} />
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
@@ -159,8 +160,14 @@ function ListsSection({ lists, loading, error, onChange }: { lists: MailList[]; 
               {lists.map((l) => (
                 <TableRow key={l.id} data-list-row={l.name}>
                   <TableCell className="ps-6">
-                    <div className="font-medium">{l.name}</div>
-                    {l.description ? <div className="text-xs text-grid-muted">{l.description}</div> : null}
+                    <div className="font-medium">
+                      <Bdi>{l.name}</Bdi>
+                    </div>
+                    {l.description ? (
+                      <div className="text-xs text-grid-muted">
+                        <Bdi>{l.description}</Bdi>
+                      </div>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-grid-muted">{l.double_opt_in ? t("lists.on") : t("lists.off")}</TableCell>
                   <TableCell>{l.subscribed}</TableCell>
@@ -190,7 +197,7 @@ function ListsSection({ lists, loading, error, onChange }: { lists: MailList[]; 
                         <ConfirmButton
                           label={t("common.delete")}
                           title={t("lists.deleteTitle")}
-                          description={t("lists.deleteBody", { name: l.name })}
+                          description={t("lists.deleteBody", { name: isolate(l.name) })}
                           confirmLabel={t("common.delete")}
                           onConfirm={() => remove(l.id)}
                         />
@@ -331,7 +338,7 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
                 <SelectContent>
                   {listItems.map((i) => (
                     <SelectItem key={i.value} value={i.value}>
-                      {i.label}
+                      <Bdi>{i.label}</Bdi>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -427,7 +434,7 @@ function ContactsBrowser({ lists, version, onChange }: { lists: MailList[]; vers
             <SelectContent>
               {listItems.map((i) => (
                 <SelectItem key={i.value} value={i.value}>
-                  {i.label}
+                  <Bdi>{i.label}</Bdi>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -604,7 +611,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
                 <TableCell>
                   {c.name ? (
                     <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
-                      {c.name}
+                      <Bdi>{c.name}</Bdi>
                     </Link>
                   ) : (
                     <span className="text-grid-muted">—</span>
@@ -623,7 +630,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
                               : t(`sub.${s.status}`)
                           }
                         >
-                          {s.list_name} · {t(`sub.${s.status}`)}
+                          <Bdi>{s.list_name}</Bdi> · {t(`sub.${s.status}`)}
                         </Badge>
                         {canWrite && s.status === "pending" ? (
                           <Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={() => resend(s.id)}>
@@ -644,7 +651,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
                   {canWrite ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger
-                        render={<Button variant="ghost" size="icon-sm" aria-label={t("contacts.actionsFor", { who: c.email })} data-row-actions={c.email} />}
+                        render={<Button variant="ghost" size="icon-sm" aria-label={t("contacts.actionsFor", { who: isolate(c.email) })} data-row-actions={c.email} />}
                       >
                         <EllipsisIcon />
                       </DropdownMenuTrigger>
@@ -659,7 +666,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
                                   data-unsubscribe-from={s.list_name}
                                   onClick={() => setLeaving({ contactId: c.id, who: c.name || c.email, listId: s.list_id, listName: s.list_name })}
                                 >
-                                  {s.list_name}
+                                  <Bdi>{s.list_name}</Bdi>
                                 </DropdownMenuItem>
                               ))}
                             </DropdownMenuGroup>
@@ -684,7 +691,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("contacts.deleteTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("contacts.deleteBody", { email: deleting?.email ?? "" })}</AlertDialogDescription>
+            <AlertDialogDescription>{t("contacts.deleteBody", { email: isolate(deleting?.email ?? "") })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>

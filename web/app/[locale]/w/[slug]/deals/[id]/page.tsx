@@ -17,6 +17,7 @@ import { useTranslations } from "@/lib/i18n"
 import { useDeal, useDeals } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
+import { Bdi, isolate } from "@/components/bidi"
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { t, locale } = useTranslations()
@@ -41,11 +42,11 @@ export default function DealDetailPage() {
     <>
       <SectionHeader
         micro={t("nav.deals")}
-        title={deal.title}
+        title={<Bdi>{deal.title}</Bdi>}
         description={
           <span className="inline-flex items-center gap-2">
             <span className={`size-2 rounded-full ${stageTone[deal.stage_kind]}`} aria-hidden />
-            {deal.stage_name}
+            <Bdi>{deal.stage_name}</Bdi>
             <span aria-hidden>·</span>
             <Ltr>{formatMoney(deal.value_minor, deal.currency, locale)}</Ltr>
           </span>
@@ -55,7 +56,7 @@ export default function DealDetailPage() {
             <ConfirmButton
               label={t("common.delete")}
               title={t("deals.deleteTitle")}
-              description={t("deals.deleteBody", { title: deal.title })}
+              description={t("deals.deleteBody", { title: isolate(deal.title) })}
               confirmLabel={t("common.delete")}
               onConfirm={async () => {
                 await api(`/api/w/deals/${encodeURIComponent(deal.id)}`, { method: "DELETE", workspaceId: ws.id })

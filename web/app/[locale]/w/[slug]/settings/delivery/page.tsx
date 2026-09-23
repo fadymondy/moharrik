@@ -17,6 +17,7 @@ import { api, ApiError, type PushDevice, type PushResult } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { usePushStatus } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 /*
 Delivery (MH-378): how this workspace reaches the signed-in member.
@@ -176,7 +177,7 @@ export default function DeliveryPage() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("nav.delivery")} description={t("delivery.hint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.delivery")} description={t("delivery.hint")} />
       {!ws.current ? (
         <LoadingRows rows={3} />
       ) : !allowed ? (

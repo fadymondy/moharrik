@@ -17,6 +17,7 @@ import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useLeads } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, BdiBlock } from "@/components/bidi"
 
 /**
  * Leads (MH-390): what visitors sent through the workspace's inquiry forms.
@@ -52,7 +53,7 @@ export default function LeadsPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.leads")}
         description={t("leads.hint")}
         action={
@@ -140,7 +141,7 @@ function LeadRow({ lead, href }: { lead: Lead; href: string }) {
         data-lead-status={lead.status}
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium" dir="auto">{who}</span>
+          <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
           {lead.company ? <span className="hidden truncate text-sm text-grid-muted sm:inline">·&nbsp;<bdi>{lead.company}</bdi></span> : null}
           <LeadStatusBadge status={lead.status} className="ms-auto shrink-0" />
         </span>

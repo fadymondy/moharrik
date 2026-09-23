@@ -19,6 +19,7 @@ import { api, ApiError, INVITABLE_ROLES, type Invitation } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useInvitations, useMembers } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 export default function MembersPage() {
   const { t, formatDate } = useTranslations()
@@ -31,7 +32,7 @@ export default function MembersPage() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("nav.members")} description={t("members.hint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.members")} description={t("members.hint")} />
 
       {members.error ? (
         <ErrorState error={members.error} />
@@ -247,7 +248,7 @@ function PendingInvitations({
                     <ConfirmButton
                       label={t("common.revoke")}
                       title={t("members.revokeTitle")}
-                      description={t("members.revokeBody", { email: inv.email })}
+                      description={t("members.revokeBody", { email: isolate(inv.email) })}
                       confirmLabel={t("common.revoke")}
                       onConfirm={() => revoke(inv.id)}
                     />

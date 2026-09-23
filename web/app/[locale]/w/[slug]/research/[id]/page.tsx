@@ -18,6 +18,7 @@ import { api, ApiError, type ResearchRun, type ResearchSource } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useResearchContent, useResearchRun, useResearchRuns } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 export default function ResearchRunPage() {
   const { t, locale } = useTranslations()
@@ -62,7 +63,7 @@ export default function ResearchRunPage() {
     <>
       <SectionHeader
         micro={t("nav.research")}
-        title={run ? <span dir="auto">{run.topic}</span> : <Skeleton className="h-7 w-72 max-w-full" />}
+        title={run ? <Bdi>{run.topic}</Bdi> : <Skeleton className="h-7 w-72 max-w-full" />}
         description={run ? t("research.startedAt", { date: fmt(run.started_at ?? run.created_at) }) : undefined}
         action={
           <div className="flex flex-wrap items-center gap-2">

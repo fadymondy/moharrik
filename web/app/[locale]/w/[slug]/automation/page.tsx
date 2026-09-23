@@ -23,6 +23,7 @@ import { useTranslations } from "@/lib/i18n"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useAutomationSettings, useBrowsers, useRuns, useSchedules, useWorkflows } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 export default function AutomationPage() {
   const { t, locale } = useTranslations()
@@ -72,7 +73,7 @@ export default function AutomationPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.automation")}
         description={t("automation.hint")}
         action={
@@ -310,7 +311,7 @@ function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; c
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-            {browser.name}
+            <Bdi>{browser.name}</Bdi>
             {revoked ? (
               <Badge variant="outline">{t("automation.revokedBadge")}</Badge>
             ) : (
@@ -350,7 +351,7 @@ function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; c
             <ConfirmButton
               label={t("automation.revoke")}
               title={t("automation.revokeTitle")}
-              description={t("automation.revokeBody", { name: browser.name })}
+              description={t("automation.revokeBody", { name: isolate(browser.name) })}
               confirmLabel={t("automation.revoke")}
               onConfirm={revoke}
             />
@@ -462,14 +463,18 @@ function RunRow({ run, href }: { run: AutomationRun; href: string }) {
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <Link href={href} className="hover:underline">
-            {run.agent_name || t("automation.unnamedBrowser")}
+            {run.agent_name ? <Bdi>{run.agent_name}</Bdi> : t("automation.unnamedBrowser")}
           </Link>
           <Badge variant={tone[run.status] ?? "outline"}>{t(`automation.status.${run.status}`)}</Badge>
         </p>
         <p className="text-xs text-grid-muted">
           {t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })} · {t(`automation.trigger.${run.trigger}`)} · {formatDate(run.created_at)}
         </p>
-        {run.error ? <p className="mt-1 text-xs text-grid-danger-text">{run.error}</p> : null}
+        {run.error ? (
+          <p className="mt-1 text-xs text-grid-danger-text">
+            <Bdi>{run.error}</Bdi>
+          </p>
+        ) : null}
       </div>
       <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={href} />}>
         {t("automation.openRun")}
@@ -515,12 +520,12 @@ function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSched
     <li className="flex flex-wrap items-start gap-3 px-6 py-4" data-schedule={schedule.name} data-schedule-status={schedule.last_status || "new"}>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-          {schedule.name}
+          <Bdi>{schedule.name}</Bdi>
           <Badge variant={schedule.enabled ? "default" : "outline"}>{schedule.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")}</Badge>
           {schedule.last_status ? <Badge variant="secondary">{t(`automation.last.${schedule.last_status}`)}</Badge> : null}
         </p>
         <p className="text-xs text-grid-muted">
-          <Ltr mono>{schedule.cron}</Ltr> · {schedule.timezone} · {schedule.agent_name || t("automation.unnamedBrowser")} · {t(`automation.catchUp.${schedule.catch_up}`)}
+          <Ltr mono>{schedule.cron}</Ltr> · <Ltr>{schedule.timezone}</Ltr> · {schedule.agent_name ? <Bdi>{schedule.agent_name}</Bdi> : t("automation.unnamedBrowser")} · {t(`automation.catchUp.${schedule.catch_up}`)}
         </p>
         <p className="text-xs text-grid-muted">
           {schedule.next_run_at ? t("automation.nextRun", { date: formatDate(schedule.next_run_at) }) : ""}
@@ -530,7 +535,7 @@ function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSched
             to have an answer on the page. */}
         {schedule.last_error ? (
           <p className="mt-1 text-xs text-grid-danger-text" data-schedule-error>
-            {schedule.last_error}
+            <Bdi>{schedule.last_error}</Bdi>
           </p>
         ) : null}
       </div>
@@ -544,7 +549,7 @@ function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSched
           <ConfirmButton
             label={t("common.delete")}
             title={t("automation.deleteScheduleTitle")}
-            description={t("automation.deleteScheduleBody", { name: schedule.name })}
+            description={t("automation.deleteScheduleBody", { name: isolate(schedule.name) })}
             confirmLabel={t("common.delete")}
             onConfirm={remove}
           />
@@ -703,11 +708,17 @@ function WorkflowRow({
     <li className="px-6 py-4" data-workflow={workflow.name}>
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{workflow.name}</p>
-          {workflow.description ? <p className="text-sm text-grid-muted">{workflow.description}</p> : null}
+          <p className="text-sm font-medium">
+            <Bdi>{workflow.name}</Bdi>
+          </p>
+          {workflow.description ? (
+            <p className="text-sm text-grid-muted">
+              <Bdi>{workflow.description}</Bdi>
+            </p>
+          ) : null}
           <p className="text-xs text-grid-muted">
             {t("automation.stepCount", { n: workflow.steps.length })}
-            {workflow.placeholders.length > 0 ? ` · ${t("automation.asksFor", { names: workflow.placeholders.join(", ") })}` : ""}
+            {workflow.placeholders.length > 0 ? ` · ${t("automation.asksFor", { names: isolate(workflow.placeholders.join(", ")) })}` : ""}
             {workflow.run_count > 0 ? ` · ${t("automation.ranTimes", { n: workflow.run_count })}` : ""}
           </p>
         </div>
@@ -720,7 +731,7 @@ function WorkflowRow({
             <ConfirmButton
               label={t("common.delete")}
               title={t("automation.deleteWorkflowTitle")}
-              description={t("automation.deleteWorkflowBody", { name: workflow.name })}
+              description={t("automation.deleteWorkflowBody", { name: isolate(workflow.name) })}
               confirmLabel={t("common.delete")}
               onConfirm={remove}
             />

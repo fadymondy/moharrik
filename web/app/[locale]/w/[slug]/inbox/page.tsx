@@ -22,6 +22,7 @@ import { useSWRConfig } from "swr"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useConversation, useConversations } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, BdiBlock } from "@/components/bidi"
 
 const statusVariant: Record<ConversationStatus, "default" | "secondary" | "outline"> = {
   open: "default",
@@ -76,7 +77,7 @@ export default function InboxPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.inbox")}
         description={t("inbox.hint")}
         action={
@@ -151,12 +152,14 @@ function ConversationRow({ c, active, onSelect }: { c: Conversation; active: boo
       >
         <span className="flex min-w-0 items-center gap-2">
           {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
-          <span className="truncate text-sm font-medium">{who}</span>
+          <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
           <Badge variant={statusVariant[c.status]} className="ms-auto shrink-0">
             {t(`inbox.status.${c.status}`)}
           </Badge>
         </span>
-        <span className="truncate text-xs text-grid-muted">{c.preview || c.subject}</span>
+        <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
+          {c.preview || c.subject}
+        </BdiBlock>
         <span className="text-xs text-grid-muted">
           {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> · {t("inbox.messageCount", { n: c.message_count })}
         </span>
@@ -278,14 +281,16 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
     <section data-thread={id}>
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-6 py-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{c.customer_name || c.customer_email || t("inbox.anonymous")}</p>
+          <BdiBlock as="p" className="truncate text-sm font-medium">
+            {c.customer_name || c.customer_email || t("inbox.anonymous")}
+          </BdiBlock>
           {/* On an email thread the SUBJECT is what the thread is about, and it
               was nowhere on this page — the e2e caught that. Chat has no
               subject worth showing, so it is only rendered when there is one. */}
           {c.subject ? (
-            <p className="truncate text-sm text-grid-fg" data-thread-subject>
+            <BdiBlock as="p" className="truncate text-sm text-grid-fg" data-thread-subject>
               {c.subject}
-            </p>
+            </BdiBlock>
           ) : null}
           <p className="truncate text-xs text-grid-muted">
             {t(`inbox.channel.${c.channel}`)}
@@ -327,9 +332,11 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
             data-message={m.direction}
             className={`max-w-[44rem] rounded-lg border border-line px-4 py-3 text-sm ${m.direction === "out" ? "ms-auto bg-grid-soft" : "bg-grid-card"}`}
           >
-            <p className="break-words whitespace-pre-wrap">{m.body}</p>
+            <p className="text-start break-words whitespace-pre-wrap" dir="auto">
+              {m.body}
+            </p>
             <p className="mt-1 text-xs text-grid-muted">
-              {m.direction === "out" ? (m.author_user_id ? members.name(m.author_user_id) : t("inbox.team")) : c.customer_name || t("inbox.customer")} · <Ltr>{formatDate(m.created_at)}</Ltr>
+              {m.direction === "out" ? (m.author_user_id ? members.name(m.author_user_id) : t("inbox.team")) : c.customer_name ? <Bdi>{c.customer_name}</Bdi> : t("inbox.customer")} · <Ltr>{formatDate(m.created_at)}</Ltr>
             </p>
           </li>
         ))}

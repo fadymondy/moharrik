@@ -14,6 +14,7 @@ import { useTranslations } from "@/lib/i18n"
 import { useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { useDocumentTitle } from "@/lib/title"
+import { BdiBlock } from "@/components/bidi"
 
 export default function WorkspacesPage() {
   const { t, locale } = useTranslations()
@@ -57,7 +58,7 @@ export default function WorkspacesPage() {
                   {w.name.slice(0, 1).toUpperCase()}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{w.name}</span>
+                  <BdiBlock className="block truncate text-sm font-medium">{w.name}</BdiBlock>
                   <Ltr mono className="text-xs text-grid-muted">
                     /{w.slug}
                   </Ltr>

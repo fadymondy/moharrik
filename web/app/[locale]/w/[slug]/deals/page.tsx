@@ -17,6 +17,7 @@ import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useDeals } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 type View = "board" | "list"
 
@@ -52,7 +53,7 @@ export default function DealsPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.deals")}
         description={t("deals.hint")}
         action={

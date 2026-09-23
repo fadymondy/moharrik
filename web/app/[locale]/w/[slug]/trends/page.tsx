@@ -17,6 +17,7 @@ import { api, ApiError, type NewsItem, type Topic } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useFeedSources, useNews, useTopics } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 export default function TrendsPage() {
   const { t, locale } = useTranslations()
@@ -41,7 +42,7 @@ export default function TrendsPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.trends")}
         description={t("trends.hint")}
         action={
@@ -132,20 +133,24 @@ function NewsRow({ item, byTopic, onChange }: { item: NewsItem; byTopic: Map<str
         <p className="text-sm font-medium break-words">
           {item.url ? (
             <a className="hover:underline" href={item.url} target="_blank" rel="noreferrer">
-              {item.title}
+              <Bdi>{item.title}</Bdi>
               <ExternalLinkIcon className="ms-1 inline size-3.5 align-[-2px] text-grid-muted" aria-hidden />
             </a>
           ) : (
-            item.title
+            <Bdi>{item.title}</Bdi>
           )}
         </p>
-        {item.summary ? <p className="mt-1 line-clamp-2 text-sm text-grid-muted break-words">{item.summary}</p> : null}
+        {item.summary ? (
+          <p className="mt-1 line-clamp-2 text-sm text-grid-muted break-words" dir="auto">
+            {item.summary}
+          </p>
+        ) : null}
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
-          <span>{item.source_name || t("trends.unknownSource")}</span>
+          {item.source_name ? <Bdi>{item.source_name}</Bdi> : <span>{t("trends.unknownSource")}</span>}
           {item.author ? (
             <>
               <span aria-hidden>·</span>
-              <span>{item.author}</span>
+              <Bdi>{item.author}</Bdi>
             </>
           ) : null}
           <span aria-hidden>·</span>
@@ -154,7 +159,7 @@ function NewsRow({ item, byTopic, onChange }: { item: NewsItem; byTopic: Map<str
             const topic = byTopic.get(id)
             return topic ? (
               <Badge key={id} variant="secondary">
-                {topic.name}
+                <Bdi>{topic.name}</Bdi>
               </Badge>
             ) : null
           })}

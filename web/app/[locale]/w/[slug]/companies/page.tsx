@@ -18,6 +18,7 @@ import { api, ApiError, type Company } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useCompanies } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 export default function CompaniesPage() {
   const { t } = useTranslations()
@@ -29,7 +30,7 @@ export default function CompaniesPage() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("nav.companies")} description={t("companies.hint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.companies")} description={t("companies.hint")} />
 
       {companies.error ? (
         <ErrorState error={companies.error} />
@@ -139,9 +140,13 @@ function CompaniesTable({ items, canWrite, onChange }: { items: Company[]; canWr
             <TableRow key={c.id} data-company-row={c.name}>
               <TableCell className="ps-6">
                 <Link className="font-medium hover:underline" href={`${base}/companies/${c.id}`}>
-                  {c.name}
+                  <Bdi>{c.name}</Bdi>
                 </Link>
-                {c.industry ? <div className="text-xs text-grid-muted">{c.industry}</div> : null}
+                {c.industry ? (
+                  <div className="text-xs text-grid-muted">
+                    <Bdi>{c.industry}</Bdi>
+                  </div>
+                ) : null}
               </TableCell>
               <TableCell className="text-grid-muted">{c.domain ? <Ltr>{c.domain}</Ltr> : "—"}</TableCell>
               <TableCell>{c.contact_count}</TableCell>
@@ -154,7 +159,7 @@ function CompaniesTable({ items, canWrite, onChange }: { items: Company[]; canWr
                   <ConfirmButton
                     label={t("common.delete")}
                     title={t("companies.deleteTitle")}
-                    description={t("companies.deleteBody", { name: c.name })}
+                    description={t("companies.deleteBody", { name: isolate(c.name) })}
                     confirmLabel={t("common.delete")}
                     onConfirm={() => remove(c.id)}
                   />

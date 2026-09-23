@@ -17,6 +17,7 @@ import { api, ApiError, type ResearchRun } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useResearchRuns } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 const MIN = 3
 const MAX = 500
@@ -34,7 +35,7 @@ export default function ResearchPage() {
 
   return (
     <>
-      <SectionHeader micro={ws.summary.name} title={t("nav.research")} description={t("research.hint")} />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.research")} description={t("research.hint")} />
 
       {list.data ? <CapabilityNotes caps={list.data} /> : null}
 
@@ -173,7 +174,11 @@ function RunRow({ run }: { run: ResearchRun }) {
           {run.status === "cancelled" ? null : <span aria-hidden>·</span>}
           <span>{fmt(run.started_at ?? run.created_at)}</span>
         </p>
-        {run.status === "failed" && run.error ? <p className="text-xs text-grid-danger-text">{run.error}</p> : null}
+        {run.status === "failed" && run.error ? (
+          <p className="text-xs text-grid-danger-text">
+            <Bdi>{run.error}</Bdi>
+          </p>
+        ) : null}
       </div>
       <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={href} />}>
         {t("research.open")}

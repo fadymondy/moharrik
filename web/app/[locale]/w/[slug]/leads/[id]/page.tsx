@@ -19,6 +19,7 @@ import { useTranslations } from "@/lib/i18n"
 import { useLead } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
+import { Bdi, BdiBlock, isolate } from "@/components/bidi"
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { t, locale } = useTranslations()
@@ -69,8 +70,8 @@ export default function LeadDetailPage() {
             rows={[
               [t("leads.field.email"), <Ltr key="e">{lead.email}</Ltr>],
               [t("leads.field.phone"), lead.phone ? <Ltr key="p">{lead.phone}</Ltr> : null],
-              [t("leads.field.company"), lead.company || null],
-              [t("leads.field.form"), lead.form_name || null],
+              [t("leads.field.company"), lead.company ? <Bdi key="c">{lead.company}</Bdi> : null],
+              [t("leads.field.form"), lead.form_name ? <Bdi key="f">{lead.form_name}</Bdi> : null],
               [t("leads.field.site"), lead.origin ? <Ltr key="o">{lead.origin}</Ltr> : null],
               [t("leads.field.received"), <Ltr key="r">{new Date(lead.created_at).toLocaleString(locale === "ar" ? "ar-EG" : "en-GB")}</Ltr>],
             ]}
@@ -115,7 +116,7 @@ function LeadActions({ lead, onChange }: { lead: Lead; onChange: () => void }) {
     try {
       const c = await api<LeadConversion>(`/api/w/leads/${encodeURIComponent(lead.id)}/convert`, { method: "POST", workspaceId: ws.id })
       toast.success(t("leads.converted"), {
-        description: c.free_mail ? t("leads.convertedFreeMail") : c.company_id ? t("leads.convertedWithCompany", { company: c.lead.converted_company?.name ?? "" }) : undefined,
+        description: c.free_mail ? t("leads.convertedFreeMail") : c.company_id ? t("leads.convertedWithCompany", { company: isolate(c.lead.converted_company?.name ?? "") }) : undefined,
       })
       onChange()
     } catch (e) {
@@ -155,7 +156,7 @@ function Converted({ lead, base }: { lead: Lead; base: string }) {
       {icon}
       <span className="min-w-0">
         <span className="block text-xs text-grid-muted">{label}</span>
-        <span className="block truncate text-sm font-medium">{name}</span>
+        <BdiBlock className="block truncate text-sm font-medium">{name}</BdiBlock>
       </span>
     </Link>
   )

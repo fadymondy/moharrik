@@ -25,6 +25,7 @@ import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useCompanies } from "@/lib/queries"
 import { ContactPicker } from "@/components/crm/contact-picker"
+import { Bdi, BdiBlock } from "@/components/bidi"
 
 // ── board ────────────────────────────────────────────────────────────────
 
@@ -90,7 +91,9 @@ export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Sta
               <header className="border-b border-line px-4 py-3">
                 <div className="flex items-center gap-2">
                   <span className={`size-2 shrink-0 rounded-full ${stageTone[s.kind]}`} aria-hidden />
-                  <h3 className="truncate text-sm font-medium">{s.name}</h3>
+                  <BdiBlock as="h3" className="truncate text-sm font-medium">
+                    {s.name}
+                  </BdiBlock>
                   <span className="ms-auto text-xs text-grid-muted tabular-nums" data-stage-count>
                     {list.length}
                   </span>
@@ -174,7 +177,7 @@ function DealCard({
       <div className="flex items-start gap-1.5">
         {canWrite ? <GripVerticalIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" aria-hidden /> : null}
         <Link href={`${base}/deals/${deal.id}`} className="min-w-0 flex-1 font-medium break-words hover:underline" draggable={false}>
-          {deal.title}
+          <Bdi>{deal.title}</Bdi>
         </Link>
         {canWrite ? (
           <DropdownMenu>
@@ -189,7 +192,7 @@ function DealCard({
                   .map((s) => (
                     <DropdownMenuItem key={s.id} onClick={() => onMove(deal.id, s.id)}>
                       <span className={`size-2 rounded-full ${stageTone[s.kind]}`} aria-hidden />
-                      {s.name}
+                      <Bdi>{s.name}</Bdi>
                     </DropdownMenuItem>
                   ))}
               </DropdownMenuGroup>
@@ -202,7 +205,14 @@ function DealCard({
       </p>
       {deal.company || deal.contact ? (
         <p className="mt-1 truncate text-xs text-grid-muted">
-          {[deal.company?.name, deal.contact ? deal.contact.name || deal.contact.email : null].filter(Boolean).join(" · ")}
+          {[deal.company?.name, deal.contact ? deal.contact.name || deal.contact.email : null]
+            .filter(Boolean)
+            .map((part, i) => (
+              <span key={i}>
+                {i ? " · " : null}
+                <Bdi>{part}</Bdi>
+              </span>
+            ))}
         </p>
       ) : null}
       {deal.expected_close ? (
@@ -239,13 +249,13 @@ export function DealsTable({ deals, empty }: { deals: Deal[]; empty?: string }) 
             <TableRow key={d.id} data-deal-row={d.title}>
               <TableCell className="min-w-56 ps-6 font-medium whitespace-normal">
                 <Link className="hover:underline" href={`${base}/deals/${d.id}`}>
-                  {d.title}
+                  <Bdi>{d.title}</Bdi>
                 </Link>
               </TableCell>
               <TableCell>
                 <span className="inline-flex items-center gap-2">
                   <span className={`size-2 rounded-full ${stageTone[d.stage_kind]}`} aria-hidden />
-                  {d.stage_name}
+                  <Bdi>{d.stage_name}</Bdi>
                 </span>
               </TableCell>
               <TableCell className="tabular-nums">
@@ -254,7 +264,7 @@ export function DealsTable({ deals, empty }: { deals: Deal[]; empty?: string }) 
               <TableCell>
                 {d.company ? (
                   <Link className="hover:underline" href={`${base}/companies/${d.company.id}`}>
-                    {d.company.name}
+                    <Bdi>{d.company.name}</Bdi>
                   </Link>
                 ) : (
                   <span className="text-grid-muted">—</span>
@@ -263,7 +273,7 @@ export function DealsTable({ deals, empty }: { deals: Deal[]; empty?: string }) 
               <TableCell>
                 {d.contact ? (
                   <Link className="hover:underline" href={`${base}/contacts/${d.contact.id}`}>
-                    {d.contact.name || <Ltr>{d.contact.email}</Ltr>}
+                    {d.contact.name ? <Bdi>{d.contact.name}</Bdi> : <Ltr>{d.contact.email}</Ltr>}
                   </Link>
                 ) : (
                   <span className="text-grid-muted">—</span>

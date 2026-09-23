@@ -14,6 +14,7 @@ import { api, ApiError, type RunStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useRun } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 export default function RunPage() {
   const { t, locale, formatDate } = useTranslations()
@@ -40,9 +41,9 @@ export default function RunPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("automation.run")}
-        description={run ? t("automation.runOn", { name: run.agent_name || t("automation.unnamedBrowser"), date: formatDate(run.created_at) }) : undefined}
+        description={run ? t("automation.runOn", { name: isolate(run.agent_name) || t("automation.unnamedBrowser"), date: formatDate(run.created_at) }) : undefined}
         action={
           <div className="flex flex-wrap items-center gap-2">
             {canRun && live ? (
@@ -72,7 +73,11 @@ export default function RunPage() {
             <span className="text-grid-muted">{t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })}</span>
             <span className="text-grid-muted">· {t(`automation.trigger.${run.trigger}`)}</span>
           </div>
-          {run.error ? <p className="px-6 pb-4 text-sm text-grid-danger-text">{run.error}</p> : null}
+          {run.error ? (
+            <p className="px-6 pb-4 text-sm text-grid-danger-text">
+              <Bdi>{run.error}</Bdi>
+            </p>
+          ) : null}
 
           <ol className="divide-y divide-line border-y border-line">
             {detail.data.steps.map((s) => (
@@ -105,7 +110,11 @@ function StepRow({ step }: { step: RunStep }) {
           {step.args}
         </pre>
       ) : null}
-      {step.error ? <p className="mt-2 text-sm text-grid-danger-text">{step.error}</p> : null}
+      {step.error ? (
+        <p className="mt-2 text-sm text-grid-danger-text">
+          <Bdi>{step.error}</Bdi>
+        </p>
+      ) : null}
       {step.result ? (
         // Shown exactly as the browser sent it. Pretty-printing it here would
         // be a second representation of the thing whose whole point is that it
@@ -114,7 +123,9 @@ function StepRow({ step }: { step: RunStep }) {
           {step.result}
         </pre>
       ) : step.summary ? (
-        <p className="mt-2 text-sm text-grid-muted">{step.summary}</p>
+        <p className="mt-2 text-sm text-grid-muted" dir="auto">
+          {step.summary}
+        </p>
       ) : null}
     </li>
   )

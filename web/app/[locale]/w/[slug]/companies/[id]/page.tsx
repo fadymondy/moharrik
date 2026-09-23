@@ -21,6 +21,7 @@ import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useCompany } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -44,14 +45,14 @@ export default function CompanyDetailPage() {
     <>
       <SectionHeader
         micro={t("nav.companies")}
-        title={company.name}
-        description={company.domain || undefined}
+        title={<Bdi>{company.name}</Bdi>}
+        description={company.domain ? <Ltr>{company.domain}</Ltr> : undefined}
         action={
           canWrite ? (
             <ConfirmButton
               label={t("common.delete")}
               title={t("companies.deleteTitle")}
-              description={t("companies.deleteBody", { name: company.name })}
+              description={t("companies.deleteBody", { name: isolate(company.name) })}
               confirmLabel={t("common.delete")}
               onConfirm={async () => {
                 await api(`/api/w/companies/${encodeURIComponent(company.id)}`, { method: "DELETE", workspaceId: ws.id })
@@ -74,10 +75,15 @@ export default function CompanyDetailPage() {
           <ul className="mb-6 divide-y divide-line border-y border-line">
             {contacts.map((c) => (
               <li key={c.id} className="px-6 py-3 text-sm">
-                <Link className="font-medium hover:underline" href={`${base}/contacts/${c.id}`}>
-                  {c.name || c.email}
+                <Link className="font-medium underline decoration-grid-muted underline-offset-4 hover:decoration-current" href={`${base}/contacts/${c.id}`} data-person-link>
+                  {c.name ? <Bdi>{c.name}</Bdi> : <Ltr>{c.email}</Ltr>}
                 </Link>
-                {c.title ? <span className="text-grid-muted"> · {c.title}</span> : null}
+                {c.title ? (
+                  <span className="text-grid-muted">
+                    {" · "}
+                    <Bdi>{c.title}</Bdi>
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>

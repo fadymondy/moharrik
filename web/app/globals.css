@@ -112,3 +112,13 @@
     scrollbar-color: color-mix(in oklab, var(--grid-muted) 65%, transparent) transparent;
   }
 }
+
+/* <BdiBlock> (components/bidi.tsx): user text whose direction follows its content (dir="auto")
+   but which lines up with the rest of the UI. `start` would resolve against the text's own
+   direction, so the side is taken from the page instead. */
+.bidi-block {
+  text-align: left;
+}
+[dir="rtl"] .bidi-block {
+  text-align: right;
+}

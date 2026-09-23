@@ -60,6 +60,7 @@ import { useTranslations } from "@/lib/i18n"
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { cn } from "@/lib/utils"
+import { BdiBlock } from "@/components/bidi"
 
 function Brand({ mini = false }: { mini?: boolean }) {
   const { t, locale } = useTranslations()
@@ -97,7 +98,7 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
           <span className="flex size-6 shrink-0 items-center justify-center border border-line bg-grid-card text-xs font-medium text-grid-brand">
             {active.name.slice(0, 1).toUpperCase()}
           </span>
-          <span className="truncate text-sm font-medium">{active.name}</span>
+          <BdiBlock className="truncate text-sm font-medium">{active.name}</BdiBlock>
           <ChevronsUpDownIcon className="text-grid-muted" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-64">
@@ -105,7 +106,7 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
             <DropdownMenuLabel>{t("shell.workspaces")}</DropdownMenuLabel>
             {all.map((w) => (
               <DropdownMenuItem key={w.id} onClick={() => router.push(hrefFor(w.slug))}>
-                <span className="min-w-0 flex-1 truncate">{w.name}</span>
+                <BdiBlock className="min-w-0 flex-1 truncate">{w.name}</BdiBlock>
                 <span className="text-xs text-grid-muted">{t(`role.${w.role}`)}</span>
                 {w.id === active.id ? <CheckIcon /> : null}
               </DropdownMenuItem>

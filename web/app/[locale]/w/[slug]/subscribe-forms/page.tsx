@@ -22,6 +22,7 @@ import { api, ApiError, type FormKind, type MailList, type SubscribeForm } from 
 import { useTranslations } from "@/lib/i18n"
 import { useMailLists, useSubscribeForms } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi, isolate } from "@/components/bidi"
 
 /** Origins are typed one per line or comma-separated; the API stores them normalised. */
 const parseOrigins = (v: string) =>
@@ -45,7 +46,7 @@ export default function SubscribeFormsPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.subscribeForms")}
         description={t("forms.hint")}
         action={
@@ -138,9 +139,11 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
   return (
     <li className="px-6 py-5" data-form-row={form.name} data-form-kind={form.kind}>
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm font-medium">{form.name}</p>
+        <p className="text-sm font-medium">
+          <Bdi>{form.name}</Bdi>
+        </p>
         <Badge variant="secondary">{inquiry ? t("forms.kind.inquiry") : t("forms.kind.subscribe")}</Badge>
-        <Badge variant="outline">{inquiry ? t("forms.toLeads") : t("forms.toList", { list: form.list_name || "—" })}</Badge>
+        <Badge variant="outline">{inquiry ? t("forms.toLeads") : t("forms.toList", { list: isolate(form.list_name) || "—" })}</Badge>
         <Badge variant={form.enabled ? "default" : "outline"}>{form.enabled ? t("forms.enabled") : t("forms.disabled")}</Badge>
         {blocked ? (
           <span className="flex items-center gap-1 text-xs text-grid-warn-text" data-no-origins>
@@ -270,7 +273,7 @@ function FormDialog({
                 <SelectContent>
                   {listItems.map((i) => (
                     <SelectItem key={i.value} value={i.value}>
-                      {i.label}
+                      <Bdi>{i.label}</Bdi>
                     </SelectItem>
                   ))}
                 </SelectContent>

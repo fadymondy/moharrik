@@ -17,6 +17,7 @@ import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useNotifications, useWebhookSources, type NotificationFilter } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 const severityTone: Record<NotificationSeverity, string> = {
   info: "bg-grid-brand",
@@ -73,7 +74,7 @@ export default function NotificationsPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.notifications")}
         description={t("notifications.hint")}
         action={
@@ -160,15 +161,21 @@ function NotificationRow({ item, canWrite, onChange }: { item: NotificationItem;
     >
       <span className={`mt-1.5 size-2 shrink-0 rounded-full ${severityTone[item.severity]}`} aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium break-words">{item.title}</p>
-        {item.body ? <p className="mt-1 text-sm text-grid-muted break-words whitespace-pre-wrap">{item.body}</p> : null}
+        <p className="text-sm font-medium break-words">
+          <Bdi>{item.title}</Bdi>
+        </p>
+        {item.body ? (
+          <p className="mt-1 text-sm text-grid-muted break-words whitespace-pre-wrap" dir="auto">
+            {item.body}
+          </p>
+        ) : null}
         <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-grid-muted">
           <Badge variant={severityVariant[item.severity]}>{t(`notifications.severity.${item.severity}`)}</Badge>
-          <span>{item.source_name || t("notifications.unknownSource")}</span>
+          {item.source_name ? <Bdi>{item.source_name}</Bdi> : <span>{t("notifications.unknownSource")}</span>}
           {item.actor ? (
             <>
               <span aria-hidden>·</span>
-              <span>{item.actor}</span>
+              <Bdi>{item.actor}</Bdi>
             </>
           ) : null}
           <span aria-hidden>·</span>

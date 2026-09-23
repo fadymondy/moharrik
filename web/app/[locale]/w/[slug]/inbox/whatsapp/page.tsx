@@ -16,6 +16,7 @@ import { api, ApiError, type WhatsAppLink } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useWhatsApp } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 export default function WhatsAppPage() {
   const { t, locale, formatDate } = useTranslations()
@@ -54,7 +55,7 @@ export default function WhatsAppPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
+        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("whatsapp.title")}
         description={t("whatsapp.hint")}
         action={
