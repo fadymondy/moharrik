@@ -25,6 +25,19 @@ import { closeRun, runStep } from "../driver.js"
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// Waits for a condition instead of guessing how long the fake browser takes. A fixed
+// sleep(40) made two tests flaky (about 1 run in 5 under load): the click raced the
+// simulated navigation and landed on the page being left, so no refusal came.
+async function until(cond, what, ms = 2000) {
+  const end = Date.now() + ms
+  while (!cond()) {
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`)
+    await sleep(2)
+  }
+  await sleep(10) // let the committed/updated events reach the extension
+}
+const settledAt = (tab, url) => until(() => tab.url === url && tab.status === "complete", `the tab to settle at ${url}`)
+
 /* ------------------------------------------------------------ the fake web */
 
 const SITES = {
@@ -216,7 +229,7 @@ test("a click on a link to an off-list host stops the run before the next step",
   await assertStops(r.step("extract", { selector: "body" }), /^step 2 went to evil\.test,/)
   assert.deepEqual(evilInjections(tab), [])
   // And the off-list page is not left running: the tab is blanked.
-  await sleep(40)
+  await until(() => tab.commits.at(-1) === "about:blank", "the tab to be blanked")
   assert.equal(tab.commits.at(-1), "about:blank")
   await closeRun(r.run)
 })
@@ -360,7 +373,7 @@ test("about:blank is not leaving the list, but nothing is acted on there", async
   const r = runner()
   await r.step("goto", { url: "https://allowed.test/start" })
   tab.window.__navigate("about:blank")
-  await sleep(40)
+  await settledAt(tab, "about:blank")
   await assert.rejects(r.step("click", { selector: "#here" }), (err) => {
     assert.notEqual(err.code, "left_allowed_sites")
     assert.match(err.message, /the page is blank/)
@@ -377,7 +390,7 @@ test("a data: URL in the run tab is off the list", async () => {
   const r = runner()
   await r.step("goto", { url: "https://allowed.test/start" })
   tab.window.__navigate("data:text/html,<input id=field>")
-  await sleep(40)
+  await settledAt(tab, "data:text/html,<input id=field>")
   await assertStops(r.step("type", { selector: "#field", text: "x" }), /^after step 1 the page went to a data: URL,/)
   await closeRun(r.run)
 })
