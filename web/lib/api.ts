@@ -900,6 +900,31 @@ export type ContactWhatsApp = {
   recent: { at: string; kind: "reply" | "broadcast" | "direct" | string; ok: boolean; error: string }[]
 }
 
+export type NotifyKind = "automation_failed" | "lead" | "notification"
+
+/** The signed-in member's WhatsApp notifications in this workspace (MH-411). */
+export type WhatsAppNotify = {
+  available: boolean
+  workspace_linked: boolean
+  phone: string
+  verified: boolean
+  verified_at: string | null
+  code_pending: boolean
+  enabled: boolean
+  kinds: NotifyKind[]
+  all_kinds: { kind: NotifyKind; allowed: boolean }[]
+  quiet_start: number
+  quiet_end: number
+  timezone: string
+  effective_timezone: string
+  daily_cap: number
+  batch_minutes: number
+  locale: "en" | "ar"
+  pending: number
+  sent_today: number
+  recent: { at: string; kind: "batch" | "test"; events: number; ok: boolean; error: string }[]
+}
+
 /** POST /api/w/contacts/{id}/whatsapp/send. */
 export type DirectSendResult = {
   confirmation_required: boolean

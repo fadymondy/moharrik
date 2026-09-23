@@ -16,7 +16,7 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'whatsapp_sends_kind_ck') THEN
         ALTER TABLE whatsapp_sends ADD CONSTRAINT whatsapp_sends_kind_ck
-            CHECK (kind IN ('reply', 'broadcast', 'direct'));
+            CHECK (kind IN ('reply', 'broadcast', 'direct', 'notify', 'verify'));
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'whatsapp_confirmations_workspace_fk') THEN
         ALTER TABLE whatsapp_confirmations ADD CONSTRAINT whatsapp_confirmations_workspace_fk

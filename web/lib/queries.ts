@@ -16,6 +16,7 @@ import {
   type MailboxSettings,
   type WhatsAppLink,
   type ContactWhatsApp,
+  type WhatsAppNotify,
   type RunStep,
   type ResearchDetail,
   type ResearchList,
@@ -459,6 +460,9 @@ export function useRun(workspaceId: string | null | undefined, id?: string) {
 export const useMailbox = (id?: string | null) => useScoped<MailboxSettings>("/api/w/mailbox", id)
 
 export const useWhatsApp = (id?: string | null) => useScoped<WhatsAppLink>("/api/w/whatsapp", id)
+
+/** The signed-in member's WhatsApp notifications (MH-411). */
+export const useWhatsAppNotify = (wsId?: string | null) => useScoped<WhatsAppNotify>("/api/w/notify/whatsapp", wsId)
 
 /** Whether one contact can be messaged on WhatsApp now, and why not (MH-410). */
 export const useContactWhatsApp = (wsId: string | null | undefined, contactId: string, enabled = true) =>

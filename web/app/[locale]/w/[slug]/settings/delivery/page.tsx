@@ -18,6 +18,7 @@ import { useTranslations } from "@/lib/i18n"
 import { usePushStatus } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi } from "@/components/bidi"
+import { WhatsAppNotifySection } from "@/components/alerts/whatsapp-notify"
 
 /*
 Delivery (MH-378): how this workspace reaches the signed-in member.
@@ -217,7 +218,7 @@ export default function DeliveryPage() {
             </div>
           </section>
 
-          <section aria-labelledby="devices" className="pt-8 pb-10" data-section="devices">
+          <section aria-labelledby="devices" className="pt-8 pb-8" data-section="devices">
             <div className="flex flex-wrap items-end justify-between gap-3 px-6 pb-3">
               <div>
                 <h2 id="devices" className="text-base font-medium">
@@ -294,6 +295,8 @@ export default function DeliveryPage() {
           </section>
         </>
       )}
+      {/* MH-411: a second channel for the same events, the member's own number. */}
+      {ws.current ? <WhatsAppNotifySection /> : null}
     </>
   )
 }

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/mcp"
 	"github.com/fadymondy/moharrik/internal/research"
 	"github.com/fadymondy/moharrik/internal/testdb"
@@ -164,6 +165,7 @@ type surface struct {
 	feed    *fakeFeed
 	feedURL string
 	sys     *sql.DB
+	app     *app.App
 }
 
 func bootSurface(t *testing.T) *surface {
@@ -204,7 +206,7 @@ func bootSurface(t *testing.T) *surface {
 	alice.must("POST", "/api/auth/register", map[string]string{"email": "surface-" + rnd() + "@example.test", "password": "correct-horse-7"}, 201)
 	wsID := alice.must("POST", "/api/me/workspaces", map[string]string{"name": "Surface " + rnd()}, 201)["workspace"].(map[string]any)["id"].(string)
 	alice.ws = wsID
-	return &surface{alice: alice, ws: wsID, srv: srv, evo: evo, feed: feed, feedURL: feedSrv.URL + "/rss.xml", sys: a.SysDB}
+	return &surface{alice: alice, ws: wsID, srv: srv, evo: evo, feed: feed, feedURL: feedSrv.URL + "/rss.xml", sys: a.SysDB, app: a}
 }
 
 // mint makes a token with these scopes through the settings page's route and

@@ -377,6 +377,31 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	alice.must("POST", "/api/w/campaigns", map[string]any{"list_id": listID, "subject": marker + " campaign", "body": "iso", "smtp_service_id": smtpID}, 201)
 
+	// MH-411: alice's WhatsApp notifications in A, with a pending event and a
+	// logged message that carry the marker. Written directly: verifying needs
+	// a linked number. B's own /api/w/notify/whatsapp must show none of it.
+	var aliceUserID string
+	if err := a.SysDB.QueryRow(`SELECT user_id FROM workspace_members WHERE workspace_id = $1`, aID).Scan(&aliceUserID); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO member_whatsapp (workspace_id, user_id, phone, verified_at) VALUES ($1, $2, '201699990000', now())`,
+		`INSERT INTO member_whatsapp_events (workspace_id, user_id, kind, title, dedupe_key) VALUES ($1, $2, 'lead', $3, 'iso')`,
+		`INSERT INTO member_whatsapp_messages (workspace_id, user_id, ok, error) VALUES ($1, $2, false, $3)`,
+		`INSERT INTO member_whatsapp_marks (workspace_id, source, mark) VALUES ($1, 'iso-' || $2 || $3, now())`,
+	} {
+		args := []any{aID, aliceUserID}
+		if strings.Contains(q, "$3") {
+			args = append(args, marker)
+		}
+		if _, err := a.SysDB.Exec(q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, b := alice.do("GET", "/api/w/notify/whatsapp", nil); !strings.Contains(string(b), "201699990000") || !strings.Contains(string(b), marker) {
+		t.Fatalf("alice should see her own WhatsApp notifications: %s", b)
+	}
+
 	// Trends (MH-385, MH-387): a keyword topic through the API, and a source, an
 	// item and a trending topic (story) written directly: a real source would
 	// fetch the internet on create. The marker is in each, so a leak is caught.
@@ -555,6 +580,17 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	alice.ws = aID
 	if code, b := alice.do("GET", "/api/w/invitations", nil); code != 200 || !strings.Contains(string(b), invID) {
 		t.Errorf("A's invitation was removed from B: %d %s", code, b)
+	}
+	if code, b := alice.do("GET", "/api/w/notify/whatsapp", nil); code != 200 || !strings.Contains(string(b), "201699990000") {
+		t.Errorf("alice's WhatsApp notifications were changed or removed from B: %d %s", code, b)
+	}
+	bob.ws = bID
+	if _, b := bob.do("GET", "/api/w/notify/whatsapp", nil); strings.Contains(string(b), "201699990000") || strings.Contains(string(b), marker) {
+		t.Errorf("bob's WhatsApp notifications showed alice's: %s", b)
+	}
+	bob.ws = aID
+	if code, _ := bob.do("GET", "/api/w/notify/whatsapp", nil); code != 404 {
+		t.Errorf("bob naming A for WhatsApp notifications: %d", code)
 	}
 	if code, b := alice.do("GET", "/api/w/smtp-services", nil); code != 200 || !strings.Contains(string(b), smtpID) || !strings.Contains(string(b), `"is_default":true`) {
 		t.Errorf("A's SMTP service was changed or removed from B: %d %s", code, b)

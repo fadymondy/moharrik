@@ -38,6 +38,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"oauth_grants",   // connected apps (MH-391)
 	"audit_settings", // audit log retention (MH-392)
 	"smtp_services",  // several SMTP services per workspace (MH-412)
+	// members' WhatsApp notifications (MH-411)
+	"member_whatsapp", "member_whatsapp_events", "member_whatsapp_messages", "member_whatsapp_marks",
 }
 
 /*
@@ -75,6 +77,9 @@ var AuditExcluded = map[string]string{
 	"news_items":                 "items a feed collected; saving one is recorded by its request row",
 	"whatsapp_confirmations":     "a one-time confirmation code, deleted on use",
 	"notification_items":         "the inbound feed; marking items read or saved is recorded by its request row",
+	"member_whatsapp_events":     "the WhatsApp notifier's outbox, written and marked sent by every tick",
+	"member_whatsapp_messages":   "the WhatsApp notifier's send log, itself a record",
+	"member_whatsapp_marks":      "the WhatsApp notifier's watermarks, moved by every tick",
 }
 
 // AuditedTables are the tenant tables the audit trigger is attached to.

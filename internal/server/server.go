@@ -144,6 +144,11 @@ func Boot() *app.App {
 		return inbox.FileWhatsApp(ctx, a, workspaceID, phone, name, text, externalID)
 	})
 
+	// Members' WhatsApp notifications (MH-411): one in-process ticker that
+	// reads new events and sends each member's batch when their rules allow.
+	// WHATSAPP_NOTIFY=off turns it off.
+	whatsapp.StartNotifier(a, 30*time.Second)
+
 	// The automation scheduler: one in-process clock firing the schedules that
 	// are due. SCHEDULER=off turns it off for the tests and the OpenAPI export.
 	// In-process, like the other two tickers — a second replica would need a
@@ -228,6 +233,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	inbox.Register(api, a)
 	inbox.RegisterMailbox(api, a)
 	whatsapp.Register(api, a)
+	whatsapp.RegisterNotify(api, a) // members' WhatsApp notifications (MH-411)
 	trends.Register(api, a)
 	automation.Register(api, a, automation.Default())
 	automation.RegisterConnect(api, a, automation.Default()) // connect a browser by approval (MH-478)
