@@ -1,54 +1,150 @@
 "use client"
 
 import Link from "next/link"
-import { KeyRoundIcon, UsersIcon } from "lucide-react"
+import { Building2Icon, KeyRoundIcon, UsersIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
+import {
+  InboxCard,
+  LeadsCard,
+  MarketingCard,
+  NotificationsCard,
+  Panel,
+  PipelineCard,
+  SetupCard,
+  TodayStrip,
+  TrendsCard,
+  setupPending,
+} from "@/components/overview/overview-cards"
+import { ErrorState } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
+import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
+import { useOverview } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
+/**
+ * The workspace's front page (MH-462): what is happening across leads, the
+ * pipeline, the inbox, notifications, marketing and trends, and what is still
+ * to set up — every figure from GET /api/w/overview, every count a link to the
+ * page it came from. A section the viewer's role cannot read is not rendered.
+ */
 export default function OverviewPage() {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   useDocumentTitle(`${t("nav.overview")} · ${ws.summary.name}`)
   const base = `/${locale}/w/${ws.slug}`
-  const details = ws.current?.workspace
+
+  const ov = useOverview(ws.id)
+  // A new lead or message changes the numbers on this page; the stream says so.
+  useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind === "lead" || e.kind === "message") void ov.mutate()
+  })
+  const o = ov.data
+
+  const sections = o
+    ? [o.pipeline, o.leads, o.conversations, o.notifications, o.marketing, o.trends].filter((s) => s !== null).length
+    : 0
+  const showSetup = !!o && setupPending(o.setup)
 
   return (
     <>
-      <SectionHeader micro={t("nav.overview")} title={ws.summary.name} action={<Badge variant="outline">{t(`role.${ws.summary.role}`)}</Badge>} />
+      <SectionHeader micro={t("nav.overview")} title={<bdi>{ws.summary.name}</bdi>} action={<Badge variant="outline">{t(`role.${ws.summary.role}`)}</Badge>} />
 
+      {ov.error ? (
+        <div className="mt-6">
+          <ErrorState error={ov.error} />
+        </div>
+      ) : !o ? (
+        <OverviewSkeleton />
+      ) : (
+        <div className="mt-6 pb-10" data-overview>
+          <TodayStrip today={o.today} base={base} />
 
-      <div className="grid-separator-contained hatch-band mt-8 border-t-0" aria-hidden />
+          <div className="grid-cells grid-cells-flush-x mt-6 grid-cols-1 lg:grid-cols-2" data-overview-cards>
+            {showSetup && o.setup ? <SetupCard items={o.setup} base={base} can={ws.can} className="lg:col-span-2" /> : null}
+            {o.pipeline ? <PipelineCard p={o.pipeline} currency={o.currency} base={base} className="lg:col-span-2" /> : null}
+            {o.leads ? <LeadsCard leads={o.leads} counts={o.today.leads} base={base} canAddForm={ws.can("campaigns:write")} /> : null}
+            {o.conversations ? (
+              <InboxCard items={o.conversations} unread={o.today.unread_conversations} base={base} canAddWidget={ws.can("inbox:manage")} />
+            ) : null}
+            {o.notifications ? (
+              <NotificationsCard items={o.notifications} unread={o.today.unread_notifications} base={base} canAddSource={ws.can("notifications:manage")} />
+            ) : null}
+            {o.marketing ? (
+              <MarketingCard m={o.marketing} base={base} canWriteContacts={ws.can("contacts:write")} canWriteCampaigns={ws.can("campaigns:write")} />
+            ) : null}
+            {o.trends ? <TrendsCard tr={o.trends} base={base} canManage={ws.can("trends:manage")} /> : null}
+            <WorkspaceCard base={base} timezone={o.timezone} currency={o.currency} limited={sections === 0} />
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
 
-      <dl className="grid grid-cols-1 divide-y divide-line border-b border-line text-sm sm:grid-cols-4 sm:divide-x sm:divide-y-0 rtl:sm:divide-x-reverse">
+/** The workspace's own settings, which used to be the whole page. There is no general Settings page to move them to. */
+function WorkspaceCard({ base, timezone, currency, limited }: { base: string; timezone: string; currency: string; limited: boolean }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const details = ws.current?.workspace
+  return (
+    <Panel id="workspace" title={t("overview.workspace")} icon={<Building2Icon />} className={limited ? "lg:col-span-2" : undefined}>
+      {limited ? <p className="border-b border-line px-5 py-3 text-sm text-grid-muted">{t("overview.limitedRole")}</p> : null}
+      <dl className="grid grid-cols-2 divide-line text-sm">
         {[
           [t("overview.slug"), <Ltr key="s" mono>/{ws.slug}</Ltr>],
           [t("overview.locale"), details?.locale ? <Ltr key="l" mono>{details.locale}</Ltr> : "—"],
-          [t("overview.timezone"), details?.timezone ? <Ltr key="tz" mono>{details.timezone}</Ltr> : "—"],
-          [t("overview.currency"), details?.currency ? <Ltr key="c" mono>{details.currency}</Ltr> : "—"],
+          [t("overview.timezone"), <Ltr key="tz" mono>{timezone}</Ltr>],
+          [t("overview.currency"), <Ltr key="c" mono>{currency}</Ltr>],
         ].map(([label, value], i) => (
-          <div key={i} className="px-6 py-4">
+          <div key={i} className="border-b border-line px-5 py-3 odd:border-e">
             <dt className="grid-micro mb-1">{label}</dt>
             <dd className="text-grid-fg">{value}</dd>
           </div>
         ))}
       </dl>
-
-      <div className="flex flex-wrap gap-2 px-6 py-6">
-        <Button variant="outline" nativeButton={false} render={<Link href={`${base}/members`} />}>
-          <UsersIcon />
-          {t("nav.members")}
-        </Button>
-        <Button variant="outline" nativeButton={false} render={<Link href={`${base}/settings/mcp`} />}>
+      <div className="flex flex-wrap gap-2 px-5 py-4">
+        {ws.can("members:read") ? (
+          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`${base}/members`} />}>
+            <UsersIcon />
+            {t("nav.members")}
+          </Button>
+        ) : null}
+        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`${base}/settings/mcp`} />}>
           <KeyRoundIcon />
           {t("nav.mcpTokens")}
         </Button>
       </div>
-    </>
+    </Panel>
+  )
+}
+
+function OverviewSkeleton() {
+  return (
+    <div className="mt-6" aria-busy>
+      <div className="grid-cells grid-cells-flush-x grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="space-y-2 px-5 py-4">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-12" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+        ))}
+      </div>
+      <div className="grid-cells grid-cells-flush-x mt-6 grid-cols-1 lg:grid-cols-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="space-y-3 px-5 py-4">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

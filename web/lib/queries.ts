@@ -41,6 +41,7 @@ import {
   type GoogleConnections,
   type NewsItem,
   type NotificationItem,
+  type Overview,
   type Topic,
   type User,
   type WebhookSource,
@@ -328,3 +329,17 @@ export function useResearchContent(workspaceId: string | null | undefined, id: s
 
 export const useGoogleConnections = (id?: string | null, enabled = true) =>
   useScoped<GoogleConnections>("/api/w/google/connections", id, enabled)
+
+// ── Overview (MH-462) ───────────────────────────────────────────────────
+
+/** The front page. A live research run is polled until it settles (research publishes no events). */
+export function useOverview(workspaceId: string | null | undefined) {
+  return useSWR<Overview>(
+    workspaceId ? ["/api/w/overview", workspaceId] : null,
+    ([p, id]: [string, string]) => api<Overview>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) => (data?.today.research?.live ? 5000 : 0),
+    },
+  )
+}

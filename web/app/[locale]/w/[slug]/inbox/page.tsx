@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
+import { useSearchParams } from "next/navigation"
 import { MessageSquareIcon, SettingsIcon, MailIcon, MessageCircleIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -34,9 +35,14 @@ export default function InboxPage() {
   useDocumentTitle(`${t("nav.inbox")} · ${ws.summary.name}`)
   const canManage = ws.can("inbox:manage")
 
-  const [status, setStatus] = useState("open")
-  const [unread, setUnread] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
+  // The Overview links here as ?unread=1 (its count covers every status) and
+  // ?c=<id> (one conversation, whatever its status), so both widen the status filter.
+  const params = useSearchParams()
+  const linkedUnread = params.get("unread") === "1"
+  const linkedConversation = params.get("c")
+  const [status, setStatus] = useState(linkedUnread || linkedConversation ? "" : "open")
+  const [unread, setUnread] = useState(linkedUnread)
+  const [selected, setSelected] = useState<string | null>(linkedConversation)
 
   const list = useConversations(ws.id, { status: status || undefined, unread })
 

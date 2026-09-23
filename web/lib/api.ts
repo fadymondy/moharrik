@@ -686,3 +686,104 @@ export type GoogleConnections = {
 }
 
 export type GoogleDisconnected = { revoked: boolean; shared: boolean; revoke_error?: string }
+
+// ── Overview (MH-462) ───────────────────────────────────────────────────
+// The workspace's front page in one read. A null section is one the viewer's
+// role cannot read (hidden), never "empty": an empty list is [].
+
+export type OverviewLeadCounts = Record<LeadStatus, number>
+
+export type OverviewToday = {
+  leads: OverviewLeadCounts | null
+  /** Since midnight in the workspace's time zone. */
+  leads_received_today: number | null
+  unread_conversations: number | null
+  unread_notifications: number | null
+  research: { live: number; latest: { id: string; topic: string; status: "queued" | "running" } | null } | null
+}
+
+export type OverviewStage = { id: string; name: string; deal_count: number; value_minor: number }
+
+export type OverviewDeal = {
+  id: string
+  title: string
+  value_minor: number
+  currency: string
+  stage_name: string
+  company_name: string | null
+  /** YYYY-MM-DD */
+  expected_close: string
+}
+
+export type OverviewPipeline = {
+  /** Open stages in board order. Values are in the workspace currency only. */
+  stages: OverviewStage[]
+  open_deals: number
+  open_value_minor: number
+  /** Open deals in another currency: counted, never summed. */
+  other_currency_deals: number
+  won_this_month: { since: string; count: number; value_minor: number; other_currency_deals: number }
+  next_closes: OverviewDeal[]
+}
+
+export type OverviewLead = {
+  id: string
+  name: string
+  email: string
+  company: string
+  status: LeadStatus
+  origin: string
+  attribution: Pick<LeadAttribution, "utm_source" | "utm_medium" | "referrer" | "gclid">
+  created_at: string
+}
+
+export type OverviewConversation = {
+  id: string
+  channel: ConversationChannel
+  status: ConversationStatus
+  customer_name: string
+  customer_email: string
+  subject: string
+  unread: boolean
+  preview: string
+  last_message_at: string
+}
+
+export type OverviewNotification = {
+  id: string
+  severity: NotificationSeverity
+  title: string
+  source_name: string
+  url: string
+  read: boolean
+  occurred_at: string
+}
+
+export type OverviewMarketing = {
+  /** null without contacts:read. */
+  lists: { id: string; name: string; subscribed: number; pending: number }[] | null
+  draft_count: number
+  drafts: { id: string; subject: string; channel: CampaignChannel; list_name: string; created_at: string }[]
+}
+
+export type OverviewTrends = {
+  topics: number
+  matched: number
+  items: { id: string; title: string; url: string; source_name: string; topics: string[]; published_at: string }[]
+}
+
+export type SetupKey = "inquiry_form" | "smtp" | "chat_widget" | "whatsapp" | "google" | "browser"
+
+export type Overview = {
+  currency: string
+  timezone: string
+  today: OverviewToday
+  pipeline: OverviewPipeline | null
+  leads: OverviewLead[] | null
+  conversations: OverviewConversation[] | null
+  notifications: OverviewNotification[] | null
+  marketing: OverviewMarketing | null
+  trends: OverviewTrends | null
+  /** Only the items the viewer's role can see. available=false: this server cannot do it at all. */
+  setup: { key: SetupKey; done: boolean; available: boolean }[] | null
+}
