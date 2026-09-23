@@ -4,9 +4,18 @@
 //
 // Signs in as demo@moharrik.com through the login form (password from DEMO_PASSWORD or
 // ~/.moharrik-demo.json), then visits every workspace page in en/light and ar/dark at 1440,
-// in a real painting headless Chrome. For each page it records page errors, console errors,
-// failed requests, untranslated keys, horizontal overflow, the direction, a 404, a page still
-// showing skeletons, an error box, and how much it actually shows. Prints JSON.
+// then again at 390, in a real painting headless Chrome. For each page it records page errors,
+// console errors, failed requests, untranslated keys, horizontal overflow, the direction, a 404,
+// a page still showing skeletons, an error box, how much it actually shows, and the computed
+// font size of every visible character. Prints JSON, then a summary on stderr.
+//
+// Exits 1 if ANY page is wider than the viewport (MH-463): wide content must scroll inside its
+// own box (components/scroll-x.tsx), never the page. Each overflow names the elements that
+// stick out. Scrollbars are left visible (no --hide-scrollbars), so the screenshots show a
+// scroll affordance the way a person sees it.
+//
+// Every workspace page opens an SSE stream (MH-378), so "networkidle" never settles: pages are
+// read after domcontentloaded plus a short wait.
 import { chromium } from "playwright-core"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
@@ -32,10 +41,12 @@ async function session(theme, locale) {
     executablePath: process.env.CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe",
     headless: true, viewport: { width: 1440, height: 900 }, colorScheme: theme, locale: locale === "ar" ? "ar-EG" : "en-US",
     args: ["--disable-extensions", "--no-first-run"],
+    ignoreDefaultArgs: ["--hide-scrollbars"],
   })
   await ctx.addInitScript((t) => { try { localStorage.setItem("theme", t) } catch {} }, theme)
   const page = ctx.pages()[0]
-  await page.goto(`${base}/${locale}/login`, { waitUntil: "networkidle" })
+  await page.goto(`${base}/${locale}/login`, { waitUntil: "domcontentloaded" })
+  await page.waitForSelector("#email", { timeout: 30000 })
   const frames = await page.evaluate(() => new Promise((r) => { let n = 0; const t0 = performance.now(); const f = () => (performance.now() - t0 < 1000 ? (n++, requestAnimationFrame(f)) : r(n)); requestAnimationFrame(f) }))
   await page.fill("#email", EMAIL)
   await page.fill("#password", PASSWORD)
@@ -146,7 +157,40 @@ async function visit(sess, locale, theme, [name, route, action], width = 1440) {
       title: document.title, h1: document.querySelector("h1")?.innerText ?? "",
       dir: document.documentElement.dir, lang: document.documentElement.lang,
       dark: document.documentElement.classList.contains("dark"),
-      overflowX: document.documentElement.scrollWidth > window.innerWidth + 1,
+      // Wider than the viewport, scrollbar or not (clientWidth excludes a visible one).
+      overflowX: document.documentElement.scrollWidth > Math.min(window.innerWidth, document.documentElement.clientWidth),
+      scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth,
+      overflowBy: [...document.querySelectorAll("body *")]
+        .filter((e) => {
+          const r = e.getBoundingClientRect()
+          if (r.width === 0 || (r.right <= innerWidth + 1 && r.left >= -1) || getComputedStyle(e).position === "fixed") return false
+          // Clipped by a scroller only if that scroller is in its containing-block chain: an
+          // absolutely positioned child (an sr-only label) escapes a static scroller and widens
+          // the page, which is exactly the bug this has to name.
+          const start = getComputedStyle(e).position === "absolute" ? e.offsetParent : e.parentElement
+          for (let p = start; p; p = p.parentElement) if (/auto|scroll|hidden|clip/.test(getComputedStyle(p).overflowX)) return false
+          return true
+        })
+        .slice(0, 5)
+        .map((e) => `${e.tagName.toLowerCase()}.${String(e.className).split(" ").slice(0, 4).join(".")} (${Math.round(e.getBoundingClientRect().width)}px)`),
+      fontSizes: (() => {
+        // Share of visible characters by computed font size (the MH-468 audit).
+        const hist = {}, small = []
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          const chars = n.textContent.replace(/\s+/g, "").length
+          const el = n.parentElement
+          if (!chars || !el || el.closest("script,style,noscript,template,[aria-hidden=true],nextjs-portal")) continue
+          const cs = getComputedStyle(el)
+          const r = el.getBoundingClientRect()
+          if (cs.visibility === "hidden" || cs.display === "none" || +cs.opacity === 0 || r.width < 2 || r.height < 2) continue
+          if (cs.clip === "rect(0px, 0px, 0px, 0px)" || (cs.position === "absolute" && r.width <= 1)) continue
+          const px = Math.round(parseFloat(cs.fontSize) * 2) / 2
+          hist[px] = (hist[px] ?? 0) + chars
+          if (px < 12 && small.length < 5) small.push(`${px}px ${el.tagName.toLowerCase()}.${String(el.className).split(" ").slice(0, 5).join(".")} "${n.textContent.trim().slice(0, 30)}"`)
+        }
+        return { hist, small }
+      })(),
       mainChars: text.length, rows: main.querySelectorAll("tr, li, [data-deal-card], [data-conversation]").length,
       busy, alerts, notFound, placeholders, visibleKeys: visibleKeys.slice(0, 10), fontFamily, bodyFont, loadedFaces,
       sample: text.replace(/\s+/g, " ").slice(0, 400),
@@ -159,23 +203,36 @@ async function visit(sess, locale, theme, [name, route, action], width = 1440) {
 const results = []
 const ar = await session("dark", "ar")
 console.error(`frames/s: en ${en.frames}, ar ${ar.frames}`)
+// Every page, at desktop and phone width, in both languages.
+const WIDTHS = (process.env.WIDTHS ?? "1440,390").split(",").map(Number)
 for (const [sess, locale, theme] of [[en, "en", "light"], [ar, "ar", "dark"]]) {
-  for (const p of PAGES) {
-    if (ONLY && !ONLY.includes(p[0])) continue
-    const r = await visit(sess, locale, theme, p)
-    results.push(r)
-    console.error(`${r.name} ${locale}/${theme}: ${r.status} errs=${r.errors.length} failed=${r.failed.length} keys=${r.visibleKeys?.length ?? "?"} chars=${r.mainChars}`)
+  for (const width of WIDTHS) {
+    await sess.page.setViewportSize({ width, height: width < 768 ? 844 : 900 })
+    for (const p of PAGES) {
+      if (ONLY && !ONLY.includes(p[0])) continue
+      const r = await visit(sess, locale, theme, p, width)
+      results.push(r)
+      console.error(`${r.name} ${locale}/${theme} ${width}: ${r.status} errs=${r.errors.length} failed=${r.failed.length} keys=${r.visibleKeys?.length ?? "?"} chars=${r.mainChars} overflow=${r.overflowX ? r.scrollWidth + "px " + r.overflowBy.join(", ") : "no"}`)
+    }
   }
-}
-// Phone width for the pages people will open on the move.
-await en.page.setViewportSize({ width: 390, height: 844 })
-for (const p of PAGES.filter((x) => ["overview", "contacts", "deals", "leads", "inbox", "research"].includes(x[0]))) {
-  const r = await visit(en, "en", "light", p, 390)
-  results.push(r)
-  console.error(`${r.name} en/light 390: ${r.status} errs=${r.errors.length} failed=${r.failed.length} overflow=${r.overflowX}`)
 }
 await en.ctx.close()
 await ar.ctx.close()
 const report = path.join(tmpdir(), "demo-tour.json")
 writeFileSync(report, JSON.stringify({ ids, results }, null, 2))
 console.log(JSON.stringify({ ids, report, results }, null, 2))
+
+// Summary: overflow (fails the run) and the font-size histogram per width.
+const overflows = results.filter((r) => r.overflowX || r.probeError)
+console.error(`\n=== overflow: ${overflows.length} of ${results.length} page visits ===`)
+for (const r of overflows) console.error(`  ${r.name} ${r.locale} ${r.width}: ${r.probeError ?? r.scrollWidth + "px > " + r.innerWidth + "px: " + r.overflowBy.join(", ")}`)
+for (const width of WIDTHS) {
+  const sum = {}
+  for (const r of results.filter((x) => x.width === width)) for (const [px, n] of Object.entries(r.fontSizes?.hist ?? {})) sum[px] = (sum[px] ?? 0) + n
+  const total = Object.values(sum).reduce((a, b) => a + b, 0) || 1
+  const line = Object.keys(sum).map(Number).sort((a, b) => a - b).map((px) => `${px}px ${((100 * sum[px]) / total).toFixed(1)}%`).join(" | ")
+  console.error(`=== font sizes at ${width} (share of visible characters): ${line}`)
+  const small = [...new Set(results.filter((x) => x.width === width).flatMap((x) => (x.fontSizes?.small ?? []).map((s) => `${x.name}/${x.locale}: ${s}`)))]
+  console.error(small.length ? `    under 12px:\n      ${small.slice(0, 20).join("\n      ")}` : "    nothing under 12px")
+}
+if (overflows.length) process.exitCode = 1

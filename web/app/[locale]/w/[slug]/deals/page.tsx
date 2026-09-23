@@ -56,7 +56,7 @@ export default function DealsPage() {
         title={t("nav.deals")}
         description={t("deals.hint")}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div role="radiogroup" aria-label={t("deals.viewLabel")} className="flex gap-1">
               <Button type="button" size="icon-sm" variant={view === "board" ? "default" : "outline"} role="radio" aria-checked={view === "board"} aria-label={t("deals.viewBoard")} onClick={() => setView("board")}>
                 <LayoutGridIcon />

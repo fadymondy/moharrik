@@ -160,12 +160,12 @@ function NotConfigured({ redirectURL }: { redirectURL: string }) {
       className="mx-6 mt-4 flex max-w-3xl items-start gap-3 border border-line bg-grid-card px-4 py-3 text-sm"
     >
       <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
-      <div className="space-y-1">
+      <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
         <p className="font-medium text-grid-fg">{t("integrations.notConfigured")}</p>
         <p className="text-grid-muted">{t("integrations.notConfiguredBody")}</p>
         {redirectURL ? (
           <p className="text-grid-muted">
-            {t("integrations.redirectURL")} <Ltr>{redirectURL}</Ltr>
+            {t("integrations.redirectURL")} <Ltr className="break-all">{redirectURL}</Ltr>
           </p>
         ) : null}
       </div>

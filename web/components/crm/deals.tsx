@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { formatMoney, PickSelect, stageTone, toMajor, toMinor, useMemberNames } from "@/components/crm/shared"
 import { Ltr } from "@/components/copy-field"
+import { ScrollX } from "@/components/scroll-x"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -35,6 +36,8 @@ export type MoveFn = (dealId: string, stageId: string, position?: number) => voi
  * and touch path (HTML drag and drop does not fire on touch screens). The row
  * follows the document direction, so in Arabic the first stage sits on the right.
  */
+ * Columns share the width (at least 14rem each), so the default five stages fit a 1440 screen;
+ * past that the board scrolls inside ScrollX, which shows that it does (MH-463).
 export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Stage[]; deals: Deal[]; currency: string; onMove: MoveFn }) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<{ stage: string; before: string | null } | null>(null)
@@ -64,7 +67,7 @@ export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Sta
   }
 
   return (
-    <div className="overflow-x-auto border-y border-line" data-board>
+    <ScrollX className="border-y border-line" data-board>
       <div className="flex min-w-max divide-x divide-line rtl:divide-x-reverse">
         {stages.map((s) => {
           const list = byStage.get(s.id) ?? []
@@ -76,7 +79,7 @@ export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Sta
               data-stage={s.name}
               data-stage-id={s.id}
               aria-label={s.name}
-              className={`flex w-64 shrink-0 flex-col sm:w-72 ${hot ? "bg-grid-card" : ""}`}
+              className={`flex w-64 shrink-0 flex-col sm:w-auto sm:flex-[1_0_14rem] ${hot ? "bg-grid-card" : ""}`}
               onDragOver={(e) => {
                 e.preventDefault()
                 e.dataTransfer.dropEffect = "move"
@@ -133,7 +136,7 @@ export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Sta
           )
         })}
       </div>
-    </div>
+    </ScrollX>
   )
 }
 
@@ -234,7 +237,7 @@ export function DealsTable({ deals, empty }: { deals: Deal[]; empty?: string }) 
         <TableBody>
           {deals.map((d) => (
             <TableRow key={d.id} data-deal-row={d.title}>
-              <TableCell className="ps-6 font-medium">
+              <TableCell className="min-w-56 ps-6 font-medium whitespace-normal">
                 <Link className="hover:underline" href={`${base}/deals/${d.id}`}>
                   {d.title}
                 </Link>

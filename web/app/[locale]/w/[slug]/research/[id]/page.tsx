@@ -65,7 +65,7 @@ export default function ResearchRunPage() {
         title={run ? <span dir="auto">{run.topic}</span> : <Skeleton className="h-7 w-72 max-w-full" />}
         description={run ? t("research.startedAt", { date: fmt(run.started_at ?? run.created_at) }) : undefined}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canRun && live ? (
               <Button variant="outline" size="sm" onClick={cancel} disabled={cancelling} data-action="cancel-research">
                 {cancelling ? <LoaderCircleIcon className="animate-spin" /> : <SquareIcon />}

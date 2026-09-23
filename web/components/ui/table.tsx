@@ -2,16 +2,18 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { ScrollX } from "@/components/scroll-x"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    // Wide tables scroll in their own box, with a visible affordance, never the page (MH-463).
+    <ScrollX data-slot="table-container" className="w-full">
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
         {...props}
       />
-    </div>
+    </ScrollX>
   )
 }
 

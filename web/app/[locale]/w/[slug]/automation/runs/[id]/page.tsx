@@ -44,7 +44,7 @@ export default function RunPage() {
         title={t("automation.run")}
         description={run ? t("automation.runOn", { name: run.agent_name || t("automation.unnamedBrowser"), date: formatDate(run.created_at) }) : undefined}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canRun && live ? (
               <Button variant="outline" size="sm" onClick={cancel}>
                 <SquareIcon />

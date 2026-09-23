@@ -237,7 +237,7 @@ export default function DeliveryPage() {
             {devices.length === 0 ? (
               <EmptyState title={t("delivery.noDevices")} />
             ) : (
-              <div className="overflow-x-auto border-y border-line">
+              <div className="border-y border-line">
                 <Table>
                   <TableHeader>
                     <TableRow>

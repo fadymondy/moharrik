@@ -81,7 +81,7 @@ export default function InboxPage() {
         description={t("inbox.hint")}
         action={
           canManage ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/email`} />}>
                 <MailIcon />
                 {t("mailbox.title")}
@@ -116,8 +116,8 @@ export default function InboxPage() {
       ) : items.length === 0 ? (
         <EmptyState title={t("inbox.empty")} body={canManage ? t("inbox.emptyBody") : undefined} />
       ) : (
-        <div className="grid border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
-          <ul className="divide-y divide-line lg:border-e lg:border-line" data-conversation-list>
+        <div className="grid grid-cols-1 border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <ul className="min-w-0 divide-y divide-line lg:border-e lg:border-line" data-conversation-list>
             {items.map((c) => (
               <ConversationRow key={c.id} c={c} active={c.id === selected} onSelect={() => select(c.id)} />
             ))}
@@ -147,9 +147,9 @@ function ConversationRow({ c, active, onSelect }: { c: Conversation; active: boo
         aria-current={active ? "true" : undefined}
         data-conversation={c.id}
         data-conversation-unread={c.unread ? "true" : "false"}
-        className={`flex w-full flex-col gap-1 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} hover:bg-grid-soft`}
+        className={`flex w-full min-w-0 flex-col gap-1 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} hover:bg-grid-soft`}
       >
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
           <span className="truncate text-sm font-medium">{who}</span>
           <Badge variant={statusVariant[c.status]} className="ms-auto shrink-0">
