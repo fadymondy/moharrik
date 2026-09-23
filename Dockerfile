@@ -31,6 +31,12 @@ COPY web/ ./
 # Public, build-time values (inlined into the bundle); passed by the deploy as build args.
 ARG NEXT_PUBLIC_MAHAAM_EMBED_ORIGIN=https://console.mahaam.app
 ENV NEXT_PUBLIC_MAHAAM_EMBED_ORIGIN=$NEXT_PUBLIC_MAHAAM_EMBED_ORIGIN
+# Next bakes its rewrites into the build, so the /api and /graphql rewrite destination is decided
+# here, not by start.sh: the API on the loopback at the default PORT. Left unset it was
+# localhost:8120, where nothing listens in this container — an /api path that reached Next was a
+# 500 (MH-424). The API now answers every /api path itself; this keeps the fallback honest too.
+ARG API_ORIGIN=http://127.0.0.1:3000
+ENV API_ORIGIN=$API_ORIGIN
 RUN npm run build
 
 # ── Extension: the downloadable zip (MH-399) ───────────────────────────────────────────────────

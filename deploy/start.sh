@@ -11,8 +11,12 @@ PORT="${PORT:-3000}"
 WEB_PORT="${WEB_PORT:-3001}"
 export ADDR="${ADDR:-0.0.0.0:$PORT}"
 export WEB_ORIGIN="${WEB_ORIGIN:-http://127.0.0.1:$WEB_PORT}"
-# Next's own /api and /graphql rewrites go to the API on the loopback.
-export API_ORIGIN="${API_ORIGIN:-http://127.0.0.1:$PORT}"
+# Next's server-side calls to the API (app/feedback/route.ts reads API_ORIGIN at request time) go
+# to the API on the loopback, on the port the API actually listens on: ADDR's, which may have been
+# set on its own. Next's /api rewrite is fixed at build time instead (see the Dockerfile) — and the
+# API never hands it an /api path anyway (MH-424, internal/server/webproxy.go).
+API_PORT="${ADDR##*:}"
+export API_ORIGIN="${API_ORIGIN:-http://127.0.0.1:$API_PORT}"
 
 /app/bin/moharrik-api &
 api=$!
