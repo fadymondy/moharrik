@@ -711,7 +711,7 @@ func (b *builder) setup(can func(string) bool, env Env) []SetupItem {
 	// The campaigns page tells every campaigns:read member whether sending is
 	// configured; this says the same thing, no more.
 	add(SetupSMTP, authz.CampaignsRead,
-		`SELECT EXISTS (SELECT 1 FROM smtp_settings WHERE workspace_id = $1)`, true)
+		`SELECT EXISTS (SELECT 1 FROM smtp_services WHERE workspace_id = $1)`, true)
 	add(SetupChatWidget, authz.InboxRead,
 		`SELECT EXISTS (SELECT 1 FROM chat_widgets WHERE workspace_id = $1)`, true)
 	// Linked means the phone finished pairing (state open), the same test the

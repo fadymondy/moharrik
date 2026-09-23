@@ -77,7 +77,7 @@ func ListCampaignsPage(ctx context.Context, db *sql.DB, wsID, after string, limi
 	args = append(args, limit+1)
 	rows, err := db.QueryContext(ctx, `
 		SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
-		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at
+		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`
 		FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 		WHERE c.workspace_id = $1`+where+` ORDER BY c.created_at DESC, c.id DESC LIMIT $`+strconv.Itoa(len(args)), args...)
 	if err != nil {
@@ -87,7 +87,7 @@ func ListCampaignsPage(ctx context.Context, db *sql.DB, wsID, after string, limi
 	for rows.Next() {
 		var c CampaignOut
 		if err := rows.Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
-			&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt); err != nil {
+			&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName); err != nil {
 			return nil, err
 		}
 		page.Campaigns = append(page.Campaigns, c)

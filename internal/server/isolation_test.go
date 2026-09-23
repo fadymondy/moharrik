@@ -365,6 +365,18 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}, 201)
 	pushID := dev["device"].(map[string]any)["id"].(string)
 
+	// MH-412: an SMTP service in A, named with the marker, and a campaign that
+	// names it. Its password carries the marker too, so a response that leaked
+	// the credential would be caught by the same check as any other A data.
+	smtpID := alice.must("POST", "/api/w/smtp-services", map[string]any{
+		"name": marker + " SMTP", "host": "127.0.0.1", "port": 9, "username": "iso-user", "password": marker + "-pw",
+		"from_email": "iso@example.test", "tls_mode": "none",
+	}, 201)["service"].(map[string]any)["id"].(string)
+	if _, b := alice.do("GET", "/api/w/smtp-services", nil); strings.Contains(string(b), marker+"-pw") {
+		t.Fatalf("the SMTP service list handed back its password: %s", b)
+	}
+	alice.must("POST", "/api/w/campaigns", map[string]any{"list_id": listID, "subject": marker + " campaign", "body": "iso", "smtp_service_id": smtpID}, 201)
+
 	// Trends (MH-385, MH-387): a keyword topic through the API, and a source, an
 	// item and a trending topic (story) written directly: a real source would
 	// fetch the internet on create. The marker is in each, so a leak is caught.
@@ -434,7 +446,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal("A's setup left no audit rows: the audit sweep below would prove nothing")
 	}
 
-	aIDs := []string{aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID}
+	aIDs := []string{aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -442,12 +454,13 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"chat_widgets": widgetID, "conversations": convID,
 		"subscribe-forms": formID, "leads": leadID,
 		"google": googleID,
-		"mail": listID,
-		"push": pushID,
+		"mail":   listID,
+		"push":   pushID,
 		"topics": kwID, "feed_sources": feedID, "news": newsID, "trends": trendID,
 		"browsers": agentID, "workflows": wfID, "schedules": schedID,
 		"canned_replies": cannedID,
 		"oauth_grants":   grantID,
+		"smtp-services":  smtpID,
 	}
 
 	leaks := func(b []byte) string {
@@ -542,6 +555,9 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	alice.ws = aID
 	if code, b := alice.do("GET", "/api/w/invitations", nil); code != 200 || !strings.Contains(string(b), invID) {
 		t.Errorf("A's invitation was removed from B: %d %s", code, b)
+	}
+	if code, b := alice.do("GET", "/api/w/smtp-services", nil); code != 200 || !strings.Contains(string(b), smtpID) || !strings.Contains(string(b), `"is_default":true`) {
+		t.Errorf("A's SMTP service was changed or removed from B: %d %s", code, b)
 	}
 
 	// The sweep's empty body is refused by validation before the handler runs,

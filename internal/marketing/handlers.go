@@ -106,6 +106,11 @@ type CampaignOut struct {
 	LastError      string     `json:"last_error"`
 	SentAt         *time.Time `json:"sent_at"`
 	CreatedAt      time.Time  `json:"created_at"`
+	// The SMTP service an email campaign goes out through (MH-412). Null =
+	// the campaign default; SMTPServiceName is the service that resolves to
+	// now, so the list can say which provider a send will use.
+	SMTPServiceID   *string `json:"smtp_service_id"`
+	SMTPServiceName string  `json:"smtp_service_name"`
 }
 
 type SMTPOut struct {
@@ -185,28 +190,6 @@ func publicBase() string {
 	return "http://localhost:3120"
 }
 
-// LoadSMTP resolves the workspace's service on the app pool. Exported so the
-// MCP send_campaign tool resolves it exactly the way the REST route does,
-// rather than reimplementing the unsealing.
-func LoadSMTP(ctx context.Context, db *sql.DB, wsID string) (*SMTP, error) {
-	var s SMTP
-	var sealed string
-	err := db.QueryRowContext(ctx, `
-		SELECT host, port, username, password_sealed, from_name, from_email, tls_mode
-		FROM smtp_settings WHERE workspace_id = $1`, wsID,
-	).Scan(&s.Host, &s.Port, &s.Username, &sealed, &s.FromName, &s.FromEmail, &s.TLSMode)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNoService
-	}
-	if err != nil {
-		return nil, err
-	}
-	if s.Password, err = unseal(sealed); err != nil {
-		return nil, err
-	}
-	return &s, nil
-}
-
 // sendConfirmation delivers the double opt-in email. The row is written first:
 // a mail server being down must not lose the subscription.
 func sendConfirmation(ctx context.Context, db *sql.DB, wsID, email, locale, listName, token string) error {
@@ -225,15 +208,23 @@ func sendConfirmation(ctx context.Context, db *sql.DB, wsID, email, locale, list
 	})
 }
 
+// campaignServiceCols reads a campaign's own service and the name of the
+// service it resolves to now (its own, else the campaign default, else the
+// default) — the same order LoadCampaignSMTP sends through.
+const campaignServiceCols = `c.smtp_service_id, coalesce(
+		(SELECT x.name FROM smtp_services x WHERE x.workspace_id = c.workspace_id AND x.id = c.smtp_service_id),
+		(SELECT x.name FROM smtp_services x WHERE x.workspace_id = c.workspace_id AND x.is_campaign_default),
+		(SELECT x.name FROM smtp_services x WHERE x.workspace_id = c.workspace_id AND x.is_default), '')`
+
 func getCampaign(ctx context.Context, db *sql.DB, wsID, id string) (*CampaignOut, error) {
 	var c CampaignOut
 	err := db.QueryRowContext(ctx, `
 		SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
-		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at
+		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`
 		FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 		WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
 	).Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
-		&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt)
+		&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName)
 	if err != nil {
 		return nil, err
 	}
@@ -489,7 +480,7 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error500InternalServerError("could not list campaigns")
 		}
 		res := out(campaignsOut{CampaignPage: *page, MaxAudience: MaxSendAudience})
-		_ = a.SQLDB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM smtp_settings WHERE workspace_id = $1)`, s.WorkspaceID).Scan(&res.Body.SMTPConfigured)
+		res.Body.SMTPConfigured = HasSMTP(ctx, a.SQLDB, s.WorkspaceID)
 		_ = a.SQLDB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM whatsapp_links WHERE workspace_id = $1 AND state = 'open')`, s.WorkspaceID).Scan(&res.Body.WhatsAppLinked)
 		return res, nil
 	})
@@ -505,6 +496,8 @@ func Register(api huma.API, a *app.App) {
 			Subject string `json:"subject" minLength:"1" maxLength:"200" doc:"The email subject. For a WhatsApp campaign it is the internal name; it is not sent."`
 			Body    string `json:"body" minLength:"1" maxLength:"100000"`
 			Locale  string `json:"locale,omitempty" enum:"en,ar"`
+			// MH-412: which SMTP service an email campaign goes out through.
+			SMTPServiceID string `json:"smtp_service_id,omitempty" doc:"Email only. Omit for the workspace's campaign default."`
 		}
 	}) (*body[struct {
 		Campaign CampaignOut `json:"campaign"`
@@ -513,13 +506,17 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
+		svcID, err := campaignServiceID(ctx, a.SQLDB, s.WorkspaceID, in.Body.SMTPServiceID)
+		if err != nil {
+			return nil, err
+		}
 		var id string
 		err = a.SQLDB.QueryRowContext(ctx, `
-			INSERT INTO campaigns (workspace_id, list_id, channel, subject, body, locale, created_by)
-			SELECT $1, l.id, $3, $4, $5, $6, $7 FROM mail_lists l WHERE l.workspace_id = $1 AND l.id = $2
+			INSERT INTO campaigns (workspace_id, list_id, channel, subject, body, locale, created_by, smtp_service_id)
+			SELECT $1, l.id, $3, $4, $5, $6, $7, $8 FROM mail_lists l WHERE l.workspace_id = $1 AND l.id = $2
 			RETURNING id`, s.WorkspaceID, in.Body.ListID, normChannel(in.Body.Channel),
 			strings.TrimSpace(in.Body.Subject), in.Body.Body,
-			normLocale(in.Body.Locale), s.UserID).Scan(&id)
+			normLocale(in.Body.Locale), s.UserID, svcID).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("list not found")
 		}
@@ -560,6 +557,7 @@ func Register(api huma.API, a *app.App) {
 
 	registerCampaignEdit(api, a)
 	registerSubscriberAdmin(api, a)
+	registerSMTPServices(api, a)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-send-campaign", Method: http.MethodPost, Path: "/api/w/campaigns/{id}/send",
@@ -609,8 +607,9 @@ func Register(api huma.API, a *app.App) {
 		}
 
 		// Resolve the service before accepting, so a misconfiguration is reported
-		// to the caller rather than discovered halfway through a list.
-		svc, err := LoadSMTP(ctx, a.SQLDB, s.WorkspaceID)
+		// to the caller rather than discovered halfway through a list. The
+		// campaign's own service, else the campaign default (MH-412).
+		svc, err := LoadCampaignSMTP(ctx, a.SQLDB, s.WorkspaceID, in.ID)
 		if errors.Is(err, ErrNoService) {
 			return nil, huma.Error409Conflict("configure SMTP for this workspace before sending")
 		}
@@ -630,34 +629,33 @@ func Register(api huma.API, a *app.App) {
 	})
 
 	// ---- SMTP settings ----
+	//
+	// The single-service endpoints predate MH-412 and keep working: they read
+	// and write the workspace's DEFAULT service. The list of services is
+	// registerSMTPServices (smtp_service_routes.go).
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-smtp", Method: http.MethodGet, Path: "/api/w/mail/smtp",
-		Summary: "This workspace's SMTP service (the password is never returned)", Tags: tags,
+		Summary: "This workspace's default SMTP service (the password is never returned)", Tags: tags,
 	}, func(ctx context.Context, _ *wsHeader) (*body[SMTPOut], error) {
 		s, err := scope(ctx, authz.MailSettings)
 		if err != nil {
 			return nil, err
 		}
 		o := SMTPOut{Port: 587, TLSMode: TLSStartTLS}
-		var sealed string
-		var updated time.Time
-		err = a.SQLDB.QueryRowContext(ctx, `
-			SELECT host, port, username, password_sealed, from_name, from_email, tls_mode, updated_at
-			FROM smtp_settings WHERE workspace_id = $1`, s.WorkspaceID,
-		).Scan(&o.Host, &o.Port, &o.Username, &sealed, &o.FromName, &o.FromEmail, &o.TLSMode, &updated)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		d, err := DefaultSMTPService(ctx, a.SQLDB, s.WorkspaceID)
+		if err != nil && !errors.Is(err, ErrNoService) {
 			return nil, huma.Error500InternalServerError("could not read SMTP settings")
 		}
-		if err == nil {
-			o.Configured, o.HasPassword, o.UpdatedAt = true, sealed != "", &updated
+		if d != nil {
+			o = legacyOut(d)
 		}
 		return out(o), nil
 	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-put-smtp", Method: http.MethodPut, Path: "/api/w/mail/smtp",
-		Summary: "Save this workspace's SMTP service", Tags: tags,
+		Summary: "Save this workspace's default SMTP service (creates it when there is none)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body struct {
@@ -674,56 +672,51 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		from, err := mail.ParseAddress(strings.TrimSpace(in.Body.FromEmail))
-		if err != nil {
-			return nil, huma.Error422UnprocessableEntity("the sender is not a valid email address")
-		}
 		b := in.Body
-		keep := b.Password == nil
-		sealed := ""
-		if !keep {
-			if sealed, err = seal(*b.Password); err != nil {
-				return nil, huma.Error500InternalServerError(err.Error())
-			}
+		input := SMTPServiceInput{Host: b.Host, Port: b.Port, Username: b.Username, Password: b.Password,
+			FromName: b.FromName, FromEmail: b.FromEmail, TLSMode: b.TLSMode}
+		d, err := DefaultSMTPService(ctx, a.SQLDB, s.WorkspaceID)
+		var saved *SMTPService
+		switch {
+		case errors.Is(err, ErrNoService):
+			input.Name = "Default"
+			saved, err = CreateSMTPService(ctx, a.SQLDB, s.WorkspaceID, s.UserID, input)
+		case err != nil:
+			return nil, huma.Error500InternalServerError("could not read SMTP settings")
+		default:
+			input.Name = d.Name
+			saved, err = UpdateSMTPService(ctx, a.SQLDB, s.WorkspaceID, d.ID, input)
 		}
-		_, err = a.SQLDB.ExecContext(ctx, `
-			INSERT INTO smtp_settings (workspace_id, host, port, username, password_sealed, from_name, from_email, tls_mode)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			ON CONFLICT (workspace_id) DO UPDATE SET host = EXCLUDED.host, port = EXCLUDED.port,
-			  username = EXCLUDED.username,
-			  password_sealed = CASE WHEN $9 THEN smtp_settings.password_sealed ELSE EXCLUDED.password_sealed END,
-			  from_name = EXCLUDED.from_name, from_email = EXCLUDED.from_email, tls_mode = EXCLUDED.tls_mode,
-			  updated_at = now()`,
-			s.WorkspaceID, strings.TrimSpace(b.Host), b.Port, strings.TrimSpace(b.Username), sealed,
-			strings.TrimSpace(b.FromName), strings.ToLower(from.Address), b.TLSMode, keep)
 		if err != nil {
-			slog.ErrorContext(ctx, "save smtp", "err", err)
-			return nil, huma.Error500InternalServerError("could not save SMTP settings")
+			return nil, serviceError(ctx, err)
 		}
-		now := time.Now()
-		var has bool
-		_ = a.SQLDB.QueryRowContext(ctx, `SELECT password_sealed <> '' FROM smtp_settings WHERE workspace_id = $1`, s.WorkspaceID).Scan(&has)
-		return out(SMTPOut{Configured: true, Host: strings.TrimSpace(b.Host), Port: b.Port, Username: strings.TrimSpace(b.Username),
-			HasPassword: has, FromName: strings.TrimSpace(b.FromName), FromEmail: strings.ToLower(from.Address), TLSMode: b.TLSMode, UpdatedAt: &now}), nil
+		return out(legacyOut(saved)), nil
 	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-delete-smtp", Method: http.MethodDelete, Path: "/api/w/mail/smtp",
-		DefaultStatus: http.StatusNoContent, Summary: "Remove this workspace's SMTP service", Tags: tags,
+		DefaultStatus: http.StatusNoContent, Summary: "Remove this workspace's default SMTP service (only when it is the last one)", Tags: tags,
 	}, func(ctx context.Context, _ *wsHeader) (*struct{}, error) {
 		s, err := scope(ctx, authz.MailSettings)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := a.SQLDB.ExecContext(ctx, `DELETE FROM smtp_settings WHERE workspace_id = $1`, s.WorkspaceID); err != nil {
+		d, err := DefaultSMTPService(ctx, a.SQLDB, s.WorkspaceID)
+		if errors.Is(err, ErrNoService) {
+			return &struct{}{}, nil
+		}
+		if err != nil {
 			return nil, huma.Error500InternalServerError("could not remove SMTP settings")
+		}
+		if err := DeleteSMTPService(ctx, a.SQLDB, s.WorkspaceID, d.ID); err != nil {
+			return nil, serviceError(ctx, err)
 		}
 		return &struct{}{}, nil
 	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-test-smtp", Method: http.MethodPost, Path: "/api/w/mail/smtp/test",
-		Summary: "Send a test email through the saved SMTP service", Tags: tags,
+		Summary: "Send a test email through the default SMTP service", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body struct {
@@ -745,12 +738,12 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error409Conflict("save the SMTP settings first")
 		}
 		if err != nil {
-			return nil, huma.Error500InternalServerError(err.Error())
+			return nil, huma.Error500InternalServerError("could not read the SMTP service")
 		}
-		text := "This is a test email from Moharrik. Your SMTP settings work."
-		if err := Send(ctx, svc, Message{To: to.Address, Subject: "Moharrik SMTP test", Text: text,
-			HTML: Shell("en", "SMTP test", "<p>"+text+"</p>", "Moharrik")}); err != nil {
-			return nil, huma.Error502BadGateway(err.Error())
+		sendErr := Send(ctx, svc, SMTPTestMessage(to.Address, ""))
+		RecordSMTPTest(ctx, a.SQLDB, s.WorkspaceID, svc.ServiceID, sendErr)
+		if sendErr != nil {
+			return nil, huma.Error502BadGateway(sendErr.Error())
 		}
 		return out(struct {
 			Sent bool `json:"sent"`

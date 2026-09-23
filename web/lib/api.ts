@@ -315,6 +315,10 @@ export type Campaign = {
   last_error: string
   sent_at: string | null
   created_at: string
+  /** The SMTP service it names (MH-412); null = the campaign default. */
+  smtp_service_id: string | null
+  /** The service it goes out through now: its own, else the campaign default, else the default. */
+  smtp_service_name: string
 }
 
 export type FormKind = "subscribe" | "inquiry"
@@ -351,6 +355,33 @@ export type SmtpSettings = {
   tls_mode: "none" | "starttls" | "tls"
   updated_at: string | null
 }
+
+/** One of the workspace's SMTP services (MH-412). The password is never returned. */
+export type SmtpService = {
+  id: string
+  name: string
+  host: string
+  port: number
+  username: string
+  has_password: boolean
+  from_name: string
+  from_email: string
+  tls_mode: "none" | "starttls" | "tls"
+  /** Confirmations, inbox replies and tests go through this one. */
+  is_default: boolean
+  /** A campaign that names no service goes through this one. */
+  is_campaign_default: boolean
+  last_test_at: string | null
+  last_test_ok: boolean | null
+  last_test_error: string
+  /** How many campaigns name it explicitly. */
+  campaigns: number
+  created_at: string
+  updated_at: string
+}
+
+/** What a campaign's service picker may know: names and roles only. */
+export type SmtpServiceOption = Pick<SmtpService, "id" | "name" | "is_default" | "is_campaign_default">
 
 // ── CRM ──────────────────────────────────────────────────────────────────
 

@@ -32,6 +32,8 @@ const (
 type SMTP struct {
 	Host, Username, Password, FromName, FromEmail, TLSMode string
 	Port                                                   int64
+	// Which service this is (MH-412): a workspace may have several.
+	ServiceID, ServiceName string
 }
 
 // RecipientError is a rejection of one address, as opposed to a failure of the

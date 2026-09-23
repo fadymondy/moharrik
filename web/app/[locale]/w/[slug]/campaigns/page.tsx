@@ -306,6 +306,11 @@ function CampaignTable({
                   <Badge variant="outline" data-channel={wa ? "whatsapp" : "email"}>
                     {t(wa ? "campaigns.channel.whatsapp" : "campaigns.channel.email")}
                   </Badge>
+                  {!wa && c.smtp_service_name ? (
+                    <div className="mt-1 text-xs text-grid-muted" data-campaign-service={c.smtp_service_name}>
+                      {t("campaigns.via", { name: isolate(c.smtp_service_name) })}
+                    </div>
+                  ) : null}
                 </TableCell>
                 <TableCell>
                   <Bdi>{c.list_name}</Bdi>
@@ -404,7 +409,14 @@ function SendButton({ campaign, count, maxAudience, onSent }: { campaign: Campai
                   : reachable === 0
                     ? t("campaigns.sendNobodyWhatsApp", { list: isolate(campaign.list_name) })
                     : t("campaigns.sendBodyWhatsApp", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count: reachable })
-                : t("campaigns.sendBody", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count })}
+                : campaign.smtp_service_name
+                  ? t("campaigns.sendBodyVia", {
+                      subject: isolate(campaign.subject),
+                      list: isolate(campaign.list_name),
+                      count,
+                      service: isolate(campaign.smtp_service_name),
+                    })
+                  : t("campaigns.sendBody", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count })}
             </AlertDialogDescription>
             {tooLarge ? (
               <p className="text-sm text-grid-danger-text" role="alert" data-send-too-large>

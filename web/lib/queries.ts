@@ -36,6 +36,8 @@ import {
   type CurrentWorkspace,
   type MailList,
   type SmtpSettings,
+  type SmtpService,
+  type SmtpServiceOption,
   type Invitation,
   type McpScope,
   type McpToken,
@@ -215,6 +217,14 @@ export const useWhatsAppAudience = (workspaceId?: string | null, listId?: string
 export const useSubscribeForms = (id?: string | null) => useScoped<{ forms: SubscribeForm[] | null }>("/api/w/subscribe-forms", id)
 
 export const useSmtpSettings = (id?: string | null, enabled = true) => useScoped<SmtpSettings>("/api/w/mail/smtp", id, enabled)
+
+/** Every SMTP service of the workspace (MH-412): mail settings only. */
+export const useSmtpServices = (id?: string | null, enabled = true) =>
+  useScoped<{ services: SmtpService[] }>("/api/w/smtp-services", id, enabled)
+
+/** The services a campaign can be sent through: names and roles, for anyone who reads campaigns. */
+export const useSmtpServiceOptions = (id?: string | null, enabled = true) =>
+  useScoped<{ services: SmtpServiceOption[] }>("/api/w/smtp-services/options", id, enabled)
 
 // ── CRM ──────────────────────────────────────────────────────────────────
 

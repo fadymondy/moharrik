@@ -115,17 +115,25 @@ func MarketingTools() []Tool {
 			InputSchema: schema([]string{"list", "subject", "body"}, map[string]any{
 				"list":    prop("string", "The mailing list's exact name"),
 				"subject": prop("string", ""),
-				"body":    prop("string", "Markdown"),
-				"locale":  map[string]any{"type": "string", "enum": []string{"en", "ar"}, "description": "Default en"},
+				"body":         prop("string", "Markdown"),
+				"locale":       map[string]any{"type": "string", "enum": []string{"en", "ar"}, "description": "Default en"},
+				"smtp_service": prop("string", "The SMTP service to send through, by its exact name (list_smtp_services). Omit for the campaign default."),
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
 				if !ok {
 					return "", errNotFound
 				}
-				var in struct{ List, Subject, Body, Locale string }
+				var in struct {
+					List, Subject, Body, Locale string
+					SMTPService                 string `json:"smtp_service"`
+				}
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", fmt.Errorf("bad arguments: %w", err)
+				}
+				svcID, err := smtpServiceByName(ctx, a, s.WorkspaceID, in.SMTPService)
+				if err != nil {
+					return "", err
 				}
 				subject := strings.TrimSpace(in.Subject)
 				if subject == "" || strings.TrimSpace(in.Body) == "" {
@@ -148,9 +156,9 @@ func MarketingTools() []Tool {
 				}
 				var id string
 				if err := a.SQLDB.QueryRowContext(ctx, `
-					INSERT INTO campaigns (workspace_id, list_id, subject, body, locale, created_by)
-					VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-					s.WorkspaceID, listID, subject, strings.TrimSpace(in.Body), locale, s.UserID,
+					INSERT INTO campaigns (workspace_id, list_id, subject, body, locale, created_by, smtp_service_id)
+					VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+					s.WorkspaceID, listID, subject, strings.TrimSpace(in.Body), locale, s.UserID, svcID,
 				).Scan(&id); err != nil {
 					return "", fmt.Errorf("could not create the campaign: %w", err)
 				}
@@ -173,6 +181,7 @@ func MarketingTools() []Tool {
 				"list":        prop("string", "Move it to this mailing list (exact name)"),
 				"locale":      map[string]any{"type": "string", "enum": []string{"en", "ar"}},
 				"channel":     map[string]any{"type": "string", "enum": []string{"email", "whatsapp"}},
+				"smtp_service": prop("string", "Send through this SMTP service (exact name, list_smtp_services); an empty string returns it to the campaign default"),
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
@@ -186,6 +195,7 @@ func MarketingTools() []Tool {
 					List       *string `json:"list"`
 					Locale     *string `json:"locale"`
 					Channel    *string `json:"channel"`
+					SMTP       *string `json:"smtp_service"`
 				}
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", fmt.Errorf("bad arguments: %w", err)
@@ -193,10 +203,10 @@ func MarketingTools() []Tool {
 				var id string
 				var cur marketing.CampaignInput
 				if err := a.SQLDB.QueryRowContext(ctx, `
-					SELECT id, list_id, channel, subject, body, locale FROM campaigns
+					SELECT id, list_id, channel, subject, body, locale, smtp_service_id FROM campaigns
 					WHERE workspace_id = $1 AND lower(subject) = lower($2)
 					ORDER BY created_at DESC LIMIT 1`,
-					s.WorkspaceID, strings.TrimSpace(in.Subject)).Scan(&id, &cur.ListID, &cur.Channel, &cur.Subject, &cur.Body, &cur.Locale); err != nil {
+					s.WorkspaceID, strings.TrimSpace(in.Subject)).Scan(&id, &cur.ListID, &cur.Channel, &cur.Subject, &cur.Body, &cur.Locale, &cur.SMTPServiceID); err != nil {
 					if errNoRows(err) {
 						return "", fmt.Errorf("no campaign with the subject %q — call list_campaigns to see them", in.Subject)
 					}
@@ -219,6 +229,13 @@ func MarketingTools() []Tool {
 						return "", fmt.Errorf("channel must be email or whatsapp")
 					}
 					cur.Channel = *in.Channel
+				}
+				if in.SMTP != nil {
+					svcID, err := smtpServiceByName(ctx, a, s.WorkspaceID, *in.SMTP)
+					if err != nil {
+						return "", err
+					}
+					cur.SMTPServiceID = svcID
 				}
 				if in.List != nil {
 					if err := a.SQLDB.QueryRowContext(ctx, `SELECT id FROM mail_lists WHERE workspace_id = $1 AND lower(name) = lower($2)`,
@@ -277,6 +294,52 @@ func MarketingTools() []Tool {
 			},
 		},
 		{
+			// MH-412: names and status only. The host, the sender, the username
+			// and the password are the workspace's mail credentials and never
+			// leave the settings page.
+			Name: "list_smtp_services",
+			Description: "The workspace's SMTP services by name: which is the default for confirmation and reply emails, " +
+				"which is the campaign default, and whether each one's last test worked. Never includes credentials.",
+			Scope:       "campaigns:read",
+			InputSchema: schema(nil, map[string]any{}),
+			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
+				s, ok := tenant.From(ctx)
+				if !ok {
+					return "", errNotFound
+				}
+				list, err := marketing.ListSMTPServices(ctx, a.SQLDB, s.WorkspaceID)
+				if err != nil {
+					return "", fmt.Errorf("could not list SMTP services")
+				}
+				if len(list) == 0 {
+					return "No SMTP services yet. A member with the mail settings permission adds one under Settings → Email.", nil
+				}
+				var b strings.Builder
+				fmt.Fprintf(&b, "%d SMTP service(s):\n", len(list))
+				for _, o := range list {
+					var roles []string
+					if o.IsDefault {
+						roles = append(roles, "default for confirmations and replies")
+					}
+					if o.IsCampaignDefault {
+						roles = append(roles, "campaign default")
+					}
+					test := "never tested"
+					if o.LastTestOK != nil && *o.LastTestOK {
+						test = "last test worked"
+					} else if o.LastTestOK != nil {
+						test = "last test failed"
+					}
+					fmt.Fprintf(&b, "- %s", o.Name)
+					if len(roles) > 0 {
+						fmt.Fprintf(&b, " (%s)", strings.Join(roles, ", "))
+					}
+					fmt.Fprintf(&b, ": %s; %d campaign(s) name it\n", test, o.Campaigns)
+				}
+				return b.String(), nil
+			},
+		},
+		{
 			Name:        "send_campaign",
 			Description: "Send a drafted campaign, by its exact subject. Returns as soon as sending starts; poll list_campaigns for progress.",
 			Scope:       "campaigns:write",
@@ -306,8 +369,9 @@ func MarketingTools() []Tool {
 					return "", fmt.Errorf("that campaign is already %s", status)
 				}
 				// Resolve the service first, so a misconfiguration is reported here
-				// rather than discovered halfway through the list.
-				svc, err := marketing.LoadSMTP(ctx, a.SQLDB, s.WorkspaceID)
+				// rather than discovered halfway through the list: the campaign's
+				// own SMTP service, else the campaign default (MH-412).
+				svc, err := marketing.LoadCampaignSMTP(ctx, a.SQLDB, s.WorkspaceID, id)
 				if errors.Is(err, marketing.ErrNoService) {
 					return "", fmt.Errorf("configure SMTP for this workspace before sending")
 				}
@@ -317,8 +381,26 @@ func MarketingTools() []Tool {
 				if err := marketing.StartSend(ctx, a, s.WorkspaceID, id, svc); err != nil {
 					return "", err
 				}
-				return fmt.Sprintf("Sending %q. Poll list_campaigns for progress.", strings.TrimSpace(in.Subject)), nil
+				return fmt.Sprintf("Sending %q through the SMTP service %q. Poll list_campaigns for progress.", strings.TrimSpace(in.Subject), svc.ServiceName), nil
 			},
 		},
 	}
+}
+
+// smtpServiceByName resolves a service an agent named (MH-412). "" is the
+// campaign default (nil).
+func smtpServiceByName(ctx context.Context, a *app.App, wsID, name string) (*string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, nil
+	}
+	var id string
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT id FROM smtp_services WHERE workspace_id = $1 AND lower(name) = lower($2)`,
+		wsID, name).Scan(&id); err != nil {
+		if errNoRows(err) {
+			return nil, fmt.Errorf("no SMTP service named %q — call list_smtp_services to see them", name)
+		}
+		return nil, fmt.Errorf("could not resolve the SMTP service")
+	}
+	return &id, nil
 }

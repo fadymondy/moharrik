@@ -325,7 +325,7 @@ func TestListCapsAreGone(t *testing.T) {
 		exec(`INSERT INTO list_subscriptions (workspace_id, list_id, contact_id, status, token)
 			SELECT $1, $2, c.id, 'subscribed', 'big-' || c.id FROM contacts c WHERE c.workspace_id = $1 AND c.email LIKE 'big-%'`, wsID, big)
 		// Somewhere to send to, so the refusal is the audience and not the setup.
-		exec(`INSERT INTO smtp_settings (workspace_id, host, port, from_email) VALUES ($1, '127.0.0.1', 1, 'caps@example.test')`, wsID)
+		exec(`INSERT INTO smtp_services (workspace_id, name, host, port, from_email, is_default, is_campaign_default) VALUES ($1, 'Default', '127.0.0.1', 1, 'caps@example.test', true, true)`, wsID)
 		exec(`INSERT INTO whatsapp_links (workspace_id, instance, hook_id, state) VALUES ($1, 'caps-'||$1, 'caps-hook-'||$1, 'open')`, wsID)
 
 		for _, channel := range []string{"email", "whatsapp"} {

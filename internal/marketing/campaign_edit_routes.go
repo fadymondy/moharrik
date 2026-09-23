@@ -23,6 +23,8 @@ func registerCampaignEdit(api huma.API, a *app.App) {
 		Subject string `json:"subject" minLength:"1" maxLength:"200" doc:"The email subject. For a WhatsApp campaign it is the internal name; it is not sent."`
 		Body    string `json:"body" minLength:"1" maxLength:"100000"`
 		Locale  string `json:"locale,omitempty" enum:"en,ar"`
+		// MH-412. Omitted = the campaign default.
+		SMTPServiceID string `json:"smtp_service_id,omitempty" doc:"Email only. Omit for the workspace's campaign default."`
 	}
 
 	huma.Register(api, huma.Operation{
@@ -41,8 +43,12 @@ func registerCampaignEdit(api huma.API, a *app.App) {
 			return nil, err
 		}
 		b := in.Body
+		svcID, err := campaignServiceID(ctx, a.SQLDB, s.WorkspaceID, b.SMTPServiceID)
+		if err != nil {
+			return nil, err
+		}
 		err = UpdateCampaign(ctx, a.SQLDB, s.WorkspaceID, in.ID, CampaignInput{
-			ListID: b.ListID, Channel: b.Channel, Subject: b.Subject, Body: b.Body, Locale: b.Locale,
+			ListID: b.ListID, Channel: b.Channel, Subject: b.Subject, Body: b.Body, Locale: b.Locale, SMTPServiceID: svcID,
 		})
 		var locked *LockedError
 		switch {

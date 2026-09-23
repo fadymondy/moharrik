@@ -37,6 +37,7 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"whatsapp_sends", "whatsapp_confirmations",
 	"oauth_grants",   // connected apps (MH-391)
 	"audit_settings", // audit log retention (MH-392)
+	"smtp_services",  // several SMTP services per workspace (MH-412)
 }
 
 /*

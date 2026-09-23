@@ -73,6 +73,9 @@ type CampaignInput struct {
 	Subject string
 	Body    string
 	Locale  string
+	// SMTPServiceID is the service an email campaign goes out through
+	// (MH-412). nil = the campaign default.
+	SMTPServiceID *string
 }
 
 // UpdateCampaign rewrites a draft (or a failed, retryable) campaign.
@@ -82,12 +85,13 @@ func UpdateCampaign(ctx context.Context, db *sql.DB, wsID, id string, in Campaig
 		return errors.New("a subject and a body are required")
 	}
 	res, err := db.ExecContext(ctx, `
-		UPDATE campaigns c SET list_id = l.id, channel = $4, subject = $5, body = $6, locale = $7, updated_at = now()
+		UPDATE campaigns c SET list_id = l.id, channel = $4, subject = $5, body = $6, locale = $7,
+		  smtp_service_id = $8, updated_at = now()
 		FROM mail_lists l
 		WHERE c.workspace_id = $1 AND c.id = $2
 		  AND l.workspace_id = $1 AND l.id = $3
 		  AND c.`+claimable,
-		wsID, id, in.ListID, normChannel(in.Channel), subject, in.Body, normLocale(in.Locale))
+		wsID, id, in.ListID, normChannel(in.Channel), subject, in.Body, normLocale(in.Locale), in.SMTPServiceID)
 	if err != nil {
 		return err
 	}
@@ -236,7 +240,9 @@ func SendTest(ctx context.Context, a *app.App, wsID, campaignID, memberEmail, to
 	if err != nil {
 		return nil, ErrBadAddress
 	}
-	svc, err := LoadSMTP(ctx, a.SQLDB, wsID)
+	// Through the campaign's own service (MH-412), so the test arrives the
+	// way the list's copies will.
+	svc, err := LoadCampaignSMTP(ctx, a.SQLDB, wsID, campaignID)
 	if err != nil {
 		return nil, err
 	}

@@ -217,7 +217,7 @@ line', $3)`, ids["C3"], at(loc, time.September, 12, 9, 0))
 
 	// ---- setup: an inquiry form and SMTP yes; the rest not (or not yet) -----
 	s.exec(`INSERT INTO subscribe_forms (workspace_id, kind, name, public_key) VALUES ($1, 'inquiry', 'Contact', $2)`, "if-"+s.ws)
-	s.exec(`INSERT INTO smtp_settings (workspace_id, host, from_email) VALUES ($1, 'smtp.example.test', 'hi@example.test')`)
+	s.exec(`INSERT INTO smtp_services (workspace_id, name, host, from_email, is_default, is_campaign_default) VALUES ($1, 'Default', 'smtp.example.test', 'hi@example.test', true, true)`)
 	// A WhatsApp link still waiting for its QR code to be scanned is not linked.
 	s.exec(`INSERT INTO whatsapp_links (workspace_id, instance, hook_id, state) VALUES ($1, $2, $3, 'connecting')`, "inst-"+s.ws, "hook-"+s.ws)
 	// A revoked browser is not a paired browser.
