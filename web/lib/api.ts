@@ -452,13 +452,24 @@ export type ChatWidget = {
 
 // ── Trends ──────────────────────────────────────────────────────────────
 
+export type FeedProvider = "feed" | "hn" | "devto"
+
 export type FeedSource = {
   id: string
   name: string
   url: string
-  kind: "rss" | "atom"
+  kind: "rss" | "atom" | "api"
+  /** feed = RSS/Atom; hn and devto are read through their public APIs. */
+  provider: FeedProvider
+  params: Record<string, string>
+  catalog_key: string
   enabled: boolean
+  interval_minutes: 360 | 720 | 1440
+  /** "" until the first fetch. */
+  last_status: "" | "ok" | "failed" | "over_budget"
+  last_added: number
   last_fetched_at: string | null
+  next_run_at: string | null
   last_error: string
   last_error_at: string | null
   item_count: number
@@ -478,13 +489,93 @@ export type NewsItem = {
   id: string
   source_id: string | null
   source_name: string
+  outlet: string
+  provider: FeedProvider
   title: string
   url: string
   summary: string
   author: string
   topic_ids: string[]
+  cluster_id: string | null
+  rank: number
+  points: number
+  comments: number
   published_at: string
   saved_at: string | null
+}
+
+export type NewsPage = { items: NewsItem[]; total: number; has_more: boolean; next_cursor?: string }
+
+/** One part of a trending topic's score. The score is the sum of its parts. */
+export type TrendReason = {
+  kind: "sources" | "velocity" | "relevance"
+  points: number
+  /** English, for API clients; the page renders kind + the structured fields. */
+  label: string
+  detail: string[]
+  count?: number
+  signal?: "burst" | "hn" | "devto"
+  position?: number
+  metric?: number
+}
+
+export type TrendState = "open" | "saved" | "reviewed" | "dismissed"
+
+/** A trending topic: items from any number of sources about one story. */
+export type TrendTopic = {
+  id: string
+  day: string
+  title: string
+  summary: string
+  summary_source: string
+  cluster_method: string
+  source_count: number
+  item_count: number
+  outlets: string[]
+  source_ids: string[]
+  score: number
+  reasons: TrendReason[]
+  first_seen_at: string
+  last_seen_at: string
+  state: TrendState
+  reviewed_at: string | null
+  dismissed_at: string | null
+  saved_at: string | null
+  items: NewsItem[]
+}
+
+export type TrendCounts = { open: number; saved: number; reviewed: number; dismissed: number; all: number }
+
+export type TrendTopicPage = {
+  topics: TrendTopic[]
+  has_more: boolean
+  next_cursor?: string
+  counts: TrendCounts
+  days: { day: string; count: number }[]
+}
+
+export type TrendTopicDetail = { topic: TrendTopic; outlets: { outlet: string; count: number }[] }
+
+export type FeedCatalogEntry = {
+  key: string
+  name: string
+  description: string
+  category: "technology" | "business" | "world" | "industry"
+  language: "en" | "ar"
+  provider: FeedProvider
+  url: string
+  params?: Record<string, string>
+  interval_minutes: number
+  /** This workspace's source for the entry, when it has added it. */
+  source_id: string | null
+}
+
+export type TrendSettings = {
+  fetch_budget_per_day: number
+  fetches_today: number
+  budget_day: string
+  scheduled_per_day: number
+  max_budget: number
 }
 
 // ── Automation ──────────────────────────────────────────────────────────

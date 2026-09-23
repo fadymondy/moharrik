@@ -99,11 +99,12 @@ func Boot() *app.App {
 	// public process (WEB_ORIGIN; see webproxy.go).
 	installWebProxy(k)
 
-	// The trends collector: one in-process ticker polling the feeds that are due.
+	// The trends collector: one in-process ticker looking for sources that are
+	// due. When each source is due is its own interval (6, 12 or 24 hours; MH-387).
 	// TRENDS_COLLECTOR=off turns it off, which is what the tests and the OpenAPI
 	// export want — neither should reach out to the internet.
 	if os.Getenv("TRENDS_COLLECTOR") != "off" {
-		trends.StartCollector(a, 5*time.Minute, 20*time.Minute, 25)
+		trends.StartCollector(a, 5*time.Minute, 25)
 	}
 
 	// The WhatsApp webhook, and the inbox's own "file this message" handed to

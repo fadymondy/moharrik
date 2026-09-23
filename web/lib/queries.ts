@@ -1,6 +1,7 @@
 "use client"
 
 import useSWR from "swr"
+import useSWRInfinite from "swr/infinite"
 
 import {
   api,
@@ -42,7 +43,11 @@ import {
   type InboxMessage,
   type FeedSource,
   type GoogleConnections,
-  type NewsItem,
+  type FeedCatalogEntry,
+  type NewsPage,
+  type TrendSettings,
+  type TrendTopicDetail,
+  type TrendTopicPage,
   type NotificationItem,
   type Overview,
   type Topic,
@@ -250,22 +255,68 @@ export const useFeedSources = (id?: string | null) => useScoped<{ sources: FeedS
 
 export const useTopics = (id?: string | null) => useScoped<{ topics: Topic[] | null }>("/api/w/topics", id)
 
-export type NewsFilter = { topic?: string; source?: string; saved?: boolean; q?: string }
+export type NewsFilter = { topic?: string; source?: string; saved?: boolean; q?: string; day?: string }
 
-/** The collected timeline. Filters vary, so this builds its own key. */
-export function useNews(workspaceId: string | null | undefined, filter: NewsFilter = {}) {
+/**
+ * The raw collected items, newest first, a page at a time (MH-385). The list
+ * used to arrive whole — 120 items on one 10,000px page; now it is cursor-paged
+ * and the page asks for more.
+ */
+export function useNewsPages(workspaceId: string | null | undefined, filter: NewsFilter = {}) {
   const qs = new URLSearchParams()
   if (filter.topic) qs.set("topic", filter.topic)
   if (filter.source) qs.set("source", filter.source)
   if (filter.saved) qs.set("saved", "true")
   if (filter.q) qs.set("q", filter.q)
-  const path = "/api/w/news" + (qs.toString() ? `?${qs.toString()}` : "")
-  return useSWR<{ items: NewsItem[]; total: number }>(
-    workspaceId ? [path, workspaceId] : null,
-    ([p, id]: [string, string]) => api<{ items: NewsItem[]; total: number }>(p, { workspaceId: id }),
+  if (filter.day) qs.set("day", filter.day)
+  qs.set("limit", "30")
+  const base = "/api/w/news?" + qs.toString()
+  return useSWRInfinite<NewsPage>(
+    (i, prev: NewsPage | null) => {
+      if (!workspaceId) return null
+      if (i === 0) return [base, workspaceId]
+      if (!prev?.has_more || !prev.next_cursor) return null
+      return [`${base}&cursor=${encodeURIComponent(prev.next_cursor)}`, workspaceId]
+    },
+    ([p, id]: [string, string]) => api<NewsPage>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, revalidateFirstPage: true },
+  )
+}
+
+export type TrendFilter = { state?: string; source?: string; day?: string; q?: string }
+
+/** Trending topics (stories), newest day and best first, 20 at a time. */
+export function useTrendTopics(workspaceId: string | null | undefined, filter: TrendFilter = {}) {
+  const qs = new URLSearchParams()
+  qs.set("state", filter.state || "open")
+  if (filter.source) qs.set("source", filter.source)
+  if (filter.day) qs.set("day", filter.day)
+  if (filter.q) qs.set("q", filter.q)
+  qs.set("limit", "20")
+  const base = "/api/w/trends?" + qs.toString()
+  return useSWRInfinite<TrendTopicPage>(
+    (i, prev: TrendTopicPage | null) => {
+      if (!workspaceId) return null
+      if (i === 0) return [base, workspaceId]
+      if (!prev?.has_more || !prev.next_cursor) return null
+      return [`${base}&cursor=${encodeURIComponent(prev.next_cursor)}`, workspaceId]
+    },
+    ([p, id]: [string, string]) => api<TrendTopicPage>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, revalidateFirstPage: true },
+  )
+}
+
+export function useTrendTopic(workspaceId: string | null | undefined, id?: string) {
+  return useSWR<TrendTopicDetail>(
+    workspaceId && id ? [`/api/w/trends/${encodeURIComponent(id)}`, workspaceId] : null,
+    ([p, ws]: [string, string]) => api<TrendTopicDetail>(p, { workspaceId: ws }),
     noRetryOn4xx,
   )
 }
+
+export const useFeedCatalog = (id?: string | null) => useScoped<{ entries: FeedCatalogEntry[] }>("/api/w/feed_catalog", id)
+
+export const useTrendSettings = (id?: string | null) => useScoped<{ settings: TrendSettings }>("/api/w/trend_settings", id)
 
 // ── Automation ───────────────────────────────────────────────────────────
 

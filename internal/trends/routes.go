@@ -3,6 +3,8 @@ package trends
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -23,16 +25,23 @@ var tags = []string{"Trends"}
 // ---- wire types -----------------------------------------------------------
 
 type SourceOut struct {
-	ID            string     `json:"id"`
-	Name          string     `json:"name"`
-	URL           string     `json:"url"`
-	Kind          string     `json:"kind"`
-	Enabled       bool       `json:"enabled"`
-	LastFetchedAt *time.Time `json:"last_fetched_at"`
-	LastError     string     `json:"last_error"`
-	LastErrorAt   *time.Time `json:"last_error_at"`
-	ItemCount     int64      `json:"item_count"`
-	CreatedAt     time.Time  `json:"created_at"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	URL             string            `json:"url"`
+	Kind            string            `json:"kind"`
+	Provider        string            `json:"provider" enum:"feed,hn,devto" doc:"feed = RSS/Atom; hn and devto are read through their public APIs."`
+	Params          map[string]string `json:"params"`
+	CatalogKey      string            `json:"catalog_key" doc:"The catalog entry this source was added from, or empty."`
+	Enabled         bool              `json:"enabled"`
+	IntervalMinutes int               `json:"interval_minutes" enum:"360,720,1440"`
+	LastStatus      string            `json:"last_status" enum:",ok,failed,over_budget" doc:"Empty until the first fetch."`
+	LastAdded       int               `json:"last_added" doc:"New items the last fetch filed."`
+	LastFetchedAt   *time.Time        `json:"last_fetched_at"`
+	NextRunAt       *time.Time        `json:"next_run_at" doc:"When the collector will next fetch it; null when it is off. In the past means on the next pass."`
+	LastError       string            `json:"last_error"`
+	LastErrorAt     *time.Time        `json:"last_error_at"`
+	ItemCount       int64             `json:"item_count"`
+	CreatedAt       time.Time         `json:"created_at"`
 }
 
 type TopicOut struct {
@@ -48,11 +57,17 @@ type NewsOut struct {
 	ID          string     `json:"id"`
 	SourceID    *string    `json:"source_id"`
 	SourceName  string     `json:"source_name"`
+	Outlet      string     `json:"outlet" doc:"The publisher; an aggregator's rows name each one."`
+	Provider    string     `json:"provider"`
 	Title       string     `json:"title"`
 	URL         string     `json:"url"`
 	Summary     string     `json:"summary"`
 	Author      string     `json:"author"`
 	TopicIDs    []string   `json:"topic_ids"`
+	ClusterID   *string    `json:"cluster_id" doc:"The trending topic (story) it belongs to."`
+	Rank        int        `json:"rank" doc:"Position on an API source's list (Hacker News), 0 otherwise."`
+	Points      int        `json:"points" doc:"Hacker News points or DEV reactions."`
+	Comments    int        `json:"comments"`
 	PublishedAt time.Time  `json:"published_at"`
 	SavedAt     *time.Time `json:"saved_at"`
 }
@@ -107,6 +122,27 @@ func strp(n sql.NullString) *string {
 	return &v
 }
 
+const sourceColumns = `id, name, url, kind, provider, params::text, catalog_key, enabled, interval_minutes, last_status, last_added,
+	last_fetched_at, last_error, last_error_at, item_count, created_at`
+
+func scanSource(row interface{ Scan(...any) error }) (SourceOut, error) {
+	var so SourceOut
+	var params string
+	var fetched, errAt sql.NullTime
+	err := row.Scan(&so.ID, &so.Name, &so.URL, &so.Kind, &so.Provider, &params, &so.CatalogKey, &so.Enabled, &so.IntervalMinutes,
+		&so.LastStatus, &so.LastAdded, &fetched, &so.LastError, &errAt, &so.ItemCount, &so.CreatedAt)
+	so.Params = paramsOf(params)
+	so.LastFetchedAt, so.LastErrorAt = timep(fetched), timep(errAt)
+	if so.Enabled {
+		next := time.Now()
+		if so.LastFetchedAt != nil {
+			next = so.LastFetchedAt.Add(time.Duration(so.IntervalMinutes) * time.Minute)
+		}
+		so.NextRunAt = &next
+	}
+	return so, err
+}
+
 // Register mounts the trends endpoints. `a` may be nil (OpenAPI export).
 func Register(api huma.API, a *app.App) {
 	db := func() *sql.DB { return a.SQLDB }
@@ -115,7 +151,7 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-feed-sources", Method: http.MethodGet, Path: "/api/w/feed_sources",
-		Summary: "The feeds this workspace watches", Tags: tags,
+		Summary: "The sources this workspace watches, with each one's schedule and status", Tags: tags,
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
 		Sources []SourceOut `json:"sources"`
 	}], error) {
@@ -123,21 +159,17 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		rows, err := db().QueryContext(ctx, `
-			SELECT id, name, url, kind, enabled, last_fetched_at, last_error, last_error_at, item_count, created_at
-			FROM feed_sources WHERE workspace_id = $1 ORDER BY lower(name)`, s.WorkspaceID)
+		rows, err := db().QueryContext(ctx, `SELECT `+sourceColumns+` FROM feed_sources WHERE workspace_id = $1 ORDER BY lower(name)`, s.WorkspaceID)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list feeds")
+			return nil, huma.Error500InternalServerError("could not list sources")
 		}
 		defer rows.Close()
 		list := []SourceOut{}
 		for rows.Next() {
-			var so SourceOut
-			var fetched, errAt sql.NullTime
-			if err := rows.Scan(&so.ID, &so.Name, &so.URL, &so.Kind, &so.Enabled, &fetched, &so.LastError, &errAt, &so.ItemCount, &so.CreatedAt); err != nil {
-				return nil, huma.Error500InternalServerError("could not list feeds")
+			so, err := scanSource(rows)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not list sources")
 			}
-			so.LastFetchedAt, so.LastErrorAt = timep(fetched), timep(errAt)
 			list = append(list, so)
 		}
 		return out(struct {
@@ -145,78 +177,116 @@ func Register(api huma.API, a *app.App) {
 		}{list}), nil
 	})
 
+	type createdFeedSource struct {
+		Source SourceOut `json:"source"`
+		Added  int       `json:"added" doc:"Items collected by the first fetch."`
+	}
+
 	huma.Register(api, huma.Operation{
 		OperationID: "w-create-feed-source", Method: http.MethodPost, Path: "/api/w/feed_sources",
-		DefaultStatus: http.StatusCreated, Summary: "Watch a feed (it is fetched once immediately, so a bad URL is reported now)", Tags: tags,
+		DefaultStatus: http.StatusCreated,
+		Summary:       "Watch a source: a catalog entry in one click, or any RSS/Atom URL. It is fetched once immediately, so a bad URL is reported now.",
+		Tags:          tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body struct {
-			Name string `json:"name,omitempty" maxLength:"120" doc:"Defaults to the feed's own title."`
-			URL  string `json:"url" minLength:"8" maxLength:"2000"`
+			CatalogKey      string `json:"catalog_key,omitempty" maxLength:"80" doc:"A key from GET /api/w/feed_catalog. Takes the entry's name, URL, provider and interval."`
+			Name            string `json:"name,omitempty" maxLength:"120" doc:"Defaults to the catalog name, or the feed's own title."`
+			URL             string `json:"url,omitempty" maxLength:"2000" doc:"An RSS or Atom feed; required without catalog_key."`
+			IntervalMinutes int    `json:"interval_minutes,omitempty" doc:"360, 720 or 1440. Defaults to the catalog's suggestion, else 720."`
 		}
-	}) (*body[struct {
-		Source SourceOut `json:"source"`
-		Added  int       `json:"added" doc:"Items collected by the first fetch."`
-	}], error) {
+	}) (*body[createdFeedSource], error) {
 		s, err := scope(ctx, authz.TrendsManage)
 		if err != nil {
 			return nil, err
 		}
-		url := strings.TrimSpace(in.Body.URL)
-		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			return nil, huma.Error422UnprocessableEntity("the URL must start with http:// or https://")
+		src := Source{WorkspaceID: s.WorkspaceID, Provider: ProviderFeed, Params: map[string]string{}}
+		interval := 720
+		catalogKey := ""
+		if key := strings.TrimSpace(in.Body.CatalogKey); key != "" {
+			entry, ok := CatalogEntryFor(key)
+			if !ok {
+				return nil, huma.Error422UnprocessableEntity("there is no catalog source called " + key)
+			}
+			catalogKey = entry.Key
+			src.Name, src.URL, src.Provider, interval = entry.Name, entry.URL, entry.Provider, entry.Interval
+			for k, v := range entry.Params {
+				src.Params[k] = v
+			}
+		} else {
+			src.URL = strings.TrimSpace(in.Body.URL)
+			if src.URL == "" {
+				return nil, huma.Error422UnprocessableEntity("pick a source from the catalog, or give a feed URL")
+			}
+			if !strings.HasPrefix(src.URL, "http://") && !strings.HasPrefix(src.URL, "https://") {
+				return nil, huma.Error422UnprocessableEntity("the URL must start with http:// or https://")
+			}
+			src.Name = src.URL
 		}
-		name := strings.TrimSpace(in.Body.Name)
-		if name == "" {
-			name = url
+		if n := strings.TrimSpace(in.Body.Name); n != "" {
+			src.Name = n
 		}
-		var id string
+		if in.Body.IntervalMinutes != 0 {
+			if !validInterval(in.Body.IntervalMinutes) {
+				return nil, huma.Error422UnprocessableEntity("the interval must be 360, 720 or 1440 minutes")
+			}
+			interval = in.Body.IntervalMinutes
+		}
+		kind := "rss"
+		if src.Provider != ProviderFeed {
+			kind = "api"
+		}
+		params, _ := json.Marshal(src.Params)
 		err = db().QueryRowContext(ctx, `
-			INSERT INTO feed_sources (workspace_id, name, url, created_by) VALUES ($1, $2, $3, $4) RETURNING id`,
-			s.WorkspaceID, name, url, s.UserID).Scan(&id)
+			INSERT INTO feed_sources (workspace_id, name, url, kind, provider, params, catalog_key, interval_minutes, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9) RETURNING id`,
+			s.WorkspaceID, src.Name, src.URL, kind, src.Provider, string(params), catalogKey, interval, s.UserID).Scan(&src.ID)
 		if pgCode(err) == "23505" {
-			return nil, huma.Error409Conflict("this workspace already watches that URL")
+			return nil, huma.Error409Conflict("this workspace already watches that source")
 		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not add the feed")
+			return nil, huma.Error500InternalServerError("could not add the source")
 		}
 
 		// Fetch once now: a typo'd URL should fail while the person who typed it
-		// is still looking, not silently on a ticker twenty minutes later.
-		added, ferr := Collect(ctx, a, Source{ID: id, WorkspaceID: s.WorkspaceID, Name: name, URL: url})
-		if errors.Is(ferr, ErrNotAFeed) {
+		// is still looking, not silently on a schedule hours later.
+		added, ferr := Collect(ctx, a, src)
+		if errors.Is(ferr, ErrNotAFeed) && catalogKey == "" {
 			// A URL that is not a feed at all will never become one, so the source
 			// is not kept: otherwise a typo leaves a dead row the collector retries
-			// forever and the person has to notice and delete. A host that was
-			// merely down is a different error and IS kept, with last_error set.
-			_, _ = db().ExecContext(ctx, `DELETE FROM feed_sources WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, id)
+			// forever. A host that was merely down is a different error and IS
+			// kept, with last_error set.
+			_, _ = db().ExecContext(ctx, `DELETE FROM feed_sources WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, src.ID)
 			return nil, huma.Error422UnprocessableEntity(ferr.Error())
 		}
-		so, err := getSource(ctx, db(), s.WorkspaceID, id)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the feed")
-		}
-		if ferr == nil && strings.TrimSpace(in.Body.Name) == "" {
+		if ferr == nil && catalogKey == "" && strings.TrimSpace(in.Body.Name) == "" {
 			// Name it after the feed once we know what it calls itself.
-			if title := feedTitle(ctx, a, url); title != "" {
-				_, _ = db().ExecContext(ctx, `UPDATE feed_sources SET name = $3, updated_at = now() WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, id, title)
-				so.Name = title
+			if title := feedTitle(ctx, src.URL); title != "" {
+				_, _ = db().ExecContext(ctx, `UPDATE feed_sources SET name = $3, updated_at = now() WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, src.ID, title)
 			}
 		}
-		return out(struct {
-			Source SourceOut `json:"source"`
-			Added  int       `json:"added" doc:"Items collected by the first fetch."`
-		}{so, added}), nil
+		if added > 0 {
+			if _, err := Recluster(ctx, a, s.WorkspaceID); err != nil {
+				a.Log.Warn("trends: clustering failed", "workspace", s.WorkspaceID, "err", err)
+			}
+			publish(a, s.WorkspaceID)
+		}
+		so, err := getSource(ctx, db(), s.WorkspaceID, src.ID)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the source")
+		}
+		return out(createdFeedSource{so, added}), nil
 	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-update-feed-source", Method: http.MethodPatch, Path: "/api/w/feed_sources/{id}",
-		Summary: "Rename a feed, or enable/disable it", Tags: tags,
+		Summary: "Rename a source, change how often it is fetched, or turn it on/off", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
 		Body struct {
-			Name    *string `json:"name,omitempty" maxLength:"120"`
-			Enabled *bool   `json:"enabled,omitempty"`
+			Name            *string `json:"name,omitempty" maxLength:"120"`
+			Enabled         *bool   `json:"enabled,omitempty"`
+			IntervalMinutes *int    `json:"interval_minutes,omitempty" doc:"360, 720 or 1440."`
 		}
 	}) (*body[struct {
 		Source SourceOut `json:"source"`
@@ -238,21 +308,28 @@ func Register(api huma.API, a *app.App) {
 			args = append(args, *in.Body.Enabled)
 			sets = append(sets, "enabled = $"+strconv.Itoa(len(args)+2))
 		}
+		if in.Body.IntervalMinutes != nil {
+			if !validInterval(*in.Body.IntervalMinutes) {
+				return nil, huma.Error422UnprocessableEntity("the interval must be 360, 720 or 1440 minutes")
+			}
+			args = append(args, *in.Body.IntervalMinutes)
+			sets = append(sets, "interval_minutes = $"+strconv.Itoa(len(args)+2))
+		}
 		if len(sets) > 0 {
 			res, err := db().ExecContext(ctx, `UPDATE feed_sources SET `+strings.Join(sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
 				append([]any{s.WorkspaceID, in.ID}, args...)...)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("could not update the feed")
+				return nil, huma.Error500InternalServerError("could not update the source")
 			}
 			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("feed not found")
+				return nil, huma.Error404NotFound("source not found")
 			}
 		}
 		so, err := getSource(ctx, db(), s.WorkspaceID, in.ID)
 		if notFound(err) {
-			return nil, huma.Error404NotFound("feed not found")
+			return nil, huma.Error404NotFound("source not found")
 		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the feed")
+			return nil, huma.Error500InternalServerError("could not read the source")
 		}
 		return out(struct {
 			Source SourceOut `json:"source"`
@@ -261,7 +338,7 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-fetch-feed-source", Method: http.MethodPost, Path: "/api/w/feed_sources/{id}/fetch",
-		Summary: "Fetch this feed now", Tags: tags,
+		Summary: "Fetch this source now (spends one fetch of today's budget)", Tags: tags,
 	}, func(ctx context.Context, in *idPath) (*body[struct {
 		Source SourceOut `json:"source"`
 		Added  int       `json:"added"`
@@ -270,25 +347,28 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		var name, url string
-		if err := db().QueryRowContext(ctx, `SELECT name, url FROM feed_sources WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID).Scan(&name, &url); err != nil {
+		src := Source{ID: in.ID, WorkspaceID: s.WorkspaceID}
+		var params string
+		if err := db().QueryRowContext(ctx, `SELECT name, url, provider, params::text FROM feed_sources WHERE workspace_id = $1 AND id = $2`,
+			s.WorkspaceID, in.ID).Scan(&src.Name, &src.URL, &src.Provider, &params); err != nil {
 			if notFound(err) {
-				return nil, huma.Error404NotFound("feed not found")
+				return nil, huma.Error404NotFound("source not found")
 			}
-			return nil, huma.Error500InternalServerError("could not read the feed")
+			return nil, huma.Error500InternalServerError("could not read the source")
 		}
-		added, ferr := Collect(ctx, a, Source{ID: in.ID, WorkspaceID: s.WorkspaceID, Name: name, URL: url})
+		src.Params = paramsOf(params)
+		added, _ := Collect(ctx, a, src)
+		if added > 0 {
+			if _, err := Recluster(ctx, a, s.WorkspaceID); err != nil {
+				a.Log.Warn("trends: clustering failed", "workspace", s.WorkspaceID, "err", err)
+			}
+			publish(a, s.WorkspaceID)
+		}
+		// A failed or refused fetch answers 200 with the reason on the source:
+		// "the feed is broken" or "the budget is spent" is an answer, not a fault.
 		so, err := getSource(ctx, db(), s.WorkspaceID, in.ID)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the feed")
-		}
-		if ferr != nil {
-			// The row carries the reason; answer 200 with it rather than a 500,
-			// because "the feed is broken" is an answer, not a server fault.
-			return out(struct {
-				Source SourceOut `json:"source"`
-				Added  int       `json:"added"`
-			}{so, 0}), nil
+			return nil, huma.Error500InternalServerError("could not read the source")
 		}
 		return out(struct {
 			Source SourceOut `json:"source"`
@@ -298,7 +378,7 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-delete-feed-source", Method: http.MethodDelete, Path: "/api/w/feed_sources/{id}",
-		DefaultStatus: http.StatusNoContent, Summary: "Stop watching a feed (its items stay)", Tags: tags,
+		DefaultStatus: http.StatusNoContent, Summary: "Stop watching a source (its items stay)", Tags: tags,
 	}, func(ctx context.Context, in *idPath) (*struct{}, error) {
 		s, err := scope(ctx, authz.TrendsManage)
 		if err != nil {
@@ -306,246 +386,104 @@ func Register(api huma.API, a *app.App) {
 		}
 		res, err := db().ExecContext(ctx, `DELETE FROM feed_sources WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not delete the feed")
+			return nil, huma.Error500InternalServerError("could not delete the source")
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, huma.Error404NotFound("feed not found")
+			return nil, huma.Error404NotFound("source not found")
 		}
 		return &struct{}{}, nil
 	})
 
-	// ---- topics ------------------------------------------------------------
+	registerTopics(api, a)
+	registerNews(api, a)
+	registerStories(api, a)
+}
 
-	huma.Register(api, huma.Operation{
-		OperationID: "w-topics", Method: http.MethodGet, Path: "/api/w/topics",
-		Summary: "Topics this workspace watches, with how many items matched", Tags: tags,
-	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
-		Topics []TopicOut `json:"topics"`
-	}], error) {
-		s, err := scope(ctx, authz.TrendsRead)
-		if err != nil {
-			return nil, err
-		}
-		rows, err := db().QueryContext(ctx, `
-			SELECT t.id, t.name, t.keywords, t.enabled, t.created_at,
-			       (SELECT count(*) FROM news_items n WHERE n.workspace_id = t.workspace_id AND t.id = ANY (n.topic_ids))
-			FROM topics t WHERE t.workspace_id = $1 ORDER BY lower(t.name)`, s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list topics")
-		}
-		defer rows.Close()
-		list := []TopicOut{}
-		for rows.Next() {
-			var t TopicOut
-			var kw pgtext.Array
-			if err := rows.Scan(&t.ID, &t.Name, &kw, &t.Enabled, &t.CreatedAt, &t.ItemCount); err != nil {
-				return nil, huma.Error500InternalServerError("could not list topics")
-			}
-			t.Keywords = kw
-			if t.Keywords == nil {
-				t.Keywords = []string{}
-			}
-			list = append(list, t)
-		}
-		return out(struct {
-			Topics []TopicOut `json:"topics"`
-		}{list}), nil
-	})
+func registerNews(api huma.API, a *app.App) {
+	db := func() *sql.DB { return a.SQLDB }
 
-	huma.Register(api, huma.Operation{
-		OperationID: "w-create-topic", Method: http.MethodPost, Path: "/api/w/topics",
-		DefaultStatus: http.StatusCreated, Summary: "Watch a topic. With no keywords it matches its own name.", Tags: tags,
-	}, func(ctx context.Context, in *struct {
-		wsHeader
-		Body struct {
-			Name     string   `json:"name" minLength:"1" maxLength:"80"`
-			Keywords []string `json:"keywords,omitempty" maxItems:"40"`
-		}
-	}) (*body[struct {
-		Topic TopicOut `json:"topic"`
-	}], error) {
-		s, err := scope(ctx, authz.TrendsManage)
-		if err != nil {
-			return nil, err
-		}
-		name := strings.TrimSpace(in.Body.Name)
-		if name == "" {
-			return nil, huma.Error422UnprocessableEntity("a name is required")
-		}
-		var id string
-		err = db().QueryRowContext(ctx, `
-			INSERT INTO topics (workspace_id, name, keywords, created_by)
-			VALUES ($1, $2, ARRAY(SELECT jsonb_array_elements_text($3::jsonb)), $4) RETURNING id`,
-			s.WorkspaceID, name, jsonArray(cleanKeywords(in.Body.Keywords)), s.UserID).Scan(&id)
-		if pgCode(err) == "23505" {
-			return nil, huma.Error409Conflict("a topic with that name already exists")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not create the topic")
-		}
-		// Match what is already collected, so a new topic is not empty until the
-		// next fetch: the items are already here, they just were not labelled.
-		_, _ = db().ExecContext(ctx, backfillSQL, s.WorkspaceID, id)
-		t, err := getTopic(ctx, db(), s.WorkspaceID, id)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the topic")
-		}
-		return out(struct {
-			Topic TopicOut `json:"topic"`
-		}{t}), nil
-	})
-
-	huma.Register(api, huma.Operation{
-		OperationID: "w-update-topic", Method: http.MethodPatch, Path: "/api/w/topics/{id}",
-		Summary: "Rename a topic, change its keywords, or enable/disable it", Tags: tags,
-	}, func(ctx context.Context, in *struct {
-		wsHeader
-		ID   string `path:"id"`
-		Body struct {
-			Name     *string   `json:"name,omitempty" maxLength:"80"`
-			Keywords *[]string `json:"keywords,omitempty" maxItems:"40"`
-			Enabled  *bool     `json:"enabled,omitempty"`
-		}
-	}) (*body[struct {
-		Topic TopicOut `json:"topic"`
-	}], error) {
-		s, err := scope(ctx, authz.TrendsManage)
-		if err != nil {
-			return nil, err
-		}
-		sets, args := []string{}, []any{}
-		if in.Body.Name != nil {
-			n := strings.TrimSpace(*in.Body.Name)
-			if n == "" {
-				return nil, huma.Error422UnprocessableEntity("a name is required")
-			}
-			args = append(args, n)
-			sets = append(sets, "name = $"+strconv.Itoa(len(args)+2))
-		}
-		if in.Body.Keywords != nil {
-			args = append(args, jsonArray(cleanKeywords(*in.Body.Keywords)))
-			sets = append(sets, "keywords = ARRAY(SELECT jsonb_array_elements_text($"+strconv.Itoa(len(args)+2)+"::jsonb))")
-		}
-		if in.Body.Enabled != nil {
-			args = append(args, *in.Body.Enabled)
-			sets = append(sets, "enabled = $"+strconv.Itoa(len(args)+2))
-		}
-		if len(sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE topics SET `+strings.Join(sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, args...)...)
-			if pgCode(err) == "23505" {
-				return nil, huma.Error409Conflict("a topic with that name already exists")
-			} else if err != nil {
-				return nil, huma.Error500InternalServerError("could not update the topic")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("topic not found")
-			}
-		}
-		// Keywords changed means the labels are stale: relabel what is collected.
-		if in.Body.Keywords != nil {
-			_, _ = db().ExecContext(ctx, `UPDATE news_items SET topic_ids = array_remove(topic_ids, $2) WHERE workspace_id = $1 AND $2 = ANY (topic_ids)`, s.WorkspaceID, in.ID)
-			_, _ = db().ExecContext(ctx, backfillSQL, s.WorkspaceID, in.ID)
-		}
-		t, err := getTopic(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("topic not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the topic")
-		}
-		return out(struct {
-			Topic TopicOut `json:"topic"`
-		}{t}), nil
-	})
-
-	huma.Register(api, huma.Operation{
-		OperationID: "w-delete-topic", Method: http.MethodDelete, Path: "/api/w/topics/{id}",
-		DefaultStatus: http.StatusNoContent, Summary: "Stop watching a topic (items stay, unlabelled)", Tags: tags,
-	}, func(ctx context.Context, in *idPath) (*struct{}, error) {
-		s, err := scope(ctx, authz.TrendsManage)
-		if err != nil {
-			return nil, err
-		}
-		res, err := db().ExecContext(ctx, `DELETE FROM topics WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not delete the topic")
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, huma.Error404NotFound("topic not found")
-		}
-		_, _ = db().ExecContext(ctx, `UPDATE news_items SET topic_ids = array_remove(topic_ids, $2) WHERE workspace_id = $1 AND $2 = ANY (topic_ids)`, s.WorkspaceID, in.ID)
-		return &struct{}{}, nil
-	})
-
-	// ---- the timeline ------------------------------------------------------
+	type newsPageOut struct {
+		Items      []NewsOut `json:"items"`
+		Total      int64     `json:"total" doc:"Every item in the workspace, whatever the filters."`
+		HasMore    bool      `json:"has_more"`
+		NextCursor string    `json:"next_cursor,omitempty"`
+	}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-news", Method: http.MethodGet, Path: "/api/w/news",
-		Summary: "Collected items, newest first", Tags: tags,
+		Summary: "Collected items, newest first, a page at a time", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Topic  string `query:"topic" doc:"A topic id."`
-		Source string `query:"source" doc:"A feed id."`
-		Saved  bool   `query:"saved"`
-		Q      string `query:"q" doc:"Title or summary contains."`
-		Limit  int    `query:"limit" minimum:"1" maximum:"200"`
-	}) (*body[struct {
-		Items []NewsOut `json:"items"`
-		Total int64     `json:"total"`
-	}], error) {
+		Topic   string `query:"topic" doc:"A keyword topic id."`
+		Source  string `query:"source" doc:"A source id."`
+		Cluster string `query:"cluster" doc:"A trending topic (story) id."`
+		Saved   bool   `query:"saved"`
+		Q       string `query:"q" doc:"Title or summary contains."`
+		Day     string `query:"day" doc:"YYYY-MM-DD (UTC): only items published that day."`
+		Cursor  string `query:"cursor" doc:"next_cursor from the previous page."`
+		Limit   int    `query:"limit" minimum:"1" maximum:"200" doc:"Default 30."`
+	}) (*body[newsPageOut], error) {
 		s, err := scope(ctx, authz.TrendsRead)
 		if err != nil {
 			return nil, err
 		}
-		q := `SELECT id, source_id, source_name, title, url, summary, author, topic_ids, published_at, saved_at
+		q := `SELECT id, source_id, source_name, outlet, provider, title, url, summary, author, topic_ids, cluster_id,
+		             rank, points, comments, published_at, saved_at
 		      FROM news_items WHERE workspace_id = $1`
 		args := []any{s.WorkspaceID}
+		add := func(clause string, v any) {
+			args = append(args, v)
+			q += " AND " + strings.ReplaceAll(clause, "?", "$"+strconv.Itoa(len(args)))
+		}
 		if in.Topic != "" {
-			args = append(args, in.Topic)
-			q += ` AND $` + strconv.Itoa(len(args)) + ` = ANY (topic_ids)`
+			add(`? = ANY (topic_ids)`, in.Topic)
 		}
 		if in.Source != "" {
-			args = append(args, in.Source)
-			q += ` AND source_id = $` + strconv.Itoa(len(args))
+			add(`source_id = ?`, in.Source)
+		}
+		if in.Cluster != "" {
+			add(`cluster_id = ?`, in.Cluster)
 		}
 		if in.Saved {
 			q += ` AND saved_at IS NOT NULL`
 		}
-		if strings.TrimSpace(in.Q) != "" {
-			args = append(args, "%"+strings.ToLower(strings.TrimSpace(in.Q))+"%")
-			q += ` AND (lower(title) LIKE $` + strconv.Itoa(len(args)) + ` OR lower(summary) LIKE $` + strconv.Itoa(len(args)) + `)`
+		if t := strings.TrimSpace(in.Q); t != "" {
+			add(`(lower(title) LIKE ? ESCAPE '\' OR lower(summary) LIKE ? ESCAPE '\')`, likePattern(t))
+		}
+		if in.Day != "" {
+			d, err := time.Parse("2006-01-02", in.Day)
+			if err != nil {
+				return nil, huma.Error422UnprocessableEntity("day must be YYYY-MM-DD")
+			}
+			add(`published_at >= ?`, d)
+			add(`published_at < ?`, d.Add(24*time.Hour))
+		}
+		if in.Cursor != "" {
+			at, id, err := decodeNewsCursor(in.Cursor)
+			if err != nil {
+				return nil, huma.Error422UnprocessableEntity("cursor is not valid")
+			}
+			args = append(args, at, id)
+			q += ` AND (published_at, id) < ($` + strconv.Itoa(len(args)-1) + `, $` + strconv.Itoa(len(args)) + `)`
 		}
 		limit := in.Limit
 		if limit <= 0 {
-			limit = 100
+			limit = 30
 		}
-		q += ` ORDER BY published_at DESC LIMIT ` + strconv.Itoa(limit)
-		rows, err := db().QueryContext(ctx, q, args...)
+		q += ` ORDER BY published_at DESC, id DESC LIMIT ` + strconv.Itoa(limit+1)
+		list, err := queryNews(ctx, db(), q, args...)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list the timeline")
+			return nil, huma.Error500InternalServerError("could not list the items")
 		}
-		defer rows.Close()
-		list := []NewsOut{}
-		for rows.Next() {
-			var n NewsOut
-			var src sql.NullString
-			var saved sql.NullTime
-			var topics pgtext.Array
-			if err := rows.Scan(&n.ID, &src, &n.SourceName, &n.Title, &n.URL, &n.Summary, &n.Author, &topics, &n.PublishedAt, &saved); err != nil {
-				return nil, huma.Error500InternalServerError("could not list the timeline")
-			}
-			n.SourceID, n.SavedAt = strp(src), timep(saved)
-			n.TopicIDs = topics
-			if n.TopicIDs == nil {
-				n.TopicIDs = []string{}
-			}
-			list = append(list, n)
+		page := newsPageOut{Items: list}
+		if len(list) > limit {
+			page.Items = list[:limit]
+			last := page.Items[limit-1]
+			page.HasMore = true
+			page.NextCursor = encodeNewsCursor(last.PublishedAt, last.ID)
 		}
-		var total int64
-		_ = db().QueryRowContext(ctx, `SELECT count(*) FROM news_items WHERE workspace_id = $1`, s.WorkspaceID).Scan(&total)
-		return out(struct {
-			Items []NewsOut `json:"items"`
-			Total int64     `json:"total"`
-		}{list, total}), nil
+		_ = db().QueryRowContext(ctx, `SELECT count(*) FROM news_items WHERE workspace_id = $1`, s.WorkspaceID).Scan(&page.Total)
+		return out(page), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -584,52 +522,68 @@ func Register(api huma.API, a *app.App) {
 	})
 }
 
-// backfillSQL labels already-collected items with one topic: any keyword (or the
-// topic's own name, when it has none) appearing in the title or summary.
-const backfillSQL = `
-UPDATE news_items n SET topic_ids = array_append(n.topic_ids, t.id)
-FROM topics t
-WHERE t.workspace_id = $1 AND t.id = $2 AND n.workspace_id = t.workspace_id
-  AND NOT (t.id = ANY (n.topic_ids))
-  AND EXISTS (
-    SELECT 1 FROM unnest(CASE WHEN cardinality(t.keywords) = 0 THEN ARRAY[t.name] ELSE t.keywords END) AS kw
-    WHERE lower(n.title || ' ' || n.summary) LIKE '%' || lower(kw) || '%'
-  )`
-
-func getSource(ctx context.Context, db *sql.DB, wsID, id string) (SourceOut, error) {
-	var so SourceOut
-	var fetched, errAt sql.NullTime
-	err := db.QueryRowContext(ctx, `
-		SELECT id, name, url, kind, enabled, last_fetched_at, last_error, last_error_at, item_count, created_at
-		FROM feed_sources WHERE workspace_id = $1 AND id = $2`, wsID, id,
-	).Scan(&so.ID, &so.Name, &so.URL, &so.Kind, &so.Enabled, &fetched, &so.LastError, &errAt, &so.ItemCount, &so.CreatedAt)
-	so.LastFetchedAt, so.LastErrorAt = timep(fetched), timep(errAt)
-	return so, err
+func queryNews(ctx context.Context, db *sql.DB, q string, args ...any) ([]NewsOut, error) {
+	rows, err := db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list := []NewsOut{}
+	for rows.Next() {
+		var n NewsOut
+		var src, cluster sql.NullString
+		var saved sql.NullTime
+		var topics pgtext.Array
+		if err := rows.Scan(&n.ID, &src, &n.SourceName, &n.Outlet, &n.Provider, &n.Title, &n.URL, &n.Summary, &n.Author, &topics, &cluster,
+			&n.Rank, &n.Points, &n.Comments, &n.PublishedAt, &saved); err != nil {
+			return nil, err
+		}
+		n.SourceID, n.ClusterID, n.SavedAt = strp(src), strp(cluster), timep(saved)
+		if n.Outlet == "" {
+			n.Outlet = n.SourceName
+		}
+		n.TopicIDs = topics
+		if n.TopicIDs == nil {
+			n.TopicIDs = []string{}
+		}
+		list = append(list, n)
+	}
+	return list, rows.Err()
 }
 
-func getTopic(ctx context.Context, db *sql.DB, wsID, id string) (TopicOut, error) {
-	var t TopicOut
-	var kw pgtext.Array
-	err := db.QueryRowContext(ctx, `
-		SELECT t.id, t.name, t.keywords, t.enabled, t.created_at,
-		       (SELECT count(*) FROM news_items n WHERE n.workspace_id = t.workspace_id AND t.id = ANY (n.topic_ids))
-		FROM topics t WHERE t.workspace_id = $1 AND t.id = $2`, wsID, id,
-	).Scan(&t.ID, &t.Name, &kw, &t.Enabled, &t.CreatedAt, &t.ItemCount)
-	t.Keywords = kw
-	if t.Keywords == nil {
-		t.Keywords = []string{}
+func encodeNewsCursor(at time.Time, id string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(at.UTC().Format(time.RFC3339Nano) + "|" + id))
+}
+
+func decodeNewsCursor(c string) (time.Time, string, error) {
+	raw, err := base64.RawURLEncoding.DecodeString(c)
+	if err != nil {
+		return time.Time{}, "", err
 	}
-	return t, err
+	parts := strings.SplitN(string(raw), "|", 2)
+	if len(parts) != 2 || parts[1] == "" {
+		return time.Time{}, "", errors.New("cursor")
+	}
+	at, err := time.Parse(time.RFC3339Nano, parts[0])
+	return at, parts[1], err
+}
+
+func likePattern(q string) string {
+	return "%" + strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.ToLower(q)) + "%"
+}
+
+func getSource(ctx context.Context, db *sql.DB, wsID, id string) (SourceOut, error) {
+	return scanSource(db.QueryRowContext(ctx, `SELECT `+sourceColumns+` FROM feed_sources WHERE workspace_id = $1 AND id = $2`, wsID, id))
 }
 
 // feedTitle re-fetches just to read the feed's own title, for naming a source
 // the person did not name. Best effort: a failure here is not an error.
-func feedTitle(ctx context.Context, a *app.App, url string) string {
+func feedTitle(ctx context.Context, url string) string {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return ""
 	}
-	req.Header.Set("User-Agent", "Moharrik/1.0 (+https://moharrik.com)")
+	req.Header.Set("User-Agent", userAgent)
 	res, err := client.Do(req)
 	if err != nil {
 		return ""
@@ -640,33 +594,4 @@ func feedTitle(ctx context.Context, a *app.App, url string) string {
 		return ""
 	}
 	return trimTo(f.Title, 120)
-}
-
-func cleanKeywords(in []string) []string {
-	out := []string{}
-	seen := map[string]bool{}
-	for _, k := range in {
-		k = strings.TrimSpace(k)
-		if k == "" || seen[strings.ToLower(k)] {
-			continue
-		}
-		seen[strings.ToLower(k)] = true
-		out = append(out, k)
-	}
-	return out
-}
-
-// jsonArray renders []string as a JSON array, for the jsonb_array_elements_text
-// trick that keeps text[] parameters out of the driver's hands.
-func jsonArray(vals []string) string {
-	if len(vals) == 0 {
-		return "[]"
-	}
-	parts := make([]string, 0, len(vals))
-	for _, v := range vals {
-		v = strings.ReplaceAll(v, `\`, `\\`)
-		v = strings.ReplaceAll(v, `"`, `\"`)
-		parts = append(parts, `"`+v+`"`)
-	}
-	return "[" + strings.Join(parts, ",") + "]"
 }
