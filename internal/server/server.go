@@ -164,6 +164,13 @@ func Boot() *app.App {
 		google.StartCollector(a, 5*time.Minute, 20)
 	}
 
+	// Snoozed conversations wake when their time comes (MH-383), so every open
+	// tab's list and bell move without anyone reloading. SNOOZE_WAKER=off
+	// turns it off; the inbox list wakes due threads on read either way.
+	if os.Getenv("SNOOZE_WAKER") != "off" {
+		inbox.StartSnoozeWaker(a, 30*time.Second)
+	}
+
 	gql := handler.NewDefaultServer(graphgen.NewExecutableSchema(graphgen.Config{
 		Resolvers: &resolvers.Resolver{App: a},
 	}))

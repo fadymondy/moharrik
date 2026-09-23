@@ -41,7 +41,8 @@ const conversationSelect = `
 	       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
 	                 ORDER BY m.created_at DESC LIMIT 1), ''),
 	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id),
-	       c.customer_phone, c.contact_link, ct.name, ct.email, ct.company_id, co.name, c.deal_id, d.title
+	       c.customer_phone, c.contact_link, ct.name, ct.email, ct.company_id, co.name, c.deal_id, d.title,
+	       c.snoozed_until, c.closed_at
 	FROM conversations c
 	LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
 	LEFT JOIN companies co ON co.workspace_id = ct.workspace_id AND co.id = ct.company_id
@@ -51,10 +52,11 @@ const conversationSelect = `
 func scanConversation(row interface{ Scan(...any) error }) (ConversationOut, error) {
 	var c ConversationOut
 	var contactID, assignee, ctName, ctEmail, companyID, coName, dealID, dealTitle sql.NullString
+	var snoozed, closed sql.NullTime
 	var preview string
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
 		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount,
-		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle); err != nil {
+		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle, &snoozed, &closed); err != nil {
 		return c, err
 	}
 	c.ContactID = strp(contactID)
@@ -68,6 +70,14 @@ func scanConversation(row interface{ Scan(...any) error }) (ConversationOut, err
 	}
 	if dealID.Valid {
 		c.Deal = &LinkedDeal{ID: dealID.String, Title: dealTitle.String}
+	}
+	if snoozed.Valid {
+		t := snoozed.Time
+		c.SnoozedUntil = &t
+	}
+	if closed.Valid {
+		t := closed.Time
+		c.ClosedAt = &t
 	}
 	return c, nil
 }
@@ -100,6 +110,9 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
+		// A snooze that has run out is over whether or not the waker has come
+		// round yet: the list never shows a thread as snoozed past its time.
+		wakeDue(ctx, a, s.WorkspaceID)
 		q := conversationSelect
 		args := []any{s.WorkspaceID}
 		if in.Status != "" {
@@ -149,6 +162,7 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
+		wakeDue(ctx, a, s.WorkspaceID)
 		c, err := readConversation(ctx, db(), s.WorkspaceID, in.ID)
 		if notFound(err) {
 			return nil, huma.Error404NotFound("conversation not found")
@@ -238,7 +252,8 @@ func Register(api huma.API, a *app.App) {
 		// reopens a closed conversation rather than replying into a closed one.
 		_, _ = db().ExecContext(ctx, `
 			UPDATE conversations SET last_message_at = now(), unread = false, updated_at = now(),
-			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
+			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END,
+			  closed_at = NULL
 			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
 		// Two members can have the same thread open; the one who did not type
 		// should see the reply appear, not a stale thread.
@@ -253,7 +268,7 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-update-conversation", Method: http.MethodPatch, Path: "/api/w/conversations/{id}",
-		Summary: "Assign, close, reopen or retitle a conversation, or link it to a CRM contact", Tags: tags,
+		Summary: "Assign, close, reopen, snooze or retitle a conversation, or link it to a CRM contact", Tags: tags,
 		Description: "Snoozing: send `snoozed_until` (a future time, at most a year ahead) and the conversation becomes snoozed until then, " +
 			"when it reopens as unread. `status: snoozed` with no time snoozes it until the customer writes again. " +
 			"Any status other than snoozed clears the time; closing records `closed_at` for the inbox stats.",
@@ -262,6 +277,7 @@ func Register(api huma.API, a *app.App) {
 		ID   string `path:"id"`
 		Body struct {
 			Status         *string `json:"status,omitempty" enum:"open,snoozed,closed"`
+			SnoozedUntil   *string `json:"snoozed_until,omitempty" doc:"RFC 3339. Snoozes the conversation until then (it must be in the future). Empty string wakes it."`
 			AssigneeUserID *string `json:"assignee_user_id,omitempty" doc:"A member's user id; empty string unassigns."`
 			ContactID      *string `json:"contact_id,omitempty" doc:"A CRM contact id; empty string unlinks (and stops the automatic email/phone match relinking it)."`
 			Subject        *string `json:"subject,omitempty" maxLength:"200"`
@@ -275,11 +291,53 @@ func Register(api huma.API, a *app.App) {
 			return nil, err
 		}
 		u := &update{}
+		status := ""
 		if in.Body.Status != nil {
 			if !statuses[*in.Body.Status] {
 				return nil, huma.Error422UnprocessableEntity("unknown status")
 			}
-			u.set("status", *in.Body.Status)
+			status = *in.Body.Status
+		}
+		if in.Body.SnoozedUntil != nil {
+			raw := strings.TrimSpace(*in.Body.SnoozedUntil)
+			if raw == "" {
+				// Waking it: back to open, unless the same request says otherwise.
+				if status == "" || status == "snoozed" {
+					status = "open"
+				}
+			} else {
+				until, err := time.Parse(time.RFC3339, raw)
+				if err != nil {
+					return nil, huma.Error422UnprocessableEntity("snoozed_until must be an RFC 3339 time")
+				}
+				if !until.After(time.Now()) {
+					return nil, huma.Error422UnprocessableEntity("snoozed_until must be in the future")
+				}
+				if until.After(time.Now().AddDate(1, 0, 0)) {
+					return nil, huma.Error422UnprocessableEntity("a conversation can be snoozed for a year at most")
+				}
+				if status != "" && status != "snoozed" {
+					return nil, huma.Error422UnprocessableEntity("snoozed_until only goes with status snoozed")
+				}
+				status = "snoozed"
+				u.set("snoozed_until", until.UTC())
+			}
+		}
+		if status != "" {
+			u.set("status", status)
+			if status != "snoozed" {
+				u.sets = append(u.sets, "snoozed_until = NULL")
+			} else if in.Body.SnoozedUntil == nil || strings.TrimSpace(*in.Body.SnoozedUntil) == "" {
+				// Snoozed with no time: until the customer writes again.
+				u.sets = append(u.sets, "snoozed_until = NULL")
+			}
+			// When it was closed is what the stats' time to resolution reads. A
+			// close of an already-closed thread keeps the first time.
+			if status == "closed" {
+				u.sets = append(u.sets, "closed_at = CASE WHEN status = 'closed' AND closed_at IS NOT NULL THEN closed_at ELSE now() END")
+			} else {
+				u.sets = append(u.sets, "closed_at = NULL")
+			}
 		}
 		if in.Body.AssigneeUserID != nil {
 			if err := checkMember(ctx, db(), s.WorkspaceID, *in.Body.AssigneeUserID); err != nil {
@@ -483,6 +541,8 @@ func Register(api huma.API, a *app.App) {
 	})
 
 	registerCRM(api, a)
+	registerCanned(api, a)
+	registerStats(api, a)
 	registerPublicChat(api, a)
 }
 

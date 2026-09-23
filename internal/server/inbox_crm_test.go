@@ -1,10 +1,12 @@
 package server
 
 /*
-TestInboxCRM — the inbox reaching the CRM (MH-379), end to end through the
-real stack: a visitor's chat through the public widget route, then linking,
-creating a contact, opening a deal with the transcript, the automatic email
-and WhatsApp match, and the contact, company and deal timelines.
+TestInboxCRM — the inbox reaching the CRM (MH-379) and the inbox's productivity
+tools (MH-383), end to end through the real stack: a visitor's chat through the
+public widget route, then linking, creating a contact, opening a deal with the
+transcript, the automatic email and WhatsApp match, the contact/company/deal
+timelines, snooze and its wake-up, canned replies with their permissions, and
+the stats checked against the database.
 
 	TEST_DATABASE_URL=... TEST_APP_DATABASE_URL=... go test -count=1 ./internal/server/ -run InboxCRM -v
 */
@@ -14,6 +16,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -58,6 +61,7 @@ func TestInboxCRM(t *testing.T) {
 	t.Setenv("TRENDS_COLLECTOR", "off")
 	t.Setenv("MAIL_COLLECTOR", "off")
 	t.Setenv("SCHEDULER", "off")
+	t.Setenv("SNOOZE_WAKER", "off")
 	defer inbox.SetLimiter(inbox.NewMemoryLimiter(), inbox.DefaultChatLimits())()
 
 	a := Boot()
@@ -215,10 +219,122 @@ func TestInboxCRM(t *testing.T) {
 		t.Errorf("an unlinked thread must not be relinked automatically: %v", cv)
 	}
 
+	// ---- snooze ----------------------------------------------------------------
+	until := time.Now().Add(3 * time.Hour).UTC().Truncate(time.Second)
+	sn := obj(alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"snoozed_until": until.Format(time.RFC3339)}, 200)["conversation"])
+	if sn["status"] != "snoozed" || sn["snoozed_until"] == nil {
+		t.Errorf("snoozing: %v", sn)
+	}
+	if code, _ := alice.do("PATCH", "/api/w/conversations/"+convID, map[string]any{"snoozed_until": time.Now().Add(-time.Minute).Format(time.RFC3339)}); code != 422 {
+		t.Errorf("a snooze in the past: got %d, want 422", code)
+	}
+	if n := len(arr(alice.must("GET", "/api/w/conversations?status=snoozed", nil, 200)["conversations"])); n != 1 {
+		t.Errorf("the snoozed filter: %d", n)
+	}
+	// Unsnooze by hand.
+	un := obj(alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"snoozed_until": ""}, 200)["conversation"])
+	if un["status"] != "open" || un["snoozed_until"] != nil {
+		t.Errorf("unsnoozing: %v", un)
+	}
+	// A snooze whose time has passed wakes on the next read, unread again.
+	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"snoozed_until": until.Format(time.RFC3339)}, 200)
+	if _, err := a.SysDB.Exec(`UPDATE conversations SET snoozed_until = now() - interval '1 minute' WHERE id = $1`, convID); err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range arr(alice.must("GET", "/api/w/conversations", nil, 200)["conversations"]) {
+		if cv := obj(raw); cv["id"] == convID && (cv["status"] != "open" || cv["unread"] != true || cv["snoozed_until"] != nil) {
+			t.Errorf("a due snooze should wake, unread: %v", cv)
+		}
+	}
+	// And the waker does the same across workspaces without anybody reading.
+	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"snoozed_until": until.Format(time.RFC3339)}, 200)
+	_, _ = a.SysDB.Exec(`UPDATE conversations SET snoozed_until = now() - interval '1 minute' WHERE id = $1`, convID)
+	if n, err := inbox.WakeAllDue(ctx, a); err != nil || n < 1 {
+		t.Errorf("the waker: %d %v", n, err)
+	}
+	// A customer writing wakes a snoozed thread too.
+	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"snoozed_until": until.Format(time.RFC3339)}, 200)
+	visitorWrites(t, srv.URL, key, origin, map[string]any{"body": "Any news?", "visitor_token": tok})
+	if cv := obj(alice.must("GET", "/api/w/conversations/"+convID, nil, 200)["conversation"]); cv["status"] != "open" || cv["snoozed_until"] != nil {
+		t.Errorf("an inbound message should wake the thread: %v", cv)
+	}
+
+	// ---- close records closed_at ------------------------------------------------
+	cl := obj(alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"status": "closed"}, 200)["conversation"])
+	if cl["closed_at"] == nil {
+		t.Errorf("closing records when: %v", cl)
+	}
+
+	// ---- canned replies -----------------------------------------------------------
+	r1 := obj(alice.must("POST", "/api/w/canned_replies", map[string]any{"title": "Thanks", "body_en": "Thank you!", "body_ar": "شكرًا لك!"}, 201)["reply"])
+	alice.must("POST", "/api/w/canned_replies", map[string]any{"title": "Arabic only", "body_ar": "أهلاً"}, 201)
+	if code, _ := alice.do("POST", "/api/w/canned_replies", map[string]any{"title": "Empty"}); code != 422 {
+		t.Errorf("a canned reply with no text: got %d, want 422", code)
+	}
+	if code, _ := alice.do("PATCH", "/api/w/canned_replies/"+r1["id"].(string), map[string]any{"body_en": "", "body_ar": ""}); code != 422 {
+		t.Errorf("emptying both variants: got %d, want 422", code)
+	}
+	alice.must("PATCH", "/api/w/canned_replies/"+r1["id"].(string), map[string]any{"body_en": "Thank you very much!"}, 200)
+	list := arr(alice.must("GET", "/api/w/canned_replies", nil, 200)["replies"])
+	if len(list) != 2 || obj(list[0])["body_en"] != "Thank you very much!" {
+		t.Errorf("canned replies in order: %v", list)
+	}
+	// A member reads and uses them; only a manager writes them.
+	carol := newClient(t, srv.URL)
+	carolEmail := "crm-c-" + rnd() + "@example.test"
+	carol.must("POST", "/api/auth/register", map[string]string{"email": carolEmail, "password": "correct-horse-3"}, 201)
+	if _, err := a.SysDB.Exec(`INSERT INTO workspace_members (workspace_id, user_id, role) SELECT $1, id, 'member' FROM users WHERE email = $2`, wsID, carolEmail); err != nil {
+		t.Fatal(err)
+	}
+	carol.ws = wsID
+	if n := len(arr(carol.must("GET", "/api/w/canned_replies", nil, 200)["replies"])); n != 2 {
+		t.Errorf("a member reads the canned replies: %d", n)
+	}
+	if code, _ := carol.do("POST", "/api/w/canned_replies", map[string]any{"title": "x", "body_en": "y"}); code != http.StatusForbidden {
+		t.Errorf("a member adding a canned reply: got %d, want 403", code)
+	}
+	alice.must("DELETE", "/api/w/canned_replies/"+r1["id"].(string), nil, 204)
+
+	// ---- stats match the database ------------------------------------------------
+	st := alice.must("GET", "/api/w/inbox/stats?days=30", nil, 200)
+	var total, chats, answered, resolved int64
+	var frMedian float64
+	if err := a.SysDB.QueryRow(`
+		SELECT count(*), count(*) FILTER (WHERE channel = 'chat'), count(*) FILTER (WHERE status = 'closed')
+		FROM conversations WHERE workspace_id = $1 AND created_at >= now() - interval '30 days'`, wsID).Scan(&total, &chats, &resolved); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`
+		WITH f AS (
+		  SELECT (SELECT min(created_at) FROM messages WHERE conversation_id = c.id AND direction = 'in') fi, c.id
+		  FROM conversations c WHERE c.workspace_id = $1),
+		g AS (SELECT fi, (SELECT min(created_at) FROM messages WHERE conversation_id = f.id AND direction = 'out' AND created_at >= f.fi) fo FROM f)
+		SELECT count(fo), coalesce(percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM fo - fi)), 0) FROM g WHERE fo IS NOT NULL`, wsID).Scan(&answered, &frMedian); err != nil {
+		t.Fatal(err)
+	}
+	tot := obj(st["total"])
+	if int64(tot["conversations"].(float64)) != total || int64(tot["resolved"].(float64)) != resolved || int64(tot["answered"].(float64)) != answered {
+		t.Errorf("stats total %v, database: %d conversations, %d resolved, %d answered", tot, total, resolved, answered)
+	}
+	if got := tot["first_response_median_seconds"].(float64); math.Abs(got-frMedian) > 0.001 {
+		t.Errorf("first-response median %v, database %v", got, frMedian)
+	}
+	chs := arr(st["channels"])
+	if len(chs) != 3 || obj(chs[0])["channel"] != "chat" || int64(obj(chs[0])["conversations"].(float64)) != chats {
+		t.Errorf("per channel: %v (database: %d chats)", chs, chats)
+	}
+	if total != 4 || resolved != 1 || answered != 1 {
+		t.Errorf("this test made 4 conversations (1 chat, 2 email, 1 WhatsApp), closed 1 and answered 1; the database says %d, %d, %d", total, resolved, answered)
+	}
+	// An empty inbox is zeros and nulls, never made-up times.
 	bob := newClient(t, srv.URL)
 	bob.must("POST", "/api/auth/register", map[string]string{"email": "crm-b-" + rnd() + "@example.test", "password": "correct-horse-2"}, 201)
 	bob.ws = bob.must("POST", "/api/me/workspaces", map[string]string{"name": "Empty " + rnd()}, 201)["workspace"].(map[string]any)["id"].(string)
-	// B never reaches A's conversations: no deal, no contact, no link.
+	bt := obj(bob.must("GET", "/api/w/inbox/stats", nil, 200)["total"])
+	if bt["conversations"].(float64) != 0 || bt["first_response_median_seconds"] != nil || bt["resolution_rate"] != nil {
+		t.Errorf("an empty inbox has no stats to show: %v", bt)
+	}
+	// And B's stats, links and canned replies never see A's.
 	if code, _ := bob.do("POST", "/api/w/conversations/"+convID+"/deal", map[string]any{}); code != http.StatusNotFound {
 		t.Errorf("B opening a deal from A's conversation: got %d, want 404", code)
 	}

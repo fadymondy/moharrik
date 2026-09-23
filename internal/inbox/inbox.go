@@ -56,6 +56,9 @@ type ConversationOut struct {
 	Contact  *LinkedContact `json:"contact" doc:"The CRM contact this conversation is linked to, if any."`
 	LinkedBy string         `json:"contact_link" enum:",auto,manual" doc:"How the contact was linked: auto (an exact email or phone match when the message was filed) or manual (by a member). manual with no contact means a member unlinked it, and no automatic match will relink it."`
 	Deal     *LinkedDeal    `json:"deal" doc:"The deal this conversation was turned into, if any."`
+	// Snooze and resolution (MH-383).
+	SnoozedUntil *time.Time `json:"snoozed_until" doc:"When a snoozed conversation wakes up; null when it is not snoozed, or is snoozed until the customer writes again."`
+	ClosedAt     *time.Time `json:"closed_at" doc:"When it was closed; null while open or snoozed."`
 }
 
 // LinkedContact is the CRM contact on a conversation.

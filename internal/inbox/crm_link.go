@@ -59,8 +59,10 @@ type conversationDetail struct {
 }
 
 // reopenOnInbound is the SET fragment every inbound path uses: a customer
-// writing reopens a closed thread rather than leaving it answered into.
-const reopenOnInbound = `status = CASE WHEN status = 'closed' THEN 'open' ELSE status END`
+// writing reopens a closed thread and wakes a snoozed one (MH-383), and an
+// open thread has neither a snooze time nor a close time.
+const reopenOnInbound = `status = CASE WHEN status IN ('closed', 'snoozed') THEN 'open' ELSE status END,
+	snoozed_until = NULL, closed_at = NULL`
 
 // ---- automatic link -----------------------------------------------------------
 

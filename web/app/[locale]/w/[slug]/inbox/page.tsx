@@ -3,10 +3,12 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { MessageSquareIcon, SettingsIcon, MailIcon, MessageCircleIcon } from "lucide-react"
+import { BarChart3Icon, MailIcon, MessageCircleIcon, MessageSquareIcon, MessageSquareQuoteIcon, SettingsIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
+import { CannedPicker } from "@/components/inbox/canned-picker"
+import { SnoozeControl, SnoozedNote } from "@/components/inbox/snooze-control"
 import { ThreadCRM } from "@/components/inbox/thread-crm"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -82,8 +84,18 @@ export default function InboxPage() {
         title={t("nav.inbox")}
         description={t("inbox.hint")}
         action={
-          canManage ? (
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Stats are everyone's (inbox:read); the settings are a manager's. */}
+            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/stats`} />}>
+              <BarChart3Icon />
+              {t("inbox.stats")}
+            </Button>
+            {canManage ? (
+              <>
+              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/canned`} />}>
+                <MessageSquareQuoteIcon />
+                {t("inbox.canned")}
+              </Button>
               <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/email`} />}>
                 <MailIcon />
                 {t("mailbox.title")}
@@ -96,8 +108,9 @@ export default function InboxPage() {
                 <SettingsIcon />
                 {t("inbox.widgets")}
               </Button>
-            </div>
-          ) : undefined
+              </>
+            ) : null}
+          </div>
         }
       />
 
@@ -245,7 +258,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
 
   if (detail.error) return <ErrorState error={detail.error} />
   if (!detail.data) return <LoadingRows rows={4} />
-  const { conversation: c, messages, visitor } = detail.data
+  const { conversation: c, messages, visitor, reply_language: replyLang } = detail.data
 
   function refresh() {
     detail.mutate()
@@ -279,12 +292,18 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
     }
   }
 
+  // A canned reply is inserted, never sent: most want a sentence added first.
+  function insert(text: string) {
+    setReply((cur) => (cur.trim() ? `${cur.trimEnd()}\n${text}` : text))
+    document.getElementById("reply-body")?.focus()
+  }
+
   const assigneeOpts = members.options
 
   return (
     <section data-thread={id}>
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-6 py-4">
-        {/* Its own row on a phone: beside the assignee and status controls it was cut to one letter. */}
+        {/* Its own row on a phone: beside the assignee and snooze controls it was cut to one letter. */}
         <div className="min-w-0 flex-1 max-sm:basis-full">
           <BdiBlock as="p" className="truncate text-sm font-medium">
             {c.customer_name || c.customer_email || c.customer_phone || t("inbox.anonymous")}
@@ -312,6 +331,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
               </>
             ) : null}
           </p>
+          <SnoozedNote c={c} />
         </div>
         {canWrite ? (
           <>
@@ -324,6 +344,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
                 noneLabel={t("inbox.unassigned")}
               />
             </div>
+            <SnoozeControl c={c} onChanged={refresh} />
             <Button
               variant="outline"
               size="sm"
@@ -377,6 +398,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
               <MessageSquareIcon />
               {busy ? t("common.working") : t("inbox.send")}
             </Button>
+            <CannedPicker lang={replyLang} onInsert={insert} />
             {err ? <FieldError>{err}</FieldError> : null}
           </div>
         </form>

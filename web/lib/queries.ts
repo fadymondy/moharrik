@@ -45,6 +45,8 @@ import {
   type Conversation,
   type ConversationDetail,
   type ConversationRef,
+  type CannedReply,
+  type InboxStats,
   type InboxMessage,
   type FeedSource,
   type GoogleConnections,
@@ -281,6 +283,13 @@ export function useConversation(workspaceId: string | null | undefined, id?: str
 }
 
 export const useChatWidgets = (id?: string | null) => useScoped<{ widgets: ChatWidget[] | null }>("/api/w/chat_widgets", id)
+
+/** The workspace's canned replies (MH-383), in picker order. */
+export const useCannedReplies = (id?: string | null) => useScoped<{ replies: CannedReply[] | null }>("/api/w/canned_replies", id)
+
+/** Per-channel inbox stats over the last `days` days (MH-383). */
+export const useInboxStats = (id: string | null | undefined, days: number) =>
+  useScoped<InboxStats>(`/api/w/inbox/stats?days=${days}`, id)
 
 /** The pipeline's stages, for opening a deal from a conversation (MH-379). */
 export const usePipelineStages = (id?: string | null, enabled = true) =>

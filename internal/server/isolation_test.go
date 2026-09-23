@@ -289,9 +289,11 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	convID := convs[0].(map[string]any)["id"].(string)
 	// MH-379: the conversation linked to A's contact and turned into a deal,
-	// so the contact, company and deal pages all carry it.
+	// so the contact, company and deal pages all carry it; MH-383: a canned
+	// reply carrying the marker.
 	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"contact_id": ctID}, 200)
 	convDealID := alice.must("POST", "/api/w/conversations/"+convID+"/deal", map[string]any{"title": marker + " chat deal"}, 201)["deal_id"].(string)
+	cannedID := alice.must("POST", "/api/w/canned_replies", map[string]any{"title": marker + " canned", "body_en": marker, "body_ar": marker}, 201)["reply"].(map[string]any)["id"].(string)
 
 	// Leads (MH-390): an inquiry form, then a real submission through the
 	// PUBLIC route, so the lead exists the way a visitor's website makes it.
@@ -406,7 +408,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatalf("the schedule list handed back a secret value: %s", b)
 	}
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID}
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -418,6 +420,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"push": pushID,
 		"topics": kwID, "feed_sources": feedID, "news": newsID, "trends": trendID,
 		"browsers": agentID, "workflows": wfID, "schedules": schedID,
+		"canned_replies": cannedID,
 	}
 
 	leaks := func(b []byte) string {
@@ -578,8 +581,9 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Errorf("A's lead was changed from B: %+v", l)
 	}
 
-	// Inbox → CRM (MH-379), with VALID bodies from B: B cannot hang its
-	// contact on A's conversation, make a contact from it or open a deal from it.
+	// Inbox → CRM and canned replies (MH-379, MH-383), with VALID bodies from B:
+	// B cannot hang its contact on A's conversation, open a deal from it, snooze
+	// it, or change or delete A's canned reply.
 	bob.ws = bID
 	bobContact := bob.must("POST", "/api/w/contacts", map[string]any{"email": "bob-ct-" + rnd() + "@example.test"}, 201)["contact"].(map[string]any)["id"].(string)
 	for _, w := range []struct {
@@ -587,8 +591,11 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		body         map[string]any
 	}{
 		{"PATCH", "/api/w/conversations/" + convID, map[string]any{"contact_id": bobContact}},
+		{"PATCH", "/api/w/conversations/" + convID, map[string]any{"snoozed_until": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}},
 		{"POST", "/api/w/conversations/" + convID + "/contact", map[string]any{"email": "bob-steals-" + rnd() + "@example.test"}},
 		{"POST", "/api/w/conversations/" + convID + "/deal", map[string]any{"title": "steal"}},
+		{"PATCH", "/api/w/canned_replies/" + cannedID, map[string]any{"title": "bob owns this"}},
+		{"DELETE", "/api/w/canned_replies/" + cannedID, nil},
 	} {
 		if code, b := bob.do(w.method, w.path, w.body); code != http.StatusNotFound || leaks(b) != "" {
 			t.Errorf("B %s %s: got %d, want 404: %s", w.method, w.path, code, b)
@@ -603,6 +610,17 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		cv["deal"].(map[string]any)["id"] != convDealID {
 		t.Errorf("A's conversation was changed from B: %+v", cv)
 	}
+	if r := alice.must("GET", "/api/w/canned_replies", nil, 200)["replies"].([]any); len(r) != 1 || r[0].(map[string]any)["title"] != marker+" canned" {
+		t.Errorf("A's canned reply was changed from B: %+v", r)
+	}
+	if st := alice.must("GET", "/api/w/inbox/stats", nil, 200)["total"].(map[string]any); st["conversations"].(float64) != 1 {
+		t.Errorf("A's stats: %+v", st)
+	}
+	bob.ws = bID
+	if st := bob.must("GET", "/api/w/inbox/stats", nil, 200)["total"].(map[string]any); st["conversations"].(float64) != 0 {
+		t.Errorf("B's stats counted A's conversations: %+v", st)
+	}
+	alice.ws = aID
 
 	// Google (MH-439): B cannot list, disconnect or draw tokens from A's
 	// connection, and A's grant survives every attempt — not revoked at Google.

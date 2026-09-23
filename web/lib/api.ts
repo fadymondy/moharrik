@@ -460,6 +460,9 @@ export type Conversation = {
   contact_link: "" | "auto" | "manual"
   /** The deal it was turned into. */
   deal: { id: string; title: string } | null
+  /** When a snoozed conversation wakes (MH-383); null otherwise. */
+  snoozed_until: string | null
+  closed_at: string | null
 }
 
 export type VisitorGuess = { name: string; email: string; phone: string; locale: "en" | "ar" }
@@ -486,6 +489,38 @@ export type ConversationRef = {
   deal_id: string | null
   last_message_at: string
   created_at: string
+}
+
+export type CannedReply = {
+  id: string
+  title: string
+  body_en: string
+  body_ar: string
+  position: number
+  created_at: string
+  updated_at: string
+}
+
+export type ChannelStats = {
+  channel: ConversationChannel | "all"
+  conversations: number
+  answered: number
+  awaiting: number
+  first_response_median_seconds: number | null
+  first_response_mean_seconds: number | null
+  resolved: number
+  resolution_rate: number | null
+  resolution_median_seconds: number | null
+}
+
+export type InboxStats = {
+  days: number
+  since: string
+  channels: ChannelStats[]
+  total: ChannelStats
+  open_now: number
+  snoozed_now: number
+  unread_now: number
 }
 
 export type InboxMessage = {
