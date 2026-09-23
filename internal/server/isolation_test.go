@@ -792,6 +792,138 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Errorf("a user token must not open the admin MCP, got %d", code)
 	}
 
+	// ---- every user MCP tool, aimed at A from B -------------------------------
+	//
+	// The REST sweep above walks the router; MCP tools are not routes, so they
+	// get their own sweep (MH-380/386/393/409 added dozens). Bob's token holds
+	// every scope, and each tool is called with A's ids in every id argument
+	// it takes and A's marker as its search text. Nothing of A's may come back,
+	// and A's rows must be unchanged afterwards. New tools are swept
+	// automatically: nothing here lists them by hand.
+	//
+	// A's source, item and trending topic come from the setup above (feedID,
+	// newsID, trendID). A's side gets rows in the two tables only these tools
+	// reach: a WhatsApp send and a pending WhatsApp confirmation.
+	if _, err := a.SysDB.Exec(`INSERT INTO whatsapp_sends (workspace_id, kind, phone, ok, error) VALUES ($1, 'direct', '201000000009', false, $2)`, aID, marker); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SysDB.Exec(`INSERT INTO whatsapp_confirmations (workspace_id, code_hash, contact_id, text_hash, requested_by, expires_at)
+		VALUES ($1, $2, $3, 'x', 'iso', now() + interval '10 minutes')`, aID, "iso-"+rnd(), ctID); err != nil {
+		t.Fatal(err)
+	}
+	bob.ws = bID
+	allScopes := []string{}
+	for _, sc := range mcp.UserScopes {
+		allScopes = append(allScopes, sc.Scope)
+	}
+	// The tool's id argument, by what the tool is about. A tool whose subject
+	// is not matched here is tried with every one of A's ids.
+	subjects := []struct{ word, id string }{
+		{"conversation", convID}, {"notification", itemID}, {"webhook_source", srcID},
+		{"trending_topic", trendID}, {"trend_item", newsID}, {"trend_source", feedID}, {"contact", ctID}, {"compan", coID},
+		{"deal", dealID}, {"lead", leadID}, {"whatsapp", ctID},
+	}
+	toolsSwept := 0
+	for _, tool := range mcp.UserTools(nil) {
+		props, _ := tool.InputSchema["properties"].(map[string]any)
+		ids := []string{}
+		for _, sj := range subjects {
+			if strings.Contains(tool.Name, sj.word) {
+				ids = []string{sj.id}
+				break
+			}
+		}
+		if _, takesID := props["id"]; takesID && len(ids) == 0 {
+			ids = aIDs
+		}
+		if len(ids) == 0 {
+			ids = []string{""}
+		}
+		// A token per tool: the endpoint is rate limited per token.
+		tk := bob.must("POST", "/api/w/mcp_tokens", map[string]any{"name": "sweep " + tool.Name, "scopes": allScopes}, 201)
+		agent := newClient(t, srv.URL)
+		agent.bearer = tk["plaintext"].(string)
+		for _, id := range ids {
+			args := map[string]any{}
+			for k := range props {
+				switch k {
+				case "id":
+					args[k] = id
+				case "contact_id":
+					args[k] = ctID
+				case "company_id":
+					args[k] = coID
+				case "deal_id":
+					args[k] = dealID
+				case "source_id":
+					if strings.Contains(tool.Name, "trend") {
+						args[k] = feedID
+					} else {
+						args[k] = srcID
+					}
+				case "trending_topic_id":
+					args[k] = trendID
+				case "keyword_topic_id":
+					args[k] = kwID
+				case "q":
+					args[k] = marker
+				}
+			}
+			code, text, _ := mcpCall(agent, "/api/mcp", tool.Name, args)
+			if code != http.StatusOK {
+				t.Errorf("MCP %s from B: status %d", tool.Name, code)
+			}
+			if what := leaks([]byte(text)); what != "" {
+				t.Errorf("MCP %s(%v) from B leaked A's %s: %s", tool.Name, args, what, text)
+			}
+		}
+		toolsSwept++
+	}
+	if toolsSwept < 60 {
+		t.Fatalf("swept only %d MCP tools — the registry walk is broken", toolsSwept)
+	}
+	t.Logf("swept %d user MCP tools from B with A's ids", toolsSwept)
+
+	// A's rows the new tools could write are exactly as they were.
+	var convStatus, ctTitle string
+	var convAssignee, itemRead, itemSaved, newsSaved any
+	var srcEnabled, feedEnabled bool
+	_ = a.SysDB.QueryRow(`SELECT status, assignee_user_id FROM conversations WHERE id = $1`, convID).Scan(&convStatus, &convAssignee)
+	_ = a.SysDB.QueryRow(`SELECT read_at, saved_at FROM notification_items WHERE id = $1`, itemID).Scan(&itemRead, &itemSaved)
+	_ = a.SysDB.QueryRow(`SELECT enabled FROM webhook_sources WHERE id = $1`, srcID).Scan(&srcEnabled)
+	_ = a.SysDB.QueryRow(`SELECT saved_at FROM news_items WHERE id = $1`, newsID).Scan(&newsSaved)
+	_ = a.SysDB.QueryRow(`SELECT enabled FROM feed_sources WHERE id = $1`, feedID).Scan(&feedEnabled)
+	_ = a.SysDB.QueryRow(`SELECT title FROM contacts WHERE id = $1`, ctID).Scan(&ctTitle)
+	var trendReviewed, trendDismissed, trendSaved any
+	_ = a.SysDB.QueryRow(`SELECT reviewed_at, dismissed_at, saved_at FROM trend_clusters WHERE id = $1`, trendID).Scan(&trendReviewed, &trendDismissed, &trendSaved)
+	if trendReviewed != nil || trendDismissed != nil || trendSaved != nil {
+		t.Errorf("A's trending topic was reviewed from B's MCP sweep: %v %v %v", trendReviewed, trendDismissed, trendSaved)
+	}
+	if convStatus != "open" || convAssignee != nil || itemSaved != nil || !srcEnabled || newsSaved != nil || !feedEnabled || ctTitle != "" {
+		t.Errorf("A's rows changed under B's MCP sweep: conv=%s/%v item saved=%v source enabled=%v news saved=%v feed enabled=%v contact title=%q",
+			convStatus, convAssignee, itemSaved, srcEnabled, newsSaved, feedEnabled, ctTitle)
+	}
+	// A's conversation keeps the deal alice opened from it in the setup
+	// (convDealID) and is not snoozed.
+	var convDeal *string
+	var convSnooze any
+	_ = a.SysDB.QueryRow(`SELECT deal_id, snoozed_until FROM conversations WHERE id = $1`, convID).Scan(&convDeal, &convSnooze)
+	if convDeal == nil || *convDeal != convDealID || convSnooze != nil {
+		t.Errorf("B's MCP sweep changed A's conversation's deal or snoozed it: %v %v", convDeal, convSnooze)
+	}
+	var messages int
+	_ = a.SysDB.QueryRow(`SELECT count(*) FROM messages WHERE conversation_id = $1 AND direction = 'out'`, convID).Scan(&messages)
+	if messages != 0 {
+		t.Errorf("B's MCP sweep wrote %d replies into A's conversation", messages)
+	}
+	// B's WhatsApp count is B's: A's send today is not in it.
+	statusTok := bob.must("POST", "/api/w/mcp_tokens", map[string]any{"name": "sweep status", "scopes": []string{"inbox:read"}}, 201)
+	statusAgent := newClient(t, srv.URL)
+	statusAgent.bearer = statusTok["plaintext"].(string)
+	if _, text, isErr := mcpCall(statusAgent, "/api/mcp", "whatsapp_status", nil); isErr || !strings.Contains(text, `"sent_today":0`) || !strings.Contains(text, `"failed_today":0`) {
+		t.Errorf("B's whatsapp_status counted A's sends: %s", text)
+	}
+
 	// ---- admin MCP: only a platform admin's admin token ----------------------
 	plain, visible := mcp.NewToken(mcp.AdminPrefix)
 	var aliceID string

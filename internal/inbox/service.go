@@ -194,7 +194,7 @@ func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error
 		}
 	case "whatsapp":
 		// Same rule as email: send first, write the row after.
-		sentID, err = whatsapp.Send(ctx, a, s.WorkspaceID, customerPhone, text)
+		sentID, err = whatsapp.SendAs(ctx, a, s.WorkspaceID, customerPhone, text, whatsapp.KindReply)
 		if err != nil {
 			return nil, whatsappError(err)
 		}

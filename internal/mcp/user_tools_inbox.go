@@ -8,15 +8,18 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/inbox"
+	"github.com/fadymondy/moharrik/internal/whatsapp"
 )
 
 /*
-InboxTools (MH-380).
+InboxTools (MH-380) and WhatsAppTools (MH-409).
 
-They call internal/inbox — the same functions the inbox page's REST routes
-call — so a reply an agent sends goes out through the conversation's real
-channel (the chat widget, email over the workspace's SMTP, or WhatsApp through
-its linked number) with the same rules a member's reply follows.
+They call internal/inbox and internal/whatsapp — the same functions the
+inbox page's REST routes call — so a reply an agent sends goes out through the
+conversation's real channel (the chat widget, email over the workspace's SMTP,
+or WhatsApp through its linked number) with the same rules a member's reply
+follows. Reading and replying to a WhatsApp thread is done here, with the
+inbox tools; send_whatsapp is only for messaging a contact first.
 */
 
 // customerNote travels with every read of customer text: an agent reading a
@@ -387,6 +390,82 @@ func InboxTools() []Tool {
 					return "", err
 				}
 				return jsonResult(st)
+			},
+		},
+	}
+}
+
+func WhatsAppTools() []Tool {
+	return []Tool{
+		{
+			Name: "whatsapp_status",
+			Description: "The workspace's WhatsApp number: whether one is linked, its connection state (open, connecting, close), the number, " +
+				"the webhook's health (whether inbound messages will arrive, and when one last did), and today's send count " +
+				"(replies, broadcasts and agent messages, since midnight in the workspace's time zone).",
+			Scope:       "inbox:read",
+			InputSchema: schema(nil, map[string]any{}),
+			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
+				o, err := whatsapp.Status(ctx, a)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{
+					"available": o.Available, "linked": o.Linked, "state": o.State, "phone": o.Phone,
+					"linked_at": o.LinkedAt, "last_error": o.LastError, "webhook": o.Webhook,
+					"sent_today": o.SentToday, "failed_today": o.FailedToday,
+				})
+			},
+		},
+		{
+			Name: "whatsapp_link",
+			Description: "Start linking the workspace's WhatsApp number. Returns a QR code to scan in WhatsApp (Linked devices → Link a device): " +
+				"qr_code is the raw QR payload and qr_base64 the image. Given number (with country code), it also returns a pairing_code " +
+				"to type on that phone instead. Call whatsapp_status afterwards to see the link come up.",
+			Scope: "inbox:manage",
+			InputSchema: schema(nil, map[string]any{
+				"number": prop("string", "Optional: the number to link, e.g. +20 101 234 5678, to get a pairing code"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct{ Number string }
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				o, err := whatsapp.StartLink(ctx, a, in.Number)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{
+					"state": o.State, "qr_code": o.QRCode, "qr_base64": o.QRBase64, "pairing_code": o.PairingCode,
+				})
+			},
+		},
+		{
+			Name: "send_whatsapp",
+			Description: "Message ONE CRM contact on WhatsApp from the workspace's number. Only a contact who opted in to WhatsApp and has not " +
+				"said STOP can be messaged (email consent is not WhatsApp consent). If they already have a WhatsApp conversation the message " +
+				"is sent on it at once. If not, it takes two calls: the first returns confirmation_required with a 6-digit code (valid 10 minutes); " +
+				"repeat the call with the same contact_id and text plus that code to send it and open the thread. Sends are paced like broadcasts. " +
+				"To answer a conversation, use reply instead.",
+			Scope: "whatsapp:send",
+			InputSchema: schema([]string{"contact_id", "text"}, map[string]any{
+				"contact_id": prop("string", "The CRM contact's id (search_contacts, get_contact)"),
+				"text":       prop("string", "The message, at most 4096 characters"),
+				"code":       prop("string", "The code from the first call, for a contact with no thread yet"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					ContactID string `json:"contact_id"`
+					Text      string `json:"text"`
+					Code      string `json:"code"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				res, err := inbox.SendWhatsAppToContact(ctx, a, in.ContactID, in.Text, in.Code)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(res)
 			},
 		},
 	}
