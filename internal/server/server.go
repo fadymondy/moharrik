@@ -19,6 +19,7 @@ import (
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/alerts"
+	"github.com/fadymondy/moharrik/internal/analytics"
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/clientip"
@@ -158,6 +159,7 @@ func Boot() *app.App {
 	// The Google data collector (MH-440..447): discovery, then the enabled
 	// properties, sites and channels that are due. GOOGLE_COLLECTOR=off turns
 	// it off — the tests and the OpenAPI export must not call Google.
+	analytics.RegisterSync() // GA4's nightly snapshot (MH-444)
 	if os.Getenv("GOOGLE_COLLECTOR") != "off" {
 		google.StartCollector(a, 5*time.Minute, 20)
 	}
@@ -216,6 +218,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	google.Register(api, a)
 	alerts.Register(api, a)
 	overview.Register(api, a) // the workspace front page (MH-462)
+	analytics.Register(api, a) // GA4 (MH-444)
 }
 
 /*

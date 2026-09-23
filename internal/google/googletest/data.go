@@ -370,6 +370,21 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		s.sites(w, r)
 	case p == "/youtube/v3/channels" && r.Method == http.MethodGet:
 		s.channels(w, r)
+	case p == "/_fake/fail" && r.Method == http.MethodPost:
+		// The dev check's remote control: ?api=runReport&status=429&reason=…&times=-1
+		// (status=0 clears every failure).
+		q := r.URL.Query()
+		status, _ := strconv.Atoi(q.Get("status"))
+		times, err := strconv.Atoi(q.Get("times"))
+		if err != nil {
+			times = -1
+		}
+		if status == 0 {
+			s.ClearFailures()
+		} else {
+			s.Fail(q.Get("api"), status, q.Get("reason"), times)
+		}
+		w.WriteHeader(http.StatusNoContent)
 	case strings.HasPrefix(p, "/img/"):
 		// Avatars and thumbnails, so a page showing them loads real images.
 		s.image(w, p)

@@ -546,6 +546,13 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 			t.Errorf("B %s %s: got %d, want 404: %s", try.method, try.path, code, b)
 		}
 	}
+	// MH-444: B cannot read A's GA4 report by naming A's property.
+	if code, b := bob.do("GET", "/api/w/analytics/report?resource="+googleResID, nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B reading A's GA4 report: got %d, want 404: %s", code, b)
+	}
+	if _, b := bob.do("GET", "/api/w/overview", nil); strings.Contains(string(b), googleResID) {
+		t.Errorf("B's overview shows A's property: %s", b)
+	}
 	if _, b := bob.do("GET", "/api/w/google/resources", nil); leaks(b) != "" {
 		t.Errorf("B's resource list leaked A: %s", b)
 	}

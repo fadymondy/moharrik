@@ -14,6 +14,12 @@
   --grid-brand-accent: #c9a227;
   --grid-action: #00a0a8;
   --grid-on-action: #0b1429;
+  /* Chart series (MH-444). The brand teal is 2.68:1 on paper — too faint for a 2px line — so the
+     charts step it down to a teal that passes every dataviz check (validate_palette.js, light,
+     surface #F0EBE1: lightness band, chroma floor, CVD and normal-vision separation, >= 3:1). The
+     second slot is the comparison series (a previous period), a gold from the brand accent. */
+  --chart-1: #008e98;
+  --chart-2: #9a6a00;
 }
 .dark[data-brand="moharrik"],
 .dark [data-brand="moharrik"],
@@ -22,6 +28,9 @@
   --grid-brand: #2ec4cb;
   --grid-action: #2ec4cb;
   --grid-on-action: #0b1429;
+  /* Dark chart steps, validated against #0B1429 (all checks pass). */
+  --chart-1: #17a3ab;
+  --chart-2: #b88728;
 }
 
 /* English UI font: Inter (loaded in app/layout.tsx as --font-inter). Arabic pages keep the grid's

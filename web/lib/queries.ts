@@ -49,6 +49,7 @@ import {
   type TrendTopicDetail,
   type TrendTopicPage,
   type GoogleResources,
+  type GaReportOut,
   type NewsItem,
   type NotificationItem,
   type Overview,
@@ -431,6 +432,17 @@ export function useGoogleResources(workspaceId: string | null | undefined, kind?
       ...noRetryOn4xx,
       refreshInterval: (data) => (data?.resources?.some((r) => r.syncing) ? 3000 : 0),
     },
+  )
+}
+
+/** The GA4 report for one property and window (MH-444). */
+export function useGaReport(workspaceId: string | null | undefined, resource: string, days: number, enabled = true) {
+  const q = new URLSearchParams({ days: String(days) })
+  if (resource) q.set("resource", resource)
+  return useSWR<GaReportOut>(
+    workspaceId && enabled ? [`/api/w/analytics/report?${q}`, workspaceId] : null,
+    ([p, id]: [string, string]) => api<GaReportOut>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, keepPreviousData: true },
   )
 }
 

@@ -20,6 +20,7 @@ import {
   TrendsCard,
   setupPending,
 } from "@/components/overview/overview-cards"
+import { TrafficCard } from "@/components/overview/google-cards"
 import { ErrorState } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -83,6 +84,7 @@ export default function OverviewPage() {
               <MarketingCard m={o.marketing} base={base} canWriteContacts={ws.can("contacts:write")} canWriteCampaigns={ws.can("campaigns:write")} />
             ) : null}
             {o.trends ? <TrendsCard tr={o.trends} base={base} canManage={ws.can("trends:manage")} /> : null}
+            {o.traffic ? <TrafficCard traffic={o.traffic} base={base} /> : null}
             <WorkspaceCard base={base} timezone={o.timezone} currency={o.currency} limited={sections === 0} />
           </div>
         </div>
