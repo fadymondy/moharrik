@@ -48,6 +48,9 @@ type ConversationOut struct {
 	CreatedAt      time.Time  `json:"created_at"`
 	Preview        string     `json:"preview" doc:"The most recent message, trimmed."`
 	MessageCount   int        `json:"message_count"`
+	PageURL        string     `json:"page_url" doc:"The page a chat visitor opened the conversation from; empty for other channels."`
+	UserAgent      string     `json:"user_agent" doc:"The chat visitor's browser, as it identified itself."`
+	Locale         string     `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
 	ClosedHint     *time.Time `json:"-"`
 }
 

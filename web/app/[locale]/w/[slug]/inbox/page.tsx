@@ -147,6 +147,70 @@ function ConversationRow({ c, active, onSelect }: { c: Conversation; active: boo
   )
 }
 
+/**
+ * Where a chat started: the page, the language and the browser, recorded by the
+ * API when the widget opened the conversation (MH-377). Rendered only when there
+ * is something to show — email and WhatsApp threads have none of it.
+ */
+function VisitorContext({ c }: { c: Conversation }) {
+  const { t, locale } = useTranslations()
+  if (c.channel !== "chat" || !(c.page_url || c.locale || c.user_agent)) return null
+
+  // The API keeps only http(s) URLs on the widget's allowed origin; checked
+  // again here because this becomes a link someone clicks.
+  const pageIsLink = /^https?:\/\//i.test(c.page_url)
+  let language = c.locale
+  try {
+    language = (c.locale && new Intl.DisplayNames([locale], { type: "language" }).of(c.locale)) || c.locale
+  } catch {
+    // An unusual tag: show it as sent.
+  }
+
+  return (
+    <dl
+      aria-label={t("inbox.context")}
+      // Its own full-width row of the header: inside the name column it was
+      // squeezed to a few characters by the controls at phone width.
+      className="grid basis-full grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs text-grid-muted"
+      data-thread-context
+    >
+      {c.page_url ? (
+        <>
+          <dt>{t("inbox.context.page")}</dt>
+          {/* dir="ltr" on the cell itself, not a span inside it: the ellipsis
+              follows the cell's direction, and an RTL cell cut a URL from its
+              start. rtl:text-right keeps a short value next to its label. */}
+          <dd dir="ltr" className="min-w-0 truncate rtl:text-right" data-context="page">
+            {pageIsLink ? (
+              <a href={c.page_url} target="_blank" rel="noopener noreferrer nofollow" className="text-grid-fg underline-offset-2 hover:underline">
+                {c.page_url}
+              </a>
+            ) : (
+              c.page_url
+            )}
+          </dd>
+        </>
+      ) : null}
+      {c.locale ? (
+        <>
+          <dt>{t("inbox.context.language")}</dt>
+          <dd className="min-w-0 truncate" data-context="locale" title={c.locale}>
+            {language}
+          </dd>
+        </>
+      ) : null}
+      {c.user_agent ? (
+        <>
+          <dt>{t("inbox.context.browser")}</dt>
+          <dd dir="ltr" className="min-w-0 truncate rtl:text-right" data-context="browser" title={c.user_agent}>
+            {c.user_agent}
+          </dd>
+        </>
+      ) : null}
+    </dl>
+  )
+}
+
 function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
@@ -235,6 +299,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
             </Button>
           </>
         ) : null}
+        <VisitorContext c={c} />
       </header>
 
       <ol className="flex flex-col gap-3 px-6 py-4" data-messages>

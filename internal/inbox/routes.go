@@ -14,6 +14,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/clientip"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
@@ -36,7 +37,7 @@ func publicBase() string {
 
 const conversationSelect = `
 	SELECT c.id, c.channel, c.subject, c.status, c.customer_name, c.customer_email, c.contact_id,
-	       c.assignee_user_id, c.unread, c.last_message_at, c.created_at,
+	       c.assignee_user_id, c.unread, c.last_message_at, c.created_at, c.page_url, c.user_agent, c.locale,
 	       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
 	                 ORDER BY m.created_at DESC LIMIT 1), ''),
 	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id)
@@ -47,7 +48,7 @@ func scanConversation(row interface{ Scan(...any) error }) (ConversationOut, err
 	var contactID, assignee sql.NullString
 	var preview string
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
-		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &preview, &c.MessageCount); err != nil {
+		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount); err != nil {
 		return c, err
 	}
 	c.ContactID = strp(contactID)
@@ -515,15 +516,24 @@ func embedSnippet(key string) string {
 // A visitor continues their own thread with visitor_token, which the widget
 // keeps in localStorage — unguessable, and scoped to one conversation, so it
 // can read and write that thread and nothing else.
+//
+// The key and the Origin say WHICH inbox, not WHO may write to it: both are
+// public. So the write is rate limited per visitor, per client address and
+// per widget (ratelimit.go, MH-377), and answers 429 with Retry-After.
 
 type chatIn struct {
-	Key    string `path:"key"`
-	Origin string `header:"Origin"`
-	Body   struct {
+	Key            string `path:"key"`
+	Origin         string `header:"Origin"`
+	UserAgent      string `header:"User-Agent"`
+	Referer        string `header:"Referer"`
+	AcceptLanguage string `header:"Accept-Language"`
+	Body           struct {
 		Body         string `json:"body" maxLength:"8000"`
 		VisitorToken string `json:"visitor_token,omitempty" doc:"From a previous reply; omit to start a conversation."`
 		Name         string `json:"name,omitempty" maxLength:"120"`
 		Email        string `json:"email,omitempty" maxLength:"200"`
+		PageURL      string `json:"page_url,omitempty" maxLength:"2000" doc:"The page the visitor is on. Kept only when it is on the request's own (allowed) origin; otherwise the Referer is used."`
+		Locale       string `json:"locale,omitempty" maxLength:"35" doc:"The widget's language, e.g. ar or en-GB. Falls back to Accept-Language."`
 	}
 }
 
@@ -552,6 +562,10 @@ func registerPublicChat(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "chat-send", Method: http.MethodPost, Path: "/api/chat/{key}/messages",
 		DefaultStatus: http.StatusCreated, Summary: "A visitor writes (public: the widget key plus the Origin allow-list are the authorization)", Tags: tags,
+		Description: "Rate limited per visitor token, per client address and per widget, with opening a conversation limited more tightly than writing in one. Over a limit the answer is 429 with Retry-After (seconds).",
+		Responses: map[string]*huma.Response{
+			"429": {Description: "Too many messages. Retry-After says how many seconds to wait."},
+		},
 	}, func(ctx context.Context, in *chatIn) (*body[struct {
 		VisitorToken string `json:"visitor_token" doc:"Keep this to continue the conversation."`
 		Sent         bool   `json:"sent"`
@@ -567,10 +581,20 @@ func registerPublicChat(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
+		visitor := strings.TrimSpace(in.Body.VisitorToken)
+
+		// After resolve, so an unknown key or a refused origin costs no limiter
+		// entry; before any write, so a refused request writes nothing.
+		ip := clientip.From(ctx)
+		if ip == "" {
+			ip = "unknown" // only outside the server's middleware (a test harness)
+		}
+		if err := allowChat(widgetID, clientip.Bucket(ip), visitor, visitor == ""); err != nil {
+			return nil, err
+		}
 		sctx := tenant.WithWorkspace(ctx, wsID)
 
 		convID := ""
-		visitor := strings.TrimSpace(in.Body.VisitorToken)
 		if visitor != "" {
 			// Their own thread, or nothing — the token is scoped to one conversation.
 			err := a.SQLDB.QueryRowContext(sctx, `SELECT id FROM conversations WHERE workspace_id = $1 AND visitor_token = $2`, wsID, visitor).Scan(&convID)
@@ -584,10 +608,15 @@ func registerPublicChat(api huma.API, a *app.App) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not start the conversation")
 			}
+			// Where they were, in what, and in which language: the first things
+			// worth knowing when answering, recorded once, when the thread opens.
+			vc := visitorContextOf(in.Origin, in.Body.PageURL, in.Referer, in.UserAgent, in.Body.Locale, in.AcceptLanguage)
 			if err := a.SQLDB.QueryRowContext(sctx, `
-				INSERT INTO conversations (workspace_id, channel, widget_id, customer_name, customer_email, visitor_token, subject, last_message_at, unread)
-				VALUES ($1, 'chat', $2, $3, $4, $5, $6, now(), true) RETURNING id`,
+				INSERT INTO conversations (workspace_id, channel, widget_id, customer_name, customer_email, visitor_token, subject,
+				                           page_url, user_agent, locale, last_message_at, unread)
+				VALUES ($1, 'chat', $2, $3, $4, $5, $6, $7, $8, $9, now(), true) RETURNING id`,
 				wsID, widgetID, strings.TrimSpace(in.Body.Name), strings.TrimSpace(in.Body.Email), visitor, trim(text, 80),
+				vc.PageURL, vc.UserAgent, vc.Locale,
 			).Scan(&convID); err != nil {
 				return nil, huma.Error500InternalServerError("could not start the conversation")
 			}

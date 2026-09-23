@@ -349,6 +349,10 @@ export type Conversation = {
   created_at: string
   preview: string
   message_count: number
+  /** Where a chat visitor opened the thread from; "" for other channels. */
+  page_url: string
+  user_agent: string
+  locale: string
 }
 
 export type InboxMessage = {
