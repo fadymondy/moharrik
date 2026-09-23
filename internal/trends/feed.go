@@ -25,6 +25,11 @@ type Item struct {
 	Summary     string
 	Author      string
 	PublishedAt time.Time
+	// API sources only (api.go): the position on the source's own list, its
+	// points or reactions, and its comment count. Zero from a feed.
+	Rank     int
+	Points   int
+	Comments int
 }
 
 // Feed is a parsed document: the feed's own title, and its entries.

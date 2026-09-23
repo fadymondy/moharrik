@@ -342,7 +342,28 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}, 201)
 	pushID := dev["device"].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID}
+	// Trends (MH-385, MH-387): a keyword topic through the API, and a source, an
+	// item and a trending topic (story) written directly: a real source would
+	// fetch the internet on create. The marker is in each, so a leak is caught.
+	kwID := alice.must("POST", "/api/w/topics", map[string]any{"name": marker + " kw", "keywords": []string{"iso"}}, 201)["topic"].(map[string]any)["id"].(string)
+	var feedID, newsID, trendID string
+	if err := a.SysDB.QueryRow(`INSERT INTO feed_sources (workspace_id, name, url, created_by) VALUES ($1, $2, $3, 'iso') RETURNING id`,
+		aID, marker+" Feed", "https://iso-"+rnd()+".test/feed.xml").Scan(&feedID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO trend_clusters (workspace_id, title, summary, outlets, source_ids) VALUES ($1, $2, $2, $3, $4) RETURNING id`,
+		aID, marker+" story", "{"+marker+"}", "{"+feedID+"}").Scan(&trendID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO news_items (workspace_id, source_id, source_name, external_id, title, url, canonical_url, cluster_id)
+		VALUES ($1, $2, $3, $4, $3, $5, $6, $7) RETURNING id`, aID, feedID, marker+" item", "iso-"+rnd(), "https://iso.test/a", "iso.test/a", trendID).Scan(&newsID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SysDB.Exec(`INSERT INTO trend_settings (workspace_id, fetch_budget_per_day) VALUES ($1, 7)`, aID); err != nil {
+		t.Fatal(err)
+	}
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -352,6 +373,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"google": googleID,
 		"mail": listID,
 		"push": pushID,
+		"topics": kwID, "feed_sources": feedID, "news": newsID, "trends": trendID,
 	}
 
 	leaks := func(b []byte) string {
