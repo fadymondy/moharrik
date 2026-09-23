@@ -12,6 +12,7 @@ import (
 	"github.com/robfig/cron/v3"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -273,7 +274,7 @@ func (h *Hub) inFlight(ctx context.Context, a *app.App, d due) bool {
 // "waiting" long after the run had finished — it had no reason to refetch.
 func notify(a *app.App, workspaceID string) {
 	if a.Events != nil {
-		a.Events.Publish(workspaceID, realtime.Event{Kind: "schedule"})
+		a.Events.Publish(workspaceID, realtime.Event{Kind: "schedule", Permission: authz.AutomationRead})
 	}
 }
 

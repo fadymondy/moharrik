@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   BellIcon,
+  BellRingIcon,
   BotIcon,
   ClipboardListIcon,
   Building2Icon,
@@ -41,6 +42,8 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { LiveAlerts } from "@/components/alerts/live-alerts"
+import { NotificationBell } from "@/components/alerts/notification-bell"
 import { CubeMark } from "@/components/brand/cube-mark"
 import { LanguageSwitcher, ThemeToggle } from "@/components/header-controls"
 import { MahaamFeedbackWidget, openFeedback } from "@/components/feedback/mahaam-widget"
@@ -84,7 +87,9 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" className="h-9 max-w-[16rem] justify-between gap-2 px-2.5" aria-label={t("shell.switchWorkspace")} />
+            // min-w-0 + shrink: the Button base is shrink-0, so at phone width a
+            // long workspace name slid UNDER the header's right-hand controls.
+            <Button variant="ghost" className="h-9 max-w-[16rem] min-w-0 shrink justify-between gap-2 px-2.5" aria-label={t("shell.switchWorkspace")} />
           }
         >
           <span className="flex size-6 shrink-0 items-center justify-center border border-line bg-grid-card text-xs font-medium text-grid-brand">
@@ -228,12 +233,26 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             </Button>
             {summary && list.data ? <WorkspaceSwitcher active={summary} all={list.data} /> : <Skeleton className="h-6 w-40" />}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {me.data ? (
               <Button variant="outline" size="sm" onClick={() => openFeedback()} aria-label={t("feedback.report")}>
                 <MessageSquarePlusIcon />
                 <span className="hidden sm:inline">{t("feedback.report")}</span>
               </Button>
+            ) : null}
+            {/* The bell and the live alerts ride on every workspace page (MH-378):
+                a customer who writes while the member is on Contacts must not
+                wait for them to open the inbox. */}
+            {summary && current.data ? (
+              <>
+                <NotificationBell
+                  workspaceId={summary.id}
+                  slug={summary.slug}
+                  userId={me.data ? String(me.data.id) : undefined}
+                  can={(p) => !!current.data?.can?.includes(p)}
+                />
+                <LiveAlerts workspaceId={summary.id} slug={summary.slug} />
+              </>
             ) : null}
             <LanguageSwitcher />
             <ThemeToggle />
@@ -322,6 +341,11 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/settings/mcp`} icon={<KeyRoundIcon />}>
         {t("nav.mcpTokens")}
       </L>
+      {can?.includes("push:manage") ? (
+        <L href={`${base}/settings/delivery`} icon={<BellRingIcon />}>
+          {t("nav.delivery")}
+        </L>
+      ) : null}
     </nav>
   )
 }

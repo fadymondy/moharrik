@@ -91,6 +91,12 @@ const (
 	AutomationRead   = "automation:read"
 	AutomationRun    = "automation:run"
 	AutomationManage = "automation:manage"
+	// Alerts (MH-378): enabling web push on one's own devices and sending
+	// oneself a test. Only a member's OWN devices are ever touched; the events
+	// themselves are gated by inbox:read and notifications:read, which a client
+	// holds neither of — so a client has nothing to be alerted about, and no
+	// Delivery settings to see.
+	PushManage = "push:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -138,6 +144,7 @@ var Matrix = map[string]Role{
 	AutomationRead:   Member,
 	AutomationRun:    Manager,
 	AutomationManage: Admin,
+	PushManage:       Member,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

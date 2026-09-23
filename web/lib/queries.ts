@@ -17,6 +17,8 @@ import {
   type ResearchDetail,
   type ResearchList,
   type Activity,
+  type Bell,
+  type PushStatus,
   type Campaign,
   type SubscribeForm,
   type Company,
@@ -303,3 +305,11 @@ export function useResearchContent(workspaceId: string | null | undefined, id: s
     noRetryOn4xx,
   )
 }
+
+// ── Alerts (MH-378) ──────────────────────────────────────────────────────
+
+/** The header bell. Revalidated by the event stream (components/alerts), not a timer. */
+export const useBell = (id?: string | null) => useScoped<Bell>("/api/w/alerts", id)
+
+/** Web push availability and the caller's own devices. */
+export const usePushStatus = (id?: string | null, enabled = true) => useScoped<PushStatus>("/api/w/push", id, enabled)

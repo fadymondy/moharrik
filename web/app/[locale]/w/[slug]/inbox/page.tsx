@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { MessageSquareIcon, SettingsIcon, MailIcon, MessageCircleIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -34,9 +35,24 @@ export default function InboxPage() {
   useDocumentTitle(`${t("nav.inbox")} · ${ws.summary.name}`)
   const canManage = ws.can("inbox:manage")
 
-  const [status, setStatus] = useState("open")
+  // The open thread lives in the URL (?c=<conversation id>), so an alert, a push
+  // or the bell can link straight to it, and a reload keeps it open (MH-378).
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
+  const selected = params.get("c")
+  function select(id: string | null) {
+    const next = new URLSearchParams(params.toString())
+    if (id) next.set("c", id)
+    else next.delete("c")
+    const qs = next.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
+
+  // Arriving by link, the thread may not be open (a closed one, say): show
+  // every status rather than a list that is missing the thread on screen.
+  const [status, setStatus] = useState(() => (params.get("c") ? "" : "open"))
   const [unread, setUnread] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
 
   const list = useConversations(ws.id, { status: status || undefined, unread })
 
@@ -44,6 +60,7 @@ export default function InboxPage() {
   // affected thread is revalidated by key so an open conversation updates too.
   const { mutate } = useSWRConfig()
   useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind !== "message" && e.kind !== "conversation") return
     void list.mutate()
     if (e.conversation_id) void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, ws.id])
   })
@@ -101,7 +118,7 @@ export default function InboxPage() {
         <div className="grid border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
           <ul className="divide-y divide-line lg:border-e lg:border-line" data-conversation-list>
             {items.map((c) => (
-              <ConversationRow key={c.id} c={c} active={c.id === selected} onSelect={() => setSelected(c.id)} />
+              <ConversationRow key={c.id} c={c} active={c.id === selected} onSelect={() => select(c.id)} />
             ))}
           </ul>
           <div className="min-w-0">

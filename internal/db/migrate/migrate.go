@@ -26,7 +26,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"feed_sources", "topics", "news_items",
 	"browser_agents", "agent_pairings", "automation_runs", "automation_run_steps", "automation_settings",
 	"mailboxes", "whatsapp_links", "automation_schedules", "automation_workflows",
-	"research_runs", "research_sources", "subscribe_forms"}
+	"research_runs", "research_sources", "subscribe_forms",
+	"push_subscriptions"}
 
 var roleName = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 

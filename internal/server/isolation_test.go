@@ -166,6 +166,11 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	t.Setenv("TRENDS_COLLECTOR", "off")
 	t.Setenv("MAIL_COLLECTOR", "off")
 	t.Setenv("SCHEDULER", "off")
+	// Web push on, so a device row can exist in A for the sweep to aim at
+	// (MH-378). Its endpoint is loopback and never answers: nothing is sent.
+	t.Setenv("VAPID_PUBLIC_KEY", "BGfVQrK7aMmywg6zriWaZFVr4hcZH0muGY9nU73cHiVeIviM_0PGx9lZiYFgkjsWnH0QSKKz6mYN76K5Ql_hhSM")
+	t.Setenv("VAPID_PRIVATE_KEY", "isolation-test-key-never-used-to-sign")
+	t.Setenv("VAPID_SUBJECT", "mailto:iso@example.test")
 
 	// testdb.Setup already migrated this package's own database, under a lock
 	// held on the shared base database — the app ROLE is cluster-global, so
@@ -264,12 +269,21 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	convID := convs[0].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID}
+	// Alerts: one of alice's devices. The endpoint carries the marker, so a
+	// response that leaked it would be caught like any other of A's data.
+	pushEndpoint := "http://127.0.0.1:9/" + marker
+	dev := alice.must("POST", "/api/w/push/subscriptions", map[string]any{
+		"endpoint": pushEndpoint, "keys": map[string]string{"p256dh": "BIso" + rnd(), "auth": "iso" + rnd()},
+	}, 201)
+	pushID := dev["device"].(map[string]any)["id"].(string)
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, pushID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
 		"webhook_sources": srcID, "notifications": itemID,
 		"chat_widgets": widgetID, "conversations": convID,
+		"push": pushID,
 	}
 
 	leaks := func(b []byte) string {
@@ -392,6 +406,10 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		hres2.Body.Close()
 	}
 	alice.ws = aID
+
+	if code, b := alice.do("GET", "/api/w/push", nil); code != 200 || !strings.Contains(string(b), pushID) {
+		t.Errorf("A's push device was removed from B: %d %s", code, b)
+	}
 
 	if code, b := alice.do("GET", "/api/w/deals/"+dealID, nil); code != 200 || !strings.Contains(string(b), actID) || !strings.Contains(string(b), coID) {
 		t.Errorf("A's deal or its timeline was changed from B: %d %s", code, b)

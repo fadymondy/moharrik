@@ -20,14 +20,17 @@ const heartbeat = 25 * time.Second
 // other endpoint. This handler does no authorization of its own, and must not:
 // a second, parallel way to decide who may read a workspace is exactly the kind
 // of thing that drifts out of step with the first one.
-func Handler(hub *Hub, workspaceID func(*http.Request) string) http.HandlerFunc {
+//
+// The viewer (user + role in this workspace) comes from the same resolution,
+// and decides which events this stream carries (Event.For).
+func Handler(hub *Hub, resolve func(*http.Request) (string, Viewer)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 			return
 		}
-		wsID := workspaceID(r)
+		wsID, viewer := resolve(r)
 		if wsID == "" {
 			http.Error(w, "workspace not found", http.StatusNotFound)
 			return
@@ -44,7 +47,7 @@ func Handler(hub *Hub, workspaceID func(*http.Request) string) http.HandlerFunc 
 		fmt.Fprint(w, ": open\n\n")
 		flusher.Flush()
 
-		events, stop := hub.Subscribe(wsID)
+		events, stop := hub.Subscribe(wsID, viewer)
 		defer stop()
 
 		ticker := time.NewTicker(heartbeat)

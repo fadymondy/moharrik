@@ -7,6 +7,8 @@
 //	go run ./cmd/moharrik-admin token   <email> -name <label> -scopes a,b [-days 90]
 //	                                                  mint an admin MCP token (printed once)
 //	go run ./cmd/moharrik-admin revoke  <token-prefix> revoke an admin token by its visible prefix
+//	go run ./cmd/moharrik-admin vapid                  print a new VAPID key pair for web push (MH-378);
+//	                                                  needs no database, and changes nothing
 package main
 
 import (
@@ -18,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/envfile"
@@ -26,11 +29,24 @@ import (
 )
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: moharrik-admin promote|demote <email> | token <email> -name N -scopes a,b [-days 90] | revoke <prefix>")
+	fmt.Fprintln(os.Stderr, "usage: moharrik-admin promote|demote <email> | token <email> -name N -scopes a,b [-days 90] | revoke <prefix> | vapid")
 	os.Exit(2)
 }
 
 func main() {
+	// A key pair is generated locally and printed; nothing is stored. Set the
+	// two lines in the environment once and keep them: rotating the pair makes
+	// every browser's existing push subscription invalid.
+	if len(os.Args) == 2 && os.Args[1] == "vapid" {
+		priv, pub, err := webpush.GenerateVAPIDKeys()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "could not generate a key pair:", err)
+			os.Exit(1)
+		}
+		fmt.Println("VAPID_PUBLIC_KEY=" + pub)
+		fmt.Println("VAPID_PRIVATE_KEY=" + priv)
+		return
+	}
 	if len(os.Args) < 3 {
 		usage()
 	}
