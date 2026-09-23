@@ -12,7 +12,7 @@ import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
 /** Approve a pairing by the code the extension shows. Shared by the automation page and the install page (MH-399). */
-export function ApproveForm({ onApproved }: { onApproved: () => void }) {
+export function ApproveForm({ onApproved, embedded = false }: { onApproved: () => void; /** Inside a setup step, which already says what to do: no hint, no page padding. */ embedded?: boolean }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [code, setCode] = useState("")
@@ -47,8 +47,8 @@ export function ApproveForm({ onApproved }: { onApproved: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} noValidate className="px-6 pt-6" data-form="approve">
-      <p className="pb-3 text-sm text-grid-muted">{t("automation.approveHint", { slug: ws.slug })}</p>
+    <form onSubmit={submit} noValidate className={embedded ? "" : "px-6 pt-6"} data-form="approve">
+      {embedded ? null : <p className="pb-3 text-sm text-grid-muted">{t("automation.approveHint", { slug: ws.slug })}</p>}
       <FieldGroup className="sm:flex-row sm:items-end">
         <Field className="sm:w-40">
           <FieldLabel htmlFor="pair-code">{t("automation.code")}</FieldLabel>

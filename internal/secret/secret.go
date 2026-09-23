@@ -38,6 +38,8 @@ const (
 	DomainWhatsAppToken   = "moharrik/whatsapp-token/v1"
 	DomainWebhookSecret   = "moharrik/webhook-secret/v1"
 	DomainGoogleRefresh   = "moharrik/google-refresh/v1"
+	// The values a schedule keeps for its workflow's SECRET parameters (MH-403).
+	DomainScheduleSecret = "moharrik/schedule-secret/v1"
 )
 
 // minSecret is the shortest AUTH_SECRET a key is derived from.

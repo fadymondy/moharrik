@@ -681,6 +681,13 @@ export type AutomationSchedule = {
   catch_up: "skip" | "once"
   enabled: boolean
   steps: { command: string; args?: Record<string, unknown>; continue_on_error?: boolean }[]
+  /** The saved workflow this schedule runs, when it runs one (MH-403). */
+  workflow_id: string
+  workflow_name: string
+  /** Only the plain values; secret ones are never sent back. */
+  values: Record<string, string>
+  /** Which secret values are set. */
+  secret_params: string[]
   next_run_at: string | null
   last_run_at: string | null
   /** running | ok | failed | missed | waiting — "missed" and "waiting" are first-class. */
@@ -715,17 +722,45 @@ export type WorkflowParam = {
   default?: string
 }
 
+export type WorkflowStep = { command: string; args?: Record<string, unknown>; continue_on_error?: boolean }
+
 export type AutomationWorkflow = {
   id: string
   name: string
   description: string
-  steps: { command: string; args?: Record<string, unknown> }[]
+  steps: WorkflowStep[]
   params: WorkflowParam[]
   /** Every {{placeholder}} the steps actually use. */
   placeholders: string[]
   run_count: number
+  /** The current version; every save adds one (MH-400). */
+  version: number
+  created_at: string
+  updated_at: string
+}
+
+export type WorkflowVersion = {
+  version: number
+  name: string
+  description: string
+  steps: WorkflowStep[]
+  params: WorkflowParam[]
+  note: "created" | "recorded" | "edited" | "restored"
+  restored_from?: number
   created_at: string
 }
+
+/** The element picker (MH-400). */
+export type ElementPick = {
+  id: string
+  agent_id: string
+  status: "waiting" | "picked" | "failed"
+  result?: { selector: string; fragile?: boolean; tag?: string; text?: string; host?: string }
+  error?: string
+  started_at: string
+}
+
+export type SchedulePreview = { timezone: string; valid: boolean; error?: string; times: string[] }
 
 // ── Research (MH-227) ───────────────────────────────────────────────────
 

@@ -12,6 +12,7 @@ import {
   type AutomationWorkflow,
   type AutomationSettings,
   type ExtensionInfo,
+  type WorkflowVersion,
   type BrowserAgent,
   type MailboxSettings,
   type WhatsAppLink,
@@ -328,6 +329,12 @@ export const useBrowsers = (id?: string | null) =>
 /** The extension this server offers for download (MH-399). Not workspace-scoped. */
 export const useExtension = () =>
   useSWR<ExtensionInfo>("/api/automation/extension", (p: string) => api<ExtensionInfo>(p), noRetryOn4xx)
+
+export const useWorkflow = (workspaceId?: string | null, id?: string) =>
+  useScoped<{ workflow: AutomationWorkflow }>(`/api/w/workflows/${encodeURIComponent(id ?? "")}`, workspaceId, !!id)
+
+export const useWorkflowVersions = (workspaceId?: string | null, id?: string) =>
+  useScoped<{ versions: WorkflowVersion[] }>(`/api/w/workflows/${encodeURIComponent(id ?? "")}/versions`, workspaceId, !!id)
 
 export const useAutomationSettings = (id?: string | null) =>
   useScoped<AutomationSettings>("/api/w/automation/settings", id)

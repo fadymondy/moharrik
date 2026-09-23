@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
 // Workflow is a saved, parameterised sequence.
@@ -24,13 +25,19 @@ type Workflow struct {
 	Params       []Param   `json:"params"`
 	Placeholders []string  `json:"placeholders" doc:"Every {{placeholder}} the steps actually use, in order."`
 	RunCount     int       `json:"run_count"`
+	Version      int       `json:"version" doc:"The current version. Every save adds one (MH-400)."`
 	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type workflowOut struct {
+	Workflow Workflow `json:"workflow"`
 }
 
 // RegisterWorkflows mounts the saved-workflow endpoints.
 //
-// Reading is automation:read; saving and running are automation:run — a
-// workflow is a run someone else will press, so saving one is not a lighter
+// Reading is automation:read; saving, editing and running are automation:run —
+// a workflow is a run someone else will press, so saving one is not a lighter
 // right than starting one.
 func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 	db := func() *sql.DB { return a.SQLDB }
@@ -46,7 +53,7 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 			return nil, err
 		}
 		rows, err := db().QueryContext(ctx, `
-			SELECT id, name, description, steps::text, params::text, run_count, created_at
+			SELECT `+workflowColumns+`
 			FROM automation_workflows WHERE workspace_id = $1 ORDER BY created_at DESC`, s.WorkspaceID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the workflows")
@@ -67,59 +74,137 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "w-workflow", Method: http.MethodGet, Path: "/api/w/workflows/{id}",
+		Summary: "One saved workflow, as the editor opens it", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID string `path:"id"`
+	}) (*body[workflowOut], error) {
+		s, err := scope(ctx, authz.AutomationRead)
+		if err != nil {
+			return nil, err
+		}
+		got, err := getWorkflow(ctx, db(), s.WorkspaceID, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		return out(workflowOut{got}), nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "w-create-workflow", Method: http.MethodPost, Path: "/api/w/workflows",
 		DefaultStatus: http.StatusCreated,
 		Summary:       "Save a sequence of steps to run again", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Body struct {
-			Name        string  `json:"name" minLength:"1" maxLength:"80"`
-			Description string  `json:"description,omitempty" maxLength:"400"`
-			Steps       []Step  `json:"steps" maxItems:"200"`
-			Params      []Param `json:"params,omitempty" maxItems:"40"`
-		}
-	}) (*body[struct {
-		Workflow Workflow `json:"workflow"`
-	}], error) {
+		Body WorkflowInput
+	}) (*body[workflowOut], error) {
 		s, err := scope(ctx, authz.AutomationRun)
 		if err != nil {
 			return nil, err
 		}
-		if len(in.Body.Steps) == 0 {
-			return nil, huma.Error422UnprocessableEntity("a workflow needs at least one step")
+		if err := ValidateWorkflow(in.Body); err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
-		// NOT checked against an allow-list here: the steps hold placeholders,
-		// and a host that is only known once values are supplied cannot be
-		// judged yet. The check happens when a run starts, on the filled-in
-		// steps (workflows.go explains why that ordering matters).
-		steps, err := json.Marshal(in.Body.Steps)
+		id, err := CreateWorkflow(ctx, a, s.WorkspaceID, s.UserID, in.Body, NoteCreated)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not store the steps")
-		}
-		params, err := json.Marshal(firstNonNil(in.Body.Params))
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not store the parameters")
-		}
-
-		var id string
-		err = db().QueryRowContext(ctx, `
-			INSERT INTO automation_workflows (workspace_id, name, description, steps, params, created_by)
-			VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6) RETURNING id`,
-			s.WorkspaceID, strings.TrimSpace(in.Body.Name), strings.TrimSpace(in.Body.Description),
-			string(steps), string(params), s.UserID).Scan(&id)
-		if pgCode(err) == "23505" {
-			return nil, huma.Error409Conflict("a workflow with that name already exists")
-		}
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not save the workflow")
+			return nil, workflowError(err, "could not save the workflow")
 		}
 		got, err := getWorkflow(ctx, db(), s.WorkspaceID, id)
 		if err != nil {
 			return nil, err
 		}
+		return out(workflowOut{got}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-update-workflow", Method: http.MethodPut, Path: "/api/w/workflows/{id}",
+		Summary: "Save a workflow over itself, as a new version (MH-400)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body struct {
+			WorkflowInput
+			BaseVersion int `json:"base_version,omitempty" minimum:"0" doc:"The version the editor opened. A save against an older one is refused (409) rather than overwriting someone else's edit. 0 skips the check."`
+		}
+	}) (*body[workflowOut], error) {
+		s, err := scope(ctx, authz.AutomationRun)
+		if err != nil {
+			return nil, err
+		}
+		if err := ValidateWorkflow(in.Body.WorkflowInput); err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+		if _, err := SaveWorkflow(ctx, a, s.WorkspaceID, s.UserID, in.ID, in.Body.WorkflowInput, in.Body.BaseVersion); err != nil {
+			return nil, workflowError(err, "could not save the workflow")
+		}
+		got, err := getWorkflow(ctx, db(), s.WorkspaceID, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		return out(workflowOut{got}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-workflow-versions", Method: http.MethodGet, Path: "/api/w/workflows/{id}/versions",
+		Summary: "Every saved version of a workflow, newest first", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID string `path:"id"`
+	}) (*body[struct {
+		Versions []WorkflowVersion `json:"versions"`
+	}], error) {
+		s, err := scope(ctx, authz.AutomationRead)
+		if err != nil {
+			return nil, err
+		}
+		// Asked through the workflow, so another workspace's id is a 404 like
+		// everywhere else rather than an empty list.
+		if _, err := getWorkflow(ctx, db(), s.WorkspaceID, in.ID); err != nil {
+			return nil, err
+		}
+		list, err := ListWorkflowVersions(ctx, a, s.WorkspaceID, in.ID)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the versions")
+		}
 		return out(struct {
-			Workflow Workflow `json:"workflow"`
-		}{got}), nil
+			Versions []WorkflowVersion `json:"versions"`
+		}{list}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-restore-workflow-version", Method: http.MethodPost, Path: "/api/w/workflows/{id}/versions/{version}/restore",
+		Summary: "Make an old version current again — as a new version, so the restore can be undone too", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID string `path:"id"`
+		// A string, parsed here: huma's own integer validation echoes the
+		// path back in its error, and the isolation sweep rightly counts that
+		// as handing another workspace's id back to the caller.
+		Version string `path:"version"`
+		Body    struct {
+			BaseVersion int `json:"base_version,omitempty" minimum:"0" doc:"The version the page was showing as current."`
+		}
+	}) (*body[workflowOut], error) {
+		s, err := scope(ctx, authz.AutomationRun)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := getWorkflow(ctx, db(), s.WorkspaceID, in.ID); err != nil {
+			return nil, err
+		}
+		version, perr := strconv.Atoi(in.Version)
+		if perr != nil || version < 1 {
+			return nil, huma.Error404NotFound(ErrNoVersion.Error())
+		}
+		if _, err := RestoreWorkflow(ctx, a, s.WorkspaceID, s.UserID, in.ID, version, in.Body.BaseVersion); err != nil {
+			return nil, workflowError(err, "could not restore that version")
+		}
+		got, err := getWorkflow(ctx, db(), s.WorkspaceID, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		return out(workflowOut{got}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -134,6 +219,14 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, err
 		}
+		// A schedule running this workflow would fail at its next due time with
+		// nobody watching. Refused here, where someone is.
+		var using string
+		if err := db().QueryRowContext(ctx, `
+			SELECT name FROM automation_schedules WHERE workspace_id = $1 AND workflow_id = $2 ORDER BY name LIMIT 1`,
+			s.WorkspaceID, in.ID).Scan(&using); err == nil {
+			return nil, huma.Error409Conflict("the schedule \"" + using + "\" runs this workflow; delete or change that schedule first")
+		}
 		res, err := db().ExecContext(ctx, `DELETE FROM automation_workflows WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not delete the workflow")
@@ -142,7 +235,7 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 			return nil, huma.Error404NotFound("no such workflow")
 		}
 		// Runs it already produced stay: they are the record of what happened,
-		// not part of the workflow.
+		// not part of the workflow. Its versions go with it (ON DELETE CASCADE).
 		return nil, nil
 	})
 
@@ -176,13 +269,83 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 			RunID string `json:"run_id"`
 		}{runID}), nil
 	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-test-workflow", Method: http.MethodPost, Path: "/api/w/workflows/test",
+		DefaultStatus: http.StatusCreated,
+		Summary:       "Test-run the steps open in the editor, saved or not (MH-400)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Body struct {
+			AgentID    string            `json:"agent_id"`
+			WorkflowID string            `json:"workflow_id,omitempty" doc:"The workflow being edited, so the run links back to it. Empty for one not saved yet."`
+			Steps      []Step            `json:"steps" maxItems:"200"`
+			Params     []Param           `json:"params,omitempty" maxItems:"40"`
+			Values     map[string]string `json:"values,omitempty"`
+		}
+	}) (*body[struct {
+		RunID string `json:"run_id"`
+	}], error) {
+		s, err := scope(ctx, authz.AutomationRun)
+		if err != nil {
+			return nil, err
+		}
+		if err := ValidateWorkflow(WorkflowInput{Name: "test", Steps: in.Body.Steps, Params: in.Body.Params}); err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+		name := "Test run"
+		if in.Body.WorkflowID != "" {
+			w, err := getWorkflow(ctx, db(), s.WorkspaceID, in.Body.WorkflowID)
+			if err != nil {
+				return nil, err
+			}
+			name = w.Name + " (test)"
+		}
+		// The same Fill as a real run: the secrets are substituted into what
+		// runs and redacted from what is stored, and the allow-list sees the
+		// filled-in hosts. A test is a real run in a real browser.
+		run, stored, err := Fill(cleanInput(WorkflowInput{Steps: in.Body.Steps}).Steps, in.Body.Params, in.Body.Values)
+		if err != nil {
+			return nil, runError(err)
+		}
+		runID, err := hub.Start(ctx, a, s.WorkspaceID, s.UserID, "test", in.Body.AgentID, run)
+		if err != nil {
+			return nil, runError(err)
+		}
+		recordRedacted(ctx, a, s.WorkspaceID, runID, stored, name, in.Body.WorkflowID)
+		return out(struct {
+			RunID string `json:"run_id"`
+		}{runID}), nil
+	})
+}
+
+// workflowError maps the editing errors to statuses.
+func workflowError(err error, fallback string) error {
+	switch {
+	case errors.Is(err, ErrNoWorkflow):
+		return huma.Error404NotFound(err.Error())
+	case errors.Is(err, ErrNoVersion):
+		return huma.Error404NotFound(err.Error())
+	case errors.Is(err, ErrStaleVersion), errors.Is(err, ErrNameTaken):
+		return huma.Error409Conflict(err.Error())
+	}
+	var se huma.StatusError
+	if errors.As(err, &se) {
+		return err
+	}
+	return huma.Error500InternalServerError(fallback)
 }
 
 // RunWorkflow fills a workflow's placeholders and starts it. Shared by the
 // REST route, MCP and schedules, so the substitution and the redaction happen
 // in exactly one place.
 func RunWorkflow(ctx context.Context, a *app.App, hub *Hub, workspaceID, userID, workflowID, agentID, trigger string, values map[string]string) (string, error) {
-	w, err := getWorkflow(ctx, a.SQLDB, workspaceID, workflowID)
+	// Scoped here, not by the caller: the scheduler calls this from a
+	// background context with no workspace on it, and RLS then showed it no
+	// workflow at all — every schedule of a saved workflow was "missed: no
+	// such workflow" (MH-403).
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	w, err := getWorkflow(sctx, a.SQLDB, workspaceID, workflowID)
 	if err != nil {
 		return "", err
 	}
@@ -195,23 +358,25 @@ func RunWorkflow(ctx context.Context, a *app.App, hub *Hub, workspaceID, userID,
 	if err != nil {
 		return "", err
 	}
+	recordRedacted(sctx, a, workspaceID, runID, stored, w.Name, workflowID)
+	_, _ = a.SQLDB.ExecContext(sctx, `
+		UPDATE automation_workflows SET run_count = run_count + 1
+		WHERE workspace_id = $1 AND id = $2`, workspaceID, workflowID)
+	return runID, nil
+}
 
-	// The run keeps the REDACTED steps: a run is read back by a person and
-	// handed to a model, and a secret substituted into step args would be in
-	// both, for ever.
-	redacted, _ := json.Marshal(map[string]any{"steps": stored, "workflow": w.Name})
+// recordRedacted replaces what a run stored with the REDACTED steps: a run is
+// read back by a person and handed to a model, and a secret substituted into
+// step args would be in both, for ever. The steps stored on each step row are
+// redacted too — the run's own copy is not the only place a value lands.
+func recordRedacted(ctx context.Context, a *app.App, workspaceID, runID string, stored []Step, name, workflowID string) {
+	redacted, _ := json.Marshal(map[string]any{"steps": stored, "workflow": name})
 	_, _ = a.SQLDB.ExecContext(ctx, `
 		UPDATE automation_runs SET params = $3::jsonb, workflow_id = $4, updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, runID, string(redacted), workflowID)
-	_, _ = a.SQLDB.ExecContext(ctx, `
-		UPDATE automation_workflows SET run_count = run_count + 1, updated_at = now()
-		WHERE workspace_id = $1 AND id = $2`, workspaceID, workflowID)
-
-	// The steps stored ON EACH STEP ROW are redacted too: the run's own copy is
-	// not the only place a value lands.
 	for i, st := range stored {
 		args, _ := json.Marshal(st.Args)
-		if len(args) == 0 {
+		if len(args) == 0 || string(args) == "null" {
 			args = []byte("{}")
 		}
 		_, _ = a.SQLDB.ExecContext(ctx, `
@@ -219,21 +384,25 @@ func RunWorkflow(ctx context.Context, a *app.App, hub *Hub, workspaceID, userID,
 			WHERE workspace_id = $1 AND run_id = $2 AND position = $3`,
 			workspaceID, runID, i, string(args))
 	}
-	return runID, nil
 }
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
+const workflowColumns = `id, name, description, steps::text, params::text, run_count, version, created_at, updated_at`
+
 func scanWorkflow(r rowScanner) (Workflow, error) {
 	var w Workflow
 	var steps, params string
-	if err := r.Scan(&w.ID, &w.Name, &w.Description, &steps, &params, &w.RunCount, &w.CreatedAt); err != nil {
+	if err := r.Scan(&w.ID, &w.Name, &w.Description, &steps, &params, &w.RunCount, &w.Version, &w.CreatedAt, &w.UpdatedAt); err != nil {
 		return w, err
 	}
 	_ = json.Unmarshal([]byte(steps), &w.Steps)
 	_ = json.Unmarshal([]byte(params), &w.Params)
+	if w.Steps == nil {
+		w.Steps = []Step{}
+	}
 	if w.Params == nil {
 		w.Params = []Param{}
 	}
@@ -246,7 +415,7 @@ func scanWorkflow(r rowScanner) (Workflow, error) {
 
 func getWorkflow(ctx context.Context, db *sql.DB, workspaceID, id string) (Workflow, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT id, name, description, steps::text, params::text, run_count, created_at
+		SELECT `+workflowColumns+`
 		FROM automation_workflows WHERE workspace_id = $1 AND id = $2`, workspaceID, id)
 	w, err := scanWorkflow(row)
 	if errors.Is(err, sql.ErrNoRows) {

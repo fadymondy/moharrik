@@ -178,26 +178,19 @@ func SaveRecording(ctx context.Context, a *app.App, workspaceID, agentID string,
 	}
 	name = trim(name, 120)
 
-	stepsJSON, err := json.Marshal(steps)
-	if err != nil {
-		return nil, err
-	}
 	if params == nil {
 		params = []Param{}
-	}
-	paramsJSON, err := json.Marshal(params)
-	if err != nil {
-		return nil, err
 	}
 
 	description := fmt.Sprintf("Recorded in %s. Review the steps before scheduling it.", agentName)
 
-	var workflowID string
-	if err := a.SQLDB.QueryRowContext(sctx, `
-		INSERT INTO automation_workflows (workspace_id, name, description, steps, params, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		workspaceID, uniqueName(sctx, a, workspaceID, name), description,
-		string(stepsJSON), string(paramsJSON), "agent:"+agentID).Scan(&workflowID); err != nil {
+	// Through CreateWorkflow, so a recording starts its history as version 1
+	// ("recorded") like any other workflow, and the first edit of it can be
+	// undone (MH-400).
+	workflowID, err := CreateWorkflow(ctx, a, workspaceID, "agent:"+agentID, WorkflowInput{
+		Name: uniqueName(sctx, a, workspaceID, name), Description: description, Steps: steps, Params: params,
+	}, NoteRecorded)
+	if err != nil {
 		return nil, fmt.Errorf("could not save the recording: %w", err)
 	}
 

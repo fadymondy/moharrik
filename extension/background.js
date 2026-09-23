@@ -13,6 +13,7 @@ gone and opens a new one. That is why this file is mostly about coming back.
 
 import { KEYS, get, loadSettings, set, socketURL } from "./config.js"
 import { closeRun, runStep } from "./driver.js"
+import { cancelPicks, pickElement } from "./pick.js"
 import { addStep, discardRecording, recordingState, startRecording, stopRecording } from "./recorder.js"
 
 let sock = null
@@ -183,10 +184,31 @@ async function connect(force = false) {
       await closeRun(env.run)
       return
     }
+
+    if (env.type === "pick") {
+      // The element picker (MH-400): someone editing a workflow clicks the
+      // element on the live page. Answered like a step — the result, or the
+      // browser's own words for why not.
+      try {
+        const result = await pickElement(env.payload || {})
+        send({ id: env.id, type: "pick.result", payload: result })
+      } catch (e) {
+        send({
+          id: env.id,
+          type: "pick.result",
+          error: String(e?.message || e).slice(0, 300),
+          ...(e?.code ? { code: String(e.code) } : {}),
+        })
+      }
+      return
+    }
   }
 
   mine.onclose = async (event) => {
     if (sock !== mine) return // a socket that has already been replaced
+    // Nothing waits for a pick's answer any more — and a kill switch (4001)
+    // must not leave a picking tab open on someone's signed-in page.
+    cancelPicks()
     // 1008 is "your token is no good": stop trying, and say so. 4001 is the
     // kill switch, which is temporary by design — keep retrying so this browser
     // comes back by itself when someone resumes.

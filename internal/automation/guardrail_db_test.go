@@ -45,6 +45,14 @@ type fakeBrowser struct {
 	mu   sync.Mutex
 	seen []map[string]any // run.step payloads, in order
 	ends int              // run.end frames
+	// other answers any other command (a pick, MH-400); nil ignores it.
+	other func(automation.Envelope) *automation.Envelope
+}
+
+func (fb *fakeBrowser) setOther(fn func(automation.Envelope) *automation.Envelope) {
+	fb.mu.Lock()
+	fb.other = fn
+	fb.mu.Unlock()
 }
 
 // connectBrowser pairs a browser with a known token, serves the real hub, and
@@ -107,6 +115,17 @@ func connectBrowser(t *testing.T, a *app.App, allowed string, answer func(n int,
 				reply := answer(n, p)
 				reply.ID, reply.Type = env.ID, "run.step.result"
 				_ = ws.WriteJSON(reply)
+			default:
+				fb.mu.Lock()
+				fn := fb.other
+				fb.mu.Unlock()
+				if fn == nil || env.ID == "" {
+					continue
+				}
+				if reply := fn(env); reply != nil {
+					reply.ID, reply.Type = env.ID, env.Type+".result"
+					_ = ws.WriteJSON(reply)
+				}
 			}
 		}
 	}()
