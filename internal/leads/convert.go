@@ -56,14 +56,14 @@ func Convert(ctx context.Context, db *sql.DB, wsID, leadID, userID string) (*Con
 	defer tx.Rollback() //nolint:errcheck
 
 	var l struct {
-		status, name, email, phone, company, message, locale, formName string
-		createdAt                                                      sql.NullTime
+		status, name, email, phone, company, message, locale, formName, budget string
+		createdAt                                                              sql.NullTime
 	}
 	// FOR UPDATE: two people clicking Convert at once make one deal, not two.
 	err = tx.QueryRowContext(ctx, `
-		SELECT status, name, email, phone, company, message, locale, form_name, created_at
+		SELECT status, name, email, phone, company, message, locale, form_name, budget, created_at
 		FROM leads WHERE workspace_id = $1 AND id = $2 FOR UPDATE`, wsID, leadID).
-		Scan(&l.status, &l.name, &l.email, &l.phone, &l.company, &l.message, &l.locale, &l.formName, &l.createdAt)
+		Scan(&l.status, &l.name, &l.email, &l.phone, &l.company, &l.message, &l.locale, &l.formName, &l.budget, &l.createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -139,7 +139,10 @@ func Convert(ctx context.Context, db *sql.DB, wsID, leadID, userID string) (*Con
 		}
 	}
 
-	// 3. The deal, in the first open stage.
+	// 3. The deal, in the first open stage. Its value is the visitor's budget when that reads as one
+	// amount in the workspace's currency (MH-464); otherwise 0, which the board shows as "No value
+	// yet" rather than "$0.00".
+	value, _ := ParseBudget(l.budget, currency)
 	var stageID string
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM pipeline_stages WHERE workspace_id = $1 AND kind = 'open'
 		ORDER BY position, created_at LIMIT 1`, wsID).Scan(&stageID); err != nil {
@@ -154,11 +157,11 @@ func Convert(ctx context.Context, db *sql.DB, wsID, leadID, userID string) (*Con
 		title = string(r[:160])
 	}
 	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO deals (workspace_id, title, currency, stage_id, position, contact_id, company_id, owner_user_id, created_by)
-		VALUES ($1, $2, $3, $4, (SELECT coalesce(max(position), 0) + 1 FROM deals WHERE workspace_id = $1 AND stage_id = $4),
+		INSERT INTO deals (workspace_id, title, value_minor, currency, stage_id, position, contact_id, company_id, owner_user_id, created_by)
+		VALUES ($1, $2, $8, $3, $4, (SELECT coalesce(max(position), 0) + 1 FROM deals WHERE workspace_id = $1 AND stage_id = $4),
 		        $5, $6, $7, $7)
 		RETURNING id`,
-		wsID, title, currency, stageID, res.ContactID, nullable(res.CompanyID), userID,
+		wsID, title, currency, stageID, res.ContactID, nullable(res.CompanyID), userID, value,
 	).Scan(&res.DealID); err != nil {
 		return nil, err
 	}
@@ -172,6 +175,13 @@ func Convert(ctx context.Context, db *sql.DB, wsID, leadID, userID string) (*Con
 		header += " (" + f + ")"
 	}
 	body := header + ":\n\n" + strings.TrimSpace(l.message)
+	if b := strings.TrimSpace(l.budget); b != "" {
+		label := "Budget"
+		if wsLocale == "ar" {
+			label = "الميزانية"
+		}
+		body += "\n\n" + label + ": " + b
+	}
 	if r := []rune(body); len(r) > 5000 {
 		body = string(r[:5000])
 	}

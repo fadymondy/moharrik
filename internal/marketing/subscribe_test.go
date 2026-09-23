@@ -211,6 +211,9 @@ func TestInquirySnippetPostsToTheInquiryEndpointWithAttributionAndAHoneypot(t *t
 		`name="email" required`,
 		`name="message" required`,
 		`j.error ||`,
+		// The optional budget (MH-464) is a field, and it is sent.
+		`name="budget"`,
+		`"company", "budget", "message"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("inquiry snippet missing %q", want)

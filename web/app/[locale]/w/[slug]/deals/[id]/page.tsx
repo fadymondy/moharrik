@@ -2,10 +2,9 @@
 
 import { useParams } from "next/navigation"
 
-import { DealForm } from "@/components/crm/deals"
-import { formatMoney, stageTone } from "@/components/crm/shared"
+import { DealForm, DealValue } from "@/components/crm/deals"
+import { stageTone } from "@/components/crm/shared"
 import { Timeline } from "@/components/crm/timeline"
-import { Ltr } from "@/components/copy-field"
 import { ConfirmButton } from "@/components/confirm-button"
 import { NotFoundState } from "@/components/not-found-state"
 import { SectionHeader } from "@/components/public-frame"
@@ -49,7 +48,7 @@ export default function DealDetailPage() {
             <span className={`size-2 rounded-full ${stageTone[deal.stage_kind]}`} aria-hidden />
             <Bdi>{deal.stage_name}</Bdi>
             <span aria-hidden>·</span>
-            <Ltr>{formatMoney(deal.value_minor, deal.currency, locale)}</Ltr>
+            <DealValue deal={deal} />
           </span>
         }
         action={

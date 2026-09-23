@@ -800,6 +800,8 @@ export type Lead = {
   /** What the visitor typed; the CRM record is converted_company. */
   company: string
   message: string
+  /** What the visitor typed as a budget, as typed ("" when left out). */
+  budget: string
   locale: string
   form_id: string | null
   form_name: string

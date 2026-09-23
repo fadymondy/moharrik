@@ -48,7 +48,7 @@ import { LiveAlerts } from "@/components/alerts/live-alerts"
 import { NotificationBell } from "@/components/alerts/notification-bell"
 import { CubeMark } from "@/components/brand/cube-mark"
 import { LanguageSwitcher, ThemeToggle } from "@/components/header-controls"
-import { MahaamFeedbackWidget, openFeedback } from "@/components/feedback/mahaam-widget"
+import { MahaamFeedbackWidget, openFeedback, useFeedbackReady } from "@/components/feedback/mahaam-widget"
 import { NotFoundState } from "@/components/not-found-state"
 import { ErrorState } from "@/components/states"
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form"
@@ -159,6 +159,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const { slug } = useParams<{ slug: string }>()
   const { t, locale } = useTranslations()
   const me = useRequireAuth()
+  // "Report a problem" shows only once the widget can actually send (MH-464): a deployment with
+  // no Mahaam key, or a widget script that failed to load, gets no button rather than a dead one.
+  const canReport = useFeedbackReady()
   const list = useMyWorkspaces(!!me.data)
   const [navOpen, setNavOpen] = useState(false)
   // The desktop sidebar collapses to an icon rail; the choice is kept per browser. Ctrl/⌘+B toggles.
@@ -242,7 +245,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             {summary && list.data ? <WorkspaceSwitcher active={summary} all={list.data} /> : <Skeleton className="h-6 w-40" />}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {me.data ? (
+            {me.data && canReport ? (
               <Button variant="outline" size="sm" onClick={() => openFeedback()} aria-label={t("feedback.report")}>
                 <MessageSquarePlusIcon />
                 <span className="hidden sm:inline">{t("feedback.report")}</span>
@@ -264,7 +267,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             ) : null}
             <LanguageSwitcher />
             <ThemeToggle />
-            {me.data ? <UserMenu email={me.data.email} onReport={() => openFeedback()} /> : null}
+            {me.data ? <UserMenu email={me.data.email} onReport={canReport ? () => openFeedback() : undefined} /> : null}
           </div>
         </header>
         <main className="min-w-0 flex-1">{body}</main>

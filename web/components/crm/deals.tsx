@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState, type DragEvent, type FormEvent } from "react"
-import { ArrowRightLeftIcon, GripVerticalIcon } from "lucide-react"
+import { ArrowRightLeftIcon, GripVerticalIcon, PencilIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { formatMoney, PickSelect, stageTone, toMajor, toMinor, useMemberNames } from "@/components/crm/shared"
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
@@ -39,7 +40,19 @@ export type MoveFn = (dealId: string, stageId: string, position?: number) => voi
  * Columns share the width (at least 14rem each), so the default five stages fit a 1440 screen;
  * past that the board scrolls inside ScrollX, which shows that it does (MH-463).
  */
-export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Stage[]; deals: Deal[]; currency: string; onMove: MoveFn }) {
+export function PipelineBoard({
+  stages,
+  deals,
+  currency,
+  onMove,
+  onChanged,
+}: {
+  stages: Stage[]
+  deals: Deal[]
+  currency: string
+  onMove: MoveFn
+  onChanged?: () => void
+}) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<{ stage: string; before: string | null } | null>(null)
   const byStage = useMemo(() => {
@@ -131,6 +144,7 @@ export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Sta
                         setOver(null)
                       }}
                       onMove={onMove}
+                      onChanged={onChanged}
                     />
                   </li>
                 ))}
@@ -154,6 +168,7 @@ function DealCard({
   onDragStart,
   onDragEnd,
   onMove,
+  onChanged,
 }: {
   deal: Deal
   stages: Stage[]
@@ -161,6 +176,7 @@ function DealCard({
   onDragStart: (e: DragEvent) => void
   onDragEnd: () => void
   onMove: MoveFn
+  onChanged?: () => void
 }) {
   const { t, locale, formatDate } = useTranslations()
   const ws = useWorkspace()
@@ -200,9 +216,9 @@ function DealCard({
           </DropdownMenu>
         ) : null}
       </div>
-      <p className="mt-2 font-medium tabular-nums">
-        <Ltr>{formatMoney(deal.value_minor, deal.currency, locale)}</Ltr>
-      </p>
+      <div className="mt-2">
+        {canWrite ? <DealValueEditor deal={deal} onSaved={onChanged} /> : <DealValue deal={deal} className="font-medium" />}
+      </div>
       {deal.company || deal.contact ? (
         <p className="mt-1 truncate text-xs text-grid-muted">
           {[deal.company?.name, deal.contact ? deal.contact.name || deal.contact.email : null]
@@ -219,6 +235,108 @@ function DealCard({
         <p className="mt-1 text-xs text-grid-muted">{t("deals.closesOn", { date: formatDate(deal.expected_close) })}</p>
       ) : null}
     </article>
+  )
+}
+
+// ── value ────────────────────────────────────────────────────────────────
+
+/**
+ * A deal's value, or "No value yet" when it has none (MH-464). A deal opened from a website
+ * inquiry starts with no value, and "$0.00" read as if somebody had priced it at nothing.
+ */
+export function DealValue({ deal, className }: { deal: Pick<Deal, "value_minor" | "currency">; className?: string }) {
+  const { t, locale } = useTranslations()
+  if (!deal.value_minor) {
+    return (
+      <span className={`text-grid-muted ${className ?? ""}`} data-deal-value="none">
+        {t("deals.noValue")}
+      </span>
+    )
+  }
+  return (
+    <span className={`tabular-nums ${className ?? ""}`} data-deal-value={deal.value_minor}>
+      <Ltr>{formatMoney(deal.value_minor, deal.currency, locale)}</Ltr>
+    </span>
+  )
+}
+
+/** The value on a board card, editable in place: the one number a new deal is most often missing. */
+function DealValueEditor({ deal, onSaved }: { deal: Deal; onSaved?: () => void }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const inputId = `deal-value-${deal.id}`
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    const minor = toMinor(value, deal.currency)
+    if (minor === null) {
+      setErr(t("deals.valueInvalid"))
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      await api(`/api/w/deals/${encodeURIComponent(deal.id)}`, { method: "PATCH", json: { value_minor: minor }, workspaceId: ws.id })
+      toast.success(t("deals.saved"))
+      setOpen(false)
+      onSaved?.()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setValue(deal.value_minor ? toMajor(deal.value_minor, deal.currency) : "")
+          setErr(null)
+        }
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            draggable={false}
+            className="group inline-flex max-w-full items-center gap-1.5 rounded-sm font-medium outline-none hover:text-grid-brand focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={deal.value_minor ? t("deals.editValue") : t("deals.setValue")}
+            data-deal-value-edit
+          />
+        }
+      >
+        <DealValue deal={deal} />
+        <PencilIcon className="size-3 shrink-0 text-grid-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64" data-deal-value-popover>
+        <form onSubmit={save} noValidate className="flex flex-col gap-2">
+          <FieldLabel htmlFor={inputId}>{t("deals.valueIn", { currency: deal.currency })}</FieldLabel>
+          <div className="flex gap-2">
+            <Input
+              id={inputId}
+              autoFocus
+              inputMode="decimal"
+              dir="ltr"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="0"
+            />
+            <Button type="submit" disabled={busy}>
+              {busy ? t("common.working") : t("common.save")}
+            </Button>
+          </div>
+          {err ? <FieldError>{err}</FieldError> : null}
+        </form>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -259,7 +377,7 @@ export function DealsTable({ deals, empty }: { deals: Deal[]; empty?: string }) 
                 </span>
               </TableCell>
               <TableCell className="tabular-nums">
-                <Ltr>{formatMoney(d.value_minor, d.currency, locale)}</Ltr>
+                <DealValue deal={d} />
               </TableCell>
               <TableCell>
                 {d.company ? (
@@ -315,7 +433,7 @@ export function DealForm({
   const companies = useCompanies(ws.id)
   const [title, setTitle] = useState(deal?.title ?? "")
   const [cur, setCur] = useState(deal?.currency ?? currency)
-  const [value, setValue] = useState(deal ? toMajor(deal.value_minor, deal.currency) : "")
+  const [value, setValue] = useState(deal?.value_minor ? toMajor(deal.value_minor, deal.currency) : "")
   const [stageId, setStageId] = useState(deal?.stage_id ?? "")
   const [contactId, setContactId] = useState(deal?.contact?.id ?? preset?.contact_id ?? "")
   const [companyId, setCompanyId] = useState(deal?.company?.id ?? preset?.company_id ?? "")

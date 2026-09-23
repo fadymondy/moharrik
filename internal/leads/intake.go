@@ -61,6 +61,9 @@ type inquiryBody struct {
 	Phone   string `json:"phone,omitempty" maxLength:"40"`
 	Company string `json:"company,omitempty" maxLength:"160"`
 	Message string `json:"message" maxLength:"5000"`
+	// Optional, as typed ("5,000", "$12k"). Converting the lead makes it the deal's value when it
+	// reads as one amount in the workspace's currency (budget.go).
+	Budget string `json:"budget,omitempty" maxLength:"80"`
 	Locale  string `json:"locale,omitempty" maxLength:"35"`
 	// The honeypot. The snippet hides it from people and from the tab order; a
 	// bot filling every field fills it. Its submission is thanked and dropped.
@@ -161,14 +164,15 @@ func intake(ctx context.Context, db *sql.DB, form marketing.PublicForm, b inquir
 	var id string
 	err := db.QueryRowContext(ctx, `
 		INSERT INTO leads (workspace_id, form_id, form_name, name, email, phone, company, message, locale,
-		                   utm_source, utm_medium, utm_campaign, utm_term, utm_content, referrer, gclid, landing_page, origin)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		                   utm_source, utm_medium, utm_campaign, utm_term, utm_content, referrer, gclid, landing_page, origin, budget)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING id`,
 		form.WorkspaceID, form.ID, form.Name, strings.TrimSpace(b.Name), strings.ToLower(strings.TrimSpace(b.Email)),
 		strings.TrimSpace(b.Phone), strings.TrimSpace(b.Company), strings.TrimSpace(b.Message), locale,
 		strings.TrimSpace(b.UtmSource), strings.TrimSpace(b.UtmMedium), strings.TrimSpace(b.UtmCampaign),
 		strings.TrimSpace(b.UtmTerm), strings.TrimSpace(b.UtmContent), strings.TrimSpace(b.Referrer),
 		strings.TrimSpace(b.Gclid), strings.TrimSpace(b.LandingPage), strings.TrimRight(strings.TrimSpace(origin), "/"),
+		strings.TrimSpace(b.Budget),
 	).Scan(&id)
 	return id, err
 }

@@ -118,10 +118,13 @@ Moharrik receives no issues. It files its own to its Mahaam project:
 
 - **Web:** the Mahaam Feedback widget (`web/components/feedback/mahaam-widget.tsx`, loaded from
   `NEXT_PUBLIC_MAHAAM_EMBED_ORIGIN`) is mounted in the signed-in workspace shell; "Report a
-  problem" in the header and user menu opens it. It posts to `web/app/feedback/route.ts`, which
-  checks the session against the Go API, adds workspace/user/host to `meta`, and forwards
-  server-to-server to `$MAHAAM_URL/api/feedback/embed` with `MAHAAM_FEEDBACK_KEY` and
-  `Origin: $MAHAAM_APP_URL`. Put those in `web/.env.local`.
+  problem" in the header and user menu opens it (both are hidden until it can send). The widget
+  sends with `credentials: "omit"`, so its `data-key` is a 24-hour signed reporter token from
+  `web/app/feedback/session/route.ts`; it posts to `web/app/feedback/route.ts`, which verifies the
+  token (or the session cookie), adds workspace/user/host to `meta`, and forwards server-to-server
+  to `$MAHAAM_URL/api/feedback/embed` with `MAHAAM_FEEDBACK_KEY` and `Origin: $MAHAAM_APP_URL`
+  (which must be on the key's allowed origins). Its look comes from `web/app/feedback/config`.
+  Put those in `web/.env.local`.
 - **API:** `internal/feedback` is Mahaam's Go SDK (vendored from `managy/sdk/go`);
   `internal/server/problems.go` reports panics (with stack) and 5xx responses (deduplicated per
   route for 10 min). No key = no-op.

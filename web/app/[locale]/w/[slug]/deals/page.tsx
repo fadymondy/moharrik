@@ -89,7 +89,7 @@ export default function DealsPage() {
           ) : null}
         </div>
       ) : view === "board" ? (
-        <PipelineBoard stages={deals.data.stages} deals={deals.data.deals} currency={deals.data.currency} onMove={move} />
+        <PipelineBoard stages={deals.data.stages} deals={deals.data.deals} currency={deals.data.currency} onMove={move} onChanged={() => deals.mutate()} />
       ) : (
         <DealsTable deals={deals.data.deals} />
       )}
