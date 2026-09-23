@@ -56,6 +56,26 @@ func TestEveryToolDeclaresAScope(t *testing.T) {
 	}
 }
 
+// TestEveryOfferedScopeHasATool: a scope on the token page that no tool
+// declares grants nothing, which is how trends:read sat offered and empty
+// until MH-386. Every user scope must now be used by at least one tool.
+func TestEveryOfferedScopeHasATool(t *testing.T) {
+	used := map[string]bool{}
+	for _, tool := range UserTools(&research.Engine{}) {
+		used[tool.Scope] = true
+	}
+	// convert_lead also demands contacts:write in-band (user_tools_leads.go),
+	// which the loop above cannot see; contacts:write has tools of its own.
+	for _, s := range UserScopes {
+		if !used[s.Scope] {
+			t.Errorf("scope %q is offered on the token page but no tool declares it", s.Scope)
+		}
+		if strings.TrimSpace(s.Description) == "" {
+			t.Errorf("scope %q has no description", s.Scope)
+		}
+	}
+}
+
 func call(t *testing.T, s *server, scopes []string, tool string) map[string]any {
 	t.Helper()
 	params, _ := json.Marshal(map[string]any{"name": tool, "arguments": map[string]any{}})

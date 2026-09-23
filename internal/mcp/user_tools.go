@@ -66,6 +66,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, MarketingTools()...)
 	tools = append(tools, NotificationTools()...)
 	tools = append(tools, InboxTools()...)
+	tools = append(tools, TrendsTools()...)
 	tools = append(tools, AutomationTools()...)
 	tools = append(tools, WorkflowTools()...)
 	tools = append(tools, ResearchTools(researchEngine)...)

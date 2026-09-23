@@ -43,7 +43,12 @@ var UserScopes = []ScopeDef{
 	{"notifications:manage", "Create, rotate, enable and disable webhook sources", authz.Manager},
 	{"research:read", "Read research runs and collected evidence", authz.Member},
 	{"research:run", "Start research runs", authz.Member},
-	{"trends:read", "Read trend topics and news items", authz.Member},
+	// Trends (MH-386): reading and saving are member rights, as in the REST
+	// routes; adding or changing a feed, or fetching them all now, changes
+	// what the whole workspace collects, so it is a manager's (authz.TrendsManage).
+	{"trends:read", "Read sources, the catalog, the budget, collected items and trending topics", authz.Member},
+	{"trends:write", "Save items, and review, dismiss or save trending topics", authz.Member},
+	{"trends:manage", "Add and change sources, and collect now (spends the daily budget)", authz.Manager},
 }
 
 // AdminScopes is the closed list for the platform admin MCP. Admin tokens are
