@@ -111,6 +111,13 @@ func SendWhatsAppToContact(ctx context.Context, a *app.App, contactID, text, cod
 	if _, err := whatsapp.Load(ctx, a, s.WorkspaceID); err != nil {
 		return nil, whatsappError(err)
 	}
+	// MH-410: the contact limits, checked before a code is issued and again
+	// on the confirmed call (the count may have moved in between).
+	if l, err := directLimit(ctx, a.SQLDB, s.WorkspaceID, digits); err != nil {
+		return nil, huma.Error500InternalServerError("could not read the send log")
+	} else if l.Blocked != "" {
+		return nil, limitError(l.Blocked)
+	}
 
 	res := &DirectSend{ContactID: contactID,
 		Summary: fmt.Sprintf("send %d characters on WhatsApp to %s (+%s)", len([]rune(text)), firstNonEmpty(name, email, "the contact"), digits)}

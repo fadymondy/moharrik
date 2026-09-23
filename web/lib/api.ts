@@ -878,6 +878,40 @@ export type WhatsAppLink = {
   available: boolean
 }
 
+/** Where one contact stands for a WhatsApp message (MH-410). */
+export type ContactWhatsApp = {
+  can_send: boolean
+  reason?: "unavailable" | "not_linked" | "no_phone" | "not_opted_in" | "opted_out" | "limit"
+  detail?: string
+  phone: string
+  whatsapp_opt_in_at: string | null
+  whatsapp_opt_out_at: string | null
+  /** The contact's WhatsApp thread; empty when the first message would open one. */
+  conversation_id: string
+  limits?: {
+    hour_used: number
+    hour_max: number
+    day_used: number
+    day_max: number
+    workspace_used: number
+    workspace_max: number
+    blocked?: string
+  }
+  recent: { at: string; kind: "reply" | "broadcast" | "direct" | string; ok: boolean; error: string }[]
+}
+
+/** POST /api/w/contacts/{id}/whatsapp/send. */
+export type DirectSendResult = {
+  confirmation_required: boolean
+  code?: string
+  expires_at?: string
+  summary: string
+  sent: boolean
+  new_thread: boolean
+  conversation_id?: string
+  contact_id: string
+}
+
 export type AutomationSchedule = {
   id: string
   name: string

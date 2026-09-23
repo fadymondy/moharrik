@@ -24,6 +24,7 @@ import { api, ApiError, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContact } from "@/lib/queries"
 import { CompanyPicker } from "@/components/crm/company-picker"
+import { ContactWhatsAppPanel } from "@/components/crm/contact-whatsapp"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -98,6 +99,8 @@ export default function ContactDetailPage() {
         </div>
       ) : null}
       <UnsubscribeDialog target={leaving} onClose={() => setLeaving(null)} onDone={() => detail.mutate()} />
+
+      <ContactWhatsAppPanel key={contact.phone} contact={contact} />
 
       {canWrite ? <EditContact contact={contact} onSaved={() => detail.mutate()} /> : null}
 

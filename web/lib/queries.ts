@@ -15,6 +15,7 @@ import {
   type BrowserAgent,
   type MailboxSettings,
   type WhatsAppLink,
+  type ContactWhatsApp,
   type RunStep,
   type ResearchDetail,
   type ResearchList,
@@ -458,6 +459,10 @@ export function useRun(workspaceId: string | null | undefined, id?: string) {
 export const useMailbox = (id?: string | null) => useScoped<MailboxSettings>("/api/w/mailbox", id)
 
 export const useWhatsApp = (id?: string | null) => useScoped<WhatsAppLink>("/api/w/whatsapp", id)
+
+/** Whether one contact can be messaged on WhatsApp now, and why not (MH-410). */
+export const useContactWhatsApp = (wsId: string | null | undefined, contactId: string, enabled = true) =>
+  useScoped<ContactWhatsApp>(`/api/w/contacts/${encodeURIComponent(contactId)}/whatsapp`, wsId, enabled && !!contactId)
 
 export const useSchedules = (id?: string | null) => useScoped<{ schedules: AutomationSchedule[] | null }>("/api/w/schedules", id)
 
