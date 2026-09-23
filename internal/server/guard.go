@@ -9,6 +9,7 @@ import (
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/audit"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -164,7 +165,7 @@ func installGuard(k *togo.Kernel, a *app.App) {
 
 	k.UseMiddleware(func(next http.Handler) http.Handler {
 		signedIn := svc.Middleware(csrf(next))
-		workspace := svc.Middleware(csrf(tenant.Require(a.SysDB)(generatedAuthz(next))))
+		workspace := svc.Middleware(csrf(tenant.Require(a.SysDB)(generatedAuthz(a, next))))
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch classify(r) {
@@ -208,14 +209,27 @@ func csrf(next http.Handler) http.Handler {
 // generatedAuthz runs after membership is established. Hand-written /api/w/*
 // handlers check authz.Can themselves; everything else in the workspace tier
 // is generated CRUD (or GraphQL) and is checked against authz.Generated.
-func generatedAuthz(next http.Handler) http.Handler {
+//
+// A write it refuses is recorded in the audit log (MH-392): a member trying to
+// change what their role does not allow is exactly what the log is for, and the
+// refusal never reaches the handlers that would otherwise record it.
+func generatedAuthz(a *app.App, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s, _ := tenant.From(r.Context())
 		path := r.URL.Path
+		refused := func(status int, msg string) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+				// The table, not the raw path: the path may carry an id from
+				// anywhere, and the log records only what is this workspace's.
+				table := strings.SplitN(strings.TrimPrefix(path, "/api/"), "/", 2)[0]
+				audit.RecordRequest(r.Context(), a, audit.Fallback{Operation: r.Method + " /api/" + table, Status: status, EntityType: table})
+			}
+			writeError(w, status, msg)
+		}
 
 		if path == "/graphql" {
 			if !authz.Can(s.Role, authz.GraphQL) {
-				writeError(w, http.StatusForbidden, "GraphQL needs the admin role in this workspace")
+				refused(http.StatusForbidden, "GraphQL needs the admin role in this workspace")
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -228,11 +242,11 @@ func generatedAuthz(next http.Handler) http.Handler {
 
 		table := strings.SplitN(strings.TrimPrefix(path, "/api/"), "/", 2)[0]
 		if _, known := authz.Generated[table]; !known {
-			writeError(w, http.StatusNotFound, "not found")
+			refused(http.StatusNotFound, "not found")
 			return
 		}
 		if !authz.CanTable(s.Role, table, r.Method) {
-			writeError(w, http.StatusForbidden, "your role cannot do this through the generic API")
+			refused(http.StatusForbidden, "your role cannot do this through the generic API")
 			return
 		}
 		next.ServeHTTP(w, r)

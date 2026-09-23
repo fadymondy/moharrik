@@ -14,8 +14,14 @@ type Scope struct {
 	UserID        string
 	Email         string
 	Role          string // owner | admin | manager | member | client
-	// Via is how the caller authenticated: "session" or "mcp".
+	// Via is how the caller authenticated: "session", "mcp" (a pasted token),
+	// "oauth" (an OAuth-connected MCP client, MH-391) or "system".
 	Via string
+	// TokenID and TokenName name the credential for "mcp" (mcp_tokens.id and
+	// its name) and "oauth" (oauth_grants.id and the client's name) — who the
+	// audit log records (MH-392).
+	TokenID   string
+	TokenName string
 	// Scopes are the MCP scopes in effect (token scopes ∩ what the role allows).
 	// Empty for a browser session.
 	Scopes []string
@@ -44,6 +50,13 @@ func WorkspaceID(ctx context.Context) string {
 
 // WithWorkspace scopes ctx to a workspace without a user — for system jobs
 // that must act inside one tenant through the RLS pool.
+//
+// Whoever was acting on ctx stays the actor (audit.go): a handler that
+// re-scopes its context for a helper still records the member, token or
+// client who asked, not "the system".
 func WithWorkspace(ctx context.Context, workspaceID string) context.Context {
+	if a, ok := ActorFrom(ctx); ok {
+		ctx = WithActor(ctx, a)
+	}
 	return With(ctx, &Scope{WorkspaceID: workspaceID, Via: "system"})
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/alerts"
 	"github.com/fadymondy/moharrik/internal/analytics"
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/audit"
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/clientip"
 	"github.com/fadymondy/moharrik/internal/crm"
@@ -62,10 +63,11 @@ func Boot() *app.App {
 	}
 
 	installErrors()
-	installProblemReports(k) // outermost: sees what the guard and handlers answer
-	installInputGuard(k)     // text Postgres cannot store is a 400 before any query sees it
-	installClientIP(k)       // the visitor's address, from the TRUSTED proxy chain only
-	installChatCORS(k)       // before the guard: a preflight carries no session
+	installProblemReports(k)          // outermost: sees what the guard and handlers answer
+	installInputGuard(k)              // text Postgres cannot store is a 400 before any query sees it
+	installClientIP(k)                // the visitor's address, from the TRUSTED proxy chain only
+	k.UseMiddleware(audit.Middleware) // who/where for the audit log (MH-392), after the address
+	installChatCORS(k)                // before the guard: a preflight carries no session
 	installGuard(k, a)
 
 	// The registry of connected browsers, created BEFORE the routes: the
@@ -97,6 +99,8 @@ func Boot() *app.App {
 	}
 
 	api := humachi.New(k.Router, huma.DefaultConfig("Moharrik API", "0.1.0"))
+	// Before any route: huma applies middleware when an operation is registered.
+	audit.UseHuma(api, a)
 	registerREST(api, a, researchEngine)
 
 	mcp.Mount(k, a, researchEngine)
@@ -153,6 +157,8 @@ func Boot() *app.App {
 	// is — a sweeper that deletes rows under a test is exactly the thing not
 	// to leave running.
 	automation.StartRetention(a, k.Log)
+	// Audit log retention (MH-392): each workspace's window, 365 days by default.
+	audit.StartRetention(a, k.Log)
 
 	// The inbox's mail collector: one in-process ticker polling the mailboxes
 	// that are due. MAIL_COLLECTOR=off turns it off — the tests and the OpenAPI
@@ -237,6 +243,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	analytics.Register(api, a)     // GA4 (MH-444)
 	searchconsole.Register(api, a) // Search Console performance (MH-445)
 	youtube.Register(api, a)       // YouTube channel, videos, comments (MH-441)
+	audit.Register(api, a)         // the audit log (MH-392)
 }
 
 /*
@@ -279,6 +286,7 @@ func OpenAPI() ([]byte, error) {
 	router := chi.NewMux()
 	installErrors()
 	api := humachi.New(router, huma.DefaultConfig("Moharrik API", "0.1.0"))
+	audit.UseHuma(api, nil)
 	// A zero engine, not a configured one: the export must not read the
 	// environment or reach a search service. Every tier reads as absent, which
 	// changes no route — only the capability flags a live server reports.

@@ -65,6 +65,9 @@ var UserScopes = []ScopeDef{
 	// search_console:write in internal/authz.
 	{"analytics:read", "Read the workspace's Google Analytics, Search Console and YouTube data", authz.Member},
 	{"search_console:write", "Inspect URLs and submit sitemaps in Search Console", authz.Manager},
+	// The audit log (MH-392): every member's changes with their addresses, so
+	// the owners' and admins' — authz.AuditRead.
+	{"audit:read", "Read the workspace's audit log: who changed what, when and from where", authz.Admin},
 }
 
 // AdminScopes is the closed list for the platform admin MCP. Admin tokens are

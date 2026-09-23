@@ -39,6 +39,8 @@ import {
   type Invitation,
   type McpScope,
   type McpToken,
+  type AuditEntry,
+  type AuditFacets,
   type Member,
   type ChatWidget,
   type Conversation,
@@ -119,6 +121,26 @@ export const useInvitations = (id?: string | null, enabled = true) =>
 
 export const useMcpTokens = (id?: string | null) =>
   useScoped<{ tokens: McpToken[] | null; scopes: McpScope[] | null; all?: boolean }>("/api/w/mcp_tokens", id)
+
+export type AuditQuery = { actor?: string; actorKind?: string; entityType?: string; action?: string; from?: string; to?: string; cursor?: string; limit?: number }
+
+/** The audit log (MH-392), a page at a time, newest first. Owners and admins only. */
+export const useAuditPage = (workspaceId: string | null | undefined, q: AuditQuery, enabled = true) =>
+  usePaged<Page & { entries: AuditEntry[] | null }>(
+    withQuery("/api/w/audit", {
+      actor: q.actor,
+      actor_kind: q.actorKind,
+      entity_type: q.entityType,
+      action: q.action,
+      from: q.from,
+      to: q.to,
+      cursor: q.cursor,
+      limit: q.limit,
+    }),
+    enabled ? workspaceId : null,
+  )
+
+export const useAuditFacets = (id?: string | null, enabled = true) => useScoped<AuditFacets>("/api/w/audit/facets", id, enabled)
 
 export const useMailLists = (id?: string | null) => useScoped<{ lists: MailList[] | null }>("/api/w/mail/lists", id)
 

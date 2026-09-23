@@ -320,7 +320,8 @@ func (h *Hub) touch(a *app.App, agent Connected) {
 
 // haltWorkspace throws the kill switch on behalf of a browser that asked for it.
 func (h *Hub) haltWorkspace(a *app.App, agent Connected) {
-	ctx := context.Background()
+	// Recorded in the audit log as the browser that pulled it (MH-392).
+	ctx := tenant.WithActor(context.Background(), tenant.Actor{Kind: "agent", ID: agent.AgentID, Name: agent.Name, Via: "agent"})
 	if err := Pause(ctx, a, agent.WorkspaceID, "", "stopped from "+agent.Name); err != nil {
 		h.log.Error("kill switch from a browser failed", "workspace", agent.WorkspaceID, "err", err)
 		return

@@ -24,7 +24,9 @@ import (
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/audit"
 	"github.com/fadymondy/moharrik/internal/research"
+	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
 // protocolVersion is the default MCP revision. Newer clients that ask for a
@@ -179,8 +181,13 @@ func (s *server) dispatch(ctx context.Context, a *app.App, scopes []string, rpc 
 		if !ok {
 			return fail(-32602, "unknown tool: "+params.Name)
 		}
+		// The audit log (MH-392): the call is named on the request, so every
+		// row it changes is recorded as this tool; a write that changed no
+		// audited row — refused, failed, or a send — gets a request row.
+		tenant.RequestFrom(ctx).SetOperation("mcp:" + tool.Name)
 		// Default-deny: an undeclared scope is never satisfied (FM-22 fixed).
 		if tool.Scope == "" || !hasScope(scopes, tool.Scope) {
+			auditCall(ctx, a, tool, params.Arguments, http.StatusForbidden)
 			return inBand(fmt.Sprintf(
 				"%s needs the %q scope, which this token does not carry (it has: %s). "+
 					"Mint a token with that scope to allow this.",
@@ -188,8 +195,10 @@ func (s *server) dispatch(ctx context.Context, a *app.App, scopes []string, rpc 
 		}
 		text, err := tool.Run(ctx, a, params.Arguments)
 		if err != nil {
+			auditCall(ctx, a, tool, params.Arguments, http.StatusBadRequest)
 			return inBand(err.Error(), true)
 		}
+		auditCall(ctx, a, tool, params.Arguments, http.StatusOK)
 		return inBand(text, false)
 	default:
 		return fail(-32601, "method not found: "+rpc.Method)
@@ -297,4 +306,36 @@ func prop(typ, desc string) map[string]any {
 		p["description"] = desc
 	}
 	return p
+}
+
+// IsWriteTool reports whether a tool writes: its scope is anything but a
+// ":read" scope. Every write tool's call is audited (MH-392); a new tool is
+// audited unless its scope says it only reads.
+func IsWriteTool(t Tool) bool {
+	return !strings.HasSuffix(t.Scope, ":read")
+}
+
+// auditCall writes the request row for a write tool's call when it changed no
+// audited row (audit.RecordRequest decides).
+func auditCall(ctx context.Context, a *app.App, t Tool, raw json.RawMessage, status int) {
+	if !IsWriteTool(t) {
+		return
+	}
+	args := decodeArgs(raw)
+	entityID := str(args, "id")
+	entityType := ""
+	if i := strings.IndexByte(t.Name, '_'); i >= 0 {
+		entityType = t.Name[i+1:]
+	}
+	if entityID == "" {
+		for k, v := range args {
+			if s, ok := v.(string); ok && strings.HasSuffix(k, "_id") && s != "" {
+				entityID, entityType = s, strings.TrimSuffix(k, "_id")
+				break
+			}
+		}
+	}
+	audit.RecordRequest(ctx, a, audit.Fallback{
+		Operation: "mcp:" + t.Name, Status: status, EntityType: entityType, EntityID: entityID,
+	})
 }

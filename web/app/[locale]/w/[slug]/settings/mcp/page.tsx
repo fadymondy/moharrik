@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
+import Link from "next/link"
 import { ConnectClients } from "@/components/mcp/connect-clients"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -33,10 +34,12 @@ import { Bdi, isolate } from "@/components/bidi"
 const MCP_ORIGIN = process.env.NEXT_PUBLIC_MCP_ORIGIN ?? "http://localhost:8120"
 
 export default function McpTokensPage() {
-  const { t, formatDate } = useTranslations()
+  const { t, formatDate, locale } = useTranslations()
   const ws = useWorkspace()
   useDocumentTitle(`${t("nav.mcpTokens")} · ${ws.summary.name}`)
   const tokens = useMcpTokens(ws.id)
+  // Owners and admins can open each token's calls in the audit log (MH-392).
+  const auditHref = ws.can("audit:read") ? (actor: string) => `/${locale}/w/${ws.summary.slug}/settings/audit?actor=${encodeURIComponent(actor)}` : undefined
   const [creating, setCreating] = useState(false)
 
   async function revoke(id: string) {
@@ -92,7 +95,7 @@ export default function McpTokensPage() {
             </TableHeader>
             <TableBody>
               {list.map((tok) => (
-                <TokenRow key={tok.id} tok={tok} showHolder={all} formatDate={formatDate} onRevoke={() => revoke(tok.id)} />
+                <TokenRow key={tok.id} tok={tok} showHolder={all} formatDate={formatDate} onRevoke={() => revoke(tok.id)} activityHref={auditHref?.(tok.id)} />
               ))}
             </TableBody>
           </Table>
@@ -128,11 +131,14 @@ function TokenRow({
   showHolder,
   formatDate,
   onRevoke,
+  activityHref,
 }: {
   tok: McpToken
   showHolder: boolean
   formatDate: (v: string | null | undefined) => string
   onRevoke: () => Promise<void>
+  /** Its calls in the audit log, for owners and admins (MH-392). */
+  activityHref?: string
 }) {
   const { t } = useTranslations()
   const expired = !!tok.expires_at && new Date(tok.expires_at).getTime() < Date.now()
@@ -166,7 +172,14 @@ function TokenRow({
       <TableCell className="text-grid-muted">
         <Ltr>{formatDate(tok.created_at)}</Ltr>
       </TableCell>
-      <TableCell className="text-grid-muted">{tok.last_used_at ? <Ltr>{formatDate(tok.last_used_at)}</Ltr> : t("mcp.never")}</TableCell>
+      <TableCell className="text-grid-muted">
+        {tok.last_used_at ? <Ltr>{formatDate(tok.last_used_at)}</Ltr> : t("mcp.never")}
+        {activityHref && tok.last_used_at ? (
+          <Link href={activityHref} className="block text-xs text-grid-action underline-offset-4 hover:underline" data-token-activity>
+            {t("mcp.recentCalls")}
+          </Link>
+        ) : null}
+      </TableCell>
       <TableCell className="text-grid-muted">
         {tok.expires_at ? <Ltr>{formatDate(tok.expires_at)}</Ltr> : t("mcp.noExpiry")}
       </TableCell>

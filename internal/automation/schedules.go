@@ -222,6 +222,9 @@ func (h *Hub) Tick(ctx context.Context, a *app.App, now time.Time) {
 }
 
 func (h *Hub) fire(ctx context.Context, a *app.App, d due, now time.Time) {
+	// A scheduled run is the scheduler acting for whoever set the schedule up:
+	// recorded in the audit log as an agent (MH-392), not as nobody.
+	ctx = tenant.WithActor(ctx, tenant.Actor{Kind: "agent", ID: "schedule:" + d.ID, Name: "Scheduler", UserID: d.RequestedBy, Via: "agent"})
 	sctx := tenant.WithWorkspace(ctx, d.WorkspaceID)
 
 	// Advance the clock FIRST. If the run were enqueued first and anything

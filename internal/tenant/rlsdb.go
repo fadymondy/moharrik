@@ -40,7 +40,10 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
-const setScopeSQL = "SELECT set_config('app.workspace_id', $1, false)"
+// setScopeSQL sets the workspace AND the audit actor (audit.go, MH-392) in one
+// round trip. Both are re-applied before every statement, so neither can be
+// left over from the connection's previous user.
+const setScopeSQL = "SELECT set_config('app.workspace_id', $1, false), set_config('app.audit', $2, false)"
 
 /*
 OpenRLS opens the app pool: pgx connections that scope every statement to the
@@ -113,7 +116,7 @@ func (c *rlsConn) scope(ctx context.Context) error {
 	if !ok {
 		return errUnsupported
 	}
-	_, err := ex.ExecContext(ctx, setScopeSQL, []driver.NamedValue{{Ordinal: 1, Value: WorkspaceID(ctx)}})
+	_, err := ex.ExecContext(ctx, setScopeSQL, []driver.NamedValue{{Ordinal: 1, Value: WorkspaceID(ctx)}, {Ordinal: 2, Value: AuditJSON(ctx)}})
 	return err
 }
 

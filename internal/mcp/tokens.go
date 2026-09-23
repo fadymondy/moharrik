@@ -56,12 +56,12 @@ func authUser(r *http.Request, a *app.App, token string) (context.Context, []str
 		return nil, nil, false
 	}
 	ctx := r.Context()
-	var id, workspaceID, userID, rawScopes string
+	var id, workspaceID, userID, rawScopes, name string
 	var expires, revoked *time.Time
 	err := a.SysDB.QueryRowContext(ctx, `
-		SELECT id, workspace_id, user_id, scopes, expires_at, revoked_at
+		SELECT id, workspace_id, user_id, scopes, expires_at, revoked_at, name
 		FROM mcp_tokens WHERE token_hash = $1`, HashToken(token),
-	).Scan(&id, &workspaceID, &userID, &rawScopes, &expires, &revoked)
+	).Scan(&id, &workspaceID, &userID, &rawScopes, &expires, &revoked, &name)
 	if err != nil || revoked != nil || (expires != nil && time.Now().After(*expires)) {
 		return nil, nil, false
 	}
@@ -72,6 +72,7 @@ func authUser(r *http.Request, a *app.App, token string) (context.Context, []str
 		return nil, nil, false
 	}
 	s.Via = "mcp"
+	s.TokenID, s.TokenName = id, name
 	s.Scopes = Effective(s.Role, parseScopes(rawScopes))
 
 	_, _ = a.SysDB.ExecContext(ctx, `UPDATE mcp_tokens SET last_used_at = now() WHERE id = $1`, id)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
 // adminCaller is who an admin MCP call acts as.
@@ -50,6 +51,9 @@ func authAdmin(r *http.Request, a *app.App, token string) (context.Context, []st
 		}
 	}
 	_, _ = a.SysDB.ExecContext(ctx, `UPDATE admin_mcp_tokens SET last_used_at = now() WHERE id = $1`, id)
+	// The audit log (MH-392) records a platform admin's writes as the admin,
+	// in the workspace they changed (tenant.SysExec in admin_tools.go).
+	ctx = tenant.WithActor(ctx, tenant.Actor{Kind: "admin", ID: userID, Name: email, UserID: userID, Via: "admin"})
 	return context.WithValue(ctx, adminKey{}, adminCaller{UserID: userID, Email: email, TokenID: id}), scopes, true
 }
 

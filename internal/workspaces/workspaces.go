@@ -513,6 +513,10 @@ func Create(ctx context.Context, sys *sql.DB, userID, name, slug string) (*Works
 		return nil, err
 	}
 	defer tx.Rollback() //nolint:errcheck
+	// On the owner pool, which sets no audit context by itself (MH-392).
+	if err := tenant.AuditTx(ctx, tx); err != nil {
+		return nil, err
+	}
 	ws := &WorkspaceOut{Name: name, Slug: slug, Role: string(authz.Owner)}
 	if err := tx.QueryRowContext(ctx,
 		`INSERT INTO workspaces (slug, name, created_by) VALUES ($1, $2, $3) RETURNING id, locale`,
@@ -566,6 +570,9 @@ func Accept(ctx context.Context, sys *sql.DB, userID, userEmail, token string) (
 		return nil, err
 	}
 	defer tx.Rollback() //nolint:errcheck
+	if err := tenant.AuditTx(ctx, tx); err != nil {
+		return nil, err
+	}
 
 	var invID, wsID, email, role string
 	var expires time.Time

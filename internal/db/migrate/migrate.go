@@ -34,7 +34,57 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"gsc_search_analytics_daily", "gsc_search_totals_daily", "gsc_import_days",
 	"youtube_channels", "youtube_videos", "youtube_comments", "youtube_analytics",
 	"gsc_url_inspections", "youtube_report_jobs", "youtube_reports",
-	"whatsapp_sends", "whatsapp_confirmations"}
+	"whatsapp_sends", "whatsapp_confirmations",
+	"audit_settings", // audit log retention (MH-392)
+}
+
+/*
+ReadOnlyTenantTables are workspace-scoped and RLS-protected like the tenant
+tables, but the app role may only SELECT them. audit_log (MH-392) is written by
+the audit_row_change trigger (SECURITY DEFINER) and by the owner pool, so the
+API's own role can read its workspace's history and never rewrite it.
+*/
+var ReadOnlyTenantTables = []string{"audit_log"}
+
+/*
+AuditExcluded are the tenant tables the audit trigger is NOT attached to, each
+with the reason. Every other tenant table is audited — a new table is recorded
+until someone decides here that it should not be (audit_test.go checks both
+lists against the database).
+
+Excluding a table does not make a write to it unrecorded: a request that
+changes only excluded tables still gets its request row (internal/audit).
+*/
+var AuditExcluded = map[string]string{
+	"google_oauth_states":        "a ten-minute CSRF state for Google's redirect, deleted on use",
+	"google_discoveries":         "what Google reported the account can see, re-fetched by every sync",
+	"ga4_reports":                "a mirror of Google Analytics, rewritten by every sync",
+	"ga4_daily":                  "a mirror of Google Analytics, rewritten by every sync",
+	"gsc_search_analytics_daily": "a mirror of Search Console, rewritten by every import",
+	"gsc_search_totals_daily":    "a mirror of Search Console, rewritten by every import",
+	"gsc_import_days":            "the import's own bookkeeping",
+	"youtube_analytics":          "a mirror of YouTube Analytics, rewritten by every sync",
+	"youtube_report_jobs":        "a mirror of YouTube Reporting, rewritten by every sync",
+	"youtube_reports":            "a mirror of YouTube Reporting, rewritten by every sync",
+	"youtube_videos":             "a mirror of the channel's videos, rewritten by every sync",
+	"youtube_comments":           "a mirror of the channel's comments, rewritten by every sync",
+	"automation_run_steps":       "one row per browser step of a run; the run itself is audited",
+	"research_sources":           "evidence a research run collected; the run itself is audited",
+	"news_items":                 "items a feed collected; saving one is recorded by its request row",
+	"whatsapp_confirmations":     "a one-time confirmation code, deleted on use",
+	"notification_items":         "the inbound feed; marking items read or saved is recorded by its request row",
+}
+
+// AuditedTables are the tenant tables the audit trigger is attached to.
+func AuditedTables() []string {
+	out := []string{}
+	for _, t := range TenantTables {
+		if _, skip := AuditExcluded[t]; !skip {
+			out = append(out, t)
+		}
+	}
+	return out
+}
 
 var roleName = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 
@@ -84,7 +134,34 @@ func Run(ctx context.Context, owner *sql.DB, appURL, root string, logf func(stri
 	if err := ensureAppRole(ctx, owner, appURL, logf); err != nil {
 		return err
 	}
-	return applyDir(ctx, owner, filepath.Join(root, "internal", "db", "post"), logf)
+	if err := applyDir(ctx, owner, filepath.Join(root, "internal", "db", "post"), logf); err != nil {
+		return err
+	}
+	return attachAuditTriggers(ctx, owner, logf)
+}
+
+// attachAuditTriggers puts audit_row_change (96_audit_log.sql) on every
+// audited tenant table and takes it off the excluded ones. Idempotent: an
+// existing trigger is left as it is, so there is no window without one.
+func attachAuditTriggers(ctx context.Context, db *sql.DB, logf func(string, ...any)) error {
+	for _, t := range AuditedTables() {
+		stmt := fmt.Sprintf(`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'audit_row_change' AND tgrelid = '%s'::regclass) THEN
+				CREATE TRIGGER audit_row_change AFTER INSERT OR UPDATE OR DELETE ON %s
+					FOR EACH ROW EXECUTE FUNCTION audit_row_change();
+			END IF;
+		END $$`, t, t)
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("audit trigger on %s: %w", t, err)
+		}
+	}
+	for t := range AuditExcluded {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf(`DROP TRIGGER IF EXISTS audit_row_change ON %s`, t)); err != nil {
+			return fmt.Errorf("audit trigger off %s: %w", t, err)
+		}
+	}
+	logf("audit trigger on %d tenant tables (%d excluded)", len(AuditedTables()), len(AuditExcluded))
+	return nil
 }
 
 func applyDir(ctx context.Context, db *sql.DB, dir string, logf func(string, ...any)) error {
@@ -134,6 +211,9 @@ func ensureAppRole(ctx context.Context, db *sql.DB, appURL string, logf func(str
 		fmt.Sprintf(`GRANT USAGE ON SCHEMA public TO %s`, role),
 		fmt.Sprintf(`GRANT SELECT, INSERT, UPDATE, DELETE ON %s TO %s`, strings.Join(TenantTables, ", "), role),
 		fmt.Sprintf(`REVOKE ALL ON users, admin_mcp_tokens FROM %s`, role),
+		// Read-only tenant tables: SELECT, and explicitly nothing else.
+		fmt.Sprintf(`REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON %s FROM %s`, strings.Join(ReadOnlyTenantTables, ", "), role),
+		fmt.Sprintf(`GRANT SELECT ON %s TO %s`, strings.Join(ReadOnlyTenantTables, ", "), role),
 	}
 	for _, s := range stmts {
 		if _, err := db.ExecContext(ctx, s); err != nil {

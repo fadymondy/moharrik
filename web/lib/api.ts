@@ -181,6 +181,35 @@ export type McpToken = {
 
 export type McpScope = { scope: string; description: string; min_role: Role; allowed: boolean }
 
+/** One row of the audit log (MH-392). */
+export type AuditEntry = {
+  id: string
+  occurred_at: string
+  kind: "change" | "request"
+  request_id: string
+  actor_kind: "member" | "token" | "oauth" | "agent" | "admin" | ""
+  actor_id: string
+  actor_name: string
+  user_id: string
+  via: string
+  operation: string
+  action: string
+  entity_type: string
+  entity_id: string
+  /** {field: {before?, after?}}; secrets are "[redacted]", message bodies "[hidden]". */
+  changes: Record<string, { before?: unknown; after?: unknown }>
+  status: number
+  ip: string
+  user_agent: string
+}
+
+export type AuditFacets = {
+  actors: { kind: AuditEntry["actor_kind"]; id: string; name: string }[]
+  entity_types: string[]
+  actions: string[]
+  retention_days: number
+}
+
 export type AuthMethods = { methods?: unknown; oauth?: unknown; providers?: unknown }
 
 // ── Email marketing ──────────────────────────────────────────────────────

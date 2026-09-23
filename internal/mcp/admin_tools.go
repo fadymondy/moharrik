@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 )
@@ -101,7 +102,7 @@ func AdminTools() []Tool {
 					return "", err
 				}
 				name, plan := firstNonEmpty(str(args, "name"), w.name), firstNonEmpty(str(args, "plan"), w.plan)
-				if _, err := a.SysDB.ExecContext(ctx,
+				if _, err := tenant.SysExec(ctx, a.SysDB,
 					`UPDATE workspaces SET name = $2, plan = $3, updated_at = now() WHERE id = $1`, w.id, name, plan); err != nil {
 					return "", err
 				}
@@ -129,7 +130,7 @@ func AdminTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				res, err := a.SysDB.ExecContext(ctx, `
+				res, err := tenant.SysExec(ctx, a.SysDB, `
 					INSERT INTO workspace_members (workspace_id, user_id, role, status) VALUES ($1, $2, $3, 'active')
 					ON CONFLICT (workspace_id, user_id) DO NOTHING`, w.id, uid, role)
 				if err != nil {
@@ -174,7 +175,7 @@ func AdminTools() []Tool {
 						return "", errors.New("that is the last active owner — promote another owner first")
 					}
 				}
-				if _, err := a.SysDB.ExecContext(ctx, `
+				if _, err := tenant.SysExec(ctx, a.SysDB, `
 					UPDATE workspace_members SET role = $3, status = $4, updated_at = now()
 					WHERE workspace_id = $1 AND user_id = $2`, w.id, uid, newRole, newStatus); err != nil {
 					return "", err
@@ -205,7 +206,7 @@ func AdminTools() []Tool {
 				).Scan(&role); err == nil && role == "owner" && lastOwner(ctx, a.SysDB, w.id) {
 					return "", errors.New("that is the last active owner — promote another owner first")
 				}
-				res, err := a.SysDB.ExecContext(ctx, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, w.id, uid)
+				res, err := tenant.SysExec(ctx, a.SysDB, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, w.id, uid)
 				if err != nil {
 					return "", err
 				}

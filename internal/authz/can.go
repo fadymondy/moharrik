@@ -126,6 +126,11 @@ const (
 	// holds neither of — so a client has nothing to be alerted about, and no
 	// Delivery settings to see.
 	PushManage = "push:manage"
+	// Audit log (MH-392): reading who did what across the whole workspace —
+	// every member's changes, with their addresses — and changing how long it
+	// is kept, is the owners' and admins' business.
+	AuditRead   = "audit:read"
+	AuditManage = "audit:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -192,6 +197,8 @@ var Matrix = map[string]Role{
 	AnalyticsRead:      Member,
 	SearchConsoleWrite: Manager,
 	PushManage:         Member,
+	AuditRead:          Admin,
+	AuditManage:        Admin,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

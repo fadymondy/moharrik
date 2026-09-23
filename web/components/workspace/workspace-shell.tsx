@@ -15,6 +15,7 @@ import {
   HandshakeIcon,
   InboxIcon,
   KeyRoundIcon,
+  ScrollTextIcon,
   LayoutGridIcon,
   MenuIcon,
   PanelLeftCloseIcon,
@@ -377,6 +378,12 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/settings/mcp`} icon={<KeyRoundIcon />}>
         {t("nav.mcpTokens")}
       </L>
+      {/* Owners and admins only (MH-392): hidden, not disabled, for everyone else. */}
+      {can?.includes("audit:read") ? (
+        <L href={`${base}/settings/audit`} icon={<ScrollTextIcon />}>
+          {t("nav.audit")}
+        </L>
+      ) : null}
       {can?.includes("push:manage") ? (
         <L href={`${base}/settings/delivery`} icon={<BellRingIcon />}>
           {t("nav.delivery")}
