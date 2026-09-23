@@ -1,0 +1,12 @@
+{
+  "name": "moharrik-extension",
+  "private": true,
+  "type": "module",
+  "description": "Test harness only. Chrome loads this directory as it is; nothing here is built.",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

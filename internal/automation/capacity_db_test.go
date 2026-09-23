@@ -457,6 +457,64 @@ func TestCapacityRecordingDropsCommandsItCannotHaveObserved(t *testing.T) {
 	}
 }
 
+func TestCapacityRecordingKeepsPressSelectAndScrollAsRecorded(t *testing.T) {
+	// MH-398: these three are what the recorder emits for Enter/Escape, a
+	// dropdown and a real scroll. They must land in the workflow with their
+	// arguments exactly as the extension sent them, because the extension's
+	// driver replays that shape and no other: press {key}, select {selector,
+	// value: the visible label}, scroll {dy}.
+	a := testApp(t)
+	wsID, agentID := workspace(t, a)
+	ctx := context.Background()
+
+	saved, err := automation.SaveRecording(ctx, a, wsID, agentID, recording(
+		automation.RecordedStep{Command: "navigate", Args: rawArgs(t, map[string]any{"url": "https://example.com/start"})},
+		automation.RecordedStep{Command: "type", Args: rawArgs(t, map[string]any{"selector": "#q", "text": "shoes", "clear": true})},
+		automation.RecordedStep{Command: "press", Args: rawArgs(t, map[string]any{"key": "Enter"})},
+		automation.RecordedStep{Command: "select", Args: rawArgs(t, map[string]any{"selector": "#country", "value": "United Kingdom"})},
+		automation.RecordedStep{Command: "scroll", Args: rawArgs(t, map[string]any{"dy": 1200})},
+		automation.RecordedStep{Command: "click", Args: rawArgs(t, map[string]any{"selector": "#deep"})},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Steps != 6 {
+		t.Fatalf("steps = %d, want 6", saved.Steps)
+	}
+
+	sctx := tenant.WithWorkspace(ctx, wsID)
+	var raw string
+	if err := a.SQLDB.QueryRowContext(sctx, `
+		SELECT steps::text FROM automation_workflows WHERE workspace_id = $1 AND id = $2`,
+		wsID, saved.WorkflowID).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var steps []automation.Step
+	if err := json.Unmarshal([]byte(raw), &steps); err != nil {
+		t.Fatalf("steps are not readable: %v", err)
+	}
+	byCommand := map[string]map[string]any{}
+	for _, s := range steps {
+		byCommand[s.Command] = s.Args
+	}
+	if got := byCommand["press"]["key"]; got != "Enter" {
+		t.Errorf("press key = %v, want Enter (%s)", got, raw)
+	}
+	if got := byCommand["select"]; got["selector"] != "#country" || got["value"] != "United Kingdom" {
+		t.Errorf("select args = %v, want the selector and the label (%s)", got, raw)
+	}
+	if got, _ := byCommand["scroll"]["dy"].(float64); got != 1200 {
+		t.Errorf("scroll dy = %v, want 1200 (%s)", byCommand["scroll"]["dy"], raw)
+	}
+
+	// And a workflow holding them is runnable as far as the server is
+	// concerned: nothing in the pre-flight check refuses a step it does not
+	// navigate with.
+	if err := automation.CheckSteps(steps, []string{"example.com"}); err != nil {
+		t.Fatalf("the recorded workflow does not pass the run check: %v", err)
+	}
+}
+
 func TestCapacityRecordingRefusesAnUnknownBrowserAndAnEmptyOne(t *testing.T) {
 	a := testApp(t)
 	wsID, agentID := workspace(t, a)

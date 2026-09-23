@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Moharrik",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lets a Moharrik workspace drive this browser through the steps you approved, on the sites you allowed.",
   "permissions": [
     "storage",

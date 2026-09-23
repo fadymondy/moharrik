@@ -9,6 +9,16 @@ The step vocabulary is deliberately small. Each one is a thing a person could
 watch happen, and anything that cannot be seen from outside — reading storage,
 executing arbitrary script — is not here. A browser extension holding a
 workspace's trust should do the obvious things well rather than everything.
+
+It MUST cover everything the recorder (record-page.js) emits. A recorded step
+this file does not know saves as a workflow without complaint and then fails on
+every run, which is exactly what press, select and scroll did (MH-398).
+
+Steps run through chrome.scripting, not the debugger, so every event they
+dispatch is untrusted and the browser performs NO default action for it: an
+Enter dispatched into a form field does not submit the form, a Tab does not
+move focus. Where a person's key would have done something, the step does that
+thing itself (pressInPage), and only when the page has not handled the key.
 */
 
 const tabs = new Map() // run id -> tab id
@@ -29,6 +39,13 @@ export async function runStep(runID, step) {
     case "type":
     case "fill":
       return inTab(runID, type, args)
+    case "press":
+    case "key":
+      return inTab(runID, press, args)
+    case "select":
+      return inTab(runID, select, args)
+    case "scroll":
+      return inTab(runID, scroll, args)
     case "extract":
     case "read":
       return inTab(runID, extract, args)
@@ -113,6 +130,9 @@ async function click(tabID, args) {
     },
   })
   if (!result?.ok) throw new Error(`nothing on the page matches ${selector}`)
+  // A click on a link or a submit button starts a navigation; the next step
+  // has to run on the page it lands on, not the one it is leaving.
+  await settle(tabID)
   return { summary: `clicked ${selector}`, text: result.text }
 }
 
@@ -188,4 +208,431 @@ async function wait(runID, args) {
     if (Date.now() > deadline) throw new Error(`${selector} did not appear`)
     await new Promise((r) => setTimeout(r, 250))
   }
+}
+
+/* ------------------------------------------------ press, select, scroll (MH-398)
+
+The recorder's shapes, which these accept exactly (record-page.js):
+
+  press   {key: "Enter" | "Escape"}              — no selector: the key goes to
+                                                   whatever has focus, which is
+                                                   the field the preceding type
+                                                   step just filled
+  select  {selector, value: "<visible label>"}   — `value` holds the LABEL
+  scroll  {dy: <px>}                             — the window, vertically
+
+and, for steps written by hand or over MCP, a little more: press takes an
+optional selector and modifiers; select takes a real option value, or `label`
+/ `by` to say which one is meant; scroll takes dx, an element to scroll, or a
+selector alone to bring into view.
+*/
+
+async function inPage(tabID, func, args) {
+  const [{ result } = {}] = await chrome.scripting.executeScript({ target: { tabId: tabID }, args, func })
+  return result
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * Let an action's consequence land. If the step started a navigation (a
+ * submitted form, a followed link, a dropdown that redirects), wait for the new
+ * page; otherwise return after a beat. The listener goes on BEFORE the status
+ * is read, so a load that finishes in between is not missed.
+ */
+async function settle(tabID, beat = 200) {
+  await sleep(beat)
+  await new Promise((resolve) => {
+    const timer = setTimeout(done, DEFAULT_TIMEOUT)
+    function done() {
+      clearTimeout(timer)
+      chrome.tabs.onUpdated.removeListener(listener)
+      resolve()
+    }
+    function listener(id, info) {
+      if (id === tabID && info.status === "complete") done()
+    }
+    chrome.tabs.onUpdated.addListener(listener)
+    chrome.tabs.get(tabID).then(
+      (tab) => {
+        if (tab?.status !== "loading") done()
+      },
+      done, // the tab is gone; the next step will say so
+    )
+  })
+}
+
+const MODIFIER_NAMES = {
+  alt: "alt",
+  option: "alt",
+  control: "control",
+  ctrl: "control",
+  meta: "meta",
+  cmd: "meta",
+  command: "meta",
+  super: "meta",
+  shift: "shift",
+}
+
+/**
+ * The key and its modifiers, from any of the shapes people write:
+ * {key: "Enter"}, {key: "Shift+Tab"}, {key: "a", modifiers: ["Control"]},
+ * {key: "a", modifiers: {control: true}}.
+ */
+export function parseKey(args) {
+  let key = String(args.key ?? "")
+  const mods = { alt: false, control: false, meta: false, shift: false }
+  const add = (name) => {
+    const m = MODIFIER_NAMES[String(name).trim().toLowerCase()]
+    if (!m) throw new Error(`"${name}" is not a modifier key`)
+    mods[m] = true
+  }
+  // "Shift+Tab" — but "+" on its own is the plus key.
+  if (key.length > 1 && key.includes("+")) {
+    const parts = key.split("+")
+    key = parts.pop() || "+"
+    parts.filter(Boolean).forEach(add)
+  }
+  const given = args.modifiers
+  if (Array.isArray(given)) given.forEach(add)
+  else if (given && typeof given === "object") {
+    for (const [name, on] of Object.entries(given)) if (on) add(name)
+  } else if (typeof given === "string" && given) given.split(/[+,\s]+/).filter(Boolean).forEach(add)
+  if (key === "Space" || key === "Spacebar") key = " "
+  if (key === "Esc") key = "Escape"
+  if (key === "Return") key = "Enter"
+  return { key, modifiers: mods }
+}
+
+async function press(tabID, args) {
+  const { key, modifiers } = parseKey(args)
+  if (!key) throw new Error("this step has no key")
+  const selector = args.selector ? String(args.selector) : ""
+  const result = await inPage(tabID, pressInPage, [selector, key, modifiers])
+  if (!result?.ok) throw new Error(result?.reason || `could not press ${key}`)
+  // Enter in a form submits it, and the next step belongs on the result.
+  await settle(tabID)
+  const combo = [
+    ...Object.entries(modifiers)
+      .filter(([, on]) => on)
+      .map(([m]) => m[0].toUpperCase() + m.slice(1)),
+    key === " " ? "Space" : key,
+  ].join("+")
+  const what = {
+    submitted: "submitted the form",
+    clicked: "activated it",
+    focused: "moved focus",
+    newline: "new line",
+  }[result.action]
+  return {
+    summary: `pressed ${combo}${result.handled ? " (the page handled it)" : what ? ` — ${what}` : ""}`,
+    key: combo,
+    target: result.target,
+    ...(result.action ? { action: result.action } : {}),
+  }
+}
+
+/**
+ * Injected into the page, so self-contained. Dispatches keydown/keypress/keyup
+ * to the target and, because those events are untrusted and so have no default
+ * action, then does what the browser would have done for a real key — unless
+ * the page prevented it, in which case the page's own handler is the whole of
+ * the key's effect.
+ */
+export function pressInPage(selector, key, mods) {
+  let el
+  if (selector) {
+    el = document.querySelector(selector)
+    if (!el) return { ok: false, reason: `nothing on the page matches ${selector}` }
+    if (typeof el.focus === "function") el.focus()
+  } else {
+    el = document.activeElement
+    if (!el || el === document.documentElement) el = document.body
+  }
+  if (!el) return { ok: false, reason: "the page has nothing to press a key in" }
+
+  const NAMED = {
+    Enter: ["Enter", 13],
+    Tab: ["Tab", 9],
+    Escape: ["Escape", 27],
+    Backspace: ["Backspace", 8],
+    Delete: ["Delete", 46],
+    " ": ["Space", 32],
+    ArrowUp: ["ArrowUp", 38],
+    ArrowDown: ["ArrowDown", 40],
+    ArrowLeft: ["ArrowLeft", 37],
+    ArrowRight: ["ArrowRight", 39],
+    Home: ["Home", 36],
+    End: ["End", 35],
+    PageUp: ["PageUp", 33],
+    PageDown: ["PageDown", 34],
+  }
+  let code = ""
+  let keyCode = 0
+  if (NAMED[key]) [code, keyCode] = NAMED[key]
+  else if (key.length === 1 && /[a-z]/i.test(key)) [code, keyCode] = ["Key" + key.toUpperCase(), key.toUpperCase().charCodeAt(0)]
+  else if (key.length === 1 && /[0-9]/.test(key)) [code, keyCode] = ["Digit" + key, key.charCodeAt(0)]
+  else if (/^F([1-9]|1[0-2])$/.test(key)) [code, keyCode] = [key, 111 + Number(key.slice(1))]
+
+  const producesChar = key === "Enter" || key.length === 1
+  const charCode = key === "Enter" ? 13 : key.length === 1 ? key.charCodeAt(0) : 0
+  const flags = {
+    altKey: !!mods.alt,
+    ctrlKey: !!mods.control,
+    metaKey: !!mods.meta,
+    shiftKey: !!mods.shift,
+  }
+
+  const fire = (target, type) => {
+    const legacy = type === "keypress" ? charCode : keyCode
+    const charValue = type === "keypress" ? charCode : 0
+    const event = new KeyboardEvent(type, {
+      key,
+      code,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window,
+      ...flags,
+      keyCode: legacy,
+      which: legacy,
+      charCode: charValue,
+    })
+    // Plenty of pages still test e.keyCode === 13. Not every engine takes the
+    // legacy fields from the init dictionary, so they are pinned on the event.
+    for (const [prop, value] of [
+      ["keyCode", legacy],
+      ["which", legacy],
+      ["charCode", charValue],
+    ]) {
+      if (event[prop] !== value) {
+        try {
+          Object.defineProperty(event, prop, { get: () => value })
+        } catch {
+          /* read-only here; key and code still say what was pressed */
+        }
+      }
+    }
+    return target.dispatchEvent(event) // false when a handler called preventDefault
+  }
+
+  const describe = (node) =>
+    node.id
+      ? `#${node.id}`
+      : node.getAttribute?.("name")
+        ? `${node.tagName.toLowerCase()}[name="${node.getAttribute("name")}"]`
+        : node.tagName.toLowerCase()
+  const target = describe(el)
+
+  let allowed = fire(el, "keydown")
+  // A cancelled keydown produces no keypress, as in a browser; nor does a shortcut.
+  if (allowed && producesChar && !mods.control && !mods.meta && !mods.alt) allowed = fire(el, "keypress")
+  // A handler may have replaced the element; keyup goes to what has focus now.
+  fire(el.isConnected ? el : document.activeElement || document.body, "keyup")
+
+  if (!allowed) return { ok: true, handled: true, target }
+  // With Ctrl, Alt or Cmd held a key is a shortcut, and a shortcut's default
+  // belongs to the browser, not the page. Shift+Tab and Shift+Enter still act.
+  if (mods.control || mods.meta || mods.alt) return { ok: true, handled: false, target }
+
+  const tag = el.tagName
+  const inputType = tag === "INPUT" ? (el.type || "text").toLowerCase() : ""
+  const activatable =
+    (tag === "A" && el.hasAttribute("href")) ||
+    tag === "BUTTON" ||
+    tag === "SUMMARY" ||
+    ["submit", "button", "reset", "image"].includes(inputType)
+
+  if (key === "Enter") {
+    if (activatable) {
+      el.click()
+      return { ok: true, handled: false, action: "clicked", target }
+    }
+    if (tag === "TEXTAREA") {
+      const start = el.selectionStart ?? el.value.length
+      const end = el.selectionEnd ?? start
+      el.setRangeText("\n", start, end, "end")
+      el.dispatchEvent(new Event("input", { bubbles: true }))
+      return { ok: true, handled: false, action: "newline", target }
+    }
+    if (tag === "INPUT" && el.form) {
+      // Implicit submission, as the HTML spec defines it: the form's default
+      // button is clicked, so its handlers run as they would for a person; with
+      // no default button the form submits only if this is its one text-like
+      // field. requestSubmit, not submit(): it fires the submit event and runs
+      // validation, which is what a page's own handler listens for.
+      const form = el.form
+      const controls = [...form.elements]
+      const defaultButton = controls.find(
+        (c) =>
+          (c.tagName === "BUTTON" && (c.getAttribute("type") || "submit").toLowerCase() === "submit") ||
+          (c.tagName === "INPUT" && ["submit", "image"].includes((c.type || "").toLowerCase())),
+      )
+      if (defaultButton) {
+        if (defaultButton.disabled) return { ok: true, handled: false, target }
+        defaultButton.click()
+        return { ok: true, handled: false, action: "submitted", target }
+      }
+      const BLOCKING = [
+        "text", "search", "url", "tel", "email", "password", "date",
+        "month", "week", "time", "datetime-local", "number",
+      ]
+      const blocking = controls.filter(
+        (c) => c.tagName === "INPUT" && BLOCKING.includes((c.type || "text").toLowerCase()),
+      )
+      if (blocking.length > 1) return { ok: true, handled: false, target }
+      if (typeof form.requestSubmit === "function") form.requestSubmit()
+      else form.submit()
+      return { ok: true, handled: false, action: "submitted", target }
+    }
+    return { ok: true, handled: false, target }
+  }
+
+  if (key === " " && tag !== "A" && (activatable || inputType === "checkbox" || inputType === "radio")) {
+    el.click()
+    return { ok: true, handled: false, action: "clicked", target }
+  }
+
+  if (key === "Tab") {
+    const visible = (n) => {
+      if (n.closest("[hidden],[inert]")) return false
+      const style = getComputedStyle(n)
+      return style.display !== "none" && style.visibility !== "hidden"
+    }
+    const focusable = [
+      ...document.querySelectorAll(
+        'a[href],button,input,select,textarea,summary,iframe,[tabindex],[contenteditable=""],[contenteditable="true"]',
+      ),
+    ].filter((n) => n.tabIndex >= 0 && !n.disabled && !(n.tagName === "INPUT" && n.type === "hidden") && visible(n))
+    // Positive tabindex first, in value order; then the rest in document order.
+    const order = [
+      ...focusable.filter((n) => n.tabIndex > 0).sort((a, b) => a.tabIndex - b.tabIndex),
+      ...focusable.filter((n) => n.tabIndex === 0),
+    ]
+    if (order.length === 0) return { ok: true, handled: false, target }
+    const at = order.indexOf(el)
+    const next = mods.shift
+      ? order[at <= 0 ? order.length - 1 : at - 1]
+      : order[at < 0 || at === order.length - 1 ? 0 : at + 1]
+    next.focus()
+    return { ok: true, handled: false, action: "focused", target: describe(next) }
+  }
+
+  return { ok: true, handled: false, target }
+}
+
+async function select(tabID, args) {
+  const selector = String(args.selector || "")
+  if (!selector) throw new Error("this step has no selector")
+  // The recorder puts the option's visible label in `value`; a hand-written
+  // step may put a real option value there, or say which with `label` / `by`.
+  let wanted = args.value
+  let by = String(args.by || "").toLowerCase()
+  if (args.label != null && args.label !== "") {
+    wanted = args.label
+    by = "label"
+  }
+  if (wanted == null) throw new Error("this step does not say which option to choose")
+  if (by && by !== "label" && by !== "value") {
+    throw new Error(`"${args.by}" is not a way to choose an option (label or value)`)
+  }
+  const result = await inPage(tabID, selectInPage, [selector, String(wanted), by])
+  if (!result?.ok) throw new Error(result?.reason || `could not choose an option in ${selector}`)
+  // A dropdown that navigates on change (a language or sort picker) is common.
+  await settle(tabID)
+  return { summary: `chose "${result.label}" in ${selector}`, value: result.value, label: result.label }
+}
+
+/** Injected into the page, so self-contained. */
+export function selectInPage(selector, wanted, by) {
+  const el = document.querySelector(selector)
+  if (!el) return { ok: false, reason: `nothing on the page matches ${selector}` }
+  if (el.tagName !== "SELECT") return { ok: false, reason: `${selector} is not a dropdown (<select>)` }
+  if (el.disabled) return { ok: false, reason: `${selector} is disabled` }
+
+  const clean = (s) => String(s ?? "").replace(/\s+/g, " ").trim()
+  const labelOf = (o) => clean(o.label || o.text)
+  const options = [...el.options]
+  const want = clean(wanted)
+
+  // Label first: it is what the recorder stores, and what a person sees.
+  let option
+  if (by !== "value") option = options.find((o) => labelOf(o) === want)
+  if (!option && by !== "label") option = options.find((o) => o.value === wanted) || options.find((o) => o.value === want)
+  if (!option && by !== "value") option = options.find((o) => labelOf(o).toLowerCase() === want.toLowerCase())
+  if (!option) return { ok: false, reason: `${selector} has no option "${wanted}"` }
+  if (option.disabled || option.parentElement?.disabled) {
+    return { ok: false, reason: `the option "${labelOf(option)}" is disabled` }
+  }
+
+  if (typeof el.focus === "function") el.focus()
+  // Through the native setter, as for typing: a framework that wraps the
+  // element's own value property would otherwise swallow the change and
+  // re-render the old choice.
+  const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set
+  if (setter) setter.call(el, option.value)
+  else el.value = option.value
+  // Two options can share a value and the setter picks the first; pin the one meant.
+  if (el.selectedIndex !== option.index) el.selectedIndex = option.index
+  el.dispatchEvent(new Event("input", { bubbles: true }))
+  el.dispatchEvent(new Event("change", { bubbles: true }))
+  return { ok: true, value: option.value, label: labelOf(option) }
+}
+
+async function scroll(tabID, args) {
+  const num = (...names) => {
+    for (const n of names) {
+      if (args[n] == null || args[n] === "") continue
+      const v = Number(args[n])
+      if (!Number.isFinite(v)) throw new Error(`${n} has to be a number of pixels`)
+      return Math.max(-100000, Math.min(100000, Math.round(v)))
+    }
+    return 0
+  }
+  const dx = num("dx", "deltaX")
+  const dy = num("dy", "deltaY")
+  const selector = args.selector ? String(args.selector) : ""
+  if (!selector && dx === 0 && dy === 0) {
+    throw new Error("this step has no distance to scroll and no element to scroll to")
+  }
+  const result = await inPage(tabID, scrollInPage, [selector, dx, dy])
+  if (!result?.ok) throw new Error(result?.reason || "could not scroll")
+  // A page that loads more on scroll needs a moment to do it — the recorder
+  // keeps scroll steps precisely so that those pages replay.
+  await settle(tabID, 400)
+  const distance = [dy && `${dy}px down`, dx && `${dx}px across`].filter(Boolean).join(", ")
+  const summary =
+    result.mode === "into-view"
+      ? `scrolled ${selector} into view`
+      : `scrolled ${selector ? selector + " " : ""}by ${distance}${result.moved ? "" : " (already at the end)"}`
+  return { summary, x: result.x, y: result.y, moved: result.moved }
+}
+
+/** Injected into the page, so self-contained. */
+export function scrollInPage(selector, dx, dy) {
+  let el = null
+  if (selector) {
+    el = document.querySelector(selector)
+    if (!el) return { ok: false, reason: `nothing on the page matches ${selector}` }
+    if (dx === 0 && dy === 0) {
+      el.scrollIntoView({ block: "center", inline: "nearest" })
+      return { ok: true, mode: "into-view", x: Math.round(window.scrollX), y: Math.round(window.scrollY), moved: true }
+    }
+  }
+  // Scrolling <html> or <body> by selector means the page's own scroller.
+  const onWindow = !el || el === document.documentElement || el === document.body
+  const at = () => (onWindow ? [window.scrollX, window.scrollY] : [el.scrollLeft, el.scrollTop])
+  const [x0, y0] = at()
+  // "instant", not "smooth": the step reports where the page ended up, and a
+  // smooth scroll has arrived nowhere yet when the call returns.
+  if (onWindow) window.scrollBy({ left: dx, top: dy, behavior: "instant" })
+  else if (typeof el.scrollBy === "function") el.scrollBy({ left: dx, top: dy, behavior: "instant" })
+  else {
+    el.scrollLeft += dx
+    el.scrollTop += dy
+  }
+  const [x1, y1] = at()
+  // Not moving is not a failure: a page shorter than the recorded distance has
+  // reached its end, as it would have for a person.
+  return { ok: true, mode: "by", x: Math.round(x1), y: Math.round(y1), moved: x1 !== x0 || y1 !== y0 }
 }

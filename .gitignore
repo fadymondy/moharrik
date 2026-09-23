@@ -5,6 +5,7 @@
 /internal/db/gen/
 /internal/graph/gen/
 /web/node_modules/
+/extension/node_modules/
 /web/.next/
 /web/.env*
 !/web/.env.example

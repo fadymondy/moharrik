@@ -1,4 +1,4 @@
-.PHONY: db generate migrate api web build test test-e2e grid-check admin
+.PHONY: db generate migrate api web build test test-extension test-e2e grid-check admin
 
 db: ## Start Postgres (docker, :55470)
 	docker compose up -d
@@ -20,6 +20,9 @@ build: ## Build the API binary
 
 test: ## Unit tests + CI guards (scopes, sqlc tenant predicate, authz)
 	go test -count=1 ./...
+
+test-extension: ## The extension's driver against jsdom (cd extension && npm ci first)
+	cd extension && npm test
 
 test-e2e: ## Cross-workspace isolation sweep over every route (throwaway DB)
 	docker exec moharrik-postgres psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='moharrik_test'" | grep -q 1 || \
