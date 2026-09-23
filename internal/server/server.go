@@ -214,6 +214,12 @@ func Boot() *app.App {
 		return s.WorkspaceID, realtime.Viewer{UserID: s.UserID, Role: s.Role}
 	}))
 
+	// A chat visitor's own stream (MH-382): one conversation, authorized by the
+	// widget key, the Origin allow-list and the visitor token, exactly like the
+	// thread GET. SSE for the same reason as above; /api/chat/ is a public
+	// prefix in the guard and gets the chat CORS headers.
+	k.Router.Get("/api/chat/{key}/events", inbox.VisitorEvents(a))
+
 	// Deliberately NOT mounted from the scaffold:
 	//   /events               — one global SSE stream; would broadcast every
 	//                           tenant's rows to every subscriber (see app.Emit).

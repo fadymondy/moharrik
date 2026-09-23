@@ -641,9 +641,33 @@ export type ChatWidget = {
   public_key: string
   allowed_origins: string[]
   enabled: boolean
-  greeting: string
   embed: string
   created_at: string
+} & ChatWidgetSettings
+
+/** A quick action: an opener the widget offers in an empty panel (MH-382). */
+export type ChatQuickAction = {
+  label: string
+  message: string
+  /** Only on pages whose path starts with this. */
+  path?: string
+  locale?: "" | "en" | "ar"
+}
+
+/** What a chat widget shows and does on the customer's page (MH-382). */
+export type ChatWidgetSettings = {
+  greeting: string
+  greeting_ar: string
+  title: string
+  title_ar: string
+  /** #RRGGBB, or "" for the widget's default. */
+  accent: string
+  theme: "auto" | "light" | "dark"
+  position: "start" | "end"
+  invite: boolean
+  invite_after_seconds: number
+  quick_actions: ChatQuickAction[]
+  lead_event: boolean
 }
 
 // ── Trends ──────────────────────────────────────────────────────────────

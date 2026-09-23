@@ -287,7 +287,41 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		b, _ := io.ReadAll(cres.Body)
 		t.Fatalf("POST /api/chat/{key}/messages: got %d want 201: %s", cres.StatusCode, b)
 	}
+	var visitor struct {
+		Token string `json:"visitor_token"`
+	}
+	_ = json.NewDecoder(cres.Body).Decode(&visitor)
 	cres.Body.Close()
+	// MH-382: the widget's public routes (config, read, the live stream) are not
+	// in the path sweep (public tier), so: B's own widget key never reaches A's
+	// visitor thread, and A's widget from an origin not on A's list says nothing.
+	{
+		bob.ws = bID
+		bWidget := bob.must("POST", "/api/w/chat_widgets", map[string]any{"name": "B widget", "allowed_origins": []string{"https://bob.test"}}, 201)["widget"].(map[string]any)
+		bKey := bWidget["public_key"].(string)
+		// Removed again below: later checks expect B to have set nothing up.
+		for _, try := range []struct{ method, path, origin, body string }{
+			{"GET", "/api/chat/" + bKey + "/messages?visitor_token=" + visitor.Token, "https://bob.test", ""},
+			{"GET", "/api/chat/" + bKey + "/events?visitor_token=" + visitor.Token, "https://bob.test", ""},
+			{"POST", "/api/chat/" + bKey + "/read", "https://bob.test", `{"visitor_token":"` + visitor.Token + `"}`},
+			{"GET", "/api/chat/" + widgetKey + "/config", "https://bob.test", ""},
+			{"GET", "/api/chat/" + widgetKey + "/events?visitor_token=" + visitor.Token, "https://bob.test", ""},
+		} {
+			req, _ := http.NewRequest(try.method, srv.URL+try.path, strings.NewReader(try.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Origin", try.origin)
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, _ := io.ReadAll(res.Body)
+			res.Body.Close()
+			if res.StatusCode/100 == 2 || strings.Contains(string(b), marker) {
+				t.Errorf("chat widget %s %s from %s: got %d: %.200s", try.method, try.path, try.origin, res.StatusCode, b)
+			}
+		}
+		bob.must("DELETE", "/api/w/chat_widgets/"+bWidget["id"].(string), nil, 204)
+	}
 	convs := alice.must("GET", "/api/w/conversations", nil, 200)["conversations"].([]any)
 	if len(convs) == 0 {
 		t.Fatal("the visitor message did not produce a conversation")

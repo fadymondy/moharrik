@@ -96,9 +96,10 @@ type WidgetOut struct {
 	PublicKey      string    `json:"public_key"`
 	AllowedOrigins []string  `json:"allowed_origins"`
 	Enabled        bool      `json:"enabled"`
-	Greeting       string    `json:"greeting"`
 	Embed          string    `json:"embed" doc:"The snippet to paste on the customer's site."`
 	CreatedAt      time.Time `json:"created_at"`
+	// What it shows and does on the page (MH-382, widget_settings.go).
+	WidgetSettings
 }
 
 type wsHeader struct {

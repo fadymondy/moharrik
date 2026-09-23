@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { PlusIcon, TriangleAlertIcon } from "lucide-react"
+import { PlusIcon, Settings2Icon, TriangleAlertIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { SectionHeader } from "@/components/public-frame"
@@ -18,6 +18,7 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type ChatWidget } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useChatWidgets } from "@/lib/queries"
+import { WidgetSettingsSheet } from "@/components/inbox/widget-settings"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -28,7 +29,9 @@ export default function ChatWidgetsPage() {
   const canManage = ws.can("inbox:manage")
   const widgets = useChatWidgets(ws.id)
   const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const list = widgets.data?.widgets ?? []
+  const editing = list.find((w) => w.id === editingId) ?? null
 
   return (
     <>
@@ -55,18 +58,36 @@ export default function ChatWidgetsPage() {
       ) : (
         <ul className="divide-y divide-line border-y border-line">
           {list.map((w) => (
-            <WidgetRow key={w.id} widget={w} canManage={canManage} onChange={() => widgets.mutate()} />
+            <WidgetRow key={w.id} widget={w} canManage={canManage} onChange={() => widgets.mutate()} onCustomize={() => setEditingId(w.id)} />
           ))}
         </ul>
       )}
       <div className="pb-8" />
 
       <CreateWidgetDialog open={creating} onOpenChange={setCreating} onCreated={() => widgets.mutate()} />
+      <WidgetSettingsSheet
+        widget={editing}
+        onOpenChange={(open) => (!open ? setEditingId(null) : undefined)}
+        onSaved={() => {
+          void widgets.mutate()
+          setEditingId(null)
+        }}
+      />
     </>
   )
 }
 
-function WidgetRow({ widget, canManage, onChange }: { widget: ChatWidget; canManage: boolean; onChange: () => void }) {
+function WidgetRow({
+  widget,
+  canManage,
+  onChange,
+  onCustomize,
+}: {
+  widget: ChatWidget
+  canManage: boolean
+  onChange: () => void
+  onCustomize: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [origins, setOrigins] = useState(widget.allowed_origins.join(", "))
@@ -109,6 +130,10 @@ function WidgetRow({ widget, canManage, onChange }: { widget: ChatWidget; canMan
         <div className="ms-auto flex items-center gap-2">
           {canManage ? (
             <>
+              <Button variant="outline" size="sm" onClick={onCustomize} data-customize-widget>
+                <Settings2Icon />
+                {t("inbox.customizeWidget")}
+              </Button>
               <Switch
                 checked={widget.enabled}
                 onCheckedChange={() => patch({ enabled: !widget.enabled }, widget.enabled ? t("inbox.widgetDisabled") : t("inbox.widgetEnabled"))}
@@ -125,6 +150,8 @@ function WidgetRow({ widget, canManage, onChange }: { widget: ChatWidget; canMan
           ) : null}
         </div>
       </div>
+
+      <WidgetSummary widget={widget} />
 
       <div className="mt-3 space-y-3">
         <div className="space-y-1.5">
@@ -243,5 +270,30 @@ function CreateWidgetDialog({ open, onOpenChange, onCreated }: { open: boolean; 
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** What the widget does on the page, at a glance (MH-382). */
+function WidgetSummary({ widget }: { widget: ChatWidget }) {
+  const { t } = useTranslations()
+  const bits: string[] = []
+  bits.push(widget.greeting || widget.greeting_ar ? t("inbox.summaryGreeting") : t("inbox.summaryNoGreeting"))
+  bits.push(t(`inbox.theme.${widget.theme || "auto"}`))
+  if (widget.invite) bits.push(t("inbox.summaryInvite", { n: widget.invite_after_seconds }))
+  if (widget.quick_actions?.length) bits.push(t("inbox.summaryActions", { n: widget.quick_actions.length }))
+  if (widget.lead_event) bits.push(t("inbox.summaryLead"))
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted" data-widget-summary>
+      {widget.accent ? (
+        // The workspace's own brand colour, shown as data.
+        <span className="inline-block size-3 border border-line" style={{ background: widget.accent }} aria-hidden />
+      ) : null}
+      {bits.map((b, i) => (
+        <span key={i}>
+          {i > 0 ? <span aria-hidden className="me-2">·</span> : null}
+          {b}
+        </span>
+      ))}
+    </p>
   )
 }

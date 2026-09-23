@@ -3,7 +3,6 @@ package inbox
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -179,7 +178,7 @@ func Register(api huma.API, a *app.App) {
 			return nil, err
 		}
 		rows, err := db().QueryContext(ctx, `
-			SELECT id, name, public_key, allowed_origins, enabled, greeting, created_at
+			SELECT `+widgetColumns+`
 			FROM chat_widgets WHERE workspace_id = $1 ORDER BY lower(name)`, s.WorkspaceID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not list chat widgets")
@@ -187,13 +186,10 @@ func Register(api huma.API, a *app.App) {
 		defer rows.Close()
 		list := []WidgetOut{}
 		for rows.Next() {
-			var w WidgetOut
-			var origins string
-			if err := rows.Scan(&w.ID, &w.Name, &w.PublicKey, &origins, &w.Enabled, &w.Greeting, &w.CreatedAt); err != nil {
+			w, err := scanWidget(rows)
+			if err != nil {
 				return nil, huma.Error500InternalServerError("could not list chat widgets")
 			}
-			w.AllowedOrigins = splitOrigins(origins)
-			w.Embed = embedSnippet(w.PublicKey)
 			list = append(list, w)
 		}
 		return out(struct {
@@ -209,7 +205,7 @@ func Register(api huma.API, a *app.App) {
 		Body struct {
 			Name           string   `json:"name" minLength:"1" maxLength:"80"`
 			AllowedOrigins []string `json:"allowed_origins,omitempty" doc:"e.g. https://example.com — with none set the widget is blocked."`
-			Greeting       string   `json:"greeting,omitempty" maxLength:"500"`
+			WidgetPatch
 		}
 	}) (*body[struct {
 		Widget WidgetOut `json:"widget"`
@@ -222,6 +218,10 @@ func Register(api huma.API, a *app.App) {
 		if name == "" {
 			return nil, huma.Error422UnprocessableEntity("a name is required")
 		}
+		settings := defaultSettings()
+		if err := in.Body.WidgetPatch.apply(&settings); err != nil {
+			return nil, err
+		}
 		key, err := token("cwk_")
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not generate a key")
@@ -229,16 +229,23 @@ func Register(api huma.API, a *app.App) {
 		origins := strings.Join(splitOrigins(strings.Join(in.Body.AllowedOrigins, ",")), ",")
 		var id string
 		if err := db().QueryRowContext(ctx, `
-			INSERT INTO chat_widgets (workspace_id, name, public_key, allowed_origins, greeting, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-			s.WorkspaceID, name, key, origins, strings.TrimSpace(in.Body.Greeting), s.UserID,
+			INSERT INTO chat_widgets (workspace_id, name, public_key, allowed_origins, created_by)
+			VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+			s.WorkspaceID, name, key, origins, s.UserID,
 		).Scan(&id); err != nil {
 			return nil, huma.Error500InternalServerError("could not create the chat widget")
 		}
+		if _, err := db().ExecContext(ctx, `UPDATE chat_widgets SET `+settingsSet+` WHERE workspace_id = $1 AND id = $2`,
+			append([]any{s.WorkspaceID, id}, settingsArgs(settings)...)...); err != nil {
+			return nil, huma.Error500InternalServerError("could not save the chat widget's settings")
+		}
+		w, err := readWidget(ctx, db(), s.WorkspaceID, id)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the chat widget")
+		}
 		return out(struct {
 			Widget WidgetOut `json:"widget"`
-		}{WidgetOut{ID: id, Name: name, PublicKey: key, AllowedOrigins: splitOrigins(origins), Enabled: true,
-			Greeting: strings.TrimSpace(in.Body.Greeting), Embed: embedSnippet(key), CreatedAt: time.Now()}}), nil
+		}{w}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -250,8 +257,8 @@ func Register(api huma.API, a *app.App) {
 		Body struct {
 			Name           *string   `json:"name,omitempty" maxLength:"80"`
 			AllowedOrigins *[]string `json:"allowed_origins,omitempty"`
-			Greeting       *string   `json:"greeting,omitempty" maxLength:"500"`
 			Enabled        *bool     `json:"enabled,omitempty"`
+			WidgetPatch
 		}
 	}) (*body[struct {
 		Widget WidgetOut `json:"widget"`
@@ -271,8 +278,26 @@ func Register(api huma.API, a *app.App) {
 		if in.Body.AllowedOrigins != nil {
 			u.set("allowed_origins", strings.Join(splitOrigins(strings.Join(*in.Body.AllowedOrigins, ",")), ","))
 		}
-		if in.Body.Greeting != nil {
-			u.set("greeting", strings.TrimSpace(*in.Body.Greeting))
+		// The settings are read, patched and validated as a whole, so a patch
+		// can never leave a widget in a state validate() would refuse.
+		current, err := readWidget(ctx, db(), s.WorkspaceID, in.ID)
+		if notFound(err) {
+			return nil, huma.Error404NotFound("chat widget not found")
+		} else if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the chat widget")
+		}
+		settings := current.WidgetSettings
+		if err := in.Body.WidgetPatch.apply(&settings); err != nil {
+			return nil, err
+		}
+		for i, v := range settingsArgs(settings) {
+			u.set([]string{"greeting", "greeting_ar", "title", "title_ar", "accent", "theme", "position",
+				"invite", "invite_after_seconds", "quick_actions", "lead_event"}[i], v)
+		}
+		for i, set := range u.sets {
+			if strings.HasPrefix(set, "quick_actions = ") {
+				u.sets[i] = set + "::jsonb"
+			}
 		}
 		if in.Body.Enabled != nil {
 			u.set("enabled", *in.Body.Enabled)
@@ -287,19 +312,13 @@ func Register(api huma.API, a *app.App) {
 				return nil, huma.Error404NotFound("chat widget not found")
 			}
 		}
-		var w WidgetOut
-		var origins string
-		if err := db().QueryRowContext(ctx, `
-			SELECT id, name, public_key, allowed_origins, enabled, greeting, created_at
-			FROM chat_widgets WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID,
-		).Scan(&w.ID, &w.Name, &w.PublicKey, &origins, &w.Enabled, &w.Greeting, &w.CreatedAt); err != nil {
+		w, err := readWidget(ctx, db(), s.WorkspaceID, in.ID)
+		if err != nil {
 			if notFound(err) {
 				return nil, huma.Error404NotFound("chat widget not found")
 			}
 			return nil, huma.Error500InternalServerError("could not read the chat widget")
 		}
-		w.AllowedOrigins = splitOrigins(origins)
-		w.Embed = embedSnippet(w.PublicKey)
 		return out(struct {
 			Widget WidgetOut `json:"widget"`
 		}{w}), nil
@@ -385,10 +404,6 @@ func checkMember(ctx context.Context, db *sql.DB, wsID, userID string) error {
 		return huma.Error422UnprocessableEntity("that person is not an active member of this workspace")
 	}
 	return nil
-}
-
-func embedSnippet(key string) string {
-	return fmt.Sprintf(`<script src="%s/chat/v1.js" data-key="%s" defer></script>`, publicBase(), key)
 }
 
 // ---- public: the chat widget ----------------------------------------------
@@ -536,21 +551,20 @@ func registerPublicChat(api huma.API, a *app.App) {
 		Key          string `path:"key"`
 		Origin       string `header:"Origin"`
 		VisitorToken string `query:"visitor_token"`
-	}) (*body[struct {
-		Messages []MessageOut `json:"messages"`
-		Status   string       `json:"status"`
-	}], error) {
-		wsID, _, err := resolve(ctx, in.Key, in.Origin)
+	}) (*body[ThreadOut], error) {
+		w, err := resolveWidget(ctx, a, in.Key, in.Origin)
 		if err != nil {
 			return nil, err
 		}
+		wsID := w.WorkspaceID
 		visitor := strings.TrimSpace(in.VisitorToken)
 		if visitor == "" {
 			return nil, huma.Error422UnprocessableEntity("visitor_token is required")
 		}
 		sctx := tenant.WithWorkspace(ctx, wsID)
 		var convID, status string
-		if err := a.SQLDB.QueryRowContext(sctx, `SELECT id, status FROM conversations WHERE workspace_id = $1 AND visitor_token = $2`, wsID, visitor).Scan(&convID, &status); err != nil {
+		var unread int
+		if err := a.SQLDB.QueryRowContext(sctx, `SELECT id, status, unread_visitor FROM conversations WHERE workspace_id = $1 AND visitor_token = $2`, wsID, visitor).Scan(&convID, &status, &unread); err != nil {
 			if notFound(err) {
 				return nil, huma.Error404NotFound("that conversation is not available")
 			}
@@ -566,9 +580,21 @@ func registerPublicChat(api huma.API, a *app.App) {
 			msgs[i].AuthorEmail = ""
 			msgs[i].AuthorUserID = nil
 		}
-		return out(struct {
-			Messages []MessageOut `json:"messages"`
-			Status   string       `json:"status"`
-		}{msgs, status}), nil
+		cfg := publicConfig(w.Settings, wsID)
+		return out(ThreadOut{Messages: msgs, Status: status, Unread: unread,
+			Greeting: cfg.Greeting, GreetingAr: cfg.GreetingAr, Presence: cfg.Presence}), nil
 	})
+
+	registerWidgetPublic(api, a)
+}
+
+// ThreadOut is the visitor's view of their thread. The greeting and presence
+// ride along (MH-382), so a client that only ever polls this still shows them.
+type ThreadOut struct {
+	Messages   []MessageOut `json:"messages"`
+	Status     string       `json:"status"`
+	Unread     int          `json:"unread" doc:"Team replies this visitor has not seen yet (cleared by POST /api/chat/{key}/read)."`
+	Greeting   string       `json:"greeting"`
+	GreetingAr string       `json:"greeting_ar"`
+	Presence   string       `json:"presence" enum:"online,away,offline"`
 }

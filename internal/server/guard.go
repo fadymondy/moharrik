@@ -11,6 +11,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/audit"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/presence"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -175,7 +176,7 @@ func installGuard(k *togo.Kernel, a *app.App) {
 
 	k.UseMiddleware(func(next http.Handler) http.Handler {
 		signedIn := svc.Middleware(csrf(next))
-		workspace := svc.Middleware(csrf(tenant.Require(a.SysDB)(generatedAuthz(a, next))))
+		workspace := svc.Middleware(csrf(tenant.Require(a.SysDB)(stampPresence(generatedAuthz(a, next)))))
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch classify(r) {
@@ -189,6 +190,20 @@ func installGuard(k *togo.Kernel, a *app.App) {
 				workspace.ServeHTTP(w, r)
 			}
 		})
+	})
+}
+
+// stampPresence records that someone who can answer the inbox is using this
+// workspace, which is what the chat widget's online/away dot reads (MH-382,
+// internal/presence). It runs after tenant.Require, so the workspace is one
+// the caller is a member of. A role that cannot reply is not "the team being
+// around" as far as a visitor is concerned, and does not stamp.
+func stampPresence(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s, ok := tenant.From(r.Context()); ok && authz.Can(s.Role, authz.InboxWrite) {
+			presence.Touch(s.WorkspaceID)
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
