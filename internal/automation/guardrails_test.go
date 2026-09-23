@@ -1,7 +1,9 @@
 package automation
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 )
@@ -105,5 +107,58 @@ func TestCheckStepsRefusesBeforeAnythingIsQueued(t *testing.T) {
 
 	if err := CheckSteps([]Step{{Command: "  "}}, allowed); err == nil {
 		t.Error("a step with no command should be refused")
+	}
+}
+
+// The allow-list rule is implemented twice — here, and in the extension's
+// hosts.js, which checks the page a run's tab actually lands on (MH-422). Both
+// run this one table, so the two cannot drift into "similar" rules: a host the
+// server would refuse must never be one the browser acts on.
+func TestHostMatchingSharedWithTheExtension(t *testing.T) {
+	raw, err := os.ReadFile("testdata/host_matching.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases struct {
+		Normalise [][2]string `json:"normalise"`
+		Allowed   []struct {
+			List    []string `json:"list"`
+			Host    string   `json:"host"`
+			Allowed bool     `json:"allowed"`
+		} `json:"allowed"`
+	}
+	if err := json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases.Normalise) == 0 || len(cases.Allowed) == 0 {
+		t.Fatal("the shared table is empty")
+	}
+	for _, c := range cases.Normalise {
+		if got := normaliseHost(c[0]); got != c[1] {
+			t.Errorf("normaliseHost(%q) = %q, want %q", c[0], got, c[1])
+		}
+	}
+	for _, c := range cases.Allowed {
+		if got := HostAllowed(c.List, c.Host); got != c.Allowed {
+			t.Errorf("HostAllowed(%q, %q) = %v, want %v", c.List, c.Host, got, c.Allowed)
+		}
+	}
+}
+
+// A refusal from the browser that carries the left-the-sites code is
+// recognisable as one; any other refusal is not.
+func TestLeftAllowedSitesIsRecognisedByItsCode(t *testing.T) {
+	left := error(AgentError{Message: "step 4 went to evil.example, which isn't on this browser's allowed sites", Code: CodeLeftAllowedSites})
+	if !errors.Is(left, ErrLeftAllowedSites) {
+		t.Error("a coded refusal must match ErrLeftAllowedSites")
+	}
+	if left.Error() != "step 4 went to evil.example, which isn't on this browser's allowed sites" {
+		t.Errorf("the browser's own sentence must survive: %q", left.Error())
+	}
+	if errors.Is(AgentError{Message: "nothing on the page matches #x"}, ErrLeftAllowedSites) {
+		t.Error("an ordinary refusal must not read as leaving the sites")
+	}
+	if errors.Is(AgentError{Message: "x", Code: "something_else"}, ErrLeftAllowedSites) {
+		t.Error("another code must not read as leaving the sites")
 	}
 }

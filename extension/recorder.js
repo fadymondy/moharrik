@@ -15,6 +15,7 @@ convenience, not security.
 */
 
 import { KEYS, get } from "./config.js"
+import { hostAllowed, normaliseHost } from "./hosts.js"
 import { installSelectors } from "./selectors.js"
 import { recordInPage, stopRecordingInPage } from "./record-page.js"
 
@@ -42,17 +43,13 @@ async function allowedHere(url) {
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return ""
-    host = parsed.hostname.toLowerCase().replace(/^www\./, "")
+    host = normaliseHost(parsed.hostname)
   } catch {
     return ""
   }
-  // Same rule the server uses: an entry matches the host and any subdomain of
-  // it, but never a mere text suffix — "notexample.com" is not "example.com".
-  const ok = hosts.some((entry) => {
-    const e = String(entry).toLowerCase().replace(/^www\./, "").trim()
-    return e && (host === e || host.endsWith("." + e))
-  })
-  return ok ? "" : `${host} is not on this browser's allow-list`
+  // The server's own rule (hosts.js, MH-422): an entry matches the host and
+  // any subdomain of it, never a mere text suffix, and "www." is not special.
+  return hostAllowed(hosts, host) ? "" : `${host} is not on this browser's allow-list`
 }
 
 async function inject(tabId, count) {

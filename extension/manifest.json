@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Moharrik",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Lets a Moharrik workspace drive this browser through the steps you approved, on the sites you allowed.",
   "permissions": [
     "storage",
     "tabs",
     "scripting",
-    "alarms"
+    "alarms",
+    "webNavigation"
   ],
   "host_permissions": [
     "https://app.moharrik.com/*"

@@ -76,6 +76,9 @@ function browser(html = FIXTURE) {
     scripting: {
       executeScript: async ({ func, args = [] }) => [{ result: inject(state.window, func, args) }],
     },
+    // The allow-list the browser was given at connect (MH-422): these steps
+    // carry none of their own, and an empty list allows nothing.
+    storage: { local: { get: async () => ({ "moh.agent": { allowedHosts: ["127.0.0.1"] } }) } },
   }
   return state
 }

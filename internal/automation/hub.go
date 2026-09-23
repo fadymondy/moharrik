@@ -63,6 +63,9 @@ type Envelope struct {
 	Run     string          `json:"run,omitempty"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 	Error   string          `json:"error,omitempty"`
+	// Code says what KIND of failure Error is, when the server has to act on
+	// it rather than only record it — CodeLeftAllowedSites (MH-422).
+	Code string `json:"code,omitempty"`
 }
 
 // Connected is the identity behind a live socket.
@@ -76,10 +79,20 @@ type Connected struct {
 }
 
 // AgentError is returned when the browser answered and its answer was a
-// refusal. The text is the browser's own.
-type AgentError struct{ Message string }
+// refusal. The text is the browser's own; the code, when there is one, is what
+// kind of refusal it was.
+type AgentError struct {
+	Message string
+	Code    string
+}
 
 func (e AgentError) Error() string { return e.Message }
+
+// Is lets a coded refusal be tested with errors.Is, like the guardrails' own
+// errors: errors.Is(err, ErrLeftAllowedSites).
+func (e AgentError) Is(target error) bool {
+	return target == ErrLeftAllowedSites && e.Code == CodeLeftAllowedSites
+}
 
 type conn struct {
 	agent Connected
@@ -170,7 +183,7 @@ func (h *Hub) Call(ctx context.Context, workspaceID, agentID string, env Envelop
 			return Envelope{}, ErrOffline // the socket closed under us
 		}
 		if got.Error != "" {
-			return got, AgentError{Message: got.Error}
+			return got, AgentError{Message: got.Error, Code: got.Code}
 		}
 		return got, nil
 	case <-time.After(timeout):

@@ -166,7 +166,15 @@ async function connect(force = false) {
       } catch (e) {
         // The browser's own words: "nothing on the page matches #submit" is
         // what the person reading the run needs, not "step failed".
-        send({ id: env.id, type: "run.step.result", error: String(e?.message || e).slice(0, 300) })
+        // A code travels with the words when the failure is one the server must
+        // act on rather than only record: "left_allowed_sites" (MH-422) stops
+        // the run even where the step said to continue on error.
+        send({
+          id: env.id,
+          type: "run.step.result",
+          error: String(e?.message || e).slice(0, 300),
+          ...(e?.code ? { code: String(e.code) } : {}),
+        })
       }
       return
     }
