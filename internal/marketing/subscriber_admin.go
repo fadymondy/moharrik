@@ -249,6 +249,9 @@ func registerSubscriberAdmin(api huma.API, a *app.App) {
 			slog.ErrorContext(ctx, "admin unsubscribe", "err", err)
 			return nil, huma.Error500InternalServerError("could not unsubscribe the contact")
 		}
+		if changed {
+			PublishContacts(a, s.WorkspaceID)
+		}
 		c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, in.ID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the contact")

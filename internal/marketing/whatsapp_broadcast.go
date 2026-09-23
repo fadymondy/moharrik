@@ -54,10 +54,16 @@ var ErrNoWhatsApp = errors.New("link a WhatsApp number for this workspace before
 //	whatsapp_opt_out_at null— they have not said STOP
 //	phone present           — nothing to send to otherwise
 func WhatsAppAudience(ctx context.Context, db *sql.DB, wsID, listID string) ([]WhatsAppRecipient, error) {
+	return WhatsAppAudienceFor(ctx, db, wsID, listID, "")
+}
+
+// WhatsAppAudienceFor is WhatsAppAudience narrowed to contacts in one
+// language (MH-413); "" is everyone.
+func WhatsAppAudienceFor(ctx context.Context, db *sql.DB, wsID, listID, locale string) ([]WhatsAppRecipient, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT c.id, c.phone, c.name `+whatsappAudienceFrom+`
 		ORDER BY s.created_at, s.id
-		LIMIT $3`, wsID, listID, MaxSendAudience+1)
+		LIMIT $4`, wsID, listID, AudienceLocale(locale), MaxSendAudience+1)
 	if err != nil {
 		return nil, err
 	}
@@ -84,13 +90,19 @@ const whatsappAudienceFrom = `
 		  AND s.status <> 'unsubscribed'
 		  AND c.whatsapp_opt_in_at IS NOT NULL
 		  AND c.whatsapp_opt_out_at IS NULL
-		  AND coalesce(c.phone, '') <> ''`
+		  AND coalesce(c.phone, '') <> ''
+		  AND ($3 = '' OR c.locale = $3)`
 
 // CountWhatsAppAudience is how many contacts a broadcast to a list would reach
 // right now — the number shown before anyone presses send.
 func CountWhatsAppAudience(ctx context.Context, db *sql.DB, wsID, listID string) (int64, error) {
+	return CountWhatsAppAudienceFor(ctx, db, wsID, listID, "")
+}
+
+// CountWhatsAppAudienceFor counts one language's share of it (MH-413).
+func CountWhatsAppAudienceFor(ctx context.Context, db *sql.DB, wsID, listID, locale string) (int64, error) {
 	var n int64
-	err := db.QueryRowContext(ctx, `SELECT count(*) `+whatsappAudienceFrom, wsID, listID).Scan(&n)
+	err := db.QueryRowContext(ctx, `SELECT count(*) `+whatsappAudienceFrom, wsID, listID, AudienceLocale(locale)).Scan(&n)
 	return n, err
 }
 
@@ -215,6 +227,7 @@ func HandleStopWord(ctx context.Context, a *app.App, wsID, phone, text string) (
 	if err := SetWhatsAppOptOut(sctx, a.SQLDB, wsID, contactID); err != nil {
 		return false, err
 	}
+	PublishContacts(a, wsID)
 	return true, nil
 }
 
@@ -244,11 +257,11 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 		return err
 	}
 
-	var listID, bodyText, locale string
+	var listID, bodyText, locale, audienceLocale string
 	err := a.SQLDB.QueryRowContext(ctx, `
 		UPDATE campaigns SET status = 'sending', sent_count = 0, failed_count = 0, last_error = '', updated_at = now()
 		WHERE workspace_id = $1 AND id = $2 AND channel = 'whatsapp' AND `+claimable+`
-		RETURNING list_id, body, locale`, wsID, campaignID).Scan(&listID, &bodyText, &locale)
+		RETURNING list_id, body, locale, audience_locale`, wsID, campaignID).Scan(&listID, &bodyText, &locale, &audienceLocale)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotSendable
 	}
@@ -256,7 +269,7 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 		return err
 	}
 
-	audience, err := WhatsAppAudience(ctx, a.SQLDB, wsID, listID)
+	audience, err := WhatsAppAudienceFor(ctx, a.SQLDB, wsID, listID, audienceLocale)
 	if err != nil {
 		_, _ = a.SQLDB.ExecContext(ctx, `
 			UPDATE campaigns SET status = 'failed', last_error = 'could not read recipients', updated_at = now()
@@ -274,6 +287,7 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 	_, _ = a.SQLDB.ExecContext(ctx, `
 		UPDATE campaigns SET recipient_count = $3, updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, int64(len(audience)))
+	PublishCampaigns(a, wsID, campaignID)
 
 	go func() {
 		bg := tenant.WithWorkspace(context.Background(), wsID)
@@ -300,6 +314,7 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 				_, _ = a.SQLDB.ExecContext(bg, `
 					UPDATE campaigns SET sent_count = $3, failed_count = $4, updated_at = now()
 					WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, sent, failed)
+				PublishCampaigns(a, wsID, campaignID)
 			}
 		}
 
@@ -311,6 +326,7 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 			UPDATE campaigns SET status = $3, sent_count = $4, failed_count = $5, last_error = $6,
 			  sent_at = now(), updated_at = now()
 			WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, status, sent, failed, trimErr(lastErr))
+		PublishCampaigns(a, wsID, campaignID)
 	}()
 
 	return nil

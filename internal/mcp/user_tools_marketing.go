@@ -118,6 +118,8 @@ func MarketingTools() []Tool {
 				"body":         prop("string", "Markdown"),
 				"locale":       map[string]any{"type": "string", "enum": []string{"en", "ar"}, "description": "Default en"},
 				"smtp_service": prop("string", "The SMTP service to send through, by its exact name (list_smtp_services). Omit for the campaign default."),
+				"audience_locale": map[string]any{"type": "string", "enum": []string{"", "en", "ar"},
+					"description": "Send only to contacts in this language; omit for everyone on the list"},
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
@@ -127,6 +129,7 @@ func MarketingTools() []Tool {
 				var in struct {
 					List, Subject, Body, Locale string
 					SMTPService                 string `json:"smtp_service"`
+					AudienceLocale              string `json:"audience_locale"`
 				}
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", fmt.Errorf("bad arguments: %w", err)
@@ -156,15 +159,13 @@ func MarketingTools() []Tool {
 				}
 				var id string
 				if err := a.SQLDB.QueryRowContext(ctx, `
-					INSERT INTO campaigns (workspace_id, list_id, subject, body, locale, created_by, smtp_service_id)
-					VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-					s.WorkspaceID, listID, subject, strings.TrimSpace(in.Body), locale, s.UserID, svcID,
+					INSERT INTO campaigns (workspace_id, list_id, subject, body, locale, created_by, smtp_service_id, audience_locale)
+					VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+					s.WorkspaceID, listID, subject, strings.TrimSpace(in.Body), locale, s.UserID, svcID, marketing.AudienceLocale(in.AudienceLocale),
 				).Scan(&id); err != nil {
 					return "", fmt.Errorf("could not create the campaign: %w", err)
 				}
-				var recipients int
-				_ = a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM list_subscriptions WHERE workspace_id = $1 AND list_id = $2 AND status = 'subscribed'`,
-					s.WorkspaceID, listID).Scan(&recipients)
+				recipients, _ := marketing.CountEmailAudienceFor(ctx, a.SQLDB, s.WorkspaceID, listID, in.AudienceLocale)
 				return fmt.Sprintf("Drafted %q for %s (%d confirmed subscriber(s)). Call send_campaign to send it.", subject, listName, recipients), nil
 			},
 		},
@@ -182,6 +183,8 @@ func MarketingTools() []Tool {
 				"locale":      map[string]any{"type": "string", "enum": []string{"en", "ar"}},
 				"channel":     map[string]any{"type": "string", "enum": []string{"email", "whatsapp"}},
 				"smtp_service": prop("string", "Send through this SMTP service (exact name, list_smtp_services); an empty string returns it to the campaign default"),
+				"audience_locale": map[string]any{"type": "string", "enum": []string{"", "en", "ar"},
+					"description": "Send only to contacts in this language; an empty string sends to everyone"},
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
@@ -196,6 +199,7 @@ func MarketingTools() []Tool {
 					Locale     *string `json:"locale"`
 					Channel    *string `json:"channel"`
 					SMTP       *string `json:"smtp_service"`
+					Audience   *string `json:"audience_locale"`
 				}
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", fmt.Errorf("bad arguments: %w", err)
@@ -203,10 +207,10 @@ func MarketingTools() []Tool {
 				var id string
 				var cur marketing.CampaignInput
 				if err := a.SQLDB.QueryRowContext(ctx, `
-					SELECT id, list_id, channel, subject, body, locale, smtp_service_id FROM campaigns
+					SELECT id, list_id, channel, subject, body, locale, smtp_service_id, audience_locale FROM campaigns
 					WHERE workspace_id = $1 AND lower(subject) = lower($2)
 					ORDER BY created_at DESC LIMIT 1`,
-					s.WorkspaceID, strings.TrimSpace(in.Subject)).Scan(&id, &cur.ListID, &cur.Channel, &cur.Subject, &cur.Body, &cur.Locale, &cur.SMTPServiceID); err != nil {
+					s.WorkspaceID, strings.TrimSpace(in.Subject)).Scan(&id, &cur.ListID, &cur.Channel, &cur.Subject, &cur.Body, &cur.Locale, &cur.SMTPServiceID, &cur.AudienceLocale); err != nil {
 					if errNoRows(err) {
 						return "", fmt.Errorf("no campaign with the subject %q — call list_campaigns to see them", in.Subject)
 					}
@@ -229,6 +233,12 @@ func MarketingTools() []Tool {
 						return "", fmt.Errorf("channel must be email or whatsapp")
 					}
 					cur.Channel = *in.Channel
+				}
+				if in.Audience != nil {
+					if *in.Audience != "" && *in.Audience != "en" && *in.Audience != "ar" {
+						return "", fmt.Errorf("audience_locale must be en, ar or empty")
+					}
+					cur.AudienceLocale = *in.Audience
 				}
 				if in.SMTP != nil {
 					svcID, err := smtpServiceByName(ctx, a, s.WorkspaceID, *in.SMTP)

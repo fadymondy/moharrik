@@ -77,7 +77,7 @@ func ListCampaignsPage(ctx context.Context, db *sql.DB, wsID, after string, limi
 	args = append(args, limit+1)
 	rows, err := db.QueryContext(ctx, `
 		SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
-		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`
+		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`, c.audience_locale
 		FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 		WHERE c.workspace_id = $1`+where+` ORDER BY c.created_at DESC, c.id DESC LIMIT $`+strconv.Itoa(len(args)), args...)
 	if err != nil {
@@ -87,7 +87,7 @@ func ListCampaignsPage(ctx context.Context, db *sql.DB, wsID, after string, limi
 	for rows.Next() {
 		var c CampaignOut
 		if err := rows.Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
-			&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName); err != nil {
+			&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName, &c.AudienceLocale); err != nil {
 			return nil, err
 		}
 		page.Campaigns = append(page.Campaigns, c)
@@ -105,26 +105,47 @@ func ListCampaignsPage(ctx context.Context, db *sql.DB, wsID, after string, limi
 
 // CountEmailAudience is how many addresses an email send to a list reaches now.
 func CountEmailAudience(ctx context.Context, db *sql.DB, wsID, listID string) (int64, error) {
+	return CountEmailAudienceFor(ctx, db, wsID, listID, "")
+}
+
+// AudienceLocale normalises a campaign's audience language (MH-413): en or ar
+// narrows the send to contacts in that language; anything else is everyone.
+func AudienceLocale(l string) string {
+	if l == "en" || l == "ar" {
+		return l
+	}
+	return ""
+}
+
+// emailAudienceFrom is the email audience rule, written once for the count
+// and the send.
+const emailAudienceFrom = `
+		FROM list_subscriptions s
+		JOIN contacts c ON c.id = s.contact_id AND c.workspace_id = s.workspace_id
+		WHERE s.workspace_id = $1 AND s.list_id = $2 AND s.status = 'subscribed'
+		  AND ($3 = '' OR c.locale = $3)`
+
+// CountEmailAudienceFor counts one language's share of it (MH-413).
+func CountEmailAudienceFor(ctx context.Context, db *sql.DB, wsID, listID, locale string) (int64, error) {
 	var n int64
-	err := db.QueryRowContext(ctx, `SELECT count(*) FROM list_subscriptions s
-		WHERE s.workspace_id = $1 AND s.list_id = $2 AND s.status = 'subscribed'`, wsID, listID).Scan(&n)
+	err := db.QueryRowContext(ctx, `SELECT count(*) `+emailAudienceFrom, wsID, listID, AudienceLocale(locale)).Scan(&n)
 	return n, err
 }
 
 // checkAudience refuses a campaign whose audience is over MaxSendAudience. It
 // runs before the campaign is claimed, so a refused send leaves it as it was.
 func checkAudience(ctx context.Context, db *sql.DB, wsID, campaignID string) error {
-	var listID, channel string
-	if err := db.QueryRowContext(ctx, `SELECT list_id, channel FROM campaigns WHERE workspace_id = $1 AND id = $2`,
-		wsID, campaignID).Scan(&listID, &channel); err != nil {
+	var listID, channel, audience string
+	if err := db.QueryRowContext(ctx, `SELECT list_id, channel, audience_locale FROM campaigns WHERE workspace_id = $1 AND id = $2`,
+		wsID, campaignID).Scan(&listID, &channel, &audience); err != nil {
 		return err
 	}
 	var n int64
 	var err error
 	if channel == "whatsapp" {
-		n, err = CountWhatsAppAudience(ctx, db, wsID, listID)
+		n, err = CountWhatsAppAudienceFor(ctx, db, wsID, listID, audience)
 	} else {
-		n, err = CountEmailAudience(ctx, db, wsID, listID)
+		n, err = CountEmailAudienceFor(ctx, db, wsID, listID, audience)
 	}
 	if err != nil {
 		return err

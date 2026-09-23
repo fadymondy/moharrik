@@ -34,7 +34,8 @@ func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 		Summary: "How many contacts a WhatsApp broadcast to this list would reach now", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		ID string `path:"id"`
+		ID     string `path:"id"`
+		Locale string `query:"locale" enum:",en,ar" doc:"Only contacts in this language (MH-413)."`
 	}) (*body[struct {
 		Reachable int64 `json:"reachable" doc:"On the list, not unsubscribed, opted in to WhatsApp, not opted out, and with a phone."`
 	}], error) {
@@ -51,12 +52,46 @@ func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 		if !exists {
 			return nil, huma.Error404NotFound("list not found")
 		}
-		n, err := CountWhatsAppAudience(ctx, a.SQLDB, s.WorkspaceID, in.ID)
+		n, err := CountWhatsAppAudienceFor(ctx, a.SQLDB, s.WorkspaceID, in.ID, in.Locale)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not count the audience")
 		}
 		return out(struct {
 			Reachable int64 `json:"reachable" doc:"On the list, not unsubscribed, opted in to WhatsApp, not opted out, and with a phone."`
+		}{n}), nil
+	})
+
+	// The email audience, the same way (MH-413): who an email send to this
+	// list would reach now, in one language or all.
+	huma.Register(api, huma.Operation{
+		OperationID: "w-list-email-audience", Method: http.MethodGet, Path: "/api/w/mail/lists/{id}/email-audience",
+		Summary: "How many confirmed subscribers an email send to this list would reach now", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID     string `path:"id"`
+		Locale string `query:"locale" enum:",en,ar" doc:"Only contacts in this language."`
+	}) (*body[struct {
+		Reachable int64 `json:"reachable" doc:"Confirmed subscribers of the list (in that language, when one is given)."`
+	}], error) {
+		s, err := scope(ctx, authz.CampaignsRead)
+		if err != nil {
+			return nil, err
+		}
+		var exists bool
+		if err := a.SQLDB.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM mail_lists WHERE workspace_id = $1 AND id = $2)`,
+			s.WorkspaceID, in.ID).Scan(&exists); err != nil {
+			return nil, huma.Error500InternalServerError("could not read the list")
+		}
+		if !exists {
+			return nil, huma.Error404NotFound("list not found")
+		}
+		n, err := CountEmailAudienceFor(ctx, a.SQLDB, s.WorkspaceID, in.ID, in.Locale)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not count the audience")
+		}
+		return out(struct {
+			Reachable int64 `json:"reachable" doc:"Confirmed subscribers of the list (in that language, when one is given)."`
 		}{n}), nil
 	})
 
@@ -81,6 +116,7 @@ func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 		case err != nil:
 			return nil, huma.Error500InternalServerError("could not record the opt-in")
 		}
+		PublishContacts(a, s.WorkspaceID)
 		return out(struct {
 			OK bool `json:"ok"`
 		}{true}), nil
@@ -121,6 +157,7 @@ func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 		if err := ClearWhatsAppOptOut(ctx, a.SQLDB, s.WorkspaceID, in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("could not reverse the opt-out")
 		}
+		PublishContacts(a, s.WorkspaceID)
 		return out(struct {
 			OK bool `json:"ok"`
 		}{true}), nil

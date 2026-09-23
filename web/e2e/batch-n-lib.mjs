@@ -30,9 +30,15 @@ export async function signIn(browser, base) {
   const { email, password } = demoLogin(base)
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await ctx.newPage()
-  await page.goto(`${base}/en/login`, { waitUntil: "domcontentloaded" })
-  await page.fill("#email", email)
-  await page.fill("#password", password)
+  // The login page has no event stream, so it can settle; filling before
+  // hydration loses the values (a fresh dev compile makes that likely).
+  await page.goto(`${base}/en/login`, { waitUntil: "networkidle", timeout: 120000 })
+  for (let i = 0; i < 3; i++) {
+    await page.fill("#email", email)
+    await page.fill("#password", password)
+    if (await page.locator("button[type=submit]").isEnabled()) break
+    await page.waitForTimeout(1000)
+  }
   await page.click("button[type=submit]")
   await page.waitForURL(/\/w\/|workspaces/, { timeout: 30000 })
   const state = await ctx.storageState()

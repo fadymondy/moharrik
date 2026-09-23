@@ -76,6 +76,8 @@ type CampaignInput struct {
 	// SMTPServiceID is the service an email campaign goes out through
 	// (MH-412). nil = the campaign default.
 	SMTPServiceID *string
+	// AudienceLocale narrows the send to one language (MH-413); "" = all.
+	AudienceLocale string
 }
 
 // UpdateCampaign rewrites a draft (or a failed, retryable) campaign.
@@ -86,12 +88,12 @@ func UpdateCampaign(ctx context.Context, db *sql.DB, wsID, id string, in Campaig
 	}
 	res, err := db.ExecContext(ctx, `
 		UPDATE campaigns c SET list_id = l.id, channel = $4, subject = $5, body = $6, locale = $7,
-		  smtp_service_id = $8, updated_at = now()
+		  smtp_service_id = $8, audience_locale = $9, updated_at = now()
 		FROM mail_lists l
 		WHERE c.workspace_id = $1 AND c.id = $2
 		  AND l.workspace_id = $1 AND l.id = $3
 		  AND c.`+claimable,
-		wsID, id, in.ListID, normChannel(in.Channel), subject, in.Body, normLocale(in.Locale), in.SMTPServiceID)
+		wsID, id, in.ListID, normChannel(in.Channel), subject, in.Body, normLocale(in.Locale), in.SMTPServiceID, AudienceLocale(in.AudienceLocale))
 	if err != nil {
 		return err
 	}

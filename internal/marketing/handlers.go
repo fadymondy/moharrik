@@ -111,6 +111,8 @@ type CampaignOut struct {
 	// now, so the list can say which provider a send will use.
 	SMTPServiceID   *string `json:"smtp_service_id"`
 	SMTPServiceName string  `json:"smtp_service_name"`
+	// Only contacts in this language receive it (MH-413); "" = everyone.
+	AudienceLocale string `json:"audience_locale"`
 }
 
 type SMTPOut struct {
@@ -220,11 +222,11 @@ func getCampaign(ctx context.Context, db *sql.DB, wsID, id string) (*CampaignOut
 	var c CampaignOut
 	err := db.QueryRowContext(ctx, `
 		SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
-		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`
+		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`, c.audience_locale
 		FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 		WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
 	).Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
-		&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName)
+		&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName, &c.AudienceLocale)
 	if err != nil {
 		return nil, err
 	}
@@ -437,6 +439,7 @@ func Register(api huma.API, a *app.App) {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return nil, huma.Error404NotFound("contact not found")
 		}
+		PublishContacts(a, s.WorkspaceID)
 		return &struct{}{}, nil
 	})
 
@@ -498,6 +501,8 @@ func Register(api huma.API, a *app.App) {
 			Locale  string `json:"locale,omitempty" enum:"en,ar"`
 			// MH-412: which SMTP service an email campaign goes out through.
 			SMTPServiceID string `json:"smtp_service_id,omitempty" doc:"Email only. Omit for the workspace's campaign default."`
+			// MH-413: only contacts in this language receive it.
+			AudienceLocale string `json:"audience_locale,omitempty" enum:",en,ar" doc:"en or ar sends only to contacts in that language; omit for everyone."`
 		}
 	}) (*body[struct {
 		Campaign CampaignOut `json:"campaign"`
@@ -512,11 +517,11 @@ func Register(api huma.API, a *app.App) {
 		}
 		var id string
 		err = a.SQLDB.QueryRowContext(ctx, `
-			INSERT INTO campaigns (workspace_id, list_id, channel, subject, body, locale, created_by, smtp_service_id)
-			SELECT $1, l.id, $3, $4, $5, $6, $7, $8 FROM mail_lists l WHERE l.workspace_id = $1 AND l.id = $2
+			INSERT INTO campaigns (workspace_id, list_id, channel, subject, body, locale, created_by, smtp_service_id, audience_locale)
+			SELECT $1, l.id, $3, $4, $5, $6, $7, $8, $9 FROM mail_lists l WHERE l.workspace_id = $1 AND l.id = $2
 			RETURNING id`, s.WorkspaceID, in.Body.ListID, normChannel(in.Body.Channel),
 			strings.TrimSpace(in.Body.Subject), in.Body.Body,
-			normLocale(in.Body.Locale), s.UserID, svcID).Scan(&id)
+			normLocale(in.Body.Locale), s.UserID, svcID, AudienceLocale(in.Body.AudienceLocale)).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("list not found")
 		}
@@ -528,6 +533,7 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the campaign")
 		}
+		PublishCampaigns(a, s.WorkspaceID, id)
 		return out(struct {
 			Campaign CampaignOut `json:"campaign"`
 		}{*c}), nil
@@ -552,6 +558,7 @@ func Register(api huma.API, a *app.App) {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return nil, huma.Error404NotFound("campaign not found (or still sending)")
 		}
+		PublishCampaigns(a, s.WorkspaceID, in.ID)
 		return &struct{}{}, nil
 	})
 
@@ -817,6 +824,7 @@ func Register(api huma.API, a *app.App) {
 		_ = a.SQLDB.QueryRowContext(sctx, `
 			SELECT l.name, w.name FROM mail_lists l JOIN workspaces w ON w.id = l.workspace_id
 			WHERE l.workspace_id = $1 AND l.id = $2`, wsID, listID).Scan(&o.List, &o.Workspace)
+		PublishContacts(a, wsID)
 		return out(o), nil
 	}
 
@@ -849,12 +857,12 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return huma.Error500InternalServerError("could not count the audience")
 	}
-	var listID, subject, bodyMD, locale string
+	var listID, subject, bodyMD, locale, audience string
 	err := a.SQLDB.QueryRowContext(ctx, `
 		UPDATE campaigns SET status = 'sending', sent_count = 0, failed_count = 0, last_error = '', updated_at = now()
 		WHERE workspace_id = $1 AND id = $2 AND `+claimable+`
-		RETURNING list_id, subject, body, locale`, wsID, campaignID,
-	).Scan(&listID, &subject, &bodyMD, &locale)
+		RETURNING list_id, subject, body, locale, audience_locale`, wsID, campaignID,
+	).Scan(&listID, &subject, &bodyMD, &locale, &audience)
 	if errors.Is(err, sql.ErrNoRows) {
 		var st string
 		if a.SQLDB.QueryRowContext(ctx, `SELECT status FROM campaigns WHERE workspace_id = $1 AND id = $2`, wsID, campaignID).Scan(&st) != nil {
@@ -867,11 +875,10 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 	}
 
 	type rcpt struct{ subID, email, token string }
+	// The same rule the count before sending used (emailAudienceFrom).
 	rows, err := a.SQLDB.QueryContext(ctx, `
-		SELECT s.id, c.email, s.token FROM list_subscriptions s
-		JOIN contacts c ON c.id = s.contact_id AND c.workspace_id = s.workspace_id
-		WHERE s.workspace_id = $1 AND s.list_id = $2 AND s.status = 'subscribed'
-		ORDER BY s.created_at, s.id LIMIT $3`, wsID, listID, MaxSendAudience+1)
+		SELECT s.id, c.email, s.token `+emailAudienceFrom+`
+		ORDER BY s.created_at, s.id LIMIT $4`, wsID, listID, audience, MaxSendAudience+1)
 	if err != nil {
 		_, _ = a.SQLDB.ExecContext(ctx, `UPDATE campaigns SET status = 'failed', last_error = 'could not read recipients' WHERE workspace_id = $1 AND id = $2`, wsID, campaignID)
 		return huma.Error500InternalServerError("could not read recipients")
@@ -892,6 +899,7 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 		return huma.Error409Conflict(tooLarge.Error())
 	}
 	_, _ = a.SQLDB.ExecContext(ctx, `UPDATE campaigns SET recipient_count = $3 WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, int64(len(list)))
+	PublishCampaigns(a, wsID, campaignID)
 
 	go func() {
 		// A system context scoped to the one workspace: the RLS pool still applies.
@@ -912,6 +920,7 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 				// A permanent rejection means the mailbox is gone; stop paying for it.
 				if IsHardBounce(err) {
 					_, _ = a.SQLDB.ExecContext(bg, `UPDATE list_subscriptions SET status = 'bounced', updated_at = now() WHERE workspace_id = $1 AND id = $2`, wsID, r.subID)
+					PublishContacts(a, wsID)
 				}
 			} else {
 				sent++
@@ -919,6 +928,7 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 			if i%25 == 0 || i == len(list)-1 {
 				_, _ = a.SQLDB.ExecContext(bg, `UPDATE campaigns SET sent_count = $3, failed_count = $4, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
 					wsID, campaignID, sent, failed)
+				PublishCampaigns(a, wsID, campaignID)
 			}
 			time.Sleep(sendInterval)
 		}
@@ -930,6 +940,7 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 		_, _ = a.SQLDB.ExecContext(bg, `
 			UPDATE campaigns SET status = $3, sent_count = $4, failed_count = $5, last_error = $6, sent_at = now(), updated_at = now()
 			WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, status, sent, failed, lastErr)
+		PublishCampaigns(a, wsID, campaignID)
 	}()
 	return nil
 }
@@ -1064,5 +1075,6 @@ func AddContact(ctx context.Context, a *app.App, in AddContactInput) (*AddContac
 	if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
 		res.Contact = *c
 	}
+	PublishContacts(a, s.WorkspaceID)
 	return &res, nil
 }

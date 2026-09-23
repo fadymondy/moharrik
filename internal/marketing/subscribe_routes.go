@@ -547,6 +547,7 @@ func registerPublicSubscribe(api huma.API, a *app.App) {
 			a.Log.Error("public subscribe failed", "workspace", wsID, "err", err)
 			return nil, huma.Error500InternalServerError("could not record that subscription")
 		}
+		PublishContacts(a, wsID) // MH-413: the contacts page updates live
 
 		// The phone and the WhatsApp consent, if the visitor gave them. Recorded
 		// after the subscription so a failure here cannot cost the subscription

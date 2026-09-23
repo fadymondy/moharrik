@@ -25,6 +25,8 @@ func registerCampaignEdit(api huma.API, a *app.App) {
 		Locale  string `json:"locale,omitempty" enum:"en,ar"`
 		// MH-412. Omitted = the campaign default.
 		SMTPServiceID string `json:"smtp_service_id,omitempty" doc:"Email only. Omit for the workspace's campaign default."`
+		// MH-413. Omitted = everyone on the list.
+		AudienceLocale string `json:"audience_locale,omitempty" enum:",en,ar" doc:"en or ar sends only to contacts in that language; omit for everyone."`
 	}
 
 	huma.Register(api, huma.Operation{
@@ -49,6 +51,7 @@ func registerCampaignEdit(api huma.API, a *app.App) {
 		}
 		err = UpdateCampaign(ctx, a.SQLDB, s.WorkspaceID, in.ID, CampaignInput{
 			ListID: b.ListID, Channel: b.Channel, Subject: b.Subject, Body: b.Body, Locale: b.Locale, SMTPServiceID: svcID,
+			AudienceLocale: b.AudienceLocale,
 		})
 		var locked *LockedError
 		switch {
@@ -64,6 +67,7 @@ func registerCampaignEdit(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the campaign")
 		}
+		PublishCampaigns(a, s.WorkspaceID, in.ID)
 		return out(struct {
 			Campaign CampaignOut `json:"campaign"`
 		}{*c}), nil

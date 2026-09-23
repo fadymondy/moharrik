@@ -319,6 +319,8 @@ export type Campaign = {
   smtp_service_id: string | null
   /** The service it goes out through now: its own, else the campaign default, else the default. */
   smtp_service_name: string
+  /** Only contacts in this language receive it (MH-413); "" = everyone on the list. */
+  audience_locale: "" | "en" | "ar"
 }
 
 export type FormKind = "subscribe" | "inquiry"
@@ -876,6 +878,17 @@ export type WhatsAppLink = {
   linked_at: string | null
   /** false when this deployment has no WhatsApp server configured at all. */
   available: boolean
+  /** Type this on the phone instead of scanning, when a number was given (MH-413). */
+  pairing_code?: string
+  /** Whether the WhatsApp server will deliver inbound messages here. */
+  webhook: {
+    status: "ok" | "not_set" | "wrong_url" | "disabled" | "unknown" | "not_linked"
+    detail: string
+    last_delivery_at: string | null
+  }
+  /** This number's sends since midnight in the workspace's time zone. */
+  sent_today: number
+  failed_today: number
 }
 
 /** Where one contact stands for a WhatsApp message (MH-410). */

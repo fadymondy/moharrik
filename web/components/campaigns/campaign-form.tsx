@@ -16,14 +16,14 @@ import { WhatsAppMissing } from "@/components/campaigns/whatsapp-missing"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Campaign, type CampaignChannel, type MailList } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useSmtpServiceOptions, useWhatsAppAudience } from "@/lib/queries"
+import { useEmailAudience, useSmtpServiceOptions, useWhatsAppAudience } from "@/lib/queries"
 import { Bdi } from "@/components/bidi"
 
 /** The live WhatsApp audience of a list: the number a broadcast would reach now. */
-function Reachable({ listId }: { listId: string }) {
+function Reachable({ listId, audience }: { listId: string; audience: Audience }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
-  const aud = useWhatsAppAudience(ws.id, listId)
+  const aud = useWhatsAppAudience(ws.id, listId, audience)
   if (aud.error) return <p className="text-sm text-grid-danger-text">{t("campaigns.reachableError")}</p>
   return (
     <div className="text-sm" data-whatsapp-reachable={aud.data?.reachable ?? ""}>
@@ -34,6 +34,20 @@ function Reachable({ listId }: { listId: string }) {
 }
 
 type Lang = "en" | "ar"
+type Audience = "" | "en" | "ar"
+
+/** How many confirmed subscribers an email to this list reaches, in the chosen language (MH-413). */
+function EmailReach({ listId, audience }: { listId: string; audience: Audience }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const aud = useEmailAudience(ws.id, listId, audience)
+  if (!aud.data) return null
+  return (
+    <p className="text-sm text-grid-muted" data-email-reachable={aud.data.reachable}>
+      {t("campaigns.emailReachable", { count: aud.data.reachable })}
+    </p>
+  )
+}
 
 const DEFAULT_SERVICE = "default"
 
@@ -74,6 +88,7 @@ export function CampaignForm({
     channel: (campaign?.channel ?? "email") as CampaignChannel,
     // MH-412: the SMTP service; "default" = the campaign default.
     service: campaign?.smtp_service_id ?? DEFAULT_SERVICE,
+    audience: (campaign?.audience_locale ?? "") as Audience,
   }
   // What the server has, so "unsaved changes" is measured against the last save.
   const [saved, setSaved] = useState(fresh)
@@ -83,6 +98,7 @@ export function CampaignForm({
   const [lang, setLang] = useState<Lang>(fresh.lang)
   const [channel, setChannel] = useState<CampaignChannel>(fresh.channel)
   const [service, setService] = useState<string>(fresh.service)
+  const [audience, setAudience] = useState<Audience>(fresh.audience)
   const options = useSmtpServiceOptions(ws.id)
   const services = options.data?.services ?? []
   const [tab, setTab] = useState<string>("write")
@@ -98,7 +114,8 @@ export function CampaignForm({
       body !== saved.body ||
       lang !== saved.lang ||
       channel !== saved.channel ||
-      service !== saved.service)
+      service !== saved.service ||
+      audience !== saved.audience)
 
   const channelItems = [
     { value: "email", label: t("campaigns.channel.email") },
@@ -111,6 +128,11 @@ export function CampaignForm({
     { value: DEFAULT_SERVICE, label: campaignDefault ? t("campaigns.serviceDefaultNamed", { name: campaignDefault.name }) : t("campaigns.serviceDefault") },
     ...services.map((s) => ({ value: s.id, label: s.name })),
   ]
+  const audienceItems = [
+    { value: "all", label: t("campaigns.audienceAll") },
+    { value: "en", label: t("campaigns.audienceEn") },
+    { value: "ar", label: t("campaigns.audienceAr") },
+  ]
   const langItems = [
     { value: "en", label: t("lang.en") },
     { value: "ar", label: t("lang.ar") },
@@ -122,13 +144,14 @@ export function CampaignForm({
     setErr(null)
     const payload: Record<string, unknown> = { list_id: chosen, channel, subject: subject.trim(), body, locale: lang }
     if (channel === "email" && service !== DEFAULT_SERVICE) payload.smtp_service_id = service
+    if (audience) payload.audience_locale = audience
     try {
       const res = await api<{ campaign: Campaign }>(
         campaign ? `/api/w/campaigns/${encodeURIComponent(campaign.id)}` : "/api/w/campaigns",
         { method: editing ? "PUT" : "POST", json: payload, workspaceId: ws.id },
       )
       if (editing) {
-        setSaved({ listId: chosen, subject: subject.trim(), body, lang, channel, service })
+        setSaved({ listId: chosen, subject: subject.trim(), body, lang, channel, service, audience })
         toast.success(t("campaigns.saved"))
       } else {
         toast.success(t("campaigns.created"))
@@ -197,6 +220,23 @@ export function CampaignForm({
             </Select>
           </Field>
         </div>
+        <Field>
+          <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-audience`}>{t("campaigns.audience")}</FieldLabel>
+          <Select items={audienceItems} value={audience || "all"} onValueChange={(v) => setAudience(v === "en" || v === "ar" ? v : "")}>
+            <SelectTrigger id={`${editing ? "edit" : "campaign"}-audience`} className="w-full sm:w-80" data-audience-picker>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {audienceItems.map((i) => (
+                <SelectItem key={i.value} value={i.value}>
+                  {i.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldDescription>{t("campaigns.audienceHint")}</FieldDescription>
+          {!wa && chosen ? <EmailReach listId={chosen} audience={audience} /> : null}
+        </Field>
         {!wa && services.length > 1 ? (
           <Field>
             <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-service`}>{t("campaigns.service")}</FieldLabel>
@@ -217,7 +257,7 @@ export function CampaignForm({
         ) : null}
         {wa ? (
           <div className="flex flex-col gap-3 border border-line bg-grid-card px-4 py-3" data-whatsapp-panel>
-            <Reachable listId={chosen} />
+            <Reachable listId={chosen} audience={audience} />
             {!whatsappLinked ? <WhatsAppMissing /> : null}
           </div>
         ) : null}

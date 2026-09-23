@@ -204,17 +204,33 @@ function withQuery(path: string, q: Record<string, string | number | undefined>)
   return s ? `${path}?${s}` : path
 }
 
-/** Campaigns a page at a time; polls while one on the page is sending, so progress moves on screen. */
+/**
+ * Campaigns a page at a time. Progress arrives as workspace events (MH-413; the
+ * page listens and revalidates); the slow poll while one is sending is only a
+ * fallback for a dropped stream.
+ */
 export function useCampaigns(workspaceId: string | null | undefined, p: { cursor?: string; limit?: number } = {}) {
   type R = Page & { campaigns: Campaign[] | null; smtp_configured: boolean; whatsapp_linked: boolean; max_audience: number }
   return usePaged<R>(withQuery("/api/w/campaigns", { cursor: p.cursor, limit: p.limit }), workspaceId, {
-    refreshInterval: (data) => ((data?.campaigns ?? []).some((c) => c.status === "sending") ? 2000 : 0),
+    refreshInterval: (data) => ((data?.campaigns ?? []).some((c) => c.status === "sending") ? 15000 : 0),
   })
 }
 
-/** Who a WhatsApp broadcast to a list would reach right now (MH-320). */
-export const useWhatsAppAudience = (workspaceId?: string | null, listId?: string | null) =>
-  useScoped<{ reachable: number }>(`/api/w/mail/lists/${encodeURIComponent(listId ?? "")}/whatsapp-audience`, workspaceId, !!listId)
+/** Who a WhatsApp broadcast to a list would reach right now (MH-320), in one language or all (MH-413). */
+export const useWhatsAppAudience = (workspaceId?: string | null, listId?: string | null, locale = "") =>
+  useScoped<{ reachable: number }>(
+    `/api/w/mail/lists/${encodeURIComponent(listId ?? "")}/whatsapp-audience${locale ? `?locale=${locale}` : ""}`,
+    workspaceId,
+    !!listId,
+  )
+
+/** Who an email send to a list would reach right now, in one language or all (MH-413). */
+export const useEmailAudience = (workspaceId?: string | null, listId?: string | null, locale = "") =>
+  useScoped<{ reachable: number }>(
+    `/api/w/mail/lists/${encodeURIComponent(listId ?? "")}/email-audience${locale ? `?locale=${locale}` : ""}`,
+    workspaceId,
+    !!listId,
+  )
 
 export const useSubscribeForms = (id?: string | null) => useScoped<{ forms: SubscribeForm[] | null }>("/api/w/subscribe-forms", id)
 
@@ -459,7 +475,12 @@ export function useRun(workspaceId: string | null | undefined, id?: string) {
 
 export const useMailbox = (id?: string | null) => useScoped<MailboxSettings>("/api/w/mailbox", id)
 
-export const useWhatsApp = (id?: string | null) => useScoped<WhatsAppLink>("/api/w/whatsapp", id)
+/** The workspace's WhatsApp link; polled every `poll` ms while a QR or pairing code waits for the phone (MH-413). */
+export const useWhatsApp = (id?: string | null, poll = 0) =>
+  useSWR<WhatsAppLink>(id ? ["/api/w/whatsapp", id] : null, ([p, ws]: [string, string]) => api<WhatsAppLink>(p, { workspaceId: ws }), {
+    ...noRetryOn4xx,
+    refreshInterval: poll,
+  })
 
 /** The signed-in member's WhatsApp notifications (MH-411). */
 export const useWhatsAppNotify = (wsId?: string | null) => useScoped<WhatsAppNotify>("/api/w/notify/whatsapp", wsId)

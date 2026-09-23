@@ -45,6 +45,7 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Contact, type MailList, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContactsPage, useMailLists, useSmtpSettings } from "@/lib/queries"
+import { useWorkspaceEvents } from "@/lib/events"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -73,6 +74,11 @@ export default function ContactsPage() {
     lists.mutate()
     setVersion((v) => v + 1)
   }
+  // MH-413: subscriptions changed elsewhere (a form, a confirmation link, an
+  // unsubscribe, another member) show up without a reload.
+  useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind === "contacts") changed()
+  })
 
   return (
     <>

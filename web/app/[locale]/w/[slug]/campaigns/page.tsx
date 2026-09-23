@@ -28,7 +28,8 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Campaign, type CampaignStatus, type MailList } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useCampaigns, useMailLists, useWhatsAppAudience } from "@/lib/queries"
+import { useCampaigns, useEmailAudience, useMailLists, useWhatsAppAudience } from "@/lib/queries"
+import { useWorkspaceEvents } from "@/lib/events"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -53,6 +54,11 @@ export default function CampaignsPage() {
   const pager = useCursorStack("")
   const campaigns = useCampaigns(ws.id, { cursor: pager.cursor, limit: PAGE_SIZE })
   const lists = useMailLists(ws.id)
+  // MH-413: a send's progress, and other tabs' edits, arrive as events.
+  useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind === "campaigns") void campaigns.mutate()
+    if (e.kind === "contacts") void lists.mutate()
+  })
   const smtpReady = !!campaigns.data?.smtp_configured
   const whatsappLinked = !!campaigns.data?.whatsapp_linked
   // The sheet follows the live row, so a campaign that starts sending while
@@ -306,6 +312,11 @@ function CampaignTable({
                   <Badge variant="outline" data-channel={wa ? "whatsapp" : "email"}>
                     {t(wa ? "campaigns.channel.whatsapp" : "campaigns.channel.email")}
                   </Badge>
+                  {c.audience_locale ? (
+                    <div className="mt-1 text-xs text-grid-muted" data-campaign-audience={c.audience_locale}>
+                      {t(`campaigns.audienceOnly.${c.audience_locale}`)}
+                    </div>
+                  ) : null}
                   {!wa && c.smtp_service_name ? (
                     <div className="mt-1 text-xs text-grid-muted" data-campaign-service={c.smtp_service_name}>
                       {t("campaigns.via", { name: isolate(c.smtp_service_name) })}
@@ -365,14 +376,18 @@ function CampaignTable({
   )
 }
 
-function SendButton({ campaign, count, maxAudience, onSent }: { campaign: Campaign; count: number; maxAudience: number; onSent: () => void }) {
+function SendButton({ campaign, count: listCount, maxAudience, onSent }: { campaign: Campaign; count: number; maxAudience: number; onSent: () => void }) {
+  let count = listCount
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const wa = campaign.channel === "whatsapp"
-  const aud = useWhatsAppAudience(ws.id, wa && open ? campaign.list_id : null)
+  // Both counts follow the campaign's audience language (MH-413).
+  const aud = useWhatsAppAudience(ws.id, wa && open ? campaign.list_id : null, campaign.audience_locale)
+  const emailAud = useEmailAudience(ws.id, !wa && open ? campaign.list_id : null, campaign.audience_locale)
   const reachable = aud.data?.reachable
+  if (!wa && emailAud.data) count = emailAud.data.reachable
   // One send reaches at most maxAudience (MH-467): the API refuses a larger one, so the dialog says
   // so before anything is pressed instead of offering a send that cannot happen.
   const audience = wa ? reachable : count
