@@ -116,7 +116,7 @@ export const useInvitations = (id?: string | null, enabled = true) =>
   useScoped<{ invitations: Invitation[] | null }>("/api/w/invitations", id, enabled)
 
 export const useMcpTokens = (id?: string | null) =>
-  useScoped<{ tokens: McpToken[] | null; scopes: McpScope[] | null }>("/api/w/mcp_tokens", id)
+  useScoped<{ tokens: McpToken[] | null; scopes: McpScope[] | null; all?: boolean }>("/api/w/mcp_tokens", id)
 
 export const useMailLists = (id?: string | null) => useScoped<{ lists: MailList[] | null }>("/api/w/mail/lists", id)
 

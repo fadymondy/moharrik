@@ -164,6 +164,10 @@ export type InvitationPreview = {
 
 export type McpToken = {
   id: string
+  /** Who the token acts as (MH-396): owners and admins see every member's. */
+  user_id: string
+  user_email: string
+  mine: boolean
   name: string
   prefix: string
   scopes: string[]
