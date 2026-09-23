@@ -449,4 +449,21 @@ func conversationsInWindow(ctx context.Context, db *sql.DB, wsID, where, id stri
 // canReadInbox is whether a caller's timeline pages carry conversations: a
 // role that may read the CRM but not the inbox sees no threads, rather than
 // an error.
-func canReadInbox(s *tenant.Scope) bool { return authz.Can(s.Role, authz.InboxRead) }
+//
+// An MCP token is narrower than its member: it carries conversations only if
+// it was also granted inbox:read. A token minted to work the CRM does not read
+// customers' messages just because its member could (MH-393).
+func canReadInbox(s *tenant.Scope) bool {
+	if !authz.Can(s.Role, authz.InboxRead) {
+		return false
+	}
+	if s.Via == "mcp" {
+		for _, sc := range s.Scopes {
+			if sc == "inbox:read" {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}

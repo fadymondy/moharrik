@@ -30,6 +30,15 @@ func TestEveryToolDeclaresAScope(t *testing.T) {
 			if tool.Run == nil {
 				t.Errorf("%s: tool %q has no Run", server, tool.Name)
 			}
+			// A tool the model cannot read the purpose of is a tool it will
+			// misuse or never pick. Short ones are almost always a name
+			// restated, so this asks for a sentence.
+			if d := strings.TrimSpace(tool.Description); len(d) < 20 {
+				t.Errorf("%s: tool %q has no real description (%q)", server, tool.Name, d)
+			}
+			if tool.InputSchema == nil || tool.InputSchema["type"] != "object" {
+				t.Errorf("%s: tool %q has no object input schema", server, tool.Name)
+			}
 		}
 	}
 	check("user", UserTools(&research.Engine{}), func(s string) bool { _, ok := userScope(s); return ok })
