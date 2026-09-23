@@ -1580,5 +1580,8 @@
   "gdata.pp": "{n} pts",
   "gdata.pts": "{n}",
   "gsc.missing": "{n} days of this window are not imported yet, so these totals are partial.",
-  "gsc.prevMissing": "The period before is still being imported ({n} days to go), so nothing is compared yet."
+  "gsc.prevMissing": "The period before is still being imported ({n} days to go), so nothing is compared yet.",
+  "resources.filter": "Find a property, site or channel",
+  "resources.noMatch": "Nothing here matches.",
+  "resources.count": "{on} of {n} on"
 }

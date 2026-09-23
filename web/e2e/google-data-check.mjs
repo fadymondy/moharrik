@@ -130,6 +130,12 @@ if (want("mh440")) {
   const shopText = await shop.innerText()
   ok(/Synced|Last sync failed|Not synced/.test(shopText), `several: the row says how its sync went ("${shopText.replace(/\s+/g, " ").slice(0, 120)}")`)
   ok((await page.locator("[data-choose]").innerText()).includes("Search Console"), "several: still asks for the site")
+  // A long list can be searched, and what is switched on stays first.
+  ok((await page.locator('[data-kind="ga4_property"] [data-resource]').first().getAttribute("data-resource")) === "properties/410000001", "the switched-on property is listed first")
+  await page.fill("[data-resource-filter]", "blog")
+  const shown = await page.locator("[data-resource]").evaluateAll((els) => els.map((e) => e.getAttribute("data-resource")))
+  ok(shown.length === 2 && shown.every((x) => x.includes("blog") || x.includes("410000002")), `the filter narrows the list: ${shown.join(", ")}`)
+  await page.fill("[data-resource-filter]", "")
   await matrix("mh440", many, "/settings/integrations", "[data-resource-picker]")
 }
 

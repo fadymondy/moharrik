@@ -194,6 +194,8 @@ func Many(a Account) *AccountData {
 		{ID: "properties/410000001", Name: "Shop – GA4", Account: "accounts/41000", AccountName: "Acme Retail"},
 		{ID: "properties/410000002", Name: "Blog – GA4", Account: "accounts/41000", AccountName: "Acme Retail"},
 		{ID: "properties/420000001", Name: "New app (no data yet)", Account: "accounts/42000", AccountName: "Acme Labs", Empty: true},
+		{ID: "properties/430000001", Name: "Docs – GA4", Account: "accounts/43000", AccountName: "Acme Docs"},
+		{ID: "properties/430000002", Name: "Careers – GA4", Account: "accounts/43000", AccountName: "Acme Docs"},
 	}
 	d.Sites = []GSCSite{
 		{URL: "sc-domain:acme.test", Permission: "siteOwner"},

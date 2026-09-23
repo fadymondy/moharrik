@@ -16,6 +16,7 @@ import { Ltr } from "@/components/copy-field"
 import { useFormat } from "@/components/overview/overview-cards"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, GOOGLE_KINDS, type GoogleDiscovery, type GoogleKind, type GoogleResource, type GoogleResources } from "@/lib/api"
@@ -35,6 +36,7 @@ export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
   const ws = useWorkspace()
   const res = useGoogleResources(ws.id)
   const [looking, setLooking] = useState(false)
+  const [filter, setFilter] = useState("")
   const data = res.data
   const list = data?.resources ?? []
   const needs = data?.needs_choice ?? []
@@ -77,21 +79,44 @@ export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
         </div>
       ) : null}
 
+      {list.length > 8 ? (
+        <div className="px-6 pb-3">
+          <Input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={t("resources.filter")}
+            aria-label={t("resources.filter")}
+            className="max-w-sm"
+            data-resource-filter
+          />
+        </div>
+      ) : null}
+
       <div className="divide-y divide-line border-y border-line">
         {GOOGLE_KINDS.map((k) => {
-          const rows = list.filter((r) => r.kind === k)
+          const needle = filter.trim().toLowerCase()
+          const all = list.filter((r) => r.kind === k)
+          // Switched-on rows first, so what is being read is never lost in a long list.
+          const rows = all
+            .filter((r) => !needle || [r.display_name, r.external_id, r.parent_name].some((v) => v.toLowerCase().includes(needle)))
+            .sort((a, b) => Number(b.enabled) - Number(a.enabled))
           const errs = failures.filter((d) => d.product === KIND_PRODUCT[k])
-          if (rows.length === 0 && errs.length === 0) return null
+          if (all.length === 0 && errs.length === 0) return null
           return (
             <div key={k} data-kind={k}>
               <p className="flex items-center gap-2 bg-grid-soft px-6 py-2 text-xs font-medium text-grid-muted [&_svg]:size-3.5">
                 {KIND_ICON[k]}
                 {t(`resources.kind.${k}`)}
                 {needs.includes(k) ? <Badge variant="outline">{t("resources.chooseBadge")}</Badge> : null}
+                <span className="ms-auto tabular-nums" data-kind-count>
+                  {t("resources.count", { on: all.filter((r) => r.enabled).length, n: all.length })}
+                </span>
               </p>
               {errs.map((d) => (
                 <DiscoveryError key={d.connection_id + d.product} d={d} email={emails[d.connection_id]} />
               ))}
+              {needle && rows.length === 0 ? <p className="px-6 py-3 text-sm text-grid-muted">{t("resources.noMatch")}</p> : null}
               <ul className="divide-y divide-line">
                 {rows.map((r) => (
                   <ResourceRow key={r.id} r={r} onChange={() => res.mutate()} showAccount={new Set(list.map((x) => x.connection_id)).size > 1} />
