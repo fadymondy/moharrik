@@ -216,12 +216,17 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="grid-shell" data-nav={mini ? "mini" : "full"}>
-      <aside className="grid-shell-nav sticky top-0 hidden h-dvh flex-col overflow-y-auto md:flex">
-        <div className={cn("flex h-14 items-center border-b border-line px-4", mini && "justify-center px-0")}>
-          <Brand mini={mini} />
-        </div>
-        {summary ? <ShellNav base={base} mini={mini} can={current.data?.can} /> : null}
-      </aside>
+      {/* The column carries the panel colour and its rule for the page's full height; the nav
+          inside it is what sticks. With both on one sticky h-dvh element the panel ended one
+          screen down and the page background showed below it on a long page. */}
+      <div className="grid-shell-nav hidden md:block">
+        <aside className="sticky top-0 flex h-dvh flex-col overflow-y-auto">
+          <div className={cn("flex h-14 shrink-0 items-center border-b border-line px-4", mini && "justify-center px-0")}>
+            <Brand mini={mini} />
+          </div>
+          {summary ? <ShellNav base={base} mini={mini} can={current.data?.can} /> : null}
+        </aside>
+      </div>
 
       <div className="flex min-w-0 flex-col">
         <header className="flex h-14 items-center justify-between gap-2 border-b border-line px-3 sm:px-4">

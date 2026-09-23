@@ -15,6 +15,7 @@ import { useNotificationPermission } from "@/lib/alerts"
 import { api, ApiError, type BellItem } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
+import { relativeTimeFormat } from "@/lib/i18n-locale"
 import { useBell } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -49,7 +50,7 @@ function useRelative() {
   const { locale } = useTranslations()
   return (iso: string) => {
     const s = Math.round((new Date(iso).getTime() - Date.now()) / 1000)
-    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto", style: "short" })
+    const rtf = relativeTimeFormat(locale, { numeric: "auto", style: "short" })
     const abs = Math.abs(s)
     if (abs < 60) return rtf.format(s, "second")
     if (abs < 3600) return rtf.format(Math.round(s / 60), "minute")

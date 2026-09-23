@@ -1,8 +1,8 @@
 "use client"
 
 /*
-  The Overview's cards (MH-462). Every card is one cell of the grid's hairline
-  `grid-cells` layout, links to the page it summarises, and turns each count
+  The Overview's cards (MH-462). Every card is its own panel (one hairline frame on the card
+  surface, spaced from its neighbours, rows divided inside), links to the page it summarises, and turns each count
   into a link to that page already filtered to it. An empty card says plainly
   what is missing and links to the action that fills it — only when the viewer
   can take that action; otherwise it just says what is missing.
@@ -14,6 +14,7 @@ import {
   ArrowRightIcon,
   BellIcon,
   CheckCircle2Icon,
+  ChevronDownIcon,
   CircleIcon,
   ExternalLinkIcon,
   HandshakeIcon,
@@ -29,6 +30,7 @@ import { formatMoney } from "@/components/crm/shared"
 import { LeadStatusBadge, leadSource } from "@/components/leads/shared"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   LEAD_STATUSES,
   type NotificationSeverity,
@@ -43,18 +45,17 @@ import {
   type SetupKey,
 } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { intlTag } from "@/lib/i18n-locale"
+import { dateFormat, numberFormat, relativeTimeFormat } from "@/lib/i18n-locale"
 import { cn } from "@/lib/utils"
 
 // ── formatting ───────────────────────────────────────────────────────────
 
 export function useFormat() {
   const { locale } = useTranslations()
-  const tag = intlTag(locale)
-  const num = new Intl.NumberFormat(tag)
-  const rtf = new Intl.RelativeTimeFormat(tag, { numeric: "auto" })
-  const full = new Intl.DateTimeFormat(tag, { dateStyle: "medium", timeStyle: "short" })
-  const day = new Intl.DateTimeFormat(tag, { dateStyle: "medium", timeZone: "UTC" })
+  const num = numberFormat(locale)
+  const rtf = relativeTimeFormat(locale, { numeric: "auto" })
+  const full = dateFormat(locale, { dateStyle: "medium", timeStyle: "short" })
+  const day = dateFormat(locale, { dateStyle: "medium", timeZone: "UTC" })
   return {
     n: (v: number) => num.format(v),
     money: (minor: number, currency: string) => formatMoney(minor, currency, locale),
@@ -96,10 +97,10 @@ export function Panel({
 }) {
   const { t } = useTranslations()
   return (
-    <section aria-labelledby={`ov-${id}`} data-card={id} className={cn("flex min-w-0 flex-col", className)}>
-      <header className="flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-5 py-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-grid-muted">
+    <section aria-labelledby={`ov-${id}`} data-card={id} className={cn("flex min-w-0 flex-col border border-line bg-grid-card", className)}>
+      <header className="flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 px-5 pt-4 pb-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-grid-muted">
         {icon}
-        <h2 id={`ov-${id}`} className="text-sm font-medium text-grid-fg">
+        <h2 id={`ov-${id}`} className="text-base font-medium text-grid-fg">
           {href ? (
             <Link href={href} className="hover:underline hover:underline-offset-4">
               {title}
@@ -116,7 +117,7 @@ export function Panel({
           </Link>
         ) : null}
       </header>
-      <div className="flex flex-1 flex-col">{children}</div>
+      <div className="flex flex-1 flex-col border-t border-line">{children}</div>
     </section>
   )
 }
@@ -156,11 +157,16 @@ function RowLink({ href, children, className, ...rest }: { href: string; childre
 
 // ── today ────────────────────────────────────────────────────────────────
 
+/**
+ * One stat. The label wraps (two lines on a phone, never an ellipsis: "UNREAD CONVERSA…" hid the
+ * one word that says what the number is) and reserves two lines below lg, so the numbers in a row
+ * still line up. Numbers are Western digits in both languages (lib/i18n-locale.ts).
+ */
 function Tile({ href, label, value, sub, id }: { href: string; label: string; value: string; sub?: ReactNode; id: string }) {
   return (
-    <Link href={href} className="flex min-w-0 flex-col gap-1 px-5 py-4 transition-colors hover:bg-grid-soft" data-tile={id}>
-      <span className="grid-micro truncate">{label}</span>
-      <span className="text-3xl font-medium text-grid-fg" data-tile-value>
+    <Link href={href} className="flex min-w-0 flex-col gap-2 border border-line bg-grid-card px-5 py-4 transition-colors hover:bg-grid-soft" data-tile={id}>
+      <span className="grid-micro min-h-[2lh] text-balance lg:min-h-0">{label}</span>
+      <span className="text-4xl leading-none font-medium text-grid-fg tabular-nums" data-tile-value>
         {value}
       </span>
       <span className="truncate text-xs text-grid-muted">{sub}</span>
@@ -225,7 +231,7 @@ export function TodayStrip({ today, base }: { today: OverviewToday; base: string
   if (!tiles.length) return null
   return (
     <div
-      className={cn("grid-cells grid-cells-flush-x grid-cols-2", tiles.length >= 4 ? "lg:grid-cols-4" : tiles.length === 3 ? "lg:grid-cols-3" : "")}
+      className={cn("grid grid-cols-2 gap-3 sm:gap-4", tiles.length >= 4 ? "lg:grid-cols-4" : tiles.length === 3 ? "lg:grid-cols-3" : "")}
       role="group"
       aria-label={t("overview.today")}
       data-today
@@ -330,7 +336,7 @@ export function PipelineCard({ p, currency, base, className }: { p: OverviewPipe
                 {p.next_closes.map((d) => (
                   <RowLink key={d.id} href={`${base}/deals/${d.id}`} className="flex-row items-baseline gap-3" data-next-close={d.title}>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-grid-fg" dir="auto">{d.title}</span>
+                      <span className="bidi-block block truncate text-sm text-grid-fg" dir="auto">{d.title}</span>
                       <span className="block truncate text-xs text-grid-muted">
                         <bdi>{d.company_name ?? d.stage_name}</bdi> · <Ltr>{f.date(d.expected_close)}</Ltr>
                       </span>
@@ -392,7 +398,7 @@ export function LeadsCard({
           {leads.map((l) => (
             <RowLink key={l.id} href={`${base}/leads/${l.id}`} data-overview-lead={l.email}>
               <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-medium text-grid-fg" dir="auto">{l.name || l.email}</span>
+                <span className="bidi-block truncate text-sm font-medium text-grid-fg" dir="auto">{l.name || l.email}</span>
                 {l.company ? <span className="hidden truncate text-sm text-grid-muted sm:inline">·&nbsp;<bdi>{l.company}</bdi></span> : null}
                 <LeadStatusBadge status={l.status} className="ms-auto shrink-0" />
               </span>
@@ -440,13 +446,13 @@ export function InboxCard({ items, unread, base, canAddWidget }: { items: Overvi
             <RowLink key={c.id} href={`${base}/inbox?c=${encodeURIComponent(c.id)}`} className={c.unread ? "bg-grid-card" : undefined} data-overview-conversation={c.id}>
               <span className="flex min-w-0 items-center gap-2">
                 {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" role="img" aria-label={t("inbox.unread")} /> : null}
-                <span className={cn("truncate text-sm text-grid-fg", c.unread && "font-medium")} dir="auto">
+                <span className={cn("bidi-block truncate text-sm text-grid-fg", c.unread && "font-medium")} dir="auto">
                   {c.customer_name || c.customer_email || t("inbox.anonymous")}
                 </span>
                 <Badge variant="outline" className="ms-auto shrink-0">{t(`inbox.channel.${c.channel}`)}</Badge>
               </span>
               <span className="flex min-w-0 gap-2 text-xs text-grid-muted">
-                <span className="min-w-0 flex-1 truncate" dir="auto">{c.preview || c.subject}</span>
+                <span className="bidi-block min-w-0 flex-1 truncate" dir="auto">{c.preview || c.subject}</span>
                 <time className="shrink-0" dateTime={c.last_message_at} title={f.exact(c.last_message_at)}>{f.ago(c.last_message_at)}</time>
               </span>
             </RowLink>
@@ -505,7 +511,7 @@ export function NotificationsCard({
             >
               <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", severityTone[n.severity])} aria-hidden />
               <span className="min-w-0 flex-1">
-                <span className={cn("block truncate text-sm text-grid-fg", !n.read && "font-medium")} dir="auto">{n.title}</span>
+                <span className={cn("bidi-block block truncate text-sm text-grid-fg", !n.read && "font-medium")} dir="auto">{n.title}</span>
                 <span className="flex flex-wrap gap-x-2 text-xs text-grid-muted">
                   <span>{t(`notifications.severity.${n.severity}`)}</span>
                   <span aria-hidden>·</span>
@@ -584,7 +590,7 @@ export function MarketingCard({ m, base, canWriteContacts, canWriteCampaigns }: 
         <Rows label={t("overview.drafts")}>
           {m.drafts.map((d) => (
             <RowLink key={d.id} href={`${base}/campaigns`} className="flex-row items-center gap-2" data-draft={d.subject}>
-              <span className="min-w-0 flex-1 truncate text-sm text-grid-fg" dir="auto">{d.subject}</span>
+              <span className="bidi-block min-w-0 flex-1 truncate text-sm text-grid-fg" dir="auto">{d.subject}</span>
               <span className="hidden shrink-0 truncate text-xs text-grid-muted sm:inline"><bdi>{d.list_name}</bdi></span>
               <Badge variant="outline" className="shrink-0">{t(`campaigns.channel.${d.channel}`)}</Badge>
             </RowLink>
@@ -625,11 +631,11 @@ export function TrendsCard({ tr, base, canManage }: { tr: OverviewTrends; base: 
             <li key={it.id} className="flex flex-col gap-1 px-5 py-3" data-trend={it.title}>
               {it.url ? (
                 <a href={it.url} target="_blank" rel="noreferrer" className="group inline-flex items-start gap-1.5 text-sm text-grid-fg hover:underline hover:underline-offset-4">
-                  <span className="line-clamp-2" dir="auto">{it.title}</span>
+                  <span className="bidi-block line-clamp-2" dir="auto">{it.title}</span>
                   <ExternalLinkIcon className="mt-0.5 size-3.5 shrink-0 text-grid-muted" aria-hidden />
                 </a>
               ) : (
-                <span className="line-clamp-2 text-sm text-grid-fg" dir="auto">{it.title}</span>
+                <span className="bidi-block line-clamp-2 text-sm text-grid-fg" dir="auto">{it.title}</span>
               )}
               <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
                 {it.topics.map((name) => (
@@ -678,48 +684,71 @@ export function SetupCard({
   const { t } = useTranslations()
   const f = useFormat()
   const doable = items.filter((i) => i.available)
+  const doneItems = items.filter((i) => i.done)
+  const open = items.filter((i) => !i.done)
   const done = doable.filter((i) => i.done).length
+  const pct = doable.length ? Math.round((done / doable.length) * 100) : 0
   return (
     <Panel
       id="setup"
       title={t("overview.setup")}
       icon={<ListChecksIcon />}
-      meta={<span className="text-xs text-grid-muted">{t("overview.setupProgress", { done: f.n(done), total: f.n(doable.length) })}</span>}
+      meta={
+        <span className="ms-auto flex items-center gap-2 text-xs text-grid-muted" data-setup-progress>
+          {t("overview.setupProgress", { done: f.n(done), total: f.n(doable.length) })}
+          <span className="h-1.5 w-20 overflow-hidden rounded-full bg-grid-soft" aria-hidden>
+            <span className="block h-full rounded-full bg-grid-ok" style={{ width: `${pct}%` }} />
+          </span>
+        </span>
+      }
       className={className}
     >
+      {/* Only what is still to do is spelled out; finished items fold into one line. They used
+          to be struck through, which read as errors rather than progress. */}
       <ul className="grid divide-y divide-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3" aria-label={t("overview.setup")}>
-        {items.map((it) => {
+        {open.map((it) => {
           const cfg = SETUP[it.key]
           const canFix = can(cfg.perm)
           return (
-            <li key={it.key} className="flex items-start gap-3 px-5 py-3 sm:border-b sm:border-line" data-setup={it.key} data-setup-done={it.done ? "true" : "false"}>
-              {it.done ? (
-                <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-grid-ok" aria-label={t("overview.done")} />
-              ) : (
-                <CircleIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" aria-hidden />
-              )}
+            <li key={it.key} className="flex items-start gap-3 px-5 py-4" data-setup={it.key} data-setup-done="false">
+              <CircleIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" aria-hidden />
               <div className="min-w-0 flex-1">
-                <p className={cn("text-sm", it.done ? "text-grid-muted line-through decoration-grid-muted/50" : "text-grid-fg")}>
-                  {t(`overview.setup.${it.key}`)}
-                </p>
-                {!it.done ? <p className="text-xs text-grid-muted">{t(`overview.setup.${it.key}.hint`)}</p> : null}
-                {!it.done ? (
-                  !it.available ? (
-                    <p className="mt-1 text-xs text-grid-muted" data-setup-unavailable>{t("overview.unavailable")}</p>
-                  ) : canFix ? (
-                    <Link href={`${base}/${cfg.path}`} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-grid-fg underline underline-offset-4" data-setup-link={it.key}>
-                      {t("overview.setUp")}
-                      <ArrowRightIcon className="size-3 rtl:-scale-x-100" aria-hidden />
-                    </Link>
-                  ) : (
-                    <p className="mt-1 text-xs text-grid-muted">{t(cfg.role === "admin" ? "overview.needsAdmin" : "overview.needsManager")}</p>
-                  )
-                ) : null}
+                <p className={cn("text-sm", it.available ? "font-medium text-grid-fg" : "text-grid-muted")}>{t(`overview.setup.${it.key}`)}</p>
+                <p className="mt-0.5 text-xs text-grid-muted">{t(`overview.setup.${it.key}.hint`)}</p>
+                {!it.available ? (
+                  <p className="mt-1.5 text-xs text-grid-muted" data-setup-unavailable>{t("overview.unavailable")}</p>
+                ) : canFix ? (
+                  <Link href={`${base}/${cfg.path}`} className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-grid-fg underline underline-offset-4" data-setup-link={it.key}>
+                    {t("overview.setUp")}
+                    <ArrowRightIcon className="size-3 rtl:-scale-x-100" aria-hidden />
+                  </Link>
+                ) : (
+                  <p className="mt-1.5 text-xs text-grid-muted">{t(cfg.role === "admin" ? "overview.needsAdmin" : "overview.needsManager")}</p>
+                )}
               </div>
             </li>
           )
         })}
       </ul>
+      {doneItems.length ? (
+        <Collapsible className="border-t border-line">
+          <CollapsibleTrigger className="group flex w-full items-center gap-2 px-5 py-3 text-start text-xs text-grid-muted transition-colors hover:text-grid-fg" data-setup-done-toggle>
+            <CheckCircle2Icon className="size-4 shrink-0 text-grid-ok" aria-hidden />
+            {t("overview.showDone", { n: f.n(doneItems.length) })}
+            <ChevronDownIcon className="size-3.5 transition-transform group-aria-expanded:rotate-180" aria-hidden />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="flex flex-wrap gap-x-6 gap-y-2 px-5 pb-4" aria-label={t("overview.done")}>
+              {doneItems.map((it) => (
+                <li key={it.key} className="flex items-center gap-2 text-sm text-grid-muted" data-setup={it.key} data-setup-done="true">
+                  <CheckCircle2Icon className="size-4 shrink-0 text-grid-ok" aria-label={t("overview.done")} />
+                  {t(`overview.setup.${it.key}`)}
+                </li>
+              ))}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
     </Panel>
   )
 }

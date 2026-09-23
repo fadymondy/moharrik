@@ -1118,6 +1118,7 @@
   "overview.setupProgress": "اكتمل {done} من {total}",
   "overview.setUp": "إعداد",
   "overview.done": "تم",
+  "overview.showDone": "المكتمل ({n})",
   "overview.unavailable": "غير متاح على هذا الخادم",
   "overview.needsAdmin": "يُعدّه مسؤول",
   "overview.needsManager": "يُعدّه مدير",

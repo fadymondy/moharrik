@@ -14,10 +14,11 @@ import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type StageKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { dateFormat } from "@/lib/i18n-locale"
 import { useDeal, useDeals } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-
 import { Bdi, isolate } from "@/components/bidi"
+
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { t, locale } = useTranslations()
@@ -70,7 +71,7 @@ export default function DealDetailPage() {
       {deal.closed_at ? (
         <p className="px-6 pb-4 -mt-2 text-sm text-grid-muted">
           <Badge variant={closedTone[deal.stage_kind]}>{t(`deals.closed.${deal.stage_kind === "lost" ? "lost" : "won"}`)}</Badge>{" "}
-          {t("deals.closedOn", { date: new Intl.DateTimeFormat(locale).format(new Date(deal.closed_at)) })}
+          {t("deals.closedOn", { date: dateFormat(locale).format(new Date(deal.closed_at)) })}
         </p>
       ) : null}
 

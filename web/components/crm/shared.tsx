@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { COMPANY_SIZES, type ActivityKind, type StageKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { intlTag, isLocale } from "@/lib/i18n-locale"
+import { isLocale, numberFormat } from "@/lib/i18n-locale"
 import { useMembers } from "@/lib/queries"
 import { Bdi } from "@/components/bidi"
 
@@ -27,7 +27,7 @@ export function formatMoney(minor: number, currency: string, locale: string): st
   const digits = currencyDigits(currency)
   const major = minor / 10 ** digits
   try {
-    return new Intl.NumberFormat(intlTag(isLocale(locale) ? locale : "en"), {
+    return numberFormat(isLocale(locale) ? locale : "en", {
       style: "currency",
       currency,
       maximumFractionDigits: digits,

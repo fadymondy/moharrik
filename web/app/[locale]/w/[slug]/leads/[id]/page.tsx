@@ -16,10 +16,11 @@ import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Lead, type LeadConversion, type LeadStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { dateFormat } from "@/lib/i18n-locale"
 import { useLead } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-
 import { Bdi, BdiBlock, isolate } from "@/components/bidi"
+
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { t, locale } = useTranslations()
@@ -73,7 +74,7 @@ export default function LeadDetailPage() {
               [t("leads.field.company"), lead.company ? <Bdi key="c">{lead.company}</Bdi> : null],
               [t("leads.field.form"), lead.form_name ? <Bdi key="f">{lead.form_name}</Bdi> : null],
               [t("leads.field.site"), lead.origin ? <Ltr key="o">{lead.origin}</Ltr> : null],
-              [t("leads.field.received"), <Ltr key="r">{new Date(lead.created_at).toLocaleString(locale === "ar" ? "ar-EG" : "en-GB")}</Ltr>],
+              [t("leads.field.received"), <Ltr key="r">{dateFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(lead.created_at))}</Ltr>],
             ]}
           />
         </section>

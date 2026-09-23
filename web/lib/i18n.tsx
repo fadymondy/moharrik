@@ -4,7 +4,7 @@
 // Adding a language: add lang/<code>.json with the same keys as en.json,
 // register it in DICTIONARIES and add the code to LOCALES in ./i18n-locale.ts.
 import { createContext, useContext, useMemo, type ReactNode } from "react"
-import { dirForLocale, intlTag, isLocale, type Locale } from "@/lib/i18n-locale"
+import { dateFormat, dirForLocale, isLocale, numberFormat, type Locale } from "@/lib/i18n-locale"
 import en from "@/lang/en.json"
 import ar from "@/lang/ar.json"
 
@@ -46,13 +46,13 @@ export function useTranslations() {
       if (!value) return "—"
       const d = new Date(value)
       if (Number.isNaN(d.getTime())) return "—"
-      return new Intl.DateTimeFormat(intlTag(locale), { dateStyle: "medium" }).format(d)
+      return dateFormat(locale, { dateStyle: "medium" }).format(d)
     },
     [locale],
   )
 
   const formatNumber = useMemo(() => {
-    const nf = new Intl.NumberFormat(intlTag(locale))
+    const nf = numberFormat(locale)
     return (n: number) => nf.format(n)
   }, [locale])
 

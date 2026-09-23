@@ -5,7 +5,7 @@ import { InfoIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { ResearchList, ResearchStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { intlTag } from "@/lib/i18n-locale"
+import { dateFormat } from "@/lib/i18n-locale"
 
 export const isLive = (status?: string) => status === "queued" || status === "running"
 
@@ -29,7 +29,7 @@ export function useFormatDateTime() {
     if (!value) return "—"
     const d = new Date(value)
     if (Number.isNaN(d.getTime())) return "—"
-    return new Intl.DateTimeFormat(intlTag(locale), { dateStyle: "medium", timeStyle: "short" }).format(d)
+    return dateFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(d)
   }
 }
 

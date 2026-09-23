@@ -36,9 +36,9 @@ export type MoveFn = (dealId: string, stageId: string, position?: number) => voi
  * drag and drop; every card also has a "Move to" menu, which is the keyboard
  * and touch path (HTML drag and drop does not fire on touch screens). The row
  * follows the document direction, so in Arabic the first stage sits on the right.
- */
  * Columns share the width (at least 14rem each), so the default five stages fit a 1440 screen;
  * past that the board scrolls inside ScrollX, which shows that it does (MH-463).
+ */
 export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Stage[]; deals: Deal[]; currency: string; onMove: MoveFn }) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<{ stage: string; before: string | null } | null>(null)

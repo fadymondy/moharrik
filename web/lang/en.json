@@ -1118,6 +1118,7 @@
   "overview.setupProgress": "{done} of {total} done",
   "overview.setUp": "Set up",
   "overview.done": "Done",
+  "overview.showDone": "Done ({n})",
   "overview.unavailable": "Not available on this server",
   "overview.needsAdmin": "An admin sets this up",
   "overview.needsManager": "A manager sets this up",
