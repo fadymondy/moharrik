@@ -320,6 +320,40 @@ if (want("mh441")) {
   await page.screenshot({ path: `${shots}/mh441-empty-en-light-1440.png`, fullPage: true })
 }
 
+// ---- MH-442: YouTube Analytics ----------------------------------------------------------
+if (want("mh442")) {
+  const slug = await newOwner("yta")
+  await connect(slug, "youtube", `yta-${RUN}@brand.test`)
+  await page.goto(pageURL(slug, "en", "/youtube"))
+  await page.waitForSelector('[data-yt-analytics="channel"] [data-yta-totals]', { timeout: 60000 })
+  for (const k of ["yt-views", "yt-watch", "yt-subs", "yt-engagement"]) {
+    ok(/\d/.test(await page.locator(`[data-yt-analytics="channel"] [data-stat="${k}"]`).innerText()), `channel ${k}`)
+  }
+  ok(await page.locator("[data-yta-pending]").isVisible(), "days YouTube has not published yet are a gap, and said")
+  ok((await page.locator('[data-card="yt-traffic"] [data-bar-row]').count()) >= 5, "traffic sources")
+  ok((await page.locator('[data-card="yt-traffic"]').innerText()).includes("YouTube search"), "traffic source names are words")
+  await page.locator('[data-yt-analytics="channel"] [data-window="7"]').click()
+  await page.waitForFunction(() => document.querySelectorAll('[data-yt-analytics="channel"] details tbody tr').length === 7, null, { timeout: 15000 })
+  ok(true, "7-day window")
+  await page.locator("[data-top-video]").first().click()
+  await page.waitForSelector("[data-video-detail] [data-yt-analytics] [data-yta-totals]", { timeout: 30000 })
+  ok(true, "a video's own analytics in its sheet")
+  await page.screenshot({ path: `${shots}/mh442-sheet-en-light-1440.png` })
+  await page.keyboard.press("Escape")
+  await matrix("mh442", slug, "/youtube", '[data-yt-analytics="channel"] [data-yta-totals]')
+  await page.goto(pageURL(slug, "en", ""))
+  await page.waitForSelector('[data-card="youtube"]', { timeout: 20000 })
+  ok(/\d/.test(await page.locator('[data-card="youtube"] [data-traffic-figure="views28"]').innerText()), "Overview YouTube card: views over 28 days")
+  await page.screenshot({ path: `${shots}/mh442-overview-en-light-1440.png`, fullPage: true })
+
+  const empty = await newOwner("ytaempty")
+  await connect(empty, "youtube", `empty-yta-${RUN}@brand.test`)
+  await page.goto(pageURL(empty, "en", "/youtube"))
+  await page.waitForSelector("[data-yta-empty]", { timeout: 60000 })
+  ok(true, "a channel with no analytics says so")
+  await page.screenshot({ path: `${shots}/mh442-empty-en-light-1440.png`, fullPage: true })
+}
+
 console.log(consoleErrors.length ? `console errors:\n${consoleErrors.slice(0, 10).join("\n")}` : "no console errors")
 await ctx.close()
 console.log(failures ? `${failures} FAILED` : "ALL PASSED")

@@ -55,6 +55,7 @@ import {
   type GaReportOut,
   type GscPerformanceOut,
   type YtChannelOut,
+  type YtAnalyticsOut,
   type YtVideoDetail,
   type YtVideoPage,
   type NewsItem,
@@ -521,6 +522,17 @@ export function useYtVideos(workspaceId: string | null | undefined, resource: st
     },
     ([p, id]: [string, string]) => api<YtVideoPage>(p, { workspaceId: id }),
     { ...noRetryOn4xx, revalidateFirstPage: true },
+  )
+}
+
+/** YouTube Analytics for the channel (video "") or one video (MH-442). */
+export function useYtAnalytics(workspaceId: string | null | undefined, resource: string, days: number, video = "", enabled = true) {
+  const q = new URLSearchParams({ resource, days: String(days) })
+  if (video) q.set("video", video)
+  return useSWR<YtAnalyticsOut>(
+    workspaceId && enabled && resource ? [`/api/w/youtube/analytics?${q}`, workspaceId] : null,
+    ([p, id]: [string, string]) => api<YtAnalyticsOut>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, keepPreviousData: true },
   )
 }
 

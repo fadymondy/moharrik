@@ -15,6 +15,7 @@ import { ExternalLinkIcon, LoaderIcon, MessageSquareIcon, ThumbsUpIcon, EyeIcon,
 import { Ltr } from "@/components/copy-field"
 import { DataError, NoResource, ResourceSwitcher, useEnabled } from "@/components/google/data-page"
 import { SyncStatus } from "@/components/google/resource-picker"
+import { YouTubeAnalytics } from "@/components/google/youtube-analytics"
 import { useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState } from "@/components/states"
@@ -95,6 +96,7 @@ function YouTube() {
       ) : (
         <div className="pb-10" data-youtube>
           <ChannelHeader out={out} />
+          <YouTubeAnalytics resourceId={resourceId} onOpenVideo={(id) => set({ video: id })} />
           <Videos resourceId={resourceId} onOpen={(id) => set({ video: id })} />
         </div>
       )}
@@ -332,6 +334,7 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
           </Button>
         </div>
       </SheetHeader>
+      <YouTubeAnalytics resourceId={resourceId} video={v.id} compact />
       {v.description ? (
         <p className="border-t border-line px-6 py-4 text-sm whitespace-pre-wrap text-grid-body">
           <bdi>{v.description.length > 1200 ? v.description.slice(0, 1200) + "…" : v.description}</bdi>

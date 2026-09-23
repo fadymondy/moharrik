@@ -122,8 +122,13 @@ func Sync(ctx context.Context, a *app.App, r google.Resource) error {
 	if err := syncUploads(ctx, a, ws, r, c, st); err != nil {
 		return err
 	}
-	_, err = syncNewComments(ctx, a, ws, r, c, st)
-	return err
+	if _, err := syncNewComments(ctx, a, ws, r, c, st); err != nil {
+		return err
+	}
+	// The Overview's 28-day views (MH-442): its own API and quota, and a
+	// failure there does not undo the sync above.
+	refreshChannelSnapshot(ctx, a, ws, r)
+	return nil
 }
 
 func syncChannel(ctx context.Context, a *app.App, ws string, r google.Resource, c *google.Client) (*channelState, error) {

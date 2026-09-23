@@ -243,3 +243,123 @@ func itoa(n int64) string {
 	b, _ := json.Marshal(n)
 	return string(b)
 }
+
+type ytAnalyticsOut struct {
+	Resource  *google.Resource     `json:"resource"`
+	Analytics *youtube.YTAnalytics `json:"analytics"`
+	Error     string               `json:"error"`
+}
+
+// MH-442: YouTube Analytics for the channel and one video, cached six hours.
+func TestYouTubeAnalytics(t *testing.T) {
+	f := newFixture(t)
+	t.Setenv("GOOGLE_SYNC_INLINE", "")
+	alice := f.newUser(t)
+	alice.workspace(t)
+	f.setAccount("sub-yta", "yta@example.test")
+	if r, _ := alice.connect(t, "product=youtube"); r != google.ResultConnected {
+		t.Fatal(r)
+	}
+	google.WaitBackground()
+	d := f.fake.Data("sub-yta")
+
+	t.Run("the sync kept the 28-day snapshot the Overview reads", func(t *testing.T) {
+		ov := getJSON[struct {
+			YouTube []struct {
+				Views28   *int64  `json:"views_28"`
+				Views28To *string `json:"views_28_to"`
+			} `json:"youtube"`
+		}](t, alice, "/api/w/overview")
+		if len(ov.YouTube) != 1 || ov.YouTube[0].Views28 == nil || *ov.YouTube[0].Views28 <= 0 || ov.YouTube[0].Views28To == nil {
+			t.Fatalf("%+v", ov.YouTube)
+		}
+	})
+
+	t.Run("the channel over 28 days: totals, a series that adds up, top videos, traffic", func(t *testing.T) {
+		calls := f.fake.Calls("api:ytAnalytics")
+		out := getJSON[ytAnalyticsOut](t, alice, "/api/w/youtube/analytics?days=28")
+		if f.fake.Calls("api:ytAnalytics") != calls {
+			t.Error("the snapshot is fresh: no call")
+		}
+		a := out.Analytics
+		if a == nil || a.Empty || a.Stale || len(a.Daily) != 28 || a.Totals.Views <= 0 {
+			t.Fatalf("%+v", out)
+		}
+		last := a.Daily[27]
+		if last.Views != nil {
+			t.Errorf("yesterday is not published yet: it must be unknown, not a number: %v", *last.Views)
+		}
+		var sum float64
+		for _, day := range a.Daily {
+			if day.Views != nil {
+				sum += *day.Views
+			}
+		}
+		if sum != a.Totals.Views {
+			t.Errorf("the series adds up to the total: %v vs %v", sum, a.Totals.Views)
+		}
+		if len(a.TopVideos) != 6 || a.TopVideos[0].Title == "" || a.TopVideos[0].Views < a.TopVideos[1].Views {
+			t.Errorf("top videos %+v", a.TopVideos)
+		}
+		if len(a.Traffic) != 7 || a.Traffic[0].Source != "YT_SEARCH" {
+			t.Errorf("traffic %+v", a.Traffic)
+		}
+	})
+
+	t.Run("7 days: fetched, then cached; refresh asks again", func(t *testing.T) {
+		calls := f.fake.Calls("api:ytAnalytics")
+		getJSON[ytAnalyticsOut](t, alice, "/api/w/youtube/analytics?days=7")
+		getJSON[ytAnalyticsOut](t, alice, "/api/w/youtube/analytics?days=7")
+		if n := f.fake.Calls("api:ytAnalytics") - calls; n != 4 {
+			t.Errorf("one fetch is four reports, then the cache: %d calls", n)
+		}
+		getJSON[ytAnalyticsOut](t, alice, "/api/w/youtube/analytics?days=7&refresh=true")
+		if n := f.fake.Calls("api:ytAnalytics") - calls; n != 8 {
+			t.Errorf("refresh: %d calls", n)
+		}
+	})
+
+	t.Run("one video", func(t *testing.T) {
+		v := d.Channel.Videos[1].ID
+		a := getJSON[ytAnalyticsOut](t, alice, "/api/w/youtube/analytics?days=28&video="+v).Analytics
+		if a == nil || a.Scope != v || len(a.TopVideos) != 0 || a.Totals.Views <= 0 {
+			t.Fatalf("%+v", a)
+		}
+		if code, _, _ := alice.do(t, "GET", "/api/w/youtube/analytics?video=nope", nil); code != 404 {
+			t.Errorf("unknown video: %d", code)
+		}
+	})
+
+	t.Run("Google failing: the cached answer, stale, with the reason; nothing cached, the reason", func(t *testing.T) {
+		f.fake.Fail("ytAnalytics", 403, "forbidden", -1)
+		defer f.fake.ClearFailures()
+		out := getJSON[ytAnalyticsOut](t, alice, "/api/w/youtube/analytics?days=28&refresh=true")
+		if out.Analytics == nil || !out.Analytics.Stale || !strings.Contains(out.Analytics.Note, "refused access") {
+			t.Fatalf("%+v", out.Analytics)
+		}
+		none := getJSON[ytAnalyticsOut](t, alice, "/api/w/youtube/analytics?days=90")
+		if none.Analytics != nil || !strings.Contains(none.Error, "refused access") {
+			t.Errorf("%+v", none)
+		}
+	})
+
+	t.Run("a channel YouTube Analytics has nothing for", func(t *testing.T) {
+		bob := f.newUser(t)
+		bob.workspace(t)
+		f.fake.SetData("sub-yta-empty", googletest.Empty(googletest.Account{Sub: "sub-yta-empty"}))
+		f.setAccount("sub-yta-empty", "yta-empty@example.test")
+		if r, _ := bob.connect(t, "product=youtube"); r != google.ResultConnected {
+			t.Fatal(r)
+		}
+		google.WaitBackground()
+		a := getJSON[ytAnalyticsOut](t, bob, "/api/w/youtube/analytics?days=28").Analytics
+		if a == nil || !a.Empty || a.Totals.Views != 0 {
+			t.Fatalf("%+v", a)
+		}
+		for _, day := range a.Daily {
+			if day.Views != nil {
+				t.Fatalf("no data must not be drawn as zeros: %+v", day)
+			}
+		}
+	})
+}

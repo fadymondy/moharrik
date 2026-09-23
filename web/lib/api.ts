@@ -1094,6 +1094,26 @@ export type YtComment = {
 
 export type YtVideoDetail = YtVideo & { top_comments: YtComment[] | null; comment_note?: string }
 
+// ── YouTube Analytics (MH-442) ───────────────────────────────────────────
+
+export type YtAnalytics = {
+  scope: string
+  days: number
+  start_date: string
+  end_date: string
+  empty: boolean
+  totals: { views: number; watch_minutes: number; avg_view_duration_seconds: number; subscribers_gained: number; subscribers_lost: number; likes: number; comments: number }
+  /** Null values: YouTube has not published that day yet. */
+  daily: { day: string; views: number | null; watch_minutes: number | null; subscribers_gained: number | null; subscribers_lost: number | null }[] | null
+  top_videos: { video_id: string; title: string; thumbnail_url: string; views: number; watch_minutes: number }[] | null
+  traffic_sources: { source: string; views: number }[] | null
+  fetched_at: string
+  stale: boolean
+  note?: string
+}
+
+export type YtAnalyticsOut = { resource: GoogleResource | null; analytics: YtAnalytics | null; error?: string }
+
 // ── Alerts and web push (MH-378) ─────────────────────────────────────────
 
 export type BellItem = {

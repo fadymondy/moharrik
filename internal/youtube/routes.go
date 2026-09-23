@@ -43,6 +43,13 @@ func resolve(ctx context.Context, a *app.App, ws, id string) (*google.Resource, 
 	return r, nil
 }
 
+// AnalyticsOut is a channel's or a video's YouTube Analytics.
+type AnalyticsOut struct {
+	Resource  *google.Resource `json:"resource"`
+	Analytics *YTAnalytics     `json:"analytics"`
+	Error     string           `json:"error,omitempty"`
+}
+
 // Register mounts the YouTube routes. `a` may be nil (OpenAPI export).
 func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
@@ -105,6 +112,49 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error500InternalServerError("could not list the videos")
 		}
 		return &body[YTVideoPage]{*page}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-youtube-analytics", Method: http.MethodGet, Path: "/api/w/youtube/analytics",
+		Summary: "YouTube Analytics for an enabled channel, or one of its videos, over 7, 28 or 90 days",
+		Description: "Cached for 6 hours; when Google fails the last answer is served with stale=true and the reason; " +
+			"with nothing cached, analytics is null and error says why.",
+		Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Resource string `query:"resource"`
+		Video    string `query:"video" maxLength:"64" doc:"A video id; empty for the whole channel."`
+		Days     int    `query:"days" default:"28" doc:"7, 28 or 90."`
+		Refresh  bool   `query:"refresh"`
+	}) (*body[AnalyticsOut], error) {
+		s, _, err := google.ReadScope(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !ValidDays(in.Days) {
+			return nil, huma.Error422UnprocessableEntity("days must be 7, 28 or 90")
+		}
+		r, err := resolve(ctx, a, s.WorkspaceID, in.Resource)
+		if err != nil {
+			return nil, err
+		}
+		out := AnalyticsOut{Resource: r}
+		if r == nil {
+			return &body[AnalyticsOut]{out}, nil
+		}
+		res, err := GetAnalytics(ctx, a, s.WorkspaceID, *r, in.Video, in.Days, in.Refresh)
+		var none *ErrNoAnalytics
+		switch {
+		case errors.Is(err, ErrNotFound):
+			return nil, huma.Error404NotFound(err.Error())
+		case errors.As(err, &none):
+			out.Error = none.Error()
+		case err != nil:
+			return nil, huma.Error500InternalServerError("could not read YouTube Analytics")
+		default:
+			out.Analytics = res
+		}
+		return &body[AnalyticsOut]{out}, nil
 	})
 
 	huma.Register(api, huma.Operation{
