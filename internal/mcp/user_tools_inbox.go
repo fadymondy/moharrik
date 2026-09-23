@@ -98,19 +98,30 @@ func InboxTools() []Tool {
 		{
 			Name: "get_conversation",
 			Description: "One conversation in full: who the customer is (name, email, phone, linked contact_id), its channel, status and assignee, " +
-				"its linked CRM contact and deal, every message in order with its id, direction (in = the customer, out = the team) and " +
-				"author, what the visitor gave about themselves (to prefill a contact), and reply_language — the language to answer " +
-				"in (en or ar). Reading it marks it read.",
-			Scope:       "inbox:read",
-			InputSchema: schema([]string{"id"}, map[string]any{"id": prop("string", "Conversation id")}),
+				"its linked CRM contact and deal, the newest 100 messages oldest first with each one's id, direction (in = the customer, " +
+				"out = the team) and author, messages_total (the whole thread), what the visitor gave about themselves (to prefill a " +
+				"contact), and reply_language — the language to answer in (en or ar). Reading it marks it read. When messages_next_cursor " +
+				"is set there are earlier messages: pass it back as cursor to get the page before (messages, total, next_cursor only).",
+			Scope: "inbox:read",
+			InputSchema: schema([]string{"id"}, map[string]any{
+				"id":     prop("string", "Conversation id"),
+				"cursor": prop("string", "messages_next_cursor (or next_cursor) from the previous answer, for the earlier messages"),
+			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
-				var in struct{ ID string }
+				var in struct{ ID, Cursor string }
 				if err := bind(raw, &in); err != nil {
 					return "", err
 				}
 				id, err := required("id", in.ID)
 				if err != nil {
 					return "", err
+				}
+				if in.Cursor != "" {
+					page, err := inbox.ThreadMessages(ctx, a, id, in.Cursor, 0)
+					if err != nil {
+						return "", err
+					}
+					return jsonResult(map[string]any{"messages": page.Messages, "total": page.Total, "next_cursor": page.NextCursor, "note": customerNote})
 				}
 				t, err := inbox.GetConversation(ctx, a, id)
 				if err != nil {
@@ -119,8 +130,8 @@ func InboxTools() []Tool {
 				c := conversationSummary(t.Conversation)
 				c["page_url"], c["locale"] = t.Conversation.PageURL, t.Conversation.Locale
 				delete(c, "preview")
-				return jsonResult(map[string]any{"conversation": c, "messages": t.Messages, "visitor": t.Visitor,
-					"reply_language": t.ReplyLanguage, "note": customerNote})
+				return jsonResult(map[string]any{"conversation": c, "messages": t.Messages, "messages_total": t.MessagesTotal,
+					"messages_next_cursor": t.MessagesNextCursor, "visitor": t.Visitor, "reply_language": t.ReplyLanguage, "note": customerNote})
 			},
 		},
 		{

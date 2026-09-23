@@ -1902,5 +1902,14 @@
   "ytr.family.channel_device_os": "Devices and systems",
   "ytr.day": "Day",
   "ytr.report": "Report",
-  "ytr.rows": "Rows"
+  "ytr.rows": "Rows",
+  "inbox.loadEarlier": "Load earlier messages",
+  "inbox.shownOfTotal": "Showing the latest {n} of {total} messages",
+  "inbox.allShown": "All {total} messages",
+  "automation.sched.editTitle": "Edit “{name}”",
+  "automation.sched.saveChanges": "Save changes",
+  "automation.sched.updated": "The schedule was updated.",
+  "automation.sched.secretKeep": "A value is saved and sealed. Leave this blank to keep it, or type a new one to replace it.",
+  "automation.sched.secretKeepPlaceholder": "Saved — leave blank to keep",
+  "automation.sched.ownSteps": "This schedule runs its own steps rather than a saved workflow, so only its name, browser and time can change here."
 }

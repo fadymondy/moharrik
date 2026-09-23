@@ -113,7 +113,7 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-conversation", Method: http.MethodGet, Path: "/api/w/conversations/{id}",
-		Summary: "One conversation and its whole thread (opening it marks it read)", Tags: tags,
+		Summary: "One conversation and the newest page of its thread (opening it marks it read)", Tags: tags,
 	}, func(ctx context.Context, in *idPath) (*body[conversationDetail], error) {
 		res, err := GetConversation(ctx, a, in.ID)
 		if err != nil {
@@ -326,17 +326,33 @@ func Register(api huma.API, a *app.App) {
 	registerCanned(api, a)
 	registerStats(api, a)
 	registerPublicChat(api, a)
+	registerThread(api, a)
 }
 
-// thread reads a conversation's messages on the app (RLS) pool. It deliberately
-// does NOT join `users` for the author's email: the app role has no grant on
-// that table at all (cmd/migrate REVOKEs it), so the join fails outright. The
-// UI maps author_user_id -> email from /api/w/members, the same way the CRM's
+// thread reads a conversation's newest messages on the app (RLS) pool, oldest
+// first: what the visitor's widget polls. It deliberately does NOT join `users`
+// for the author's email: the app role has no grant on that table at all
+// (cmd/migrate REVOKEs it), so the join fails outright. The UI maps
+// author_user_id -> email from /api/w/members, the same way the CRM's
 // useMemberNames does for activity authors and deal owners.
+//
+// It used to be the FIRST 500 (ascending, LIMIT 500), so a thread past 500
+// stopped showing new messages at all (MH-471). The member's thread pages
+// through all of it (thread.go).
 func thread(ctx context.Context, db *sql.DB, wsID, convID string) ([]MessageOut, error) {
+	page, err := threadPage(ctx, db, wsID, convID, "", threadPageMax)
+	if err != nil {
+		return nil, err
+	}
+	return page.Messages, nil
+}
+
+// threadFromStart reads a thread's first messages, oldest first: a transcript
+// starts at the beginning, and cuts itself at maxTranscript long before this.
+func threadFromStart(ctx context.Context, db *sql.DB, wsID, convID string) ([]MessageOut, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, direction, author_user_id, body, created_at
-		FROM messages WHERE workspace_id = $1 AND conversation_id = $2 ORDER BY created_at LIMIT 500`, wsID, convID)
+		FROM messages WHERE workspace_id = $1 AND conversation_id = $2 ORDER BY created_at, id LIMIT 500`, wsID, convID)
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +367,7 @@ func thread(ctx context.Context, db *sql.DB, wsID, convID string) ([]MessageOut,
 		m.AuthorUserID = strp(author)
 		list = append(list, m)
 	}
-	return list, nil
+	return list, rows.Err()
 }
 
 // checkMember refuses an assignee who is not an active member of the workspace

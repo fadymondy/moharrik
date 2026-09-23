@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { BarChart3Icon, MailIcon, MessageCircleIcon, MessageSquareIcon, MessageSquareQuoteIcon, SettingsIcon } from "lucide-react"
+import { BarChart3Icon, ChevronUpIcon, MailIcon, MessageCircleIcon, MessageSquareIcon, MessageSquareQuoteIcon, SettingsIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
@@ -18,7 +18,7 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type Conversation, type ConversationStatus } from "@/lib/api"
+import { api, ApiError, type Conversation, type ConversationStatus, type InboxMessage, type ThreadPage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useSWRConfig } from "swr"
 
@@ -139,7 +139,7 @@ export default function InboxPage() {
           </ul>
           <div className="min-w-0">
             {selected ? (
-              <Thread id={selected} onChanged={() => list.mutate()} />
+              <Thread key={selected} id={selected} onChanged={() => list.mutate()} />
             ) : (
               <p className="px-6 py-10 text-center text-sm text-grid-muted">{t("inbox.pickOne")}</p>
             )}
@@ -246,6 +246,17 @@ function VisitorContext({ c }: { c: Conversation }) {
   )
 }
 
+/**
+ * Two runs of a thread as one, each message once. `older` ends where `newer`
+ * begins or overlaps it, and each is already in the server's order, so the
+ * order is kept rather than re-sorted: timestamps as strings do not sort (a
+ * fractional second sorts before a whole one).
+ */
+function mergeMessages(older: InboxMessage[], newer: InboxMessage[]): InboxMessage[] {
+  const seen = new Set(older.map((m) => m.id))
+  return [...older, ...newer.filter((m) => !seen.has(m.id))]
+}
+
 function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
@@ -255,10 +266,35 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   const [reply, setReply] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // Earlier pages (MH-471). Opening a thread shows its newest page; "Load
+  // earlier" walks back with the cursor. What was on screen when a page was
+  // loaded is kept here too, so a new message arriving (which shifts the newest
+  // page) can never open a gap between the two.
+  const [earlier, setEarlier] = useState<{ messages: InboxMessage[]; cursor: string } | null>(null)
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
 
   if (detail.error) return <ErrorState error={detail.error} />
   if (!detail.data) return <LoadingRows rows={4} />
-  const { conversation: c, messages, visitor, reply_language: replyLang } = detail.data
+  const { conversation: c, visitor, reply_language: replyLang } = detail.data
+  const total = detail.data.messages_total ?? detail.data.messages.length
+  const messages = mergeMessages(earlier?.messages ?? [], detail.data.messages)
+  const cursor = earlier ? earlier.cursor : detail.data.messages_next_cursor
+
+  async function loadEarlier() {
+    if (!cursor || !detail.data) return
+    setLoadingEarlier(true)
+    try {
+      const page = await api<ThreadPage>(
+        `/api/w/conversations/${encodeURIComponent(id)}/messages?cursor=${encodeURIComponent(cursor)}`,
+        { workspaceId: ws.id },
+      )
+      setEarlier({ messages: mergeMessages(page.messages, messages), cursor: page.next_cursor })
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }
 
   function refresh() {
     detail.mutate()
@@ -359,6 +395,20 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
       </header>
 
       <ThreadCRM c={c} visitor={visitor} onChanged={refresh} />
+
+      {total > detail.data.messages.length ? (
+        <div className="flex flex-wrap items-center gap-3 px-6 pt-4" data-thread-paging>
+          <p className="text-xs text-grid-muted" data-thread-count>
+            {cursor ? t("inbox.shownOfTotal", { n: messages.length, total }) : t("inbox.allShown", { total })}
+          </p>
+          {cursor ? (
+            <Button variant="outline" size="sm" onClick={loadEarlier} disabled={loadingEarlier} data-load-earlier>
+              <ChevronUpIcon />
+              {loadingEarlier ? t("common.working") : t("inbox.loadEarlier")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <ol className="flex flex-col gap-3 px-6 py-4" data-messages>
         {messages.map((m) => (

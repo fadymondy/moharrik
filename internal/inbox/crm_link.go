@@ -50,9 +50,12 @@ type VisitorGuess struct {
 // conversationDetail is GET /api/w/conversations/{id}.
 type conversationDetail struct {
 	Conversation  ConversationOut `json:"conversation"`
-	Messages      []MessageOut    `json:"messages"`
-	Visitor       VisitorGuess    `json:"visitor" doc:"What the visitor gave, to prefill a new contact."`
-	ReplyLanguage string          `json:"reply_language" enum:"en,ar" doc:"The language to answer in: the canned replies insert this variant."`
+	Messages      []MessageOut    `json:"messages" doc:"The newest page of the thread, oldest first."`
+	MessagesTotal int64           `json:"messages_total" doc:"Messages in the whole thread."`
+	// "Load earlier": GET /api/w/conversations/{id}/messages?cursor=<this>.
+	MessagesNextCursor string       `json:"messages_next_cursor" doc:"Fetches the earlier messages (GET .../messages?cursor=). Empty when the whole thread is here."`
+	Visitor            VisitorGuess `json:"visitor" doc:"What the visitor gave, to prefill a new contact."`
+	ReplyLanguage      string       `json:"reply_language" enum:"en,ar" doc:"The language to answer in: the canned replies insert this variant."`
 }
 
 // reopenOnInbound is the SET fragment every inbound path uses: a customer

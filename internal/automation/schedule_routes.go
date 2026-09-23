@@ -171,15 +171,23 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-update-schedule", Method: http.MethodPatch, Path: "/api/w/schedules/{id}",
-		Summary: "Pause, resume or re-time a schedule", Tags: tags,
+		Summary: "Edit a schedule: pause or resume it, re-time it, or change its name, browser, workflow and values",
+		Description: "Only what is sent changes. values replaces the whole set of the workflow's values; a SECRET value " +
+			"left out or blank keeps the one already sealed, and a new one replaces it. Changing the workflow, its values or " +
+			"the browser checks the steps against the browser's allow-list again, exactly as creating does (MH-471).",
+		Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
 		Body struct {
-			Enabled  *bool   `json:"enabled,omitempty"`
-			Cron     *string `json:"cron,omitempty" maxLength:"100"`
-			Timezone *string `json:"timezone,omitempty" maxLength:"60"`
-			CatchUp  *string `json:"catch_up,omitempty" enum:",skip,once"`
+			Enabled    *bool             `json:"enabled,omitempty"`
+			Cron       *string           `json:"cron,omitempty" maxLength:"100"`
+			Timezone   *string           `json:"timezone,omitempty" maxLength:"60"`
+			CatchUp    *string           `json:"catch_up,omitempty" enum:",skip,once"`
+			Name       *string           `json:"name,omitempty" maxLength:"80"`
+			AgentID    *string           `json:"agent_id,omitempty"`
+			WorkflowID *string           `json:"workflow_id,omitempty" doc:"Run this saved workflow instead. A schedule of its own steps can be switched to a workflow; not back."`
+			Values     map[string]string `json:"values,omitempty" doc:"The workflow's values. A blank secret keeps the sealed one."`
 		}
 	}) (*body[struct {
 		Schedule Schedule `json:"schedule"`
@@ -216,12 +224,90 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		if in.Body.Enabled != nil {
 			enabled = *in.Body.Enabled
 		}
+		name := cur.Name
+		if in.Body.Name != nil {
+			if name = strings.TrimSpace(*in.Body.Name); name == "" {
+				return nil, huma.Error422UnprocessableEntity("a schedule needs a name")
+			}
+		}
+		agentID := cur.AgentID
+		if in.Body.AgentID != nil && strings.TrimSpace(*in.Body.AgentID) != "" {
+			agentID = strings.TrimSpace(*in.Body.AgentID)
+		}
+		workflowID := cur.WorkflowID
+		if in.Body.WorkflowID != nil && strings.TrimSpace(*in.Body.WorkflowID) != "" {
+			workflowID = strings.TrimSpace(*in.Body.WorkflowID)
+		}
 
-		if _, err := db().ExecContext(ctx, `
+		// What it runs, when that is being changed: the values sealed again,
+		// the steps filled and checked against the browser like a new schedule.
+		ownSteps, plainJSON, sealed := "", "", ""
+		whatChanged := workflowID != cur.WorkflowID || in.Body.Values != nil || agentID != cur.AgentID
+		if whatChanged {
+			steps := cur.Steps
+			if workflowID != "" {
+				w, err := getWorkflow(ctx, db(), s.WorkspaceID, workflowID)
+				if err != nil {
+					return nil, err
+				}
+				var oldSealed string
+				if err := db().QueryRowContext(ctx, `SELECT secret_values FROM automation_schedules WHERE workspace_id = $1 AND id = $2`,
+					s.WorkspaceID, in.ID).Scan(&oldSealed); err != nil {
+					return nil, huma.Error500InternalServerError("could not read that schedule")
+				}
+				given := in.Body.Values
+				if given == nil {
+					given = cur.Values // the browser or the workflow changed; the values did not
+				}
+				merged, plain, sealedNow, err := EditScheduleValues(w.Params, given, oldSealed)
+				if err != nil {
+					return nil, huma.Error500InternalServerError("could not keep the schedule's secret values")
+				}
+				filled, _, ferr := Fill(w.Steps, w.Params, merged)
+				if ferr != nil {
+					return nil, huma.Error422UnprocessableEntity(ferr.Error())
+				}
+				steps = filled
+				plainJSON, sealed, ownSteps = jsonOrEmpty(plain), sealedNow, "[]"
+			}
+			if len(steps) == 0 {
+				return nil, huma.Error422UnprocessableEntity("a schedule needs steps, or a workflow to run")
+			}
+			var hosts pgtext.Array
+			var revoked sql.NullTime
+			err = db().QueryRowContext(ctx, `
+				SELECT allowed_hosts, revoked_at FROM browser_agents WHERE workspace_id = $1 AND id = $2`,
+				s.WorkspaceID, agentID).Scan(&hosts, &revoked)
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, huma.Error404NotFound("no such browser")
+			}
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not read that browser")
+			}
+			if revoked.Valid {
+				return nil, huma.Error409Conflict(ErrRevoked.Error())
+			}
+			if err := CheckSteps(steps, hosts); err != nil {
+				return nil, runError(err)
+			}
+		}
+
+		// The run columns change only when what it runs was edited ($9) and a
+		// workflow is what it runs: a schedule of its own steps keeps them.
+		_, err = db().ExecContext(ctx, `
 			UPDATE automation_schedules SET cron = $3, timezone = $4, catch_up = $5, enabled = $6,
-			    next_run_at = $7, last_error = CASE WHEN $6 THEN last_error ELSE last_error END, updated_at = now()
+			    next_run_at = $7, name = $8, agent_id = $10, workflow_id = $11,
+			    steps = CASE WHEN $9 AND $11 <> '' THEN $12::jsonb ELSE steps END,
+			    params = CASE WHEN $9 AND $11 <> '' THEN $13::jsonb ELSE params END,
+			    secret_values = CASE WHEN $9 AND $11 <> '' THEN $14 ELSE secret_values END,
+			    updated_at = now()
 			WHERE workspace_id = $1 AND id = $2`,
-			s.WorkspaceID, in.ID, cronExpr, zone, catchUp, enabled, next); err != nil {
+			s.WorkspaceID, in.ID, cronExpr, zone, catchUp, enabled, next, name, whatChanged, agentID, workflowID,
+			firstNonEmpty(ownSteps, "[]"), firstNonEmpty(plainJSON, "{}"), sealed)
+		if pgCode(err) == "23505" {
+			return nil, huma.Error409Conflict("a schedule with that name already exists")
+		}
+		if err != nil {
 			return nil, huma.Error500InternalServerError("could not update the schedule")
 		}
 		got, err := getSchedule(ctx, db(), s.WorkspaceID, in.ID)

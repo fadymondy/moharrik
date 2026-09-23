@@ -123,7 +123,8 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	return res, nil
 }
 
-// GetConversation reads one conversation and its whole thread, with what the
+// GetConversation reads one conversation and the newest page of its thread
+// (with the thread's total and the cursor to the page before), with what the
 // visitor gave (to prefill a contact) and the language to answer in. Opening a
 // thread is what "read" means here, so it clears the unread flag — a caller
 // with inbox:read only is still allowed to: seeing it IS reading it.
@@ -139,10 +140,11 @@ func GetConversation(ctx context.Context, a *app.App, id string) (*conversationD
 	} else if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the conversation")
 	}
-	msgs, err := thread(ctx, a.SQLDB, s.WorkspaceID, id)
+	page, err := threadPage(ctx, a.SQLDB, s.WorkspaceID, id, "", threadPageDefault)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the thread")
 	}
+	msgs := page.Messages
 	if c.Unread {
 		_, _ = a.SQLDB.ExecContext(ctx, `UPDATE conversations SET unread = false, updated_at = now() WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, id)
 		c.Unread = false
@@ -153,7 +155,8 @@ func GetConversation(ctx context.Context, a *app.App, id string) (*conversationD
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the conversation")
 	}
-	return &conversationDetail{Conversation: c, Messages: msgs, Visitor: guessVisitor(c, msgs, lang), ReplyLanguage: lang}, nil
+	return &conversationDetail{Conversation: c, Messages: msgs, MessagesTotal: page.Total, MessagesNextCursor: page.NextCursor,
+		Visitor: guessVisitor(c, msgs, lang), ReplyLanguage: lang}, nil
 }
 
 // Reply answers a conversation as the caller, through the conversation's own
@@ -447,7 +450,7 @@ func OpenDealFromConversation(ctx context.Context, a *app.App, id string, in New
 	} else if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the conversation")
 	}
-	msgs, err := thread(ctx, db, wsID, id)
+	msgs, err := threadFromStart(ctx, db, wsID, id)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the thread")
 	}

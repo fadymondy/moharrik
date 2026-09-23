@@ -317,6 +317,8 @@ export default function AutomationPage() {
                 key={sc.id}
                 schedule={sc}
                 canRun={canRun}
+                browsers={active}
+                workflows={workflowList}
                 onChange={() => {
                   schedules.mutate()
                   runs.mutate()
@@ -713,10 +715,30 @@ function RunRow({ run, href }: { run: AutomationRun; href: string }) {
   )
 }
 
-function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSchedule; canRun: boolean; onChange: () => void }) {
+function ScheduleRow({
+  schedule,
+  canRun,
+  browsers,
+  workflows,
+  onChange,
+}: {
+  schedule: AutomationSchedule
+  canRun: boolean
+  browsers: BrowserAgent[]
+  workflows: AutomationWorkflow[]
+  onChange: () => void
+}) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
   const [busy, setBusy] = useState(false)
+  // Edited in place (MH-471): the form opens under the row it changes.
+  const [editing, setEditing] = useState(false)
+  // The schedule's own browser stays offerable even if it is not in the
+  // active list (revoked since): the API refuses it with a reason, rather than
+  // the form silently switching it to another.
+  const browserOptions = browsers.some((b) => b.id === schedule.agent_id)
+    ? browsers
+    : [{ id: schedule.agent_id, name: schedule.agent_name || t("automation.unnamedBrowser") } as BrowserAgent, ...browsers]
 
   async function toggle() {
     try {
@@ -747,7 +769,8 @@ function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSched
   }
 
   return (
-    <li className="flex flex-wrap items-start gap-3 px-6 py-4" data-schedule={schedule.name} data-schedule-status={schedule.last_status || "new"}>
+    <li data-schedule={schedule.name} data-schedule-status={schedule.last_status || "new"} data-schedule-editing={editing ? "true" : undefined}>
+    <div className="flex flex-wrap items-start gap-3 px-6 py-4">
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <Bdi>{schedule.name}</Bdi>
@@ -783,6 +806,10 @@ function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSched
             <PlayIcon />
             {busy ? t("common.working") : t("automation.runNow")}
           </Button>
+          <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)} aria-expanded={editing} data-edit-schedule>
+            {editing ? <XIcon /> : <PencilIcon />}
+            {editing ? t("common.cancel") : t("common.edit")}
+          </Button>
           <ConfirmButton
             label={t("common.delete")}
             title={t("automation.deleteScheduleTitle")}
@@ -791,6 +818,19 @@ function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSched
             onConfirm={remove}
           />
         </div>
+      ) : null}
+    </div>
+      {canRun && editing ? (
+        <ScheduleForm
+          editing={schedule}
+          browsers={browserOptions}
+          workflows={workflows}
+          onCancel={() => setEditing(false)}
+          onAdded={() => {
+            setEditing(false)
+            onChange()
+          }}
+        />
       ) : null}
     </li>
   )

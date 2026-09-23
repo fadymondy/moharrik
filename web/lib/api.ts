@@ -475,12 +475,20 @@ export type VisitorGuess = { name: string; email: string; phone: string; locale:
 
 export type ConversationDetail = {
   conversation: Conversation
+  /** The newest page of the thread, oldest first (MH-471). */
   messages: InboxMessage[]
+  /** Messages in the whole thread. */
+  messages_total: number
+  /** "Load earlier": GET /api/w/conversations/{id}/messages?cursor=. Empty when the whole thread is here. */
+  messages_next_cursor: string
   /** What the visitor gave, to prefill a new contact. */
   visitor: VisitorGuess
   /** The language to answer in; canned replies insert this variant. */
   reply_language: "en" | "ar"
 }
+
+/** One page of a thread, walking back from the newest (MH-471). */
+export type ThreadPage = { messages: InboxMessage[]; total: number; next_cursor: string }
 
 /** An inbox conversation as a CRM timeline shows it (MH-379). */
 export type ConversationRef = {

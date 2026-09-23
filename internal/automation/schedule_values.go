@@ -103,3 +103,32 @@ func sealedNames(sealed string) []string {
 	sort.Strings(names)
 	return names
 }
+
+// EditScheduleValues is what an edited schedule keeps (MH-471). given is the
+// whole set of values from the form. A secret the form leaves blank keeps its
+// sealed value, as long as the workflow still has that secret; one the form
+// fills in replaces it. Nobody has to type a password again to change the time.
+//
+// merged is every value the run will be filled with. It is for validating the
+// workflow now, and is never stored or handed back. plain and sealed are what
+// gets stored. A sealed value that can no longer be opened (AUTH_SECRET
+// changed) is kept as nothing, so the workflow's own check then asks for it.
+func EditScheduleValues(params []Param, given map[string]string, oldSealed string) (merged, plain map[string]string, sealed string, err error) {
+	old := map[string]string{}
+	if oldSealed != "" {
+		if opened, oerr := MergeScheduleValues(nil, oldSealed); oerr == nil {
+			old = opened
+		}
+	}
+	merged = map[string]string{}
+	for k, v := range given {
+		merged[k] = v
+	}
+	for _, p := range params {
+		if p.Secret && strings.TrimSpace(merged[p.Name]) == "" && old[p.Name] != "" {
+			merged[p.Name] = old[p.Name]
+		}
+	}
+	plain, sealed, err = SplitScheduleValues(params, merged)
+	return merged, plain, sealed, err
+}

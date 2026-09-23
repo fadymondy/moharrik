@@ -1902,5 +1902,14 @@
   "ytr.family.channel_device_os": "الأجهزة والأنظمة",
   "ytr.day": "اليوم",
   "ytr.report": "التقرير",
-  "ytr.rows": "الصفوف"
+  "ytr.rows": "الصفوف",
+  "inbox.loadEarlier": "تحميل الرسائل الأقدم",
+  "inbox.shownOfTotal": "آخر {n} من {total} رسالة",
+  "inbox.allShown": "كل الرسائل ({total})",
+  "automation.sched.editTitle": "تعديل «{name}»",
+  "automation.sched.saveChanges": "حفظ التغييرات",
+  "automation.sched.updated": "حُدّث الموعد.",
+  "automation.sched.secretKeep": "هناك قيمة محفوظة ومختومة. اترك الحقل فارغًا للإبقاء عليها، أو اكتب قيمة جديدة لاستبدالها.",
+  "automation.sched.secretKeepPlaceholder": "محفوظة — اتركها فارغة للإبقاء عليها",
+  "automation.sched.ownSteps": "هذا الموعد يشغّل خطواته الخاصة وليس سير عمل محفوظًا، لذا يمكن هنا تغيير اسمه والمتصفح والتوقيت فقط."
 }

@@ -601,6 +601,10 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		{"POST", "/api/w/conversations/" + convID + "/deal", map[string]any{"title": "steal"}},
 		{"PATCH", "/api/w/canned_replies/" + cannedID, map[string]any{"title": "bob owns this"}},
 		{"DELETE", "/api/w/canned_replies/" + cannedID, nil},
+		// Editing a schedule (MH-471): B can neither re-time A's schedule nor
+		// replace the secret it runs with.
+		{"PATCH", "/api/w/schedules/" + schedID, map[string]any{"cron": "* * * * *", "name": "bob owns this"}},
+		{"PATCH", "/api/w/schedules/" + schedID, map[string]any{"values": map[string]string{"page": "bob", "password": "bob-password"}}},
 	} {
 		if code, b := bob.do(w.method, w.path, w.body); code != http.StatusNotFound || leaks(b) != "" {
 			t.Errorf("B %s %s: got %d, want 404: %s", w.method, w.path, code, b)
@@ -614,6 +618,10 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	if cv := alice.must("GET", "/api/w/conversations/"+convID, nil, 200)["conversation"].(map[string]any); cv["contact_id"] != ctID || cv["status"] != "open" ||
 		cv["deal"].(map[string]any)["id"] != convDealID {
 		t.Errorf("A's conversation was changed from B: %+v", cv)
+	}
+	if sc := alice.must("GET", "/api/w/schedules", nil, 200)["schedules"].([]any); len(sc) != 1 ||
+		sc[0].(map[string]any)["cron"] != "0 7 * * *" || sc[0].(map[string]any)["values"].(map[string]any)["page"] != "inbox" {
+		t.Errorf("A's schedule was changed from B: %+v", sc)
 	}
 	if r := alice.must("GET", "/api/w/canned_replies", nil, 200)["replies"].([]any); len(r) != 1 || r[0].(map[string]any)["title"] != marker+" canned" {
 		t.Errorf("A's canned reply was changed from B: %+v", r)
