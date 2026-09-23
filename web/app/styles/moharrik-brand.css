@@ -23,3 +23,11 @@
   --grid-action: #2ec4cb;
   --grid-on-action: #0b1429;
 }
+
+/* English UI font: Inter (loaded in app/layout.tsx as --font-inter). Arabic pages keep the grid's
+   Lusail/Alexandria untouched. Lusail and Alexandria stay in the stack so Arabic words inside an
+   English page (names, messages) still render in the Arabic face rather than a system fallback.
+   Overridden here, not in the synced grid-tokens.css, so the grid copy stays identical. */
+[data-brand="moharrik"]:lang(en) {
+  --grid-font-sans: var(--font-inter), "Lusail", "Alexandria", system-ui, sans-serif;
+}

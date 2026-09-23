@@ -1,9 +1,15 @@
 import { headers } from "next/headers"
 import type { Metadata } from "next"
+import { Inter } from "next/font/google"
 
 import "./globals.css"
 import { Providers } from "@/components/providers"
 import { dirForLocale, isLocale, type Locale } from "@/lib/i18n-locale"
+
+// English UI is set in Inter: built for screens and legible at small sizes on desktop and mobile.
+// next/font self-hosts it at build time, so no request reaches Google at runtime. Arabic keeps the
+// grid's Lusail/Alexandria; the switch is in styles/moharrik-brand.css (English only).
+const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" })
 
 export const metadata: Metadata = {
   title: "Moharrik",
@@ -21,7 +27,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang={locale}
       dir={dirForLocale(locale)}
       data-brand="moharrik"
-      className="grid-surface"
+      className={`grid-surface ${inter.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-dvh" suppressHydrationWarning>
