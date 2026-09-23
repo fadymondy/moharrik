@@ -11,8 +11,10 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/fadymondy/moharrik/internal/alerts"
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -393,6 +395,8 @@ func Register(api huma.API, a *app.App) {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return nil, huma.Error404NotFound("notification not found")
 			}
+			// Read/unread moved: every tab's bell recounts.
+			alerts.Emit(ctx, a, s.WorkspaceID, realtime.Event{Kind: "notifications", ItemID: in.ID, AuthorUserID: s.UserID, Permission: authz.NotificationsRead})
 		}
 		row := db().QueryRowContext(ctx, notificationItemSelect+` AND id = $2`, s.WorkspaceID, in.ID)
 		it, err := scanItem(row)
@@ -421,6 +425,9 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error500InternalServerError("could not mark notifications read")
 		}
 		n, _ := res.RowsAffected()
+		if n > 0 {
+			alerts.Emit(ctx, a, s.WorkspaceID, realtime.Event{Kind: "notifications", AuthorUserID: s.UserID, Permission: authz.NotificationsRead})
+		}
 		return out(struct {
 			Marked int64 `json:"marked"`
 		}{n}), nil
@@ -527,17 +534,31 @@ func registerPublicHook(api huma.API, a *app.App) {
 		}
 
 		sctx := tenant.WithWorkspace(ctx, wsID)
-		res, err := a.SQLDB.ExecContext(sctx, `
+		// RETURNING yields no row on the conflict branch: a redelivery is
+		// sql.ErrNoRows here, which is "duplicate", not a failure.
+		var itemID string
+		err = a.SQLDB.QueryRowContext(sctx, `
 			INSERT INTO notification_items (workspace_id, source_id, source_name, external_id, kind, severity, title, body, actor, url, payload, occurred_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
-			ON CONFLICT (workspace_id, source_id, external_id) WHERE external_id <> '' DO NOTHING`,
+			ON CONFLICT (workspace_id, source_id, external_id) WHERE external_id <> '' DO NOTHING
+			RETURNING id`,
 			wsID, in.ID, name, externalID, it.Kind, it.Severity, it.Title, it.Body, it.Actor, it.URL, string(in.RawBody),
-		)
-		if err != nil {
+		).Scan(&itemID)
+		if err != nil && !notFound(err) {
 			fail("delivery refused: could not store it")
 			return nil, huma.Error500InternalServerError("could not store the delivery")
 		}
-		inserted, _ := res.RowsAffected()
+		inserted := itemID != ""
+		if inserted {
+			// The notifications page and every tab's bell update without a
+			// reload, and the members who may read the feed are alerted —
+			// in the tab and on their devices (MH-378). A redelivery is not
+			// news and says nothing.
+			alerts.Emit(ctx, a, wsID, realtime.Event{
+				Kind: "notification", ItemID: itemID, Title: it.Title, Severity: it.Severity, Source: name,
+				Permission: authz.NotificationsRead, Alerting: true,
+			})
+		}
 		legacyAt := "last_legacy_at"
 		if v.Legacy {
 			legacyAt = "now()"
@@ -545,6 +566,6 @@ func registerPublicHook(api huma.API, a *app.App) {
 		_, _ = a.SysDB.ExecContext(ctx, `UPDATE webhook_sources SET delivery_count = delivery_count + 1, last_delivery_at = now(),
 			last_legacy_at = `+legacyAt+`, updated_at = now() WHERE id = $1`, in.ID)
 
-		return out(HookResult{Received: true, Duplicate: inserted == 0}), nil
+		return out(HookResult{Received: true, Duplicate: !inserted}), nil
 	})
 }

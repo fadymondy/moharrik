@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
-	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
 
@@ -63,12 +63,17 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 		return err
 	}
 
-	if _, err := db.ExecContext(sctx, `
+	ins, err := db.ExecContext(sctx, `
 		INSERT INTO messages (workspace_id, conversation_id, direction, body, external_id)
 		VALUES ($1, $2, 'in', $3, $4)
 		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING`,
-		workspaceID, convID, trimTo(text, maxBody), externalID); err != nil {
+		workspaceID, convID, trimTo(text, maxBody), externalID)
+	if err != nil {
 		return err
+	}
+	// A redelivery that raced the check above wrote nothing, and alerts nobody.
+	if n, _ := ins.RowsAffected(); n == 0 {
+		return nil
 	}
 
 	if _, err := db.ExecContext(sctx, `
@@ -81,9 +86,7 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 
 	// The team is told at once, the same as a chat message — a customer on
 	// WhatsApp expects an answer in minutes, not on the next refresh.
-	if a.Events != nil {
-		a.Events.Publish(workspaceID, realtime.Event{Kind: "message", ConversationID: convID})
-	}
+	announceInbound(ctx, a, workspaceID, convID, text, time.Time{})
 	return nil
 }
 

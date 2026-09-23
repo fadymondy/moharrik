@@ -148,6 +148,8 @@ func Register(api huma.API, a *app.App) {
 		if c.Unread {
 			_, _ = db().ExecContext(ctx, `UPDATE conversations SET unread = false, updated_at = now() WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
 			c.Unread = false
+			// Every other tab's bell drops its count.
+			changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "conversation", ConversationID: in.ID})
 		}
 		return out(struct {
 			Conversation ConversationOut `json:"conversation"`
@@ -223,7 +225,9 @@ func Register(api huma.API, a *app.App) {
 			WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
 		// Two members can have the same thread open; the one who did not type
 		// should see the reply appear, not a stale thread.
-		a.Events.Publish(s.WorkspaceID, realtime.Event{Kind: "message", ConversationID: in.ID})
+		// It names its author, so the author's own tab is never alerted by it
+		// (replies never alert anyone; see realtime.Event.For).
+		changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "message", Direction: "out", ConversationID: in.ID, AuthorUserID: s.UserID})
 		uid := s.UserID
 		return out(struct {
 			Message MessageOut `json:"message"`
@@ -284,6 +288,7 @@ func Register(api huma.API, a *app.App) {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return nil, huma.Error404NotFound("conversation not found")
 			}
+			changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "conversation", ConversationID: in.ID, AuthorUserID: s.UserID})
 		}
 		row := db().QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, s.WorkspaceID, in.ID)
 		c, err := scanConversation(row)
@@ -631,9 +636,10 @@ func registerPublicChat(api huma.API, a *app.App) {
 			  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
 			WHERE workspace_id = $1 AND id = $2`, wsID, convID)
 
-		// The owner is told the moment a visitor writes, rather than up to ten
-		// seconds later when a poll happens to come round (fadymondy.com 01b5345).
-		a.Events.Publish(wsID, realtime.Event{Kind: "message", ConversationID: convID})
+		// The team is told the moment a visitor writes, rather than up to ten
+		// seconds later when a poll happens to come round (fadymondy.com 01b5345):
+		// the open tabs at once, and the devices of whoever it alerts (MH-378).
+		announceInbound(ctx, a, wsID, convID, text, time.Time{})
 
 		return out(struct {
 			VisitorToken string `json:"visitor_token" doc:"Keep this to continue the conversation."`

@@ -750,3 +750,42 @@ export type GoogleConnections = {
 }
 
 export type GoogleDisconnected = { revoked: boolean; shared: boolean; revoke_error?: string }
+
+// ── Alerts and web push (MH-378) ─────────────────────────────────────────
+
+export type BellItem = {
+  kind: "conversation" | "notification"
+  id: string
+  /** The customer (conversation) or the item's title (notification). */
+  title: string
+  /** The latest message (conversation) or the source's name (notification). */
+  snippet: string
+  channel?: "chat" | "email" | "whatsapp"
+  severity?: NotificationSeverity
+  unread: boolean
+  at: string
+  assignee_user_id?: string | null
+}
+
+export type Bell = {
+  unread_conversations: number
+  unread_notifications: number
+  can_inbox: boolean
+  can_notifications: boolean
+  items: BellItem[] | null
+}
+
+export type PushDevice = {
+  id: string
+  endpoint: string
+  user_agent: string
+  locale: "en" | "ar"
+  created_at: string
+  last_ok_at: string | null
+  last_error: string
+  last_error_at: string | null
+}
+
+export type PushStatus = { configured: boolean; public_key: string; devices: PushDevice[] | null }
+
+export type PushResult = { sent: number; removed: number; failed: number; devices: number }

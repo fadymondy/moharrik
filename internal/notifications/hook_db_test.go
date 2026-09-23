@@ -15,6 +15,7 @@ import (
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/testdb"
 )
@@ -348,4 +349,57 @@ func TestHookMigrationMarksExistingSourcesLegacy(t *testing.T) {
 		t.Errorf("%d CHECK constraints on kind after two runs, want the original 1 (no duplicate added)", checks)
 	}
 	_, _ = conn.ExecContext(ctx, `RESET search_path`)
+}
+
+// A verified delivery is published to the workspace the moment it is stored
+// (MH-378): the notifications page and every tab's bell update without a
+// reload, and the feed's readers are alerted. A redelivery says nothing, and a
+// client-role member (no notifications:read) hears nothing either way.
+func TestHookPublishesAnEvent(t *testing.T) {
+	f := newHookFixture(t)
+	src := f.create(t, "generic")
+
+	reader, stopR := f.a.Events.Subscribe(f.ws, realtime.Viewer{UserID: f.user, Role: "owner"})
+	defer stopR()
+	client, stopC := f.a.Events.Subscribe(f.ws, realtime.Viewer{UserID: "u-client", Role: "client"})
+	defer stopC()
+
+	body := `{"title":"Build failed on main","severity":"error"}`
+	h := genericHeaderArgs(src.Secret, body, time.Now())
+	if code, r := f.deliver(t, src.Source.ID, body, h...); code != http.StatusAccepted || r.Duplicate {
+		t.Fatalf("signed delivery: %d %+v", code, r)
+	}
+	items := f.items(t, src.Source.ID)
+	if len(items) != 1 {
+		t.Fatalf("items = %+v", items)
+	}
+
+	select {
+	case raw := <-reader:
+		var ev realtime.Event
+		if err := json.Unmarshal(raw, &ev); err != nil {
+			t.Fatal(err)
+		}
+		if ev.Kind != "notification" || ev.ItemID != items[0].ID || ev.Title != "Build failed on main" || ev.Severity != "error" ||
+			ev.Source != "generic source" || !ev.Alert {
+			t.Errorf("event = %+v", ev)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the delivery was stored but nothing was published")
+	}
+
+	// The same delivery again: accepted as a duplicate, and silent.
+	if code, r := f.deliver(t, src.Source.ID, body, h...); code != http.StatusAccepted || !r.Duplicate {
+		t.Fatalf("redelivery: %d %+v", code, r)
+	}
+	select {
+	case raw := <-reader:
+		t.Errorf("a redelivery published %s", raw)
+	case <-time.After(300 * time.Millisecond):
+	}
+	select {
+	case raw := <-client:
+		t.Errorf("a client-role member received %s", raw)
+	default:
+	}
 }

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NotificationItem, type NotificationSeverity } from "@/lib/api"
+import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useNotifications, useWebhookSources, type NotificationFilter } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
@@ -43,6 +44,12 @@ export default function NotificationsPage() {
   const sources = useWebhookSources(ws.id)
   const filter: NotificationFilter = { unread, saved, sourceId: sourceId || undefined, severity: severity || undefined }
   const feed = useNotifications(ws.id, filter)
+
+  // A webhook delivery lands on this page as it happens, and a read in another
+  // tab (or by an agent over MCP) clears here too — no reload (MH-378).
+  useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind === "notification" || e.kind === "notifications") void feed.mutate()
+  })
 
   const sourceOpts = (sources.data?.sources ?? []).map((s) => ({ value: s.id, label: s.name }))
   const severityOpts = [

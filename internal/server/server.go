@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/togo-framework/togo"
 
+	"github.com/fadymondy/moharrik/internal/alerts"
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/clientip"
@@ -165,12 +166,14 @@ func Boot() *app.App {
 	// huma because SSE is a long-lived response, not a request/response body —
 	// but it sits under /api/w/, so it goes through the same guard tier as every
 	// other workspace route and inherits session + membership from it.
-	k.Router.Get("/api/w/events", realtime.Handler(a.Events, func(r *http.Request) string {
+	// The member's user id and role ride along: every event names who may see
+	// it (realtime.Event.For), so a client-role member's stream stays empty.
+	k.Router.Get("/api/w/events", realtime.Handler(a.Events, func(r *http.Request) (string, realtime.Viewer) {
 		s, ok := tenant.From(r.Context())
 		if !ok {
-			return ""
+			return "", realtime.Viewer{}
 		}
-		return s.WorkspaceID
+		return s.WorkspaceID, realtime.Viewer{UserID: s.UserID, Role: s.Role}
 	}))
 
 	// Deliberately NOT mounted from the scaffold:
@@ -199,6 +202,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	research.Register(api, a, researchEngine)
 	mcp.RegisterTokenRoutes(api, a)
 	google.Register(api, a)
+	alerts.Register(api, a)
 }
 
 /*

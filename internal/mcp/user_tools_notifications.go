@@ -9,7 +9,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fadymondy/moharrik/internal/alerts"
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/secret"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -108,6 +111,9 @@ func NotificationTools() []Tool {
 						return "", fmt.Errorf("could not mark notifications read: %w", err)
 					}
 					n, _ := res.RowsAffected()
+					if n > 0 {
+						readChanged(ctx, a, s.WorkspaceID)
+					}
 					return fmt.Sprintf("Marked %d notification(s) read.", n), nil
 				}
 				res, err := a.SQLDB.ExecContext(ctx, `UPDATE notification_items SET read_at = now() WHERE workspace_id = $1 AND lower(title) = lower($2) AND read_at IS NULL`,
@@ -118,6 +124,7 @@ func NotificationTools() []Tool {
 				if n, _ := res.RowsAffected(); n == 0 {
 					return "No matching unread notification.", nil
 				}
+				readChanged(ctx, a, s.WorkspaceID)
 				return "Marked read.", nil
 			},
 		},
@@ -253,3 +260,9 @@ func publicBaseMCP() string {
 var webhookSecretBox = secret.New(secret.DomainWebhookSecret, "the webhook secret", "rotate it")
 
 func sealWebhookSecret(plain string) (string, error) { return webhookSecretBox.Seal(plain) }
+
+// readChanged tells the members' open tabs that the unread count moved, so a
+// bell does not keep showing items an agent has already cleared (MH-378).
+func readChanged(ctx context.Context, a *app.App, workspaceID string) {
+	alerts.Emit(ctx, a, workspaceID, realtime.Event{Kind: "notifications", Permission: authz.NotificationsRead})
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
@@ -281,7 +282,7 @@ func (h *Hub) setStatus(ctx context.Context, a *app.App, agent Connected, status
 	// nothing there has a reason to refetch: pairing a browser and watching it
 	// say "Not connected" for ever was exactly that.
 	if a.Events != nil {
-		a.Events.Publish(agent.WorkspaceID, realtime.Event{Kind: "browser"})
+		a.Events.Publish(agent.WorkspaceID, realtime.Event{Kind: "browser", Permission: authz.AutomationRead})
 	}
 }
 

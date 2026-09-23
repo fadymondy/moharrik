@@ -176,6 +176,11 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	t.Setenv("GOOGLE_API_BASE", fakeGoogle.URL)
 	t.Setenv("GOOGLE_INTEGRATIONS_CLIENT_ID", fakeGoogle.ClientID)
 	t.Setenv("GOOGLE_INTEGRATIONS_CLIENT_SECRET", fakeGoogle.ClientSecret)
+	// Web push on, so a device row can exist in A for the sweep to aim at
+	// (MH-378). Its endpoint is loopback and never answers: nothing is sent.
+	t.Setenv("VAPID_PUBLIC_KEY", "BGfVQrK7aMmywg6zriWaZFVr4hcZH0muGY9nU73cHiVeIviM_0PGx9lZiYFgkjsWnH0QSKKz6mYN76K5Ql_hhSM")
+	t.Setenv("VAPID_PRIVATE_KEY", "isolation-test-key-never-used-to-sign")
+	t.Setenv("VAPID_SUBJECT", "mailto:iso@example.test")
 
 	// testdb.Setup already migrated this package's own database, under a lock
 	// held on the shared base database — the app ROLE is cluster-global, so
@@ -329,7 +334,15 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	googleID := gconns[0].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID}
+	// Alerts: one of alice's devices. The endpoint carries the marker, so a
+	// response that leaked it would be caught like any other of A's data.
+	pushEndpoint := "http://127.0.0.1:9/" + marker
+	dev := alice.must("POST", "/api/w/push/subscriptions", map[string]any{
+		"endpoint": pushEndpoint, "keys": map[string]string{"p256dh": "BIso" + rnd(), "auth": "iso" + rnd()},
+	}, 201)
+	pushID := dev["device"].(map[string]any)["id"].(string)
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -338,6 +351,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"subscribe-forms": formID, "leads": leadID,
 		"google": googleID,
 		"mail": listID,
+		"push": pushID,
 	}
 
 	leaks := func(b []byte) string {
@@ -536,6 +550,9 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	if code, b := alice.do("GET", "/api/w/mail/lists/"+listID+"/export.csv", nil); code != 200 || !strings.Contains(string(b), ctEmail) {
 		t.Errorf("A exporting her own list: %d %s", code, b)
+	}
+	if code, b := alice.do("GET", "/api/w/push", nil); code != 200 || !strings.Contains(string(b), pushID) {
+		t.Errorf("A's push device was removed from B: %d %s", code, b)
 	}
 
 	if code, b := alice.do("GET", "/api/w/deals/"+dealID, nil); code != 200 || !strings.Contains(string(b), actID) || !strings.Contains(string(b), coID) {

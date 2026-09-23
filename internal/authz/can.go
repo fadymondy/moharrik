@@ -48,8 +48,8 @@ const (
 	TokensRevokeAny   = "tokens:revoke_any"
 	GraphQL           = "graphql"
 	// Email marketing.
-	ContactsRead   = "contacts:read"
-	ContactsWrite  = "contacts:write"
+	ContactsRead  = "contacts:read"
+	ContactsWrite = "contacts:write"
 	// ContactsExport is downloading a list as a file (MH-408). See Matrix for
 	// why it is not simply contacts:read.
 	ContactsExport = "contacts:export"
@@ -107,6 +107,12 @@ const (
 	// business relationship with Google, so it is an admin right — the same
 	// line mail:settings draws for the sending credentials (MH-439).
 	IntegrationsManage = "integrations:manage"
+	// Alerts (MH-378): enabling web push on one's own devices and sending
+	// oneself a test. Only a member's OWN devices are ever touched; the events
+	// themselves are gated by inbox:read and notifications:read, which a client
+	// holds neither of — so a client has nothing to be alerted about, and no
+	// Delivery settings to see.
+	PushManage = "push:manage"
 )
 
 // Matrix is the minimum role per action.
@@ -124,8 +130,8 @@ var Matrix = map[string]Role{
 	GraphQL: Admin,
 	// Email marketing: members keep the audience; managers compose and send;
 	// admins own the sending credentials.
-	ContactsRead:   Member,
-	ContactsWrite:  Member,
+	ContactsRead:  Member,
+	ContactsWrite: Member,
 	// Export is a manager's call although a member can page through the same
 	// rows on screen. Reading contacts one page at a time is doing the job;
 	// one click that puts the whole audience — names, addresses, phones, in a
@@ -170,6 +176,7 @@ var Matrix = map[string]Role{
 	AutomationManage: Admin,
 	// Integrations: admins and owners connect and disconnect Google accounts.
 	IntegrationsManage: Admin,
+	PushManage:         Member,
 }
 
 // Can reports whether role may perform action. Unknown actions are denied.

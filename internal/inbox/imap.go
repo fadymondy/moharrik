@@ -202,13 +202,15 @@ func File(ctx context.Context, a *app.App, workspaceID string, e *Email) error {
 		}
 	}
 
-	if _, err := db.ExecContext(sctx, `
+	ins, err := db.ExecContext(sctx, `
 		INSERT INTO messages (workspace_id, conversation_id, direction, body, external_id, created_at)
 		VALUES ($1, $2, 'in', $3, $4, $5)
 		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING`,
-		workspaceID, convID, e.Body, e.MessageID, e.Date); err != nil {
+		workspaceID, convID, e.Body, e.MessageID, e.Date)
+	if err != nil {
 		return err
 	}
+	inserted, _ := ins.RowsAffected()
 
 	// An inbound message makes the thread unread for the team again, and
 	// reopens it rather than answering into a closed conversation.
@@ -216,7 +218,16 @@ func File(ctx context.Context, a *app.App, workspaceID string, e *Email) error {
 		UPDATE conversations SET last_message_at = GREATEST(last_message_at, $3), unread = true, updated_at = now(),
 		  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, convID, e.Date)
-	return err
+	if err != nil {
+		return err
+	}
+	// Email used to arrive in silence: nothing published, so an open inbox did
+	// not even refresh. Now it is announced like every other channel — once,
+	// for a message actually written (a redelivery wrote nothing).
+	if inserted > 0 {
+		announceInbound(ctx, a, workspaceID, convID, e.Body, e.Date)
+	}
+	return nil
 }
 
 // findThread answers "which conversation is this" in the order the rules are
