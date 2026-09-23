@@ -79,6 +79,9 @@ type Connected struct {
 	Platform    string    `json:"platform"`
 	Version     string    `json:"extension_version"`
 	ConnectedAt time.Time `json:"connected_at"`
+	// Advertised at hello (MH-478).
+	Capabilities []string `json:"capabilities"`
+	TabCapacity  int      `json:"tab_capacity"`
 }
 
 // AgentError is returned when the browser answered and its answer was a

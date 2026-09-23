@@ -81,6 +81,8 @@ func Boot() *app.App {
 	k.Router.Get("/api/agents/ws", agentHub.Handler(a))
 	// The extension zip (MH-399): a file, not a JSON body, so a plain route.
 	automation.MountExtensionDownload(k.Router, a)
+	// A step's screenshot (MH-478): bytes, so a plain route, in the workspace tier.
+	automation.MountRunArtifacts(k.Router, a)
 
 	// The research engine: search, reader and model, resolved from the
 	// environment once. Each tier is independently optional, and a run says

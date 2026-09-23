@@ -26,6 +26,8 @@ export const KEYS = {
   status: "moh.status",
   // This browser's own pause (MH-478): disconnected until switched back.
   paused: "moh.paused",
+  // The one folder an upload step may take files from; unset, uploads are off.
+  uploadFolder: "moh.uploadFolder",
 }
 
 export async function loadSettings() {

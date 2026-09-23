@@ -22,6 +22,7 @@ import assert from "node:assert/strict"
 import { JSDOM } from "jsdom"
 
 import { closeRun, runStep } from "../driver.js"
+import { fakeStorage } from "./fake-storage.mjs"
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -186,7 +187,7 @@ function browser({ stored = ["allowed.test"] } = {}) {
         return [{ result: result === undefined ? undefined : JSON.parse(JSON.stringify(result)) }]
       },
     },
-    storage: { local: { get: async () => ({ "moh.agent": { allowedHosts: stored } }) } },
+    storage: fakeStorage({ "moh.agent": { allowedHosts: stored } }),
   }
   return state
 }

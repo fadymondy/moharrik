@@ -58,6 +58,13 @@
       </section>
       <p class="hint" id="pause-hint">Paused disconnects this browser. Nothing can be run in it until you switch it back.</p>
 
+      <!-- Stated here rather than discovered later: the banner is the price of
+           input a page treats as real, and there is no supported way to hide it. -->
+      <p class="hint hint--note" id="banner-note">
+        While a task runs, Chrome shows a debugging banner on the tab being driven. That is what lets
+        clicks and typing arrive as real input; it closes when the task finishes.
+      </p>
+
       <p class="hint">This browser only runs the steps its workspace sends, and only on the sites allowed for it.</p>
       <p class="hint" id="hosts"></p>
 
@@ -78,8 +85,8 @@
       <div class="actions">
         <button id="connect" class="btn btn--primary" type="button">Connect to the site</button>
         <button id="reconnect" class="btn" type="button" hidden>Reconnect now</button>
-        <!-- Chrome only grants a site after a click in the browser; this is that click. -->
-        <button id="grant" class="btn" type="button" hidden>Allow the sites this browser may drive</button>
+        <!-- Chrome only grants a site after a click in the browser; this opens the page where that click happens. -->
+        <button id="sites" class="btn" type="button">Sites this browser may drive</button>
         <button id="forget" class="btn" type="button" hidden>Forget this browser</button>
         <!-- The kill switch: stops EVERY browser of the workspace, not just this one. -->
         <button id="halt" class="btn btn--danger" type="button" hidden>Stop all automation</button>

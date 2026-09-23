@@ -53,15 +53,17 @@ test("the zip is the extension, without its test harness, and its checksum is th
 
   const files = unzip(zip)
   const names = Object.keys(files)
-  for (const needed of ["manifest.json", "background.js", "driver.js", "pick.js", "hosts.js", "popup.html", "connect.js", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "icons/icon-128.png"]) {
+  for (const needed of ["manifest.json", "background.js", "driver.js", "pick.js", "hosts.js", "popup.html", "popup.css", "connect.js", "offscreen.html", "offscreen.js", "options.html", "options.js", "driver/cdp.js", "driver/human.js", "driver/locate.js", "driver/extract.js", "driver/run-tabs-core.js", "driver/runs.js", "driver/tabs.js", "fonts/geist-latin-wght-normal.woff2", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "icons/icon-128.png"]) {
     assert.ok(names.includes(needed), `${needed} is shipped`)
   }
   for (const name of names) {
     assert.doesNotMatch(name, /^(node_modules|test|dist)\/|package(-lock)?\.json$|build\.mjs$/, `${name} is harness, not extension`)
   }
   // Every source file is shipped: the exclusions are by rule, not a list of includes.
-  const source = readdirSync(ext).filter((f) => f.endsWith(".js"))
+  const source = [...readdirSync(ext).filter((f) => f.endsWith(".js")), ...readdirSync(path.join(ext, "driver")).map((f) => `driver/${f}`)]
   for (const f of source) assert.ok(names.includes(f), `${f} is missing from the zip`)
+  // The icon generator is a build tool, not part of the extension.
+  assert.ok(!names.includes("make-icons.mjs"))
 
   const shipped = JSON.parse(files["manifest.json"].toString("utf8"))
   assert.deepEqual(shipped.host_permissions, ["https://app.moharrik.com/*"])

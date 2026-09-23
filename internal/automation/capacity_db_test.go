@@ -59,6 +59,15 @@ func testApp(t *testing.T) *app.App {
 	k := togo.New()
 	a := app.New(ctx, k)
 	t.Cleanup(func() { k.Close() })
+	// The app pool is not the kernel's, so closing the kernel leaves it open.
+	// Every test here opens one; left open they add up against a Postgres the
+	// other suites share, and a full run fails with "remaining connection
+	// slots are reserved" in whichever package connects last.
+	t.Cleanup(func() {
+		if a.SQLDB != nil {
+			_ = a.SQLDB.Close()
+		}
+	})
 	return a
 }
 

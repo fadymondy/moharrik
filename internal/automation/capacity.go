@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -167,19 +168,19 @@ func SweepRuns(ctx context.Context, a *app.App, now time.Time) (int, error) {
 
 		// COALESCE(finished_at, created_at): a cancelled run that never started
 		// has no finish time, and would otherwise be kept for ever by a NULL.
+		//
+		// The runs are picked first and their screenshots removed before the
+		// rows go (MH-478): a step's PNG is a picture of a signed-in page, the
+		// most sensitive thing this system holds, and a file with no row left
+		// pointing at it is how such a thing outlives a retention policy.
+		ids, err := expiredRuns(sctx, a, t.id, cutoff)
+		if err != nil || len(ids) == 0 {
+			continue
+		}
+		removeScreenshots(sctx, a, t.id, ids)
 		res, err := a.SQLDB.ExecContext(sctx, `
-			DELETE FROM automation_runs
-			WHERE workspace_id = $1
-			  AND status NOT IN ('queued', 'running')
-			  AND COALESCE(finished_at, created_at) < $2
-			  AND id IN (
-				SELECT id FROM automation_runs
-				WHERE workspace_id = $1
-				  AND status NOT IN ('queued', 'running')
-				  AND COALESCE(finished_at, created_at) < $2
-				ORDER BY created_at
-				LIMIT $3
-			  )`, t.id, cutoff, retentionBatch)
+			DELETE FROM automation_runs WHERE workspace_id = $1 AND id = ANY($2::text[])
+			  AND status NOT IN ('queued', 'running')`, t.id, pgtext.Literal(ids))
 		if err != nil {
 			// One workspace's failure must not stop the others: the sweeper
 			// runs unattended, and a single bad row should not mean nothing is
@@ -227,6 +228,50 @@ func StartRetention(a *app.App, log *slog.Logger) context.CancelFunc {
 		}
 	}()
 	return cancel
+}
+
+// expiredRuns lists a batch of finished runs past the cutoff, oldest first.
+func expiredRuns(ctx context.Context, a *app.App, workspaceID string, cutoff time.Time) ([]string, error) {
+	rows, err := a.SQLDB.QueryContext(ctx, `
+		SELECT id FROM automation_runs
+		WHERE workspace_id = $1
+		  AND status NOT IN ('queued', 'running')
+		  AND COALESCE(finished_at, created_at) < $2
+		ORDER BY created_at
+		LIMIT $3`, workspaceID, cutoff, retentionBatch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// removeScreenshots deletes the stored PNGs of these runs' steps.
+func removeScreenshots(ctx context.Context, a *app.App, workspaceID string, runIDs []string) {
+	if a.Storage == nil {
+		return
+	}
+	rows, err := a.SQLDB.QueryContext(ctx, `
+		SELECT screenshot_path FROM automation_run_steps
+		WHERE workspace_id = $1 AND run_id = ANY($2::text[]) AND screenshot_path <> ''`, workspaceID, pgtext.Literal(runIDs))
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		if rows.Scan(&key) == nil && strings.HasPrefix(key, "automation/"+workspaceID+"/") {
+			_ = a.Storage.Delete(key)
+		}
+	}
 }
 
 // ── claiming a slot ──────────────────────────────────────────────────────
@@ -300,7 +345,9 @@ func (h *Hub) claimSlot(ctx context.Context, a *app.App, workspaceID, agentID, t
 
 	for i, step := range steps {
 		args, _ := json.Marshal(step.Args)
-		if len(args) == 0 {
+		// A step with no arguments (a screenshot) marshals to "null"; it is
+		// stored as an empty object, which is what it means.
+		if len(args) == 0 || string(args) == "null" {
 			args = []byte("{}")
 		}
 		if _, err := tx.ExecContext(ctx, `

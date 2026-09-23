@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import { useEffect, useState } from "react"
 import { ArrowLeftIcon, SquareIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -13,6 +14,7 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type RunStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useRun } from "@/lib/queries"
+import { useWorkspaceEvents } from "@/lib/events"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -24,6 +26,11 @@ export default function RunPage() {
   const detail = useRun(ws.id, id)
   const run = detail.data?.run
   useDocumentTitle(`${t("automation.run")} · ${ws.summary.name}`)
+
+  // Each step lands as it happens (MH-478): the server says a run moved.
+  useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind === "run" || e.kind === "schedule") void detail.mutate()
+  })
 
   const canRun = ws.can("automation:run")
   const live = run?.status === "queued" || run?.status === "running"
@@ -81,7 +88,7 @@ export default function RunPage() {
 
           <ol className="divide-y divide-line border-y border-line">
             {detail.data.steps.map((s) => (
-              <StepRow key={s.position} step={s} />
+              <StepRow key={s.position} step={s} runId={id} workspaceId={ws.id} />
             ))}
           </ol>
         </>
@@ -91,7 +98,44 @@ export default function RunPage() {
   )
 }
 
-function StepRow({ step }: { step: RunStep }) {
+/**
+ * A step's screenshot. Fetched with the workspace header and shown as a blob:
+ * the route is in the workspace tier, which a plain <img src> cannot reach.
+ */
+function StepShot({ runId, position, workspaceId }: { runId: string; position: number; workspaceId: string }) {
+  const { t } = useTranslations()
+  const [src, setSrc] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    let url: string | null = null
+    let alive = true
+    fetch(`/api/w/runs/${encodeURIComponent(runId)}/steps/${position}/screenshot`, {
+      headers: { "X-Workspace-ID": workspaceId },
+      credentials: "same-origin",
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((b) => {
+        url = URL.createObjectURL(b)
+        if (alive) setSrc(url)
+      })
+      .catch(() => alive && setFailed(true))
+    return () => {
+      alive = false
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [runId, position, workspaceId])
+  if (failed) return <p className="mt-2 text-xs text-grid-muted">{t("automation.shotGone")}</p>
+  if (!src) return null
+  return (
+    <a href={src} target="_blank" rel="noreferrer" className="mt-2 block max-w-xl border border-line" data-step-shot={position}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={t("automation.shotAlt", { n: position + 1 })} className="block w-full" />
+    </a>
+  )
+}
+
+function StepRow({ step, runId, workspaceId }: { step: RunStep; runId: string; workspaceId: string }) {
   const { t } = useTranslations()
   return (
     <li className="px-6 py-4" data-step={step.position} data-step-status={step.status}>
@@ -105,7 +149,7 @@ function StepRow({ step }: { step: RunStep }) {
         </Badge>
         {step.duration_ms > 0 ? <span className="text-xs text-grid-muted">{step.duration_ms} ms</span> : null}
       </p>
-      {step.args && step.args !== "{}" ? (
+      {step.args && step.args !== "{}" && step.args !== "null" ? (
         <pre dir="ltr" className="mt-2 overflow-x-auto bg-grid-card px-3 py-2 font-mono text-xs text-grid-muted">
           {step.args}
         </pre>
@@ -115,6 +159,7 @@ function StepRow({ step }: { step: RunStep }) {
           <Bdi>{step.error}</Bdi>
         </p>
       ) : null}
+      {step.has_screenshot ? <StepShot runId={runId} position={step.position} workspaceId={workspaceId} /> : null}
       {step.result ? (
         // Shown exactly as the browser sent it. Pretty-printing it here would
         // be a second representation of the thing whose whole point is that it

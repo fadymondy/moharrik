@@ -73,6 +73,18 @@ export const COMMANDS: Record<string, FieldDef[]> = {
     { name: "attribute", kind: "text" },
     { name: "all", kind: "bool" },
   ],
+  // The runtime's commands (MH-478).
+  wait_for: [
+    { name: "selector", kind: "selector", required: true },
+    { name: "timeout_ms", kind: "number" },
+  ],
+  screenshot: [{ name: "full_page", kind: "bool" }],
+  upload: [
+    { name: "selector", kind: "selector" },
+    { name: "file", kind: "text", required: true },
+  ],
+  eval_readonly: [{ name: "expression", kind: "text", required: true }],
+  release: [],
   close: [],
 }
 

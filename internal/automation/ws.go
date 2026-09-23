@@ -85,6 +85,10 @@ type helloPayload struct {
 	Platform         string `json:"platform"`
 	BrowserVersion   string `json:"browser_version"`
 	ExtensionVersion string `json:"extension_version"`
+	// What this build can do (MH-478): multi_tab, persistent_tabs, cdp. An
+	// older extension sends none and is driven the way it always was.
+	Capabilities []string `json:"capabilities"`
+	TabCapacity  int      `json:"tab_capacity"`
 }
 
 // Handler upgrades the request and runs the browser's pumps.
@@ -108,7 +112,10 @@ func (h *Hub) Handler(a *app.App) http.HandlerFunc {
 		h.log.Info("browser connected", "agent", agent.AgentID, "workspace", agent.WorkspaceID, "name", agent.Name)
 
 		go h.writePump(c)
+		done := make(chan struct{})
+		go h.syncLoop(a, c, done)
 		h.readPump(a, c)
+		close(done)
 	}
 }
 
@@ -171,6 +178,8 @@ func (h *Hub) authenticate(ctx context.Context, a *app.App, ws *websocket.Conn) 
 		agent.Version = hello.ExtensionVersion
 	}
 	agent.ConnectedAt = time.Now().UTC()
+	agent.Capabilities = hello.Capabilities
+	agent.TabCapacity = hello.TabCapacity
 
 	// The browser learns its own identity, and the hosts it may be driven
 	// against: Chrome requires a click per host to grant access, and nobody
@@ -191,6 +200,9 @@ func (h *Hub) authenticate(ctx context.Context, a *app.App, ws *websocket.Conn) 
 	}
 	if latest := LatestExtension(); latest != nil {
 		helloAck["latest_version"] = latest.Version
+	}
+	for k, v := range helloExtras() {
+		helloAck[k] = v
 	}
 	ack, _ := json.Marshal(helloAck)
 	frame, _ := json.Marshal(Envelope{ID: env.ID, Type: "hello.ok", Payload: ack})

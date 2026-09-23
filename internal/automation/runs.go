@@ -45,6 +45,9 @@ type Run struct {
 
 // RunStep is one step and what came back for it.
 type RunStep struct {
+	// A screenshot was kept for this step (MH-478); it is served by
+	// GET /api/w/runs/{id}/steps/{position}/screenshot.
+	HasScreenshot bool `json:"has_screenshot"`
 	Position   int    `json:"position"`
 	Command    string `json:"command"`
 	Args       string `json:"args"`
@@ -190,6 +193,11 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 
 	okCount := 0
 	runErr := ""
+	// The kept site tab this run is bound to, if any (MH-478): decided once,
+	// from the steps, and sent with every step so the browser keeps the run in
+	// that one tab.
+	keptTab := resolvePersistent(steps)
+	var lastCommandAt time.Time
 
 	// stop ends the run at step i: that step failed, and nothing after it runs.
 	// The remaining steps are marked skipped rather than left pending: "pending"
@@ -248,33 +256,53 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 		}
 
 		args, _ := json.Marshal(step.Args)
-		payload, _ := json.Marshal(map[string]any{
+		stepPayload := map[string]any{
 			"command":       step.Command,
 			"args":          json.RawMessage(args),
 			"allowed_hosts": hosts,
 			"step":          i + 1, // 1-based, as a person counts, so the browser can name it
-		})
+		}
+		if keptTab != "" {
+			stepPayload["tab"] = keptTab
+		}
+		payload, _ := json.Marshal(stepPayload)
+
+		// Steps are spaced out, so no workflow can hammer a site faster than a
+		// person could click (fadymondy.com's minCommandGap).
+		if gap := time.Since(lastCommandAt); !lastCommandAt.IsZero() && gap < minCommandGap {
+			time.Sleep(minCommandGap - gap)
+		}
+		lastCommandAt = time.Now()
 
 		started := time.Now()
 		reply, err := h.Call(ctx, workspaceID, agentID, Envelope{Type: "run.step", Run: runID, Payload: payload}, DefaultStepTimeout)
 		duration := int(time.Since(started).Milliseconds())
 
-		status, summary, result, stepErr := "ok", "", "", ""
+		status, summary, result, stepErr, shot := "ok", "", "", "", ""
 		if err != nil {
 			status, stepErr = "failed", err.Error()
 		} else {
 			// Stored as it arrived. A JSON round trip through a Go map reorders
 			// keys and renders numbers differently — the kind of quiet difference
-			// that makes a model's answer unreproducible.
-			result = string(reply.Payload)
-			summary = summarise(reply.Payload)
-			okCount++
+			// that makes a model's answer unreproducible. The one exception is a
+			// screenshot, whose PNG goes to storage rather than into the text.
+			body, key, serr := takeScreenshot(a, workspaceID, runID, i, reply.Payload)
+			if serr != nil {
+				status, stepErr = "failed", serr.Error()
+				err = serr
+			} else {
+				result, shot = string(body), key
+				summary = summarise(body)
+				okCount++
+			}
 		}
 
 		_, _ = a.SQLDB.ExecContext(sctx, `
-			UPDATE automation_run_steps SET status = $4, summary = $5, result = $6, error = $7, duration_ms = $8, updated_at = now()
+			UPDATE automation_run_steps SET status = $4, summary = $5, result = $6, error = $7, duration_ms = $8,
+			    screenshot_path = $9, updated_at = now()
 			WHERE workspace_id = $1 AND run_id = $2 AND position = $3`,
-			workspaceID, runID, i, status, trim(summary, 300), trim(result, 200_000), trim(stepErr, 500), duration)
+			workspaceID, runID, i, status, trim(summary, 300), trim(result, 200_000), trim(stepErr, 500), duration, shot)
+		notifyRun(a, workspaceID)
 
 		// Leaving the allowed sites is not a step that failed; it is the run
 		// breaking the one promise a paired browser makes. It stops the run even

@@ -174,6 +174,7 @@ try {
     name: "MH-422 Chromium", hosts: [ALLOWED],
   })
   const agentID = connected.id
+  out.reportedVersion = (await call("GET", "/api/w/browsers", undefined, workspace.id)).browsers.find((b) => b.id === agentID)?.extension_version
   check("extension paired and connected by itself", online)
   if (!online) throw new Error("the extension never came online")
   check("the browser reports the bumped extension version", out.reportedVersion === version && version.split(".").map(Number).reduce((acc, n) => acc * 1000 + n, 0) >= 1002, {

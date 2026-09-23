@@ -191,6 +191,10 @@ try {
       if (!["queued", "running"].includes(r.run.status)) return r
       await new Promise((res) => setTimeout(res, 1000))
     }
+    out.debugTabs = await worker.evaluate(async () => ({
+      tabs: (await chrome.tabs.query({})).map((t) => [t.id, t.windowId, t.url, t.status, t.active]),
+      store: await chrome.storage.local.get(["moh.runTabs", "moh.automationTabs", "moh.automationWindow", "moh.recording"]),
+    }))
     throw new Error(`run ${runID} did not finish`)
   }
   reports = []

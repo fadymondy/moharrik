@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moharrik — sites</title>
+    <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body class="page">
+    <header class="head">
+      <img class="mark mark--light" src="icons/mark.svg" alt="Moharrik" />
+      <img class="mark mark--dark" src="icons/mark-dark.svg" alt="Moharrik" />
+      <span class="wordmark">Automation · sites</span>
+    </header>
+
+    <main class="body page-body">
+      <section class="block">
+        <h1 class="page-title">Which sites this browser may drive</h1>
+        <p class="hint">
+          Two gates, and both have to open. The workspace lists the sites on its Automation page; Chrome
+          then has to be told, with a click in this browser, that the extension may reach them. Nothing
+          on the website can make that click for you — which is the point.
+        </p>
+      </section>
+
+      <!-- The sites the workspace allowed for this browser, each with its own Allow. -->
+      <section class="block">
+        <span class="label">Allowed for this browser by the workspace</span>
+        <p id="site-hosts-empty" class="hint" hidden>
+          None yet. An admin adds sites to this browser on the workspace's Automation page; they appear here to allow.
+        </p>
+        <ul id="site-hosts" class="list"></ul>
+        <div class="actions actions--inline">
+          <button id="allow-all-listed" class="btn btn--primary" type="button" hidden>Allow all of them</button>
+        </div>
+      </section>
+
+      <!-- The broad switch. Off by default, and said plainly. -->
+      <section class="block">
+        <div class="row row--switch">
+          <label class="label" for="all-sites">Allow on all sites</label>
+          <input id="all-sites" type="checkbox" role="switch" />
+        </div>
+        <p class="hint hint--note">
+          Lets Chrome give the extension every website, including ones you are signed into. The
+          workspace's list still decides where a run may go; this only removes the per-site click.
+          Turning it off takes it back immediately.
+        </p>
+      </section>
+
+      <!-- Any site, by hand. -->
+      <section class="block">
+        <span class="label">Allow another site in Chrome</span>
+        <div class="add">
+          <input id="new-host" type="text" spellcheck="false" placeholder="example.com" dir="ltr" />
+          <button id="add-host" class="btn" type="button">Allow</button>
+        </div>
+        <p id="add-note" class="hint"></p>
+      </section>
+
+      <!-- Uploads: off until the person at this browser names a folder. -->
+      <section class="block">
+        <span class="label">Uploads</span>
+        <p class="hint">
+          A workflow's upload step can only take files from one folder you name here. With none named,
+          uploads are off and nothing on this computer can be sent anywhere.
+        </p>
+        <div class="add">
+          <input id="upload-folder" type="text" spellcheck="false" placeholder="C:\Users\you\Moharrik uploads" dir="ltr" />
+          <button id="save-folder" class="btn" type="button">Save</button>
+          <button id="clear-folder" class="btn" type="button">Turn off</button>
+        </div>
+        <p id="folder-note" class="hint"></p>
+      </section>
+
+      <!-- What Chrome has actually granted, whatever the source. -->
+      <section class="block">
+        <span class="label">Allowed in Chrome right now</span>
+        <ul id="granted" class="list"></ul>
+      </section>
+    </main>
+
+    <script src="options.js" type="module"></script>
+  </body>
+</html>

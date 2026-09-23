@@ -110,6 +110,9 @@ function render(view) {
     state = "paused"
     dot = "dot--off"
     detail = "You paused this browser. Nothing runs in it until you switch it back."
+  } else if (status.state === "connecting") {
+    state = "authenticating"
+    dot = "dot--wait"
   } else if (status.state === "connected") {
     state = "connected"
     dot = "dot--on"
@@ -123,7 +126,8 @@ function render(view) {
     state = "disconnected"
     dot = "dot--off"
     bad = true
-    detail = status.error ? `Cannot reach ${host}: ${status.error}.` : `Cannot reach ${host}. Retrying.`
+    detail = status.error ? `Cannot reach ${host}: ${status.error}.` : `Cannot reach ${host}.`
+    if (status.retryInMs) detail += ` Retrying in ${Math.max(1, Math.round(status.retryInMs / 1000))}s.`
   }
 
   $("state").textContent = state
@@ -161,7 +165,7 @@ function render(view) {
   $("connect").hidden = paired || waiting
   $("connect").textContent = pairing && !waiting ? "Connect again" : "Connect to the site"
   $("reconnect").hidden = !paired || paused || status.state === "connected"
-  $("grant").hidden = !paired || hosts.length === 0
+  $("banner-note").hidden = !paired
   $("forget").hidden = !paired
   // Travels over the socket, so offered only while connected.
   $("halt").hidden = !(paired && status.state === "connected" && !paused)
@@ -248,19 +252,8 @@ $("pause").addEventListener("change", async (event) => {
   refresh()
 })
 
-$("grant").addEventListener("click", () => {
-  // Chrome requires a click for each site, and this is that click. Asking for
-  // exactly the allowed sites — never every site — keeps the extension to
-  // what the workspace already said it may reach.
-  const hosts = (lastView?.agent?.allowedHosts || []).filter(Boolean)
-  if (!hosts.length) return
-  const origins = hosts.flatMap((h) => [`https://${h}/*`, `http://${h}/*`, `https://*.${h}/*`])
-  chrome.permissions
-    .request({ origins })
-    .then((granted) => {
-      if (!granted) say("Without those sites this browser cannot run anything on them.")
-    })
-    .catch((e) => say(String(e?.message || e)))
+$("sites").addEventListener("click", () => {
+  void chrome.runtime.openOptionsPage()
 })
 
 $("forget").addEventListener("click", async () => {

@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs"
 import { JSDOM } from "jsdom"
 
 import { parseKey, pressInPage, runStep, scrollInPage, selectInPage } from "../driver.js"
+import { fakeStorage } from "./fake-storage.mjs"
 
 const here = (p) => new URL(p, import.meta.url)
 const FIXTURE = readFileSync(here("./fixtures/replay.html"), "utf8")
@@ -62,7 +63,9 @@ function browser(html = FIXTURE) {
   const TAB = 7
   const load = (url) => {
     state.window = page(html, url)
-    state.loads++
+    // The run's tab opens blank in the automation window (MH-478) before its
+    // first navigation; only real page loads are counted.
+    if (!/^about:blank/.test(url)) state.loads++
     setTimeout(() => [...listeners].forEach((fn) => fn(TAB, { status: "complete" })), 5)
   }
   globalThis.chrome = {
@@ -78,7 +81,7 @@ function browser(html = FIXTURE) {
     },
     // The allow-list the browser was given at connect (MH-422): these steps
     // carry none of their own, and an empty list allows nothing.
-    storage: { local: { get: async () => ({ "moh.agent": { allowedHosts: ["127.0.0.1"] } }) } },
+    storage: fakeStorage({ "moh.agent": { allowedHosts: ["127.0.0.1"] } }),
   }
   return state
 }

@@ -726,6 +726,8 @@ export type AutomationSettings = {
 }
 
 export type RunStep = {
+  /** A screenshot was kept for this step (MH-478). */
+  has_screenshot?: boolean
   position: number
   command: string
   args: string

@@ -1,0 +1,79 @@
+/* The Sites page (MH-478, after fadymondy.com FM-97): the popup's palette and type, laid out for a full tab. */
+
+body.page {
+  width: auto;
+  min-height: 100vh;
+}
+
+.page-body {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  gap: 20px;
+}
+
+.page-title {
+  margin: 0 0 6px;
+  color: var(--foreground);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.list .state {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.list .state--ok {
+  color: var(--ok);
+}
+
+.add {
+  display: flex;
+  gap: 8px;
+}
+
+.add input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--card);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.add input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+}

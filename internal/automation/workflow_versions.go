@@ -78,6 +78,8 @@ var knownCommands = map[string]bool{
 	"click": true, "type": true, "fill": true,
 	"press": true, "key": true, "select": true, "scroll": true,
 	"extract": true, "read": true, "wait": true, "close": true,
+	// The runtime's commands (MH-478, fadymondy.com's FM-91 set).
+	"wait_for": true, "upload": true, "screenshot": true, "eval_readonly": true, "release": true,
 }
 
 var paramNameRE = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)

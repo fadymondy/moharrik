@@ -205,6 +205,9 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, err
 		}
+		// The browser's popup and Sites page learn the change now, not at its
+		// next reconnect (MH-478). Every step carries the list regardless.
+		PushAgentUpdate(ctx, a, hub, s.WorkspaceID, in.ID)
 		return out(struct {
 			Browser AgentOut `json:"browser"`
 		}{got}), nil
@@ -402,7 +405,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		r.StartedAt, r.FinishedAt = timep(started), timep(finished)
 
 		rows, err := db().QueryContext(ctx, `
-			SELECT position, command, args::text, status, summary, result, error, duration_ms
+			SELECT position, command, args::text, status, summary, result, error, duration_ms, screenshot_path <> ''
 			FROM automation_run_steps WHERE workspace_id = $1 AND run_id = $2 ORDER BY position`,
 			s.WorkspaceID, in.ID)
 		if err != nil {
@@ -412,7 +415,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		steps := []RunStep{}
 		for rows.Next() {
 			var st RunStep
-			if err := rows.Scan(&st.Position, &st.Command, &st.Args, &st.Status, &st.Summary, &st.Result, &st.Error, &st.DurationMS); err != nil {
+			if err := rows.Scan(&st.Position, &st.Command, &st.Args, &st.Status, &st.Summary, &st.Result, &st.Error, &st.DurationMS, &st.HasScreenshot); err != nil {
 				return nil, huma.Error500InternalServerError("could not read the steps")
 			}
 			steps = append(steps, st)
