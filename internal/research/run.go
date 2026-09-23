@@ -193,7 +193,14 @@ func (e *Engine) execute(a *app.App, workspaceID, runID, topic string) {
 		UPDATE research_runs SET status = 'running', started_at = now(), updated_at = now()
 		WHERE workspace_id = $1 AND id = $2 AND status = 'queued'`, workspaceID, runID)
 
-	findings, err := e.Search.Search(ctx, topic, MaxFindings)
+	// What is actually searched is recorded on the run (MH-466): the question
+	// is planned into phrases, keywords and variants, and "why did it find
+	// that?" should be answerable from the page.
+	plan := PlanQuery(topic)
+	_, _ = a.SQLDB.ExecContext(sctx, `UPDATE research_runs SET query = $3, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, runID, trim(plan.Summary(), 1000))
+
+	findings, err := e.Search.SearchPlan(ctx, plan, MaxFindings)
 	if err != nil {
 		e.finish(sctx, a, workspaceID, runID, "failed", err.Error(), "", "", 0, 0)
 		return
