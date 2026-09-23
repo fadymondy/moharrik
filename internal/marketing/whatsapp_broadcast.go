@@ -243,7 +243,7 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 	var listID, bodyText, locale string
 	err := a.SQLDB.QueryRowContext(ctx, `
 		UPDATE campaigns SET status = 'sending', sent_count = 0, failed_count = 0, last_error = '', updated_at = now()
-		WHERE workspace_id = $1 AND id = $2 AND channel = 'whatsapp' AND status IN ('draft', 'failed')
+		WHERE workspace_id = $1 AND id = $2 AND channel = 'whatsapp' AND `+claimable+`
 		RETURNING list_id, body, locale`, wsID, campaignID).Scan(&listID, &bodyText, &locale)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotSendable
@@ -269,7 +269,8 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 		lastErr := ""
 
 		for i, r := range audience {
-			text := bodyText + "\n\n" + stopHint(locale)
+			// The same text the preview shows (campaign_edit.go).
+			text := WhatsAppText(locale, bodyText)
 			if _, err := whatsapp.Send(bg, a, wsID, r.Phone, text); err != nil {
 				failed++
 				lastErr = err.Error()
