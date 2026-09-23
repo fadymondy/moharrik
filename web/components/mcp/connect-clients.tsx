@@ -7,14 +7,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTranslations } from "@/lib/i18n"
 
 /**
- * How to connect each MCP client to this workspace (MH-396).
+ * How to connect each MCP client to this workspace (MH-396, MH-391).
  *
- * Moharrik's MCP authenticates with a bearer token, so each client is told how
- * to send one. Where a client cannot send a token at all (ChatGPT only speaks
- * OAuth or no auth), the page says so instead of giving steps that cannot work.
- * `token` is the real plaintext right after creating one, a placeholder otherwise.
+ * claude.ai and ChatGPT connect by URL and sign in with OAuth: no token is
+ * pasted, the member picks the workspace on Moharrik's consent page. Claude
+ * Code, Claude Desktop and Cursor are told how to send a pasted token.
+ * `token` is the real plaintext right after creating one, a placeholder
+ * otherwise; `oauthUrl` is the server's canonical URL (the OAuth audience).
  */
-export function ConnectClients({ url, token }: { url: string; token?: string }) {
+export function ConnectClients({ url, token, oauthUrl }: { url: string; token?: string; oauthUrl?: string }) {
   const { t } = useTranslations()
   const tok = token ?? "<your token>"
 
@@ -67,17 +68,22 @@ export function ConnectClients({ url, token }: { url: string; token?: string }) 
         <Step n={3}>{t("mcp.client.claudeDesktop.step3")}</Step>
       </TabsContent>
 
-      <TabsContent value="claude-ai" className="space-y-3">
+      <TabsContent value="claude-ai" className="space-y-3" data-connect-oauth="claude-ai">
+        <Note>{t("mcp.client.oauthNote")}</Note>
         <Step n={1}>{t("mcp.client.claudeAi.step1")}</Step>
         <Step n={2}>{t("mcp.client.claudeAi.step2")}</Step>
-        <CopyField value={url} label={t("mcp.client.serverUrl")} />
+        <CopyField value={oauthUrl ?? url} label={t("mcp.client.serverUrl")} />
         <Step n={3}>{t("mcp.client.claudeAi.step3")}</Step>
-        <CopyField value={`Bearer ${tok}`} label="authorization" />
-        <Note>{t("mcp.client.claudeAi.note")}</Note>
+        <Step n={4}>{t("mcp.client.claudeAi.step4")}</Step>
       </TabsContent>
 
-      <TabsContent value="chatgpt" className="space-y-3">
-        <Note>{t("mcp.client.chatgpt.body")}</Note>
+      <TabsContent value="chatgpt" className="space-y-3" data-connect-oauth="chatgpt">
+        <Note>{t("mcp.client.oauthNote")}</Note>
+        <Step n={1}>{t("mcp.client.chatgpt.step1")}</Step>
+        <Step n={2}>{t("mcp.client.chatgpt.step2")}</Step>
+        <CopyField value={oauthUrl ?? url} label={t("mcp.client.serverUrl")} />
+        <Step n={3}>{t("mcp.client.chatgpt.step3")}</Step>
+        <Step n={4}>{t("mcp.client.claudeAi.step4")}</Step>
       </TabsContent>
 
       <TabsContent value="cursor" className="space-y-3">

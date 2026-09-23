@@ -237,6 +237,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterPick(api, a, automation.Default())
 	research.Register(api, a, researchEngine)
 	mcp.RegisterTokenRoutes(api, a)
+	mcp.RegisterGrantRoutes(api, a) // connected apps over OAuth (MH-391)
 	google.Register(api, a)
 	alerts.Register(api, a)
 	overview.Register(api, a)      // the workspace front page (MH-462)

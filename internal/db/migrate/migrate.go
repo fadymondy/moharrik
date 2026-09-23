@@ -35,6 +35,7 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"youtube_channels", "youtube_videos", "youtube_comments", "youtube_analytics",
 	"gsc_url_inspections", "youtube_report_jobs", "youtube_reports",
 	"whatsapp_sends", "whatsapp_confirmations",
+	"oauth_grants",   // connected apps (MH-391)
 	"audit_settings", // audit log retention (MH-392)
 }
 

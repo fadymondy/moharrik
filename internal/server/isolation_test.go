@@ -413,7 +413,28 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatalf("the schedule list handed back a secret value: %s", b)
 	}
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID}
+	// A connected app in A (MH-391): an OAuth client and a grant bound to A,
+	// inserted directly — approving one needs the consent flow, which
+	// oauth_test.go drives. Its routes (/api/w/oauth_grants) are swept below
+	// like every other, and A's audit log (MH-392, /api/w/audit) — which by now
+	// holds rows naming A's marker — is too.
+	oauthClientID := "mhc_iso" + rnd()
+	if _, err := a.SysDB.Exec(`INSERT INTO oauth_clients (id, client_name, redirect_uris) VALUES ($1, $2, '["https://iso.test/cb"]')`, oauthClientID, marker+" Connector"); err != nil {
+		t.Fatal(err)
+	}
+	var grantID string
+	if err := a.SysDB.QueryRow(`INSERT INTO oauth_grants (workspace_id, user_id, client_id, client_name, scopes, resource, activated_at)
+		SELECT $1, user_id, $2, $3, 'members:read', 'x', now() FROM workspace_members WHERE workspace_id = $1 LIMIT 1 RETURNING id`,
+		aID, oauthClientID, marker+" Connector").Scan(&grantID); err != nil {
+		t.Fatal(err)
+	}
+	var auditRowsA int
+	_ = a.SysDB.QueryRow(`SELECT count(*) FROM audit_log WHERE workspace_id = $1`, aID).Scan(&auditRowsA)
+	if auditRowsA == 0 {
+		t.Fatal("A's setup left no audit rows: the audit sweep below would prove nothing")
+	}
+
+	aIDs := []string{aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -426,6 +447,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"topics": kwID, "feed_sources": feedID, "news": newsID, "trends": trendID,
 		"browsers": agentID, "workflows": wfID, "schedules": schedID,
 		"canned_replies": cannedID,
+		"oauth_grants":   grantID,
 	}
 
 	leaks := func(b []byte) string {
@@ -512,6 +534,11 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	t.Logf("swept %d guarded routes x 3 callers", swept)
 
 	// ---- A survived every write attempt -------------------------------------
+	var grantRevoked any
+	_ = a.SysDB.QueryRow(`SELECT revoked_at FROM oauth_grants WHERE id = $1`, grantID).Scan(&grantRevoked)
+	if grantRevoked != nil {
+		t.Error("B's sweep revoked A's connected app")
+	}
 	alice.ws = aID
 	if code, b := alice.do("GET", "/api/w/invitations", nil); code != 200 || !strings.Contains(string(b), invID) {
 		t.Errorf("A's invitation was removed from B: %d %s", code, b)

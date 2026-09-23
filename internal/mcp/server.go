@@ -57,6 +57,9 @@ type server struct {
 	// auth resolves the bearer token to a context carrying the caller and the
 	// scopes in effect. ok=false => 401.
 	auth func(r *http.Request, a *app.App, token string) (ctx context.Context, scopes []string, ok bool)
+	// challenge is the WWW-Authenticate value on a 401; nil means a plain
+	// Bearer realm. presented says whether a token was sent at all.
+	challenge func(presented bool) string
 }
 
 type rpcRequest struct {
@@ -81,7 +84,9 @@ type rpcResponse struct {
 // Mount registers both MCP endpoints on the kernel router, rate-limited per
 // token when the ratelimit plugin is installed.
 func Mount(k *togo.Kernel, a *app.App, researchEngine *research.Engine) {
-	user := &server{name: "moharrik-mcp", tools: UserTools(researchEngine), auth: authUser}
+	// A pasted mhr_ token or an OAuth access token (MH-391); the 401 points an
+	// OAuth client at the protected-resource metadata.
+	user := &server{name: "moharrik-mcp", tools: UserTools(researchEngine), auth: authUserOrOAuth, challenge: bearerChallenge}
 	admin := &server{name: "moharrik-admin-mcp", tools: AdminTools(), auth: authAdmin}
 
 	wrap := func(h http.Handler) http.Handler { return h }
@@ -95,6 +100,7 @@ func Mount(k *togo.Kernel, a *app.App, researchEngine *research.Engine) {
 		})
 	}
 	k.Router.Handle("/api/mcp", wrap(user.handler(a)))
+	MountOAuth(k, a) // OAuth 2.1 for connectors (MH-391)
 	k.Router.Handle("/api/admin/mcp", wrap(admin.handler(a)))
 }
 
@@ -114,9 +120,14 @@ func (s *server) handler(a *app.App) http.Handler {
 				Error: &rpcError{Code: -32600, Message: "use POST"}})
 			return
 		}
-		ctx, scopes, ok := s.auth(req, a, bearer(req))
+		token := bearer(req)
+		ctx, scopes, ok := s.auth(req, a, token)
 		if !ok {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="`+s.name+`"`)
+			if s.challenge != nil {
+				w.Header().Set("WWW-Authenticate", s.challenge(token != ""))
+			} else {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="`+s.name+`"`)
+			}
 			writeRPC(w, http.StatusUnauthorized, rpcResponse{JSONRPC: "2.0",
 				Error: &rpcError{Code: -32001, Message: "invalid or missing MCP token"}})
 			return

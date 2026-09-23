@@ -39,6 +39,7 @@ import {
   type Invitation,
   type McpScope,
   type McpToken,
+  type OAuthGrant,
   type AuditEntry,
   type AuditFacets,
   type Member,
@@ -121,6 +122,10 @@ export const useInvitations = (id?: string | null, enabled = true) =>
 
 export const useMcpTokens = (id?: string | null) =>
   useScoped<{ tokens: McpToken[] | null; scopes: McpScope[] | null; all?: boolean }>("/api/w/mcp_tokens", id)
+
+/** Apps connected over OAuth (MH-391), and the URL a connector is added by. */
+export const useOAuthGrants = (id?: string | null) =>
+  useScoped<{ grants: OAuthGrant[] | null; all?: boolean; server_url: string }>("/api/w/oauth_grants", id)
 
 export type AuditQuery = { actor?: string; actorKind?: string; entityType?: string; action?: string; from?: string; to?: string; cursor?: string; limit?: number }
 

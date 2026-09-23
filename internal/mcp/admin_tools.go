@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
-	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 )
 

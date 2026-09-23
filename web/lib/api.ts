@@ -181,6 +181,33 @@ export type McpToken = {
 
 export type McpScope = { scope: string; description: string; min_role: Role; allowed: boolean }
 
+/** A connected app (MH-391): a client that signed in over OAuth, bound to one workspace. */
+export type OAuthGrant = {
+  id: string
+  client_id: string
+  client_name: string
+  client_uri: string
+  user_id: string
+  user_email: string
+  mine: boolean
+  scopes: string[]
+  last_used_at: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
+/** What the OAuth consent page is asked to approve (MH-391). */
+export type ConsentRequest = {
+  client: { id: string; name: string; uri: string; metadata_document: boolean }
+  redirect_uri: string
+  redirect_host: string
+  loopback_redirect: boolean
+  requested_scopes: { scope: string; description: string; min_role: Role }[]
+  workspaces: { id: string; slug: string; name: string; role: Role; allowed_scopes: string[] }[]
+  resource: string
+  access_ttl_seconds: number
+}
+
 /** One row of the audit log (MH-392). */
 export type AuditEntry = {
   id: string

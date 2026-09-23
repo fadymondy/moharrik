@@ -76,6 +76,16 @@ func classify(r *http.Request) tier {
 		return tierPublic
 	case "/api/invitations/accept":
 		return tierSignedIn
+	// OAuth for MCP (MH-391). Registration, the token endpoint and revocation
+	// are anonymous by specification: a client authenticates to them itself
+	// (PKCE, its secret or its signed assertion), and nothing they hand out
+	// exists until a member consented. The consent page's two calls need a
+	// session but no X-Workspace-ID — the member picks the workspace there,
+	// and the handler checks their membership and role in the one they picked.
+	case "/api/oauth/register", "/api/oauth/token", "/api/oauth/revoke":
+		return tierPublic
+	case "/api/oauth/authorize/request", "/api/oauth/authorize/decision":
+		return tierSignedIn
 	// Google's redirect back after a workspace connects an account (MH-439).
 	// No X-Workspace-ID: the workspace comes from the single-use state row.
 	// But not public: the callback must come back to the SAME signed-in user

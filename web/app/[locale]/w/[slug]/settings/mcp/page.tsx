@@ -23,11 +23,12 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
 import Link from "next/link"
 import { ConnectClients } from "@/components/mcp/connect-clients"
+import { ConnectedApps } from "@/components/mcp/connected-apps"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type McpScope, type McpToken } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useMcpTokens } from "@/lib/queries"
+import { useMcpTokens, useOAuthGrants } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -38,6 +39,9 @@ export default function McpTokensPage() {
   const ws = useWorkspace()
   useDocumentTitle(`${t("nav.mcpTokens")} · ${ws.summary.name}`)
   const tokens = useMcpTokens(ws.id)
+  const grants = useOAuthGrants(ws.id)
+  // The server's canonical URL: what claude.ai and ChatGPT are given (MH-391).
+  const oauthUrl = grants.data?.server_url
   // Owners and admins can open each token's calls in the audit log (MH-392).
   const auditHref = ws.can("audit:read") ? (actor: string) => `/${locale}/w/${ws.summary.slug}/settings/audit?actor=${encodeURIComponent(actor)}` : undefined
   const [creating, setCreating] = useState(false)
@@ -102,6 +106,8 @@ export default function McpTokensPage() {
         </div>
       )}
 
+      <ConnectedApps grants={grants} />
+
       <section className="border-t border-line px-6 py-8" aria-labelledby="mcp-connect">
         <div className="mb-4 max-w-2xl space-y-1.5">
           <h2 id="mcp-connect" className="grid-title text-lg">
@@ -110,7 +116,7 @@ export default function McpTokensPage() {
           <p className="grid-body text-sm">{t("mcp.connectHint")}</p>
         </div>
         <div className="max-w-3xl">
-          <ConnectClients url={`${MCP_ORIGIN}/api/mcp`} />
+          <ConnectClients url={`${MCP_ORIGIN}/api/mcp`} oauthUrl={oauthUrl} />
         </div>
       </section>
 
