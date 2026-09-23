@@ -24,12 +24,46 @@ type Target = { contact_id?: string; company_id?: string; deal_id?: string }
  * A record's timeline: a composer (note / call / meeting / task) and the history,
  * open tasks first. Used by the contact, company and deal pages.
  */
-export function Timeline({ items, target, onChange }: { items: Activity[]; target: Target; onChange: () => void }) {
-  const { t } = useTranslations()
+export function Timeline({
+  items,
+  total,
+  nextCursor,
+  target,
+  onChange,
+}: {
+  items: Activity[]
+  /** Every entry on the timeline; more than items.length means older ones are behind nextCursor. */
+  total: number
+  nextCursor: string
+  target: Target
+  onChange: () => void
+}) {
+  const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const canWrite = ws.can("contacts:write")
-  const open = items.filter((a) => a.kind === "task" && !a.done_at)
-  const rest = items.filter((a) => !(a.kind === "task" && !a.done_at))
+  // Older pages, fetched on demand (MH-467: the timeline used to stop at the newest 500). They
+  // belong to one first page: when it is refetched (an entry added or changed), they are dropped.
+  const [older, setOlder] = useState<{ from: string; items: Activity[]; cursor: string }>({ from: nextCursor, items: [], cursor: nextCursor })
+  const [loading, setLoading] = useState(false)
+  const fresh = older.from === nextCursor ? older : { from: nextCursor, items: [], cursor: nextCursor }
+  const all = [...items, ...fresh.items.filter((a) => !items.some((b) => b.id === a.id))]
+  const open = all.filter((a) => a.kind === "task" && !a.done_at)
+  const rest = all.filter((a) => !(a.kind === "task" && !a.done_at))
+
+  async function loadOlder() {
+    if (!fresh.cursor) return
+    setLoading(true)
+    try {
+      const qs = new URLSearchParams(Object.entries(target).filter(([, v]) => !!v) as [string, string][])
+      qs.set("cursor", fresh.cursor)
+      const page = await api<{ activities: Activity[]; next_cursor: string }>(`/api/w/activities?${qs}`, { workspaceId: ws.id })
+      setOlder({ from: nextCursor, items: [...fresh.items, ...page.activities], cursor: page.next_cursor })
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <section data-timeline>
@@ -47,7 +81,7 @@ export function Timeline({ items, target, onChange }: { items: Activity[]; targe
         </>
       ) : null}
       <p className="grid-micro px-6 pt-4 pb-2">{t("timeline.history")}</p>
-      {rest.length === 0 ? (
+      {rest.length === 0 && !fresh.cursor ? (
         <EmptyState title={t("timeline.empty")} body={canWrite ? t("timeline.emptyBody") : undefined} />
       ) : (
         <ul className="divide-y divide-line border-y border-line">
@@ -56,6 +90,18 @@ export function Timeline({ items, target, onChange }: { items: Activity[]; targe
           ))}
         </ul>
       )}
+      {total > items.length ? (
+        <div className="flex flex-wrap items-center gap-3 px-6 pt-4" data-timeline-more>
+          <span className="text-sm text-grid-muted" data-timeline-shown={`${all.length}/${total}`}>
+            {t("timeline.showing", { shown: formatNumber(all.length), total: formatNumber(total) })}
+          </span>
+          {fresh.cursor ? (
+            <Button variant="outline" size="sm" onClick={loadOlder} disabled={loading} data-timeline-load-older>
+              {loading ? t("common.working") : t("timeline.loadOlder")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   )
 }

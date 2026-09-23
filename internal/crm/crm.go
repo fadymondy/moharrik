@@ -79,7 +79,13 @@ type StageOut struct {
 	Kind       string `json:"kind"`
 	DealCount  int64  `json:"deal_count"`
 	ValueMinor int64  `json:"value_minor"`
+	// Board view only: the stage has more deals than were sent; pass this as
+	// cursor with stage_id for the next ones.
+	NextCursor string `json:"next_cursor,omitempty"`
 }
+
+// ErrNoSuchStage is a stage_id this workspace's pipeline does not have.
+var ErrNoSuchStage = errors.New("stage not found")
 
 type DealOut struct {
 	ID            string      `json:"id"`

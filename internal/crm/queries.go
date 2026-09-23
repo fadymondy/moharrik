@@ -5,6 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
+	"time"
+
+	"github.com/fadymondy/moharrik/internal/paging"
 )
 
 type scanner interface{ Scan(dest ...any) error }
@@ -54,7 +58,10 @@ func EnsureStages(ctx context.Context, db *sql.DB, wsID string) error {
 
 func listStages(ctx context.Context, db *sql.DB, wsID string) ([]StageOut, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT st.id, st.name, st.position, st.kind, count(d.id), coalesce(sum(d.value_minor), 0)
+		SELECT st.id, st.name, st.position, st.kind, count(d.id),
+		       -- The column total the board shows: in the workspace's currency only, as the
+		       -- board always summed it. The whole stage, not just the cards sent (MH-467).
+		       coalesce(sum(d.value_minor) FILTER (WHERE d.currency = (SELECT currency FROM workspaces WHERE id = $1)), 0)
 		FROM pipeline_stages st
 		LEFT JOIN deals d ON d.workspace_id = st.workspace_id AND d.stage_id = st.id
 		WHERE st.workspace_id = $1
@@ -76,15 +83,16 @@ func listStages(ctx context.Context, db *sql.DB, wsID string) ([]StageOut, error
 
 // ---- deals ----------------------------------------------------------------
 
-const dealSelect = `
-	SELECT d.id, d.title, d.value_minor, d.currency, d.stage_id, st.name, st.kind, d.position,
+const (
+	dealCols = `d.id, d.title, d.value_minor, d.currency, d.stage_id, st.name, st.kind, d.position,
 	       d.contact_id, ct.email, ct.name, ct.title, d.company_id, co.name,
-	       d.owner_user_id, d.expected_close, d.closed_at, d.created_at
-	FROM deals d
+	       d.owner_user_id, d.expected_close, d.closed_at, d.created_at`
+	dealJoins = `
 	JOIN pipeline_stages st ON st.workspace_id = d.workspace_id AND st.id = d.stage_id
 	LEFT JOIN contacts ct ON ct.workspace_id = d.workspace_id AND ct.id = d.contact_id
-	LEFT JOIN companies co ON co.workspace_id = d.workspace_id AND co.id = d.company_id
-	WHERE d.workspace_id = $1`
+	LEFT JOIN companies co ON co.workspace_id = d.workspace_id AND co.id = d.company_id`
+	dealSelect = `SELECT ` + dealCols + ` FROM deals d ` + dealJoins + ` WHERE d.workspace_id = $1`
+)
 
 func scanDeal(r scanner) (DealOut, error) {
 	var d DealOut
@@ -105,10 +113,23 @@ func scanDeal(r scanner) (DealOut, error) {
 	return d, nil
 }
 
-// listDeals returns the workspace's deals; `where` narrows with $2 (e.g. "AND d.contact_id = $2").
-func listDeals(ctx context.Context, db *sql.DB, wsID, where string, args ...any) ([]DealOut, error) {
-	rows, err := db.QueryContext(ctx, dealSelect+" "+where+" ORDER BY st.position, d.position, d.created_at LIMIT 2000",
-		append([]any{wsID}, args...)...)
+// MaxRelatedDeals bounds the deals a contact or company page lists. It is not
+// silent: the page carries deals_total and says "Showing X of N" past it.
+const MaxRelatedDeals = 500
+
+// relatedDeals lists one record's deals; `where` narrows with $2 (e.g. "AND d.contact_id = $2").
+// It returns the total as well, so a caller past MaxRelatedDeals can say so.
+func relatedDeals(ctx context.Context, db *sql.DB, wsID, where, id string) ([]DealOut, int64, error) {
+	var total int64
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM deals d WHERE d.workspace_id = $1 `+where, wsID, id).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	list, err := queryDeals(ctx, db, dealSelect+" "+where+" ORDER BY st.position, st.id, d.position, d.id LIMIT $3", wsID, id, MaxRelatedDeals)
+	return list, total, err
+}
+
+func queryDeals(ctx context.Context, db *sql.DB, q string, args ...any) ([]DealOut, error) {
+	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -261,23 +282,52 @@ const (
 	timelineDeal = `AND a.deal_id = $2`
 )
 
-// timeline lists newest first; open tasks are not buried under later notes
-// because the UI groups them separately.
-func timeline(ctx context.Context, db *sql.DB, wsID, where, id string) ([]ActivityOut, error) {
-	rows, err := db.QueryContext(ctx, activitySelect+" "+where+" ORDER BY a.created_at DESC LIMIT 500", wsID, id)
+// timelinePage is one page of a record's timeline, newest first (MH-467: it
+// used to be the newest 500 and nothing else). Keyset on (created_at, id), so a
+// note added while somebody reads does not shift the next page. Open tasks are
+// not buried under later notes because the UI groups them separately.
+func timelinePage(ctx context.Context, db *sql.DB, wsID, where, id, after string, limit int) (*ActivityPage, error) {
+	cur, err := paging.Decode(after, 2)
+	if err != nil {
+		return nil, err
+	}
+	page := &ActivityPage{Activities: []ActivityOut{}, Limit: limit}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM activities a WHERE a.workspace_id = $1 `+where, wsID, id).Scan(&page.Total); err != nil {
+		return nil, err
+	}
+	args := []any{wsID, id}
+	q := activitySelect + " " + where
+	if cur != nil {
+		us, err := strconv.ParseInt(cur[0], 10, 64)
+		if err != nil {
+			return nil, paging.ErrBadCursor
+		}
+		args = append(args, time.UnixMicro(us).UTC(), cur[1])
+		q += ` AND (a.created_at, a.id) < ($3, $4)`
+	}
+	args = append(args, limit+1)
+	q += ` ORDER BY a.created_at DESC, a.id DESC LIMIT $` + strconv.Itoa(len(args))
+	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	list := []ActivityOut{}
 	for rows.Next() {
 		a, err := scanActivity(rows)
 		if err != nil {
 			return nil, err
 		}
-		list = append(list, a)
+		page.Activities = append(page.Activities, a)
 	}
-	return list, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(page.Activities) > limit {
+		page.Activities = page.Activities[:limit]
+		last := page.Activities[limit-1]
+		page.NextCursor = paging.Encode(strconv.FormatInt(last.CreatedAt.UnixMicro(), 10), last.ID)
+	}
+	return page, nil
 }
 
 func getActivity(ctx context.Context, db *sql.DB, wsID, id string) (*ActivityOut, error) {

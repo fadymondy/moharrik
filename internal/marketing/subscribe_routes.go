@@ -155,6 +155,7 @@ func inquirySnippet(key string) string {
   <input type="email" name="email" required autocomplete="email" placeholder="Email">
   <input type="tel" name="phone" autocomplete="tel" placeholder="Phone (optional)">
   <input type="text" name="company" autocomplete="organization" placeholder="Company (optional)">
+  <input type="text" name="budget" inputmode="decimal" maxlength="80" placeholder="Budget (optional)">
   <textarea name="message" required rows="4" placeholder="How can we help?"></textarea>
   <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden">
     <label>Leave this empty <input type="text" name="nickname" tabindex="-1" autocomplete="off"></label>
@@ -177,7 +178,7 @@ func inquirySnippet(key string) string {
     e.preventDefault();
     var d = new FormData(f), msg = f.querySelector("[data-message]"), btn = f.querySelector("button");
     var body = { locale: (document.documentElement.lang || "en").slice(0, 2) };
-    ["name", "email", "phone", "company", "message", "nickname"].forEach(function (k) { body[k] = String(d.get(k) || "").trim(); });
+    ["name", "email", "phone", "company", "budget", "message", "nickname"].forEach(function (k) { body[k] = String(d.get(k) || "").trim(); });
     F.concat(["referrer", "landing_page"]).forEach(function (k) { body[k] = String(a[k] || "").slice(0, 2000); });
     btn.disabled = true;
     fetch("` + InquiryEndpoint(key) + `", {

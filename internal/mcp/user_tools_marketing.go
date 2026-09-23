@@ -9,6 +9,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/marketing"
+	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -64,42 +65,47 @@ func MarketingTools() []Tool {
 			},
 		},
 		{
-			Name:        "list_campaigns",
-			Description: "Email campaigns and their delivery progress.",
-			Scope:       "campaigns:read",
-			InputSchema: schema(nil, map[string]any{}),
-			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
+			// MH-467: this stopped at 200 campaigns without saying so. It now
+			// reads through marketing.ListCampaignsPage, the page the campaigns
+			// screen uses, and says how many there are and how to get more.
+			Name: "list_campaigns",
+			Description: "Campaigns and their delivery progress, newest first, one page at a time. " +
+				"The reply says how many there are in total; pass its cursor to get the next page.",
+			Scope: "campaigns:read",
+			InputSchema: schema(nil, map[string]any{
+				"cursor": prop("string", "The cursor from the previous reply, for the next page"),
+				"limit":  prop("number", "Page size, default 50, at most 200"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
 				if !ok {
 					return "", errNotFound
 				}
-				rows, err := a.SQLDB.QueryContext(ctx, `
-					SELECT c.subject, l.name, c.status, c.recipient_count, c.sent_count, c.failed_count
-					FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
-					WHERE c.workspace_id = $1 ORDER BY c.created_at DESC LIMIT 200`, s.WorkspaceID)
+				args := decodeArgs(raw)
+				limit, err := paging.Limit(intArg(args, "limit", 0), marketing.DefaultCampaignPage, marketing.MaxCampaignPage)
+				if err != nil {
+					return "", err
+				}
+				page, err := marketing.ListCampaignsPage(ctx, a.SQLDB, s.WorkspaceID, str(args, "cursor"), limit)
 				if err != nil {
 					return "", fmt.Errorf("could not list campaigns: %w", err)
 				}
-				defer rows.Close()
+				if page.Total == 0 {
+					return "No campaigns yet.", nil
+				}
 				var b strings.Builder
-				n := 0
-				for rows.Next() {
-					var subject, list, status string
-					var recipients, sent, failed int
-					if err := rows.Scan(&subject, &list, &status, &recipients, &sent, &failed); err != nil {
-						return "", fmt.Errorf("could not list campaigns: %w", err)
-					}
-					n++
-					fmt.Fprintf(&b, "%s -> %s [%s] %d/%d sent", subject, list, status, sent, recipients)
-					if failed > 0 {
-						fmt.Fprintf(&b, ", %d failed", failed)
+				for _, c := range page.Campaigns {
+					fmt.Fprintf(&b, "%s -> %s [%s, %s] %d/%d sent", c.Subject, c.ListName, c.Channel, c.Status, c.SentCount, c.RecipientCount)
+					if c.FailedCount > 0 {
+						fmt.Fprintf(&b, ", %d failed", c.FailedCount)
 					}
 					b.WriteByte('\n')
 				}
-				if n == 0 {
-					return "No campaigns yet.", nil
+				head := fmt.Sprintf("Showing %d of %d campaign(s):\n", len(page.Campaigns), page.Total)
+				if page.NextCursor != "" {
+					return head + b.String() + "More: call list_campaigns again with cursor=" + page.NextCursor, nil
 				}
-				return fmt.Sprintf("%d campaign(s):\n%s", n, b.String()), nil
+				return head + b.String(), nil
 			},
 		},
 		{

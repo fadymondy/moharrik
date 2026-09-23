@@ -327,3 +327,42 @@ func TestLeadsDoNotCrossWorkspaces(t *testing.T) {
 		t.Fatalf("A's lead after B's attempts: %v %q", err, status)
 	}
 }
+
+// MH-464: a budget that reads as one amount in the workspace's currency becomes the deal's value;
+// anything else leaves the deal without one (the board says "No value yet") and keeps the text.
+func TestConvertTurnsTheBudgetIntoTheDealValue(t *testing.T) {
+	a := testApp(t)
+	f := workspace(t, a, "en", "USD")
+	value := func(budget string) (int64, string) {
+		t.Helper()
+		id := f.lead(t, inquiryBody{Email: "buyer-" + budget + "@initrode.test", Message: "Quote please", Budget: budget})
+		c, err := Convert(f.ctx, a.SQLDB, f.wsID, id, f.userID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var v int64
+		if err := a.SQLDB.QueryRowContext(f.ctx, `SELECT value_minor FROM deals WHERE workspace_id = $1 AND id = $2`, f.wsID, c.DealID).Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		var body string
+		if err := a.SQLDB.QueryRowContext(f.ctx, `SELECT body FROM activities WHERE workspace_id = $1 AND id = $2`, f.wsID, c.ActivityID).Scan(&body); err != nil {
+			t.Fatal(err)
+		}
+		if c.Lead.Budget != budget {
+			t.Errorf("lead budget %q, want %q as typed", c.Lead.Budget, budget)
+		}
+		return v, body
+	}
+	if v, body := value("$12,500"); v != 1250000 || !strings.Contains(body, "Budget: $12,500") {
+		t.Errorf("$12,500 → value %d, timeline %q; want 1250000 and the budget on the timeline", v, body)
+	}
+	if v, _ := value("10k-20k"); v != 0 {
+		t.Errorf("a range must not become a value, got %d", v)
+	}
+	if v, _ := value("EGP 50000"); v != 0 {
+		t.Errorf("a foreign-currency budget must not become a USD value, got %d", v)
+	}
+	if v, body := value(""); v != 0 || strings.Contains(body, "Budget") {
+		t.Errorf("no budget → value %d, timeline %q", v, body)
+	}
+}

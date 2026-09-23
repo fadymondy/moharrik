@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState, type DragEvent, type FormEvent } from "react"
-import { ArrowRightLeftIcon, GripVerticalIcon } from "lucide-react"
+import { ArrowRightLeftIcon, GripVerticalIcon, PencilIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { formatMoney, PickSelect, stageTone, toMajor, toMinor, useMemberNames } from "@/components/crm/shared"
@@ -19,11 +19,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useCompanies } from "@/lib/queries"
+import { CompanyPicker } from "@/components/crm/company-picker"
 import { ContactPicker } from "@/components/crm/contact-picker"
 import { Bdi, BdiBlock } from "@/components/bidi"
 
@@ -39,7 +40,27 @@ export type MoveFn = (dealId: string, stageId: string, position?: number) => voi
  * Columns share the width (at least 14rem each), so the default five stages fit a 1440 screen;
  * past that the board scrolls inside ScrollX, which shows that it does (MH-463).
  */
-export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Stage[]; deals: Deal[]; currency: string; onMove: MoveFn }) {
+export function PipelineBoard({
+  stages,
+  deals,
+  currency,
+  onMove,
+  onChanged,
+  cursorOf,
+  onLoadMore,
+  loadingStage,
+}: {
+  stages: Stage[]
+  deals: Deal[]
+  currency: string
+  onMove: MoveFn
+  onChanged?: () => void
+  /** The cursor for a stage's next cards, "" when every card is on the board (MH-467). */
+  cursorOf?: (stageId: string) => string
+  onLoadMore?: (stageId: string) => void
+  loadingStage?: string | null
+}) {
+  const { t: tr, formatNumber } = useTranslations()
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<{ stage: string; before: string | null } | null>(null)
   const byStage = useMemo(() => {
@@ -72,7 +93,10 @@ export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Sta
       <div className="flex min-w-max divide-x divide-line rtl:divide-x-reverse">
         {stages.map((s) => {
           const list = byStage.get(s.id) ?? []
-          const total = list.filter((d) => d.currency === currency).reduce((n, d) => n + d.value_minor, 0)
+          // The stage's own count and value, from the server: the whole column, not just the
+          // cards on screen, which since MH-467 may be the first page of it.
+          const total = s.value_minor
+          const more = cursorOf?.(s.id) ?? ""
           const hot = over?.stage === s.id && dragging
           return (
             <section
@@ -94,8 +118,8 @@ export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Sta
                   <BdiBlock as="h3" className="truncate text-sm font-medium">
                     {s.name}
                   </BdiBlock>
-                  <span className="ms-auto text-xs text-grid-muted tabular-nums" data-stage-count>
-                    {list.length}
+                  <span className="ms-auto text-xs text-grid-muted tabular-nums" data-stage-count={s.deal_count}>
+                    {formatNumber(s.deal_count)}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-grid-muted">
@@ -131,10 +155,23 @@ export function PipelineBoard({ stages, deals, currency, onMove }: { stages: Sta
                         setOver(null)
                       }}
                       onMove={onMove}
+                      onChanged={onChanged}
                     />
                   </li>
                 ))}
               </ol>
+              {list.length < s.deal_count ? (
+                <div className="flex flex-col items-start gap-2 border-t border-line px-4 py-3" data-stage-more={`${list.length}/${s.deal_count}`}>
+                  <span className="text-xs text-grid-muted">
+                    {tr("deals.showingInStage", { shown: formatNumber(list.length), total: formatNumber(s.deal_count) })}
+                  </span>
+                  {more && onLoadMore ? (
+                    <Button variant="outline" size="sm" onClick={() => onLoadMore(s.id)} disabled={loadingStage === s.id} data-stage-load-more>
+                      {loadingStage === s.id ? tr("common.working") : tr("common.loadMore")}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </section>
           )
         })}
@@ -154,6 +191,7 @@ function DealCard({
   onDragStart,
   onDragEnd,
   onMove,
+  onChanged,
 }: {
   deal: Deal
   stages: Stage[]
@@ -161,6 +199,7 @@ function DealCard({
   onDragStart: (e: DragEvent) => void
   onDragEnd: () => void
   onMove: MoveFn
+  onChanged?: () => void
 }) {
   const { t, locale, formatDate } = useTranslations()
   const ws = useWorkspace()
@@ -200,9 +239,9 @@ function DealCard({
           </DropdownMenu>
         ) : null}
       </div>
-      <p className="mt-2 font-medium tabular-nums">
-        <Ltr>{formatMoney(deal.value_minor, deal.currency, locale)}</Ltr>
-      </p>
+      <div className="mt-2">
+        {canWrite ? <DealValueEditor deal={deal} onSaved={onChanged} /> : <DealValue deal={deal} className="font-medium" />}
+      </div>
       {deal.company || deal.contact ? (
         <p className="mt-1 truncate text-xs text-grid-muted">
           {[deal.company?.name, deal.contact ? deal.contact.name || deal.contact.email : null]
@@ -222,16 +261,124 @@ function DealCard({
   )
 }
 
+// ── value ────────────────────────────────────────────────────────────────
+
+/**
+ * A deal's value, or "No value yet" when it has none (MH-464). A deal opened from a website
+ * inquiry starts with no value, and "$0.00" read as if somebody had priced it at nothing.
+ */
+export function DealValue({ deal, className }: { deal: Pick<Deal, "value_minor" | "currency">; className?: string }) {
+  const { t, locale } = useTranslations()
+  if (!deal.value_minor) {
+    return (
+      <span className={`text-grid-muted ${className ?? ""}`} data-deal-value="none">
+        {t("deals.noValue")}
+      </span>
+    )
+  }
+  return (
+    <span className={`tabular-nums ${className ?? ""}`} data-deal-value={deal.value_minor}>
+      <Ltr>{formatMoney(deal.value_minor, deal.currency, locale)}</Ltr>
+    </span>
+  )
+}
+
+/** The value on a board card, editable in place: the one number a new deal is most often missing. */
+function DealValueEditor({ deal, onSaved }: { deal: Deal; onSaved?: () => void }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const inputId = `deal-value-${deal.id}`
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    const minor = toMinor(value, deal.currency)
+    if (minor === null) {
+      setErr(t("deals.valueInvalid"))
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      await api(`/api/w/deals/${encodeURIComponent(deal.id)}`, { method: "PATCH", json: { value_minor: minor }, workspaceId: ws.id })
+      toast.success(t("deals.saved"))
+      setOpen(false)
+      onSaved?.()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setValue(deal.value_minor ? toMajor(deal.value_minor, deal.currency) : "")
+          setErr(null)
+        }
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            draggable={false}
+            className="group inline-flex max-w-full items-center gap-1.5 rounded-sm font-medium outline-none hover:text-grid-brand focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={deal.value_minor ? t("deals.editValue") : t("deals.setValue")}
+            data-deal-value-edit
+          />
+        }
+      >
+        <DealValue deal={deal} />
+        <PencilIcon className="size-3 shrink-0 text-grid-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64" data-deal-value-popover>
+        <form onSubmit={save} noValidate className="flex flex-col gap-2">
+          <FieldLabel htmlFor={inputId}>{t("deals.valueIn", { currency: deal.currency })}</FieldLabel>
+          <div className="flex gap-2">
+            <Input
+              id={inputId}
+              autoFocus
+              inputMode="decimal"
+              dir="ltr"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="0"
+            />
+            <Button type="submit" disabled={busy}>
+              {busy ? t("common.working") : t("common.save")}
+            </Button>
+          </div>
+          {err ? <FieldError>{err}</FieldError> : null}
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 // ── list ─────────────────────────────────────────────────────────────────
 
-export function DealsTable({ deals, empty }: { deals: Deal[]; empty?: string }) {
-  const { t, locale, formatDate } = useTranslations()
+export function DealsTable({ deals, empty, total }: { deals: Deal[]; empty?: string; total?: number }) {
+  const { t, locale, formatDate, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
   const base = `/${locale}/w/${ws.slug}`
   if (deals.length === 0) return <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">{empty ?? t("deals.empty")}</p>
   return (
     <div className="border-y border-line">
+      {total !== undefined && total > deals.length ? (
+        // A contact or company page lists its first deals only; it says so (MH-467).
+        <p className="border-b border-line px-6 py-3 text-sm text-grid-muted" data-deals-more={`${deals.length}/${total}`}>
+          {t("deals.relatedMore", { shown: formatNumber(deals.length), total: formatNumber(total) })}
+        </p>
+      ) : null}
       <Table>
         <TableHeader>
           <TableRow>
@@ -259,7 +406,7 @@ export function DealsTable({ deals, empty }: { deals: Deal[]; empty?: string }) 
                 </span>
               </TableCell>
               <TableCell className="tabular-nums">
-                <Ltr>{formatMoney(d.value_minor, d.currency, locale)}</Ltr>
+                <DealValue deal={d} />
               </TableCell>
               <TableCell>
                 {d.company ? (
@@ -312,10 +459,9 @@ export function DealForm({
   const { t } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
-  const companies = useCompanies(ws.id)
   const [title, setTitle] = useState(deal?.title ?? "")
   const [cur, setCur] = useState(deal?.currency ?? currency)
-  const [value, setValue] = useState(deal ? toMajor(deal.value_minor, deal.currency) : "")
+  const [value, setValue] = useState(deal?.value_minor ? toMajor(deal.value_minor, deal.currency) : "")
   const [stageId, setStageId] = useState(deal?.stage_id ?? "")
   const [contactId, setContactId] = useState(deal?.contact?.id ?? preset?.contact_id ?? "")
   const [companyId, setCompanyId] = useState(deal?.company?.id ?? preset?.company_id ?? "")
@@ -325,7 +471,6 @@ export function DealForm({
   const [err, setErr] = useState<string | null>(null)
 
   const stageOpts = stages.map((s) => ({ value: s.id, label: s.name }))
-  const companyOpts = (companies.data?.companies ?? []).map((c) => ({ value: c.id, label: c.name }))
   const id = (f: string) => `${formId}-${f}`
 
   async function submit(e: FormEvent) {
@@ -392,7 +537,7 @@ export function DealForm({
         </Field>
         <Field>
           <FieldLabel htmlFor={id("company")}>{t("deals.company")}</FieldLabel>
-          <PickSelect id={id("company")} value={companyId} onChange={setCompanyId} options={companyOpts} noneLabel={t("crm.none")} />
+          <CompanyPicker id={id("company")} value={companyId} selected={deal?.company ?? null} onChange={setCompanyId} />
         </Field>
         <Field>
           <FieldLabel htmlFor={id("contact")}>{t("deals.contact")}</FieldLabel>

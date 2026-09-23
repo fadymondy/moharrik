@@ -94,12 +94,12 @@ export default function CompanyDetailPage() {
 
       <section>
         <h2 className="px-6 py-4 text-base font-medium">{t("nav.deals")}</h2>
-        <DealsTable deals={deals} empty={t("companies.noDeals")} />
+        <DealsTable deals={deals} total={detail.data.deals_total} empty={t("companies.noDeals")} />
       </section>
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
-      <Timeline items={activities} target={{ company_id: company.id }} onChange={() => detail.mutate()} />
+      <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} target={{ company_id: company.id }} onChange={() => detail.mutate()} />
       <div className="pb-8" />
     </>
   )

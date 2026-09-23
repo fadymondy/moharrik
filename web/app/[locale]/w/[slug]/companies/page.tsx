@@ -2,7 +2,12 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
+import { SearchIcon } from "lucide-react"
 import { toast } from "sonner"
+
+import { useDebounced } from "@/components/crm/contact-picker"
+import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 
 import { useMemberNames } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
@@ -16,17 +21,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Company } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useCompanies } from "@/lib/queries"
+import { useCompaniesPage } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
+
+const PAGE_SIZE = 50
 
 export default function CompaniesPage() {
   const { t } = useTranslations()
   const ws = useWorkspace()
   useDocumentTitle(`${t("nav.companies")} · ${ws.summary.name}`)
   const canWrite = ws.can("contacts:write")
-  const companies = useCompanies(ws.id)
+  // Paged and searchable (MH-467): this list used to stop at 2,000 without saying so.
+  const [search, setSearch] = useState("")
+  const q = useDebounced(search.trim())
+  const pager = useCursorStack(q)
+  const companies = useCompaniesPage(ws.id, { q, cursor: pager.cursor, limit: PAGE_SIZE })
   const items = companies.data?.companies ?? []
+  const total = companies.data?.total ?? 0
 
   return (
     <>
@@ -34,12 +46,48 @@ export default function CompaniesPage() {
 
       {companies.error ? (
         <ErrorState error={companies.error} />
-      ) : companies.isLoading ? (
+      ) : !companies.data ? (
         <LoadingRows />
-      ) : items.length === 0 ? (
+      ) : total === 0 && !q ? (
         <EmptyState title={t("companies.empty")} body={canWrite ? t("companies.emptyBody") : undefined} />
       ) : (
-        <CompaniesTable items={items} canWrite={canWrite} onChange={() => companies.mutate()} />
+        <>
+          <div className="px-6 pb-4">
+            <InputGroup className="sm:max-w-sm">
+              <InputGroupAddon>
+                <SearchIcon />
+              </InputGroupAddon>
+              <InputGroupInput
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("companies.search")}
+                aria-label={t("companies.search")}
+                data-company-search
+              />
+            </InputGroup>
+          </div>
+          {total === 0 ? (
+            <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">{t("companies.noMatch")}</p>
+          ) : (
+            <>
+              <PageSummary index={pager.index} pageSize={PAGE_SIZE} shown={items.length} total={total} name="companies" />
+              <div className={companies.current ? undefined : "opacity-60 transition-opacity"} aria-busy={!companies.current}>
+                <CompaniesTable items={items} canWrite={canWrite} onChange={() => companies.mutate()} />
+              </div>
+              <PageNav
+                index={pager.index}
+                pageSize={PAGE_SIZE}
+                total={total}
+                nextCursor={companies.data.next_cursor}
+                busy={!companies.current}
+                onNext={pager.next}
+                onPrev={pager.prev}
+                name="companies"
+              />
+            </>
+          )}
+        </>
       )}
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />

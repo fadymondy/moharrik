@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -62,21 +63,106 @@ func NewSearcher() *Searcher {
 	return &Searcher{BaseURL: base, Client: &http.Client{Timeout: searchTimeout}}
 }
 
-// Search runs one query and returns up to limit results.
+// Search plans the question (query.go) and returns up to limit results.
+func (s *Searcher) Search(ctx context.Context, question string, limit int) ([]Finding, error) {
+	if strings.TrimSpace(question) == "" {
+		return nil, errors.New("a research run needs something to search for")
+	}
+	return s.SearchPlan(ctx, PlanQuery(question), limit)
+}
+
+// SearchPlan searches the plan's variants in order, merges them by rank
+// (reciprocal rank fusion: a page high in two variants beats one high in one),
+// drops what is not about the question, and returns up to limit.
+//
+// The next variant is searched only while the relevant results are fewer than
+// limit. Each variant is a query to every engine the instance has, and a
+// metasearch instance that asks too often is served CAPTCHAs and suspended —
+// so a question the first phrasing answers costs one query, not three.
+//
+// One variant failing is not a failed run; all of them failing is.
+func (s *Searcher) SearchPlan(ctx context.Context, p Plan, limit int) ([]Finding, error) {
+	if s == nil {
+		return nil, ErrNoSearch
+	}
+	if len(p.Queries) == 0 {
+		return nil, errors.New("a research run needs something to search for")
+	}
+
+	const k = 60.0 // the usual RRF constant: rank 1 and rank 5 differ, rank 40 and 45 barely
+	type scored struct {
+		f     Finding
+		score float64
+	}
+	byURL := map[string]*scored{}
+	var order []*scored
+	var firstErr error
+	answered := 0
+	ranked := func() (relevant, all []Finding) {
+		sorted := append([]*scored(nil), order...)
+		sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].score > sorted[j].score })
+		for _, sc := range sorted {
+			all = append(all, sc.f)
+			if p.Relevant(sc.f.Title, sc.f.Snippet) {
+				relevant = append(relevant, sc.f)
+			}
+		}
+		return relevant, all
+	}
+
+	for _, q := range p.Queries {
+		list, err := s.query(ctx, q, p.Language)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			if ctx.Err() != nil {
+				break
+			}
+			continue
+		}
+		answered++
+		for rank, f := range list {
+			sc := byURL[f.URL]
+			if sc == nil {
+				sc = &scored{f: f}
+				byURL[f.URL] = sc
+				order = append(order, sc)
+			}
+			sc.score += 1 / (k + float64(rank+1))
+		}
+		if relevant, _ := ranked(); len(relevant) >= limit {
+			break
+		}
+	}
+	if answered == 0 {
+		return nil, firstErr
+	}
+
+	relevant, all := ranked()
+	// If NOTHING reads as relevant, the pages probably phrase it differently
+	// from the question; the merged list is still the best there is, and
+	// "nothing found" would be the less honest answer.
+	if len(relevant) == 0 {
+		relevant = all
+	}
+	if len(relevant) > limit {
+		relevant = relevant[:limit]
+	}
+	return relevant, nil
+}
+
+// query runs one SearXNG query and returns its results in rank order.
 //
 // The instance must list "json" under search.formats, or it answers 403 to a
 // format=json request while the same query works in a browser — a confusing
 // failure worth naming in the error.
-func (s *Searcher) Search(ctx context.Context, query string, limit int) ([]Finding, error) {
-	if s == nil {
-		return nil, ErrNoSearch
+func (s *Searcher) query(ctx context.Context, query, language string) ([]Finding, error) {
+	v := url.Values{"format": {"json"}, "q": {query}}
+	if language != "" {
+		v.Set("language", language)
 	}
-	if strings.TrimSpace(query) == "" {
-		return nil, errors.New("a research run needs something to search for")
-	}
-
-	endpoint := fmt.Sprintf("%s/search?format=json&q=%s", s.BaseURL, url.QueryEscape(query))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.BaseURL+"/search?"+v.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +191,7 @@ func (s *Searcher) Search(ctx context.Context, query string, limit int) ([]Findi
 		return nil, fmt.Errorf("the search service sent something unreadable: %w", err)
 	}
 
-	out := make([]Finding, 0, limit)
+	out := make([]Finding, 0, len(doc.Results))
 	seen := map[string]bool{}
 	for _, r := range doc.Results {
 		link := strings.TrimSpace(r.URL)
@@ -123,9 +209,6 @@ func (s *Searcher) Search(ctx context.Context, query string, limit int) ([]Findi
 			Title:   strings.TrimSpace(r.Title),
 			Snippet: strings.TrimSpace(r.Content),
 		})
-		if len(out) >= limit {
-			break
-		}
 	}
 	return out, nil
 }

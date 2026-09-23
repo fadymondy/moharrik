@@ -84,6 +84,7 @@ type Lead struct {
 	Phone       string      `json:"phone"`
 	Company     string      `json:"company" doc:"What the visitor typed; the company record is converted_company."`
 	Message     string      `json:"message"`
+	Budget      string      `json:"budget" doc:"What the visitor typed as a budget, as typed; empty when they left it out."`
 	Locale      string      `json:"locale"`
 	FormID      *string     `json:"form_id"`
 	FormName    string      `json:"form_name"`
@@ -100,7 +101,7 @@ type Lead struct {
 }
 
 const leadSelect = `
-	SELECT l.id, l.status, l.name, l.email, l.phone, l.company, l.message, l.locale, l.form_id, l.form_name, l.origin,
+	SELECT l.id, l.status, l.name, l.email, l.phone, l.company, l.message, l.budget, l.locale, l.form_id, l.form_name, l.origin,
 	       l.utm_source, l.utm_medium, l.utm_campaign, l.utm_term, l.utm_content, l.referrer, l.gclid, l.landing_page,
 	       l.contact_id, coalesce(nullif(ct.name, ''), ct.email), l.company_id, co.name, l.deal_id, d.title,
 	       l.converted_at, l.converted_by, l.created_at, l.updated_at
@@ -117,7 +118,7 @@ func scanLead(r scanner) (Lead, error) {
 	var formID, contactID, contactName, companyID, companyName, dealID, dealTitle, convertedBy sql.NullString
 	var convertedAt sql.NullTime
 	a := &l.Attribution
-	err := r.Scan(&l.ID, &l.Status, &l.Name, &l.Email, &l.Phone, &l.Company, &l.Message, &l.Locale, &formID, &l.FormName, &l.Origin,
+	err := r.Scan(&l.ID, &l.Status, &l.Name, &l.Email, &l.Phone, &l.Company, &l.Message, &l.Budget, &l.Locale, &formID, &l.FormName, &l.Origin,
 		&a.UtmSource, &a.UtmMedium, &a.UtmCampaign, &a.UtmTerm, &a.UtmContent, &a.Referrer, &a.Gclid, &a.LandingPage,
 		&contactID, &contactName, &companyID, &companyName, &dealID, &dealTitle,
 		&convertedAt, &convertedBy, &l.CreatedAt, &l.UpdatedAt)

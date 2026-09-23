@@ -22,6 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CampaignForm } from "@/components/campaigns/campaign-form"
+import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -30,6 +31,8 @@ import { useTranslations } from "@/lib/i18n"
 import { useCampaigns, useMailLists, useWhatsAppAudience } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
+
+const PAGE_SIZE = 50
 
 const statusVariant: Record<CampaignStatus, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline",
@@ -46,7 +49,9 @@ export default function CampaignsPage() {
   const canWrite = ws.can("campaigns:write")
   const canSend = ws.can("campaigns:send")
   const isAdmin = ws.can("mail:settings")
-  const campaigns = useCampaigns(ws.id)
+  // Paged (MH-467): this list used to stop at 500 without saying so.
+  const pager = useCursorStack("")
+  const campaigns = useCampaigns(ws.id, { cursor: pager.cursor, limit: PAGE_SIZE })
   const lists = useMailLists(ws.id)
   const smtpReady = !!campaigns.data?.smtp_configured
   const whatsappLinked = !!campaigns.data?.whatsapp_linked
@@ -79,19 +84,35 @@ export default function CampaignsPage() {
         <ErrorState error={campaigns.error} />
       ) : campaigns.isLoading ? (
         <LoadingRows />
-      ) : (campaigns.data?.campaigns ?? []).length === 0 ? (
+      ) : (campaigns.data?.total ?? 0) === 0 ? (
         <EmptyState title={t("campaigns.empty")} body={canWrite ? t("campaigns.emptyBody") : undefined} />
       ) : (
-        <CampaignTable
-          items={campaigns.data?.campaigns ?? []}
-          lists={lists.data?.lists ?? []}
-          canWrite={canWrite}
-          canSend={canSend}
-          smtpReady={smtpReady}
-          whatsappLinked={whatsappLinked}
-          onChange={() => campaigns.mutate()}
-          onEdit={(c) => setEditingId(c.id)}
-        />
+        <>
+          <PageSummary index={pager.index} pageSize={PAGE_SIZE} shown={campaigns.data?.campaigns?.length ?? 0} total={campaigns.data?.total ?? 0} name="campaigns" />
+          <div className={campaigns.current ? undefined : "opacity-60 transition-opacity"} aria-busy={!campaigns.current}>
+            <CampaignTable
+              items={campaigns.data?.campaigns ?? []}
+              lists={lists.data?.lists ?? []}
+              canWrite={canWrite}
+              canSend={canSend}
+              smtpReady={smtpReady}
+              whatsappLinked={whatsappLinked}
+              maxAudience={campaigns.data?.max_audience ?? 0}
+              onChange={() => campaigns.mutate()}
+              onEdit={(c) => setEditingId(c.id)}
+            />
+          </div>
+          <PageNav
+            index={pager.index}
+            pageSize={PAGE_SIZE}
+            total={campaigns.data?.total ?? 0}
+            nextCursor={campaigns.data?.next_cursor}
+            busy={!campaigns.current}
+            onNext={pager.next}
+            onPrev={pager.prev}
+            name="campaigns"
+          />
+        </>
       )}
       {canWrite ? (
         <EditCampaignSheet
@@ -221,6 +242,7 @@ function CampaignTable({
   canSend,
   smtpReady,
   whatsappLinked,
+  maxAudience,
   onChange,
   onEdit,
 }: {
@@ -230,6 +252,7 @@ function CampaignTable({
   canSend: boolean
   smtpReady: boolean
   whatsappLinked: boolean
+  maxAudience: number
   onChange: () => void
   onEdit: (c: Campaign) => void
 }) {
@@ -310,7 +333,7 @@ function CampaignTable({
                       </span>
                     )
                   ) : canSend && sendable && (wa || smtpReady) ? (
-                    <SendButton campaign={c} count={subscribed} onSent={onChange} />
+                    <SendButton campaign={c} count={subscribed} maxAudience={maxAudience} onSent={onChange} />
                   ) : null}
                   {canWrite && sendable ? (
                     <Button variant="ghost" size="sm" onClick={() => onEdit(c)} data-edit-campaign={c.subject}>
@@ -337,14 +360,18 @@ function CampaignTable({
   )
 }
 
-function SendButton({ campaign, count, onSent }: { campaign: Campaign; count: number; onSent: () => void }) {
-  const { t } = useTranslations()
+function SendButton({ campaign, count, maxAudience, onSent }: { campaign: Campaign; count: number; maxAudience: number; onSent: () => void }) {
+  const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const wa = campaign.channel === "whatsapp"
   const aud = useWhatsAppAudience(ws.id, wa && open ? campaign.list_id : null)
   const reachable = aud.data?.reachable
+  // One send reaches at most maxAudience (MH-467): the API refuses a larger one, so the dialog says
+  // so before anything is pressed instead of offering a send that cannot happen.
+  const audience = wa ? reachable : count
+  const tooLarge = maxAudience > 0 && audience !== undefined && audience > maxAudience
 
   async function send() {
     setBusy(true)
@@ -379,10 +406,15 @@ function SendButton({ campaign, count, onSent }: { campaign: Campaign; count: nu
                     : t("campaigns.sendBodyWhatsApp", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count: reachable })
                 : t("campaigns.sendBody", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count })}
             </AlertDialogDescription>
+            {tooLarge ? (
+              <p className="text-sm text-grid-danger-text" role="alert" data-send-too-large>
+                {t("campaigns.audienceTooLarge", { count: formatNumber(audience ?? 0), max: formatNumber(maxAudience) })}
+              </p>
+            ) : null}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction disabled={busy || (wa && !reachable)} onClick={send}>
+            <AlertDialogAction disabled={busy || (wa && !reachable) || tooLarge} onClick={send}>
               {busy ? t("common.working") : t("campaigns.send")}
             </AlertDialogAction>
           </AlertDialogFooter>

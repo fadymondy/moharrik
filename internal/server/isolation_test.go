@@ -35,6 +35,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -509,6 +510,26 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	// B they must not reach A's source. A secret overwritten from B would let B
 	// forge A's notifications (MH-381).
 	bob.ws = bID
+	// The paged lists (MH-467) take A's ids in the QUERY string, which the path
+	// sweep above never fills: a timeline of A's deal, contact or company, and
+	// the next page of A's pipeline stage, must show bob nothing of A's.
+	for _, p := range []string{
+		"/api/w/activities?deal_id=" + dealID,
+		"/api/w/activities?contact_id=" + ctID,
+		"/api/w/activities?company_id=" + coID,
+		"/api/w/deals?stage_id=" + stageID,
+		"/api/w/deals?view=list",
+		"/api/w/companies?q=" + url.QueryEscape(marker),
+		"/api/w/campaigns",
+	} {
+		code, b := bob.do("GET", p, nil)
+		if what := leaks(b); what != "" || (code != http.StatusOK && code != http.StatusNotFound) {
+			t.Errorf("bob in B: GET %s -> %d, leaked %q: %.200s", p, code, what, b)
+		}
+		if strings.Contains(p, "/activities") && !strings.Contains(string(b), `"total":0`) {
+			t.Errorf("bob in B: GET %s counted A's activities: %.200s", p, b)
+		}
+	}
 	if code, b := bob.do("PUT", "/api/w/webhook_sources/"+srcID+"/secret", map[string]any{"secret": "bob-controls-this-secret-now"}); code != http.StatusNotFound || leaks(b) != "" {
 		t.Errorf("B setting A's webhook secret: got %d, want 404: %s", code, b)
 	}

@@ -1,6 +1,6 @@
 "use client"
 
-import useSWR from "swr"
+import useSWR, { type SWRConfiguration } from "swr"
 import useSWRInfinite from "swr/infinite"
 
 import {
@@ -32,6 +32,8 @@ import {
   type LeadStatus,
   type Stage,
   type ContactPage,
+  type Page,
+  type TimelinePage,
   type CurrentWorkspace,
   type MailList,
   type SmtpSettings,
@@ -138,17 +140,33 @@ export function useContactsPage(workspaceId: string | null | undefined, p: Conta
   return { ...res, current: res.data?.path === path }
 }
 
-/** Polls while a campaign is sending, so progress moves on screen. */
-export function useCampaigns(workspaceId?: string | null) {
-  type R = { campaigns: Campaign[] | null; smtp_configured: boolean; whatsapp_linked: boolean }
-  return useSWR<R>(
-    workspaceId ? ["/api/w/campaigns", workspaceId] : null,
-    ([p, id]: [string, string]) => api<R>(p, { workspaceId: id }),
-    {
-      ...noRetryOn4xx,
-      refreshInterval: (data) => ((data?.campaigns ?? []).some((c) => c.status === "sending") ? 2000 : 0),
-    },
+/**
+ * A keyset-paged list (MH-467). keepPreviousData shows the last page while the next one loads;
+ * `current` says whether what is on screen is the page that was asked for, so a pager never acts
+ * on a stale page's next_cursor.
+ */
+function usePaged<T>(path: string, workspaceId: string | null | undefined, extra?: SWRConfiguration<T & { path: string }>) {
+  const res = useSWR<T & { path: string }>(
+    workspaceId ? [path, workspaceId] : null,
+    ([key, id]: [string, string]) => api<T>(key, { workspaceId: id }).then((d) => ({ ...d, path: key })),
+    { ...noRetryOn4xx, keepPreviousData: true, ...extra },
   )
+  return { ...res, current: res.data?.path === path }
+}
+
+function withQuery(path: string, q: Record<string, string | number | undefined>): string {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== "" && v !== 0) qs.set(k, String(v))
+  const s = qs.toString()
+  return s ? `${path}?${s}` : path
+}
+
+/** Campaigns a page at a time; polls while one on the page is sending, so progress moves on screen. */
+export function useCampaigns(workspaceId: string | null | undefined, p: { cursor?: string; limit?: number } = {}) {
+  type R = Page & { campaigns: Campaign[] | null; smtp_configured: boolean; whatsapp_linked: boolean; max_audience: number }
+  return usePaged<R>(withQuery("/api/w/campaigns", { cursor: p.cursor, limit: p.limit }), workspaceId, {
+    refreshInterval: (data) => ((data?.campaigns ?? []).some((c) => c.status === "sending") ? 2000 : 0),
+  })
 }
 
 /** Who a WhatsApp broadcast to a list would reach right now (MH-320). */
@@ -161,22 +179,31 @@ export const useSmtpSettings = (id?: string | null, enabled = true) => useScoped
 
 // ── CRM ──────────────────────────────────────────────────────────────────
 
-export const useCompanies = (id?: string | null) => useScoped<{ companies: Company[] | null }>("/api/w/companies", id)
+/** Companies a page at a time, A–Z, optionally searched (MH-467). */
+export const useCompaniesPage = (workspaceId: string | null | undefined, p: { q?: string; cursor?: string; limit?: number }) =>
+  usePaged<Page & { companies: Company[] }>(withQuery("/api/w/companies", { q: p.q?.trim(), cursor: p.cursor, limit: p.limit }), workspaceId)
 
 export const useCompany = (wsId?: string | null, id?: string) =>
-  useScoped<{ company: Company; contacts: ContactRef[]; deals: Deal[]; activities: Activity[] }>(
+  useScoped<{ company: Company; contacts: ContactRef[]; deals: Deal[]; deals_total: number } & TimelinePage>(
     `/api/w/companies/${encodeURIComponent(id ?? "")}`,
     wsId,
     !!id,
   )
 
 export const useContact = (wsId?: string | null, id?: string) =>
-  useScoped<{ contact: ContactDetail; deals: Deal[]; activities: Activity[] }>(`/api/w/contacts/${encodeURIComponent(id ?? "")}`, wsId, !!id)
+  useScoped<{ contact: ContactDetail; deals: Deal[]; deals_total: number } & TimelinePage>(`/api/w/contacts/${encodeURIComponent(id ?? "")}`, wsId, !!id)
 
-export const useDeals = (id?: string | null) => useScoped<{ deals: Deal[]; stages: Stage[]; currency: string }>("/api/w/deals", id)
+export type DealsPage = Page & { deals: Deal[]; stages: Stage[]; currency: string }
+
+/** The board: the first cards of every stage, each stage with its own next_cursor (MH-467). */
+export const useDeals = (id?: string | null) => useScoped<DealsPage>("/api/w/deals", id)
+
+/** The list view: the whole pipeline in board order, a page at a time. */
+export const useDealsList = (workspaceId: string | null | undefined, p: { cursor?: string; limit?: number }, enabled = true) =>
+  usePaged<DealsPage>(withQuery("/api/w/deals", { view: "list", cursor: p.cursor, limit: p.limit }), enabled ? workspaceId : null)
 
 export const useDeal = (wsId?: string | null, id?: string) =>
-  useScoped<{ deal: Deal; activities: Activity[] }>(`/api/w/deals/${encodeURIComponent(id ?? "")}`, wsId, !!id)
+  useScoped<{ deal: Deal } & TimelinePage>(`/api/w/deals/${encodeURIComponent(id ?? "")}`, wsId, !!id)
 
 // ── Leads (MH-390) ───────────────────────────────────────────────────────
 

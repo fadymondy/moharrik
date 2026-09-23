@@ -31,7 +31,10 @@ function shouldSkip(pathname: string): boolean {
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/graphql") ||
+    // The feedback routes (app/feedback): the report, the widget's look and the reporter token.
+    // /feedback/config was once redirected to /{locale}/feedback/config and 404'd (MH-464).
     pathname === "/feedback" ||
+    pathname.startsWith("/feedback/") ||
     /\.[a-zA-Z0-9]+$/.test(pathname)
   )
 }
