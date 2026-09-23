@@ -175,18 +175,18 @@ const money = (usd) => {
 // ---- CRM: companies ----------------------------------------------------------------------------
 
 const COMPANIES = [
-  { key: "bnb", name: "Bean & Brew Cafés", domain: "beanandbrew.example", industry: "Cafés & coffee shops", size: "51-200", notes: "Nine cafés across Cairo (Zamalek, Maadi, New Cairo, Sheikh Zayed). Buys the house espresso blend weekly, pays net-30." },
-  { key: "nile", name: "فندق النيل ريزيدنس — Nile Residence Hotel", domain: "nileresidence.example", industry: "Hospitality", size: "201-1000", notes: "Five-star, Garden City, Cairo. Lobby lounge, all-day dining and banqueting. The coffee tender renews every January." },
-  { key: "corniche", name: "Corniche Grand Hotel", domain: "cornichegrand.example", industry: "Hospitality", size: "201-1000", notes: "Alexandria, Stanley Bay. Wants a single origin for the lobby lounge and a filter programme for breakfast." },
-  { key: "qahwa", name: "بيت القهوة — Qahwa House", domain: "qahwahouse.example", industry: "Cafés & coffee shops", size: "11-50", notes: "Specialty café group in Riyadh (Olaya, Al Malqa). Imports through Jeddah; needs SFDA paperwork on every shipment." },
-  { key: "marina", name: "Marina Workspace", domain: "marinaworkspace.example", industry: "Coworking & offices", size: "11-50", notes: "Coworking, Dubai Marina. Office-coffee subscription across 4 sites with bean-to-cup machines." },
-  { key: "delta", name: "Delta Tech Offices", domain: "deltatech.example", industry: "Corporate offices", size: "1000+", notes: "Smart Village, Giza. The facilities team runs six pantries; procurement buys through an annual RFQ." },
-  { key: "masa", name: "مخبز الماسة — Al Masa Bakery", domain: "almasa.example", industry: "Bakery & café", size: "51-200", notes: "Twelve branches in Alexandria. Turkish-coffee grind with cardamom plus an espresso blend for the new café corners." },
-  { key: "zbooks", name: "Zamalek Books & Coffee", domain: "zamalekbooks.example", industry: "Cafés & coffee shops", size: "1-10", notes: "Independent bookshop café on 26th of July St. Small but loyal — sells our retail bags on consignment." },
-  { key: "redsea", name: "Red Sea Resorts Group", domain: "redsearesorts.example", industry: "Hospitality", size: "1000+", notes: "Four resorts in Hurghada and El Gouna. High season October to April; volumes double." },
-  { key: "rose", name: "Desert Rose Catering", domain: "desertrose.example", industry: "Catering", size: "201-1000", notes: "Riyadh. Corporate and event catering — Saudi qahwa service and mobile espresso bars." },
-  { key: "bayleaf", name: "Bay Leaf Café", domain: "bayleaf.example", industry: "Cafés & coffee shops", size: "11-50", notes: "Jumeirah, Dubai. Brunch café switching roaster in Q4; tasted our Sidamo and Huila." },
-  { key: "maadi", name: "Maadi Coworking Hub", domain: "maadihub.example", industry: "Coworking & offices", size: "11-50", notes: "Road 9, Maadi. 180 members on a monthly office-coffee plan." },
+  { key: "bnb", country: "Egypt", name: "Bean & Brew Cafés", domain: "beanandbrew.example", industry: "Cafés & coffee shops", size: "51-200", notes: "Nine cafés across Cairo (Zamalek, Maadi, New Cairo, Sheikh Zayed). Buys the house espresso blend weekly, pays net-30." },
+  { key: "nile", country: "Egypt", name: "فندق النيل ريزيدنس — Nile Residence Hotel", domain: "nileresidence.example", industry: "Hospitality", size: "201-1000", notes: "Five-star, Garden City, Cairo. Lobby lounge, all-day dining and banqueting. The coffee tender renews every January." },
+  { key: "corniche", country: "Egypt", name: "Corniche Grand Hotel", domain: "cornichegrand.example", industry: "Hospitality", size: "201-1000", notes: "Alexandria, Stanley Bay. Wants a single origin for the lobby lounge and a filter programme for breakfast." },
+  { key: "qahwa", country: "Saudi Arabia", name: "بيت القهوة — Qahwa House", domain: "qahwahouse.example", industry: "Cafés & coffee shops", size: "11-50", notes: "Specialty café group in Riyadh (Olaya, Al Malqa). Imports through Jeddah; needs SFDA paperwork on every shipment." },
+  { key: "marina", country: "United Arab Emirates", name: "Marina Workspace", domain: "marinaworkspace.example", industry: "Coworking & offices", size: "11-50", notes: "Coworking, Dubai Marina. Office-coffee subscription across 4 sites with bean-to-cup machines." },
+  { key: "delta", country: "Egypt", name: "Delta Tech Offices", domain: "deltatech.example", industry: "Corporate offices", size: "1000+", notes: "Smart Village, Giza. The facilities team runs six pantries; procurement buys through an annual RFQ." },
+  { key: "masa", country: "Egypt", name: "مخبز الماسة — Al Masa Bakery", domain: "almasa.example", industry: "Bakery & café", size: "51-200", notes: "Twelve branches in Alexandria. Turkish-coffee grind with cardamom plus an espresso blend for the new café corners." },
+  { key: "zbooks", country: "Egypt", name: "Zamalek Books & Coffee", domain: "zamalekbooks.example", industry: "Cafés & coffee shops", size: "1-10", notes: "Independent bookshop café on 26th of July St. Small but loyal — sells our retail bags on consignment." },
+  { key: "redsea", country: "Egypt", name: "Red Sea Resorts Group", domain: "redsearesorts.example", industry: "Hospitality", size: "1000+", notes: "Four resorts in Hurghada and El Gouna. High season October to April; volumes double." },
+  { key: "rose", country: "Saudi Arabia", name: "Desert Rose Catering", domain: "desertrose.example", industry: "Catering", size: "201-1000", notes: "Riyadh. Corporate and event catering — Saudi qahwa service and mobile espresso bars." },
+  { key: "bayleaf", country: "United Arab Emirates", name: "Bay Leaf Café", domain: "bayleaf.example", industry: "Cafés & coffee shops", size: "11-50", notes: "Jumeirah, Dubai. Brunch café switching roaster in Q4; tasted our Sidamo and Huila." },
+  { key: "maadi", country: "Egypt", name: "Maadi Coworking Hub", domain: "maadihub.example", industry: "Coworking & offices", size: "11-50", notes: "Road 9, Maadi. 180 members on a monthly office-coffee plan." },
 ]
 
 const created = { companies: 0, contacts: 0, subscriptions: 0, whatsappOptIns: 0, deals: 0, activities: 0 }
@@ -196,7 +196,12 @@ const companyId = {}
   const { companies } = await s.get("/api/w/companies?limit=200")
   for (const c of COMPANIES) {
     const have = companies.find((x) => x.name === c.name || (c.domain && x.domain === c.domain))
-    if (have) { companyId[c.key] = have.id; continue }
+    if (have) {
+      companyId[c.key] = have.id
+      // MH-395: companies made before countries existed get theirs (the profile's regions match it).
+      if (!have.country && c.country) await s.patch(`/api/w/companies/${have.id}`, { country: c.country })
+      continue
+    }
     const { key, ...body } = c
     const r = await s.post("/api/w/companies", body)
     companyId[key] = r.company.id
@@ -444,6 +449,23 @@ const ACTIVITIES = [
     created.activities++
   }
   log(`activities: ${created.activities} new`)
+}
+
+// ---- CRM: the ideal-customer profile (MH-395) ----------------------------------------------
+// Who Nile Coffee sells to: hotels, cafés and caterers of 50+ people in Egypt and Saudi Arabia,
+// reached through purchasing. Set once; a profile the workspace has already saved is left alone.
+{
+  const cur = await s.get("/api/w/icp")
+  if (!cur.configured) {
+    const out = await s.put("/api/w/icp", {
+      industries: { values: ["Hospitality", "Cafés & coffee shops", "Catering", "Bakery & café"], weight: 3 },
+      sizes: { values: ["51-200", "201-1000", "1000+"], weight: 2 },
+      regions: { values: ["Egypt", "Saudi Arabia"], weight: 2 },
+      keywords: { values: ["purchasing", "procurement", "F&B", "decision-maker", "owner", "المشتريات"], weight: 2 },
+      signals: { open_deal: 3, won_deal: 3, lost_deal: -1, inbound_lead: 2, conversation: 1, subscribed: 1, whatsapp_opt_in: 1, recent_activity: 2 },
+    })
+    log(`ideal-customer profile: saved, ${out.scored} of ${out.contacts} contacts scored`)
+  } else log("ideal-customer profile: already set, left as it is")
 }
 
 // ---- Marketing: campaigns ------------------------------------------------------------------
@@ -866,6 +888,8 @@ const summary = {
   companies: co.total,
   contacts: ct.contacts.length,
   contacts_with_phone: ct.contacts.filter((c) => c.phone).length,
+  contacts_by_lifecycle: tally(ct.contacts.map((c) => ({ stage: c.lifecycle || "none" })), "stage"),
+  contacts_scored: ct.contacts.filter((c) => c.score !== null).length,
   whatsapp_opted_in: ct.contacts.filter((c) => c.whatsapp_opt_in_at).length,
   lists: ls.lists.map((l) => `${l.name}: ${l.subscribed} subscribed, ${l.pending} pending`),
   deals: dl.total,

@@ -28,6 +28,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/google"
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
+	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/leads"
 	"github.com/fadymondy/moharrik/internal/marketing"
@@ -243,6 +244,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	alerts.Register(api, a)
 	overview.Register(api, a)      // the workspace front page (MH-462)
 	reports.Register(api, a)       // CRM reporting (MH-394)
+	icp.Register(api, a)           // ideal-customer profile + lead score (MH-395)
 	analytics.Register(api, a)     // GA4 (MH-444)
 	searchconsole.Register(api, a) // Search Console performance (MH-445)
 	youtube.Register(api, a)       // YouTube channel, videos, comments (MH-441)

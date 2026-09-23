@@ -38,10 +38,11 @@ import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { useDebounced } from "@/components/crm/contact-picker"
+import { LifecycleBadge, ScoreButton } from "@/components/crm/icp"
 import { EditListDialog, exportList, UnsubscribeDialog, type UnsubscribeTarget } from "@/components/mail/subscriber-admin"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type Contact, type MailList, type SubscriptionStatus } from "@/lib/api"
+import { api, ApiError, LIFECYCLE_STAGES, type Contact, type MailList, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContactsPage, useMailLists, useSmtpSettings } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
@@ -50,6 +51,8 @@ import { Bdi, isolate } from "@/components/bidi"
 const PAGE_SIZE = 50
 const STATUSES: SubscriptionStatus[] = ["subscribed", "pending", "unsubscribed", "bounced"]
 const ALL_LISTS = "__all__"
+const ANY = "__any__"
+const MIN_SCORES = [25, 50, 75] as const
 
 const statusVariant: Record<SubscriptionStatus, "default" | "secondary" | "outline" | "destructive"> = {
   subscribed: "default",
@@ -375,6 +378,10 @@ function ContactsBrowser({ lists, version, onChange }: { lists: MailList[]; vers
   const [status, setStatus] = useState<SubscriptionStatus | "">("")
   const [search, setSearch] = useState("")
   const q = useDebounced(search.trim())
+  // MH-395: lifecycle stage, minimum score and the order.
+  const [lifecycle, setLifecycle] = useState("")
+  const [minScore, setMinScore] = useState(0)
+  const [sort, setSort] = useState<"" | "score">("")
   // cursors[i] opens page i+1; cursors[0] is the first page.
   const [cursors, setCursors] = useState<string[]>([""])
 
@@ -384,9 +391,18 @@ function ContactsBrowser({ lists, version, onChange }: { lists: MailList[]; vers
   const activeStatus = activeList ? status : ""
 
   // Any change of filter starts again from the first page.
-  useEffect(() => setCursors([""]), [activeList, activeStatus, q])
+  useEffect(() => setCursors([""]), [activeList, activeStatus, q, lifecycle, minScore, sort])
 
-  const page = useContactsPage(ws.id, { listId: activeList, status: activeStatus, q, cursor: cursors[cursors.length - 1], limit: PAGE_SIZE })
+  const page = useContactsPage(ws.id, {
+    listId: activeList,
+    status: activeStatus,
+    q,
+    lifecycle,
+    minScore,
+    sort,
+    cursor: cursors[cursors.length - 1],
+    limit: PAGE_SIZE,
+  })
   const { mutate } = page
   useEffect(() => {
     if (version > 0) mutate()
@@ -401,10 +417,16 @@ function ContactsBrowser({ lists, version, onChange }: { lists: MailList[]; vers
   const from = rows.length ? pageIndex * PAGE_SIZE + 1 : 0
   const to = pageIndex * PAGE_SIZE + rows.length
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const filtered = !!(activeList || q)
+  const filtered = !!(activeList || q || lifecycle || minScore)
   const counts = page.data?.counts ?? null
 
   const listItems = [{ value: ALL_LISTS, label: t("contacts.allContacts") }, ...lists.map((l) => ({ value: l.id, label: l.name }))]
+  const stageItems = [
+    { value: ANY, label: t("lifecycle.any") },
+    ...LIFECYCLE_STAGES.map((st) => ({ value: st, label: t(`lifecycle.${st}`) })),
+    { value: "none", label: t("lifecycle.none") },
+  ]
+  const scoreItems = [{ value: ANY, label: t("icp.anyScore") }, ...MIN_SCORES.map((n) => ({ value: String(n), label: t("icp.atLeast", { n: formatNumber(n) }) }))]
 
   return (
     <section data-contacts-browser>
@@ -440,6 +462,36 @@ function ContactsBrowser({ lists, version, onChange }: { lists: MailList[]; vers
             </SelectContent>
           </Select>
         </Field>
+        <Field className="sm:w-44">
+          <FieldLabel htmlFor="contacts-stage-filter">{t("lifecycle.label")}</FieldLabel>
+          <Select items={stageItems} value={lifecycle || ANY} onValueChange={(v) => setLifecycle(v == null || v === ANY ? "" : String(v))}>
+            <SelectTrigger id="contacts-stage-filter" className="w-full" data-stage-filter>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {stageItems.map((i) => (
+                <SelectItem key={i.value} value={i.value}>
+                  {i.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field className="sm:w-40">
+          <FieldLabel htmlFor="contacts-score-filter">{t("icp.score")}</FieldLabel>
+          <Select items={scoreItems} value={minScore ? String(minScore) : ANY} onValueChange={(v) => setMinScore(v == null || v === ANY ? 0 : Number(v))}>
+            <SelectTrigger id="contacts-score-filter" className="w-full" data-score-filter>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {scoreItems.map((i) => (
+                <SelectItem key={i.value} value={i.value}>
+                  {i.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
         {list && canExport ? (
           <Button
             variant="outline"
@@ -450,6 +502,25 @@ function ContactsBrowser({ lists, version, onChange }: { lists: MailList[]; vers
             {t("contacts.exportView")}
           </Button>
         ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
+        <span className="text-sm text-grid-muted">{t("icp.sortBy")}</span>
+        <ToggleGroup
+          variant="outline"
+          size="sm"
+          spacing={0}
+          value={[sort || "newest"]}
+          onValueChange={(v) => v[0] && setSort(v[0] === "score" ? "score" : "")}
+          aria-label={t("icp.sortBy")}
+        >
+          <ToggleGroupItem value="newest" data-sort="newest">
+            {t("icp.sortNewest")}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="score" data-sort="score">
+            {t("icp.sortScore")}
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {list ? (
@@ -496,6 +567,8 @@ function ContactsBrowser({ lists, version, onChange }: { lists: MailList[]; vers
                   setSearch("")
                   setListId("")
                   setStatus("")
+                  setLifecycle("")
+                  setMinScore(0)
                 }}
               >
                 {t("contacts.clearFilters")}
@@ -590,6 +663,8 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
           <TableRow>
             <TableHead className="ps-6">{t("contacts.email")}</TableHead>
             <TableHead>{t("contacts.name")}</TableHead>
+            <TableHead>{t("lifecycle.label")}</TableHead>
+            <TableHead>{t("icp.score")}</TableHead>
             <TableHead>{t("contacts.lists")}</TableHead>
             <TableHead>{t("contacts.whatsapp")}</TableHead>
             <TableHead>{t("contacts.added")}</TableHead>
@@ -616,6 +691,12 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
                   ) : (
                     <span className="text-grid-muted">—</span>
                   )}
+                </TableCell>
+                <TableCell>
+                  <LifecycleBadge stage={c.lifecycle ?? ""} />
+                </TableCell>
+                <TableCell>
+                  <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name || c.email)} />
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1.5">

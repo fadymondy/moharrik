@@ -4,12 +4,27 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fadymondy/moharrik/internal/icp"
 )
+
+// scoreOf decodes a stored ideal-customer score and its reasons (MH-395).
+func scoreOf(score sql.NullInt64, reasons string) (*int, []icp.Reason) {
+	list := []icp.Reason{}
+	_ = json.Unmarshal([]byte(reasons), &list)
+	if !score.Valid {
+		return nil, list
+	}
+	v := int(score.Int64)
+	return &v, list
+}
 
 /*
 The contacts list, every row of it (MH-408).
@@ -50,6 +65,12 @@ type ContactFilter struct {
 	ListID string
 	Status string
 	Q      string
+	// MH-395: the lifecycle stage ("none" for contacts without one), a minimum
+	// ideal-customer score, and the order ("" newest first, "score" highest
+	// score first, unscored last).
+	Lifecycle string
+	MinScore  *int
+	Sort      string
 }
 
 // StatusCounts is one list's subscriptions by status, under the current search.
@@ -83,6 +104,11 @@ var ErrStatusNeedsList = errors.New("a status filter needs a list: consent is pe
 // ErrBadStatus is a status that is not one of the four.
 var ErrBadStatus = errors.New("status must be subscribed, pending, unsubscribed or bounced")
 
+// ErrBadLifecycle is a lifecycle filter that is not a stage.
+var ErrBadLifecycle = errors.New("lifecycle must be subscriber, lead, qualified, customer or none")
+
+var lifecycleFilters = map[string]bool{"subscriber": true, "lead": true, "qualified": true, "customer": true, "none": true}
+
 func validStatus(s string) bool {
 	switch s {
 	case StatusSubscribed, StatusPending, StatusUnsubscribed, StatusBounced:
@@ -98,6 +124,13 @@ func (f *ContactFilter) Validate() error {
 	f.Q = strings.TrimSpace(f.Q)
 	if len([]rune(f.Q)) > 200 {
 		f.Q = string([]rune(f.Q)[:200])
+	}
+	f.Lifecycle = strings.ToLower(strings.TrimSpace(f.Lifecycle))
+	if f.Lifecycle != "" && !lifecycleFilters[f.Lifecycle] {
+		return ErrBadLifecycle
+	}
+	if f.Sort != "score" {
+		f.Sort = ""
 	}
 	if f.Status == "" {
 		return nil
@@ -137,21 +170,47 @@ func (f ContactFilter) where(wsID string) (string, []any) {
 		n := "$" + strconv.Itoa(len(args))
 		w += " AND (c.email ILIKE " + n + " OR c.name ILIKE " + n + " OR c.phone ILIKE " + n + " OR co.name ILIKE " + n + ")"
 	}
+	if f.Lifecycle != "" {
+		stage := f.Lifecycle
+		if stage == "none" {
+			stage = ""
+		}
+		args = append(args, stage)
+		w += " AND c.lifecycle = $" + strconv.Itoa(len(args))
+	}
+	if f.MinScore != nil {
+		args = append(args, *f.MinScore)
+		w += " AND sc.score >= $" + strconv.Itoa(len(args))
+	}
 	return w, args
 }
 
-const contactFrom = ` FROM contacts c LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id `
+// sc is the contact's ideal-customer score row (MH-395).
+const contactFrom = ` FROM contacts c LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id ` +
+	`LEFT JOIN icp_scores sc ON sc.workspace_id = c.workspace_id AND sc.contact_id = c.id `
 
-// cursor is the last row a page returned.
+// cursor is the last row a page returned: its created_at, or (sorted by
+// score) its score, and its id.
 type cursor struct {
-	at time.Time
-	id string
+	at      time.Time
+	id      string
+	byScore bool
+	score   int
 }
 
 // EncodeCursor is opaque to callers; it is the row's timestamp in microseconds
 // (Postgres' precision, so it round-trips exactly) and its id.
 func encodeCursor(at time.Time, id string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(at.UnixMicro(), 10) + "|" + id))
+}
+
+// encodeScoreCursor is the score-order cursor: "s" + score (-1 for none) and id.
+func encodeScoreCursor(score *int, id string) string {
+	v := -1
+	if score != nil {
+		v = *score
+	}
+	return base64.RawURLEncoding.EncodeToString([]byte("s" + strconv.Itoa(v) + "|" + id))
 }
 
 func decodeCursor(s string) (*cursor, error) {
@@ -166,6 +225,13 @@ func decodeCursor(s string) (*cursor, error) {
 	at, id, ok := strings.Cut(string(raw), "|")
 	if !ok || id == "" || len(id) > 64 {
 		return nil, ErrBadCursor
+	}
+	if sc, isScore := strings.CutPrefix(at, "s"); isScore {
+		v, err := strconv.Atoi(sc)
+		if err != nil {
+			return nil, ErrBadCursor
+		}
+		return &cursor{id: id, byScore: true, score: v}, nil
 	}
 	us, err := strconv.ParseInt(at, 10, 64)
 	if err != nil {
@@ -194,6 +260,14 @@ func ListContactsPage(ctx context.Context, db *sql.DB, wsID string, f ContactFil
 	if err != nil {
 		return nil, err
 	}
+	if cur != nil && cur.byScore != (f.Sort == "score") {
+		return nil, ErrBadCursor // a cursor belongs to the order it was issued in
+	}
+	// Scores are kept current on read (MH-395): anything a trigger marked
+	// stale since the last read is recomputed before the list is ranked by it.
+	if err := icp.Rescore(ctx, db, wsID); err != nil {
+		slog.ErrorContext(ctx, "icp rescore", "workspace", wsID, "err", err)
+	}
 	page, err := contactRows(ctx, db, wsID, f, cur, clampLimit(limit))
 	if err != nil {
 		return nil, err
@@ -215,7 +289,15 @@ func ListContactsPage(ctx context.Context, db *sql.DB, wsID string, f ContactFil
 // list with it, so the file holds exactly the rows the screen does.
 func contactRows(ctx context.Context, db *sql.DB, wsID string, f ContactFilter, cur *cursor, limit int) (*ContactPage, error) {
 	where, args := f.where(wsID)
-	if cur != nil {
+	order := "c.created_at DESC, c.id DESC"
+	if f.Sort == "score" {
+		order = "coalesce(sc.score, -1) DESC, c.id DESC"
+	}
+	if cur != nil && cur.byScore {
+		args = append(args, cur.score, cur.id)
+		n := len(args)
+		where += fmt.Sprintf(" AND (coalesce(sc.score, -1), c.id) < ($%d, $%d)", n-1, n)
+	} else if cur != nil {
 		args = append(args, cur.at, cur.id)
 		n := len(args)
 		where += fmt.Sprintf(" AND (c.created_at, c.id) < ($%d, $%d)", n-1, n)
@@ -224,8 +306,8 @@ func contactRows(ctx context.Context, db *sql.DB, wsID string, f ContactFilter, 
 	// second query.
 	args = append(args, limit+1)
 	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
-	             c.whatsapp_opt_in_at, c.whatsapp_opt_out_at` + contactFrom + `WHERE ` + where +
-		` ORDER BY c.created_at DESC, c.id DESC LIMIT $` + strconv.Itoa(len(args))
+	             c.whatsapp_opt_in_at, c.whatsapp_opt_out_at, c.lifecycle, sc.score, coalesce(sc.reasons, '[]')::text` + contactFrom + `WHERE ` + where +
+		` ORDER BY ` + order + ` LIMIT $` + strconv.Itoa(len(args))
 	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
@@ -235,10 +317,13 @@ func contactRows(ctx context.Context, db *sql.DB, wsID string, f ContactFilter, 
 	page := &ContactPage{Contacts: []ContactOut{}, Limit: limit}
 	for rows.Next() {
 		var c ContactOut
+		var score sql.NullInt64
+		var reasons string
 		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
-			&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt); err != nil {
+			&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt, &c.Lifecycle, &score, &reasons); err != nil {
 			return nil, err
 		}
+		c.Score, c.ScoreReasons = scoreOf(score, reasons)
 		c.Subscriptions = []SubscriptionOut{}
 		page.Contacts = append(page.Contacts, c)
 	}
@@ -248,7 +333,11 @@ func contactRows(ctx context.Context, db *sql.DB, wsID string, f ContactFilter, 
 	if len(page.Contacts) > limit {
 		page.Contacts = page.Contacts[:limit]
 		last := page.Contacts[limit-1]
-		page.NextCursor = encodeCursor(last.CreatedAt, last.ID)
+		if f.Sort == "score" {
+			page.NextCursor = encodeScoreCursor(last.Score, last.ID)
+		} else {
+			page.NextCursor = encodeCursor(last.CreatedAt, last.ID)
+		}
 	}
 	if err := attachSubscriptions(ctx, db, wsID, page.Contacts); err != nil {
 		return nil, err
@@ -330,14 +419,17 @@ func listCounts(ctx context.Context, db *sql.DB, wsID string, f ContactFilter) (
 // list — which missed any existing contact older than the newest thousand.
 func getContactOut(ctx context.Context, db *sql.DB, wsID, id string) (*ContactOut, error) {
 	var c ContactOut
+	var score sql.NullInt64
+	var reasons string
 	err := db.QueryRowContext(ctx, `
 		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
-		       c.whatsapp_opt_in_at, c.whatsapp_opt_out_at`+contactFrom+`WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
+		       c.whatsapp_opt_in_at, c.whatsapp_opt_out_at, c.lifecycle, sc.score, coalesce(sc.reasons, '[]')::text`+contactFrom+`WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
 	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
-		&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt)
+		&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt, &c.Lifecycle, &score, &reasons)
 	if err != nil {
 		return nil, err
 	}
+	c.Score, c.ScoreReasons = scoreOf(score, reasons)
 	c.Subscriptions = []SubscriptionOut{}
 	list := []ContactOut{c}
 	if err := attachSubscriptions(ctx, db, wsID, list); err != nil {

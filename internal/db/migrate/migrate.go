@@ -28,7 +28,7 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"browser_agents", "agent_pairings", "automation_runs", "automation_run_steps", "automation_settings",
 	"mailboxes", "whatsapp_links", "automation_schedules", "automation_workflows", "automation_workflow_versions",
 	"research_runs", "research_sources", "subscribe_forms", "leads",
-	"deal_stage_events",
+	"deal_stage_events", "contact_lifecycle_events", "icp_profiles", "icp_scores",
 	"google_connections", "google_oauth_states", "push_subscriptions",
 	"google_resources", "google_discoveries",
 	"ga4_reports", "ga4_daily",
@@ -76,6 +76,9 @@ var AuditExcluded = map[string]string{
 	"news_items":                 "items a feed collected; saving one is recorded by its request row",
 	"whatsapp_confirmations":     "a one-time confirmation code, deleted on use",
 	"notification_items":         "the inbound feed; marking items read or saved is recorded by its request row",
+	"deal_stage_events":          "written by a trigger on deals; the deal's own change is audited",
+	"contact_lifecycle_events":   "the stage history, itself a log; the contact's stage change is audited",
+	"icp_scores":                 "derived from the profile and the records, recomputed on read; the profile is audited",
 }
 
 // AuditedTables are the tenant tables the audit trigger is attached to.

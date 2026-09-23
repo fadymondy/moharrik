@@ -443,8 +443,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"chat_widgets": widgetID, "conversations": convID,
 		"subscribe-forms": formID, "leads": leadID,
 		"google": googleID,
-		"mail": listID,
-		"push": pushID,
+		"mail":   listID,
+		"push":   pushID,
 		"topics": kwID, "feed_sources": feedID, "news": newsID, "trends": trendID,
 		"browsers": agentID, "workflows": wfID, "schedules": schedID,
 		"canned_replies": cannedID,
@@ -808,6 +808,36 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	bob.ws = aID
 	if code, b := bob.do("GET", "/api/w/reports/crm", nil); code != http.StatusNotFound || leaks(b) != "" {
 		t.Errorf("B asking for A's report: got %d, want 404: %s", code, b)
+	}
+
+	// The ideal-customer profile and lifecycle (MH-395): A's profile names the
+	// marker as an industry, and A's contact has a hand-set stage. B's profile
+	// is B's own; B cannot read or write A's, and B's contact lists never carry
+	// A's scores or stages.
+	alice.ws = aID
+	alice.must("PUT", "/api/w/icp", map[string]any{"industries": map[string]any{"values": []string{marker}, "weight": 4},
+		"sizes": map[string]any{"values": []string{}, "weight": 0}, "regions": map[string]any{"values": []string{}, "weight": 0},
+		"keywords": map[string]any{"values": []string{}, "weight": 0}, "signals": map[string]any{"open_deal": 2}}, 200)
+	alice.must("PATCH", "/api/w/contacts/"+ctID, map[string]any{"lifecycle": "customer"}, 200)
+	if code, b := alice.do("GET", "/api/w/contacts/"+ctID, nil); code != 200 || !strings.Contains(string(b), `"lifecycle":"customer"`) || !strings.Contains(string(b), `"source":"manual"`) {
+		t.Errorf("A's contact does not carry its lifecycle and history: %d %s", code, b)
+	}
+	bob.ws = bID
+	if code, b := bob.do("GET", "/api/w/icp", nil); code != 200 || leaks(b) != "" || !strings.Contains(string(b), `"configured":false`) {
+		t.Errorf("B's profile shows A's: %d %s", code, b)
+	}
+	if code, b := bob.do("GET", "/api/w/contacts?sort=score&lifecycle=customer", nil); code != 200 || leaks(b) != "" || !strings.Contains(string(b), `"total":0`) {
+		t.Errorf("B's scored contacts carry A's: %d %s", code, b)
+	}
+	bob.ws = aID
+	if code, b := bob.do("GET", "/api/w/icp", nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B reading A's profile: got %d, want 404: %s", code, b)
+	}
+	if code, _ := bob.do("PUT", "/api/w/icp", map[string]any{"signals": map[string]any{"open_deal": 9}}); code != http.StatusNotFound {
+		t.Errorf("B writing A's profile: got %d, want 404", code)
+	}
+	if code, b := alice.do("GET", "/api/w/icp", nil); code != 200 || !strings.Contains(string(b), marker) || !strings.Contains(string(b), `"open_deal":2`) {
+		t.Errorf("A's profile was changed from B: %d %s", code, b)
 	}
 	alice.ws = aID
 

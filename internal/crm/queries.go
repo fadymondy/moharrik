@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -159,18 +160,33 @@ func getDeal(ctx context.Context, db *sql.DB, wsID, id string) (*DealOut, error)
 // ---- companies ------------------------------------------------------------
 
 const companySelect = `
-	SELECT co.id, co.name, co.domain, co.industry, co.size, co.notes, co.owner_user_id, co.created_at,
+	SELECT co.id, co.name, co.domain, co.industry, co.size, co.country, co.notes, co.owner_user_id, co.created_at, sc.score, coalesce(sc.reasons, '[]')::text,
 	       (SELECT count(*) FROM contacts c WHERE c.workspace_id = co.workspace_id AND c.company_id = co.id),
 	       (SELECT count(*) FROM deals d JOIN pipeline_stages st ON st.workspace_id = d.workspace_id AND st.id = d.stage_id
 	         WHERE d.workspace_id = co.workspace_id AND d.company_id = co.id AND st.kind = 'open')
-	FROM companies co WHERE co.workspace_id = $1`
+	FROM companies co LEFT JOIN icp_scores sc ON sc.workspace_id = co.workspace_id AND sc.company_id = co.id
+	WHERE co.workspace_id = $1`
 
 func scanCompany(r scanner) (CompanyOut, error) {
 	var c CompanyOut
 	var owner sql.NullString
-	err := r.Scan(&c.ID, &c.Name, &c.Domain, &c.Industry, &c.Size, &c.Notes, &owner, &c.CreatedAt, &c.ContactCount, &c.OpenDeals)
+	var score sql.NullInt64
+	var reasons string
+	err := r.Scan(&c.ID, &c.Name, &c.Domain, &c.Industry, &c.Size, &c.Country, &c.Notes, &owner, &c.CreatedAt, &score, &reasons, &c.ContactCount, &c.OpenDeals)
 	c.OwnerUserID = strp(owner)
+	c.Score, c.ScoreReasons = scoreOf(score, reasons)
 	return c, err
+}
+
+// scoreOf decodes a stored score and its reasons.
+func scoreOf(score sql.NullInt64, reasons string) (*int, []icp.Reason) {
+	list := []icp.Reason{}
+	_ = json.Unmarshal([]byte(reasons), &list)
+	if !score.Valid {
+		return nil, list
+	}
+	v := int(score.Int64)
+	return &v, list
 }
 
 func getCompany(ctx context.Context, db *sql.DB, wsID, id string) (*CompanyOut, error) {
@@ -186,15 +202,24 @@ func getCompany(ctx context.Context, db *sql.DB, wsID, id string) (*CompanyOut, 
 func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetail, error) {
 	var c ContactDetail
 	var companyID, coName, owner sql.NullString
-	var tags string
+	var tags, reasons string
+	var score sql.NullInt64
+	var lifecycleAt sql.NullTime
 	err := db.QueryRowContext(ctx, `
 		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, array_to_json(c.tags)::text,
-		       c.company_id, co.name, c.owner_user_id, c.created_at
+		       c.company_id, co.name, c.owner_user_id, c.created_at, c.lifecycle, c.lifecycle_at, sc.score, coalesce(sc.reasons, '[]')::text
 		FROM contacts c
 		LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
+		LEFT JOIN icp_scores sc ON sc.workspace_id = c.workspace_id AND sc.contact_id = c.id
 		WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
-	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &tags, &companyID, &coName, &owner, &c.CreatedAt)
+	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &tags, &companyID, &coName, &owner, &c.CreatedAt,
+		&c.Lifecycle, &lifecycleAt, &score, &reasons)
 	if err != nil {
+		return nil, err
+	}
+	c.LifecycleAt = timep(lifecycleAt)
+	c.Score, c.ScoreReasons = scoreOf(score, reasons)
+	if c.LifecycleHistory, c.LifecycleHistoryTotal, err = icp.LifecycleHistory(ctx, db, wsID, id); err != nil {
 		return nil, err
 	}
 	c.Tags = []string{}

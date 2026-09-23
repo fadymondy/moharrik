@@ -26,6 +26,7 @@ import {
   PlusIcon,
   SearchCheckIcon,
   SearchIcon,
+  TargetIcon,
   SendIcon,
   PlugIcon,
   ServerIcon,
@@ -376,6 +377,12 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/settings/email`} icon={<ServerIcon />}>
         {t("nav.email")}
       </L>
+      {/* The ideal-customer profile (MH-395): readable by anyone who reads the CRM, changed by managers. */}
+      {can?.includes("contacts:read") ? (
+        <L href={`${base}/settings/icp`} icon={<TargetIcon />}>
+          {t("nav.icp")}
+        </L>
+      ) : null}
       <L href={`${base}/settings/integrations`} icon={<PlugIcon />}>
         {t("nav.integrations")}
       </L>

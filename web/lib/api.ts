@@ -294,6 +294,10 @@ export type Contact = {
   whatsapp_opt_in_at: string | null
   /** Set when the contact said STOP. Only an explicit reversal clears it. */
   whatsapp_opt_out_at: string | null
+  /** MH-395: the lifecycle stage ("" = none yet) and the ideal-customer score with its reasons. */
+  lifecycle: Lifecycle
+  score: number | null
+  score_reasons: ScoreReason[] | null
 }
 
 export type CampaignStatus = "draft" | "sending" | "sent" | "failed"
@@ -366,11 +370,14 @@ export type Company = {
   domain: string
   industry: string
   size: CompanySize
+  country: string
   notes: string
   owner_user_id: string | null
   contact_count: number
   open_deals: number
   created_at: string
+  score: number | null
+  score_reasons: ScoreReason[] | null
 }
 
 export type StageKind = "open" | "won" | "lost"
@@ -447,6 +454,12 @@ export type ContactDetail = {
   owner_user_id: string | null
   created_at: string
   subscriptions: Subscription[]
+  lifecycle: Lifecycle
+  lifecycle_at: string | null
+  lifecycle_history: LifecycleEvent[] | null
+  lifecycle_history_total: number
+  score: number | null
+  score_reasons: ScoreReason[] | null
 }
 
 // ── Notification center ─────────────────────────────────────────────────
@@ -1558,4 +1571,54 @@ export type CrmReport = {
   timeline: ReportBucket[] | null
   lead_sources: { leads: number; spam: number; converted: number; sources: ReportLeadSource[] | null } | null
   inbox: { channels: ReportChannel[] | null; total: ReportChannel } | null
+}
+
+// ── Lifecycle + ideal-customer profile (MH-395) ────────────────────────────
+
+export const LIFECYCLE_STAGES = ["subscriber", "lead", "qualified", "customer"] as const
+export type Lifecycle = "" | (typeof LIFECYCLE_STAGES)[number]
+
+export type LifecycleEvent = {
+  id: string
+  from: Lifecycle
+  to: Lifecycle
+  source: "subscribed" | "lead_converted" | "deal_opened" | "deal_won" | "manual" | "backfill"
+  actor_user_id: string | null
+  at: string
+}
+
+export const ICP_SIGNALS = ["open_deal", "won_deal", "lost_deal", "inbound_lead", "conversation", "subscribed", "whatsapp_opt_in", "recent_activity"] as const
+export type IcpSignal = (typeof ICP_SIGNALS)[number]
+
+/** One scored dimension: its weight, how much of it is present (0..1), and weight × value. */
+export type ScoreReason = {
+  dimension: "industry" | "size" | "region" | "keywords" | IcpSignal
+  weight: number
+  value: number
+  contribution: number
+  matched: string[] | null
+  detail: string
+  text: string
+}
+
+export type IcpCriterion = { values: string[] | null; weight: number }
+
+export type IcpProfile = {
+  industries: IcpCriterion
+  sizes: IcpCriterion
+  regions: IcpCriterion
+  keywords: IcpCriterion
+  signals: Record<string, number>
+}
+
+export type IcpProfileOut = {
+  profile: IcpProfile
+  configured: boolean
+  updated_at: string | null
+  updated_by: string | null
+  signals: IcpSignal[] | null
+  sizes: string[] | null
+  can_edit: boolean
+  scored: number
+  contacts: number
 }

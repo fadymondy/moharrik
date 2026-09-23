@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/paging"
 )
 
@@ -33,6 +35,7 @@ type CompanyFields struct {
 	Domain      *string `json:"domain,omitempty" maxLength:"253"`
 	Industry    *string `json:"industry,omitempty" maxLength:"80"`
 	Size        *string `json:"size,omitempty" enum:",1-10,11-50,51-200,201-1000,1000+"`
+	Country     *string `json:"country,omitempty" maxLength:"80" doc:"Country or region; the ideal-customer profile's regions match it."`
 	Notes       *string `json:"notes,omitempty" maxLength:"5000"`
 	OwnerUserID *string `json:"owner_user_id,omitempty" doc:"A member's user id; empty string unassigns."`
 }
@@ -62,6 +65,9 @@ type ContactFields struct {
 	CompanyID   *string   `json:"company_id,omitempty" doc:"Empty string unlinks."`
 	OwnerUserID *string   `json:"owner_user_id,omitempty"`
 	Tags        *[]string `json:"tags,omitempty" maxItems:"20"`
+	// Lifecycle is set by hand, in any direction, and recorded with who set it
+	// (MH-395). Events move it forward on their own.
+	Lifecycle *string `json:"lifecycle,omitempty" enum:",subscriber,lead,qualified,customer" doc:"subscriber, lead, qualified, customer, or empty."`
 }
 
 // ActivityInput is a new timeline entry.
@@ -99,15 +105,16 @@ func CreateCompany(ctx context.Context, db *sql.DB, b CompanyFields) (*CompanyOu
 	}
 	var id string
 	err = db.QueryRowContext(ctx, `
-		INSERT INTO companies (workspace_id, name, domain, industry, size, notes, owner_user_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-		s.WorkspaceID, name, normDomain(val(b.Domain)), val(b.Industry), val(b.Size), val(b.Notes), owner,
+		INSERT INTO companies (workspace_id, name, domain, industry, size, country, notes, owner_user_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+		s.WorkspaceID, name, normDomain(val(b.Domain)), val(b.Industry), val(b.Size), strings.Join(strings.Fields(val(b.Country)), " "), val(b.Notes), owner,
 	).Scan(&id)
 	if pgCode(err) == "23505" {
 		return nil, huma.Error409Conflict("a company with that domain already exists")
 	} else if err != nil {
 		return nil, linkErr(err, "could not add the company")
 	}
+	rescore(ctx, db, s.WorkspaceID)
 	c, err := getCompany(ctx, db, s.WorkspaceID, id)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the company")
@@ -141,6 +148,9 @@ func UpdateCompany(ctx context.Context, db *sql.DB, id string, b CompanyFields) 
 		}
 		u.set("size", *b.Size)
 	}
+	if b.Country != nil {
+		u.set("country", strings.Join(strings.Fields(*b.Country), " "))
+	}
 	if b.Notes != nil {
 		u.set("notes", strings.TrimSpace(*b.Notes))
 	}
@@ -162,6 +172,7 @@ func UpdateCompany(ctx context.Context, db *sql.DB, id string, b CompanyFields) 
 			return nil, huma.Error404NotFound("company not found")
 		}
 	}
+	rescore(ctx, db, s.WorkspaceID)
 	c, err := getCompany(ctx, db, s.WorkspaceID, id)
 	if notFound(err) {
 		return nil, huma.Error404NotFound("company not found")
@@ -420,6 +431,9 @@ func UpdateContact(ctx context.Context, db *sql.DB, id string, b ContactFields) 
 		u.args = append(u.args, tagsJSON(normTags(*b.Tags)))
 		u.sets = append(u.sets, "tags = ARRAY(SELECT jsonb_array_elements_text($"+strconv.Itoa(len(u.args)+2)+"::jsonb))")
 	}
+	if b.Lifecycle != nil && !icp.ValidStage(strings.TrimSpace(*b.Lifecycle)) {
+		return nil, huma.Error422UnprocessableEntity(icp.ErrBadStage.Error())
+	}
 	if len(u.sets) > 0 {
 		res, err := db.ExecContext(ctx, `UPDATE contacts SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
 			append([]any{s.WorkspaceID, id}, u.args...)...)
@@ -430,6 +444,15 @@ func UpdateContact(ctx context.Context, db *sql.DB, id string, b ContactFields) 
 			return nil, huma.Error404NotFound("contact not found")
 		}
 	}
+	if b.Lifecycle != nil {
+		switch err := icp.SetLifecycle(ctx, db, s.WorkspaceID, id, s.UserID, *b.Lifecycle); {
+		case errors.Is(err, icp.ErrNoContact):
+			return nil, huma.Error404NotFound("contact not found")
+		case err != nil:
+			return nil, huma.Error500InternalServerError("could not set the lifecycle stage")
+		}
+	}
+	rescore(ctx, db, s.WorkspaceID)
 	c, err := getContact(ctx, db, s.WorkspaceID, id)
 	if notFound(err) {
 		return nil, huma.Error404NotFound("contact not found")
@@ -553,6 +576,12 @@ func firstOf(vs ...string) string {
 
 // CompaniesPage is one page of the companies, A-Z, searched by name and domain.
 func CompaniesPage(ctx context.Context, db *sql.DB, q, cursor string, limit int) (*CompanyPage, error) {
+	return CompaniesPageBy(ctx, db, CompanyQuery{Q: q}, cursor, limit)
+}
+
+// CompaniesPageBy is CompaniesPage with the MH-395 options: sorted by score,
+// or only those scoring at least MinScore.
+func CompaniesPageBy(ctx context.Context, db *sql.DB, q CompanyQuery, cursor string, limit int) (*CompanyPage, error) {
 	s, err := scope(ctx, authz.ContactsRead)
 	if err != nil {
 		return nil, err
@@ -561,6 +590,7 @@ func CompaniesPage(ctx context.Context, db *sql.DB, q, cursor string, limit int)
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
+	rescore(ctx, db, s.WorkspaceID)
 	page, err := ListCompaniesPage(ctx, db, s.WorkspaceID, q, cursor, limit)
 	if errors.Is(err, paging.ErrBadCursor) {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
@@ -627,6 +657,7 @@ func GetCompanyDetail(ctx context.Context, db *sql.DB, id string) (*CompanyDetai
 	if err != nil {
 		return nil, err
 	}
+	rescore(ctx, db, s.WorkspaceID)
 	c, err := getCompany(ctx, db, s.WorkspaceID, id)
 	if notFound(err) {
 		return nil, huma.Error404NotFound("company not found")
@@ -653,6 +684,7 @@ func GetContactPage(ctx context.Context, db *sql.DB, id string) (*ContactPageOut
 	if err != nil {
 		return nil, err
 	}
+	rescore(ctx, db, s.WorkspaceID)
 	c, err := getContact(ctx, db, s.WorkspaceID, id)
 	if notFound(err) {
 		return nil, huma.Error404NotFound("contact not found")
@@ -814,4 +846,13 @@ func CompanyTimeline(ctx context.Context, db *sql.DB, id, cursor string, limit i
 	}
 	sort.SliceStable(res.Entries, func(i, j int) bool { return res.Entries[i].At.After(res.Entries[j].At) })
 	return res, nil
+}
+
+// rescore brings the workspace's stale ideal-customer scores up to date before
+// a read (MH-395). A failure is logged, not returned: the page still shows the
+// last scores it has rather than no page at all.
+func rescore(ctx context.Context, db *sql.DB, wsID string) {
+	if err := icp.Rescore(ctx, db, wsID); err != nil {
+		slog.ErrorContext(ctx, "icp rescore", "workspace", wsID, "err", err)
+	}
 }

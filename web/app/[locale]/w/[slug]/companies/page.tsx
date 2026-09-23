@@ -22,6 +22,8 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Company } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useCompaniesPage } from "@/lib/queries"
+import { ScoreButton } from "@/components/crm/icp"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -35,8 +37,11 @@ export default function CompaniesPage() {
   // Paged and searchable (MH-467): this list used to stop at 2,000 without saying so.
   const [search, setSearch] = useState("")
   const q = useDebounced(search.trim())
-  const pager = useCursorStack(q)
-  const companies = useCompaniesPage(ws.id, { q, cursor: pager.cursor, limit: PAGE_SIZE })
+  // MH-395: best fit first, and a minimum score.
+  const [sort, setSort] = useState<"" | "score">("")
+  const [minScore, setMinScore] = useState(0)
+  const pager = useCursorStack(`${q}|${sort}|${minScore}`)
+  const companies = useCompaniesPage(ws.id, { q, sort, minScore, cursor: pager.cursor, limit: PAGE_SIZE })
   const items = companies.data?.companies ?? []
   const total = companies.data?.total ?? 0
 
@@ -48,7 +53,7 @@ export default function CompaniesPage() {
         <ErrorState error={companies.error} />
       ) : !companies.data ? (
         <LoadingRows />
-      ) : total === 0 && !q ? (
+      ) : total === 0 && !q && !minScore ? (
         <EmptyState title={t("companies.empty")} body={canWrite ? t("companies.emptyBody") : undefined} />
       ) : (
         <>
@@ -66,6 +71,38 @@ export default function CompaniesPage() {
                 data-company-search
               />
             </InputGroup>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-sm text-grid-muted">{t("icp.sortBy")}</span>
+              <ToggleGroup
+                variant="outline"
+                size="sm"
+                spacing={0}
+                value={[sort || "name"]}
+                onValueChange={(v) => v[0] && setSort(v[0] === "score" ? "score" : "")}
+                aria-label={t("icp.sortBy")}
+              >
+                <ToggleGroupItem value="name" data-sort="name">
+                  {t("icp.sortName")}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="score" data-sort="score">
+                  {t("icp.sortScore")}
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <ToggleGroup
+                variant="outline"
+                size="sm"
+                spacing={0}
+                value={[String(minScore)]}
+                onValueChange={(v) => v[0] !== undefined && setMinScore(Number(v[0]))}
+                aria-label={t("icp.score")}
+              >
+                {[0, 50, 75].map((n) => (
+                  <ToggleGroupItem key={n} value={String(n)} data-min-score={n}>
+                    {n ? t("icp.atLeast", { n }) : t("icp.anyScore")}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
           </div>
           {total === 0 ? (
             <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">{t("companies.noMatch")}</p>
@@ -174,6 +211,7 @@ function CompaniesTable({ items, canWrite, onChange }: { items: Company[]; canWr
         <TableHeader>
           <TableRow>
             <TableHead className="ps-6">{t("companies.name")}</TableHead>
+            <TableHead>{t("icp.score")}</TableHead>
             <TableHead>{t("companies.domain")}</TableHead>
             <TableHead>{t("companies.contacts")}</TableHead>
             <TableHead>{t("companies.openDeals")}</TableHead>
@@ -195,6 +233,9 @@ function CompaniesTable({ items, canWrite, onChange }: { items: Company[]; canWr
                     <Bdi>{c.industry}</Bdi>
                   </div>
                 ) : null}
+              </TableCell>
+              <TableCell>
+                <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name)} />
               </TableCell>
               <TableCell className="text-grid-muted">{c.domain ? <Ltr>{c.domain}</Ltr> : "—"}</TableCell>
               <TableCell>{c.contact_count}</TableCell>
