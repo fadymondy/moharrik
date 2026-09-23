@@ -722,6 +722,8 @@ func Register(api huma.API, a *app.App) {
 		return &struct{}{}, nil
 	})
 
+	registerCampaignEdit(api, a)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "w-send-campaign", Method: http.MethodPost, Path: "/api/w/campaigns/{id}/send",
 		DefaultStatus: http.StatusAccepted, Summary: "Send a campaign to every confirmed subscriber of its list (background)", Tags: tags,
@@ -1004,7 +1006,7 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 	var listID, subject, bodyMD, locale string
 	err := a.SQLDB.QueryRowContext(ctx, `
 		UPDATE campaigns SET status = 'sending', sent_count = 0, failed_count = 0, last_error = '', updated_at = now()
-		WHERE workspace_id = $1 AND id = $2 AND status IN ('draft', 'failed')
+		WHERE workspace_id = $1 AND id = $2 AND `+claimable+`
 		RETURNING list_id, subject, body, locale`, wsID, campaignID,
 	).Scan(&listID, &subject, &bodyMD, &locale)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1045,10 +1047,11 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 		var sent, failed int64
 		lastErr := ""
 		for i, r := range list {
-			unsubPage := base + "/" + locale + "/mail/unsubscribe?token=" + url.QueryEscape(r.token)
-			oneClick := base + "/api/mail/unsubscribe?token=" + url.QueryEscape(r.token)
-			text, htmlBody := RenderCampaign(locale, subject, bodyMD, unsubPage)
-			err := Send(bg, svc, Message{To: r.email, Subject: subject, Text: text, HTML: htmlBody, Headers: UnsubscribeHeaders(oneClick)})
+			// campaignEmail is also what the preview and the test send render
+			// (campaign_edit.go), so what was checked is what is delivered.
+			msg := campaignEmail(base, locale, subject, bodyMD, r.token)
+			msg.To = r.email
+			err := Send(bg, svc, msg)
 			if err != nil {
 				failed++
 				lastErr = err.Error()

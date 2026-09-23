@@ -25,7 +25,7 @@ var UserScopes = []ScopeDef{
 	{"inbox:read", "Read conversations across chat, email and WhatsApp", authz.Member},
 	{"inbox:write", "Reply to, assign and close conversations", authz.Member},
 	{"campaigns:read", "Read email and WhatsApp campaigns and their results", authz.Member},
-	{"campaigns:write", "Draft, schedule and send campaigns", authz.Manager},
+	{"campaigns:write", "Draft, edit and send campaigns", authz.Manager},
 	{"automation:read", "Read automations, browser agents and their runs", authz.Member},
 	{"automation:run", "Start and cancel automation runs", authz.Manager},
 	{"notifications:read", "Read the notification center", authz.Member},
