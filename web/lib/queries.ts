@@ -14,6 +14,8 @@ import {
   type MailboxSettings,
   type WhatsAppLink,
   type RunStep,
+  type ResearchDetail,
+  type ResearchList,
   type Activity,
   type Campaign,
   type SubscribeForm,
@@ -257,3 +259,47 @@ export const useWhatsApp = (id?: string | null) => useScoped<WhatsAppLink>("/api
 export const useSchedules = (id?: string | null) => useScoped<{ schedules: AutomationSchedule[] | null }>("/api/w/schedules", id)
 
 export const useWorkflows = (id?: string | null) => useScoped<{ workflows: AutomationWorkflow[] | null }>("/api/w/workflows", id)
+
+// ── Research (MH-227) ────────────────────────────────────────────────────
+
+const researchLive = (status?: string) => status === "queued" || status === "running"
+
+/**
+ * Past research runs and what this deployment can do. Research publishes no
+ * workspace events, so a live run is polled until it settles.
+ */
+export function useResearchRuns(workspaceId: string | null | undefined, enabled = true) {
+  return useSWR<ResearchList>(
+    workspaceId && enabled ? ["/api/w/research", workspaceId] : null,
+    ([p, id]: [string, string]) => api<ResearchList>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) => ((data?.runs ?? []).some((r) => researchLive(r.status)) ? 3000 : 0),
+    },
+  )
+}
+
+/** One run and its sources, without their page text. Polled while it is going. */
+export function useResearchRun(workspaceId: string | null | undefined, id?: string) {
+  return useSWR<ResearchDetail>(
+    workspaceId && id ? [`/api/w/research/${encodeURIComponent(id)}`, workspaceId] : null,
+    ([p, ws]: [string, string]) => api<ResearchDetail>(p, { workspaceId: ws }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) => (researchLive(data?.run.status) ? 2000 : 0),
+    },
+  )
+}
+
+/**
+ * The same run WITH the fetched page text. The API withholds it by default
+ * (it is up to five articles), so this is only asked for once somebody opens a
+ * source's text — `enabled` stays false until then.
+ */
+export function useResearchContent(workspaceId: string | null | undefined, id: string | undefined, enabled: boolean) {
+  return useSWR<ResearchDetail>(
+    workspaceId && id && enabled ? [`/api/w/research/${encodeURIComponent(id)}?content=true`, workspaceId] : null,
+    ([p, ws]: [string, string]) => api<ResearchDetail>(p, { workspaceId: ws }),
+    noRetryOn4xx,
+  )
+}
