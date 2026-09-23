@@ -45,6 +45,21 @@ type Overview struct {
 	Trends        *Trends            `json:"trends" doc:"Null without trends:read."`
 	Setup         []SetupItem        `json:"setup" doc:"Only the items the caller's role can see."`
 	Traffic       *Traffic           `json:"traffic" doc:"Null without analytics:read, or when no GA4 property or Search Console site is enabled (MH-444/445)."`
+	YouTube       []YouTubeChannel   `json:"youtube" doc:"Each enabled YouTube channel. Null without analytics:read or with none enabled (MH-441/442)."`
+}
+
+// YouTubeChannel is one enabled channel on the front page: its counters from
+// the last sync, and its views over the last 28 days from YouTube Analytics
+// when they have been fetched. Nothing fetched is null, never 0.
+type YouTubeChannel struct {
+	ResourceID  string     `json:"resource_id"`
+	Title       string     `json:"title"`
+	Subscribers *int64     `json:"subscribers" doc:"Null until synced, or when the channel hides it."`
+	Videos      *int64     `json:"videos"`
+	Views28     *int64     `json:"views_28" doc:"YouTube Analytics views over the last 28 days; null until fetched."`
+	Views28To   *string    `json:"views_28_to" doc:"The last day of those 28 (YYYY-MM-DD, Pacific)."`
+	SyncedAt    *time.Time `json:"synced_at"`
+	LastError   string     `json:"last_error"`
 }
 
 // Traffic is the last 28 days of each enabled GA4 property and Search
@@ -320,6 +335,7 @@ func Build(ctx context.Context, db *sql.DB, wsID, role string, env Env, now time
 	o.Setup = b.setup(can, env)
 	if can(authz.AnalyticsRead) {
 		o.Traffic = b.traffic()
+		o.YouTube = b.youtube()
 	}
 
 	if b.err != nil {
@@ -651,6 +667,33 @@ func (b *builder) traffic() *Traffic {
 		return nil
 	}
 	return t
+}
+
+// youtube reads each enabled channel. nil when none is enabled.
+func (b *builder) youtube() []YouTubeChannel {
+	var list []YouTubeChannel
+	b.each(`
+		SELECT r.id, coalesce(nullif(c.title, ''), r.display_name),
+		       CASE WHEN c.subscribers_hidden THEN NULL ELSE c.subscriber_count END, c.video_count, c.updated_at, r.last_error,
+		       (SELECT (y.payload->'totals'->>'views')::numeric::bigint FROM youtube_analytics y
+		        WHERE y.workspace_id = r.workspace_id AND y.resource_id = r.id AND y.scope = 'channel' AND y.days = 28),
+		       (SELECT y.payload->>'end_date' FROM youtube_analytics y
+		        WHERE y.workspace_id = r.workspace_id AND y.resource_id = r.id AND y.scope = 'channel' AND y.days = 28)
+		FROM google_resources r
+		LEFT JOIN youtube_channels c ON c.workspace_id = r.workspace_id AND c.resource_id = r.id
+		WHERE r.workspace_id = $1 AND r.kind = 'yt_channel' AND r.enabled
+		ORDER BY lower(r.display_name), r.id`, nil, func(r *sql.Rows) error {
+		var y YouTubeChannel
+		if err := r.Scan(&y.ResourceID, &y.Title, &y.Subscribers, &y.Videos, &y.SyncedAt, &y.LastError, &y.Views28, &y.Views28To); err != nil {
+			return err
+		}
+		list = append(list, y)
+		return nil
+	})
+	if b.err != nil || len(list) == 0 {
+		return nil
+	}
+	return list
 }
 
 // setup lists what is connected. Each item is shown only to a role that can

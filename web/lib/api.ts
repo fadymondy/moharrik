@@ -1033,6 +1033,67 @@ export type GscPerformance = {
 
 export type GscPerformanceOut = { resource: GoogleResource | null; performance: GscPerformance | null }
 
+// ── YouTube (MH-441) ─────────────────────────────────────────────────────
+
+export type YtChannel = {
+  channel_id: string
+  title: string
+  handle: string
+  avatar_url: string
+  subscribers: number
+  /** The channel hides its subscriber count. */
+  subscribers_hidden: boolean
+  videos: number
+  views: number
+  uploads_complete: boolean
+  updated_at: string
+  comments_seen_until: string | null
+  url: string
+}
+
+export type YtQuota = { day: string; workspace_used: number; workspace_limit: number; global_used: number; global_limit: number }
+
+export type YtChannelOut = { resource: GoogleResource | null; channel: YtChannel | null; quota: YtQuota }
+
+export type YtVideo = {
+  id: string
+  title: string
+  description: string
+  tags: string[] | null
+  thumbnail_url: string
+  published_at: string | null
+  scheduled_at: string | null
+  scheduled: boolean
+  privacy_status: string
+  duration_seconds: number
+  views: number
+  /** Null when the video hides its likes. */
+  likes: number | null
+  /** Null when comments are turned off. */
+  comments: number | null
+  comments_disabled: boolean
+  synced_at: string
+  url: string
+  studio_url: string
+}
+
+export type YtVideoPage = { videos: YtVideo[] | null; has_more: boolean; next_cursor?: string; total: number; counts: Record<string, number> | null }
+
+export type YtComment = {
+  id: string
+  video_id: string
+  author: string
+  author_avatar_url: string
+  text: string
+  likes: number
+  replies: number
+  answered: boolean
+  published_at: string | null
+  reply_url: string
+}
+
+export type YtVideoDetail = YtVideo & { top_comments: YtComment[] | null; comment_note?: string }
+
 // ── Alerts and web push (MH-378) ─────────────────────────────────────────
 
 export type BellItem = {
@@ -1173,6 +1234,20 @@ export type Overview = {
   setup: { key: SetupKey; done: boolean; available: boolean }[] | null
   /** Null without analytics:read, or when no GA4 property / Search Console site is enabled. */
   traffic?: OverviewTraffic | null
+  /** Each enabled YouTube channel (MH-441/442). */
+  youtube?: OverviewYouTube[] | null
+}
+
+export type OverviewYouTube = {
+  resource_id: string
+  title: string
+  subscribers: number | null
+  videos: number | null
+  /** YouTube Analytics views over the last 28 days; null until fetched. */
+  views_28: number | null
+  views_28_to: string | null
+  synced_at: string | null
+  last_error: string
 }
 
 /** The last 28 days of each enabled GA4 property (MH-444). A null figure was never fetched. */

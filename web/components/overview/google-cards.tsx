@@ -7,10 +7,10 @@
   fetched is a dash with the reason, never a zero.
 */
 
-import { ChartLineIcon } from "lucide-react"
+import { ChartLineIcon, YoutubeIcon } from "lucide-react"
 
 import { Panel, useFormat } from "@/components/overview/overview-cards"
-import type { OverviewTraffic } from "@/lib/api"
+import type { OverviewTraffic, OverviewYouTube } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
 function Figure({ label, value, id }: { label: string; value: string; id: string }) {
@@ -59,6 +59,36 @@ export function TrafficCard({ traffic, base }: { traffic: OverviewTraffic; base:
               {s.clicks == null || !s.end_date
                 ? s.last_error || t("overview.searchPending")
                 : t("overview.searchSource", { name: s.name, to: f.date(s.end_date) })}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  )
+}
+
+export function YouTubeCard({ channels, base }: { channels: OverviewYouTube[]; base: string }) {
+  const { t } = useTranslations()
+  const f = useFormat()
+  const num = (v: number | null) => (v == null ? "—" : f.n(v))
+  return (
+    <Panel id="youtube" title={t("nav.youtube")} icon={<YoutubeIcon />} href={`${base}/youtube`}>
+      <ul className="divide-y divide-line">
+        {channels.map((c) => (
+          <li key={c.resource_id} className="space-y-3 px-5 py-4" data-youtube-channel={c.title}>
+            <p className="truncate text-sm font-medium text-grid-fg">
+              <bdi>{c.title}</bdi>
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <Figure id="subscribers" label={t("yt.subscribers")} value={num(c.subscribers)} />
+              <Figure id="views28" label={t("overview.views28")} value={num(c.views_28)} />
+            </div>
+            <p className="text-xs text-grid-muted">
+              {c.last_error
+                ? c.last_error
+                : c.views_28 == null
+                  ? t("overview.views28Pending")
+                  : t("overview.views28Source", { to: c.views_28_to ? f.date(c.views_28_to) : "—" })}
             </p>
           </li>
         ))}

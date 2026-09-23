@@ -31,6 +31,7 @@ import {
   TrendingUpIcon,
   UserPlusIcon,
   UsersIcon,
+  YoutubeIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -344,6 +345,11 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       {can?.includes("analytics:read") ? (
         <L href={`${base}/search-console`} icon={<SearchIcon />}>
           {t("nav.searchConsole")}
+        </L>
+      ) : null}
+      {can?.includes("analytics:read") ? (
+        <L href={`${base}/youtube`} icon={<YoutubeIcon />}>
+          {t("nav.youtube")}
         </L>
       ) : null}
       {/* Hidden, not disabled, for roles that cannot read runs: the API would only answer 403. */}

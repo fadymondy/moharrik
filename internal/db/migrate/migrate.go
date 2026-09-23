@@ -30,7 +30,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"google_connections", "google_oauth_states", "push_subscriptions",
 	"google_resources", "google_discoveries",
 	"ga4_reports", "ga4_daily",
-	"gsc_search_analytics_daily", "gsc_search_totals_daily", "gsc_import_days"}
+	"gsc_search_analytics_daily", "gsc_search_totals_daily", "gsc_import_days",
+	"youtube_channels", "youtube_videos", "youtube_comments", "youtube_analytics"}
 
 var roleName = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 
