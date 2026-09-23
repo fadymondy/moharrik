@@ -32,6 +32,15 @@ jobs:
         run: go run ./cmd/api openapi > /dev/null
       - name: Vet
         run: go vet ./...
+      - name: Migrate the test database
+        # The generated internal/rest suites run against TEST_DATABASE_URL itself and expect it
+        # migrated (locally it usually already is, which hid this). The migrator also creates
+        # the app role named in APP_DATABASE_URL.
+        env:
+          DB_DRIVER: pgx
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/moharrik_test?sslmode=disable
+          APP_DATABASE_URL: postgres://moharrik_app_test:test@localhost:5432/moharrik_test?sslmode=disable
+        run: go run ./cmd/migrate
       - name: Unit tests + guards (MCP scopes, sqlc tenant predicate, authz) — database suites included
         # Every database-backed suite skips itself when these are unset, so without them this
         # step reported green while running a fraction of the tests. The generated internal/rest
