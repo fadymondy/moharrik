@@ -53,6 +53,7 @@ import {
   type TrendTopicPage,
   type GoogleResources,
   type GaReportOut,
+  type GscPerformanceOut,
   type NewsItem,
   type NotificationItem,
   type Overview,
@@ -477,6 +478,19 @@ export function useGaReport(workspaceId: string | null | undefined, resource: st
     workspaceId && enabled ? [`/api/w/analytics/report?${q}`, workspaceId] : null,
     ([p, id]: [string, string]) => api<GaReportOut>(p, { workspaceId: id }),
     { ...noRetryOn4xx, keepPreviousData: true },
+  )
+}
+
+/** Search Console performance (MH-445). Polled while the first import has nothing yet. */
+export function useGscPerformance(workspaceId: string | null | undefined, query: string, enabled = true) {
+  return useSWR<GscPerformanceOut>(
+    workspaceId && enabled ? [`/api/w/search-console/performance?${query}`, workspaceId] : null,
+    ([p, id]: [string, string]) => api<GscPerformanceOut>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      keepPreviousData: true,
+      refreshInterval: (data) => (data?.performance?.nothing_yet && data.resource?.syncing ? 4000 : 0),
+    },
   )
 }
 

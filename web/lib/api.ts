@@ -1000,6 +1000,39 @@ export type GaReportOut = {
   error?: string
 }
 
+// ── Search Console (MH-445) ──────────────────────────────────────────────
+
+export type GscTotals = { clicks: number; impressions: number; ctr: number; position: number | null }
+/** One day. Null fields: the day was never imported (unknown), unlike 0 (imported, no data). */
+export type GscPoint = { date: string; clicks: number | null; impressions: number | null; ctr: number | null; position: number | null }
+export type GscRow = { key: string; clicks: number; impressions: number; ctr: number; position: number | null }
+
+export type GscPerformance = {
+  days: number
+  start_date: string
+  end_date: string
+  /** site = the site's own totals; queries = sums of query rows (anonymised queries left out). */
+  basis: "site" | "queries"
+  totals: GscTotals
+  previous: GscTotals | null
+  previous_start_date?: string
+  previous_end_date?: string
+  daily: GscPoint[] | null
+  previous_daily: GscPoint[] | null
+  top_queries: GscRow[] | null
+  top_pages: GscRow[] | null
+  countries: string[] | null
+  devices: string[] | null
+  coverage: { imported_days: number; first_date: string | null; last_data_date: string | null; last_import_at: string | null; truncated_days: number }
+  empty: boolean
+  nothing_yet: boolean
+  /** Days of the window not imported yet: totals over them are partial. */
+  missing_days: number
+  previous_missing_days: number
+}
+
+export type GscPerformanceOut = { resource: GoogleResource | null; performance: GscPerformance | null }
+
 // ── Alerts and web push (MH-378) ─────────────────────────────────────────
 
 export type BellItem = {
@@ -1152,6 +1185,16 @@ export type OverviewTraffic = {
     start_date: string | null
     end_date: string | null
     fetched_at: string | null
+    last_error: string
+  }[] | null
+  /** Each enabled Search Console site's clicks over the 28 days ending on its newest day with data (MH-445). */
+  sites?: {
+    resource_id: string
+    name: string
+    clicks: number | null
+    impressions: number | null
+    start_date: string | null
+    end_date: string | null
     last_error: string
   }[] | null
 }

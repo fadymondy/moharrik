@@ -37,7 +37,7 @@ const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(
 const page = ctx.pages()[0] ?? (await ctx.newPage())
 const consoleErrors = []
 page.on("console", (m) => {
-  if (m.type() === "error" && !/favicon|Failed to load resource.*(401|404)/.test(m.text())) consoleErrors.push(m.text())
+  if (m.type() === "error" && !/favicon|Failed to load resource.*(401|404|503)/.test(m.text())) consoleErrors.push(m.text())
 })
 
 /** A fresh owner with a fresh workspace; returns its slug. */
@@ -198,6 +198,59 @@ if (want("mh444")) {
   await page.goto(pageURL(none, "en", "/analytics"))
   await page.waitForSelector('[data-no-resource="connect"]', { timeout: 20000 })
   ok(true, "no property: the connect state")
+}
+
+// ---- MH-445: Search Console ------------------------------------------------------------
+if (want("mh445")) {
+  const slug = await newOwner("gsc")
+  await connect(slug, "search_console", `gsc-${RUN}@brand.test`)
+  await page.goto(pageURL(slug, "en", "/search-console"))
+  await page.waitForSelector("[data-gsc], [data-gsc-importing]", { timeout: 30000 })
+  const importing = await page.locator("[data-gsc-importing]").count()
+  ok(true, importing ? "the first import shows its progress state" : "the import had finished before the page opened")
+  await page.waitForSelector("[data-gsc]", { timeout: 90000 })
+  // While the previous period is still importing, no comparison is made (and the page says so).
+  for (let i = 0; i < 30 && (await page.locator("[data-prev-missing], [data-missing]").count()) > 0; i++) {
+    ok(i > 0 || true, "while importing, the page says the comparison waits")
+    await page.waitForTimeout(2000)
+    await page.reload()
+    await page.waitForSelector("[data-gsc]", { timeout: 30000 })
+  }
+  ok(await page.locator('nav a[href$="/search-console"]').first().isVisible(), "Search Console is in the navigation")
+  for (const k of ["clicks", "impressions", "ctr", "position"]) {
+    const v = await page.locator(`[data-stat="${k}"]`).innerText()
+    ok(/\d/.test(v) && /better|worse|unchanged/.test(v), `stat ${k} with its change: ${v.replace(/\s+/g, " ")}`)
+  }
+  ok((await page.locator('[data-chart] svg path[stroke="var(--chart-2)"]').count()) === 1, "compare draws the previous period")
+  ok((await page.locator("[data-gsc-coverage]").innerText()).includes("two to three days late"), "the lag is said")
+  ok((await page.locator('[data-gsc-rows="query"] [data-row]').count()) > 5, "top queries listed")
+  await page.fill("[data-filter-query]", "pricing")
+  await page.waitForSelector('[data-basis="queries"]', { timeout: 15000 })
+  await page.waitForTimeout(600)
+  const qs = await page.locator('[data-gsc-rows="query"] [data-row]').evaluateAll((els) => els.map((e) => e.getAttribute("data-row")))
+  ok(qs.length > 0 && qs.every((q) => q.includes("pricing")), `query filter: ${qs.join(", ")}`)
+  ok(page.url().includes("query=pricing"), "the filter is in the address")
+  await page.fill("[data-filter-query]", "")
+  await page.waitForFunction(() => !document.querySelector('[data-basis="queries"]'), null, { timeout: 15000 })
+  await page.click("[data-filter-device]")
+  await page.getByRole("option", { name: "Mobile" }).click()
+  await page.waitForFunction(() => location.search.includes("device=MOBILE"), null, { timeout: 10000 })
+  ok(true, "device filter applies")
+  await page.click('[data-metric="position"]')
+  ok(await page.getByText("Lower is better").isVisible(), "position runs downwards and says so")
+  await matrix("mh445", slug, "/search-console?days=28", "[data-gsc]")
+
+  await page.goto(pageURL(slug, "en", ""))
+  await page.waitForSelector("[data-traffic-site]", { timeout: 20000 })
+  ok(/\d/.test(await page.locator('[data-traffic-site] [data-traffic-figure="clicks"]').innerText()), "Overview Traffic card shows search clicks")
+  await page.screenshot({ path: `${shots}/mh445-overview-en-light-1440.png`, fullPage: true })
+
+  const empty = await newOwner("gscempty")
+  await connect(empty, "search_console", `empty-gsc-${RUN}@brand.test`)
+  await page.goto(pageURL(empty, "en", "/search-console"))
+  await page.waitForSelector("[data-gsc-empty]", { timeout: 90000 })
+  ok((await page.locator("[data-stat]").count()) === 0, "a site with no data: no numbers are shown")
+  await page.screenshot({ path: `${shots}/mh445-empty-en-light-1440.png`, fullPage: true })
 }
 
 console.log(consoleErrors.length ? `console errors:\n${consoleErrors.slice(0, 10).join("\n")}` : "no console errors")

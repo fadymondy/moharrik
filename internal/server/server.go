@@ -37,6 +37,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/research"
 	"github.com/fadymondy/moharrik/internal/rest"
+	"github.com/fadymondy/moharrik/internal/searchconsole"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
@@ -159,7 +160,8 @@ func Boot() *app.App {
 	// The Google data collector (MH-440..447): discovery, then the enabled
 	// properties, sites and channels that are due. GOOGLE_COLLECTOR=off turns
 	// it off — the tests and the OpenAPI export must not call Google.
-	analytics.RegisterSync() // GA4's nightly snapshot (MH-444)
+	analytics.RegisterSync()     // GA4's nightly snapshot (MH-444)
+	searchconsole.RegisterSync() // Search Console's daily import (MH-445)
 	if os.Getenv("GOOGLE_COLLECTOR") != "off" {
 		google.StartCollector(a, 5*time.Minute, 20)
 	}
@@ -218,8 +220,9 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	mcp.RegisterTokenRoutes(api, a)
 	google.Register(api, a)
 	alerts.Register(api, a)
-	overview.Register(api, a) // the workspace front page (MH-462)
-	analytics.Register(api, a) // GA4 (MH-444)
+	overview.Register(api, a)      // the workspace front page (MH-462)
+	analytics.Register(api, a)     // GA4 (MH-444)
+	searchconsole.Register(api, a) // Search Console performance (MH-445)
 }
 
 /*

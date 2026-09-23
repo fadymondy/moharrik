@@ -26,9 +26,10 @@ export function TrafficCard({ traffic, base }: { traffic: OverviewTraffic; base:
   const { t } = useTranslations()
   const f = useFormat()
   const props = traffic.properties ?? []
+  const sites = traffic.sites ?? []
   const num = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
-    <Panel id="traffic" title={t("overview.traffic")} icon={<ChartLineIcon />} href={`${base}/analytics`} meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}>
+    <Panel id="traffic" title={t("overview.traffic")} icon={<ChartLineIcon />} href={`${base}/${props.length ? "analytics" : "search-console"}`} meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}>
       <ul className="divide-y divide-line">
         {props.map((p) => (
           <li key={p.resource_id} className="space-y-3 px-5 py-4" data-traffic-property={p.name}>
@@ -45,6 +46,19 @@ export function TrafficCard({ traffic, base }: { traffic: OverviewTraffic; base:
               {p.users == null
                 ? p.last_error || t("overview.trafficPending")
                 : t("overview.trafficSource", { name: p.name, when: p.fetched_at ? f.ago(p.fetched_at) : "—" })}
+            </p>
+          </li>
+        ))}
+        {sites.map((s) => (
+          <li key={s.resource_id} className="space-y-3 px-5 py-4" data-traffic-site={s.name}>
+            <div className="grid grid-cols-2 gap-4">
+              <Figure id="clicks" label={t("overview.searchClicks")} value={num(s.clicks)} />
+              <Figure id="impressions" label={t("gsc.impressions")} value={num(s.impressions)} />
+            </div>
+            <p className="text-xs text-grid-muted">
+              {s.clicks == null || !s.end_date
+                ? s.last_error || t("overview.searchPending")
+                : t("overview.searchSource", { name: s.name, to: f.date(s.end_date) })}
             </p>
           </li>
         ))}

@@ -87,6 +87,7 @@ type Server struct {
 	data          map[string]*AccountData
 	failures      map[string]*failSpec
 	AdminPageSize int // accountSummaries per page; default 2, to exercise paging
+	GSCPageCap    int // caps a Search Analytics rowLimit (tests force paging with it)
 	// DataFor, when set, picks an account's data the first time it is seen
 	// (the dev check: "many@…" sees several of each). nil or a nil answer: Demo.
 	DataFor  func(Account) *AccountData

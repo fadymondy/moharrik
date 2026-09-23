@@ -23,6 +23,7 @@ import {
   MessageSquarePlusIcon,
   PlusIcon,
   SearchCheckIcon,
+  SearchIcon,
   SendIcon,
   PlugIcon,
   ServerIcon,
@@ -338,6 +339,11 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       {can?.includes("analytics:read") ? (
         <L href={`${base}/analytics`} icon={<ChartLineIcon />}>
           {t("nav.analytics")}
+        </L>
+      ) : null}
+      {can?.includes("analytics:read") ? (
+        <L href={`${base}/search-console`} icon={<SearchIcon />}>
+          {t("nav.searchConsole")}
         </L>
       ) : null}
       {/* Hidden, not disabled, for roles that cannot read runs: the API would only answer 403. */}

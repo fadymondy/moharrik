@@ -53,6 +53,19 @@ type Overview struct {
 // has never been fetched is null, never 0.
 type Traffic struct {
 	Properties []TrafficProperty `json:"properties"`
+	Sites      []TrafficSite     `json:"sites"`
+}
+
+// TrafficSite is one Search Console site's clicks over the 28 days ending on
+// its newest day with data (Search Console lags two to three days).
+type TrafficSite struct {
+	ResourceID  string  `json:"resource_id"`
+	Name        string  `json:"name"`
+	Clicks      *int64  `json:"clicks" doc:"Null until the first import."`
+	Impressions *int64  `json:"impressions"`
+	StartDate   *string `json:"start_date"`
+	EndDate     *string `json:"end_date"`
+	LastError   string  `json:"last_error"`
 }
 
 // TrafficProperty is one GA4 property's 28-day totals.
@@ -591,10 +604,11 @@ func (b *builder) trends() *Trends {
 	return t
 }
 
-// traffic reads the enabled GA4 properties' 28-day snapshots. nil when
-// nothing is enabled: the card is not shown at all.
+// traffic reads the enabled GA4 properties' 28-day snapshots and the enabled
+// Search Console sites' imported clicks. nil when nothing is enabled: the
+// card is not shown at all.
 func (b *builder) traffic() *Traffic {
-	t := &Traffic{Properties: []TrafficProperty{}}
+	t := &Traffic{Properties: []TrafficProperty{}, Sites: []TrafficSite{}}
 	b.each(`
 		SELECT r.id, r.display_name, g.users, g.sessions, to_char(g.start_date, 'YYYY-MM-DD'), to_char(g.end_date, 'YYYY-MM-DD'),
 		       g.fetched_at, r.last_error
@@ -609,7 +623,31 @@ func (b *builder) traffic() *Traffic {
 		t.Properties = append(t.Properties, p)
 		return nil
 	})
-	if b.err != nil || len(t.Properties) == 0 {
+	b.each(`
+		SELECT r.id, r.display_name, r.last_error, x.last,
+		       (SELECT sum(g.clicks) FROM gsc_search_totals_daily g WHERE g.workspace_id = r.workspace_id AND g.resource_id = r.id
+		          AND g.date BETWEEN x.last - 27 AND x.last),
+		       (SELECT sum(g.impressions) FROM gsc_search_totals_daily g WHERE g.workspace_id = r.workspace_id AND g.resource_id = r.id
+		          AND g.date BETWEEN x.last - 27 AND x.last)
+		FROM google_resources r
+		LEFT JOIN LATERAL (SELECT max(date) AS last FROM gsc_search_totals_daily g
+		                   WHERE g.workspace_id = r.workspace_id AND g.resource_id = r.id) x ON true
+		WHERE r.workspace_id = $1 AND r.kind = 'gsc_site' AND r.enabled
+		ORDER BY lower(r.display_name), r.id`, nil, func(r *sql.Rows) error {
+		var st TrafficSite
+		var last sql.NullTime
+		if err := r.Scan(&st.ResourceID, &st.Name, &st.LastError, &last, &st.Clicks, &st.Impressions); err != nil {
+			return err
+		}
+		if last.Valid {
+			e := last.Time.Format("2006-01-02")
+			s := last.Time.AddDate(0, 0, -27).Format("2006-01-02")
+			st.StartDate, st.EndDate = &s, &e
+		}
+		t.Sites = append(t.Sites, st)
+		return nil
+	})
+	if b.err != nil || len(t.Properties)+len(t.Sites) == 0 {
 		return nil
 	}
 	return t
