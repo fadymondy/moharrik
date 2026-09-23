@@ -209,7 +209,7 @@ func (e *Engine) execute(a *app.App, workspaceID, runID, topic string) {
 	read := 0
 
 	for i, f := range findings {
-		src := ResearchSource{Position: i, URL: f.URL, Title: f.Title, Snippet: f.Snippet}
+		src := ResearchSource{Position: i, URL: clean(f.URL), Title: clean(f.Title), Snippet: clean(f.Snippet)}
 
 		// Only the first few are fetched; the rest stand on their snippet.
 		if e.Read != nil && i < MaxReads {
@@ -217,9 +217,9 @@ func (e *Engine) execute(a *app.App, workspaceID, runID, topic string) {
 			if err != nil {
 				// Kept, with the reason. A page that could not be read is part
 				// of the honest picture, not something to hide.
-				src.Error = trim(err.Error(), 300)
+				src.Error = trim(clean(err.Error()), 300)
 			} else {
-				src.Content = trim(md, maxSourceChars)
+				src.Content = trim(clean(md), maxSourceChars)
 				src.Fetched = true
 				read++
 			}
@@ -306,12 +306,18 @@ Rules:
 	return strings.TrimSpace(result.Text), result.Provenance.Provider, nil
 }
 
+// finish records how a run ended — unless somebody stopped it first.
+//
+// Cancel is only noticed BETWEEN pages, so a Stop pressed during the search or
+// the model call used to be overwritten here: the run said "Stopped" on screen,
+// then quietly became "Finished" with an answer nobody waited for. A cancelled
+// run stays cancelled.
 func (e *Engine) finish(ctx context.Context, a *app.App, workspaceID, runID, status, errText, summary, model string, found, read int) {
 	if _, err := a.SQLDB.ExecContext(ctx, `
 		UPDATE research_runs
 		SET status = $3, error = $4, summary = $5, model = $6,
 		    found_count = $7, read_count = $8, finished_at = now(), updated_at = now()
-		WHERE workspace_id = $1 AND id = $2`,
+		WHERE workspace_id = $1 AND id = $2 AND status <> 'cancelled'`,
 		workspaceID, runID, status, trim(errText, 500), summary, model, found, read); err != nil {
 		e.Log.Error("research: could not finish the run", "run", runID, "err", err)
 	}
@@ -445,6 +451,15 @@ func promptBudget() int {
 		}
 	}
 	return defaultPromptChars
+}
+
+// clean makes fetched text storable. Postgres refuses a text value holding a
+// NUL byte or invalid UTF-8, and a page read as binary (a PDF, a mislabelled
+// download) carries both: the INSERT failed, the source was only logged, and the
+// run then reported more pages found and read than it kept. Dropping the bytes
+// Postgres cannot hold keeps the source, which is the point of storing them.
+func clean(s string) string {
+	return strings.ToValidUTF8(strings.ReplaceAll(s, "\x00", ""), "")
 }
 
 func trim(s string, n int) string {

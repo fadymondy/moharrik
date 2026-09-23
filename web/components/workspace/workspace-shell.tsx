@@ -20,6 +20,7 @@ import {
   MailIcon,
   MessageSquarePlusIcon,
   PlusIcon,
+  SearchCheckIcon,
   SendIcon,
   ServerIcon,
   WebhookIcon,
@@ -211,7 +212,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         <div className={cn("flex h-14 items-center border-b border-line px-4", mini && "justify-center px-0")}>
           <Brand mini={mini} />
         </div>
-        {summary ? <ShellNav base={base} mini={mini} /> : null}
+        {summary ? <ShellNav base={base} mini={mini} can={current.data?.can} /> : null}
       </aside>
 
       <div className="flex min-w-0 flex-col">
@@ -247,7 +248,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           <SheetTitle className="flex h-14 items-center border-b border-line px-4">
             <Brand />
           </SheetTitle>
-          {summary ? <ShellNav base={base} onNavigate={() => setNavOpen(false)} /> : null}
+          {summary ? <ShellNav base={base} can={current.data?.can} onNavigate={() => setNavOpen(false)} /> : null}
         </SheetContent>
       </Sheet>
 
@@ -267,7 +268,7 @@ function ShellSkeleton() {
 }
 
 /** The workspace navigation: the sticky sidebar on desktop, a slide-out sheet below md. */
-function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate?: () => void; mini?: boolean }) {
+function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNavigate?: () => void; mini?: boolean; can?: string[] }) {
   const { t } = useTranslations()
   const L = (props: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean }) => <NavLink {...props} onNavigate={onNavigate} mini={mini} />
   return (
@@ -299,6 +300,12 @@ function ShellNav({ base, onNavigate, mini = false }: { base: string; onNavigate
       <L href={`${base}/trends`} exact icon={<TrendingUpIcon />}>
         {t("nav.trends")}
       </L>
+      {/* Hidden, not disabled, for roles that cannot read runs: the API would only answer 403. */}
+      {can?.includes("research:read") ? (
+        <L href={`${base}/research`} icon={<SearchCheckIcon />}>
+          {t("nav.research")}
+        </L>
+      ) : null}
       <L href={`${base}/notifications`} exact icon={<BellIcon />}>
         {t("nav.notifications")}
       </L>

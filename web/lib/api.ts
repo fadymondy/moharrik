@@ -549,3 +549,49 @@ export type AutomationWorkflow = {
   run_count: number
   created_at: string
 }
+
+// ── Research (MH-227) ───────────────────────────────────────────────────
+
+export type ResearchStatus = "queued" | "running" | "ok" | "failed" | "cancelled"
+
+export type ResearchRun = {
+  id: string
+  topic: string
+  query: string
+  status: ResearchStatus
+  /** Trimmed to 400 characters in the list; whole on the detail endpoint. */
+  summary: string
+  /** The provider that wrote the summary, empty when nothing did. */
+  model: string
+  /** On an "ok" run this is why there is no summary (no model, nothing readable). */
+  error: string
+  /** Written when the run finishes; 0 while it is still going. */
+  found_count: number
+  read_count: number
+  requested_by: string
+  started_at: string | null
+  finished_at: string | null
+  created_at: string
+}
+
+export type ResearchSource = {
+  /** 0-based rank in the search results; the summary cites it as [position + 1]. */
+  position: number
+  url: string
+  title: string
+  snippet: string
+  /** Only present when the run is fetched with ?content=true. */
+  content?: string
+  fetched: boolean
+  /** Why the page could not be read, when it could not. */
+  error?: string
+}
+
+export type ResearchList = {
+  runs: ResearchRun[]
+  can_search: boolean
+  can_read: boolean
+  can_summarise: boolean
+}
+
+export type ResearchDetail = { run: ResearchRun; sources: ResearchSource[] }
