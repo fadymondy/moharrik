@@ -555,6 +555,46 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Errorf("A's push device was removed from B: %d %s", code, b)
 	}
 
+	// The overview (MH-462) aggregates every area, so it is the one route most
+	// able to leak by accident. A's own overview shows A's lead, conversation
+	// and notification; B's shows none of A's rows or figures —
+	// and A's id in the header from B is the same 404 as everywhere else.
+	alice.ws = aID
+	if code, b := alice.do("GET", "/api/w/overview", nil); code != 200 ||
+		!strings.Contains(string(b), leadID) || !strings.Contains(string(b), convID) || !strings.Contains(string(b), itemID) {
+		t.Errorf("A's overview does not show A's own rows: %d %s", code, b)
+	}
+	bob.ws = bID
+	if code, b := bob.do("GET", "/api/w/overview", nil); code != 200 || leaks(b) != "" {
+		t.Errorf("B's overview leaked A's %s: %d %s", leaks(b), code, b)
+	} else {
+		var ov struct {
+			Today struct {
+				Leads               map[string]int `json:"leads"`
+				UnreadConversations int            `json:"unread_conversations"`
+				UnreadNotifications int            `json:"unread_notifications"`
+			} `json:"today"`
+			Setup []struct {
+				Key  string `json:"key"`
+				Done bool   `json:"done"`
+			} `json:"setup"`
+		}
+		_ = json.Unmarshal(b, &ov)
+		if ov.Today.Leads["new"] != 0 || ov.Today.UnreadConversations != 0 || ov.Today.UnreadNotifications != 0 {
+			t.Errorf("B's overview counts A's rows: %s", b)
+		}
+		for _, it := range ov.Setup {
+			if it.Done {
+				t.Errorf("B's setup reads A's configuration (%s): %s", it.Key, b)
+			}
+		}
+	}
+	bob.ws = aID
+	if code, b := bob.do("GET", "/api/w/overview", nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B asking for A's overview: got %d, want 404: %s", code, b)
+	}
+	alice.ws = aID
+
 	if code, b := alice.do("GET", "/api/w/deals/"+dealID, nil); code != 200 || !strings.Contains(string(b), actID) || !strings.Contains(string(b), coID) {
 		t.Errorf("A's deal or its timeline was changed from B: %d %s", code, b)
 	}

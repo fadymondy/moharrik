@@ -31,6 +31,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/mcp"
 	"github.com/fadymondy/moharrik/internal/notifications"
+	"github.com/fadymondy/moharrik/internal/overview"
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/research"
@@ -203,6 +204,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	mcp.RegisterTokenRoutes(api, a)
 	google.Register(api, a)
 	alerts.Register(api, a)
+	overview.Register(api, a) // the workspace front page (MH-462)
 }
 
 /*

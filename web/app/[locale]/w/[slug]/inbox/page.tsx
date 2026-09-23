@@ -35,8 +35,8 @@ export default function InboxPage() {
   useDocumentTitle(`${t("nav.inbox")} · ${ws.summary.name}`)
   const canManage = ws.can("inbox:manage")
 
-  // The open thread lives in the URL (?c=<conversation id>), so an alert, a push
-  // or the bell can link straight to it, and a reload keeps it open (MH-378).
+  // The open thread lives in the URL (?c=<conversation id>), so an alert, a push,
+  // the bell or the Overview can link straight to it, and a reload keeps it open (MH-378).
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -49,10 +49,11 @@ export default function InboxPage() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
 
-  // Arriving by link, the thread may not be open (a closed one, say): show
-  // every status rather than a list that is missing the thread on screen.
-  const [status, setStatus] = useState(() => (params.get("c") ? "" : "open"))
-  const [unread, setUnread] = useState(false)
+  // Arriving by link: ?c=<id> may be a closed thread, and the Overview's ?unread=1
+  // count covers every status (MH-462), so both widen the status filter.
+  const linkedUnread = params.get("unread") === "1"
+  const [status, setStatus] = useState(() => (params.get("c") || linkedUnread ? "" : "open"))
+  const [unread, setUnread] = useState(linkedUnread)
 
   const list = useConversations(ws.id, { status: status || undefined, unread })
 

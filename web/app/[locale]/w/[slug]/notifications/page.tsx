@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { BellOffIcon, BookmarkIcon, CheckIcon, SettingsIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -36,7 +37,8 @@ export default function NotificationsPage() {
   const canWrite = ws.can("notifications:write")
   const canManage = ws.can("notifications:manage")
 
-  const [unread, setUnread] = useState(false)
+  // ?unread=1 opens the feed already filtered — the Overview links its count here.
+  const [unread, setUnread] = useState(useSearchParams().get("unread") === "1")
   const [saved, setSaved] = useState(false)
   const [sourceId, setSourceId] = useState("")
   const [severity, setSeverity] = useState("")

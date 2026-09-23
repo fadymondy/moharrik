@@ -1,7 +1,7 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import type { Lead, LeadStatus } from "@/lib/api"
+import type { Lead, LeadAttribution, LeadStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
 const statusVariant: Record<LeadStatus, "default" | "secondary" | "outline" | "destructive"> = {
@@ -34,7 +34,10 @@ function hostOf(url: string): string {
  * the snippet saw UTM parameters, "Google Ads" for a gclid alone, else the
  * referring site, else direct.
  */
-export function leadSource(lead: Lead, t: (key: string, vars?: Record<string, string | number>) => string): string {
+/** What leadSource reads: a whole Lead, or the overview's slimmer row. */
+type SourceInput = Pick<Lead, "origin"> & { attribution: Pick<LeadAttribution, "utm_source" | "utm_medium" | "gclid" | "referrer"> }
+
+export function leadSource(lead: SourceInput, t: (key: string, vars?: Record<string, string | number>) => string): string {
   const a = lead.attribution
   if (a.utm_source) return a.utm_medium ? `${a.utm_source} / ${a.utm_medium}` : a.utm_source
   if (a.gclid) return t("leads.source.googleAds")

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { ClipboardListIcon, SearchIcon } from "lucide-react"
 
 import { SectionHeader } from "@/components/public-frame"
@@ -28,7 +29,9 @@ export default function LeadsPage() {
   useDocumentTitle(`${t("nav.leads")} · ${ws.summary.name}`)
   const canManageForms = ws.can("campaigns:write")
 
-  const [status, setStatus] = useState<LeadStatus | "">("")
+  // ?status=new opens the list already filtered — the Overview links its counts here.
+  const initial = useSearchParams().get("status") as LeadStatus | null
+  const [status, setStatus] = useState<LeadStatus | "">(initial && LEAD_STATUSES.includes(initial) ? initial : "")
   const [query, setQuery] = useState("")
   const [q, setQ] = useState("")
   // A short debounce, so typing a name is one request rather than one a key.

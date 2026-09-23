@@ -43,6 +43,7 @@ import {
   type GoogleConnections,
   type NewsItem,
   type NotificationItem,
+  type Overview,
   type Topic,
   type User,
   type WebhookSource,
@@ -366,3 +367,17 @@ export const useBell = (id?: string | null) => useScoped<Bell>("/api/w/alerts", 
 
 /** Web push availability and the caller's own devices. */
 export const usePushStatus = (id?: string | null, enabled = true) => useScoped<PushStatus>("/api/w/push", id, enabled)
+
+// ── Overview (MH-462) ───────────────────────────────────────────────────
+
+/** The front page. A live research run is polled until it settles (research publishes no events). */
+export function useOverview(workspaceId: string | null | undefined) {
+  return useSWR<Overview>(
+    workspaceId ? ["/api/w/overview", workspaceId] : null,
+    ([p, id]: [string, string]) => api<Overview>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) => (data?.today.research?.live ? 5000 : 0),
+    },
+  )
+}
