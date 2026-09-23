@@ -10,7 +10,7 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ExternalLinkIcon, LoaderIcon, MessageSquareIcon, ThumbsUpIcon, EyeIcon, CheckIcon } from "lucide-react"
+import { ExternalLinkIcon, LoaderIcon, MessageSquareIcon, ThumbsUpIcon, EyeIcon, CheckIcon, TriangleAlertIcon } from "lucide-react"
 
 import { Ltr } from "@/components/copy-field"
 import { DataError, NoResource, ResourceSwitcher, useEnabled } from "@/components/google/data-page"
@@ -26,7 +26,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import type { YtChannelOut, YtVideo } from "@/lib/api"
+import type { YtChannelOut, YtSyncStep, YtVideo } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useYtChannel, useYtVideo, useYtVideos } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
@@ -146,11 +146,17 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
             <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">{f.n(c.views)}</dd>
           </div>
           <div data-yt-stat="videos">
-            <dt className="grid-micro">{t("yt.videos")}</dt>
-            <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">{f.n(c.videos)}</dd>
+            <dt className="grid-micro">{t("yt.uploads")}</dt>
+            <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">{f.n(c.uploads)}</dd>
+            {c.videos !== c.public_uploads ? (
+              <dd className="mt-0.5 max-w-44 text-xs text-grid-muted" title={t("yt.countHint")} data-yt-count-differs>
+                {t("yt.youtubeCounts", { n: f.n(c.videos), p: f.n(c.public_uploads) })}
+              </dd>
+            ) : null}
           </div>
         </dl>
       </div>
+      <Steps steps={c.steps ?? []} />
       {out.resource?.last_error ? (
         <p className="border-t border-line px-6 py-2 text-xs break-words text-grid-danger-text" data-last-error>
           <Ltr>{out.resource.last_error}</Ltr>
@@ -160,6 +166,37 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
         {t("yt.quota", { used: f.n(q.workspace_used), limit: f.n(q.workspace_limit), all: f.n(q.global_used), allLimit: f.n(q.global_limit) })}
       </p>
     </section>
+  )
+}
+
+/** Each sync step that did not go fine, with the reason in the server's words. */
+function Steps({ steps }: { steps: YtSyncStep[] }) {
+  const { t } = useTranslations()
+  const f = useFormat()
+  const bad = steps.filter((s) => s.state !== "ok")
+  if (bad.length === 0) return null
+  return (
+    <ul className="divide-y divide-line border-t border-line" data-yt-steps>
+      {bad.map((s) => (
+        <li key={s.name} className="flex items-start gap-3 px-6 py-2 text-xs" data-yt-step={s.name} data-state={s.state}>
+          <TriangleAlertIcon className={s.state === "failed" ? "mt-0.5 size-3.5 shrink-0 text-grid-danger" : "mt-0.5 size-3.5 shrink-0 text-grid-warn"} />
+          <p className="min-w-0 break-words">
+            <span className="font-medium text-grid-fg">
+              {t(`yt.step.${s.name}`)} · {t(`yt.stepState.${s.state}`)}
+            </span>
+            {s.error ? (
+              <span className="text-grid-muted">
+                {" — "}
+                <Ltr>{s.error}</Ltr>
+              </span>
+            ) : null}
+            <span className="ms-2 text-grid-muted" title={f.exact(s.at)}>
+              {f.ago(s.at)}
+            </span>
+          </p>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -354,6 +391,10 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
         {v.comment_note === "comments_disabled" ? (
           <p className="px-6 pb-5 text-sm text-grid-muted" data-comments-off>
             {t("yt.commentsDisabled")}
+          </p>
+        ) : v.comment_note === "comments_unavailable" || v.comment_note === "comments_not_public" ? (
+          <p className="px-6 pb-5 text-sm text-grid-muted" data-comments-unavailable={v.comment_note}>
+            {t(v.comment_note === "comments_unavailable" ? "yt.commentsUnavailable" : "yt.commentsNotPublic")}
           </p>
         ) : (
           <>

@@ -19,7 +19,7 @@ import path from "node:path"
 const base = process.argv[2] ?? "http://localhost:3507"
 const shots = process.argv[3] ?? "."
 const cards = process.argv.slice(4)
-const want = (c) => cards.length === 0 || cards.includes(c)
+const want = (c) => (cards.length === 0 && c !== "ytnokey") || cards.includes(c)
 const RUN = Date.now()
 const FAKE = "127.0.0.1:18507"
 
@@ -352,6 +352,33 @@ if (want("mh442")) {
   await page.waitForSelector("[data-yta-empty]", { timeout: 60000 })
   ok(true, "a channel with no analytics says so")
   await page.screenshot({ path: `${shots}/mh442-empty-en-light-1440.png`, fullPage: true })
+}
+
+// ---- YouTube without an API key (the production case of 2026-09-23) ----------------------
+// Run against a stack started with YTKEY= (no YOUTUBE_API_KEY).
+if (cards.includes("ytnokey")) {
+  const slug = await newOwner("ytnokey")
+  await connect(slug, "youtube", `ytnokey-${RUN}@brand.test`)
+  await page.goto(pageURL(slug, "en", "/youtube"))
+  await page.waitForSelector("[data-video]", { timeout: 60000 })
+  const step = page.locator('[data-yt-step="comments"]')
+  ok((await step.getAttribute("data-state")) === "unavailable", "the comments step says it is not available here")
+  ok((await step.innerText()).includes("YOUTUBE_API_KEY"), "and why, in plain words")
+  ok((await page.locator('[data-yt-step="uploads"]').count()) === 0, "the uploads step is fine, so it is not listed")
+  ok((await page.locator("[data-video]").count()) === 6, "every upload is still listed")
+  ok((await page.locator('[data-yt-stat="videos"]').innerText()).includes("6"), "the uploads count is what was read")
+  await page.screenshot({ path: `${shots}/ytfix-nokey-en-light-1440.png`, fullPage: true })
+  await page.locator("[data-video]").first().click()
+  await page.waitForSelector('[data-comments-unavailable="comments_unavailable"]', { timeout: 20000 })
+  ok(true, "the sheet says why there are no comments")
+  await page.screenshot({ path: `${shots}/ytfix-nokey-sheet-en-light-1440.png` })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.emulateMedia({ colorScheme: "dark" })
+  await page.goto(pageURL(slug, "ar", "/youtube"))
+  await page.waitForSelector('[data-yt-step="comments"]', { timeout: 20000 })
+  await page.screenshot({ path: `${shots}/ytfix-nokey-ar-dark-390.png`, fullPage: true })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.emulateMedia({ colorScheme: "light" })
 }
 
 console.log(consoleErrors.length ? `console errors:\n${consoleErrors.slice(0, 10).join("\n")}` : "no console errors")

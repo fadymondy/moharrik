@@ -1756,5 +1756,18 @@
   "yta.source.SOUND_PAGE": "صفحات الأصوات",
   "yta.source.VIDEO_REMIXES": "إعادة المزج",
   "yta.source.IMMERSIVE_LIVE": "البث الغامر",
-  "yta.source.PRODUCT_PAGE": "صفحات المنتجات"
+  "yta.source.PRODUCT_PAGE": "صفحات المنتجات",
+  "yt.uploads": "الفيديوهات المرفوعة",
+  "yt.youtubeCounts": "عدّاد يوتيوب يقول {n}؛ منها {p} عامة",
+  "yt.countHint": "عدّاد القناة نفسه (statistics.videoCount) يحسب الفيديوهات العامة فقط، ويحدّثه يوتيوب في وقته، لذا قد يختلف عن الفيديوهات التي قرأها محرّك.",
+  "yt.step.channel": "القناة",
+  "yt.step.uploads": "الفيديوهات",
+  "yt.step.comments": "التعليقات",
+  "yt.step.analytics": "التحليلات",
+  "yt.stepState.failed": "فشلت",
+  "yt.stepState.unavailable": "غير متاحة على هذا الخادم",
+  "yt.stepState.skipped": "لم تعمل",
+  "yt.stepState.ok": "سليمة",
+  "yt.commentsUnavailable": "لا يمكن قراءة التعليقات على هذا الخادم بعد: لا تسمح جوجل بقراءتها إلا بمفتاح API ليوتيوب حين يملك محرّك صلاحية القراءة فقط. يمكن للمشغّل إضافته (YOUTUBE_API_KEY).",
+  "yt.commentsNotPublic": "هذا الفيديو ليس عامًا، لذا لا يمكن قراءة تعليقاته بصلاحية القراءة فقط."
 }

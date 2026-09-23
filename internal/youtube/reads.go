@@ -18,33 +18,44 @@ import (
 
 // YTChannel is the channel as last synced. Nil fields were never synced.
 type YTChannel struct {
-	ChannelID         string     `json:"channel_id"`
-	Title             string     `json:"title"`
-	Handle            string     `json:"handle"`
-	AvatarURL         string     `json:"avatar_url"`
-	Subscribers       int64      `json:"subscribers"`
-	SubscribersHidden bool       `json:"subscribers_hidden" doc:"The channel hides its subscriber count; subscribers is then not shown."`
-	Videos            int64      `json:"videos" doc:"YouTube's own count of public videos."`
-	Views             int64      `json:"views" doc:"Lifetime views."`
-	UploadsComplete   bool       `json:"uploads_complete" doc:"The last sync read the whole uploads playlist."`
-	UpdatedAt         time.Time  `json:"updated_at"`
-	CommentsSeenUntil *time.Time `json:"comments_seen_until"`
-	URL               string     `json:"url"`
+	ChannelID         string       `json:"channel_id"`
+	Title             string       `json:"title"`
+	Handle            string       `json:"handle"`
+	AvatarURL         string       `json:"avatar_url"`
+	Subscribers       int64        `json:"subscribers"`
+	SubscribersHidden bool         `json:"subscribers_hidden" doc:"The channel hides its subscriber count; subscribers is then not shown."`
+	Videos            int64        `json:"videos" doc:"YouTube's own channel counter (statistics.videoCount): public videos only, and it can lag or leave some out."`
+	Uploads           int64        `json:"uploads" doc:"The uploads Moharrik read from the channel's uploads playlist, every privacy included."`
+	PublicUploads     int64        `json:"public_uploads" doc:"Of those, the public ones: what to compare videos with."`
+	Steps             []YTSyncStep `json:"steps" doc:"How each part of the last sync went."`
+	Views             int64        `json:"views" doc:"Lifetime views."`
+	UploadsComplete   bool         `json:"uploads_complete" doc:"The last sync read the whole uploads playlist."`
+	UpdatedAt         time.Time    `json:"updated_at"`
+	CommentsSeenUntil *time.Time   `json:"comments_seen_until"`
+	URL               string       `json:"url"`
 }
 
 // GetChannel reads the stored channel; nil when it was never synced.
 func GetChannel(ctx context.Context, db *sql.DB, ws, resourceID string) (*YTChannel, error) {
 	var c YTChannel
+	var steps []byte
 	err := db.QueryRowContext(ctx, `SELECT channel_id, title, handle, avatar_url, subscriber_count, subscribers_hidden,
-		video_count, view_count, uploads_complete, updated_at, comments_seen_until
-		FROM youtube_channels WHERE workspace_id = $1 AND resource_id = $2`, ws, resourceID).
+		video_count, view_count, uploads_complete, updated_at, comments_seen_until, step_status,
+		(SELECT count(*) FROM youtube_videos v WHERE v.workspace_id = c.workspace_id AND v.resource_id = c.resource_id AND v.present),
+		(SELECT count(*) FROM youtube_videos v WHERE v.workspace_id = c.workspace_id AND v.resource_id = c.resource_id AND v.present
+		   AND v.privacy_status = 'public')
+		FROM youtube_channels c WHERE workspace_id = $1 AND resource_id = $2`, ws, resourceID).
 		Scan(&c.ChannelID, &c.Title, &c.Handle, &c.AvatarURL, &c.Subscribers, &c.SubscribersHidden, &c.Videos, &c.Views,
-			&c.UploadsComplete, &c.UpdatedAt, &c.CommentsSeenUntil)
+			&c.UploadsComplete, &c.UpdatedAt, &c.CommentsSeenUntil, &steps, &c.Uploads, &c.PublicUploads)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	_ = json.Unmarshal(steps, &c.Steps)
+	if c.Steps == nil {
+		c.Steps = []YTSyncStep{}
 	}
 	c.URL = "https://www.youtube.com/channel/" + url.PathEscape(c.ChannelID)
 	if c.Handle != "" {
@@ -221,6 +232,9 @@ type YTVideoDetail struct {
 	CommentNote string `json:"comment_note,omitempty"`
 }
 
+// errNotPublic: the video's comments cannot be read with a key (not public).
+var errNotPublic = errors.New("comments are only readable on public videos")
+
 // ErrNotFound: no such video on this channel in this workspace.
 var ErrNotFound = errors.New("that video is not on this channel")
 
@@ -246,7 +260,12 @@ func GetVideo(ctx context.Context, a *app.App, ws string, r google.Resource, vid
 		d.CommentNote = "comments_disabled"
 	} else if synced == nil || time.Since(*synced) > commentsFresh {
 		disabled, err := refreshTopComments(ctx, a, ws, r, videoID)
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrCommentsUnavailable):
+			d.CommentNote = "comments_unavailable"
+		case errors.Is(err, errNotPublic):
+			d.CommentNote = "comments_not_public"
+		case err != nil:
 			d.CommentNote = google.Describe(err)
 		}
 		if disabled {
@@ -278,14 +297,10 @@ func GetVideo(ctx context.Context, a *app.App, ws string, r google.Resource, vid
 // refreshTopComments re-reads a video's top comments; disabled reports that
 // YouTube says its comments are turned off.
 func refreshTopComments(ctx context.Context, a *app.App, ws string, r google.Resource, videoID string) (disabled bool, err error) {
-	src, err := google.SourceFor(ctx, a, r, ws)
-	if err != nil {
-		return false, err
-	}
 	var out struct {
 		Items []apiThread `json:"items"`
 	}
-	err = data(ctx, a, ws, src.Client(google.ScopeYouTube), "commentThreads", url.Values{
+	err = readComments(ctx, a, ws, url.Values{
 		"part": {"snippet,replies"}, "videoId": {videoID}, "order": {"relevance"}, "maxResults": {"20"}, "textFormat": {"plainText"},
 	}, &out)
 	var ae *google.APIError
@@ -293,6 +308,14 @@ func refreshTopComments(ctx context.Context, a *app.App, ws string, r google.Res
 		_, err = a.SQLDB.ExecContext(ctx, `UPDATE youtube_videos SET comments_disabled = true, comments_synced_at = now()
 			WHERE workspace_id = $1 AND resource_id = $2 AND video_id = $3`, ws, r.ID, videoID)
 		return true, err
+	}
+	if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
+		// A private or unlisted video: a key reads public comments only.
+		if _, err := a.SQLDB.ExecContext(ctx, `UPDATE youtube_videos SET comments_synced_at = now()
+			WHERE workspace_id = $1 AND resource_id = $2 AND video_id = $3`, ws, r.ID, videoID); err != nil {
+			return false, err
+		}
+		return false, errNotPublic
 	}
 	if err != nil {
 		return false, err

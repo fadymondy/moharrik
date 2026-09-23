@@ -132,23 +132,52 @@ func (s *Server) videos(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) commentThreads(w http.ResponseWriter, r *http.Request) {
-	_, d, ok := s.begin(w, r, "commentThreads")
-	if !ok {
-		return
-	}
 	q := r.URL.Query()
+	var ch *YTChannel
+	if r.Header.Get("X-Goog-Api-Key") != "" {
+		if !s.keyedBegin(w, r, "commentThreads") {
+			return
+		}
+		s.mu.Lock()
+		if vid := q.Get("videoId"); vid != "" {
+			c, v := s.channelOfVideo(vid)
+			if v == nil || v.Privacy != "public" {
+				s.mu.Unlock()
+				// A key reads public data only: a private video "does not exist".
+				writeAPIError(w, "commentThreads", http.StatusNotFound, "videoNotFound",
+					"The video identified by the <code><a href=\"/youtube/v3/docs/commentThreads/list#videoId\">videoId</a></code> parameter could not be found.")
+				return
+			}
+			ch = c
+		} else {
+			ch = s.channelByID(q.Get("allThreadsRelatedToChannelId"))
+		}
+		s.mu.Unlock()
+	} else {
+		_, d, ok := s.begin(w, r, "commentThreads")
+		if !ok {
+			return
+		}
+		s.mu.Lock()
+		ch = d.Channel
+		s.mu.Unlock()
+	}
 	s.mu.Lock()
-	ch := d.Channel
 	var list []YTComment
 	disabled := map[string]bool{}
+	public := map[string]bool{}
 	if ch != nil {
 		list = append(list, ch.CommentsList...)
 		for _, v := range ch.Videos {
 			if v.CommentsDisabled {
 				disabled[v.ID] = true
 			}
+			if v.Privacy == "public" {
+				public[v.ID] = true
+			}
 		}
 	}
+	keyed := r.Header.Get("X-Goog-Api-Key") != ""
 	s.mu.Unlock()
 	if vid := q.Get("videoId"); vid != "" {
 		if disabled[vid] {
@@ -166,6 +195,16 @@ func (s *Server) commentThreads(w http.ResponseWriter, r *http.Request) {
 	} else if ch == nil || q.Get("allThreadsRelatedToChannelId") != ch.ID {
 		writeAPIError(w, "commentThreads", http.StatusNotFound, "channelNotFound", "The channel could not be found.")
 		return
+	}
+	if keyed {
+		// A key sees comments on public videos only.
+		keep := list[:0]
+		for _, c := range list {
+			if public[c.VideoID] {
+				keep = append(keep, c)
+			}
+		}
+		list = keep
 	}
 	if q.Get("order") == "relevance" {
 		sort.SliceStable(list, func(i, j int) bool { return list[i].Likes > list[j].Likes })

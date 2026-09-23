@@ -347,12 +347,11 @@ func GetAnalytics(ctx context.Context, a *app.App, ws string, r google.Resource,
 }
 
 // refreshChannelSnapshot keeps the channel's 28-day window warm (the
-// Overview's). A failure here does not fail the Data API sync.
-func refreshChannelSnapshot(ctx context.Context, a *app.App, ws string, r google.Resource) {
+// Overview's). Its error is the analytics step's; it never fails the sync.
+func refreshChannelSnapshot(ctx context.Context, a *app.App, ws string, r google.Resource) error {
 	if c := readCached(ctx, a.SQLDB, ws, r.ID, "channel", 28); c != nil && time.Since(c.FetchedAt) < Fresh {
-		return
+		return nil
 	}
-	if _, err := fetchAnalytics(ctx, a, ws, r, "", 28); err != nil && a.Log != nil {
-		a.Log.Warn("youtube analytics snapshot failed", "workspace", ws, "err", err)
-	}
+	_, err := fetchAnalytics(ctx, a, ws, r, "", 28)
+	return err
 }

@@ -310,6 +310,12 @@ func needScope(api string) []string {
 		return []string{"https://www.googleapis.com/auth/webmasters"}
 	case "ytAnalytics":
 		return []string{"https://www.googleapis.com/auth/yt-analytics.readonly"}
+	case "commentThreads":
+		// As Google has it: commentThreads.list accepts a user token only
+		// with youtube.force-ssl — youtube.readonly is refused with 403
+		// insufficientPermissions. Read-only access reads comments with an
+		// API key instead (keyedBegin).
+		return []string{"https://www.googleapis.com/auth/youtube.force-ssl"}
 	case "ytReporting":
 		return []string{"https://www.googleapis.com/auth/yt-analytics.readonly", "https://www.googleapis.com/auth/yt-analytics-monetary.readonly"}
 	}
@@ -343,7 +349,11 @@ func (s *Server) begin(w http.ResponseWriter, r *http.Request, api string) (Acco
 		}
 	}
 	if !allowed {
-		writeAPIError(w, api, http.StatusForbidden, "ACCESS_TOKEN_SCOPE_INSUFFICIENT", "Request had insufficient authentication scopes.")
+		reason := "ACCESS_TOKEN_SCOPE_INSUFFICIENT"
+		if !grpcStyle(api) {
+			reason = "insufficientPermissions"
+		}
+		writeAPIError(w, api, http.StatusForbidden, reason, "Request had insufficient authentication scopes.")
 		return Account{}, nil, false
 	}
 	if f := s.takeFailure(api); f != nil {
@@ -357,6 +367,51 @@ func (s *Server) begin(w http.ResponseWriter, r *http.Request, api string) (Acco
 	d := s.dataOf(g.account)
 	s.mu.Unlock()
 	return g.account, d, true
+}
+
+// keyedBegin authenticates a public-data call made with an API key. It
+// applies injected failures like begin.
+func (s *Server) keyedBegin(w http.ResponseWriter, r *http.Request, api string) bool {
+	s.count("api:" + api)
+	s.count("apikey:" + api)
+	s.mu.Lock()
+	want := s.APIKey
+	s.mu.Unlock()
+	if want == "" || r.Header.Get("X-Goog-Api-Key") != want {
+		writeAPIError(w, api, http.StatusBadRequest, "keyInvalid", "API key not valid. Please pass a valid API key.")
+		return false
+	}
+	if f := s.takeFailure(api); f != nil {
+		writeAPIError(w, api, f.status, f.reason, f.msg)
+		return false
+	}
+	return true
+}
+
+// channelByID finds a channel among every account's data (a keyed call has
+// no account).
+func (s *Server) channelByID(id string) *YTChannel {
+	for _, d := range s.data {
+		if d.Channel != nil && d.Channel.ID == id {
+			return d.Channel
+		}
+	}
+	return nil
+}
+
+// channelOfVideo finds the channel a video belongs to.
+func (s *Server) channelOfVideo(id string) (*YTChannel, *YTVideo) {
+	for _, d := range s.data {
+		if d.Channel == nil {
+			continue
+		}
+		for i := range d.Channel.Videos {
+			if d.Channel.Videos[i].ID == id {
+				return d.Channel, &d.Channel.Videos[i]
+			}
+		}
+	}
+	return nil, nil
 }
 
 // ---- routing ------------------------------------------------------------------------

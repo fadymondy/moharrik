@@ -88,6 +88,9 @@ type Server struct {
 	failures      map[string]*failSpec
 	AdminPageSize int // accountSummaries per page; default 2, to exercise paging
 	GSCPageCap    int // caps a Search Analytics rowLimit (tests force paging with it)
+	// APIKey is the API key public-data calls may carry (X-Goog-Api-Key)
+	// instead of a token: YouTube comments, which read-only OAuth cannot read.
+	APIKey string
 	// DataFor, when set, picks an account's data the first time it is seen
 	// (the dev check: "many@…" sees several of each). nil or a nil answer: Demo.
 	DataFor  func(Account) *AccountData
@@ -123,7 +126,7 @@ func build() (*Server, http.Handler) {
 		Account: Account{Sub: "100000000000000000001", Email: "brand@example.test"},
 		codes:   map[string]codeGrant{}, access: map[string]accessGrant{}, refresh: map[string]*refreshGrant{},
 		granted: map[string]map[string]bool{}, calls: map[string]int{}, lastForm: map[string]url.Values{},
-		data: map[string]*AccountData{}, failures: map[string]*failSpec{},
+		data: map[string]*AccountData{}, failures: map[string]*failSpec{}, APIKey: "fake-api-key",
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/o/oauth2/v2/auth", s.authorize)

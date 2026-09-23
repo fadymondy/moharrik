@@ -240,7 +240,39 @@ func wait(ctx context.Context, attempt int, retryAfter time.Duration) error {
 	}
 }
 
+// PublicGet GETs a public-data endpoint with an API key instead of a user's
+// token (YouTube comments: Google lets read-only OAuth access read them only
+// with youtube.force-ssl, which Moharrik does not ask for — or with a key).
+// The key travels in the X-Goog-Api-Key header, never in the URL, so it is in
+// no log line or error. 429 and 5xx are retried like Do.
+func PublicGet(ctx context.Context, u, key string, out any) error {
+	for attempt := 1; ; attempt++ {
+		body, err := sendWith(ctx, http.MethodGet, u, map[string]string{"X-Goog-Api-Key": key}, nil)
+		if err == nil {
+			if out == nil || len(bytes.TrimSpace(body)) == 0 {
+				return nil
+			}
+			if err := json.Unmarshal(body, out); err != nil {
+				return fmt.Errorf("google api: unreadable answer: %w", err)
+			}
+			return nil
+		}
+		var ae *APIError
+		if errors.As(err, &ae) && retryable(ae.Status) && attempt < maxAttempts {
+			if werr := wait(ctx, attempt, ae.RetryAfter); werr != nil {
+				return ae
+			}
+			continue
+		}
+		return err
+	}
+}
+
 func send(ctx context.Context, method, u, token string, payload []byte) ([]byte, error) {
+	return sendWith(ctx, method, u, map[string]string{"Authorization": "Bearer " + token}, payload)
+}
+
+func sendWith(ctx context.Context, method, u string, auth map[string]string, payload []byte) ([]byte, error) {
 	var rd io.Reader
 	if payload != nil {
 		rd = bytes.NewReader(payload)
@@ -249,7 +281,9 @@ func send(ctx context.Context, method, u, token string, payload []byte) ([]byte,
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	for k, v := range auth {
+		req.Header.Set(k, v)
+	}
 	req.Header.Set("Accept", "application/json")
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")

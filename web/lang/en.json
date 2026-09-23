@@ -1756,5 +1756,18 @@
   "yta.source.SOUND_PAGE": "Sound pages",
   "yta.source.VIDEO_REMIXES": "Remixes",
   "yta.source.IMMERSIVE_LIVE": "Immersive live",
-  "yta.source.PRODUCT_PAGE": "Product pages"
+  "yta.source.PRODUCT_PAGE": "Product pages",
+  "yt.uploads": "Uploads",
+  "yt.youtubeCounts": "YouTube's counter says {n}; {p} of these are public",
+  "yt.countHint": "The channel's own counter (statistics.videoCount) counts public videos only, and YouTube updates it on its own schedule, so it can differ from the uploads Moharrik read.",
+  "yt.step.channel": "Channel",
+  "yt.step.uploads": "Uploads",
+  "yt.step.comments": "Comments",
+  "yt.step.analytics": "Analytics",
+  "yt.stepState.failed": "failed",
+  "yt.stepState.unavailable": "not available on this server",
+  "yt.stepState.skipped": "not run",
+  "yt.stepState.ok": "fine",
+  "yt.commentsUnavailable": "Comments cannot be read on this server yet: Google only lets them be read with a YouTube API key when Moharrik has read-only access to the channel. An operator can add one (YOUTUBE_API_KEY).",
+  "yt.commentsNotPublic": "This video is not public, so its comments cannot be read with read-only access."
 }

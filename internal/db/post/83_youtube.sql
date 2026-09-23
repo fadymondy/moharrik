@@ -28,3 +28,8 @@ CREATE INDEX IF NOT EXISTS youtube_comments_video_idx ON youtube_comments (works
 -- role means that even a stray grant could not read another tenant's use.
 ALTER TABLE youtube_quota ENABLE ROW LEVEL SECURITY;
 ALTER TABLE youtube_quota FORCE ROW LEVEL SECURITY;
+
+-- Per-step sync status (the channel, its uploads, its comments, YouTube
+-- Analytics): one step failing no longer reads as the whole sync failing,
+-- and each says why. Added after 83 first shipped, so ALTER, idempotently.
+ALTER TABLE youtube_channels ADD COLUMN IF NOT EXISTS step_status jsonb NOT NULL DEFAULT '{}';

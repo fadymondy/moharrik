@@ -3,6 +3,7 @@ package google_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +50,9 @@ func TestYouTube(t *testing.T) {
 	t.Setenv("GOOGLE_SYNC_INLINE", "")
 	t.Setenv("YOUTUBE_QUOTA_PER_WORKSPACE", "")
 	t.Setenv("YOUTUBE_QUOTA_PER_DAY", "")
+	// Comments are read with an API key: Google refuses them to a read-only
+	// user token (see TestYouTubeWithoutAPIKey).
+	t.Setenv("YOUTUBE_API_KEY", f.fake.APIKey)
 	ctx := context.Background()
 
 	alice := f.newUser(t)
@@ -78,6 +82,17 @@ func TestYouTube(t *testing.T) {
 		}
 		if ch.LastError != "" || ch.LastSyncedAt == nil {
 			t.Errorf("%+v", ch)
+		}
+		if out.Channel.Uploads != 6 || out.Channel.PublicUploads != 6 {
+			t.Errorf("uploads read: %d (%d public)", out.Channel.Uploads, out.Channel.PublicUploads)
+		}
+		for _, st := range out.Channel.Steps {
+			if st.State != "ok" {
+				t.Errorf("step %+v", st)
+			}
+		}
+		if len(out.Channel.Steps) != 4 {
+			t.Errorf("four steps: %+v", out.Channel.Steps)
 		}
 		if int(out.Quota.WorkspaceUsed) != dataCalls(f) || out.Quota.WorkspaceLimit != 2000 || out.Quota.GlobalLimit != 9000 {
 			t.Errorf("ledger %+v vs %d Data API calls", out.Quota, dataCalls(f))
@@ -360,6 +375,80 @@ func TestYouTubeAnalytics(t *testing.T) {
 			if day.Views != nil {
 				t.Fatalf("no data must not be drawn as zeros: %+v", day)
 			}
+		}
+	})
+}
+
+// Production, 2026-09-23: Google refused commentThreads to the owner's
+// youtube.readonly token (403 insufficientPermissions). Without an API key the
+// comments step says why, and nothing else fails.
+func TestYouTubeWithoutAPIKey(t *testing.T) {
+	f := newFixture(t)
+	t.Setenv("GOOGLE_SYNC_INLINE", "")
+	t.Setenv("YOUTUBE_API_KEY", "")
+	alice := f.newUser(t)
+	alice.workspace(t)
+	f.setAccount("sub-nokey", "nokey@example.test")
+	if r, _ := alice.connect(t, "product=youtube"); r != google.ResultConnected {
+		t.Fatal(r)
+	}
+	google.WaitBackground()
+
+	t.Run("the fake refuses comments to a read-only token, as Google does", func(t *testing.T) {
+		ch := alice.resources(t, "?kind=yt_channel").Resources[0]
+		conns := alice.list(t).Connections
+		s, err := google.TokenSource(context.Background(), f.a, alice.ws, conns[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = s.Client(google.ScopeYouTube).Get(context.Background(), google.API().YouTube+"/commentThreads?part=snippet&allThreadsRelatedToChannelId="+ch.ExternalID, nil)
+		var ae *google.APIError
+		if !errors.As(err, &ae) || ae.Status != 403 || ae.Reason != "insufficientPermissions" {
+			t.Fatalf("want 403 insufficientPermissions, got %v", err)
+		}
+	})
+
+	t.Run("the sync succeeds, and the comments step says why it could not run", func(t *testing.T) {
+		out := getJSON[channelOut](t, alice, "/api/w/youtube/channel")
+		if out.Resource.LastError != "" || out.Channel == nil || out.Channel.Uploads != 6 {
+			t.Fatalf("one step must not fail the sync: %+v %+v", out.Resource, out.Channel)
+		}
+		states := map[string]youtube.YTSyncStep{}
+		for _, st := range out.Channel.Steps {
+			states[st.Name] = st
+		}
+		if states["channel"].State != "ok" || states["uploads"].State != "ok" || states["analytics"].State != "ok" {
+			t.Errorf("%+v", out.Channel.Steps)
+		}
+		if c := states["comments"]; c.State != "unavailable" || !strings.Contains(c.Error, "YOUTUBE_API_KEY") {
+			t.Errorf("comments: %+v", c)
+		}
+		if f.fake.Calls("api:commentThreads") != 1 { // only the probe above
+			t.Errorf("no comment call is spent without a key: %d", f.fake.Calls("api:commentThreads"))
+		}
+		page := getJSON[youtube.YTVideoPage](t, alice, "/api/w/youtube/videos")
+		d := getJSON[youtube.YTVideoDetail](t, alice, "/api/w/youtube/videos/"+page.Videos[0].ID)
+		if d.CommentNote != "comments_unavailable" {
+			t.Errorf("the sheet says why: %q", d.CommentNote)
+		}
+	})
+
+	t.Run("a failing step is failed on its own, with Google's words", func(t *testing.T) {
+		t.Setenv("YOUTUBE_API_KEY", f.fake.APIKey)
+		f.fake.Fail("commentThreads", 403, "forbidden", -1)
+		defer f.fake.ClearFailures()
+		ch := alice.resources(t, "?kind=yt_channel").Resources[0]
+		if err := google.RunSync(context.Background(), f.a, alice.ws, ch.ID); err != nil {
+			t.Fatalf("the sync must not fail for its comments: %v", err)
+		}
+		out := getJSON[channelOut](t, alice, "/api/w/youtube/channel")
+		for _, st := range out.Channel.Steps {
+			if st.Name == "comments" && (st.State != "failed" || !strings.Contains(st.Error, "refused access")) {
+				t.Errorf("%+v", st)
+			}
+		}
+		if out.Resource.LastError != "" {
+			t.Errorf("last_error is for the channel and uploads only: %q", out.Resource.LastError)
 		}
 	})
 }

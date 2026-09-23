@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -107,7 +108,45 @@ type channelState struct {
 	SeenUntil          *time.Time
 }
 
-// Sync refreshes one channel: counters, every upload, and new comments.
+// YTSyncStep is how one part of the last sync went.
+type YTSyncStep struct {
+	Name string `json:"name" enum:"channel,uploads,comments,analytics"`
+	// ok | failed | unavailable (this server cannot do it: say why) | skipped
+	State string    `json:"state" enum:"ok,failed,unavailable,skipped"`
+	At    time.Time `json:"at"`
+	Error string    `json:"error,omitempty"`
+}
+
+// StepNames are the steps, in the order a sync runs them.
+var StepNames = []string{"channel", "uploads", "comments", "analytics"}
+
+// ErrCommentsUnavailable: this server has no way to read comments. Google
+// lets comments be read with a user's token only under youtube.force-ssl — a
+// manage-your-YouTube-account permission Moharrik does not ask for — or with
+// an API key, which is YOUTUBE_API_KEY.
+var ErrCommentsUnavailable = errors.New("reading YouTube comments needs a YouTube Data API key on this server (YOUTUBE_API_KEY): " +
+	"with read-only access, Google only lets comments be read with a key, and Moharrik does not ask for permission to manage the channel")
+
+// APIKey is the YouTube Data API key public reads (comments) use; "" = none.
+func APIKey() string { return strings.TrimSpace(os.Getenv("YOUTUBE_API_KEY")) }
+
+// readComments is a commentThreads.list call with the API key, charged to
+// the ledger first. Comments are public data: the key reads what anyone can.
+func readComments(ctx context.Context, a *app.App, ws string, q url.Values, out any) error {
+	key := APIKey()
+	if key == "" {
+		return ErrCommentsUnavailable
+	}
+	if err := Reserve(ctx, a, ws, CostList); err != nil {
+		return err
+	}
+	return google.PublicGet(ctx, google.API().YouTube+"/commentThreads?"+q.Encode(), key, out)
+}
+
+// Sync refreshes one channel: counters, every upload, new comments and the
+// 28-day analytics snapshot. Each step's outcome is recorded on its own; the
+// sync as a whole fails only when the channel or its uploads could not be
+// read (the comments and analytics steps say so without failing the rest).
 func Sync(ctx context.Context, a *app.App, r google.Resource) error {
 	ws := tenant.WorkspaceID(ctx)
 	src, err := google.SourceFor(ctx, a, r, ws)
@@ -115,20 +154,39 @@ func Sync(ctx context.Context, a *app.App, r google.Resource) error {
 		return err
 	}
 	c := src.Client(google.ScopeYouTube)
+	steps := []YTSyncStep{}
+	record := func(name string, err error) {
+		st := YTSyncStep{Name: name, State: "ok", At: time.Now().UTC()}
+		switch {
+		case errors.Is(err, ErrCommentsUnavailable):
+			st.State, st.Error = "unavailable", err.Error()
+		case err != nil:
+			st.State, st.Error = "failed", google.Describe(err)
+		}
+		steps = append(steps, st)
+	}
 	st, err := syncChannel(ctx, a, ws, r, c)
+	record("channel", err)
 	if err != nil {
+		for _, n := range StepNames[1:] {
+			steps = append(steps, YTSyncStep{Name: n, State: "skipped", At: time.Now().UTC()})
+		}
+		saveSteps(ctx, a, ws, r.ID, steps)
 		return err
 	}
-	if err := syncUploads(ctx, a, ws, r, c, st); err != nil {
-		return err
-	}
-	if _, err := syncNewComments(ctx, a, ws, r, c, st); err != nil {
-		return err
-	}
-	// The Overview's 28-day views (MH-442): its own API and quota, and a
-	// failure there does not undo the sync above.
-	refreshChannelSnapshot(ctx, a, ws, r)
-	return nil
+	uerr := syncUploads(ctx, a, ws, r, c, st)
+	record("uploads", uerr)
+	_, cerr := syncNewComments(ctx, a, ws, r, st)
+	record("comments", cerr)
+	record("analytics", refreshChannelSnapshot(ctx, a, ws, r))
+	saveSteps(ctx, a, ws, r.ID, steps)
+	return uerr
+}
+
+func saveSteps(ctx context.Context, a *app.App, ws, resourceID string, steps []YTSyncStep) {
+	raw, _ := json.Marshal(steps)
+	_, _ = a.SQLDB.ExecContext(ctx, `UPDATE youtube_channels SET step_status = $3 WHERE workspace_id = $1 AND resource_id = $2`,
+		ws, resourceID, string(raw))
 }
 
 func syncChannel(ctx context.Context, a *app.App, ws string, r google.Resource, c *google.Client) (*channelState, error) {
@@ -402,17 +460,20 @@ func upsertThread(ctx context.Context, db *sql.DB, ws, resourceID, channelID str
 
 // syncNewComments reads the channel's newest threads (one unit, up to 100)
 // and announces the ones after the watermark. It returns how many it announced.
-func syncNewComments(ctx context.Context, a *app.App, ws string, r google.Resource, c *google.Client, st *channelState) (int, error) {
+func syncNewComments(ctx context.Context, a *app.App, ws string, r google.Resource, st *channelState) (int, error) {
 	var out struct {
 		Items []apiThread `json:"items"`
 	}
-	err := data(ctx, a, ws, c, "commentThreads", url.Values{
+	err := readComments(ctx, a, ws, url.Values{
 		"part": {"snippet,replies"}, "allThreadsRelatedToChannelId": {st.ChannelID},
 		"order": {"time"}, "maxResults": {"100"}, "textFormat": {"plainText"},
 	}, &out)
 	var ae *google.APIError
 	if errors.As(err, &ae) && ae.Status == http.StatusForbidden && ae.Reason == "commentsDisabled" {
 		return 0, nil // the whole channel has comments off
+	}
+	if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
+		return 0, nil // no public videos, so no public comment threads
 	}
 	if err != nil {
 		return 0, err

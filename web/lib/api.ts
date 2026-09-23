@@ -1118,12 +1118,27 @@ export type YtChannel = {
   subscribers: number
   /** The channel hides its subscriber count. */
   subscribers_hidden: boolean
+  /** YouTube's own channel counter (statistics.videoCount): public videos only; it can lag or leave some out. */
   videos: number
+  /** The uploads Moharrik read from the uploads playlist, every privacy included. */
+  uploads: number
+  /** Of those, the public ones. */
+  public_uploads: number
+  /** How each part of the last sync went. */
+  steps: YtSyncStep[] | null
   views: number
   uploads_complete: boolean
   updated_at: string
   comments_seen_until: string | null
   url: string
+}
+
+export type YtSyncStep = {
+  name: "channel" | "uploads" | "comments" | "analytics"
+  /** unavailable: this server cannot do it (the error says why). */
+  state: "ok" | "failed" | "unavailable" | "skipped"
+  at: string
+  error?: string
 }
 
 export type YtQuota = { day: string; workspace_used: number; workspace_limit: number; global_used: number; global_limit: number }
