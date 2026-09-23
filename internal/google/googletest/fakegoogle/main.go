@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/google/googletest"
@@ -28,7 +29,23 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	f.Set(func(s *googletest.Server) { s.Interactive = true })
+	f.Set(func(s *googletest.Server) {
+		s.Interactive = true
+		// What an account sees follows its address, so the browser check can
+		// pick a case at the consent screen: many@… sees several properties,
+		// sites (one of each has no data yet) and a channel; empty@… sees one
+		// property and one site with no data and a channel with no uploads;
+		// anyone else sees one of each, with data.
+		s.DataFor = func(a googletest.Account) *googletest.AccountData {
+			switch {
+			case strings.HasPrefix(a.Email, "many"):
+				return googletest.Many(a)
+			case strings.HasPrefix(a.Email, "empty"):
+				return googletest.Empty(a)
+			}
+			return nil
+		}
+	})
 	fmt.Printf("fake Google on %s (client %s)\n", f.URL, f.ClientID)
 
 	stop := make(chan os.Signal, 1)

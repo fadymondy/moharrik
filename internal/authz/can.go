@@ -107,6 +107,13 @@ const (
 	// business relationship with Google, so it is an admin right — the same
 	// line mail:settings draws for the sending credentials (MH-439).
 	IntegrationsManage = "integrations:manage"
+	// Analytics (MH-440..447): reading what the connected Google accounts
+	// report — GA4 traffic, Search Console performance, the YouTube channel
+	// and its comments. It is the business's own numbers, read the way leads
+	// and trends are, so a member right. Choosing WHICH property, site or
+	// channel the workspace reads, and syncing on demand, stays with
+	// integrations:manage.
+	AnalyticsRead = "analytics:read"
 	// Alerts (MH-378): enabling web push on one's own devices and sending
 	// oneself a test. Only a member's OWN devices are ever touched; the events
 	// themselves are gated by inbox:read and notifications:read, which a client
@@ -176,6 +183,7 @@ var Matrix = map[string]Role{
 	AutomationManage: Admin,
 	// Integrations: admins and owners connect and disconnect Google accounts.
 	IntegrationsManage: Admin,
+	AnalyticsRead:      Member,
 	PushManage:         Member,
 }
 

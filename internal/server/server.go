@@ -154,6 +154,13 @@ func Boot() *app.App {
 		inbox.StartMailCollector(a, 2*time.Minute, 20)
 	}
 
+	// The Google data collector (MH-440..447): discovery, then the enabled
+	// properties, sites and channels that are due. GOOGLE_COLLECTOR=off turns
+	// it off — the tests and the OpenAPI export must not call Google.
+	if os.Getenv("GOOGLE_COLLECTOR") != "off" {
+		google.StartCollector(a, 5*time.Minute, 20)
+	}
+
 	gql := handler.NewDefaultServer(graphgen.NewExecutableSchema(graphgen.Config{
 		Resolvers: &resolvers.Resolver{App: a},
 	}))
