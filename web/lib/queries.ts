@@ -58,6 +58,8 @@ import {
   type GoogleResources,
   type GaReportOut,
   type GscPerformanceOut,
+  type GscInspectionsOut,
+  type GscSitemapsOut,
   type YtChannelOut,
   type YtAnalyticsOut,
   type YtVideoDetail,
@@ -512,6 +514,14 @@ export function useGscPerformance(workspaceId: string | null | undefined, query:
     },
   )
 }
+
+/** A site's latest URL inspections and today's inspection budget (MH-446). */
+export const useGscInspections = (workspaceId: string | null | undefined, resource: string) =>
+  useScoped<GscInspectionsOut>(`/api/w/search-console/inspections?resource=${encodeURIComponent(resource)}`, workspaceId, !!resource)
+
+/** A site's sitemaps, live from Google (MH-446). */
+export const useGscSitemaps = (workspaceId: string | null | undefined, resource: string) =>
+  useScoped<GscSitemapsOut>(`/api/w/search-console/sitemaps?resource=${encodeURIComponent(resource)}`, workspaceId, !!resource)
 
 /** An enabled YouTube channel and today's quota (MH-441). Polled while its first sync runs. */
 export function useYtChannel(workspaceId: string | null | undefined, resource: string, enabled = true) {

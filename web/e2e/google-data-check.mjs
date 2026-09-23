@@ -381,6 +381,46 @@ if (cards.includes("ytnokey")) {
   await page.emulateMedia({ colorScheme: "light" })
 }
 
+// ---- MH-446: URL inspection and sitemaps -------------------------------------------------
+if (want("mh446")) {
+  const slug = await newOwner("gsct")
+  await connect(slug, "search_console", `gsct-${RUN}@brand.test`)
+  await page.goto(pageURL(slug, "en", "/search-console?tab=inspect"))
+  await page.waitForSelector("[data-gsc-inspect]", { timeout: 30000 })
+  // The budget is per site across workspaces (and days of dev runs): count from here.
+  const usedBefore = Number((await page.locator("[data-inspect-quota]").innerText()).match(/^([\d,]+)/)[1].replace(/,/g, ""))
+  await page.fill("[data-inspect-url]", "https://demo.example/new-landing")
+  await page.click("[data-inspect]")
+  await page.waitForSelector('[data-inspection="https://demo.example/new-landing"] [data-verdict="NEUTRAL"]', { timeout: 20000 })
+  await page.fill("[data-inspect-url]", "https://demo.example/pricing")
+  await page.click("[data-inspect]")
+  await page.waitForSelector('[data-inspection="https://demo.example/pricing"] [data-inspection-detail]', { timeout: 20000 })
+  ok((await page.locator('[data-inspection="https://demo.example/pricing"]').innerText()).includes("Submitted and indexed"), "an indexed page, in Google's words")
+  const usedAfter = Number((await page.locator("[data-inspect-quota]").innerText()).match(/^([\d,]+)/)[1].replace(/,/g, ""))
+  ok(usedAfter === usedBefore + 2, `the site's inspection budget is counted (${usedBefore} → ${usedAfter})`)
+  await page.fill("[data-inspect-url]", "https://elsewhere.test/")
+  await page.click("[data-inspect]")
+  await page.waitForSelector("text=not part of this Search Console site", { timeout: 10000 })
+  ok(true, "a URL outside the site is refused, and said")
+  await matrix("mh446", slug, "/search-console?tab=inspect", "[data-inspection]")
+
+  await page.goto(pageURL(slug, "en", "/search-console?tab=sitemaps"))
+  await page.waitForSelector("[data-sitemap]", { timeout: 20000 })
+  ok((await page.locator("[data-sitemap]").count()) === 1, "the sitemap Google knows is listed")
+  await page.fill("[data-sitemap-url]", "https://demo.example/sitemap-blog.xml")
+  await page.click("[data-sitemap-submit]")
+  await page.waitForSelector('[data-sitemap="https://demo.example/sitemap-blog.xml"]', { timeout: 20000 })
+  ok((await page.locator('[data-sitemap="https://demo.example/sitemap-blog.xml"]').innerText()).includes("Waiting for Google"), "a submitted sitemap is pending")
+  await page.screenshot({ path: `${shots}/mh446-sitemaps-en-light-1440.png`, fullPage: true })
+  await page.emulateMedia({ colorScheme: "dark" })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(pageURL(slug, "ar", "/search-console?tab=sitemaps"))
+  await page.waitForSelector("[data-sitemap]", { timeout: 20000 })
+  await page.screenshot({ path: `${shots}/mh446-sitemaps-ar-dark-390.png`, fullPage: true })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.emulateMedia({ colorScheme: "light" })
+}
+
 console.log(consoleErrors.length ? `console errors:\n${consoleErrors.slice(0, 10).join("\n")}` : "no console errors")
 await ctx.close()
 console.log(failures ? `${failures} FAILED` : "ALL PASSED")

@@ -1108,6 +1108,42 @@ export type GscPerformance = {
 
 export type GscPerformanceOut = { resource: GoogleResource | null; performance: GscPerformance | null }
 
+export type GscInspection = {
+  url: string
+  /** PASS, PARTIAL, FAIL or NEUTRAL, as Google says. */
+  verdict: string
+  /** Google's own words, e.g. "Submitted and indexed". */
+  coverage_state: string
+  indexing_state: string
+  robots_txt_state: string
+  page_fetch_state: string
+  last_crawl_time: string | null
+  google_canonical: string
+  user_canonical: string
+  mobile_verdict: string
+  rich_results_verdict: string
+  result_link: string
+  inspected_at: string
+}
+export type GscInspectionsOut = {
+  resource: GoogleResource | null
+  inspections: GscInspection[] | null
+  quota: { day: string; used: number; limit: number }
+  can_write: boolean
+}
+export type GscSitemap = {
+  path: string
+  last_submitted: string | null
+  last_downloaded: string | null
+  is_pending: boolean
+  is_sitemaps_index: boolean
+  warnings: number | null
+  errors: number | null
+  submitted: number | null
+  indexed: number | null
+}
+export type GscSitemapsOut = { resource: GoogleResource | null; sitemaps: GscSitemap[] | null; error?: string; can_write: boolean }
+
 // ── YouTube (MH-441) ─────────────────────────────────────────────────────
 
 export type YtChannel = {

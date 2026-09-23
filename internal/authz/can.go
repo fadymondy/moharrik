@@ -114,6 +114,12 @@ const (
 	// channel the workspace reads, and syncing on demand, stays with
 	// integrations:manage.
 	AnalyticsRead = "analytics:read"
+	// Search Console actions (MH-446): inspecting a URL spends the site's
+	// 2,000-a-day inspection budget, shared with every workspace reading that
+	// site, and submitting a sitemap changes what Google crawls. Both are a
+	// manager's call — the line campaigns:send draws for spending and acting
+	// outside the workspace.
+	SearchConsoleWrite = "search_console:write"
 	// Alerts (MH-378): enabling web push on one's own devices and sending
 	// oneself a test. Only a member's OWN devices are ever touched; the events
 	// themselves are gated by inbox:read and notifications:read, which a client
@@ -184,6 +190,7 @@ var Matrix = map[string]Role{
 	// Integrations: admins and owners connect and disconnect Google accounts.
 	IntegrationsManage: Admin,
 	AnalyticsRead:      Member,
+	SearchConsoleWrite: Manager,
 	PushManage:         Member,
 }
 
