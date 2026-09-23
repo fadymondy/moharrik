@@ -178,6 +178,38 @@ func Backoff(err error, n int) (time.Duration, bool) {
 	return d, limited
 }
 
+// NoteFailure records an on-demand read's failure on the resource, so the
+// integrations page says what the data page said: last_error, and when Google
+// rate limited, backoff_until (on-demand reads wait it out; syncs back off).
+func NoteFailure(ctx context.Context, a *app.App, workspaceID, id string, err error) {
+	if err == nil || ready(a) != nil {
+		return
+	}
+	var until *time.Time
+	if RateLimited(err) || errors.Is(err, ErrQuota) {
+		t := time.Now().Add(15 * time.Minute)
+		until = &t
+	}
+	_, _ = a.SQLDB.ExecContext(tenant.WithWorkspace(ctx, workspaceID), `
+		UPDATE google_resources SET last_error = $3, backoff_until = COALESCE($4, backoff_until), updated_at = now()
+		WHERE workspace_id = $1 AND id = $2`, workspaceID, id, Describe(err), until)
+}
+
+// NoteSuccess clears a resource's error after an on-demand read worked.
+func NoteSuccess(ctx context.Context, a *app.App, workspaceID, id string) {
+	if ready(a) != nil {
+		return
+	}
+	_, _ = a.SQLDB.ExecContext(tenant.WithWorkspace(ctx, workspaceID), `
+		UPDATE google_resources SET last_error = '', backoff_until = NULL, updated_at = now()
+		WHERE workspace_id = $1 AND id = $2 AND (last_error <> '' OR backoff_until IS NOT NULL)`, workspaceID, id)
+}
+
+// SourceFor is the token source of the connection a resource is read through.
+func SourceFor(ctx context.Context, a *app.App, r Resource, workspaceID string) (*Source, error) {
+	return TokenSource(ctx, a, workspaceID, r.ConnectionID)
+}
+
 // ErrQuota is a refusal from Moharrik's own quota ledger (YouTube).
 var ErrQuota = errors.New("the YouTube quota for today is used up")
 

@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   BellIcon,
   BellRingIcon,
+  ChartLineIcon,
   BotIcon,
   ClipboardListIcon,
   Building2Icon,
@@ -333,6 +334,12 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/trends`} exact icon={<TrendingUpIcon />}>
         {t("nav.trends")}
       </L>
+      {/* The Google data pages (MH-444..442): hidden, not disabled, for a role that cannot read them. */}
+      {can?.includes("analytics:read") ? (
+        <L href={`${base}/analytics`} icon={<ChartLineIcon />}>
+          {t("nav.analytics")}
+        </L>
+      ) : null}
       {/* Hidden, not disabled, for roles that cannot read runs: the API would only answer 403. */}
       {can?.includes("research:read") ? (
         <L href={`${base}/research`} icon={<SearchCheckIcon />}>

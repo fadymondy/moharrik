@@ -44,6 +44,27 @@ type Overview struct {
 	Marketing     *Marketing         `json:"marketing" doc:"Null without campaigns:read."`
 	Trends        *Trends            `json:"trends" doc:"Null without trends:read."`
 	Setup         []SetupItem        `json:"setup" doc:"Only the items the caller's role can see."`
+	Traffic       *Traffic           `json:"traffic" doc:"Null without analytics:read, or when no GA4 property or Search Console site is enabled (MH-444/445)."`
+}
+
+// Traffic is the last 28 days of each enabled GA4 property and Search
+// Console site, from the stored snapshots (the collector refreshes them
+// nightly; opening the Analytics page refreshes them hourly). A figure that
+// has never been fetched is null, never 0.
+type Traffic struct {
+	Properties []TrafficProperty `json:"properties"`
+}
+
+// TrafficProperty is one GA4 property's 28-day totals.
+type TrafficProperty struct {
+	ResourceID string     `json:"resource_id"`
+	Name       string     `json:"name"`
+	Users      *int64     `json:"users" doc:"GA4 activeUsers over the 28 days; null until the first fetch."`
+	Sessions   *int64     `json:"sessions"`
+	StartDate  *string    `json:"start_date"`
+	EndDate    *string    `json:"end_date"`
+	FetchedAt  *time.Time `json:"fetched_at"`
+	LastError  string     `json:"last_error"`
 }
 
 // Today is the stat strip. Each field is null when the role cannot read it.
@@ -284,6 +305,9 @@ func Build(ctx context.Context, db *sql.DB, wsID, role string, env Env, now time
 		o.Trends = b.trends()
 	}
 	o.Setup = b.setup(can, env)
+	if can(authz.AnalyticsRead) {
+		o.Traffic = b.traffic()
+	}
 
 	if b.err != nil {
 		return nil, b.err
@@ -564,6 +588,30 @@ func (b *builder) trends() *Trends {
 		t.Items = append(t.Items, it)
 		return nil
 	})
+	return t
+}
+
+// traffic reads the enabled GA4 properties' 28-day snapshots. nil when
+// nothing is enabled: the card is not shown at all.
+func (b *builder) traffic() *Traffic {
+	t := &Traffic{Properties: []TrafficProperty{}}
+	b.each(`
+		SELECT r.id, r.display_name, g.users, g.sessions, to_char(g.start_date, 'YYYY-MM-DD'), to_char(g.end_date, 'YYYY-MM-DD'),
+		       g.fetched_at, r.last_error
+		FROM google_resources r
+		LEFT JOIN ga4_reports g ON g.workspace_id = r.workspace_id AND g.resource_id = r.id AND g.days = 28
+		WHERE r.workspace_id = $1 AND r.kind = 'ga4_property' AND r.enabled
+		ORDER BY lower(r.display_name), r.id`, nil, func(r *sql.Rows) error {
+		var p TrafficProperty
+		if err := r.Scan(&p.ResourceID, &p.Name, &p.Users, &p.Sessions, &p.StartDate, &p.EndDate, &p.FetchedAt, &p.LastError); err != nil {
+			return err
+		}
+		t.Properties = append(t.Properties, p)
+		return nil
+	})
+	if b.err != nil || len(t.Properties) == 0 {
+		return nil
+	}
 	return t
 }
 

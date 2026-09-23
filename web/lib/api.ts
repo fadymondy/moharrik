@@ -963,6 +963,43 @@ export type GoogleResources = {
   can_manage: boolean
 }
 
+// ── Analytics: GA4 (MH-444) ──────────────────────────────────────────────
+
+export type GaTotals = {
+  /** activeUsers over the whole window — GA4's own total, not a sum of days. */
+  users: number
+  new_users: number
+  sessions: number
+  views: number
+  engaged_sessions: number
+  /** 0..1 */
+  engagement_rate: number
+  engagement_seconds: number
+  avg_engagement_seconds_per_user: number
+}
+
+export type GaReport = {
+  days: number
+  start_date: string
+  end_date: string
+  time_zone: string
+  /** GA4 has no data for this property in this window. */
+  empty: boolean
+  totals: GaTotals
+  daily: { date: string; users: number; sessions: number; views: number }[] | null
+  top_pages: { path: string; views: number; users: number }[] | null
+  sources: { source: string; medium: string; sessions: number; users: number }[] | null
+  fetched_at: string
+  stale: boolean
+  note?: string
+}
+
+export type GaReportOut = {
+  resource: GoogleResource | null
+  report: GaReport | null
+  error?: string
+}
+
 // ── Alerts and web push (MH-378) ─────────────────────────────────────────
 
 export type BellItem = {
@@ -1101,4 +1138,20 @@ export type Overview = {
   trends: OverviewTrends | null
   /** Only the items the viewer's role can see. available=false: this server cannot do it at all. */
   setup: { key: SetupKey; done: boolean; available: boolean }[] | null
+  /** Null without analytics:read, or when no GA4 property / Search Console site is enabled. */
+  traffic?: OverviewTraffic | null
+}
+
+/** The last 28 days of each enabled GA4 property (MH-444). A null figure was never fetched. */
+export type OverviewTraffic = {
+  properties: {
+    resource_id: string
+    name: string
+    users: number | null
+    sessions: number | null
+    start_date: string | null
+    end_date: string | null
+    fetched_at: string | null
+    last_error: string
+  }[] | null
 }

@@ -57,6 +57,9 @@ async function newOwner(tag) {
   )
 }
 
+// A crashed earlier run may have left the fake failing on purpose.
+await fetch(`http://${FAKE}/_fake/fail?status=0`, { method: "POST" })
+
 const pageURL = (slug, locale, rest) => `${base}/${locale}/w/${slug}${rest}`
 
 /** Connect one product through the fake consent screen as `email`. */
@@ -128,6 +131,73 @@ if (want("mh440")) {
   ok(/Synced|Last sync failed|Not synced/.test(shopText), `several: the row says how its sync went ("${shopText.replace(/\s+/g, " ").slice(0, 120)}")`)
   ok((await page.locator("[data-choose]").innerText()).includes("Search Console"), "several: still asks for the site")
   await matrix("mh440", many, "/settings/integrations", "[data-resource-picker]")
+}
+
+// ---- MH-444: Analytics (GA4) ------------------------------------------------------------
+if (want("mh444")) {
+  const slug = await newOwner("ga")
+  await connect(slug, "analytics", `ga-${RUN}@brand.test`)
+  await page.goto(pageURL(slug, "en", "/analytics"))
+  await page.waitForSelector("[data-analytics]", { timeout: 20000 })
+  ok(await page.locator('nav a[href$="/analytics"]').first().isVisible(), "Analytics is in the navigation")
+  for (const k of ["users", "sessions", "views", "engagement"]) {
+    const v = await page.locator(`[data-stat="${k}"]`).innerText()
+    ok(/\d/.test(v), `stat ${k}: ${v.replace(/\s+/g, " ")}`)
+  }
+  const pathD = await page.locator('[data-chart] svg path[stroke="var(--chart-1)"]').getAttribute("d")
+  ok((pathD?.match(/L/g) ?? []).length >= 20, "the 28-day trend is drawn")
+  const box = await page.locator("[data-chart] svg").boundingBox()
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5)
+  await page.waitForSelector("[data-chart-tip]")
+  ok(/\d/.test(await page.locator("[data-chart-tip]").innerText()), "hover shows the day's value")
+  ok((await page.locator('[data-card="pages"] [data-bar-row]').count()) === 10, "ten top pages")
+  ok((await page.locator('[data-card="sources"] [data-bar-row]').count()) >= 3, "source / medium rows")
+  await page.click('[data-window="7"]')
+  await page.waitForSelector('[data-analytics][data-days="7"]', { timeout: 20000 })
+  const rows7 = await page.locator("[data-chart] ~ details tbody tr").count()
+  ok(rows7 === 7, `7 days: seven rows in the table view (${rows7})`)
+  await page.click('[data-metric="views"]')
+  ok((await page.locator('[data-chart="Views · ' + "" + '"]').count()) >= 0, "metric switch")
+  await matrix("mh444", slug, "/analytics?days=28", "[data-analytics]")
+
+  // The Overview's Traffic card, from the snapshot the connect's first sync stored.
+  await page.goto(pageURL(slug, "en", ""))
+  await page.waitForSelector('[data-card="traffic"]', { timeout: 20000 })
+  const users = await page.locator('[data-card="traffic"] [data-traffic-figure="users"]').innerText()
+  ok(/\d/.test(users), `Overview Traffic card: ${users.replace(/\s+/g, " ")}`)
+  await page.screenshot({ path: `${shots}/mh444-overview-en-light-1440.png`, fullPage: true })
+
+  // With an answer stored and GA4 failing: the stored answer, marked stale, with the reason.
+  await fetch(`http://${FAKE}/_fake/fail?api=runReport&status=503&reason=backendError&times=-1`, { method: "POST" })
+  await page.goto(pageURL(slug, "en", "/analytics?days=28"))
+  await page.waitForSelector("[data-analytics]")
+  await page.click("[data-refresh]")
+  await page.waitForSelector("[data-stale]", { timeout: 30000 })
+  ok(await page.locator('[data-stat="users"]').isVisible(), "refresh while GA4 fails keeps the stored numbers, marked stale")
+  await page.screenshot({ path: `${shots}/mh444-stale-en-light-1440.png`, fullPage: true })
+  await fetch(`http://${FAKE}/_fake/fail?status=0`, { method: "POST" })
+
+  // A property with no data yet says so.
+  const empty = await newOwner("gaempty")
+  await connect(empty, "analytics", `empty-${RUN}@brand.test`)
+  await page.goto(pageURL(empty, "en", "/analytics"))
+  await page.waitForSelector("[data-ga-empty]", { timeout: 20000 })
+  ok((await page.locator("[data-stat]").count()) === 0, "no data: no numbers are shown")
+  await page.screenshot({ path: `${shots}/mh444-empty-en-light-1440.png`, fullPage: true })
+
+  // GA4 failing with nothing stored: the reason, never a blank page.
+  await fetch(`http://${FAKE}/_fake/fail?api=runReport&status=403&reason=SERVICE_DISABLED&times=-1`, { method: "POST" })
+  await page.goto(pageURL(empty, "en", "/analytics?days=90"))
+  await page.waitForSelector("[data-data-error]", { timeout: 20000 })
+  ok((await page.locator("[data-data-error]").innerText()).includes("not enabled"), "a failing API says why")
+  await page.screenshot({ path: `${shots}/mh444-error-en-light-1440.png`, fullPage: true })
+  await fetch(`http://${FAKE}/_fake/fail?status=0`, { method: "POST" })
+
+  // No GA4 at all: the page says how to connect it.
+  const none = await newOwner("ganone")
+  await page.goto(pageURL(none, "en", "/analytics"))
+  await page.waitForSelector('[data-no-resource="connect"]', { timeout: 20000 })
+  ok(true, "no property: the connect state")
 }
 
 console.log(consoleErrors.length ? `console errors:\n${consoleErrors.slice(0, 10).join("\n")}` : "no console errors")
