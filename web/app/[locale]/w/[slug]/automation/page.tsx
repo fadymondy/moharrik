@@ -2,11 +2,25 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { CheckIcon, DownloadIcon, OctagonXIcon, PlayIcon, PlusIcon, ShieldCheckIcon } from "lucide-react"
+import {
+  BookOpenIcon,
+  CheckIcon,
+  ChevronUpIcon,
+  DownloadIcon,
+  OctagonXIcon,
+  PencilIcon,
+  PlayIcon,
+  PlusIcon,
+  SettingsIcon,
+  ShieldCheckIcon,
+  XIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { ApproveForm } from "@/components/automation/approve-form"
+import { ScheduleForm } from "@/components/automation/schedule-form"
+import { StepEditor, fromEditorSteps, toEditorSteps, type EditorStep } from "@/components/automation/step-editor"
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -15,13 +29,12 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { Ltr } from "@/components/copy-field"
+import { CopyField, Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationRun, type AutomationSchedule, type AutomationWorkflow, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useWorkspaceEvents } from "@/lib/events"
-import { useAutomationSettings, useBrowsers, useRuns, useSchedules, useWorkflows } from "@/lib/queries"
+import { useAutomationSettings, useBrowsers, useExtension, useRuns, useSchedules, useWorkflows } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -37,6 +50,7 @@ export default function AutomationPage() {
   const runs = useRuns(ws.id)
   const schedules = useSchedules(ws.id)
   const workflows = useWorkflows(ws.id)
+  const ext = useExtension()
 
   // A schedule fires with nobody watching, by definition. Without this a page
   // left open showed "waiting" long after the run had finished, because
@@ -55,8 +69,16 @@ export default function AutomationPage() {
   })
 
   const list = browsers.data?.browsers ?? []
+  const active = list.filter((b) => !b.revoked_at)
   const pairings = browsers.data?.pairings ?? []
   const paused = settings.data?.paused ?? false
+  const hasBrowser = active.length > 0
+  const hasSites = active.some((b) => b.allowed_hosts.length > 0)
+  const setupDone = hasBrowser && hasSites
+  const [managing, setManaging] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
+  const [runningOnce, setRunningOnce] = useState(false)
+  const workflowList = workflows.data?.workflows ?? []
 
   async function setPaused(next: boolean) {
     try {
@@ -70,6 +92,8 @@ export default function AutomationPage() {
     }
   }
 
+  const installHref = `/${locale}/w/${ws.slug}/automation/extension`
+
   return (
     <>
       <SectionHeader
@@ -77,12 +101,7 @@ export default function AutomationPage() {
         title={t("nav.automation")}
         description={t("automation.hint")}
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/extension`} />} data-install-link>
-              <DownloadIcon />
-              {t("automation.ext.link")}
-            </Button>
-            {canManage ? (
+          canManage ? (
             paused ? (
               <Button size="sm" onClick={() => setPaused(false)}>
                 <PlayIcon />
@@ -102,8 +121,7 @@ export default function AutomationPage() {
                 onConfirm={() => setPaused(true)}
               />
             )
-          ) : null}
-          </div>
+          ) : undefined
         }
       />
 
@@ -117,71 +135,137 @@ export default function AutomationPage() {
         </div>
       ) : null}
 
-      {/* ---- browsers ---- */}
-      <section>
-        <h2 className="px-6 pb-1 text-base font-medium">{t("automation.browsers")}</h2>
-        <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.browsersHint")}</p>
-
-        {browsers.error ? (
-          <ErrorState error={browsers.error} />
-        ) : browsers.isLoading ? (
-          <LoadingRows rows={2} />
-        ) : list.length === 0 ? (
-          <EmptyState
-            title={t("automation.noBrowsers")}
-            body={t("automation.noBrowsersBody")}
-            action={
-              <Button size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/extension`} />}>
-                <DownloadIcon />
-                {t("automation.ext.link")}
+      {/* ---- setup: install, pair, allowed sites ----
+          It leads the page until a browser is paired and may go somewhere;
+          after that it folds into one status row, opened again on demand. */}
+      {browsers.error ? (
+        <ErrorState error={browsers.error} />
+      ) : browsers.isLoading ? (
+        <LoadingRows rows={3} />
+      ) : setupDone && !managing ? (
+        <BrowsersStatus browsers={active} onManage={() => setManaging(true)} installHref={installHref} />
+      ) : (
+        <section data-setup={setupDone ? "managing" : "open"}>
+          <div className="flex flex-wrap items-end justify-between gap-3 px-6 pb-4">
+            <div>
+              <h2 className="text-base font-medium">{setupDone ? t("automation.browsers") : t("automation.flow.title")}</h2>
+              <p className="text-sm text-grid-muted">{setupDone ? t("automation.browsersHint") : t("automation.flow.hint")}</p>
+            </div>
+            {setupDone ? (
+              <Button variant="ghost" size="sm" onClick={() => setManaging(false)} data-manage-done>
+                <ChevronUpIcon />
+                {t("automation.flow.collapse")}
               </Button>
-            }
-          />
-        ) : (
-          <ul className="divide-y divide-line border-y border-line">
-            {list.map((b) => (
-              <BrowserRow key={b.id} browser={b} canManage={canManage} onChange={() => browsers.mutate()} />
-            ))}
-          </ul>
-        )}
-
-        {pairings.length > 0 ? (
-          <div className="mt-6 px-6">
-            <p className="grid-micro pb-2">{t("automation.waiting", { n: pairings.length })}</p>
-            <ul className="space-y-1 text-sm text-grid-muted">
-              {pairings.map((p) => (
-                <li key={p.id} data-pairing={p.id}>
-                  {p.requested_name || t("automation.unnamedBrowser")} · {p.platform || t("automation.unknownPlatform")}
-                  {p.ip ? ` · ${p.ip}` : ""}
-                </li>
-              ))}
-            </ul>
+            ) : null}
           </div>
-        ) : null}
+          <ol className="divide-y divide-line border-y border-line">
+            <FlowStep n={1} state={hasBrowser ? "done" : "current"} title={t("automation.flow.install.title")} data="install">
+              {hasBrowser ? (
+                <p className="text-sm text-grid-muted">{t("automation.flow.install.done")}</p>
+              ) : (
+                <p className="text-sm text-grid-muted">{t("automation.flow.install.body")}</p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {ext.data?.available && ext.data.download_url ? (
+                  <Button
+                    size="sm"
+                    variant={hasBrowser ? "outline" : "default"}
+                    nativeButton={false}
+                    render={<a href={ext.data.download_url} download={ext.data.file} data-flow-download />}
+                  >
+                    <DownloadIcon />
+                    {t("automation.flow.install.download", { version: ext.data.version ?? "" })}
+                  </Button>
+                ) : null}
+                <Button size="sm" variant="ghost" nativeButton={false} render={<Link href={installHref} />} data-install-link>
+                  <BookOpenIcon />
+                  {t("automation.flow.install.steps")}
+                </Button>
+              </div>
+              {ext.data && !ext.data.available ? <p className="text-xs text-grid-muted">{ext.data.reason}</p> : null}
+            </FlowStep>
 
-        {canManage ? <ApproveForm onApproved={() => browsers.mutate()} /> : null}
-      </section>
+            <FlowStep n={2} state={hasBrowser ? "done" : "current"} title={t("automation.flow.pair.title")} data="pair">
+              <p className="text-sm text-grid-muted">
+                {hasBrowser ? t("automation.flow.pair.done", { n: active.length }) : t("automation.flow.pair.body")}
+              </p>
+              {!hasBrowser || managing ? (
+                <div className="max-w-md min-w-0 space-y-1">
+                  <p className="text-xs text-grid-muted">{t("automation.ext.workspaceField")}</p>
+                  <CopyField value={ws.slug} nowrap />
+                </div>
+              ) : null}
+              {pairings.length > 0 ? (
+                <ul className="space-y-1 text-sm text-grid-muted" data-waiting-pairings>
+                  <li className="grid-micro">{t("automation.waiting", { n: pairings.length })}</li>
+                  {pairings.map((p) => (
+                    <li key={p.id} data-pairing={p.id}>
+                      {p.requested_name || t("automation.unnamedBrowser")} · {p.platform || t("automation.unknownPlatform")}
+                      {p.ip ? ` · ${p.ip}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {!canManage ? <p className="text-sm text-grid-muted">{t("automation.ext.s7AskAdmin")}</p> : null}
+              {canManage && (!hasBrowser || managing) ? <ApproveForm embedded onApproved={() => browsers.mutate()} /> : null}
+            </FlowStep>
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+            <FlowStep n={3} state={hasSites ? "done" : hasBrowser ? "current" : "waiting"} title={t("automation.flow.sites.title")} data="sites">
+              <p className="text-sm text-grid-muted">
+                {!hasBrowser ? t("automation.flow.sites.waiting") : hasSites ? t("automation.flow.sites.done") : t("automation.flow.sites.body")}
+              </p>
+            </FlowStep>
+            {hasBrowser ? (
+              <li className="list-none">
+                <ul className="divide-y divide-line border-t border-line" data-browser-list>
+                  {list.map((b) => (
+                    <BrowserRow key={b.id} browser={b} canManage={canManage} onChange={() => browsers.mutate()} />
+                  ))}
+                </ul>
+              </li>
+            ) : null}
+          </ol>
+        </section>
+      )}
 
       {/* ---- workflows ---- */}
-      <section>
-        <h2 className="px-6 pb-1 text-base font-medium">{t("automation.workflows")}</h2>
-        <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.workflowsHint")}</p>
-
+      <section className="mt-10">
+        <SectionTitle
+          title={t("automation.workflows")}
+          hint={t("automation.workflowsHint")}
+          action={
+            canRun && workflowList.length > 0 ? (
+              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/new`} />} data-new-workflow>
+                <PlusIcon />
+                {t("automation.editor.newWorkflow")}
+              </Button>
+            ) : undefined
+          }
+        />
         {workflows.error ? (
           <ErrorState error={workflows.error} />
         ) : workflows.isLoading ? (
           <LoadingRows rows={2} />
-        ) : (workflows.data?.workflows ?? []).length === 0 ? (
-          <EmptyState title={t("automation.noWorkflows")} body={canRun ? t("automation.noWorkflowsBody") : undefined} />
+        ) : workflowList.length === 0 ? (
+          <EmptyState
+            title={t("automation.noWorkflows")}
+            body={canRun ? t("automation.noWorkflowsBody") : undefined}
+            action={
+              canRun ? (
+                <Button size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/new`} />}>
+                  <PlusIcon />
+                  {t("automation.editor.newWorkflow")}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <ul className="divide-y divide-line border-y border-line">
-            {(workflows.data?.workflows ?? []).map((w) => (
+            {workflowList.map((w) => (
               <WorkflowRow
                 key={w.id}
                 workflow={w}
-                browsers={list.filter((b) => !b.revoked_at)}
+                browsers={active}
                 canRun={canRun}
                 onChange={() => {
                   workflows.mutate()
@@ -191,38 +275,55 @@ export default function AutomationPage() {
             ))}
           </ul>
         )}
-        {canRun ? <AddWorkflow onAdded={() => workflows.mutate()} /> : null}
       </section>
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
-
       {/* ---- schedules ---- */}
-      <section>
-        <h2 className="px-6 pb-1 text-base font-medium">{t("automation.schedules")}</h2>
-        <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.schedulesHint")}</p>
-
+      <section className="mt-10">
+        <SectionTitle
+          title={t("automation.schedules")}
+          hint={t("automation.schedulesHint")}
+          action={
+            canRun && hasBrowser && (schedules.data?.schedules ?? []).length > 0 ? (
+              <Button variant="outline" size="sm" onClick={() => setScheduling((v) => !v)} data-new-schedule>
+                {scheduling ? <XIcon /> : <PlusIcon />}
+                {scheduling ? t("common.cancel") : t("automation.sched.new")}
+              </Button>
+            ) : undefined
+          }
+        />
         {schedules.error ? (
           <ErrorState error={schedules.error} />
         ) : schedules.isLoading ? (
           <LoadingRows rows={2} />
-        ) : (schedules.data?.schedules ?? []).length === 0 ? (
+        ) : (schedules.data?.schedules ?? []).length === 0 && !scheduling ? (
           // A schedule runs in a paired browser. With none paired, "add a
           // schedule" was a dead end: say what is missing and where to get it.
-          !list.some((b) => !b.revoked_at) ? (
+          !hasBrowser ? (
             <EmptyState
               title={t("automation.sched.needBrowserTitle")}
               body={t("automation.sched.needBrowserBody")}
               action={
-                <Button size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/extension`} />} data-schedule-install>
+                <Button size="sm" nativeButton={false} render={<Link href={installHref} />} data-schedule-install>
                   <DownloadIcon />
                   {t("automation.ext.link")}
                 </Button>
               }
             />
           ) : (
-            <EmptyState title={t("automation.noSchedules")} body={canRun ? t("automation.noSchedulesBody") : undefined} />
+            <EmptyState
+              title={t("automation.noSchedules")}
+              body={canRun ? t("automation.noSchedulesBody") : undefined}
+              action={
+                canRun ? (
+                  <Button size="sm" onClick={() => setScheduling(true)} data-new-schedule>
+                    <PlusIcon />
+                    {t("automation.sched.new")}
+                  </Button>
+                ) : undefined
+              }
+            />
           )
-        ) : (
+        ) : (schedules.data?.schedules ?? []).length > 0 ? (
           <ul className="divide-y divide-line border-y border-line">
             {(schedules.data?.schedules ?? []).map((sc) => (
               <ScheduleRow
@@ -236,30 +337,49 @@ export default function AutomationPage() {
               />
             ))}
           </ul>
-        )}
-
-        {canRun && list.some((b) => !b.revoked_at) ? (
-          <AddSchedule browsers={list.filter((b) => !b.revoked_at)} onAdded={() => schedules.mutate()} />
+        ) : null}
+        {canRun && hasBrowser && scheduling ? (
+          <ScheduleForm
+            browsers={active}
+            workflows={workflowList}
+            onAdded={() => {
+              setScheduling(false)
+              schedules.mutate()
+            }}
+          />
         ) : null}
       </section>
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
-
       {/* ---- runs ---- */}
-      <section>
-        <h2 className="px-6 pb-1 text-base font-medium">{t("automation.runs")}</h2>
-        <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.runsHint")}</p>
-
-        {canRun && list.some((b) => !b.revoked_at) ? (
-          <StartRun browsers={list.filter((b) => !b.revoked_at)} paused={paused} onStarted={() => runs.mutate()} />
+      <section className="mt-10">
+        <SectionTitle
+          title={t("automation.runs")}
+          hint={t("automation.runsHint")}
+          action={
+            canRun && hasBrowser ? (
+              <Button variant="outline" size="sm" onClick={() => setRunningOnce((v) => !v)} data-run-once>
+                {runningOnce ? <XIcon /> : <PlayIcon />}
+                {runningOnce ? t("common.cancel") : t("automation.flow.runOnce")}
+              </Button>
+            ) : undefined
+          }
+        />
+        {canRun && hasBrowser && runningOnce ? (
+          <StartRun
+            browsers={active}
+            paused={paused}
+            onStarted={() => {
+              setRunningOnce(false)
+              runs.mutate()
+            }}
+          />
         ) : null}
-
         {runs.error ? (
           <ErrorState error={runs.error} />
         ) : runs.isLoading ? (
           <LoadingRows rows={3} />
         ) : (runs.data?.runs ?? []).length === 0 ? (
-          <EmptyState title={t("automation.noRuns")} />
+          <EmptyState title={t("automation.noRuns")} body={hasBrowser ? undefined : t("automation.flow.runsNeedBrowser")} />
         ) : (
           <ul className="divide-y divide-line border-y border-line">
             {(runs.data?.runs ?? []).map((r) => (
@@ -273,10 +393,103 @@ export default function AutomationPage() {
   )
 }
 
+function SectionTitle({ title, hint, action }: { title: string; hint: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3 px-6 pb-4">
+      <div className="min-w-0">
+        <h2 className="text-base font-medium">{title}</h2>
+        <p className="max-w-2xl text-sm text-grid-muted">{hint}</p>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+/** One step of the setup flow: a numbered marker, its state, and what to do. */
+function FlowStep({
+  n,
+  state,
+  title,
+  data,
+  children,
+}: {
+  n: number
+  state: "done" | "current" | "waiting"
+  title: string
+  data: string
+  children: React.ReactNode
+}) {
+  const { t } = useTranslations()
+  return (
+    <li className="flex gap-4 px-6 py-5" data-flow-step={data} data-flow-state={state}>
+      <span
+        className={`flex size-8 shrink-0 items-center justify-center rounded-full border text-sm tabular-nums ${
+          state === "done"
+            ? "border-primary bg-primary text-primary-foreground"
+            : state === "current"
+              ? "border-primary text-primary"
+              : "border-line text-grid-muted"
+        }`}
+        aria-hidden
+      >
+        {state === "done" ? <CheckIcon className="size-4" /> : n}
+      </span>
+      <div className="min-w-0 flex-1 space-y-3">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          {title}
+          <Badge variant={state === "done" ? "secondary" : state === "current" ? "default" : "outline"}>{t(`automation.flow.state.${state}`)}</Badge>
+        </p>
+        {children}
+      </div>
+    </li>
+  )
+}
+
+/** Setup is done: one row that says so, with the way back in. */
+function BrowsersStatus({ browsers, onManage, installHref }: { browsers: BrowserAgent[]; onManage: () => void; installHref: string }) {
+  const { t } = useTranslations()
+  const online = browsers.filter((b) => b.status === "online").length
+  const outdated = browsers.filter((b) => b.update_available).length
+  const hosts = [...new Set(browsers.flatMap((b) => b.allowed_hosts))]
+  return (
+    <section className="flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-line bg-grid-card px-6 py-4" data-browser-status>
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground" aria-hidden>
+        <CheckIcon className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          {t("automation.flow.statusRow", { n: browsers.length, online })}
+          {outdated > 0 ? (
+            <Link href={installHref} data-update-available>
+              <Badge variant="secondary">{t("automation.flow.needUpdate", { n: outdated })}</Badge>
+            </Link>
+          ) : null}
+        </p>
+        <p className="flex items-start gap-1 text-xs text-grid-muted">
+          <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
+          <span className="min-w-0 break-words">{t("automation.mayVisit", { hosts: hosts.join(", ") })}</span>
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={installHref} />} data-install-link>
+          <DownloadIcon />
+          {t("automation.ext.link")}
+        </Button>
+        <Button variant="outline" size="sm" onClick={onManage} data-manage-browsers>
+          <SettingsIcon />
+          {t("automation.flow.manage")}
+        </Button>
+      </div>
+    </section>
+  )
+}
+
 function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; canManage: boolean; onChange: () => void }) {
   const { t, formatDate, locale } = useTranslations()
   const ws = useWorkspace()
-  const [editing, setEditing] = useState(false)
+  // A browser that may go nowhere opens with its allow-list ready to fill in:
+  // that is the setup step it is waiting on.
+  const [editing, setEditing] = useState(canManage && !browser.revoked_at && browser.allowed_hosts.length === 0)
   const [hosts, setHosts] = useState(browser.allowed_hosts.join(", "))
   const [busy, setBusy] = useState(false)
   const revoked = !!browser.revoked_at
@@ -382,21 +595,15 @@ function StartRun({ browsers, paused, onStarted }: { browsers: BrowserAgent[]; p
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [agent, setAgent] = useState(browsers[0]?.id ?? "")
-  const [steps, setSteps] = useState('[{"command":"goto","args":{"url":"https://example.com"}}]')
+  const [steps, setSteps] = useState<EditorStep[]>(() => toEditorSteps([{ command: "navigate", args: { url: "https://" } }]))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     setErr(null)
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(steps)
-    } catch {
-      setErr(t("automation.stepsNotJson"))
-      return
-    }
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    const parsed = fromEditorSteps(steps)
+    if (parsed.length === 0) {
       setErr(t("automation.stepsNotArray"))
       return
     }
@@ -438,12 +645,11 @@ function StartRun({ browsers, paused, onStarted }: { browsers: BrowserAgent[]; p
             <span className="text-xs text-grid-muted">{t("automation.offlineHint")}</span>
           ) : null}
         </div>
-        <Field>
-          <FieldLabel htmlFor="run-steps">{t("automation.steps")}</FieldLabel>
-          <Textarea id="run-steps" dir="ltr" rows={4} className="font-mono text-xs" value={steps} onChange={(e) => setSteps(e.target.value)} />
-          <FieldDescription>{t("automation.stepsHint")}</FieldDescription>
-        </Field>
       </FieldGroup>
+      <p className="pt-4 pb-2 text-sm text-grid-muted">{t("automation.stepsHint")}</p>
+      <div className="-mx-6">
+        <StepEditor steps={steps} onChange={setSteps} />
+      </div>
       {err ? <FieldError className="mt-3">{err}</FieldError> : null}
     </form>
   )
@@ -524,6 +730,13 @@ function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSched
           <Badge variant={schedule.enabled ? "default" : "outline"}>{schedule.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")}</Badge>
           {schedule.last_status ? <Badge variant="secondary">{t(`automation.last.${schedule.last_status}`)}</Badge> : null}
         </p>
+        {schedule.workflow_id ? (
+          <p className="text-xs text-grid-muted" data-schedule-workflow>
+            {t("automation.sched.runs", { name: schedule.workflow_name ? isolate(schedule.workflow_name) : t("automation.sched.deletedWorkflow") })}
+            {Object.entries(schedule.values ?? {}).map(([k, v]) => ` · ${k}: ${v}`)}
+            {(schedule.secret_params ?? []).map((k) => ` · ${k}: ${t("automation.sched.secretSet")}`)}
+          </p>
+        ) : null}
         <p className="text-xs text-grid-muted">
           <Ltr mono>{schedule.cron}</Ltr> · <Ltr>{schedule.timezone}</Ltr> · {schedule.agent_name ? <Bdi>{schedule.agent_name}</Bdi> : t("automation.unnamedBrowser")} · {t(`automation.catchUp.${schedule.catch_up}`)}
         </p>
@@ -559,103 +772,6 @@ function ScheduleRow({ schedule, canRun, onChange }: { schedule: AutomationSched
   )
 }
 
-function AddSchedule({ browsers, onAdded }: { browsers: BrowserAgent[]; onAdded: () => void }) {
-  const { t } = useTranslations()
-  const ws = useWorkspace()
-  const [name, setName] = useState("")
-  const [agent, setAgent] = useState(browsers[0]?.id ?? "")
-  const [cron, setCron] = useState("0 7 * * *")
-  // The browser's own timezone: "07:00" means where the person is, and making
-  // them work that out in UTC is how a schedule ends up two hours wrong.
-  const [zone, setZone] = useState(typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC")
-  const [catchUp, setCatchUp] = useState("skip")
-  const [steps, setSteps] = useState('[{"command":"goto","args":{"url":"https://example.com"}}]')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setErr(null)
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(steps)
-    } catch {
-      setErr(t("automation.stepsNotJson"))
-      return
-    }
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      setErr(t("automation.stepsNotArray"))
-      return
-    }
-    setBusy(true)
-    try {
-      await api("/api/w/schedules", {
-        json: { name: name.trim(), agent_id: agent, cron: cron.trim(), timezone: zone, catch_up: catchUp, steps: parsed },
-        workspaceId: ws.id,
-      })
-      toast.success(t("automation.scheduleCreated"))
-      setName("")
-      onAdded()
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} noValidate className="px-6 pt-6" data-form="schedule">
-      <FieldGroup>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor="sc-name">{t("automation.scheduleName")}</FieldLabel>
-            <Input id="sc-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="sc-agent">{t("automation.browsers")}</FieldLabel>
-            <PickSelect id="sc-agent" value={agent} onChange={setAgent} options={browsers.map((b) => ({ value: b.id, label: b.name }))} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="sc-cron">{t("automation.cron")}</FieldLabel>
-            <Input id="sc-cron" dir="ltr" className="font-mono" value={cron} onChange={(e) => setCron(e.target.value)} />
-            <FieldDescription>{t("automation.cronHint")}</FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="sc-zone">{t("automation.timezone")}</FieldLabel>
-            <Input id="sc-zone" dir="ltr" value={zone} onChange={(e) => setZone(e.target.value)} />
-            <FieldDescription>{t("automation.timezoneHint")}</FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="sc-catchup">{t("automation.catchUpLabel")}</FieldLabel>
-            <PickSelect
-              id="sc-catchup"
-              value={catchUp}
-              onChange={setCatchUp}
-              options={[
-                { value: "skip", label: t("automation.catchUp.skip") },
-                { value: "once", label: t("automation.catchUp.once") },
-              ]}
-            />
-            <FieldDescription>{t("automation.catchUpHint")}</FieldDescription>
-          </Field>
-        </div>
-        <Field>
-          <FieldLabel htmlFor="sc-steps">{t("automation.steps")}</FieldLabel>
-          <Textarea id="sc-steps" dir="ltr" rows={3} className="font-mono text-xs" value={steps} onChange={(e) => setSteps(e.target.value)} />
-          <FieldDescription>{t("automation.stepsHint")}</FieldDescription>
-        </Field>
-        <div>
-          <Button type="submit" disabled={busy || !name.trim()}>
-            <PlusIcon />
-            {busy ? t("common.working") : t("automation.addSchedule")}
-          </Button>
-        </div>
-      </FieldGroup>
-      {err ? <FieldError className="mt-3">{err}</FieldError> : null}
-    </form>
-  )
-}
-
 function WorkflowRow({
   workflow,
   browsers,
@@ -667,7 +783,7 @@ function WorkflowRow({
   canRun: boolean
   onChange: () => void
 }) {
-  const { t } = useTranslations()
+  const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const [open, setOpen] = useState(false)
   const [agent, setAgent] = useState(browsers[0]?.id ?? "")
@@ -708,8 +824,9 @@ function WorkflowRow({
     <li className="px-6 py-4" data-workflow={workflow.name}>
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">
+          <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
             <Bdi>{workflow.name}</Bdi>
+            <Badge variant="outline">{t("automation.editor.versionBadge", { n: workflow.version })}</Badge>
           </p>
           {workflow.description ? (
             <p className="text-sm text-grid-muted">
@@ -724,6 +841,10 @@ function WorkflowRow({
         </div>
         {canRun ? (
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/${workflow.id}`} />} data-edit-workflow>
+              <PencilIcon />
+              {t("automation.editor.edit")}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)} disabled={browsers.length === 0}>
               <PlayIcon />
               {t("automation.useIt")}
@@ -774,91 +895,5 @@ function WorkflowRow({
         </form>
       ) : null}
     </li>
-  )
-}
-
-function AddWorkflow({ onAdded }: { onAdded: () => void }) {
-  const { t } = useTranslations()
-  const ws = useWorkspace()
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
-  const [steps, setSteps] = useState('[{"command":"goto","args":{"url":"https://example.com/{{page}}"}}]')
-  const [secrets, setSecrets] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setErr(null)
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(steps)
-    } catch {
-      setErr(t("automation.stepsNotJson"))
-      return
-    }
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      setErr(t("automation.stepsNotArray"))
-      return
-    }
-    // Every placeholder becomes a parameter; the ones named here are marked
-    // secret so their values never reach the run record.
-    const secretNames = secrets.split(",").map((x) => x.trim()).filter(Boolean)
-    const used = [...new Set((JSON.stringify(parsed).match(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g) ?? []).map((m) => m.replace(/[{}\s]/g, "")))]
-    const params = used.map((n) => ({ name: n, required: true, secret: secretNames.includes(n) }))
-
-    setBusy(true)
-    try {
-      await api("/api/w/workflows", {
-        json: { name: name.trim(), description: description.trim(), steps: parsed, params },
-        workspaceId: ws.id,
-      })
-      toast.success(t("automation.workflowSaved"))
-      setName("")
-      setDescription("")
-      onAdded()
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} noValidate className="px-6 pt-6" data-form="workflow">
-      <FieldGroup>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor="wf-name">{t("automation.workflowName")}</FieldLabel>
-            <Input id="wf-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="wf-desc">
-              {t("automation.workflowDescription")} <span className="text-grid-muted">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input id="wf-desc" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={400} />
-          </Field>
-        </div>
-        <Field>
-          <FieldLabel htmlFor="wf-steps">{t("automation.steps")}</FieldLabel>
-          <Textarea id="wf-steps" dir="ltr" rows={3} className="font-mono text-xs" value={steps} onChange={(e) => setSteps(e.target.value)} />
-          <FieldDescription>{t("automation.workflowStepsHint")}</FieldDescription>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="wf-secrets">
-            {t("automation.secretParams")} <span className="text-grid-muted">({t("common.optional")})</span>
-          </FieldLabel>
-          <Input id="wf-secrets" dir="ltr" value={secrets} onChange={(e) => setSecrets(e.target.value)} placeholder="password, token" />
-          <FieldDescription>{t("automation.secretParamsHint")}</FieldDescription>
-        </Field>
-        <div>
-          <Button type="submit" disabled={busy || !name.trim()}>
-            <PlusIcon />
-            {busy ? t("common.working") : t("automation.saveWorkflow")}
-          </Button>
-        </div>
-      </FieldGroup>
-      {err ? <FieldError className="mt-3">{err}</FieldError> : null}
-    </form>
   )
 }

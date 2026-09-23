@@ -68,10 +68,18 @@ const (
 
 // Schedule is one saved, recurring run.
 type Schedule struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	AgentID    string     `json:"agent_id"`
-	AgentName  string     `json:"agent_name"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	AgentID   string `json:"agent_id"`
+	AgentName string `json:"agent_name"`
+	// The saved workflow this schedule runs, when it runs one (MH-403), and
+	// the values it fills it with. Values holds only the PLAIN ones; the
+	// secret ones are sealed at rest and never sent back — SecretParams names
+	// which of them are set, so a page can say "set" without knowing them.
+	WorkflowID   string            `json:"workflow_id"`
+	WorkflowName string            `json:"workflow_name"`
+	Values       map[string]string `json:"values"`
+	SecretParams []string          `json:"secret_params"`
 	Cron       string     `json:"cron"`
 	Timezone   string     `json:"timezone"`
 	CatchUp    string     `json:"catch_up" doc:"skip | once"`
@@ -101,6 +109,26 @@ func NextAfter(expression, timezone string, after time.Time) (time.Time, error) 
 		return time.Time{}, fmt.Errorf("%q is not a cron expression: %w", expression, err)
 	}
 	return s.Next(after.In(loc)).UTC(), nil
+}
+
+// NextTimes returns the next n due times after `after`, in UTC — what the
+// schedule form shows before anything is saved, so "0 7 * * 1-5" is seen to
+// mean 07:00 on weekdays, in the zone it will actually run in.
+func NextTimes(expression, timezone string, after time.Time, n int) ([]time.Time, error) {
+	out := make([]time.Time, 0, n)
+	at := after
+	for i := 0; i < n; i++ {
+		next, err := NextAfter(expression, timezone, at)
+		if err != nil {
+			return nil, err
+		}
+		if next.IsZero() {
+			break // an expression that never fires again (Feb 30th)
+		}
+		out = append(out, next)
+		at = next
+	}
+	return out, nil
 }
 
 // ValidateSchedule is what the API calls before saving one.
@@ -155,6 +183,8 @@ type due struct {
 	// the values to fill it with (MH-233).
 	WorkflowID string
 	Values     map[string]string
+	// The sealed secret values (MH-403), opened only at the moment of running.
+	Sealed string
 }
 
 // Tick fires everything due at `now`. Exported so the tests drive the clock
@@ -165,7 +195,7 @@ func (h *Hub) Tick(ctx context.Context, a *app.App, now time.Time) {
 	// the app pool inside its own workspace.
 	rows, err := a.SysDB.QueryContext(ctx, `
 		SELECT id, workspace_id, agent_id, cron, timezone, catch_up, last_status, steps::text, created_by,
-		       workflow_id, params::text
+		       workflow_id, params::text, secret_values
 		FROM automation_schedules
 		WHERE enabled AND next_run_at <= $1
 		ORDER BY next_run_at LIMIT 100`, now)
@@ -179,7 +209,7 @@ func (h *Hub) Tick(ctx context.Context, a *app.App, now time.Time) {
 		var d due
 		var steps, values string
 		if err := rows.Scan(&d.ID, &d.WorkspaceID, &d.AgentID, &d.Cron, &d.Timezone, &d.CatchUp, &d.LastStatus, &steps, &d.RequestedBy,
-			&d.WorkflowID, &values); err != nil {
+			&d.WorkflowID, &values, &d.Sealed); err != nil {
 			continue
 		}
 		_ = json.Unmarshal([]byte(steps), &d.Steps)
@@ -240,7 +270,11 @@ func (h *Hub) fire(ctx context.Context, a *app.App, d due, now time.Time) {
 	if d.WorkflowID != "" {
 		// A saved workflow: its placeholders are filled from the values stored
 		// on the schedule, and the run keeps the redacted copy.
-		runID, err = RunWorkflow(ctx, a, h, d.WorkspaceID, d.RequestedBy, d.WorkflowID, d.AgentID, "schedule", d.Values)
+		var values map[string]string
+		values, err = MergeScheduleValues(d.Values, d.Sealed)
+		if err == nil {
+			runID, err = RunWorkflow(ctx, a, h, d.WorkspaceID, d.RequestedBy, d.WorkflowID, d.AgentID, "schedule", values)
+		}
 	} else {
 		runID, err = h.Start(ctx, a, d.WorkspaceID, d.RequestedBy, "schedule", d.AgentID, d.Steps)
 	}

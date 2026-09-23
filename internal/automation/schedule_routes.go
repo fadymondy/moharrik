@@ -34,11 +34,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, err
 		}
-		rows, err := db().QueryContext(ctx, `
-			SELECT s.id, s.name, s.agent_id, COALESCE(b.name, ''), s.cron, s.timezone, s.catch_up, s.enabled,
-			       s.steps::text, s.next_run_at, s.last_run_at, s.last_status, s.last_error, s.last_run_id, s.created_at
-			FROM automation_schedules s
-			LEFT JOIN browser_agents b ON b.workspace_id = s.workspace_id AND b.id = s.agent_id
+		rows, err := db().QueryContext(ctx, scheduleSelect+`
 			WHERE s.workspace_id = $1 ORDER BY s.created_at DESC`, s.WorkspaceID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the schedules")
@@ -47,18 +43,10 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 
 		list := []Schedule{}
 		for rows.Next() {
-			var x Schedule
-			var steps string
-			var next time.Time
-			var last sql.NullTime
-			if err := rows.Scan(&x.ID, &x.Name, &x.AgentID, &x.AgentName, &x.Cron, &x.Timezone, &x.CatchUp, &x.Enabled,
-				&steps, &next, &last, &x.LastStatus, &x.LastError, &x.LastRunID, &x.CreatedAt); err != nil {
+			x, err := scanSchedule(rows)
+			if err != nil {
 				return nil, huma.Error500InternalServerError("could not read the schedules")
 			}
-			_ = json.Unmarshal([]byte(steps), &x.Steps)
-			n := next
-			x.NextRunAt = &n
-			x.LastRunAt = timep(last)
 			list = append(list, x)
 		}
 		return out(struct {
@@ -100,7 +88,11 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		// below sees the hosts this schedule will ACTUALLY visit rather than a
 		// placeholder that could be anything.
 		steps2 := in.Body.Steps
+		plainValues, sealed := map[string]string{}, ""
 		if in.Body.WorkflowID != "" {
+			if len(in.Body.Steps) > 0 {
+				return nil, huma.Error422UnprocessableEntity("a schedule runs its own steps or a saved workflow, not both")
+			}
 			w, err := getWorkflow(ctx, db(), s.WorkspaceID, in.Body.WorkflowID)
 			if err != nil {
 				return nil, err
@@ -110,6 +102,12 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 				return nil, huma.Error422UnprocessableEntity(ferr.Error())
 			}
 			steps2 = filled
+			// The secret values are sealed here and never stored in the clear
+			// (schedule_values.go).
+			plainValues, sealed, err = SplitScheduleValues(w.Params, in.Body.Values)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not keep the schedule's secret values")
+			}
 		}
 		if len(steps2) == 0 {
 			return nil, huma.Error422UnprocessableEntity("a schedule needs steps, or a workflow to run")
@@ -139,18 +137,22 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
-		steps, err := json.Marshal(in.Body.Steps)
+		ownSteps := in.Body.Steps
+		if ownSteps == nil {
+			ownSteps = []Step{}
+		}
+		steps, err := json.Marshal(ownSteps)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not store the steps")
 		}
 
 		var id string
 		err = db().QueryRowContext(ctx, `
-			INSERT INTO automation_schedules (workspace_id, name, agent_id, steps, cron, timezone, catch_up, next_run_at, created_by, workflow_id, params)
-			VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING id`,
+			INSERT INTO automation_schedules (workspace_id, name, agent_id, steps, cron, timezone, catch_up, next_run_at, created_by, workflow_id, params, secret_values)
+			VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb, $12) RETURNING id`,
 			s.WorkspaceID, strings.TrimSpace(in.Body.Name), in.Body.AgentID, string(steps),
 			strings.TrimSpace(in.Body.Cron), zone, catchUp, next, s.UserID,
-			in.Body.WorkflowID, jsonOrEmpty(in.Body.Values)).Scan(&id)
+			in.Body.WorkflowID, jsonOrEmpty(plainValues), sealed).Scan(&id)
 		if pgCode(err) == "23505" {
 			return nil, huma.Error409Conflict("a schedule with that name already exists")
 		}
@@ -232,6 +234,39 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "w-schedule-preview", Method: http.MethodGet, Path: "/api/w/schedules/preview",
+		Summary: "The next times a cron expression would run, before it is saved (MH-403)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Cron     string `query:"cron" maxLength:"100" doc:"Five-field cron, or a descriptor like @daily."`
+		Timezone string `query:"timezone" maxLength:"60" doc:"IANA name. Defaults to the workspace's time zone."`
+		Count    int    `query:"count" minimum:"0" maximum:"20" doc:"How many times to list; 5 when not given."`
+	}) (*body[SchedulePreview], error) {
+		s, err := scope(ctx, authz.AutomationRead)
+		if err != nil {
+			return nil, err
+		}
+		zone := strings.TrimSpace(in.Timezone)
+		if zone == "" {
+			// The workspace's own zone, which is what the form offers by default.
+			_ = db().QueryRowContext(ctx, `SELECT timezone FROM workspaces WHERE id = $1`, s.WorkspaceID).Scan(&zone)
+		}
+		zone = firstNonEmpty(zone, "UTC")
+		n := in.Count
+		if n == 0 {
+			n = 5
+		}
+		times, err := NextTimes(in.Cron, zone, time.Now().UTC(), n)
+		if err != nil {
+			// Answered, not refused: the form asks on every keystroke, and "not
+			// a cron expression yet" is the ordinary state of a field someone
+			// is still typing into.
+			return out(SchedulePreview{Timezone: zone, Valid: false, Error: err.Error(), Times: []time.Time{}}), nil
+		}
+		return out(SchedulePreview{Timezone: zone, Valid: true, Times: times}), nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "w-delete-schedule", Method: http.MethodDelete, Path: "/api/w/schedules/{id}",
 		DefaultStatus: http.StatusNoContent,
 		Summary:       "Delete a schedule", Tags: tags,
@@ -274,7 +309,20 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		// Through the same Start as everything else: a schedule run by hand
 		// gets the kill switch, the allow-list and one-at-a-time exactly like
 		// any other run.
-		runID, err := hub.Start(ctx, a, s.WorkspaceID, s.UserID, "schedule", got.AgentID, got.Steps)
+		var runID string
+		if got.WorkflowID != "" {
+			// A schedule of a saved workflow runs THE WORKFLOW, filled with the
+			// schedule's values. It used to send the schedule's own steps, which
+			// for these schedules are empty: "Run now" failed with "a run needs
+			// at least one step" (MH-403).
+			values, verr := scheduleValues(ctx, db(), s.WorkspaceID, in.ID)
+			if verr != nil {
+				return nil, huma.Error409Conflict("this schedule's secret values can no longer be read; create it again")
+			}
+			runID, err = RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, got.WorkflowID, got.AgentID, "schedule", values)
+		} else {
+			runID, err = hub.Start(ctx, a, s.WorkspaceID, s.UserID, "schedule", got.AgentID, got.Steps)
+		}
 		if err != nil {
 			return nil, runError(err)
 		}
@@ -287,30 +335,73 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 	})
 }
 
-func getSchedule(ctx context.Context, db *sql.DB, workspaceID, id string) (Schedule, error) {
+// SchedulePreview is what the form shows under the cron field.
+type SchedulePreview struct {
+	Timezone string      `json:"timezone"`
+	Valid    bool        `json:"valid"`
+	Error    string      `json:"error,omitempty"`
+	Times    []time.Time `json:"times" doc:"UTC instants; the page renders them in timezone."`
+}
+
+// scheduleSelect is every column a Schedule is read from. The sealed secret
+// values are read only to name which are set; they never leave this package.
+const scheduleSelect = `
+	SELECT s.id, s.name, s.agent_id, COALESCE(b.name, ''), s.cron, s.timezone, s.catch_up, s.enabled,
+	       s.steps::text, s.next_run_at, s.last_run_at, s.last_status, s.last_error, s.last_run_id, s.created_at,
+	       s.workflow_id, COALESCE(w.name, ''), s.params::text, s.secret_values
+	FROM automation_schedules s
+	LEFT JOIN browser_agents b ON b.workspace_id = s.workspace_id AND b.id = s.agent_id
+	LEFT JOIN automation_workflows w ON w.workspace_id = s.workspace_id AND w.id = s.workflow_id`
+
+func scanSchedule(r rowScanner) (Schedule, error) {
 	var x Schedule
-	var steps string
+	var steps, values, sealed string
 	var next time.Time
 	var last sql.NullTime
-	err := db.QueryRowContext(ctx, `
-		SELECT s.id, s.name, s.agent_id, COALESCE(b.name, ''), s.cron, s.timezone, s.catch_up, s.enabled,
-		       s.steps::text, s.next_run_at, s.last_run_at, s.last_status, s.last_error, s.last_run_id, s.created_at
-		FROM automation_schedules s
-		LEFT JOIN browser_agents b ON b.workspace_id = s.workspace_id AND b.id = s.agent_id
-		WHERE s.workspace_id = $1 AND s.id = $2`, workspaceID, id,
-	).Scan(&x.ID, &x.Name, &x.AgentID, &x.AgentName, &x.Cron, &x.Timezone, &x.CatchUp, &x.Enabled,
-		&steps, &next, &last, &x.LastStatus, &x.LastError, &x.LastRunID, &x.CreatedAt)
+	if err := r.Scan(&x.ID, &x.Name, &x.AgentID, &x.AgentName, &x.Cron, &x.Timezone, &x.CatchUp, &x.Enabled,
+		&steps, &next, &last, &x.LastStatus, &x.LastError, &x.LastRunID, &x.CreatedAt,
+		&x.WorkflowID, &x.WorkflowName, &values, &sealed); err != nil {
+		return x, err
+	}
+	_ = json.Unmarshal([]byte(steps), &x.Steps)
+	if x.Steps == nil {
+		x.Steps = []Step{}
+	}
+	_ = json.Unmarshal([]byte(values), &x.Values)
+	if x.Values == nil {
+		x.Values = map[string]string{}
+	}
+	x.SecretParams = sealedNames(sealed)
+	n := next
+	x.NextRunAt = &n
+	x.LastRunAt = timep(last)
+	return x, nil
+}
+
+func getSchedule(ctx context.Context, db *sql.DB, workspaceID, id string) (Schedule, error) {
+	x, err := scanSchedule(db.QueryRowContext(ctx, scheduleSelect+`
+		WHERE s.workspace_id = $1 AND s.id = $2`, workspaceID, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return x, huma.Error404NotFound("no such schedule")
 	}
 	if err != nil {
 		return x, huma.Error500InternalServerError("could not read that schedule")
 	}
-	_ = json.Unmarshal([]byte(steps), &x.Steps)
-	n := next
-	x.NextRunAt = &n
-	x.LastRunAt = timep(last)
 	return x, nil
+}
+
+// scheduleValues is every value a schedule fills its workflow with, the
+// sealed ones opened — for running it, and nothing else.
+func scheduleValues(ctx context.Context, db *sql.DB, workspaceID, id string) (map[string]string, error) {
+	var values, sealed string
+	if err := db.QueryRowContext(ctx, `
+		SELECT params::text, secret_values FROM automation_schedules WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, id).Scan(&values, &sealed); err != nil {
+		return nil, err
+	}
+	plain := map[string]string{}
+	_ = json.Unmarshal([]byte(values), &plain)
+	return MergeScheduleValues(plain, sealed)
 }
 
 // jsonOrEmpty renders a value map for storage, never NULL: the scheduler reads

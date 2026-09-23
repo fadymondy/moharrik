@@ -342,7 +342,34 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}, 201)
 	pushID := dev["device"].(map[string]any)["id"].(string)
 
-	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID}
+	// Automation (MH-399/400/403): a paired browser, a workflow edited once so
+	// it has two versions, and a schedule that runs it with a secret value.
+	// The browser is inserted directly — pairing needs the extension — and
+	// everything after it goes through the routes.
+	var agentID string
+	if err := a.SysDB.QueryRow(`
+		INSERT INTO browser_agents (workspace_id, name, token_hash, created_by, allowed_hosts)
+		VALUES ($1, $2, $3, '', '{iso.test}') RETURNING id`, aID, marker+" Browser", "iso-token-"+rnd()).Scan(&agentID); err != nil {
+		t.Fatal(err)
+	}
+	wfSteps := []map[string]any{
+		{"command": "goto", "args": map[string]any{"url": "https://iso.test/{{page}}"}},
+		{"command": "type", "args": map[string]any{"selector": "#pw", "text": "{{password}}"}},
+	}
+	wfParams := []map[string]any{{"name": "page", "required": true}, {"name": "password", "required": true, "secret": true}}
+	wfID := alice.must("POST", "/api/w/workflows", map[string]any{"name": marker + " Workflow", "steps": wfSteps, "params": wfParams}, 201)["workflow"].(map[string]any)["id"].(string)
+	alice.must("PUT", "/api/w/workflows/"+wfID, map[string]any{"name": marker + " Workflow v2", "steps": wfSteps, "params": wfParams, "base_version": 1}, 200)
+	scheduleSecret := "ISO-A-PASSWORD-" + rnd()
+	schedID := alice.must("POST", "/api/w/schedules", map[string]any{
+		"name": marker + " Schedule", "agent_id": agentID, "cron": "0 7 * * *", "timezone": "Africa/Cairo",
+		"workflow_id": wfID, "values": map[string]string{"page": "inbox", "password": scheduleSecret},
+	}, 201)["schedule"].(map[string]any)["id"].(string)
+	// The secret value is never read back, not even by the workspace it belongs to.
+	if _, b := alice.do("GET", "/api/w/schedules", nil); strings.Contains(string(b), scheduleSecret) {
+		t.Fatalf("the schedule list handed back a secret value: %s", b)
+	}
+
+	aIDs := []string{aID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, agentID, wfID, schedID, scheduleSecret}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -352,6 +379,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"google": googleID,
 		"mail": listID,
 		"push": pushID,
+		"browsers": agentID, "workflows": wfID, "schedules": schedID,
 	}
 
 	leaks := func(b []byte) string {

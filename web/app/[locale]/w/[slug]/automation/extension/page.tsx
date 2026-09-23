@@ -90,7 +90,7 @@ export default function ExtensionInstallPage() {
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">{t("automation.ext.checksum")}</p>
-              <CopyField value={info.sha256 ?? ""} label="SHA-256" />
+              <CopyField value={info.sha256 ?? ""} label="SHA-256" nowrap />
               <p className="text-xs text-grid-muted">{t("automation.ext.checksumHint")}</p>
               {[`certutil -hashfile ${fileName} SHA256`, `shasum -a 256 ${fileName}`].map((cmd) => (
                 <code key={cmd} dir="ltr" className="block overflow-x-auto font-mono text-xs whitespace-nowrap text-grid-muted">
@@ -110,7 +110,7 @@ export default function ExtensionInstallPage() {
           <Step n={1} title={t("automation.ext.s1Title")} body={t("automation.ext.s1Body")} />
           <Step n={2} title={t("automation.ext.s2Title")} body={t("automation.ext.s2Body")}>
             <div className="max-w-sm">
-              <CopyField value="chrome://extensions" />
+              <CopyField value="chrome://extensions" nowrap />
             </div>
             <p className="text-xs text-grid-muted">{t("automation.ext.s2Other")}</p>
           </Step>
@@ -126,15 +126,18 @@ export default function ExtensionInstallPage() {
         <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.ext.pairHint")}</p>
         <ol className="divide-y divide-line border-y border-line">
           <Step n={6} title={t("automation.ext.s6Title")} body={t("automation.ext.s6Body")}>
-            <div className="grid max-w-xl gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
+            {/* Stacked, full width up to a comfortable measure: a slug or an
+                address broken mid-word is a slug or an address someone types
+                wrong. */}
+            <div className="grid max-w-2xl gap-3 lg:grid-cols-2">
+              <div className="min-w-0 space-y-1">
                 <p className="text-xs text-grid-muted">{t("automation.ext.workspaceField")}</p>
-                <CopyField value={ws.slug} />
+                <CopyField value={ws.slug} nowrap />
               </div>
               {info?.site ? (
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <p className="text-xs text-grid-muted">{t("automation.ext.siteField")}</p>
-                  <CopyField value={info.site} />
+                  <CopyField value={info.site} nowrap />
                 </div>
               ) : null}
             </div>

@@ -47,6 +47,7 @@ import { useTranslations } from "@/lib/i18n"
 import { intlTag } from "@/lib/i18n-locale"
 import { useAutomationSettings, useBrowsers, useRun, useWorkflow, useWorkflowVersions } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { Bdi } from "@/components/bidi"
 
 export default function WorkflowEditorPage() {
   const { t, locale } = useTranslations()
@@ -254,11 +255,11 @@ function Editor({
       <SectionHeader
         micro={
           <span className="flex items-center gap-2">
-            {ws.summary.name}
+            <Bdi>{ws.summary.name}</Bdi>
             {workflow ? <Badge variant="outline">{t("automation.editor.versionBadge", { n: workflow.version })}</Badge> : null}
           </span>
         }
-        title={workflow ? workflow.name : t("automation.editor.newTitle")}
+        title={workflow ? <Bdi>{workflow.name}</Bdi> : t("automation.editor.newTitle")}
         description={t("automation.editor.hint")}
         action={
           <div className="flex flex-wrap items-center gap-2">

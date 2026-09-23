@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { useTranslations } from "@/lib/i18n"
 
 /** A one-time secret or link: mono, always LTR, with a copy button. */
-export function CopyField({ value, label }: { value: string; label?: string }) {
+export function CopyField({ value, label, nowrap = false }: { value: string; label?: string; /** One line that scrolls inside the field, never broken mid-token: an address, a slug, a checksum. */ nowrap?: boolean }) {
   const { t } = useTranslations()
   const [copied, setCopied] = useState(false)
 
@@ -28,7 +28,7 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
       <code
         dir="ltr"
         aria-label={label}
-        className="ltr-isolate min-w-0 flex-1 overflow-x-auto px-3 py-2 font-mono text-xs leading-5 break-all whitespace-pre-wrap text-grid-fg select-all"
+        className={`ltr-isolate min-w-0 flex-1 overflow-x-auto px-3 py-2 font-mono text-xs leading-5 text-grid-fg select-all ${nowrap ? "whitespace-nowrap" : "break-all whitespace-pre-wrap"}`}
       >
         {value}
       </code>
