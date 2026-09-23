@@ -25,6 +25,17 @@
   --color-grid-danger-text: var(--grid-danger-text);
   --font-sans: var(--grid-font-sans);
   --font-mono: var(--grid-font-mono);
+  /* Readable type scale (Fady, 2026-09-23: "make the font size readable everywhere"). A size
+     audit of the signed-in app found 23% of all visible text at 12px (text-xs) and the rest
+     mostly 14px (text-sm). One step up each, with line-heights that keep ~1.45 leading:
+     xs 12→13px, sm 14→15px, base stays 16px. Inputs are text-base below md (16px, so iOS
+     doesn't zoom on focus) and text-sm above. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
