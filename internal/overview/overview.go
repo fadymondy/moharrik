@@ -45,6 +45,21 @@ type Overview struct {
 	Trends        *Trends            `json:"trends" doc:"Null without trends:read."`
 	Setup         []SetupItem        `json:"setup" doc:"Only the items the caller's role can see."`
 	Traffic       *Traffic           `json:"traffic" doc:"Null without analytics:read, or when no GA4 property or Search Console site is enabled (MH-444/445)."`
+	YouTube       []YouTubeChannel   `json:"youtube" doc:"Each enabled YouTube channel. Null without analytics:read or with none enabled (MH-441/442)."`
+}
+
+// YouTubeChannel is one enabled channel on the front page: its counters from
+// the last sync, and its views over the last 28 days from YouTube Analytics
+// when they have been fetched. Nothing fetched is null, never 0.
+type YouTubeChannel struct {
+	ResourceID  string     `json:"resource_id"`
+	Title       string     `json:"title"`
+	Subscribers *int64     `json:"subscribers" doc:"Null until synced, or when the channel hides it."`
+	Videos      *int64     `json:"videos"`
+	Views28     *int64     `json:"views_28" doc:"YouTube Analytics views over the last 28 days; null until fetched."`
+	Views28To   *string    `json:"views_28_to" doc:"The last day of those 28 (YYYY-MM-DD, Pacific)."`
+	SyncedAt    *time.Time `json:"synced_at"`
+	LastError   string     `json:"last_error"`
 }
 
 // Traffic is the last 28 days of each enabled GA4 property and Search
@@ -53,6 +68,19 @@ type Overview struct {
 // has never been fetched is null, never 0.
 type Traffic struct {
 	Properties []TrafficProperty `json:"properties"`
+	Sites      []TrafficSite     `json:"sites"`
+}
+
+// TrafficSite is one Search Console site's clicks over the 28 days ending on
+// its newest day with data (Search Console lags two to three days).
+type TrafficSite struct {
+	ResourceID  string  `json:"resource_id"`
+	Name        string  `json:"name"`
+	Clicks      *int64  `json:"clicks" doc:"Null until the first import."`
+	Impressions *int64  `json:"impressions"`
+	StartDate   *string `json:"start_date"`
+	EndDate     *string `json:"end_date"`
+	LastError   string  `json:"last_error"`
 }
 
 // TrafficProperty is one GA4 property's 28-day totals.
@@ -307,6 +335,7 @@ func Build(ctx context.Context, db *sql.DB, wsID, role string, env Env, now time
 	o.Setup = b.setup(can, env)
 	if can(authz.AnalyticsRead) {
 		o.Traffic = b.traffic()
+		o.YouTube = b.youtube()
 	}
 
 	if b.err != nil {
@@ -591,10 +620,11 @@ func (b *builder) trends() *Trends {
 	return t
 }
 
-// traffic reads the enabled GA4 properties' 28-day snapshots. nil when
-// nothing is enabled: the card is not shown at all.
+// traffic reads the enabled GA4 properties' 28-day snapshots and the enabled
+// Search Console sites' imported clicks. nil when nothing is enabled: the
+// card is not shown at all.
 func (b *builder) traffic() *Traffic {
-	t := &Traffic{Properties: []TrafficProperty{}}
+	t := &Traffic{Properties: []TrafficProperty{}, Sites: []TrafficSite{}}
 	b.each(`
 		SELECT r.id, r.display_name, g.users, g.sessions, to_char(g.start_date, 'YYYY-MM-DD'), to_char(g.end_date, 'YYYY-MM-DD'),
 		       g.fetched_at, r.last_error
@@ -609,10 +639,61 @@ func (b *builder) traffic() *Traffic {
 		t.Properties = append(t.Properties, p)
 		return nil
 	})
-	if b.err != nil || len(t.Properties) == 0 {
+	b.each(`
+		SELECT r.id, r.display_name, r.last_error, x.last,
+		       (SELECT sum(g.clicks) FROM gsc_search_totals_daily g WHERE g.workspace_id = r.workspace_id AND g.resource_id = r.id
+		          AND g.date BETWEEN x.last - 27 AND x.last),
+		       (SELECT sum(g.impressions) FROM gsc_search_totals_daily g WHERE g.workspace_id = r.workspace_id AND g.resource_id = r.id
+		          AND g.date BETWEEN x.last - 27 AND x.last)
+		FROM google_resources r
+		LEFT JOIN LATERAL (SELECT max(date) AS last FROM gsc_search_totals_daily g
+		                   WHERE g.workspace_id = r.workspace_id AND g.resource_id = r.id) x ON true
+		WHERE r.workspace_id = $1 AND r.kind = 'gsc_site' AND r.enabled
+		ORDER BY lower(r.display_name), r.id`, nil, func(r *sql.Rows) error {
+		var st TrafficSite
+		var last sql.NullTime
+		if err := r.Scan(&st.ResourceID, &st.Name, &st.LastError, &last, &st.Clicks, &st.Impressions); err != nil {
+			return err
+		}
+		if last.Valid {
+			e := last.Time.Format("2006-01-02")
+			s := last.Time.AddDate(0, 0, -27).Format("2006-01-02")
+			st.StartDate, st.EndDate = &s, &e
+		}
+		t.Sites = append(t.Sites, st)
+		return nil
+	})
+	if b.err != nil || len(t.Properties)+len(t.Sites) == 0 {
 		return nil
 	}
 	return t
+}
+
+// youtube reads each enabled channel. nil when none is enabled.
+func (b *builder) youtube() []YouTubeChannel {
+	var list []YouTubeChannel
+	b.each(`
+		SELECT r.id, coalesce(nullif(c.title, ''), r.display_name),
+		       CASE WHEN c.subscribers_hidden THEN NULL ELSE c.subscriber_count END, c.video_count, c.updated_at, r.last_error,
+		       (SELECT (y.payload->'totals'->>'views')::numeric::bigint FROM youtube_analytics y
+		        WHERE y.workspace_id = r.workspace_id AND y.resource_id = r.id AND y.scope = 'channel' AND y.days = 28),
+		       (SELECT y.payload->>'end_date' FROM youtube_analytics y
+		        WHERE y.workspace_id = r.workspace_id AND y.resource_id = r.id AND y.scope = 'channel' AND y.days = 28)
+		FROM google_resources r
+		LEFT JOIN youtube_channels c ON c.workspace_id = r.workspace_id AND c.resource_id = r.id
+		WHERE r.workspace_id = $1 AND r.kind = 'yt_channel' AND r.enabled
+		ORDER BY lower(r.display_name), r.id`, nil, func(r *sql.Rows) error {
+		var y YouTubeChannel
+		if err := r.Scan(&y.ResourceID, &y.Title, &y.Subscribers, &y.Videos, &y.SyncedAt, &y.LastError, &y.Views28, &y.Views28To); err != nil {
+			return err
+		}
+		list = append(list, y)
+		return nil
+	})
+	if b.err != nil || len(list) == 0 {
+		return nil
+	}
+	return list
 }
 
 // setup lists what is connected. Each item is shown only to a role that can

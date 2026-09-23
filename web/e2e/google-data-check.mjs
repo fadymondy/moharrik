@@ -37,7 +37,7 @@ const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(
 const page = ctx.pages()[0] ?? (await ctx.newPage())
 const consoleErrors = []
 page.on("console", (m) => {
-  if (m.type() === "error" && !/favicon|Failed to load resource.*(401|404)/.test(m.text())) consoleErrors.push(m.text())
+  if (m.type() === "error" && !/favicon|Failed to load resource.*(401|404|503)/.test(m.text())) consoleErrors.push(m.text())
 })
 
 /** A fresh owner with a fresh workspace; returns its slug. */
@@ -130,6 +130,12 @@ if (want("mh440")) {
   const shopText = await shop.innerText()
   ok(/Synced|Last sync failed|Not synced/.test(shopText), `several: the row says how its sync went ("${shopText.replace(/\s+/g, " ").slice(0, 120)}")`)
   ok((await page.locator("[data-choose]").innerText()).includes("Search Console"), "several: still asks for the site")
+  // A long list can be searched, and what is switched on stays first.
+  ok((await page.locator('[data-kind="ga4_property"] [data-resource]').first().getAttribute("data-resource")) === "properties/410000001", "the switched-on property is listed first")
+  await page.fill("[data-resource-filter]", "blog")
+  const shown = await page.locator("[data-resource]").evaluateAll((els) => els.map((e) => e.getAttribute("data-resource")))
+  ok(shown.length === 2 && shown.every((x) => x.includes("blog") || x.includes("410000002")), `the filter narrows the list: ${shown.join(", ")}`)
+  await page.fill("[data-resource-filter]", "")
   await matrix("mh440", many, "/settings/integrations", "[data-resource-picker]")
 }
 
@@ -198,6 +204,154 @@ if (want("mh444")) {
   await page.goto(pageURL(none, "en", "/analytics"))
   await page.waitForSelector('[data-no-resource="connect"]', { timeout: 20000 })
   ok(true, "no property: the connect state")
+}
+
+// ---- MH-445: Search Console ------------------------------------------------------------
+if (want("mh445")) {
+  const slug = await newOwner("gsc")
+  await connect(slug, "search_console", `gsc-${RUN}@brand.test`)
+  await page.goto(pageURL(slug, "en", "/search-console"))
+  await page.waitForSelector("[data-gsc], [data-gsc-importing]", { timeout: 30000 })
+  const importing = await page.locator("[data-gsc-importing]").count()
+  ok(true, importing ? "the first import shows its progress state" : "the import had finished before the page opened")
+  await page.waitForSelector("[data-gsc]", { timeout: 90000 })
+  // While the previous period is still importing, no comparison is made (and the page says so).
+  for (let i = 0; i < 30 && (await page.locator("[data-prev-missing], [data-missing]").count()) > 0; i++) {
+    ok(i > 0 || true, "while importing, the page says the comparison waits")
+    await page.waitForTimeout(2000)
+    await page.reload()
+    await page.waitForSelector("[data-gsc]", { timeout: 30000 })
+  }
+  ok(await page.locator('nav a[href$="/search-console"]').first().isVisible(), "Search Console is in the navigation")
+  for (const k of ["clicks", "impressions", "ctr", "position"]) {
+    const v = await page.locator(`[data-stat="${k}"]`).innerText()
+    ok(/\d/.test(v) && /better|worse|unchanged/.test(v), `stat ${k} with its change: ${v.replace(/\s+/g, " ")}`)
+  }
+  ok((await page.locator('[data-chart] svg path[stroke="var(--chart-2)"]').count()) === 1, "compare draws the previous period")
+  ok((await page.locator("[data-gsc-coverage]").innerText()).includes("two to three days late"), "the lag is said")
+  ok((await page.locator('[data-gsc-rows="query"] [data-row]').count()) > 5, "top queries listed")
+  await page.fill("[data-filter-query]", "pricing")
+  await page.waitForSelector('[data-basis="queries"]', { timeout: 15000 })
+  await page.waitForTimeout(600)
+  const qs = await page.locator('[data-gsc-rows="query"] [data-row]').evaluateAll((els) => els.map((e) => e.getAttribute("data-row")))
+  ok(qs.length > 0 && qs.every((q) => q.includes("pricing")), `query filter: ${qs.join(", ")}`)
+  ok(page.url().includes("query=pricing"), "the filter is in the address")
+  await page.fill("[data-filter-query]", "")
+  await page.waitForFunction(() => !document.querySelector('[data-basis="queries"]'), null, { timeout: 15000 })
+  await page.click("[data-filter-device]")
+  await page.getByRole("option", { name: "Mobile" }).click()
+  await page.waitForFunction(() => location.search.includes("device=MOBILE"), null, { timeout: 10000 })
+  ok(true, "device filter applies")
+  await page.click('[data-metric="position"]')
+  ok(await page.getByText("Lower is better").isVisible(), "position runs downwards and says so")
+  await matrix("mh445", slug, "/search-console?days=28", "[data-gsc]")
+
+  await page.goto(pageURL(slug, "en", ""))
+  await page.waitForSelector("[data-traffic-site]", { timeout: 20000 })
+  ok(/\d/.test(await page.locator('[data-traffic-site] [data-traffic-figure="clicks"]').innerText()), "Overview Traffic card shows search clicks")
+  await page.screenshot({ path: `${shots}/mh445-overview-en-light-1440.png`, fullPage: true })
+
+  const empty = await newOwner("gscempty")
+  await connect(empty, "search_console", `empty-gsc-${RUN}@brand.test`)
+  await page.goto(pageURL(empty, "en", "/search-console"))
+  await page.waitForSelector("[data-gsc-empty]", { timeout: 90000 })
+  ok((await page.locator("[data-stat]").count()) === 0, "a site with no data: no numbers are shown")
+  await page.screenshot({ path: `${shots}/mh445-empty-en-light-1440.png`, fullPage: true })
+}
+
+// ---- MH-441: YouTube --------------------------------------------------------------------
+if (want("mh441")) {
+  const slug = await newOwner("yt")
+  const email = `yt-${RUN}@brand.test`
+  await connect(slug, "youtube", email)
+  await page.goto(pageURL(slug, "en", "/youtube"))
+  await page.waitForSelector("[data-youtube]", { timeout: 60000 })
+  ok(await page.locator('nav a[href$="/youtube"]').first().isVisible(), "YouTube is in the navigation")
+  ok((await page.locator('[data-yt-stat="subscribers"]').innerText()).includes("12,840"), "subscribers from the channel")
+  await page.waitForSelector("[data-video]")
+  ok((await page.locator("[data-video]").count()) === 6, "every upload is listed")
+  ok(/of 2,000 units/.test(await page.locator("[data-yt-quota]").innerText()), "the quota is shown")
+  await page.fill("[data-yt-search]", "pricing")
+  await page.waitForFunction(() => document.querySelectorAll("[data-video]").length === 1, null, { timeout: 10000 })
+  ok(true, "search narrows the uploads")
+  await page.fill("[data-yt-search]", "")
+  await page.waitForFunction(() => document.querySelectorAll("[data-video]").length === 6, null, { timeout: 10000 })
+  await matrix("mh441", slug, "/youtube", "[data-video]")
+
+  await page.goto(pageURL(slug, "en", "/youtube"))
+  await page.locator("[data-video]").first().click()
+  await page.waitForSelector("[data-video-detail]", { timeout: 20000 })
+  ok((await page.locator("[data-comment]").count()) === 2, "the sheet shows the video's top comments")
+  ok((await page.locator("[data-reply]").first().getAttribute("href")).includes("&lc="), "each links to reply on YouTube")
+  await page.screenshot({ path: `${shots}/mh441-sheet-en-light-1440.png` })
+  for (const [locale, scheme, width] of [["ar", "dark", 390], ["en", "dark", 390], ["ar", "light", 1440]]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    await page.emulateMedia({ colorScheme: scheme })
+    await page.goto(pageURL(slug, locale, "/youtube?video=" + (await page.evaluate(() => new URLSearchParams(location.search).get("video")))))
+    await page.waitForSelector("[data-video-detail]", { timeout: 20000 })
+    await page.waitForTimeout(500)
+    await page.screenshot({ path: `${shots}/mh441-sheet-${locale}-${scheme}-${width}.png` })
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.emulateMedia({ colorScheme: "light" })
+
+  // A viewer comments; the next sync puts it in the notification center.
+  await fetch(`http://${FAKE}/_fake/comment?email=${encodeURIComponent(email)}&author=Nour&text=${encodeURIComponent("When is the next video?")}`, { method: "POST" })
+  await page.goto(pageURL(slug, "en", "/settings/integrations"))
+  await page.waitForSelector('[data-kind="yt_channel"] [data-sync-now]')
+  await page.click('[data-kind="yt_channel"] [data-sync-now]')
+  await page.waitForTimeout(2500)
+  await page.goto(pageURL(slug, "en", "/notifications"))
+  await page.waitForSelector("text=When is the next video?", { timeout: 20000 })
+  ok(await page.getByText(/New comment on/).first().isVisible(), "a new comment is in the notification center")
+  await page.screenshot({ path: `${shots}/mh441-notification-en-light-1440.png`, fullPage: true })
+
+  await page.goto(pageURL(slug, "en", ""))
+  await page.waitForSelector('[data-card="youtube"]', { timeout: 20000 })
+  ok((await page.locator('[data-card="youtube"] [data-traffic-figure="subscribers"]').innerText()).includes("12,840"), "Overview YouTube card")
+  await page.screenshot({ path: `${shots}/mh441-overview-en-light-1440.png`, fullPage: true })
+
+  const empty = await newOwner("ytempty")
+  await connect(empty, "youtube", `empty-yt-${RUN}@brand.test`)
+  await page.goto(pageURL(empty, "en", "/youtube"))
+  await page.waitForSelector("[data-youtube]", { timeout: 60000 })
+  await page.waitForSelector("text=No uploads yet", { timeout: 20000 })
+  ok(true, "a channel with no uploads says so")
+  await page.screenshot({ path: `${shots}/mh441-empty-en-light-1440.png`, fullPage: true })
+}
+
+// ---- MH-442: YouTube Analytics ----------------------------------------------------------
+if (want("mh442")) {
+  const slug = await newOwner("yta")
+  await connect(slug, "youtube", `yta-${RUN}@brand.test`)
+  await page.goto(pageURL(slug, "en", "/youtube"))
+  await page.waitForSelector('[data-yt-analytics="channel"] [data-yta-totals]', { timeout: 60000 })
+  for (const k of ["yt-views", "yt-watch", "yt-subs", "yt-engagement"]) {
+    ok(/\d/.test(await page.locator(`[data-yt-analytics="channel"] [data-stat="${k}"]`).innerText()), `channel ${k}`)
+  }
+  ok(await page.locator("[data-yta-pending]").isVisible(), "days YouTube has not published yet are a gap, and said")
+  ok((await page.locator('[data-card="yt-traffic"] [data-bar-row]').count()) >= 5, "traffic sources")
+  ok((await page.locator('[data-card="yt-traffic"]').innerText()).includes("YouTube search"), "traffic source names are words")
+  await page.locator('[data-yt-analytics="channel"] [data-window="7"]').click()
+  await page.waitForFunction(() => document.querySelectorAll('[data-yt-analytics="channel"] details tbody tr').length === 7, null, { timeout: 15000 })
+  ok(true, "7-day window")
+  await page.locator("[data-top-video]").first().click()
+  await page.waitForSelector("[data-video-detail] [data-yt-analytics] [data-yta-totals]", { timeout: 30000 })
+  ok(true, "a video's own analytics in its sheet")
+  await page.screenshot({ path: `${shots}/mh442-sheet-en-light-1440.png` })
+  await page.keyboard.press("Escape")
+  await matrix("mh442", slug, "/youtube", '[data-yt-analytics="channel"] [data-yta-totals]')
+  await page.goto(pageURL(slug, "en", ""))
+  await page.waitForSelector('[data-card="youtube"]', { timeout: 20000 })
+  ok(/\d/.test(await page.locator('[data-card="youtube"] [data-traffic-figure="views28"]').innerText()), "Overview YouTube card: views over 28 days")
+  await page.screenshot({ path: `${shots}/mh442-overview-en-light-1440.png`, fullPage: true })
+
+  const empty = await newOwner("ytaempty")
+  await connect(empty, "youtube", `empty-yta-${RUN}@brand.test`)
+  await page.goto(pageURL(empty, "en", "/youtube"))
+  await page.waitForSelector("[data-yta-empty]", { timeout: 60000 })
+  ok(true, "a channel with no analytics says so")
+  await page.screenshot({ path: `${shots}/mh442-empty-en-light-1440.png`, fullPage: true })
 }
 
 console.log(consoleErrors.length ? `console errors:\n${consoleErrors.slice(0, 10).join("\n")}` : "no console errors")

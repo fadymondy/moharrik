@@ -7,7 +7,8 @@
 */
 
 import Link from "next/link"
-import { ClockIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
+import type React from "react"
+import { ArrowDownIcon, ArrowUpIcon, ClockIcon, MinusIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react"
 
 import { Ltr } from "@/components/copy-field"
 import { KIND_ICON } from "@/components/google/resource-picker"
@@ -19,7 +20,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { GoogleKind, GoogleResource } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { intlTag } from "@/lib/i18n-locale"
 import { useGoogleResources } from "@/lib/queries"
+import { cn } from "@/lib/utils"
 
 /** The enabled resources of a kind, and whether the workspace has any of that kind at all. */
 export function useEnabled(kind: GoogleKind) {
@@ -161,13 +164,56 @@ export function Freshness({ fetchedAt, stale, note, onRefresh, refreshing }: { f
   )
 }
 
-/** One headline number. */
-export function Stat({ label, value, sub, id }: { label: string; value: string; sub?: string; id: string }) {
+/** One headline number, with an optional change against a previous period. */
+export function Stat({ label, value, sub, id, delta }: { label: string; value: string; sub?: string; id: string; delta?: React.ReactNode }) {
   return (
     <div className="min-w-0 px-5 py-4" data-stat={id}>
       <p className="grid-micro truncate">{label}</p>
       <p className="mt-1.5 text-2xl font-medium text-grid-fg tabular-nums">{value}</p>
+      {delta ? <div className="mt-1">{delta}</div> : null}
       {sub ? <p className="mt-0.5 truncate text-xs text-grid-muted">{sub}</p> : null}
     </div>
+  )
+}
+
+/**
+ * The change from `before` to `now`. Better or worse is said with an arrow, a sign and a word as
+ * well as colour; `lowerIsBetter` for a search position. Nothing is shown when there is no base.
+ */
+export function Delta({
+  now,
+  before,
+  lowerIsBetter = false,
+  mode = "relative",
+}: {
+  now: number | null
+  before: number | null
+  lowerIsBetter?: boolean
+  /** relative: a percent change; points: the difference itself (a position); pp: percentage points (a rate). */
+  mode?: "relative" | "points" | "pp"
+}) {
+  const { t, locale } = useTranslations()
+  if (now == null || before == null) return <span className="text-xs text-grid-muted">{t("gdata.noCompare")}</span>
+  const diff = now - before
+  if (mode === "relative" && before === 0) return <span className="text-xs text-grid-muted">{t("gdata.noBase")}</span>
+  const change = mode === "relative" ? diff / before : mode === "pp" ? diff * 100 : diff
+  const tag = intlTag(locale)
+  const text =
+    mode === "relative"
+      ? new Intl.NumberFormat(tag, { style: "percent", maximumFractionDigits: 1, signDisplay: "always" }).format(change)
+      : t(mode === "pp" ? "gdata.pp" : "gdata.pts", { n: new Intl.NumberFormat(tag, { maximumFractionDigits: 1, signDisplay: "always" }).format(change) })
+  const flat = Math.abs(change) < (mode === "relative" ? 0.0005 : 0.05)
+  const shown = flat ? (mode === "relative" ? new Intl.NumberFormat(tag, { style: "percent" }).format(0) : t(mode === "pp" ? "gdata.pp" : "gdata.pts", { n: new Intl.NumberFormat(tag).format(0) })) : text
+  const good = flat ? null : lowerIsBetter ? diff < 0 : diff > 0
+  const Icon = flat ? MinusIcon : diff > 0 ? ArrowUpIcon : ArrowDownIcon
+  return (
+    <span
+      className={cn("inline-flex items-center gap-1 text-xs font-medium tabular-nums", good == null ? "text-grid-muted" : good ? "text-grid-ok-text" : "text-grid-danger-text")}
+      data-delta={good == null ? "flat" : good ? "better" : "worse"}
+    >
+      <Icon className="size-3.5" aria-hidden />
+      {shown}
+      <span className="font-normal text-grid-muted">{t(good == null ? "gdata.flat" : good ? "gdata.better" : "gdata.worse")}</span>
+    </span>
   )
 }

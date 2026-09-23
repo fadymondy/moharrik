@@ -1075,6 +1075,120 @@ export type GaReportOut = {
   error?: string
 }
 
+// ── Search Console (MH-445) ──────────────────────────────────────────────
+
+export type GscTotals = { clicks: number; impressions: number; ctr: number; position: number | null }
+/** One day. Null fields: the day was never imported (unknown), unlike 0 (imported, no data). */
+export type GscPoint = { date: string; clicks: number | null; impressions: number | null; ctr: number | null; position: number | null }
+export type GscRow = { key: string; clicks: number; impressions: number; ctr: number; position: number | null }
+
+export type GscPerformance = {
+  days: number
+  start_date: string
+  end_date: string
+  /** site = the site's own totals; queries = sums of query rows (anonymised queries left out). */
+  basis: "site" | "queries"
+  totals: GscTotals
+  previous: GscTotals | null
+  previous_start_date?: string
+  previous_end_date?: string
+  daily: GscPoint[] | null
+  previous_daily: GscPoint[] | null
+  top_queries: GscRow[] | null
+  top_pages: GscRow[] | null
+  countries: string[] | null
+  devices: string[] | null
+  coverage: { imported_days: number; first_date: string | null; last_data_date: string | null; last_import_at: string | null; truncated_days: number }
+  empty: boolean
+  nothing_yet: boolean
+  /** Days of the window not imported yet: totals over them are partial. */
+  missing_days: number
+  previous_missing_days: number
+}
+
+export type GscPerformanceOut = { resource: GoogleResource | null; performance: GscPerformance | null }
+
+// ── YouTube (MH-441) ─────────────────────────────────────────────────────
+
+export type YtChannel = {
+  channel_id: string
+  title: string
+  handle: string
+  avatar_url: string
+  subscribers: number
+  /** The channel hides its subscriber count. */
+  subscribers_hidden: boolean
+  videos: number
+  views: number
+  uploads_complete: boolean
+  updated_at: string
+  comments_seen_until: string | null
+  url: string
+}
+
+export type YtQuota = { day: string; workspace_used: number; workspace_limit: number; global_used: number; global_limit: number }
+
+export type YtChannelOut = { resource: GoogleResource | null; channel: YtChannel | null; quota: YtQuota }
+
+export type YtVideo = {
+  id: string
+  title: string
+  description: string
+  tags: string[] | null
+  thumbnail_url: string
+  published_at: string | null
+  scheduled_at: string | null
+  scheduled: boolean
+  privacy_status: string
+  duration_seconds: number
+  views: number
+  /** Null when the video hides its likes. */
+  likes: number | null
+  /** Null when comments are turned off. */
+  comments: number | null
+  comments_disabled: boolean
+  synced_at: string
+  url: string
+  studio_url: string
+}
+
+export type YtVideoPage = { videos: YtVideo[] | null; has_more: boolean; next_cursor?: string; total: number; counts: Record<string, number> | null }
+
+export type YtComment = {
+  id: string
+  video_id: string
+  author: string
+  author_avatar_url: string
+  text: string
+  likes: number
+  replies: number
+  answered: boolean
+  published_at: string | null
+  reply_url: string
+}
+
+export type YtVideoDetail = YtVideo & { top_comments: YtComment[] | null; comment_note?: string }
+
+// ── YouTube Analytics (MH-442) ───────────────────────────────────────────
+
+export type YtAnalytics = {
+  scope: string
+  days: number
+  start_date: string
+  end_date: string
+  empty: boolean
+  totals: { views: number; watch_minutes: number; avg_view_duration_seconds: number; subscribers_gained: number; subscribers_lost: number; likes: number; comments: number }
+  /** Null values: YouTube has not published that day yet. */
+  daily: { day: string; views: number | null; watch_minutes: number | null; subscribers_gained: number | null; subscribers_lost: number | null }[] | null
+  top_videos: { video_id: string; title: string; thumbnail_url: string; views: number; watch_minutes: number }[] | null
+  traffic_sources: { source: string; views: number }[] | null
+  fetched_at: string
+  stale: boolean
+  note?: string
+}
+
+export type YtAnalyticsOut = { resource: GoogleResource | null; analytics: YtAnalytics | null; error?: string }
+
 // ── Alerts and web push (MH-378) ─────────────────────────────────────────
 
 export type BellItem = {
@@ -1215,6 +1329,20 @@ export type Overview = {
   setup: { key: SetupKey; done: boolean; available: boolean }[] | null
   /** Null without analytics:read, or when no GA4 property / Search Console site is enabled. */
   traffic?: OverviewTraffic | null
+  /** Each enabled YouTube channel (MH-441/442). */
+  youtube?: OverviewYouTube[] | null
+}
+
+export type OverviewYouTube = {
+  resource_id: string
+  title: string
+  subscribers: number | null
+  videos: number | null
+  /** YouTube Analytics views over the last 28 days; null until fetched. */
+  views_28: number | null
+  views_28_to: string | null
+  synced_at: string | null
+  last_error: string
 }
 
 /** The last 28 days of each enabled GA4 property (MH-444). A null figure was never fetched. */
@@ -1227,6 +1355,16 @@ export type OverviewTraffic = {
     start_date: string | null
     end_date: string | null
     fetched_at: string | null
+    last_error: string
+  }[] | null
+  /** Each enabled Search Console site's clicks over the 28 days ending on its newest day with data (MH-445). */
+  sites?: {
+    resource_id: string
+    name: string
+    clicks: number | null
+    impressions: number | null
+    start_date: string | null
+    end_date: string | null
     last_error: string
   }[] | null
 }

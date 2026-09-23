@@ -57,6 +57,11 @@ import {
   type TrendTopicPage,
   type GoogleResources,
   type GaReportOut,
+  type GscPerformanceOut,
+  type YtChannelOut,
+  type YtAnalyticsOut,
+  type YtVideoDetail,
+  type YtVideoPage,
   type NewsItem,
   type NotificationItem,
   type Overview,
@@ -492,6 +497,66 @@ export function useGaReport(workspaceId: string | null | undefined, resource: st
     workspaceId && enabled ? [`/api/w/analytics/report?${q}`, workspaceId] : null,
     ([p, id]: [string, string]) => api<GaReportOut>(p, { workspaceId: id }),
     { ...noRetryOn4xx, keepPreviousData: true },
+  )
+}
+
+/** Search Console performance (MH-445). Polled while the first import has nothing yet. */
+export function useGscPerformance(workspaceId: string | null | undefined, query: string, enabled = true) {
+  return useSWR<GscPerformanceOut>(
+    workspaceId && enabled ? [`/api/w/search-console/performance?${query}`, workspaceId] : null,
+    ([p, id]: [string, string]) => api<GscPerformanceOut>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      keepPreviousData: true,
+      refreshInterval: (data) => (data?.performance?.nothing_yet && data.resource?.syncing ? 4000 : 0),
+    },
+  )
+}
+
+/** An enabled YouTube channel and today's quota (MH-441). Polled while its first sync runs. */
+export function useYtChannel(workspaceId: string | null | undefined, resource: string, enabled = true) {
+  const path = `/api/w/youtube/channel${resource ? `?resource=${encodeURIComponent(resource)}` : ""}`
+  return useSWR<YtChannelOut>(workspaceId && enabled ? [path, workspaceId] : null, ([p, id]: [string, string]) => api<YtChannelOut>(p, { workspaceId: id }), {
+    ...noRetryOn4xx,
+    refreshInterval: (data) => (data?.resource?.syncing ? 3000 : 0),
+  })
+}
+
+/** A channel's uploads, 24 at a time. */
+export function useYtVideos(workspaceId: string | null | undefined, resource: string, filter: { q?: string; privacy?: string }, enabled = true) {
+  const qs = new URLSearchParams({ resource, limit: "24" })
+  if (filter.q) qs.set("q", filter.q)
+  if (filter.privacy) qs.set("privacy", filter.privacy)
+  const base = "/api/w/youtube/videos?" + qs.toString()
+  return useSWRInfinite<YtVideoPage>(
+    (i, prev: YtVideoPage | null) => {
+      if (!workspaceId || !enabled || !resource) return null
+      if (i === 0) return [base, workspaceId]
+      if (!prev?.has_more || !prev.next_cursor) return null
+      return [`${base}&cursor=${encodeURIComponent(prev.next_cursor)}`, workspaceId]
+    },
+    ([p, id]: [string, string]) => api<YtVideoPage>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, revalidateFirstPage: true },
+  )
+}
+
+/** YouTube Analytics for the channel (video "") or one video (MH-442). */
+export function useYtAnalytics(workspaceId: string | null | undefined, resource: string, days: number, video = "", enabled = true) {
+  const q = new URLSearchParams({ resource, days: String(days) })
+  if (video) q.set("video", video)
+  return useSWR<YtAnalyticsOut>(
+    workspaceId && enabled && resource ? [`/api/w/youtube/analytics?${q}`, workspaceId] : null,
+    ([p, id]: [string, string]) => api<YtAnalyticsOut>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, keepPreviousData: true },
+  )
+}
+
+/** One upload with its top comments. */
+export function useYtVideo(workspaceId: string | null | undefined, resource: string, id: string | null) {
+  return useSWR<YtVideoDetail>(
+    workspaceId && id ? [`/api/w/youtube/videos/${encodeURIComponent(id)}?resource=${encodeURIComponent(resource)}`, workspaceId] : null,
+    ([p, ws]: [string, string]) => api<YtVideoDetail>(p, { workspaceId: ws }),
+    noRetryOn4xx,
   )
 }
 

@@ -194,6 +194,8 @@ func Many(a Account) *AccountData {
 		{ID: "properties/410000001", Name: "Shop – GA4", Account: "accounts/41000", AccountName: "Acme Retail"},
 		{ID: "properties/410000002", Name: "Blog – GA4", Account: "accounts/41000", AccountName: "Acme Retail"},
 		{ID: "properties/420000001", Name: "New app (no data yet)", Account: "accounts/42000", AccountName: "Acme Labs", Empty: true},
+		{ID: "properties/430000001", Name: "Docs – GA4", Account: "accounts/43000", AccountName: "Acme Docs"},
+		{ID: "properties/430000002", Name: "Careers – GA4", Account: "accounts/43000", AccountName: "Acme Docs"},
 	}
 	d.Sites = []GSCSite{
 		{URL: "sc-domain:acme.test", Permission: "siteOwner"},
@@ -385,6 +387,21 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 			s.Fail(q.Get("api"), status, q.Get("reason"), times)
 		}
 		w.WriteHeader(http.StatusNoContent)
+	case p == "/_fake/comment" && r.Method == http.MethodPost:
+		// The dev check's viewer: ?email=<the channel's Google account>&text=…
+		// posts a new comment on that channel's newest upload.
+		q := r.URL.Query()
+		sub := "sub-" + hexOf(q.Get("email"))[:16]
+		s.mu.Lock()
+		d := s.dataOf(Account{Sub: sub, Email: q.Get("email")})
+		vid := ""
+		if d.Channel != nil && len(d.Channel.Videos) > 0 {
+			vid = d.Channel.Videos[0].ID
+		}
+		s.mu.Unlock()
+		s.AddComment(sub, YTComment{ID: "UgwNew" + strconv.FormatInt(time.Now().UnixNano(), 36), VideoID: vid,
+			Author: firstNonEmpty(q.Get("author"), "A viewer"), AuthorChannelID: "UCviewer-new", Text: q.Get("text"), PublishedAt: time.Now().UTC()})
+		w.WriteHeader(http.StatusNoContent)
 	case strings.HasPrefix(p, "/img/"):
 		// Avatars and thumbnails, so a page showing them loads real images.
 		s.image(w, p)
@@ -570,4 +587,13 @@ func (s *Server) image(w http.ResponseWriter, p string) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	fmt.Fprintf(w, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="hsl(%d 45%% 55%%)"/><circle cx="160" cy="90" r="34" fill="hsl(%d 45%% 85%%)"/><path d="M150 72 L176 90 L150 108 Z" fill="hsl(%d 45%% 40%%)"/></svg>`, hue, hue, hue)
+}
+
+func firstNonEmpty(v ...string) string {
+	for _, s := range v {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
 }

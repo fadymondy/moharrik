@@ -37,10 +37,12 @@ import (
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/research"
 	"github.com/fadymondy/moharrik/internal/rest"
+	"github.com/fadymondy/moharrik/internal/searchconsole"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
 	"github.com/fadymondy/moharrik/internal/workspaces"
+	"github.com/fadymondy/moharrik/internal/youtube"
 )
 
 // Boot builds the kernel + app and mounts REST, GraphQL, MCP and health on the
@@ -159,7 +161,9 @@ func Boot() *app.App {
 	// The Google data collector (MH-440..447): discovery, then the enabled
 	// properties, sites and channels that are due. GOOGLE_COLLECTOR=off turns
 	// it off — the tests and the OpenAPI export must not call Google.
-	analytics.RegisterSync() // GA4's nightly snapshot (MH-444)
+	analytics.RegisterSync()     // GA4's nightly snapshot (MH-444)
+	searchconsole.RegisterSync() // Search Console's daily import (MH-445)
+	youtube.RegisterSync()       // YouTube sync + quota ledger (MH-441)
 	if os.Getenv("GOOGLE_COLLECTOR") != "off" {
 		google.StartCollector(a, 5*time.Minute, 20)
 	}
@@ -225,8 +229,10 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	mcp.RegisterTokenRoutes(api, a)
 	google.Register(api, a)
 	alerts.Register(api, a)
-	overview.Register(api, a) // the workspace front page (MH-462)
-	analytics.Register(api, a) // GA4 (MH-444)
+	overview.Register(api, a)      // the workspace front page (MH-462)
+	analytics.Register(api, a)     // GA4 (MH-444)
+	searchconsole.Register(api, a) // Search Console performance (MH-445)
+	youtube.Register(api, a)       // YouTube channel, videos, comments (MH-441)
 }
 
 /*
