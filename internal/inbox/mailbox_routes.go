@@ -235,9 +235,9 @@ func loadMailboxByID(ctx context.Context, a *app.App, workspaceID, id string) (*
 	var sealed string
 	var smtpID sql.NullString
 	err := a.SQLDB.QueryRowContext(sctx, `
-		SELECT id, name, imap_host, imap_port, username, password_sealed, tls_mode, folder, smtp_service_id
+		SELECT id, name, imap_host, imap_port, username, password_sealed, tls_mode, folder, smtp_service_id, created_at
 		FROM mailboxes WHERE workspace_id = $1 AND id = $2`, workspaceID, id,
-	).Scan(&mb.ID, &mb.Name, &mb.Host, &mb.Port, &mb.Username, &sealed, &mb.TLSMode, &mb.Folder, &smtpID)
+	).Scan(&mb.ID, &mb.Name, &mb.Host, &mb.Port, &mb.Username, &sealed, &mb.TLSMode, &mb.Folder, &smtpID, &mb.ConnectedAt)
 	if err != nil {
 		return nil, err
 	}

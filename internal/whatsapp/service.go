@@ -110,9 +110,9 @@ func ByHookID(ctx context.Context, a *app.App, hookID string) (*Link, error) {
 	var l Link
 	var sealed string
 	err := a.SysDB.QueryRowContext(ctx, `
-		SELECT workspace_id, instance, hook_id, token_sealed, state, phone
+		SELECT workspace_id, instance, hook_id, token_sealed, state, phone, linked_at
 		FROM whatsapp_links WHERE hook_id = $1`, strings.TrimSpace(hookID),
-	).Scan(&l.WorkspaceID, &l.Instance, &l.HookID, &sealed, &l.State, &l.Phone)
+	).Scan(&l.WorkspaceID, &l.Instance, &l.HookID, &sealed, &l.State, &l.Phone, &l.LinkedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoLink
 	}
