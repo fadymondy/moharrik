@@ -27,6 +27,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -65,11 +66,15 @@ type CompanyOut struct {
 	Domain       string    `json:"domain"`
 	Industry     string    `json:"industry"`
 	Size         string    `json:"size"`
+	Country      string    `json:"country" doc:"Where the company is; the ideal-customer profile's regions are matched against it."`
 	Notes        string    `json:"notes"`
 	OwnerUserID  *string   `json:"owner_user_id"`
 	ContactCount int64     `json:"contact_count"`
 	OpenDeals    int64     `json:"open_deals"`
 	CreatedAt    time.Time `json:"created_at"`
+	// The ideal-customer score (MH-395) and what it was made of.
+	Score        *int         `json:"score" doc:"0-100 against the workspace's ideal-customer profile; null when the profile weighs nothing."`
+	ScoreReasons []icp.Reason `json:"score_reasons"`
 }
 
 type StageOut struct {
@@ -142,6 +147,13 @@ type ContactDetail struct {
 	OwnerUserID   *string            `json:"owner_user_id"`
 	CreatedAt     time.Time          `json:"created_at"`
 	Subscriptions []ListSubscription `json:"subscriptions"`
+	// MH-395: where the contact is in the lifecycle, and its ideal-customer score.
+	Lifecycle             string               `json:"lifecycle" enum:",subscriber,lead,qualified,customer" doc:"Empty until an event or a member sets it."`
+	LifecycleAt           *time.Time           `json:"lifecycle_at"`
+	LifecycleHistory      []icp.LifecycleEvent `json:"lifecycle_history" doc:"Newest first, at most 100; lifecycle_history_total says how many in all."`
+	LifecycleHistoryTotal int64                `json:"lifecycle_history_total"`
+	Score                 *int                 `json:"score"`
+	ScoreReasons          []icp.Reason         `json:"score_reasons"`
 }
 
 type wsHeader struct {

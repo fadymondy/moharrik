@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -13,6 +15,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/crm"
+	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/marketing"
 )
 
@@ -43,16 +46,20 @@ func CrmTools() []Tool {
 			// MH-408 made this a page; MH-393 made its description say what the
 			// answer actually holds — including the ids the other tools need.
 			Name: "list_contacts",
-			Description: "CRM contacts, newest first, one page at a time. Each has its id, email, name, phone, title, company (id and name), " +
-				"WhatsApp consent (opted in / opted out) and its status on each mailing list. total is how many match; pass next_cursor " +
-				"back as cursor for the next page. Filter with q (name, email, phone or company), or list (a mailing list's exact name) and status.",
+			Description: "CRM contacts, newest first (or by ideal-customer score with sort=score), one page at a time. Each has its id, email, " +
+				"name, phone, title, company (id and name), lifecycle stage, score (0-100) with its top reasons, WhatsApp consent (opted in / " +
+				"opted out) and its status on each mailing list. total is how many match; pass next_cursor back as cursor for the next page. " +
+				"Filter with q (name, email, phone or company), list (a mailing list's exact name) and status, lifecycle, and min_score.",
 			Scope: "contacts:read",
 			InputSchema: schema(nil, map[string]any{
-				"q":      prop("string", "Search name, email, phone and company"),
-				"list":   prop("string", "Only contacts on this mailing list (its exact name)"),
-				"status": map[string]any{"type": "string", "enum": []string{"subscribed", "pending", "unsubscribed", "bounced"}, "description": "With list: only this status on that list"},
-				"cursor": prop("string", "next_cursor from the previous answer"),
-				"limit":  prop("integer", "Page size, default 100, at most 200"),
+				"q":         prop("string", "Search name, email, phone and company"),
+				"list":      prop("string", "Only contacts on this mailing list (its exact name)"),
+				"status":    map[string]any{"type": "string", "enum": []string{"subscribed", "pending", "unsubscribed", "bounced"}, "description": "With list: only this status on that list"},
+				"lifecycle": map[string]any{"type": "string", "enum": []string{"subscriber", "lead", "qualified", "customer", "none"}, "description": "Only contacts at this lifecycle stage (none: without one)"},
+				"min_score": prop("integer", "Only contacts scoring at least this (0-100) against the ideal-customer profile"),
+				"sort":      map[string]any{"type": "string", "enum": []string{"newest", "score"}, "description": "newest (default) or score (highest first)"},
+				"cursor":    prop("string", "next_cursor from the previous answer"),
+				"limit":     prop("integer", "Page size, default 100, at most 200"),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, err := need(ctx)
@@ -60,7 +67,10 @@ func CrmTools() []Tool {
 					return "", err
 				}
 				args := decodeArgs(raw)
-				f := marketing.ContactFilter{Q: str(args, "q"), Status: str(args, "status")}
+				f := marketing.ContactFilter{Q: str(args, "q"), Status: str(args, "status"), Lifecycle: str(args, "lifecycle"), Sort: str(args, "sort")}
+				if ms := intArg(args, "min_score", 0); ms > 0 {
+					f.MinScore = &ms
+				}
 				if list := str(args, "list"); list != "" {
 					if err := a.SQLDB.QueryRowContext(ctx, `SELECT id FROM mail_lists WHERE workspace_id = $1 AND lower(name) = lower($2)`,
 						s.WorkspaceID, list).Scan(&f.ListID); err != nil {
@@ -180,7 +190,8 @@ func CrmTools() []Tool {
 		{
 			Name: "update_contact",
 			Description: "Change a contact's CRM fields. Give only what changes: name, phone, title, company_id (empty string unlinks), " +
-				"owner (a member's user id or email; empty unassigns), tags (replaces them all).",
+				"owner (a member's user id or email; empty unassigns), tags (replaces them all), lifecycle (subscriber, lead, qualified, " +
+				"customer, or empty — set by hand and recorded as yours; events move it forward on their own).",
 			Scope: "contacts:write",
 			InputSchema: schema([]string{"id"}, map[string]any{
 				"id":         prop("string", "Contact id"),
@@ -190,6 +201,7 @@ func CrmTools() []Tool {
 				"company_id": prop("string", "A company id; empty string unlinks"),
 				"owner":      prop("string", "A member's user id or email; empty string unassigns"),
 				"tags":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Replaces the tags (at most 20)"},
+				"lifecycle":  map[string]any{"type": "string", "enum": []string{"", "subscriber", "lead", "qualified", "customer"}, "description": "Set the lifecycle stage by hand (recorded as yours)"},
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				var in struct {
@@ -200,6 +212,7 @@ func CrmTools() []Tool {
 					CompanyID *string   `json:"company_id"`
 					Owner     *string   `json:"owner"`
 					Tags      *[]string `json:"tags"`
+					Lifecycle *string   `json:"lifecycle"`
 				}
 				if err := bind(raw, &in); err != nil {
 					return "", err
@@ -208,7 +221,7 @@ func CrmTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				f := crm.ContactFields{Name: in.Name, Phone: in.Phone, Title: in.Title, CompanyID: in.CompanyID, Tags: in.Tags}
+				f := crm.ContactFields{Name: in.Name, Phone: in.Phone, Title: in.Title, CompanyID: in.CompanyID, Tags: in.Tags, Lifecycle: in.Lifecycle}
 				if in.Owner != nil {
 					owner, err := memberID(ctx, a, *in.Owner)
 					if err != nil {
@@ -228,17 +241,24 @@ func CrmTools() []Tool {
 		{
 			// MH-467 made this a page with a total; MH-393 made it answer with ids.
 			Name: "list_companies",
-			Description: "Companies in the CRM, A-Z, one page at a time: each with its id, domain, industry, size, contact count and " +
-				"open-deal count. total is how many match; pass next_cursor back as cursor for the next page. q searches name and domain.",
+			Description: "Companies in the CRM, A-Z (or by ideal-customer score with sort=score), one page at a time: each with its id, " +
+				"domain, industry, size, country, contact count, open-deal count and score (0-100) with its reasons. total is how many match; " +
+				"pass next_cursor back as cursor for the next page. q searches name and domain; min_score keeps those scoring at least that.",
 			Scope: "contacts:read",
 			InputSchema: schema(nil, map[string]any{
-				"q":      prop("string", "Search name and domain"),
-				"cursor": prop("string", "next_cursor from the previous answer"),
-				"limit":  prop("integer", "Page size, default 50, at most 200"),
+				"q":         prop("string", "Search name and domain"),
+				"sort":      map[string]any{"type": "string", "enum": []string{"name", "score"}, "description": "name (A-Z, default) or score (highest first)"},
+				"min_score": prop("integer", "Only companies scoring at least this (0-100)"),
+				"cursor":    prop("string", "next_cursor from the previous answer"),
+				"limit":     prop("integer", "Page size, default 50, at most 200"),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				args := decodeArgs(raw)
-				return companyPage(ctx, a, str(args, "q"), str(args, "cursor"), intArg(args, "limit", 0))
+				q := crm.CompanyQuery{Q: str(args, "q"), Sort: str(args, "sort")}
+				if ms := intArg(args, "min_score", 0); ms > 0 {
+					q.MinScore = &ms
+				}
+				return companyPageBy(ctx, a, q, str(args, "cursor"), intArg(args, "limit", 0))
 			},
 		},
 		{
@@ -257,7 +277,7 @@ func CrmTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				return companyPage(ctx, a, q, str(args, "cursor"), intArg(args, "limit", 0))
+				return companyPageBy(ctx, a, crm.CompanyQuery{Q: q}, str(args, "cursor"), intArg(args, "limit", 0))
 			},
 		},
 		{
@@ -288,13 +308,14 @@ func CrmTools() []Tool {
 		},
 		{
 			Name:        "create_company",
-			Description: "Add a company (one per domain in a workspace). name is required; domain, industry, size and notes are optional. Returns it with its id.",
+			Description: "Add a company (one per domain in a workspace). name is required; domain, industry, size, country and notes are optional. Returns it with its id.",
 			Scope:       "contacts:write",
 			InputSchema: schema([]string{"name"}, map[string]any{
 				"name":     prop("string", "Company name"),
 				"domain":   prop("string", "e.g. acme.com — one company per domain in a workspace"),
 				"industry": prop("string", ""),
 				"size":     map[string]any{"type": "string", "enum": []string{"1-10", "11-50", "51-200", "201-1000", "1000+"}},
+				"country":  prop("string", "Country or region, e.g. Egypt — the ideal-customer profile's regions match it"),
 				"notes":    prop("string", ""),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
@@ -312,8 +333,8 @@ func CrmTools() []Tool {
 		},
 		{
 			Name: "update_company",
-			Description: "Change a company. Give only what changes: name, domain, industry, size, notes, owner (a member's user id or email; " +
-				"empty unassigns).",
+			Description: "Change a company. Give only what changes: name, domain, industry, size, country, notes, owner (a member's user id " +
+				"or email; empty unassigns).",
 			Scope: "contacts:write",
 			InputSchema: schema([]string{"id"}, map[string]any{
 				"id":       prop("string", "Company id"),
@@ -321,6 +342,7 @@ func CrmTools() []Tool {
 				"domain":   prop("string", ""),
 				"industry": prop("string", ""),
 				"size":     map[string]any{"type": "string", "enum": []string{"", "1-10", "11-50", "51-200", "201-1000", "1000+"}},
+				"country":  prop("string", "Country or region"),
 				"notes":    prop("string", ""),
 				"owner":    prop("string", "A member's user id or email; empty string unassigns"),
 			}),
@@ -621,7 +643,7 @@ func contactPage(ctx context.Context, a *app.App, f marketing.ContactFilter, cur
 	}
 	page, err := marketing.ListContactsPage(ctx, a.SQLDB, s.WorkspaceID, f, cursor, limit)
 	switch {
-	case errors.Is(err, marketing.ErrBadCursor), errors.Is(err, marketing.ErrStatusNeedsList), errors.Is(err, marketing.ErrBadStatus):
+	case errors.Is(err, marketing.ErrBadCursor), errors.Is(err, marketing.ErrStatusNeedsList), errors.Is(err, marketing.ErrBadStatus), errors.Is(err, marketing.ErrBadLifecycle):
 		return "", err
 	case err != nil:
 		return "", fmt.Errorf("could not list contacts: %w", err)
@@ -637,14 +659,15 @@ func contactPage(ctx context.Context, a *app.App, f marketing.ContactFilter, cur
 			"company_id": c.CompanyID, "company": c.CompanyName, "locale": c.Locale, "source": c.Source, "created_at": c.CreatedAt,
 			"whatsapp_opted_in": c.WhatsAppOptInAt != nil, "whatsapp_opted_out": c.WhatsAppOptOutAt != nil,
 			"subscriptions": subs,
+			"lifecycle":     c.Lifecycle, "score": c.Score, "score_reasons": topReasons(c.ScoreReasons),
 		})
 	}
 	return jsonResult(map[string]any{"total": page.Total, "count": len(list), "contacts": list, "next_cursor": page.NextCursor})
 }
 
-// companyPage is list_companies' and search_companies' shared answer.
-func companyPage(ctx context.Context, a *app.App, q, cursor string, limit int) (string, error) {
-	page, err := crm.CompaniesPage(ctx, a.SQLDB, q, cursor, limit)
+// companyPageBy is list_companies' and search_companies' shared answer.
+func companyPageBy(ctx context.Context, a *app.App, q crm.CompanyQuery, cursor string, limit int) (string, error) {
+	page, err := crm.CompaniesPageBy(ctx, a.SQLDB, q, cursor, limit)
 	if err != nil {
 		return "", err
 	}
@@ -728,3 +751,21 @@ func stageRef(ctx context.Context, a *app.App, ref string) (string, error) {
 }
 
 func errNoRows(err error) bool { return errors.Is(err, sql.ErrNoRows) }
+
+// topReasons is a list answer's view of a score: the dimensions that moved it
+// (non-zero contribution), biggest first, at most five. get_contact has them all.
+func topReasons(rs []icp.Reason) []map[string]any {
+	out := []map[string]any{}
+	sorted := append([]icp.Reason(nil), rs...)
+	sort.SliceStable(sorted, func(i, j int) bool { return math.Abs(sorted[i].Contribution) > math.Abs(sorted[j].Contribution) })
+	for _, r := range sorted {
+		if r.Contribution == 0 {
+			continue
+		}
+		out = append(out, map[string]any{"dimension": r.Dimension, "contribution": r.Contribution, "text": r.Text})
+		if len(out) == 5 {
+			break
+		}
+	}
+	return out
+}

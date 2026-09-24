@@ -175,18 +175,18 @@ const money = (usd) => {
 // ---- CRM: companies ----------------------------------------------------------------------------
 
 const COMPANIES = [
-  { key: "bnb", name: "Bean & Brew Cafés", domain: "beanandbrew.example", industry: "Cafés & coffee shops", size: "51-200", notes: "Nine cafés across Cairo (Zamalek, Maadi, New Cairo, Sheikh Zayed). Buys the house espresso blend weekly, pays net-30." },
-  { key: "nile", name: "فندق النيل ريزيدنس — Nile Residence Hotel", domain: "nileresidence.example", industry: "Hospitality", size: "201-1000", notes: "Five-star, Garden City, Cairo. Lobby lounge, all-day dining and banqueting. The coffee tender renews every January." },
-  { key: "corniche", name: "Corniche Grand Hotel", domain: "cornichegrand.example", industry: "Hospitality", size: "201-1000", notes: "Alexandria, Stanley Bay. Wants a single origin for the lobby lounge and a filter programme for breakfast." },
-  { key: "qahwa", name: "بيت القهوة — Qahwa House", domain: "qahwahouse.example", industry: "Cafés & coffee shops", size: "11-50", notes: "Specialty café group in Riyadh (Olaya, Al Malqa). Imports through Jeddah; needs SFDA paperwork on every shipment." },
-  { key: "marina", name: "Marina Workspace", domain: "marinaworkspace.example", industry: "Coworking & offices", size: "11-50", notes: "Coworking, Dubai Marina. Office-coffee subscription across 4 sites with bean-to-cup machines." },
-  { key: "delta", name: "Delta Tech Offices", domain: "deltatech.example", industry: "Corporate offices", size: "1000+", notes: "Smart Village, Giza. The facilities team runs six pantries; procurement buys through an annual RFQ." },
-  { key: "masa", name: "مخبز الماسة — Al Masa Bakery", domain: "almasa.example", industry: "Bakery & café", size: "51-200", notes: "Twelve branches in Alexandria. Turkish-coffee grind with cardamom plus an espresso blend for the new café corners." },
-  { key: "zbooks", name: "Zamalek Books & Coffee", domain: "zamalekbooks.example", industry: "Cafés & coffee shops", size: "1-10", notes: "Independent bookshop café on 26th of July St. Small but loyal — sells our retail bags on consignment." },
-  { key: "redsea", name: "Red Sea Resorts Group", domain: "redsearesorts.example", industry: "Hospitality", size: "1000+", notes: "Four resorts in Hurghada and El Gouna. High season October to April; volumes double." },
-  { key: "rose", name: "Desert Rose Catering", domain: "desertrose.example", industry: "Catering", size: "201-1000", notes: "Riyadh. Corporate and event catering — Saudi qahwa service and mobile espresso bars." },
-  { key: "bayleaf", name: "Bay Leaf Café", domain: "bayleaf.example", industry: "Cafés & coffee shops", size: "11-50", notes: "Jumeirah, Dubai. Brunch café switching roaster in Q4; tasted our Sidamo and Huila." },
-  { key: "maadi", name: "Maadi Coworking Hub", domain: "maadihub.example", industry: "Coworking & offices", size: "11-50", notes: "Road 9, Maadi. 180 members on a monthly office-coffee plan." },
+  { key: "bnb", country: "Egypt", name: "Bean & Brew Cafés", domain: "beanandbrew.example", industry: "Cafés & coffee shops", size: "51-200", notes: "Nine cafés across Cairo (Zamalek, Maadi, New Cairo, Sheikh Zayed). Buys the house espresso blend weekly, pays net-30." },
+  { key: "nile", country: "Egypt", name: "فندق النيل ريزيدنس — Nile Residence Hotel", domain: "nileresidence.example", industry: "Hospitality", size: "201-1000", notes: "Five-star, Garden City, Cairo. Lobby lounge, all-day dining and banqueting. The coffee tender renews every January." },
+  { key: "corniche", country: "Egypt", name: "Corniche Grand Hotel", domain: "cornichegrand.example", industry: "Hospitality", size: "201-1000", notes: "Alexandria, Stanley Bay. Wants a single origin for the lobby lounge and a filter programme for breakfast." },
+  { key: "qahwa", country: "Saudi Arabia", name: "بيت القهوة — Qahwa House", domain: "qahwahouse.example", industry: "Cafés & coffee shops", size: "11-50", notes: "Specialty café group in Riyadh (Olaya, Al Malqa). Imports through Jeddah; needs SFDA paperwork on every shipment." },
+  { key: "marina", country: "United Arab Emirates", name: "Marina Workspace", domain: "marinaworkspace.example", industry: "Coworking & offices", size: "11-50", notes: "Coworking, Dubai Marina. Office-coffee subscription across 4 sites with bean-to-cup machines." },
+  { key: "delta", country: "Egypt", name: "Delta Tech Offices", domain: "deltatech.example", industry: "Corporate offices", size: "1000+", notes: "Smart Village, Giza. The facilities team runs six pantries; procurement buys through an annual RFQ." },
+  { key: "masa", country: "Egypt", name: "مخبز الماسة — Al Masa Bakery", domain: "almasa.example", industry: "Bakery & café", size: "51-200", notes: "Twelve branches in Alexandria. Turkish-coffee grind with cardamom plus an espresso blend for the new café corners." },
+  { key: "zbooks", country: "Egypt", name: "Zamalek Books & Coffee", domain: "zamalekbooks.example", industry: "Cafés & coffee shops", size: "1-10", notes: "Independent bookshop café on 26th of July St. Small but loyal — sells our retail bags on consignment." },
+  { key: "redsea", country: "Egypt", name: "Red Sea Resorts Group", domain: "redsearesorts.example", industry: "Hospitality", size: "1000+", notes: "Four resorts in Hurghada and El Gouna. High season October to April; volumes double." },
+  { key: "rose", country: "Saudi Arabia", name: "Desert Rose Catering", domain: "desertrose.example", industry: "Catering", size: "201-1000", notes: "Riyadh. Corporate and event catering — Saudi qahwa service and mobile espresso bars." },
+  { key: "bayleaf", country: "United Arab Emirates", name: "Bay Leaf Café", domain: "bayleaf.example", industry: "Cafés & coffee shops", size: "11-50", notes: "Jumeirah, Dubai. Brunch café switching roaster in Q4; tasted our Sidamo and Huila." },
+  { key: "maadi", country: "Egypt", name: "Maadi Coworking Hub", domain: "maadihub.example", industry: "Coworking & offices", size: "11-50", notes: "Road 9, Maadi. 180 members on a monthly office-coffee plan." },
 ]
 
 const created = { companies: 0, contacts: 0, subscriptions: 0, whatsappOptIns: 0, deals: 0, activities: 0 }
@@ -196,7 +196,12 @@ const companyId = {}
   const { companies } = await s.get("/api/w/companies?limit=200")
   for (const c of COMPANIES) {
     const have = companies.find((x) => x.name === c.name || (c.domain && x.domain === c.domain))
-    if (have) { companyId[c.key] = have.id; continue }
+    if (have) {
+      companyId[c.key] = have.id
+      // MH-395: companies made before countries existed get theirs (the profile's regions match it).
+      if (!have.country && c.country) await s.patch(`/api/w/companies/${have.id}`, { country: c.country })
+      continue
+    }
     const { key, ...body } = c
     const r = await s.post("/api/w/companies", body)
     companyId[key] = r.company.id
@@ -337,18 +342,82 @@ const DEALS = [
 ]
 const dealId = {}
 const newDeals = new Set()
+// The stages a deal walks through to reach where it ends (MH-394): the board records every move,
+// so the Reports funnel sees how far each deal got — including the ones that were lost.
+const WALK = {
+  lead: [], qualified: ["qualified"], proposal: ["qualified", "proposal"],
+  won: ["qualified", "proposal", "won"], lost: ["qualified", "lost"], lostLate: ["qualified", "proposal", "lost"],
+}
+const closedDay = (iso) => (iso ? iso.slice(0, 10) : "")
+/** Open a deal in the first stage and move it, stage by stage, to where it ends. */
+async function openAndWalk(body, walk, closedOn) {
+  const r = await s.post("/api/w/deals", { ...body, stage_id: stage.lead })
+  const steps = WALK[walk] ?? []
+  for (const [i, st] of steps.entries()) {
+    const last = i === steps.length - 1
+    const target = st
+    await s.patch(`/api/w/deals/${r.deal.id}`, { stage_id: stage[target], ...(last && closedOn && (target === "won" || target === "lost") ? { closed_on: closedOn } : {}) })
+  }
+  return r.deal.id
+}
 {
   const have = Object.fromEntries(board.deals.map((d) => [d.title, d]))
+  let redated = 0
   for (const [title, usd, st, co, email, days] of DEALS) {
-    if (have[title]) { dealId[title] = have[title].id; continue }
-    const r = await s.post("/api/w/deals", {
-      title, value_minor: money(usd), stage_id: stage[st], company_id: companyId[co], contact_id: contactId[email], expected_close: inDays(days),
-    })
-    dealId[title] = r.deal.id
+    const closing = st === "won" || st === "lost"
+    const h = have[title]
+    if (h) {
+      dealId[title] = h.id
+      // A won/lost deal made before close dates existed closed the moment it was created: give it
+      // the day it really closed (its expected close), once — a deal already re-dated is left alone.
+      if (closing && h.closed_at && closedDay(h.closed_at) === closedDay(h.created_at) && days < 0) {
+        await s.patch(`/api/w/deals/${h.id}`, { closed_on: inDays(days) })
+        redated++
+      }
+      continue
+    }
+    dealId[title] = await openAndWalk(
+      { title, value_minor: money(usd), company_id: companyId[co], contact_id: contactId[email], expected_close: inDays(days) },
+      st, closing ? inDays(Math.min(days, 0)) : "",
+    )
     newDeals.add(title)
     created.deals++
   }
-  log(`deals: ${Object.keys(dealId).length} (${created.deals} new) in ${CUR}`)
+  log(`deals: ${Object.keys(dealId).length} (${created.deals} new, ${redated} given their close day) in ${CUR}`)
+}
+
+// ---- CRM: the year behind (MH-394) ---------------------------------------------------------
+// Deals won and lost over the last eleven months, so Reports has a history to draw: wins and
+// losses per month, a win rate, an average deal. Each walks the stages it went through and closes
+// on the day it closed. Re-runnable: skipped by title.
+// [title, usd, walk, company, contact email, closed N days ago]
+const HISTORY = [
+  ["Bean & Brew — Ramadan iftar blend, 3 branches", 6200, "won", "bnb", "hana.elsayed@beanandbrew.example", 330],
+  ["Qahwa House — trial shipment, 120 kg", 4800, "won", "qahwa", "reem@qahwahouse.example", 300],
+  ["Red Sea Resorts — summer season top-up", 16500, "lost", "redsea", "purchasing@redsearesorts.example", 285],
+  ["Nile Residence — 2026 banqueting coffee", 21000, "won", "nile", "m.shawky@nileresidence.example", 260],
+  ["Marina Workspace — pilot at JLT", 2900, "won", "marina", "daniel.k@marinaworkspace.example", 230],
+  ["Delta Tech — pantry RFQ 2026", 27000, "lostLate", "delta", "procurement@deltatech.example", 205],
+  ["مخبز الماسة — خلطة إسبريسو لركن القهوة", 5400, "won", "masa", "mona.saleh@almasa.example", 180],
+  ["Desert Rose — Founding Day event bar", 7300, "lost", "rose", "sami@desertrose.example", 160],
+  ["Bay Leaf — guest espresso, one month", 1800, "won", "bayleaf", "chloe@bayleaf.example", 140],
+  ["Corniche Grand — lobby lounge trial", 3600, "lostLate", "corniche", "s.hamdy@cornichegrand.example", 115],
+  ["Maadi Hub — coffee for the members' summit", 1500, "won", "maadi", "amr@maadihub.example", 95],
+  ["Zamalek Books — holiday gift boxes", 2100, "won", "zbooks", "youssef@zamalekbooks.example", 70],
+  ["Qahwa House — Al Malqa branch opening", 9800, "won", "qahwa", "f.alqahtani@qahwahouse.example", 52],
+  ["Red Sea Resorts — El Gouna outlet espresso", 8700, "lost", "redsea", "elgouna.fb@redsearesorts.example", 38],
+  ["Bean & Brew — New Cairo branch launch", 7600, "won", "bnb", "karim.fouad@beanandbrew.example", 24],
+  ["Delta Tech — town-hall coffee service", 2200, "lost", "delta", "h.farouk@deltatech.example", 12],
+]
+{
+  const have = new Set(board.deals.map((d) => d.title))
+  let n = 0
+  for (const [title, usd, walk, co, email, ago] of HISTORY) {
+    if (have.has(title)) continue
+    await openAndWalk({ title, value_minor: money(usd), company_id: companyId[co], contact_id: contactId[email], expected_close: inDays(-ago) }, walk, inDays(-ago))
+    n++
+  }
+  log(`history: ${n} closed deals over the last eleven months`)
 }
 
 // Activities only on records made in THIS run, so a re-run does not double the timeline.
@@ -380,6 +449,23 @@ const ACTIVITIES = [
     created.activities++
   }
   log(`activities: ${created.activities} new`)
+}
+
+// ---- CRM: the ideal-customer profile (MH-395) ----------------------------------------------
+// Who Nile Coffee sells to: hotels, cafés and caterers of 50+ people in Egypt and Saudi Arabia,
+// reached through purchasing. Set once; a profile the workspace has already saved is left alone.
+{
+  const cur = await s.get("/api/w/icp")
+  if (!cur.configured) {
+    const out = await s.put("/api/w/icp", {
+      industries: { values: ["Hospitality", "Cafés & coffee shops", "Catering", "Bakery & café"], weight: 3 },
+      sizes: { values: ["51-200", "201-1000", "1000+"], weight: 2 },
+      regions: { values: ["Egypt", "Saudi Arabia"], weight: 2 },
+      keywords: { values: ["purchasing", "procurement", "F&B", "decision-maker", "owner", "المشتريات"], weight: 2 },
+      signals: { open_deal: 3, won_deal: 3, lost_deal: -1, inbound_lead: 2, conversation: 1, subscribed: 1, whatsapp_opt_in: 1, recent_activity: 2 },
+    })
+    log(`ideal-customer profile: saved, ${out.scored} of ${out.contacts} contacts scored`)
+  } else log("ideal-customer profile: already set, left as it is")
 }
 
 // ---- Marketing: campaigns ------------------------------------------------------------------
@@ -536,6 +622,21 @@ const INQUIRIES = [
   const act = async (email, fn) => { const l = by[email]; if (l) await fn(l) }
   for (const email of ["mostafa@cairobites.example", "sara@alnakheel-hotel.example"]) {
     await act(email, async (l) => { if (l.status !== "converted") await s.post(`/api/w/leads/${l.id}/convert`, {}) })
+  }
+  // The Google Ads lead from Cairo Bites became a customer (MH-394: Reports credits the won deal
+  // to the lead's source). Walked through the stages once; a deal already past Lead is left alone.
+  {
+    const cb = (await s.get("/api/w/leads")).leads.find((l) => l.email === "mostafa@cairobites.example")
+    const dealRef = cb?.converted_deal
+    if (dealRef) {
+      const { deal } = await s.get(`/api/w/deals/${dealRef.id}`)
+      if (deal.stage_id === stage.lead) {
+        await s.patch(`/api/w/deals/${deal.id}`, { title: "Cairo Bites — espresso blend for 3 New Cairo cafés", value_minor: money(5400) })
+        for (const st of ["qualified", "proposal"]) await s.patch(`/api/w/deals/${deal.id}`, { stage_id: stage[st] })
+        await s.patch(`/api/w/deals/${deal.id}`, { stage_id: stage.won, closed_on: inDays(-1) })
+        log("leads: the Cairo Bites deal is won")
+      }
+    }
   }
   await act("growth@seo-rank-fast.example", async (l) => { if (l.status !== "spam") await s.patch(`/api/w/leads/${l.id}`, { status: "spam" }) })
   await act("olivia.grant@deskhive.example", async (l) => { if (l.status === "new") await s.patch(`/api/w/leads/${l.id}`, { status: "contacted" }) })
@@ -787,6 +888,8 @@ const summary = {
   companies: co.total,
   contacts: ct.contacts.length,
   contacts_with_phone: ct.contacts.filter((c) => c.phone).length,
+  contacts_by_lifecycle: tally(ct.contacts.map((c) => ({ stage: c.lifecycle || "none" })), "stage"),
+  contacts_scored: ct.contacts.filter((c) => c.score !== null).length,
   whatsapp_opted_in: ct.contacts.filter((c) => c.whatsapp_opt_in_at).length,
   lists: ls.lists.map((l) => `${l.name}: ${l.subscribed} subscribed, ${l.pending} pending`),
   deals: dl.total,

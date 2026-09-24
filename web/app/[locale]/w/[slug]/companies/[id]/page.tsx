@@ -6,6 +6,8 @@ import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 
 import { DealsTable } from "@/components/crm/deals"
+import { ScoreMeter, ScoreReasons } from "@/components/crm/icp"
+import { Input } from "@/components/ui/input"
 import { CompanyEditFields } from "@/components/crm/shared"
 import { Timeline } from "@/components/crm/timeline"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -65,6 +67,22 @@ export default function CompanyDetailPage() {
 
       {canWrite ? <EditCompany company={company} onSaved={() => detail.mutate()} /> : null}
 
+      <section className="px-6 pb-6" data-score-panel>
+        <div className="border border-line bg-grid-card">
+          <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
+            <h2 className="text-base font-medium">{t("icp.fit")}</h2>
+            <ScoreMeter score={company.score} />
+            <Link className="ms-auto text-xs text-grid-muted hover:text-grid-fg hover:underline" href={`${base}/settings/icp`}>
+              {t("icp.editProfile")}
+            </Link>
+          </div>
+          <p className="px-5 pt-3 text-xs text-grid-muted">{t("icp.companyHow")}</p>
+          <div className="px-5 pb-2">
+            <ScoreReasons reasons={company.score_reasons ?? []} />
+          </div>
+        </div>
+      </section>
+
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
       <section>
@@ -105,13 +123,20 @@ export default function CompanyDetailPage() {
   )
 }
 
-function EditCompany({ company, onSaved }: { company: { id: string; name: string; domain: string; industry: string; size: string; notes: string }; onSaved: () => void }) {
+function EditCompany({
+  company,
+  onSaved,
+}: {
+  company: { id: string; name: string; domain: string; industry: string; size: string; country: string; notes: string }
+  onSaved: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState(company.name)
   const [domain, setDomain] = useState(company.domain)
   const [industry, setIndustry] = useState(company.industry)
   const [size, setSize] = useState(company.size)
+  const [country, setCountry] = useState(company.country ?? "")
   const [notes, setNotes] = useState(company.notes)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -123,7 +148,7 @@ function EditCompany({ company, onSaved }: { company: { id: string; name: string
     try {
       await api(`/api/w/companies/${encodeURIComponent(company.id)}`, {
         method: "PATCH",
-        json: { name: name.trim(), domain: domain.trim(), industry: industry.trim(), size, notes: notes.trim() },
+        json: { name: name.trim(), domain: domain.trim(), industry: industry.trim(), size, country: country.trim(), notes: notes.trim() },
         workspaceId: ws.id,
       })
       toast.success(t("companies.saved"))
@@ -148,6 +173,10 @@ function EditCompany({ company, onSaved }: { company: { id: string; name: string
         size={size}
         setSize={setSize}
       />
+      <Field className="mt-4 sm:max-w-xs">
+        <FieldLabel htmlFor="edit-company-country">{t("companies.country")}</FieldLabel>
+        <Input id="edit-company-country" value={country} onChange={(e) => setCountry(e.target.value)} maxLength={80} placeholder={t("companies.countryPlaceholder")} />
+      </Field>
       <Field className="mt-4">
         <FieldLabel htmlFor="edit-company-notes">{t("companies.notes")}</FieldLabel>
         <Textarea id="edit-company-notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} rows={3} />

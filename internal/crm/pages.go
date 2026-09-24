@@ -71,36 +71,64 @@ func likeEscape(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
-// ListCompaniesPage is one page of the workspace's companies, A–Z, optionally
-// narrowed by a search over name and domain.
-func ListCompaniesPage(ctx context.Context, db *sql.DB, wsID, q, after string, limit int) (*CompanyPage, error) {
+// CompanyQuery narrows and orders the companies list.
+type CompanyQuery struct {
+	Q string
+	// Sort is "" (A-Z) or "score" (the ideal-customer score, highest first,
+	// unscored last; MH-395).
+	Sort string
+	// MinScore keeps companies scoring at least this; nil keeps all.
+	MinScore *int
+}
+
+// ListCompaniesPage is one page of the workspace's companies, A–Z or by score,
+// optionally narrowed by a search over name and domain and a minimum score.
+func ListCompaniesPage(ctx context.Context, db *sql.DB, wsID string, cq CompanyQuery, after string, limit int) (*CompanyPage, error) {
 	cur, err := paging.Decode(after, 2)
 	if err != nil {
 		return nil, err
 	}
+	byScore := cq.Sort == "score"
 	where := ""
 	args := []any{wsID}
-	if q = strings.TrimSpace(q); q != "" {
+	if q := strings.TrimSpace(cq.Q); q != "" {
 		if r := []rune(q); len(r) > 200 {
 			q = string(r[:200])
 		}
 		args = append(args, "%"+likeEscape(q)+"%")
-		where = ` AND (co.name ILIKE $2 OR co.domain ILIKE $2)`
+		where += ` AND (co.name ILIKE $` + strconv.Itoa(len(args)) + ` OR co.domain ILIKE $` + strconv.Itoa(len(args)) + `)`
+	}
+	if cq.MinScore != nil {
+		args = append(args, *cq.MinScore)
+		where += ` AND sc.score >= $` + strconv.Itoa(len(args))
 	}
 	page := &CompanyPage{Companies: []CompanyOut{}, Limit: limit}
-	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM companies co WHERE co.workspace_id = $1`+where, args...).Scan(&page.Total); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM companies co LEFT JOIN icp_scores sc ON sc.workspace_id = co.workspace_id AND sc.company_id = co.id WHERE co.workspace_id = $1`+where, args...).Scan(&page.Total); err != nil {
 		return nil, err
+	}
+	// The sort key rides along as the first column, so the cursor is Postgres'
+	// own value — Go's lower() can disagree with it on some letters.
+	key, order := "lower(co.name)", "lower(co.name), co.id"
+	if byScore {
+		key, order = "coalesce(sc.score, -1)::text", "coalesce(sc.score, -1) DESC, co.id DESC"
 	}
 	if cur != nil {
 		args = append(args, cur[0], cur[1])
 		n := len(args)
-		where += ` AND (lower(co.name), co.id) > ($` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
+		if byScore {
+			sc, err := strconv.Atoi(cur[0])
+			if err != nil {
+				return nil, paging.ErrBadCursor
+			}
+			args[n-2] = sc
+			where += ` AND (coalesce(sc.score, -1), co.id) < ($` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
+		} else {
+			where += ` AND (lower(co.name), co.id) > ($` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
+		}
 	}
 	args = append(args, limit+1)
-	// The sort key rides along as the first column, so the cursor is Postgres'
-	// own lower() — Go's can disagree with it on some letters.
-	sel := strings.Replace(companySelect, "SELECT co.id", "SELECT lower(co.name), co.id", 1)
-	rows, err := db.QueryContext(ctx, sel+where+` ORDER BY lower(co.name), co.id LIMIT $`+strconv.Itoa(len(args)), args...)
+	sel := strings.Replace(companySelect, "SELECT co.id", "SELECT "+key+", co.id", 1)
+	rows, err := db.QueryContext(ctx, sel+where+` ORDER BY `+order+` LIMIT $`+strconv.Itoa(len(args)), args...)
 	if err != nil {
 		return nil, err
 	}

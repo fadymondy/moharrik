@@ -6,6 +6,8 @@ import useSWRInfinite from "swr/infinite"
 import {
   api,
   ApiError,
+  type CrmReport,
+  type IcpProfileOut,
   type AutomationRun,
   type AutomationSchedule,
   type AutomationWorkflow,
@@ -153,13 +155,26 @@ export const useAuditFacets = (id?: string | null, enabled = true) => useScoped<
 
 export const useMailLists = (id?: string | null) => useScoped<{ lists: MailList[] | null }>("/api/w/mail/lists", id)
 
-export type ContactQuery = { listId?: string; status?: string; q?: string; cursor?: string; limit?: number }
+export type ContactQuery = {
+  listId?: string
+  status?: string
+  q?: string
+  cursor?: string
+  limit?: number
+  /** MH-395: a lifecycle stage ("none" for no stage), a minimum score, and "score" to rank by it. */
+  lifecycle?: string
+  minScore?: number
+  sort?: "" | "score"
+}
 
 export function contactsPath(p: ContactQuery): string {
   const qs = new URLSearchParams()
   if (p.listId) qs.set("list_id", p.listId)
   if (p.listId && p.status) qs.set("status", p.status)
   if (p.q?.trim()) qs.set("q", p.q.trim())
+  if (p.lifecycle) qs.set("lifecycle", p.lifecycle)
+  if (p.minScore) qs.set("min_score", String(p.minScore))
+  if (p.sort) qs.set("sort", p.sort)
   if (p.cursor) qs.set("cursor", p.cursor)
   if (p.limit) qs.set("limit", String(p.limit))
   const s = qs.toString()
@@ -247,8 +262,14 @@ export const useSmtpServiceOptions = (id?: string | null, enabled = true) =>
 // ── CRM ──────────────────────────────────────────────────────────────────
 
 /** Companies a page at a time, A–Z, optionally searched (MH-467). */
-export const useCompaniesPage = (workspaceId: string | null | undefined, p: { q?: string; cursor?: string; limit?: number }) =>
-  usePaged<Page & { companies: Company[] }>(withQuery("/api/w/companies", { q: p.q?.trim(), cursor: p.cursor, limit: p.limit }), workspaceId)
+export const useCompaniesPage = (
+  workspaceId: string | null | undefined,
+  p: { q?: string; cursor?: string; limit?: number; sort?: "" | "score"; minScore?: number },
+) =>
+  usePaged<Page & { companies: Company[] }>(
+    withQuery("/api/w/companies", { q: p.q?.trim(), cursor: p.cursor, limit: p.limit, sort: p.sort || undefined, min_score: p.minScore || undefined }),
+    workspaceId,
+  )
 
 export const useCompany = (wsId?: string | null, id?: string) =>
   useScoped<{ company: Company; contacts: ContactRef[]; deals: Deal[]; deals_total: number } & TimelinePage>(
@@ -662,3 +683,12 @@ export function useOverview(workspaceId: string | null | undefined) {
     },
   )
 }
+
+// ── Reports (MH-394) ─────────────────────────────────────────────────────
+
+/** `range` is the query string: `days=30`, or `from=YYYY-MM-DD&to=YYYY-MM-DD`. */
+export const useCrmReport = (id: string | null | undefined, range: string) => useScoped<CrmReport>(`/api/w/reports/crm?${range}`, id)
+
+// ── Ideal-customer profile (MH-395) ──────────────────────────────────────
+
+export const useIcpProfile = (id: string | null | undefined) => useScoped<IcpProfileOut>("/api/w/icp", id)

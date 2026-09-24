@@ -20,6 +20,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -87,6 +88,10 @@ type ContactOut struct {
 	// Both kept: "never agreed" and "asked us to stop" are different facts.
 	WhatsAppOptInAt  *time.Time `json:"whatsapp_opt_in_at"`
 	WhatsAppOptOutAt *time.Time `json:"whatsapp_opt_out_at"`
+	// MH-395: the lifecycle stage and the ideal-customer score with its reasons.
+	Lifecycle    string       `json:"lifecycle" enum:",subscriber,lead,qualified,customer"`
+	Score        *int         `json:"score" doc:"0-100 against the workspace's ideal-customer profile; null when the profile weighs nothing."`
+	ScoreReasons []icp.Reason `json:"score_reasons"`
 }
 
 type CampaignOut struct {
@@ -348,19 +353,26 @@ func Register(api huma.API, a *app.App) {
 		Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		ListID string `query:"list_id" doc:"Only contacts on this list"`
-		Status string `query:"status" doc:"subscribed, pending, unsubscribed or bounced. With list_id: only this status on that list"`
-		Q      string `query:"q" maxLength:"200" doc:"Search name, email, phone and company"`
-		Cursor string `query:"cursor" doc:"next_cursor from the previous page"`
-		Limit  int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
+		ListID    string `query:"list_id" doc:"Only contacts on this list"`
+		Status    string `query:"status" doc:"subscribed, pending, unsubscribed or bounced. With list_id: only this status on that list"`
+		Q         string `query:"q" maxLength:"200" doc:"Search name, email, phone and company"`
+		Lifecycle string `query:"lifecycle" enum:"subscriber,lead,qualified,customer,none," doc:"Only contacts at this lifecycle stage (none: without one)"`
+		MinScore  int    `query:"min_score" minimum:"0" maximum:"100" doc:"Only contacts scoring at least this against the ideal-customer profile (0 = all)"`
+		Sort      string `query:"sort" enum:"newest,score," doc:"newest (default) or score (highest first, unscored last)"`
+		Cursor    string `query:"cursor" doc:"next_cursor from the previous page"`
+		Limit     int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
 	}) (*body[ContactPage], error) {
 		s, err := scope(ctx, authz.ContactsRead)
 		if err != nil {
 			return nil, err
 		}
-		page, err := ListContactsPage(ctx, a.SQLDB, s.WorkspaceID, ContactFilter{ListID: in.ListID, Status: in.Status, Q: in.Q}, in.Cursor, in.Limit)
+		f := ContactFilter{ListID: in.ListID, Status: in.Status, Q: in.Q, Lifecycle: in.Lifecycle, Sort: in.Sort}
+		if in.MinScore > 0 {
+			f.MinScore = &in.MinScore
+		}
+		page, err := ListContactsPage(ctx, a.SQLDB, s.WorkspaceID, f, in.Cursor, in.Limit)
 		switch {
-		case errors.Is(err, ErrBadCursor), errors.Is(err, ErrStatusNeedsList), errors.Is(err, ErrBadStatus):
+		case errors.Is(err, ErrBadCursor), errors.Is(err, ErrStatusNeedsList), errors.Is(err, ErrBadStatus), errors.Is(err, ErrBadLifecycle):
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		case err != nil:
 			slog.ErrorContext(ctx, "list contacts", "err", err)

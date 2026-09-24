@@ -22,6 +22,10 @@ var UserScopes = []ScopeDef{
 	{"members:read", "See the workspace, your role and its members (whoami, list_members)", authz.Member},
 	{"contacts:read", "Read CRM contacts, companies, deals and the timeline", authz.Member},
 	{"contacts:write", "Create and change CRM contacts, companies, deals and the timeline", authz.Member},
+	// crm:manage is authz.PipelineManage's line (MH-395): the ideal-customer
+	// profile decides how every contact in the workspace is ranked, the same
+	// weight as reshaping the pipeline, so it is a manager's.
+	{"crm:manage", "Change the ideal-customer profile every contact and company is scored against", authz.Manager},
 	// Leads have their own pair (MH-390): a lead is unverified text from a
 	// stranger's browser, and an agent that triages the inbound queue should
 	// not need the whole CRM to do it. convert_lead needs contacts:write as

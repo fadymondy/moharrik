@@ -279,17 +279,23 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-companies", Method: http.MethodGet, Path: "/api/w/companies",
-		Summary: "Companies with their contact and open-deal counts, a page at a time",
-		Description: "A-Z. `total` is every company matching `q`; follow `next_cursor` for the next page. " +
+		Summary: "Companies with their contact and open-deal counts and ideal-customer score, a page at a time",
+		Description: "A-Z, or by score with sort=score. `total` is every company matching the filters; follow `next_cursor` for the next page. " +
 			"A limit over 200 is refused, not clamped (MH-467).",
 		Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Q      string `query:"q" maxLength:"200" doc:"Search name and domain"`
-		Cursor string `query:"cursor" doc:"next_cursor from the previous page"`
-		Limit  int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
+		Q        string `query:"q" maxLength:"200" doc:"Search name and domain"`
+		Sort     string `query:"sort" enum:"name,score," doc:"name (A-Z, default) or score (the ideal-customer score, highest first)"`
+		MinScore int    `query:"min_score" minimum:"0" maximum:"100" doc:"Only companies scoring at least this (0 = all)"`
+		Cursor   string `query:"cursor" doc:"next_cursor from the previous page"`
+		Limit    int    `query:"limit" minimum:"0" maximum:"200" doc:"Page size (default 50, at most 200)"`
 	}) (*body[CompanyPage], error) {
-		page, err := CompaniesPage(ctx, db(), in.Q, in.Cursor, in.Limit)
+		q := CompanyQuery{Q: in.Q, Sort: in.Sort}
+		if in.MinScore > 0 {
+			q.MinScore = &in.MinScore
+		}
+		page, err := CompaniesPageBy(ctx, db(), q, in.Cursor, in.Limit)
 		if err != nil {
 			return nil, err
 		}

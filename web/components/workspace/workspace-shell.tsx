@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   BellIcon,
   BellRingIcon,
+  ChartColumnBigIcon,
   ChartLineIcon,
   BotIcon,
   ClipboardListIcon,
@@ -25,6 +26,7 @@ import {
   PlusIcon,
   SearchCheckIcon,
   SearchIcon,
+  TargetIcon,
   SendIcon,
   PlugIcon,
   ServerIcon,
@@ -322,6 +324,12 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/deals`} icon={<HandshakeIcon />}>
         {t("nav.deals")}
       </L>
+      {/* The CRM report (MH-394); hidden, not disabled, for a role that cannot read the CRM. */}
+      {can?.includes("contacts:read") ? (
+        <L href={`${base}/reports`} icon={<ChartColumnBigIcon />}>
+          {t("nav.reports")}
+        </L>
+      ) : null}
       <L href={`${base}/campaigns`} icon={<SendIcon />}>
         {t("nav.campaigns")}
       </L>
@@ -369,6 +377,12 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/settings/email`} icon={<ServerIcon />}>
         {t("nav.email")}
       </L>
+      {/* The ideal-customer profile (MH-395): readable by anyone who reads the CRM, changed by managers. */}
+      {can?.includes("contacts:read") ? (
+        <L href={`${base}/settings/icp`} icon={<TargetIcon />}>
+          {t("nav.icp")}
+        </L>
+      ) : null}
       <L href={`${base}/settings/integrations`} icon={<PlugIcon />}>
         {t("nav.integrations")}
       </L>
