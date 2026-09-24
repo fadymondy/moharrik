@@ -2,7 +2,9 @@ package imports
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -98,15 +100,11 @@ func (p WhatsAppProvider) Preview(ctx context.Context, a *app.App, wsID, connID 
 		if err != nil {
 			return nil, err
 		}
-		for _, c := range chats {
-			phone := c.Phone()
-			if phone == "" {
-				continue
-			}
-			it := Item{ID: c.RemoteJID, Kind: "direct", Name: c.DisplayName(), Identity: "+" + phone}
-			if c.LastMessage != nil {
-				it.LastMessage = c.LastMessage.Text()
-				t := time.Unix(int64(c.LastMessage.Timestamp), 0).UTC()
+		for _, pc := range byPhone(chats) {
+			it := Item{ID: pc.id(), Kind: "direct", Name: pc.name, Identity: "+" + pc.phone}
+			if pc.last != nil {
+				it.LastMessage = pc.last.Text()
+				t := time.Unix(int64(pc.last.Timestamp), 0).UTC()
 				it.LastMessageAt = &t
 			}
 			items = append(items, it)
@@ -205,12 +203,18 @@ func (p WhatsAppProvider) Import(ctx context.Context, a *app.App, wsID string, j
 	}
 
 	done := 0
-	for _, c := range chats {
-		if !want[c.RemoteJID] {
+	for _, pc := range byPhone(chats) {
+		// Accept the chat's own JID too: an item id from before direct chats
+		// were keyed by phone still names the same person.
+		picked := want[pc.id()]
+		for _, c := range pc.chats {
+			picked = picked || want[c.RemoteJID]
+		}
+		if !picked {
 			continue
 		}
-		if err := p.importDirect(ctx, a, wsID, job, cl, c, depth); err != nil {
-			a.Log.Warn("whatsapp import: direct chat failed", "workspace", wsID, "jid", c.RemoteJID, "err", err)
+		if err := p.importDirect(ctx, a, wsID, job, cl, pc, depth); err != nil {
+			a.Log.Warn("whatsapp import: direct chat failed", "workspace", wsID, "phone_tail", tail(pc.phone), "err", err)
 			job.Skipped++
 		}
 		done++
@@ -245,14 +249,101 @@ func upsertConversation(ctx context.Context, a *app.App, wsID, channel, threadID
 	return id, created, err
 }
 
-func (p WhatsAppProvider) importDirect(ctx context.Context, a *app.App, wsID string, job *Job, cl *whatsapp.Client, c whatsapp.Chat, depth int) error {
-	phone := "+" + c.Phone()
-	if c.Phone() == "" {
-		return errors.New("no phone on this chat")
+// phoneChat is one person's 1:1 chats. WhatsApp can hold the same person
+// under their phone JID and a privacy "…@lid" id at once; both are one thread
+// to the inbox, which files live messages by phone (inbox.FileWhatsApp).
+type phoneChat struct {
+	phone string // digits only, as live filing stores customer_phone
+	name  string
+	last  *whatsapp.ChatMessagePreview
+	chats []whatsapp.Chat
+}
+
+// id is the item id: the person's phone JID, whichever JIDs they have.
+func (pc phoneChat) id() string { return pc.phone + "@s.whatsapp.net" }
+
+// byPhone groups chats by the phone behind them, newest first, and drops chats
+// with no phone at all (a privacy id Evolution cannot resolve).
+func byPhone(chats []whatsapp.Chat) []phoneChat {
+	idx := map[string]int{}
+	var out []phoneChat
+	for _, c := range chats {
+		phone := c.Phone()
+		if phone == "" {
+			continue
+		}
+		i, ok := idx[phone]
+		if !ok {
+			i = len(out)
+			idx[phone] = i
+			out = append(out, phoneChat{phone: phone})
+		}
+		pc := &out[i]
+		pc.chats = append(pc.chats, c)
+		if pc.name == "" {
+			pc.name = c.DisplayName()
+		}
+		if c.LastMessage != nil && (pc.last == nil || c.LastMessage.Timestamp > pc.last.Timestamp) {
+			pc.last = c.LastMessage
+			if n := c.DisplayName(); n != "" {
+				pc.name = n
+			}
+		}
 	}
-	name := c.DisplayName()
+	sort.SliceStable(out, func(i, j int) bool {
+		var a, b whatsapp.UnixTime
+		if out[i].last != nil {
+			a = out[i].last.Timestamp
+		}
+		if out[j].last != nil {
+			b = out[j].last.Timestamp
+		}
+		return a > b
+	})
+	return out
+}
+
+// tail is enough of a phone number to tell rows apart in a log.
+func tail(phone string) string {
+	if len(phone) <= 4 {
+		return phone
+	}
+	return "…" + phone[len(phone)-4:]
+}
+
+// directConversation is the one thread a person's chats import into: the
+// thread live messages already file into when there is one (matched on the
+// phone's digits, as FileWhatsApp matches), else a new one keyed by their
+// phone JID and stored the way FileWhatsApp would store it.
+func directConversation(ctx context.Context, a *app.App, wsID string, pc phoneChat, contactID, name string) (id string, created bool, err error) {
+	err = a.SQLDB.QueryRowContext(ctx, `
+		SELECT id FROM conversations
+		WHERE workspace_id = $1 AND channel = 'whatsapp' AND NOT is_group
+		  AND (external_thread_id = $2 OR regexp_replace(customer_phone, '[^0-9]', '', 'g') = $3)
+		ORDER BY (external_thread_id = $2) DESC, created_at
+		LIMIT 1`, wsID, pc.id(), pc.phone).Scan(&id)
+	if err == nil {
+		// Claim the live thread for this import, so the preview says it is
+		// imported — unless another thread already carries the key.
+		_, err = a.SQLDB.ExecContext(ctx, `
+			UPDATE conversations SET
+			  external_thread_id = CASE WHEN external_thread_id = '' AND NOT EXISTS (
+			      SELECT 1 FROM conversations o WHERE o.workspace_id = $1 AND o.channel = 'whatsapp' AND o.external_thread_id = $3)
+			    THEN $3 ELSE external_thread_id END,
+			  contact_id = coalesce(contact_id, $4)
+			WHERE workspace_id = $1 AND id = $2`, wsID, id, pc.id(), contactID)
+		return id, false, err
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return "", false, err
+	}
+	return upsertConversation(ctx, a, wsID, KindWhatsApp, pc.id(), false, &contactID, name, pc.phone)
+}
+
+func (p WhatsAppProvider) importDirect(ctx context.Context, a *app.App, wsID string, job *Job, cl *whatsapp.Client, pc phoneChat, depth int) error {
+	name := pc.name
 	locale := localeOf(name)
-	contactID, created, err := marketing.UpsertContactIdentity(ctx, a.SQLDB, wsID, "", phone, "", name, locale, "whatsapp_import")
+	contactID, created, err := marketing.UpsertContactIdentity(ctx, a.SQLDB, wsID, "", "+"+pc.phone, "", name, locale, "whatsapp_import")
 	if err != nil {
 		return err
 	}
@@ -262,7 +353,7 @@ func (p WhatsAppProvider) importDirect(ctx context.Context, a *app.App, wsID str
 		job.ContactsReused++
 	}
 
-	convID, convCreated, err := upsertConversation(ctx, a, wsID, KindWhatsApp, c.RemoteJID, false, &contactID, name, phone)
+	convID, convCreated, err := directConversation(ctx, a, wsID, pc, contactID, name)
 	if err != nil {
 		return err
 	}
@@ -272,9 +363,19 @@ func (p WhatsAppProvider) importDirect(ctx context.Context, a *app.App, wsID str
 		job.ConversationsReused++
 	}
 
-	msgs, err := cl.FindMessages(ctx, c.RemoteJID, depth)
-	if err != nil {
-		return err
+	// Every JID the person has, merged newest first; the same WhatsApp message
+	// id never lands twice (insertHistory is idempotent on it).
+	var msgs []whatsapp.HistoryMessage
+	for _, c := range pc.chats {
+		m, err := cl.FindMessages(ctx, c.RemoteJID, depth)
+		if err != nil {
+			return err
+		}
+		msgs = append(msgs, m...)
+	}
+	sort.SliceStable(msgs, func(i, j int) bool { return msgs[i].Timestamp > msgs[j].Timestamp })
+	if len(msgs) > depth {
+		msgs = msgs[:depth]
 	}
 	n, err := insertHistory(ctx, a, wsID, convID, msgs)
 	if err != nil {
