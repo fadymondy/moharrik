@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   BellIcon,
+  BookOpenIcon,
   BellRingIcon,
   ChartColumnBigIcon,
   ChartLineIcon,
@@ -67,6 +68,7 @@ import { useTranslations } from "@/lib/i18n"
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { cn } from "@/lib/utils"
+import { mcpDocsHref } from "@/lib/mcp-docs"
 import { BdiBlock } from "@/components/bidi"
 
 function Brand({ mini = false }: { mini?: boolean }) {
@@ -308,7 +310,7 @@ function ShellSkeleton() {
 
 /** The workspace navigation: the sticky sidebar on desktop, a slide-out sheet below md. */
 function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNavigate?: () => void; mini?: boolean; can?: string[] }) {
-  const { t } = useTranslations()
+  const { t, locale } = useTranslations()
   const L = (props: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean; except?: string }) => <NavLink {...props} onNavigate={onNavigate} mini={mini} />
   return (
     <nav className="flex flex-col py-3" aria-label={t("shell.navigation")}>
@@ -398,6 +400,10 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       </L>
       <L href={`${base}/settings/mcp`} icon={<KeyRoundIcon />}>
         {t("nav.mcpTokens")}
+      </L>
+      {/* The public MCP reference (MH-428): every tool, its scope and an example. */}
+      <L href={mcpDocsHref(locale)} icon={<BookOpenIcon />}>
+        {t("nav.mcpDocs")}
       </L>
       {/* Owners and admins only (MH-392): hidden, not disabled, for everyone else. */}
       {can?.includes("audit:read") ? (

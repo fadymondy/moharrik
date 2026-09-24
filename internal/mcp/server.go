@@ -100,6 +100,8 @@ func Mount(k *togo.Kernel, a *app.App, researchEngine *research.Engine) {
 		})
 	}
 	k.Router.Handle("/api/mcp", wrap(user.handler(a)))
+	// The public tool reference (MH-428), generated from this same registry.
+	k.Router.Get("/api/mcp/docs", docsHandler(user.tools))
 	MountOAuth(k, a) // OAuth 2.1 for connectors (MH-391)
 	k.Router.Handle("/api/admin/mcp", wrap(admin.handler(a)))
 }
@@ -304,6 +306,13 @@ func firstLine(s string) string {
 }
 
 func schema(required []string, props map[string]any) map[string]any {
+	// A nil map encodes as "properties": null, which strict clients reject for
+	// the WHOLE tools/list: Claude Code connected and then offered no tools at
+	// all ("Invalid result for tools/list: tools.76.inputSchema.properties")
+	// because list_browsers and list_workflows passed nil (MH-428).
+	if props == nil {
+		props = map[string]any{}
+	}
 	out := map[string]any{"type": "object", "properties": props}
 	if len(required) > 0 {
 		out["required"] = required

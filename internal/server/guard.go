@@ -70,6 +70,9 @@ func classify(r *http.Request) tier {
 		// matches: a prefix "/api/mcp" would also match /api/mcp_tokens.
 		"/api/mcp",
 		"/api/admin/mcp",
+		// The MCP tool reference (MH-428): public docs, the same names and
+		// schemas tools/list hands any token, and no workspace data.
+		"/api/mcp/docs",
 		// Double opt-in and unsubscribe links from an email: the random token in
 		// the body is the authorization (internal/marketing).
 		"/api/mail/confirm",

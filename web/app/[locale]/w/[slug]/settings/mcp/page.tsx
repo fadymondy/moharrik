@@ -31,8 +31,7 @@ import { useTranslations } from "@/lib/i18n"
 import { useMcpTokens, useOAuthGrants } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
-
-const MCP_ORIGIN = process.env.NEXT_PUBLIC_MCP_ORIGIN ?? "http://localhost:8120"
+import { mcpDocsHref, mcpServerUrl } from "@/lib/mcp-docs"
 
 export default function McpTokensPage() {
   const { t, formatDate, locale } = useTranslations()
@@ -42,6 +41,8 @@ export default function McpTokensPage() {
   const grants = useOAuthGrants(ws.id)
   // The server's canonical URL: what claude.ai and ChatGPT are given (MH-391).
   const oauthUrl = grants.data?.server_url
+  // What Claude Code, Claude Desktop and Cursor are told to call: the same server (MH-428).
+  const serverUrl = mcpServerUrl(oauthUrl)
   // Owners and admins can open each token's calls in the audit log (MH-392).
   const auditHref = ws.can("audit:read") ? (actor: string) => `/${locale}/w/${ws.summary.slug}/settings/audit?actor=${encodeURIComponent(actor)}` : undefined
   const [creating, setCreating] = useState(false)
@@ -114,9 +115,14 @@ export default function McpTokensPage() {
             {t("mcp.connectTitle")}
           </h2>
           <p className="grid-body text-sm">{t("mcp.connectHint")}</p>
+          <p className="text-sm">
+            <Link href={mcpDocsHref(locale)} className="text-grid-action underline-offset-4 hover:underline" data-mcp-docs-link>
+              {t("mcp.docsLink")}
+            </Link>
+          </p>
         </div>
         <div className="max-w-3xl">
-          <ConnectClients url={`${MCP_ORIGIN}/api/mcp`} oauthUrl={oauthUrl} />
+          <ConnectClients url={serverUrl} oauthUrl={oauthUrl} />
         </div>
       </section>
 
@@ -125,6 +131,7 @@ export default function McpTokensPage() {
           open={creating}
           onOpenChange={setCreating}
           scopes={tokens.data.scopes ?? []}
+          serverUrl={serverUrl}
           onCreated={() => tokens.mutate()}
         />
       ) : null}
@@ -218,14 +225,16 @@ function CreateTokenDialog({
   open,
   onOpenChange,
   scopes,
+  serverUrl,
   onCreated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   scopes: McpScope[]
+  serverUrl: string
   onCreated: () => void
 }) {
-  const { t } = useTranslations()
+  const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState("")
   const [chosen, setChosen] = useState<string[]>([])
@@ -293,7 +302,7 @@ function CreateTokenDialog({
             </div>
             <div className="space-y-1.5">
               <p className="grid-micro">{t("mcp.connectTitle")}</p>
-              <ConnectClients url={`${MCP_ORIGIN}/api/mcp`} token={plaintext} />
+              <ConnectClients url={serverUrl} token={plaintext} />
             </div>
             <DialogFooter>
               <Button onClick={() => handleOpenChange(false)}>{t("mcp.savedIt")}</Button>
@@ -320,7 +329,12 @@ function CreateTokenDialog({
 
               <FieldSet>
                 <FieldLegend variant="label">{t("mcp.scopes")}</FieldLegend>
-                <FieldDescription>{t("mcp.scopesHint")}</FieldDescription>
+                <FieldDescription>
+                  {t("mcp.scopesHint")}{" "}
+                  <Link href={mcpDocsHref(locale, "scopes")} target="_blank" className="text-grid-action underline-offset-4 hover:underline">
+                    {t("mcp.scopesDocsLink")}
+                  </Link>
+                </FieldDescription>
                 {scopes.length === 0 ? (
                   <p className="text-sm text-grid-muted">{t("mcp.noScopes")}</p>
                 ) : (

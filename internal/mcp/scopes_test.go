@@ -39,6 +39,11 @@ func TestEveryToolDeclaresAScope(t *testing.T) {
 			if tool.InputSchema == nil || tool.InputSchema["type"] != "object" {
 				t.Errorf("%s: tool %q has no object input schema", server, tool.Name)
 			}
+			// "properties" must encode as a JSON object, never null: one null
+			// makes strict clients (Claude Code) reject the whole tools/list.
+			if b, _ := json.Marshal(tool.InputSchema["properties"]); len(b) == 0 || b[0] != '{' {
+				t.Errorf("%s: tool %q: inputSchema.properties encodes as %s, not an object", server, tool.Name, b)
+			}
 		}
 	}
 	check("user", UserTools(&research.Engine{}), func(s string) bool { _, ok := userScope(s); return ok })
