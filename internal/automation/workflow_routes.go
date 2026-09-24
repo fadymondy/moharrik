@@ -5,14 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -26,6 +29,17 @@ type Workflow struct {
 	Placeholders []string  `json:"placeholders" doc:"Every {{placeholder}} the steps actually use, in order."`
 	RunCount     int       `json:"run_count"`
 	Version      int       `json:"version" doc:"The current version. Every save adds one (MH-400)."`
+	// How a tool call names it, and whether it may run at all (MH-478).
+	Slug      string     `json:"slug"`
+	Enabled   bool       `json:"enabled"`
+	LastRunAt *time.Time `json:"last_run_at"`
+	// What a preset carries besides its steps (MH-478): the sites it goes to,
+	// shown before anyone runs it; its icon; whether it publishes, sends or
+	// submits as the signed-in account; and which preset it came from.
+	Hosts     []string `json:"hosts"`
+	Icon      string   `json:"icon"`
+	Writes    bool     `json:"writes"`
+	Preset    string   `json:"preset"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -208,6 +222,35 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "w-toggle-workflow", Method: http.MethodPatch, Path: "/api/w/workflows/{id}",
+		Summary: "Turn a workflow on or off without deleting it (MH-478)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body struct {
+			Enabled bool `json:"enabled"`
+		}
+	}) (*body[workflowOut], error) {
+		s, err := scope(ctx, authz.AutomationRun)
+		if err != nil {
+			return nil, err
+		}
+		res, err := db().ExecContext(ctx, `UPDATE automation_workflows SET enabled = $3, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
+			s.WorkspaceID, in.ID, in.Body.Enabled)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not change the workflow")
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil, huma.Error404NotFound("no such workflow")
+		}
+		got, err := getWorkflow(ctx, db(), s.WorkspaceID, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		return out(workflowOut{got}), nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "w-delete-workflow", Method: http.MethodDelete, Path: "/api/w/workflows/{id}",
 		DefaultStatus: http.StatusNoContent,
 		Summary:       "Delete a workflow", Tags: tags,
@@ -326,7 +369,7 @@ func workflowError(err error, fallback string) error {
 		return huma.Error404NotFound(err.Error())
 	case errors.Is(err, ErrNoVersion):
 		return huma.Error404NotFound(err.Error())
-	case errors.Is(err, ErrStaleVersion), errors.Is(err, ErrNameTaken):
+	case errors.Is(err, ErrStaleVersion), errors.Is(err, ErrNameTaken), errors.Is(err, ErrSlugTaken):
 		return huma.Error409Conflict(err.Error())
 	}
 	var se huma.StatusError
@@ -340,14 +383,29 @@ func workflowError(err error, fallback string) error {
 // REST route, MCP and schedules, so the substitution and the redaction happen
 // in exactly one place.
 func RunWorkflow(ctx context.Context, a *app.App, hub *Hub, workspaceID, userID, workflowID, agentID, trigger string, values map[string]string) (string, error) {
+	return RunWorkflowFrom(ctx, a, hub, workspaceID, userID, workflowID, agentID, trigger, "", values)
+}
+
+// ErrWorkflowOff is a workflow switched off (MH-478): kept, with its history
+// and schedules, and refusing to run until it is switched back on.
+var ErrWorkflowOff = errors.New("this workflow is turned off")
+
+// RunWorkflowFrom is RunWorkflow for a run a schedule started: the run keeps
+// which schedule it was, so the schedule's row is settled by its own run and
+// never by a neighbour's (fadymondy.com FM-95).
+func RunWorkflowFrom(ctx context.Context, a *app.App, hub *Hub, workspaceID, userID, workflowID, agentID, trigger, scheduleID string, values map[string]string) (string, error) {
 	// Scoped here, not by the caller: the scheduler calls this from a
 	// background context with no workspace on it, and RLS then showed it no
 	// workflow at all — every schedule of a saved workflow was "missed: no
 	// such workflow" (MH-403).
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
-	w, err := getWorkflow(sctx, a.SQLDB, workspaceID, workflowID)
+	w, err := FindWorkflow(sctx, a, workspaceID, workflowID)
 	if err != nil {
 		return "", err
+	}
+	workflowID = w.ID
+	if !w.Enabled {
+		return "", fmt.Errorf("%w: %s", ErrWorkflowOff, w.Name)
 	}
 	run, stored, err := Fill(w.Steps, w.Params, values)
 	if err != nil {
@@ -360,7 +418,10 @@ func RunWorkflow(ctx context.Context, a *app.App, hub *Hub, workspaceID, userID,
 	}
 	recordRedacted(sctx, a, workspaceID, runID, stored, w.Name, workflowID)
 	_, _ = a.SQLDB.ExecContext(sctx, `
-		UPDATE automation_workflows SET run_count = run_count + 1
+		UPDATE automation_runs SET workflow_version = $3, schedule_id = $4 WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, runID, w.Version, scheduleID)
+	_, _ = a.SQLDB.ExecContext(sctx, `
+		UPDATE automation_workflows SET run_count = run_count + 1, last_run_at = now()
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, workflowID)
 	return runID, nil
 }
@@ -390,14 +451,23 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-const workflowColumns = `id, name, description, steps::text, params::text, run_count, version, created_at, updated_at`
+const workflowColumns = `id, name, description, steps::text, params::text, run_count, version, created_at, updated_at, slug, enabled, last_run_at,
+	hosts, icon, writes, preset`
 
 func scanWorkflow(r rowScanner) (Workflow, error) {
 	var w Workflow
 	var steps, params string
-	if err := r.Scan(&w.ID, &w.Name, &w.Description, &steps, &params, &w.RunCount, &w.Version, &w.CreatedAt, &w.UpdatedAt); err != nil {
+	var last sql.NullTime
+	var hosts pgtext.Array
+	if err := r.Scan(&w.ID, &w.Name, &w.Description, &steps, &params, &w.RunCount, &w.Version, &w.CreatedAt, &w.UpdatedAt,
+		&w.Slug, &w.Enabled, &last, &hosts, &w.Icon, &w.Writes, &w.Preset); err != nil {
 		return w, err
 	}
+	w.Hosts = hosts
+	if w.Hosts == nil {
+		w.Hosts = []string{}
+	}
+	w.LastRunAt = timep(last)
 	_ = json.Unmarshal([]byte(steps), &w.Steps)
 	_ = json.Unmarshal([]byte(params), &w.Params)
 	if w.Steps == nil {
@@ -417,6 +487,24 @@ func getWorkflow(ctx context.Context, db *sql.DB, workspaceID, id string) (Workf
 	row := db.QueryRowContext(ctx, `
 		SELECT `+workflowColumns+`
 		FROM automation_workflows WHERE workspace_id = $1 AND id = $2`, workspaceID, id)
+	w, err := scanWorkflow(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return w, huma.Error404NotFound("no such workflow")
+	}
+	if err != nil {
+		return w, huma.Error500InternalServerError("could not read that workflow")
+	}
+	return w, nil
+}
+
+// FindWorkflow resolves an id or a slug — a tool call reads better with a slug,
+// the page has the id (fadymondy.com's FindPlugin).
+func FindWorkflow(ctx context.Context, a *app.App, workspaceID, ref string) (Workflow, error) {
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	row := a.SQLDB.QueryRowContext(sctx, `
+		SELECT `+workflowColumns+`
+		FROM automation_workflows WHERE workspace_id = $1 AND (id = $2 OR (slug <> '' AND slug = lower($2)))
+		ORDER BY (id = $2) DESC LIMIT 1`, workspaceID, strings.TrimSpace(ref))
 	w, err := scanWorkflow(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return w, huma.Error404NotFound("no such workflow")

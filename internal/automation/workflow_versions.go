@@ -64,8 +64,12 @@ type WorkflowVersion struct {
 
 // WorkflowInput is what an editor saves.
 type WorkflowInput struct {
-	Name        string  `json:"name" minLength:"1" maxLength:"80"`
-	Description string  `json:"description,omitempty" maxLength:"400"`
+	Name string `json:"name" minLength:"1" maxLength:"80"`
+	// How a tool call names it (MH-478). Made from the name when left empty.
+	Slug        string  `json:"slug,omitempty" maxLength:"60"`
+	// Long enough for a preset's notes: what it does, its fields, and when
+	// its selectors were last verified (MH-478).
+	Description string  `json:"description,omitempty" maxLength:"2000"`
 	Steps       []Step  `json:"steps" maxItems:"200"`
 	Params      []Param `json:"params,omitempty" maxItems:"40"`
 }
@@ -84,6 +88,25 @@ var knownCommands = map[string]bool{
 
 var paramNameRE = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
+var slugRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,59}$`)
+var slugJunk = regexp.MustCompile(`[^a-z0-9]+`)
+
+// Slugify makes a slug of a name: latin letters and digits, hyphens between.
+// A name with none of them (an Arabic one) gives "workflow".
+func Slugify(name string) string {
+	s := strings.Trim(slugJunk.ReplaceAllString(strings.ToLower(name), "-"), "-")
+	if len(s) > 50 {
+		s = strings.TrimRight(s[:50], "-")
+	}
+	if s == "" {
+		return "workflow"
+	}
+	return s
+}
+
+// ErrSlugTaken is a slug another workflow of the workspace already has.
+var ErrSlugTaken = errors.New("another workflow already has that slug")
+
 // ValidateWorkflow checks what an editor sends before anything is written.
 //
 // It does NOT check the steps against a browser's allowed sites: the steps
@@ -96,6 +119,9 @@ func ValidateWorkflow(in WorkflowInput) error {
 	}
 	if len(in.Steps) == 0 {
 		return errors.New("a workflow needs at least one step")
+	}
+	if slug := strings.TrimSpace(in.Slug); slug != "" && !slugRE.MatchString(slug) {
+		return fmt.Errorf("%q cannot be a slug: use lowercase letters, digits and hyphens", in.Slug)
 	}
 	if len(in.Steps) > MaxSteps {
 		return fmt.Errorf("a workflow can hold at most %d steps", MaxSteps)
@@ -132,6 +158,7 @@ func ValidateWorkflow(in WorkflowInput) error {
 // a non-nil parameter list.
 func cleanInput(in WorkflowInput) WorkflowInput {
 	in.Name = strings.TrimSpace(in.Name)
+	in.Slug = strings.ToLower(strings.TrimSpace(in.Slug))
 	in.Description = strings.TrimSpace(in.Description)
 	for i := range in.Steps {
 		in.Steps[i].Command = strings.ToLower(strings.TrimSpace(in.Steps[i].Command))
@@ -188,12 +215,31 @@ func CreateWorkflow(ctx context.Context, a *app.App, workspaceID, userID string,
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// The slug: the one asked for, or one made from the name that no other
+	// workflow of the workspace has yet.
+	slug := in.Slug
+	if slug == "" {
+		base := Slugify(in.Name)
+		slug = base
+		for n := 2; n < 100; n++ {
+			var taken bool
+			if err := tx.QueryRowContext(sctx, `SELECT EXISTS (SELECT 1 FROM automation_workflows WHERE workspace_id = $1 AND slug = $2)`,
+				workspaceID, slug).Scan(&taken); err != nil || !taken {
+				break
+			}
+			slug = fmt.Sprintf("%s-%d", base, n)
+		}
+	}
+
 	var id string
 	err = tx.QueryRowContext(sctx, `
-		INSERT INTO automation_workflows (workspace_id, name, description, steps, params, created_by, version)
-		VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, 1) RETURNING id`,
-		workspaceID, in.Name, in.Description, string(steps), string(params), userID).Scan(&id)
+		INSERT INTO automation_workflows (workspace_id, name, description, steps, params, created_by, version, slug)
+		VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, 1, $7) RETURNING id`,
+		workspaceID, in.Name, in.Description, string(steps), string(params), userID, slug).Scan(&id)
 	if pgCode(err) == "23505" {
+		if strings.Contains(err.Error(), "slug") {
+			return "", ErrSlugTaken
+		}
 		return "", ErrNameTaken
 	}
 	if err != nil {
@@ -269,10 +315,14 @@ func saveVersion(ctx context.Context, a *app.App, workspaceID, userID, id string
 	next := current + 1
 	_, err = tx.ExecContext(sctx, `
 		UPDATE automation_workflows
-		SET name = $3, description = $4, steps = $5::jsonb, params = $6::jsonb, version = $7, updated_at = now()
+		SET name = $3, description = $4, steps = $5::jsonb, params = $6::jsonb, version = $7,
+		    slug = CASE WHEN $8 = '' THEN slug ELSE $8 END, updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`,
-		workspaceID, id, in.Name, in.Description, string(steps), string(params), next)
+		workspaceID, id, in.Name, in.Description, string(steps), string(params), next, in.Slug)
 	if pgCode(err) == "23505" {
+		if strings.Contains(err.Error(), "slug") {
+			return 0, ErrSlugTaken
+		}
 		return 0, ErrNameTaken
 	}
 	if err != nil {

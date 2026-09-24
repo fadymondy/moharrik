@@ -14,6 +14,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/pgtext"
+	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
 // RegisterSchedules mounts the schedule endpoints.
@@ -55,6 +56,21 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "w-automation-jobs", Method: http.MethodGet, Path: "/api/w/automation/jobs",
+		Summary: "The server jobs a schedule can run, and whether your role may schedule each (MH-478)", Tags: tags,
+	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[struct {
+		Jobs []JobOut `json:"jobs"`
+	}], error) {
+		s, err := scope(ctx, authz.AutomationRead)
+		if err != nil {
+			return nil, err
+		}
+		return out(struct {
+			Jobs []JobOut `json:"jobs"`
+		}{Jobs(s.Role)}), nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "w-create-schedule", Method: http.MethodPost, Path: "/api/w/schedules",
 		DefaultStatus: http.StatusCreated,
 		Summary:       "Run a sequence of steps on a clock", Tags: tags,
@@ -62,13 +78,15 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		wsHeader
 		Body struct {
 			Name     string `json:"name" minLength:"1" maxLength:"80"`
-			AgentID  string `json:"agent_id"`
+			AgentID  string `json:"agent_id,omitempty" doc:"Empty: any connected browser of the workspace."`
 			Cron     string `json:"cron" minLength:"1" maxLength:"100" doc:"Five-field cron, or a descriptor like @daily."`
 			Timezone string `json:"timezone,omitempty" maxLength:"60" doc:"IANA name. Defaults to UTC."`
 			CatchUp  string `json:"catch_up,omitempty" enum:"skip,once" doc:"What to do when the browser was shut at the due time."`
 			Steps    []Step `json:"steps,omitempty" maxItems:"200" doc:"The steps to run. Leave empty and give workflow_id instead."`
-			// A schedule either carries its own steps or runs a saved workflow.
+			// A schedule either carries its own steps or runs a saved workflow —
+			// or a server job (MH-478), which takes no browser at all.
 			WorkflowID string            `json:"workflow_id,omitempty"`
+			JobKey     string            `json:"job_key,omitempty" maxLength:"60"`
 			Values     map[string]string `json:"values,omitempty" doc:"Values for the workflow's placeholders."`
 		}
 	}) (*body[struct {
@@ -84,53 +102,65 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
 
-		// A workflow's steps are filled in here too, so the allow-list check
-		// below sees the hosts this schedule will ACTUALLY visit rather than a
-		// placeholder that could be anything.
-		steps2 := in.Body.Steps
+		var agentArg any // NULL: any connected browser of the workspace (MH-478)
+		if in.Body.AgentID != "" {
+			agentArg = in.Body.AgentID
+		}
 		plainValues, sealed := map[string]string{}, ""
-		if in.Body.WorkflowID != "" {
-			if len(in.Body.Steps) > 0 {
-				return nil, huma.Error422UnprocessableEntity("a schedule runs its own steps or a saved workflow, not both")
+
+		if in.Body.JobKey != "" {
+			// A server job: no browser, no steps, no workflow.
+			if in.Body.WorkflowID != "" || len(in.Body.Steps) > 0 || in.Body.AgentID != "" {
+				return nil, huma.Error422UnprocessableEntity("a job schedule runs on the server: it takes no browser, steps or workflow")
 			}
-			w, err := getWorkflow(ctx, db(), s.WorkspaceID, in.Body.WorkflowID)
-			if err != nil {
-				return nil, err
+			j, ok := LookupJob(in.Body.JobKey)
+			if !ok {
+				return nil, huma.Error422UnprocessableEntity("this server does not run the job " + in.Body.JobKey)
 			}
-			filled, _, ferr := Fill(w.Steps, w.Params, in.Body.Values)
-			if ferr != nil {
+			// What a member may not do by hand, they may not put on a clock.
+			if !authz.Can(s.Role, j.Permission) {
+				return nil, huma.Error403Forbidden("your role cannot do what this job does in this workspace")
+			}
+			if _, _, ferr := Fill(nil, j.Params, in.Body.Values); ferr != nil {
 				return nil, huma.Error422UnprocessableEntity(ferr.Error())
 			}
-			steps2 = filled
-			// The secret values are sealed here and never stored in the clear
-			// (schedule_values.go).
-			plainValues, sealed, err = SplitScheduleValues(w.Params, in.Body.Values)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not keep the schedule's secret values")
+			for k, v := range in.Body.Values {
+				plainValues[k] = v
 			}
-		}
-		if len(steps2) == 0 {
-			return nil, huma.Error422UnprocessableEntity("a schedule needs steps, or a workflow to run")
-		}
-
-		// The steps are checked against the browser's allow-list NOW, not only
-		// when the schedule fires at 4am with nobody watching.
-		var hosts pgtext.Array
-		var revoked sql.NullTime
-		err = db().QueryRowContext(ctx, `
-			SELECT allowed_hosts, revoked_at FROM browser_agents WHERE workspace_id = $1 AND id = $2`,
-			s.WorkspaceID, in.Body.AgentID).Scan(&hosts, &revoked)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("no such browser")
-		}
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read that browser")
-		}
-		if revoked.Valid {
-			return nil, huma.Error409Conflict(ErrRevoked.Error())
-		}
-		if err := CheckSteps(steps2, hosts); err != nil {
-			return nil, runError(err)
+		} else {
+			// A workflow's steps are filled in here too, so the allow-list check
+			// below sees the hosts this schedule will ACTUALLY visit rather than
+			// a placeholder that could be anything.
+			steps2 := in.Body.Steps
+			if in.Body.WorkflowID != "" {
+				if len(in.Body.Steps) > 0 {
+					return nil, huma.Error422UnprocessableEntity("a schedule runs its own steps or a saved workflow, not both")
+				}
+				w, err := getWorkflow(ctx, db(), s.WorkspaceID, in.Body.WorkflowID)
+				if err != nil {
+					return nil, err
+				}
+				filled, _, ferr := Fill(w.Steps, w.Params, in.Body.Values)
+				if ferr != nil {
+					return nil, huma.Error422UnprocessableEntity(ferr.Error())
+				}
+				steps2 = filled
+				// The secret values are sealed here and never stored in the clear
+				// (schedule_values.go).
+				plainValues, sealed, err = SplitScheduleValues(w.Params, in.Body.Values)
+				if err != nil {
+					return nil, huma.Error500InternalServerError("could not keep the schedule's secret values")
+				}
+			}
+			if len(steps2) == 0 {
+				return nil, huma.Error422UnprocessableEntity("a schedule needs steps, a workflow or a job to run")
+			}
+			// The steps are checked against the allowed sites NOW, not only when
+			// the schedule fires at 4am with nobody watching: the named browser's,
+			// or — with none named — at least one browser's of the workspace.
+			if err := checkScheduleHosts(ctx, db(), s.WorkspaceID, in.Body.AgentID, steps2); err != nil {
+				return nil, err
+			}
 		}
 
 		next, err := NextAfter(in.Body.Cron, zone, time.Now().UTC())
@@ -148,11 +178,11 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 
 		var id string
 		err = db().QueryRowContext(ctx, `
-			INSERT INTO automation_schedules (workspace_id, name, agent_id, steps, cron, timezone, catch_up, next_run_at, created_by, workflow_id, params, secret_values)
-			VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb, $12) RETURNING id`,
-			s.WorkspaceID, strings.TrimSpace(in.Body.Name), in.Body.AgentID, string(steps),
+			INSERT INTO automation_schedules (workspace_id, name, agent_id, steps, cron, timezone, catch_up, next_run_at, created_by, workflow_id, params, secret_values, job_key)
+			VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13) RETURNING id`,
+			s.WorkspaceID, strings.TrimSpace(in.Body.Name), agentArg, string(steps),
 			strings.TrimSpace(in.Body.Cron), zone, catchUp, next, s.UserID,
-			in.Body.WorkflowID, jsonOrEmpty(plainValues), sealed).Scan(&id)
+			in.Body.WorkflowID, jsonOrEmpty(plainValues), sealed, in.Body.JobKey).Scan(&id)
 		if pgCode(err) == "23505" {
 			return nil, huma.Error409Conflict("a schedule with that name already exists")
 		}
@@ -185,7 +215,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 			Timezone   *string           `json:"timezone,omitempty" maxLength:"60"`
 			CatchUp    *string           `json:"catch_up,omitempty" enum:",skip,once"`
 			Name       *string           `json:"name,omitempty" maxLength:"80"`
-			AgentID    *string           `json:"agent_id,omitempty"`
+			AgentID    *string           `json:"agent_id,omitempty" doc:"Another browser, or empty for any connected browser (MH-478)."`
 			WorkflowID *string           `json:"workflow_id,omitempty" doc:"Run this saved workflow instead. A schedule of its own steps can be switched to a workflow; not back."`
 			Values     map[string]string `json:"values,omitempty" doc:"The workflow's values. A blank secret keeps the sealed one."`
 		}
@@ -231,8 +261,8 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 			}
 		}
 		agentID := cur.AgentID
-		if in.Body.AgentID != nil && strings.TrimSpace(*in.Body.AgentID) != "" {
-			agentID = strings.TrimSpace(*in.Body.AgentID)
+		if in.Body.AgentID != nil && cur.JobKey == "" {
+			agentID = strings.TrimSpace(*in.Body.AgentID) // "" is any connected browser
 		}
 		workflowID := cur.WorkflowID
 		if in.Body.WorkflowID != nil && strings.TrimSpace(*in.Body.WorkflowID) != "" {
@@ -242,7 +272,8 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		// What it runs, when that is being changed: the values sealed again,
 		// the steps filled and checked against the browser like a new schedule.
 		ownSteps, plainJSON, sealed := "", "", ""
-		whatChanged := workflowID != cur.WorkflowID || in.Body.Values != nil || agentID != cur.AgentID
+		// A server job runs in no browser and has no steps to check.
+		whatChanged := cur.JobKey == "" && (workflowID != cur.WorkflowID || in.Body.Values != nil || agentID != cur.AgentID)
 		if whatChanged {
 			steps := cur.Steps
 			if workflowID != "" {
@@ -273,22 +304,10 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 			if len(steps) == 0 {
 				return nil, huma.Error422UnprocessableEntity("a schedule needs steps, or a workflow to run")
 			}
-			var hosts pgtext.Array
-			var revoked sql.NullTime
-			err = db().QueryRowContext(ctx, `
-				SELECT allowed_hosts, revoked_at FROM browser_agents WHERE workspace_id = $1 AND id = $2`,
-				s.WorkspaceID, agentID).Scan(&hosts, &revoked)
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, huma.Error404NotFound("no such browser")
-			}
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not read that browser")
-			}
-			if revoked.Valid {
-				return nil, huma.Error409Conflict(ErrRevoked.Error())
-			}
-			if err := CheckSteps(steps, hosts); err != nil {
-				return nil, runError(err)
+			// A named browser must allow every step; "any browser" needs one
+			// of the workspace's browsers that does (MH-478).
+			if err := checkScheduleHosts(ctx, db(), s.WorkspaceID, agentID, steps); err != nil {
+				return nil, err
 			}
 		}
 
@@ -296,7 +315,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		// workflow is what it runs: a schedule of its own steps keeps them.
 		_, err = db().ExecContext(ctx, `
 			UPDATE automation_schedules SET cron = $3, timezone = $4, catch_up = $5, enabled = $6,
-			    next_run_at = $7, name = $8, agent_id = $10, workflow_id = $11,
+			    next_run_at = $7, name = $8, agent_id = NULLIF($10, ''), workflow_id = $11,
 			    steps = CASE WHEN $9 AND $11 <> '' THEN $12::jsonb ELSE steps END,
 			    params = CASE WHEN $9 AND $11 <> '' THEN $13::jsonb ELSE params END,
 			    secret_values = CASE WHEN $9 AND $11 <> '' THEN $14 ELSE secret_values END,
@@ -392,23 +411,43 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, err
 		}
+		// A server job runs in the background, recorded on the row exactly as
+		// the clock would record it (MH-478).
+		if got.JobKey != "" {
+			if j, ok := LookupJob(got.JobKey); ok && !authz.Can(s.Role, j.Permission) {
+				return nil, huma.Error403Forbidden("your role cannot do what this job does in this workspace")
+			}
+			d, derr := loadDue(ctx, a, s.WorkspaceID, in.ID)
+			if derr != nil {
+				return nil, huma.Error500InternalServerError("could not read that schedule")
+			}
+			if err := hub.RunJobNow(ctx, a, d); err != nil {
+				if errors.Is(err, ErrUnknownJob) {
+					return nil, huma.Error409Conflict(err.Error())
+				}
+				if errors.Is(err, ErrBusy) {
+					return nil, huma.Error409Conflict("this job is already running")
+				}
+				return nil, runError(err)
+			}
+			return out(struct {
+				RunID string `json:"run_id"`
+			}{""}), nil
+		}
 		// Through the same Start as everything else: a schedule run by hand
 		// gets the kill switch, the allow-list and one-at-a-time exactly like
-		// any other run.
-		var runID string
-		if got.WorkflowID != "" {
-			// A schedule of a saved workflow runs THE WORKFLOW, filled with the
-			// schedule's values. It used to send the schedule's own steps, which
-			// for these schedules are empty: "Run now" failed with "a run needs
-			// at least one step" (MH-403).
-			values, verr := scheduleValues(ctx, db(), s.WorkspaceID, in.ID)
-			if verr != nil {
-				return nil, huma.Error409Conflict("this schedule's secret values can no longer be read; create it again")
-			}
-			runID, err = RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, got.WorkflowID, got.AgentID, "schedule", values)
-		} else {
-			runID, err = hub.Start(ctx, a, s.WorkspaceID, s.UserID, "schedule", got.AgentID, got.Steps)
+		// any other run — on its named browser, or on whichever connected one
+		// takes it when it names none.
+		d, derr := loadDue(ctx, a, s.WorkspaceID, in.ID)
+		if derr != nil {
+			return nil, huma.Error409Conflict("this schedule's secret values can no longer be read; create it again")
 		}
+		d.RequestedBy = s.UserID
+		candidates, why := hub.pickAgents(ctx, a, d)
+		if len(candidates) == 0 {
+			return nil, huma.Error409Conflict(why)
+		}
+		runID, err := hub.startScheduled(ctx, a, d, candidates)
 		if err != nil {
 			return nil, runError(err)
 		}
@@ -432,9 +471,10 @@ type SchedulePreview struct {
 // scheduleSelect is every column a Schedule is read from. The sealed secret
 // values are read only to name which are set; they never leave this package.
 const scheduleSelect = `
-	SELECT s.id, s.name, s.agent_id, COALESCE(b.name, ''), s.cron, s.timezone, s.catch_up, s.enabled,
+	SELECT s.id, s.name, COALESCE(s.agent_id, ''), COALESCE(b.name, ''), s.cron, s.timezone, s.catch_up, s.enabled,
 	       s.steps::text, s.next_run_at, s.last_run_at, s.last_status, s.last_error, s.last_run_id, s.created_at,
-	       s.workflow_id, COALESCE(w.name, ''), s.params::text, s.secret_values
+	       s.workflow_id, COALESCE(w.name, ''), s.params::text, s.secret_values,
+	       s.job_key, s.failure_count, s.missed_count
 	FROM automation_schedules s
 	LEFT JOIN browser_agents b ON b.workspace_id = s.workspace_id AND b.id = s.agent_id
 	LEFT JOIN automation_workflows w ON w.workspace_id = s.workspace_id AND w.id = s.workflow_id`
@@ -446,9 +486,11 @@ func scanSchedule(r rowScanner) (Schedule, error) {
 	var last sql.NullTime
 	if err := r.Scan(&x.ID, &x.Name, &x.AgentID, &x.AgentName, &x.Cron, &x.Timezone, &x.CatchUp, &x.Enabled,
 		&steps, &next, &last, &x.LastStatus, &x.LastError, &x.LastRunID, &x.CreatedAt,
-		&x.WorkflowID, &x.WorkflowName, &values, &sealed); err != nil {
+		&x.WorkflowID, &x.WorkflowName, &values, &sealed,
+		&x.JobKey, &x.FailureCount, &x.MissedCount); err != nil {
 		return x, err
 	}
+	x.Failing = x.FailureCount >= failureNotifyAt
 	_ = json.Unmarshal([]byte(steps), &x.Steps)
 	if x.Steps == nil {
 		x.Steps = []Step{}
@@ -501,4 +543,54 @@ func jsonOrEmpty(v map[string]string) string {
 		return "{}"
 	}
 	return string(raw)
+}
+
+// checkScheduleHosts refuses a schedule whose steps no browser may run: the
+// named one's allowed sites, or — with none named — at least one of the
+// workspace's browsers' (MH-478).
+func checkScheduleHosts(ctx context.Context, db *sql.DB, workspaceID, agentID string, steps []Step) error {
+	if agentID != "" {
+		var hosts pgtext.Array
+		var revoked sql.NullTime
+		err := db.QueryRowContext(ctx, `
+			SELECT allowed_hosts, revoked_at FROM browser_agents WHERE workspace_id = $1 AND id = $2`,
+			workspaceID, agentID).Scan(&hosts, &revoked)
+		if errors.Is(err, sql.ErrNoRows) {
+			return huma.Error404NotFound("no such browser")
+		}
+		if err != nil {
+			return huma.Error500InternalServerError("could not read that browser")
+		}
+		if revoked.Valid {
+			return huma.Error409Conflict(ErrRevoked.Error())
+		}
+		if err := CheckSteps(steps, hosts); err != nil {
+			return runError(err)
+		}
+		return nil
+	}
+	rows, err := db.QueryContext(ctx, `SELECT allowed_hosts FROM browser_agents WHERE workspace_id = $1 AND revoked_at IS NULL`, workspaceID)
+	if err != nil {
+		return huma.Error500InternalServerError("could not read the browsers")
+	}
+	defer rows.Close()
+	var firstErr error = huma.Error422UnprocessableEntity("this workspace has no browser to run it in yet")
+	for rows.Next() {
+		var hosts pgtext.Array
+		if rows.Scan(&hosts) != nil {
+			continue
+		}
+		if err := CheckSteps(steps, hosts); err == nil {
+			return nil
+		} else {
+			firstErr = runError(err)
+		}
+	}
+	return firstErr
+}
+
+// loadDue reads one schedule as the scheduler sees it.
+func loadDue(ctx context.Context, a *app.App, workspaceID, id string) (due, error) {
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	return scanDue(a.SQLDB.QueryRowContext(sctx, `SELECT `+dueColumns+` FROM automation_schedules WHERE workspace_id = $1 AND id = $2`, workspaceID, id))
 }

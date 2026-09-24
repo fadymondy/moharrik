@@ -13,12 +13,14 @@ import {
   PlusIcon,
   SettingsIcon,
   ShieldCheckIcon,
+  SparklesIcon,
   WorkflowIcon,
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
+import { LimitsPanel } from "@/components/automation/limits-panel"
 import { ScheduleForm } from "@/components/automation/schedule-form"
 import { StepEditor, fromEditorSteps, toEditorSteps, type EditorStep } from "@/components/automation/step-editor"
 import { PickSelect } from "@/components/crm/shared"
@@ -31,10 +33,10 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type AutomationRun, type AutomationSchedule, type AutomationWorkflow, type BrowserAgent } from "@/lib/api"
+import { api, ApiError, type AutomationJob, type AutomationRun, type AutomationSchedule, type AutomationWorkflow, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useWorkspaceEvents } from "@/lib/events"
-import { useAutomationSettings, useBrowsers, useExtension, useRuns, useSchedules, useWorkflows } from "@/lib/queries"
+import { useAutomationSettings, useBrowsers, useExtension, useJobs, useRuns, useSchedules, useWorkflows } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -50,6 +52,7 @@ export default function AutomationPage() {
   const runs = useRuns(ws.id)
   const schedules = useSchedules(ws.id)
   const workflows = useWorkflows(ws.id)
+  const jobs = useJobs(ws.id)
   const ext = useExtension()
 
   // A schedule fires with nobody watching, by definition. Without this a page
@@ -78,6 +81,8 @@ export default function AutomationPage() {
   const [scheduling, setScheduling] = useState(false)
   const [runningOnce, setRunningOnce] = useState(false)
   const workflowList = workflows.data?.workflows ?? []
+  // Server jobs need no browser (MH-478): a workspace can schedule one first.
+  const canJob = (jobs.data?.jobs ?? []).some((j) => j.allowed)
 
   async function setPaused(next: boolean) {
     try {
@@ -225,6 +230,11 @@ export default function AutomationPage() {
             workflowList.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2">
                 {/* The canvas list (MH-480): every workflow as a graph, and its executions. */}
+                {/* The preset library (MH-478): fadymondy.com's plugins, ready to add. */}
+                <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/presets`} />} data-open-presets>
+                  <SparklesIcon />
+                  {t("presets.link")}
+                </Button>
                 <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows`} />} data-open-workflows>
                   <WorkflowIcon />
                   {t("workflows.openList")}
@@ -249,10 +259,16 @@ export default function AutomationPage() {
             body={canRun ? t("automation.noWorkflowsBody") : undefined}
             action={
               canRun ? (
-                <Button size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/new`} />}>
-                  <PlusIcon />
-                  {t("automation.editor.newWorkflow")}
-                </Button>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Button size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/presets`} />} data-empty-presets>
+                    <SparklesIcon />
+                    {t("presets.fromPreset")}
+                  </Button>
+                  <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/new`} />}>
+                    <PlusIcon />
+                    {t("automation.editor.newWorkflow")}
+                  </Button>
+                </div>
               ) : undefined
             }
           />
@@ -280,7 +296,7 @@ export default function AutomationPage() {
           title={t("automation.schedules")}
           hint={t("automation.schedulesHint")}
           action={
-            canRun && hasBrowser && (schedules.data?.schedules ?? []).length > 0 ? (
+            canRun && (hasBrowser || canJob) && (schedules.data?.schedules ?? []).length > 0 ? (
               <Button variant="outline" size="sm" onClick={() => setScheduling((v) => !v)} data-new-schedule>
                 {scheduling ? <XIcon /> : <PlusIcon />}
                 {scheduling ? t("common.cancel") : t("automation.sched.new")}
@@ -295,7 +311,7 @@ export default function AutomationPage() {
         ) : (schedules.data?.schedules ?? []).length === 0 && !scheduling ? (
           // A schedule runs in a paired browser. With none paired, "add a
           // schedule" was a dead end: say what is missing and where to get it.
-          !hasBrowser ? (
+          !hasBrowser && !canJob ? (
             <EmptyState
               title={t("automation.sched.needBrowserTitle")}
               body={t("automation.sched.needBrowserBody")}
@@ -329,6 +345,7 @@ export default function AutomationPage() {
                 canRun={canRun}
                 browsers={active}
                 workflows={workflowList}
+                jobs={jobs.data?.jobs ?? []}
                 onChange={() => {
                   schedules.mutate()
                   runs.mutate()
@@ -337,10 +354,11 @@ export default function AutomationPage() {
             ))}
           </ul>
         ) : null}
-        {canRun && hasBrowser && scheduling ? (
+        {canRun && (hasBrowser || canJob) && scheduling ? (
           <ScheduleForm
             browsers={active}
-            workflows={workflowList}
+            workflows={hasBrowser ? workflowList : []}
+            jobs={jobs.data?.jobs ?? []}
             onAdded={() => {
               setScheduling(false)
               schedules.mutate()
@@ -387,6 +405,9 @@ export default function AutomationPage() {
           </ul>
         )}
       </section>
+
+      {/* ---- the workspace's own limits (MH-234, MH-478) ---- */}
+      <LimitsPanel settings={settings.data} canManage={canManage} onSaved={() => settings.mutate()} />
       <div className="pb-8" />
     </>
   )
@@ -752,12 +773,14 @@ function ScheduleRow({
   canRun,
   browsers,
   workflows,
+  jobs,
   onChange,
 }: {
   schedule: AutomationSchedule
   canRun: boolean
   browsers: BrowserAgent[]
   workflows: AutomationWorkflow[]
+  jobs: AutomationJob[]
   onChange: () => void
 }) {
   const { t, formatDate } = useTranslations()
@@ -768,7 +791,7 @@ function ScheduleRow({
   // The schedule's own browser stays offerable even if it is not in the
   // active list (revoked since): the API refuses it with a reason, rather than
   // the form silently switching it to another.
-  const browserOptions = browsers.some((b) => b.id === schedule.agent_id)
+  const browserOptions = !schedule.agent_id || browsers.some((b) => b.id === schedule.agent_id)
     ? browsers
     : [{ id: schedule.agent_id, name: schedule.agent_name || t("automation.unnamedBrowser") } as BrowserAgent, ...browsers]
 
@@ -808,7 +831,19 @@ function ScheduleRow({
           <Bdi>{schedule.name}</Bdi>
           <Badge variant={schedule.enabled ? "default" : "outline"}>{schedule.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")}</Badge>
           {schedule.last_status ? <Badge variant="secondary">{t(`automation.last.${schedule.last_status}`)}</Badge> : null}
+          {/* Five failures in a row (MH-478): said on the row, not left for someone to count. */}
+          {schedule.failing ? (
+            <Badge variant="destructive" data-schedule-failing>
+              {t("automation.sched.failing", { n: schedule.failure_count })}
+            </Badge>
+          ) : null}
         </p>
+        {schedule.job_key ? (
+          <p className="text-xs text-grid-muted" data-schedule-job={schedule.job_key}>
+            {t("automation.sched.runsJob", { name: t(`automation.job.${schedule.job_key}`) })}
+            {Object.entries(schedule.values ?? {}).map(([k, v]) => ` · ${t(`automation.jobParam.${k}`)}: ${v}`)}
+          </p>
+        ) : null}
         {schedule.workflow_id ? (
           <p className="text-xs text-grid-muted" data-schedule-workflow>
             {t("automation.sched.runs", { name: schedule.workflow_name ? isolate(schedule.workflow_name) : t("automation.sched.deletedWorkflow") })}
@@ -817,7 +852,16 @@ function ScheduleRow({
           </p>
         ) : null}
         <p className="text-xs text-grid-muted">
-          <Ltr mono>{schedule.cron}</Ltr> · <Ltr>{schedule.timezone}</Ltr> · {schedule.agent_name ? <Bdi>{schedule.agent_name}</Bdi> : t("automation.unnamedBrowser")} · {t(`automation.catchUp.${schedule.catch_up}`)}
+          <Ltr mono>{schedule.cron}</Ltr> · <Ltr>{schedule.timezone}</Ltr>
+          {schedule.job_key ? null : (
+            <>
+              {" · "}
+              {schedule.agent_id ? (schedule.agent_name ? <Bdi>{schedule.agent_name}</Bdi> : t("automation.unnamedBrowser")) : t("automation.sched.anyBrowser")}
+            </>
+          )}
+          {" · "}
+          {t(`automation.catchUp.${schedule.catch_up}`)}
+          {schedule.missed_count > 0 ? ` · ${t("automation.sched.missedCount", { n: schedule.missed_count })}` : ""}
         </p>
         <p className="text-xs text-grid-muted">
           {schedule.next_run_at ? t("automation.nextRun", { date: formatDate(schedule.next_run_at) }) : ""}
@@ -826,7 +870,10 @@ function ScheduleRow({
         {/* A miss is shown, not swallowed: "there is no data for Tuesday" has
             to have an answer on the page. */}
         {schedule.last_error ? (
-          <p className="mt-1 text-xs text-grid-danger-text" data-schedule-error>
+          <p
+            className={schedule.last_status === "ok" || schedule.last_status === "skipped" ? "mt-1 text-xs text-grid-muted" : "mt-1 text-xs text-grid-danger-text"}
+            data-schedule-error
+          >
             <Bdi>{schedule.last_error}</Bdi>
           </p>
         ) : null}
@@ -857,6 +904,7 @@ function ScheduleRow({
           editing={schedule}
           browsers={browserOptions}
           workflows={workflows}
+          jobs={jobs}
           onCancel={() => setEditing(false)}
           onAdded={() => {
             setEditing(false)
@@ -891,8 +939,9 @@ function WorkflowRow({
   // declare it: a workflow edited to add one should still be runnable.
   const fields = workflow.placeholders.map((name) => workflow.params.find((p) => p.name === name) ?? { name })
 
-  async function run(e: FormEvent) {
-    e.preventDefault()
+  async function run(e?: FormEvent) {
+    e?.preventDefault()
+    if (e && workflow.writes) return // only through the confirmation
     setBusy(true)
     setErr(null)
     try {
@@ -925,6 +974,11 @@ function WorkflowRow({
               <Bdi>{workflow.name}</Bdi>
             </Link>
             <Badge variant="outline">{t("automation.editor.versionBadge", { n: workflow.version })}</Badge>
+            {workflow.writes ? (
+              <Badge variant="secondary" data-workflow-writes>
+                {t("presets.publishes")}
+              </Badge>
+            ) : null}
           </p>
           {workflow.description ? (
             <p className="text-sm text-grid-muted">
@@ -936,6 +990,12 @@ function WorkflowRow({
             {workflow.placeholders.length > 0 ? ` · ${t("automation.asksFor", { names: isolate(workflow.placeholders.join(", ")) })}` : ""}
             {workflow.run_count > 0 ? ` · ${t("automation.ranTimes", { n: workflow.run_count })}` : ""}
           </p>
+          {workflow.hosts?.length ? (
+            <p className="flex items-start gap-1 text-xs text-grid-muted" data-workflow-hosts={workflow.hosts.join(",")}>
+              <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
+              <span className="min-w-0 break-words">{t("presets.goesTo", { hosts: workflow.hosts.join(", ") })}</span>
+            </p>
+          ) : null}
         </div>
         {canRun ? (
           <div className="flex items-center gap-2">
@@ -984,9 +1044,21 @@ function WorkflowRow({
               ))}
             </div>
             <div>
-              <Button type="submit" disabled={busy || !agent}>
-                {busy ? t("common.working") : t("automation.startRun")}
-              </Button>
+              {workflow.writes ? (
+                // It publishes, sends or submits as the signed-in account
+                // (MH-478): said once more, and pressed twice.
+                <ConfirmButton
+                  label={busy ? t("common.working") : t("presets.runAndPublish")}
+                  title={t("presets.confirmTitle", { name: isolate(workflow.name) })}
+                  description={t("presets.confirmBody", { hosts: (workflow.hosts ?? []).join(", ") })}
+                  confirmLabel={t("presets.runAndPublish")}
+                  onConfirm={() => run()}
+                />
+              ) : (
+                <Button type="submit" disabled={busy || !agent}>
+                  {busy ? t("common.working") : t("automation.startRun")}
+                </Button>
+              )}
             </div>
           </FieldGroup>
           {err ? <FieldError className="mt-3">{err}</FieldError> : null}

@@ -8,6 +8,8 @@ import {
   type NotificationPage,
   api,
   ApiError,
+  type AutomationJob,
+  type AutomationPreset,
   type CrmReport,
   type IcpProfileOut,
   type AutomationRun,
@@ -500,17 +502,30 @@ export const useAutomationSettings = (id?: string | null) =>
  * browser out in the world, so nothing on this side can push an event when a
  * step finishes. Once everything has settled the polling stops.
  */
-export function useRuns(workspaceId: string | null | undefined, agent?: string) {
-  const path = "/api/w/runs" + (agent ? `?agent=${encodeURIComponent(agent)}` : "")
-  return useSWR<{ runs: AutomationRun[] }>(
+export type RunFilter = { agent?: string; status?: string; workflow?: string; schedule?: string; before?: string; limit?: number }
+
+export function useRuns(workspaceId: string | null | undefined, filter: RunFilter | string = {}) {
+  const f: RunFilter = typeof filter === "string" ? { agent: filter } : filter
+  const q = new URLSearchParams()
+  for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "") q.set(k, String(v))
+  const qs = q.toString()
+  const path = "/api/w/runs" + (qs ? `?${qs}` : "")
+  return useSWR<{ runs: AutomationRun[]; next_before?: string }>(
     workspaceId ? [path, workspaceId] : null,
-    ([p, id]: [string, string]) => api<{ runs: AutomationRun[] }>(p, { workspaceId: id }),
+    ([p, id]: [string, string]) => api<{ runs: AutomationRun[]; next_before?: string }>(p, { workspaceId: id }),
     {
       ...noRetryOn4xx,
-      refreshInterval: (data) => ((data?.runs ?? []).some((r) => r.status === "queued" || r.status === "running") ? 2000 : 0),
+      // Something is going: follow it until it settles.
+      refreshInterval: (data) => (data?.runs?.some((r) => r.status === "queued" || r.status === "running") ? 2000 : 0),
     },
   )
 }
+
+/** The server jobs a schedule can run (MH-478). */
+export const useJobs = (id?: string | null) => useScoped<{ jobs: AutomationJob[] }>("/api/w/automation/jobs", id)
+export const usePresets = (id?: string | null) => useScoped<{ version: number; presets: AutomationPreset[] }>("/api/w/automation/presets", id)
+export const useAutomationProfile = (id?: string | null) =>
+  useScoped<{ profile: Record<string, string>; fields: string[] }>("/api/w/automation/profile", id)
 
 /** One run with its steps. Polled while it is still going, for the same reason. */
 export function useRun(workspaceId: string | null | undefined, id?: string) {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -36,6 +37,11 @@ const (
 	// short enough that the table stays readable.
 	DefaultRetentionDays = 30
 
+	// Runs a browser may be asked for in an hour (fadymondy.com's RunsPerHour,
+	// MH-478). A workflow on a one-minute schedule, or a model in a loop,
+	// otherwise hammers a signed-in site as fast as the browser answers.
+	DefaultRunsPerHour = 60
+
 	// How often the sweeper looks. Retention is measured in days, so this is
 	// about not accumulating a day's backlog rather than about precision.
 	retentionTick = 1 * time.Hour
@@ -51,10 +57,14 @@ const (
 // by picking another browser. This one means every slot is taken.
 var ErrAtCapacity = errors.New("this workspace is already running as much automation as it allows")
 
+// ErrHourly is the per-browser hourly ceiling answering (MH-478).
+var ErrHourly = errors.New("this browser has had as many runs in the last hour as this workspace allows")
+
 // Limits are a workspace's automation ceilings.
 type Limits struct {
 	MaxParallelRuns int `json:"max_parallel_runs"`
 	RetentionDays   int `json:"retention_days"`
+	RunsPerHour     int `json:"runs_per_hour"`
 }
 
 // ReadLimits returns the workspace's ceilings, falling back to the defaults
@@ -66,13 +76,13 @@ type Limits struct {
 // this one cannot do that without making an unreadable settings row stop the
 // whole workspace, so it falls back to the conservative number instead.
 func ReadLimits(ctx context.Context, a *app.App, workspaceID string) Limits {
-	limits := Limits{MaxParallelRuns: DefaultMaxParallelRuns, RetentionDays: DefaultRetentionDays}
+	limits := Limits{MaxParallelRuns: DefaultMaxParallelRuns, RetentionDays: DefaultRetentionDays, RunsPerHour: DefaultRunsPerHour}
 
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
-	var maxParallel, retention int
+	var maxParallel, retention, hourly int
 	err := a.SQLDB.QueryRowContext(sctx, `
-		SELECT max_parallel_runs, retention_days FROM automation_settings WHERE workspace_id = $1`,
-		workspaceID).Scan(&maxParallel, &retention)
+		SELECT max_parallel_runs, retention_days, runs_per_hour FROM automation_settings WHERE workspace_id = $1`,
+		workspaceID).Scan(&maxParallel, &retention, &hourly)
 	if errors.Is(err, sql.ErrNoRows) || err != nil {
 		return limits
 	}
@@ -81,6 +91,9 @@ func ReadLimits(ctx context.Context, a *app.App, workspaceID string) Limits {
 	}
 	if retention >= 0 {
 		limits.RetentionDays = retention
+	}
+	if hourly > 0 {
+		limits.RunsPerHour = hourly
 	}
 	return limits
 }
@@ -95,16 +108,23 @@ func SetLimits(ctx context.Context, a *app.App, workspaceID string, limits Limit
 	if limits.RetentionDays < 0 || limits.RetentionDays > 3650 {
 		return errors.New("retention must be between 0 and 3650 days")
 	}
+	if limits.RunsPerHour == 0 {
+		limits.RunsPerHour = DefaultRunsPerHour
+	}
+	if limits.RunsPerHour < 1 || limits.RunsPerHour > 1000 {
+		return errors.New("runs per hour must be between 1 and 1000")
+	}
 
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
 	_, err := a.SQLDB.ExecContext(sctx, `
-		INSERT INTO automation_settings (workspace_id, max_parallel_runs, retention_days)
-		VALUES ($1, $2, $3)
+		INSERT INTO automation_settings (workspace_id, max_parallel_runs, retention_days, runs_per_hour)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (workspace_id) DO UPDATE SET
 			max_parallel_runs = EXCLUDED.max_parallel_runs,
 			retention_days = EXCLUDED.retention_days,
+			runs_per_hour = EXCLUDED.runs_per_hour,
 			updated_at = now()`,
-		workspaceID, limits.MaxParallelRuns, limits.RetentionDays)
+		workspaceID, limits.MaxParallelRuns, limits.RetentionDays, limits.RunsPerHour)
 	return err
 }
 
@@ -193,6 +213,38 @@ func SweepRuns(ctx context.Context, a *app.App, now time.Time) (int, error) {
 	}
 
 	return deleted, nil
+}
+
+// SweepWorkspace deletes one workspace's finished runs past its own window,
+// now (the "automation.retention" job, MH-478). 0 days keeps everything.
+func SweepWorkspace(ctx context.Context, a *app.App, workspaceID string, now time.Time) (int, error) {
+	days := ReadLimits(ctx, a, workspaceID).RetentionDays
+	if days <= 0 {
+		return 0, nil
+	}
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	deleted := 0
+	for {
+		ids, err := expiredRuns(sctx, a, workspaceID, now.AddDate(0, 0, -days))
+		if err != nil {
+			return deleted, err
+		}
+		if len(ids) == 0 {
+			return deleted, nil
+		}
+		removeScreenshots(sctx, a, workspaceID, ids)
+		res, err := a.SQLDB.ExecContext(sctx, `
+			DELETE FROM automation_runs WHERE workspace_id = $1 AND id = ANY($2::text[]) AND status NOT IN ('queued', 'running')`,
+			workspaceID, pgtext.Literal(ids))
+		if err != nil {
+			return deleted, err
+		}
+		n, _ := res.RowsAffected()
+		deleted += int(n)
+		if n == 0 {
+			return deleted, nil
+		}
+	}
 }
 
 // StartRetention runs the sweeper for the life of the process, beside the
@@ -327,6 +379,19 @@ func (h *Hub) claimSlot(ctx context.Context, a *app.App, workspaceID, agentID, t
 	limits := ReadLimits(ctx, a, workspaceID)
 	if workspaceLive >= limits.MaxParallelRuns {
 		return "", ErrAtCapacity
+	}
+
+	// The hourly ceiling per browser, counted under the same lock so two
+	// starts cannot both squeeze under it (MH-478).
+	var lastHour int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT count(*) FROM automation_runs
+		WHERE workspace_id = $1 AND agent_id = $2 AND created_at > now() - interval '1 hour'`,
+		workspaceID, agentID).Scan(&lastHour); err != nil {
+		return "", err
+	}
+	if lastHour >= limits.RunsPerHour {
+		return "", fmt.Errorf("%w (%d)", ErrHourly, limits.RunsPerHour)
 	}
 
 	var runID string

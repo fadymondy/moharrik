@@ -98,6 +98,8 @@ func Boot() *app.App {
 	// Discovery rides on research: settled discovery runs become prospects,
 	// and scheduled discovery runs on the research clock (MH-397).
 	prospects.Init(researchEngine)
+	// The server jobs a schedule can run (MH-478).
+	registerJobs(a, researchEngine)
 
 	// A fake-Google override that production ignores is still worth a line in
 	// the log: whoever set it expected it to do something (MH-439).
@@ -267,6 +269,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterConnect(api, a, automation.Default()) // connect a browser by approval (MH-478)
 	automation.RegisterSchedules(api, a, automation.Default())
 	automation.RegisterWorkflows(api, a, automation.Default())
+	automation.RegisterPresets(api, a, automation.Default())
 	automation.RegisterExtension(api)
 	automation.RegisterPick(api, a, automation.Default())
 	automation.RegisterCanvas(api, a) // the workflow canvas: layouts and executions (MH-480)

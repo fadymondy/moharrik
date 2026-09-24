@@ -648,7 +648,25 @@ function clickMarked(mark) {
 async function type(run, args) {
   const selector = String(args.selector || "")
   const text = String(args.text ?? "")
-  if (!selector) throw new Error("this step has no selector")
+  // No selector: type into whatever has focus — the composer a click just
+  // opened (fadymondy.com's plugins post to LinkedIn, X and Gmail this way,
+  // because those editors re-render the element a selector would find).
+  // Nothing is cleared unless the step says clear: true.
+  if (!selector) {
+    if (await useCdp(run)) {
+      if (args.clear === true) {
+        await pressCombo(run.tabID, "a", { control: true })
+        await sleep(jitter(90, 40))
+        await pressKey(run.tabID, "Delete", 46)
+        await sleep(jitter(110, 50))
+      }
+      const typed = await typeCharacters(run, text)
+      return { summary: "typed into the focused field", characters: typed }
+    }
+    const result = await inPage(run, typeFocused, [text, args.clear === true])
+    if (!result?.ok) throw new Error("nothing on the page has focus to type into")
+    return { summary: "typed into the focused field", characters: [...text].length }
+  }
   if (await useCdp(run)) {
     // Clicked first, because focusing by script skips everything a page does
     // on focus. Then the field is emptied — a type step REPLACES the value, as
@@ -660,33 +678,60 @@ async function type(run, args) {
       await pressKey(run.tabID, "Backspace", 8)
       await sleep(jitter(90, 40))
     }
-    let previous = ""
-    let typed = 0
-    for (const character of [...text]) {
-      // Latin through key events so keydown handlers see it; anything an IME
-      // would compose (Arabic, CJK, emoji) through insertText, because a
-      // keystroke stream is the wrong model for it.
-      if (isLatinTypable(character)) await pressCharacter(run.tabID, character)
-      else await send(run.tabID, "Input.insertText", { text: character })
-      typed++
-      await sleep(keyDelay(character, previous))
-      previous = character
-    }
+    const typed = await typeCharacters(run, text)
     // The value itself is NOT echoed back: a "type" step is how a password
     // reaches a page, and the result travels to the server and into a run record.
     return { summary: `typed into ${selector}`, characters: typed }
   }
   const found = await locateIn(run, selector)
-  const result = await inPage(run, typeMarked, [found.mark, text])
+  const result = await inPage(run, typeMarked, [found.mark, text, args.clear !== false])
   if (!result?.ok) throw new Error(`nothing on the page matches ${selector}`)
   return { summary: `typed into ${selector}`, characters: [...text].length }
 }
 
+/** Real keystrokes into whatever has focus, at a person's pace. */
+async function typeCharacters(run, text) {
+  let previous = ""
+  let typed = 0
+  for (const character of [...text]) {
+    // Latin through key events so keydown handlers see it; anything an IME
+    // would compose (Arabic, CJK, emoji) through insertText, because a
+    // keystroke stream is the wrong model for it.
+    if (isLatinTypable(character)) await pressCharacter(run.tabID, character)
+    else await send(run.tabID, "Input.insertText", { text: character })
+    typed++
+    await sleep(keyDelay(character, previous))
+    previous = character
+  }
+  return typed
+}
+
+/** Injected into the page, so self-contained: insert text where the focus is. */
+function typeFocused(value, clear) {
+  const el = document.activeElement
+  if (!el || el === document.body || el === document.documentElement) return { ok: false }
+  const editable = el.isContentEditable || el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement
+  if (!editable) return { ok: false }
+  if (clear) {
+    if (typeof el.select === "function") el.select()
+    else document.execCommand("selectAll")
+  }
+  // insertText goes through the editor's own input handling, so rich editors
+  // (Draft.js, Lexical, ProseMirror) see it as typing.
+  if (!document.execCommand("insertText", false, value)) {
+    if (el.isContentEditable) el.textContent = clear ? value : (el.textContent || "") + value
+    else el.value = clear ? value : el.value + value
+    el.dispatchEvent(new Event("input", { bubbles: true }))
+  }
+  return { ok: true }
+}
+
 /** Injected into the page, so self-contained. */
-function typeMarked(mark, value) {
+function typeMarked(mark, value, replace = true) {
   const el = document.querySelector(`[data-moh-t="${mark}"]`)
   if (!el) return { ok: false }
   el.focus()
+  if (!replace) value = (el.value || "") + value
   // Set through the native setter and fire input/change, or a React-style
   // field ignores the value entirely.
   const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype

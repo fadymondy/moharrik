@@ -24,9 +24,10 @@ one run at a time, and the run deadline. Nothing here re-implements any of
 them, which is the point — a second copy of the allow-list check is a second
 copy that can be wrong.
 
-What a model deliberately CANNOT do here: pair a browser, change its
-allow-list, or lift the kill switch. Those are authz.AutomationManage (admin)
-and have no tool at all, so no token carries them.
+What a model deliberately CANNOT do here: pair a browser or lift the kill
+switch; those have no tool. Changing a browser's allowed sites is
+browser_set_allowed_sites (user_tools_browser.go), under automation:manage,
+which only an admin's token can carry (MH-478).
 */
 func AutomationTools() []Tool {
 	return []Tool{

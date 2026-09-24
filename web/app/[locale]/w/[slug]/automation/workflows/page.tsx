@@ -10,7 +10,7 @@ before it is opened — and an Executions tab listing every run of any of them.
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useMemo, useState } from "react"
-import { ChevronRightIcon, PlusIcon, SearchIcon, ZapIcon } from "lucide-react"
+import { ChevronRightIcon, PlusIcon, SearchIcon, SparklesIcon, ZapIcon } from "lucide-react"
 
 import { ExecutionIcon, useDuration } from "@/components/automation/canvas/executions-view"
 import { kindOf, specOf } from "@/components/automation/canvas/model"
@@ -120,14 +120,21 @@ function Workflows() {
       scroll: false,
     })
   const create = canRun ? (
-    <Button
-      nativeButton={false}
-      render={<Link href={`${base}/workflows/new`} />}
-      data-create-workflow
-    >
-      <PlusIcon />
-      {t("workflows.new")}
-    </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      {/* New workflow → from a preset (MH-478): the preset gallery. */}
+      <Button variant="outline" nativeButton={false} render={<Link href={`${base}/presets`} />} data-create-from-preset>
+        <SparklesIcon />
+        {t("presets.fromPreset")}
+      </Button>
+      <Button
+        nativeButton={false}
+        render={<Link href={`${base}/workflows/new`} />}
+        data-create-workflow
+      >
+        <PlusIcon />
+        {t("workflows.new")}
+      </Button>
+    </div>
   ) : undefined
 
   return (

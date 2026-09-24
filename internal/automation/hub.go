@@ -119,6 +119,10 @@ type Hub struct {
 
 	mu    sync.RWMutex
 	conns map[string]*conn // agent id -> socket
+
+	// Schedules whose server job is running in this process (MH-478).
+	jobsMu      sync.Mutex
+	jobsRunning map[string]bool
 }
 
 func NewHub(log *slog.Logger) *Hub {

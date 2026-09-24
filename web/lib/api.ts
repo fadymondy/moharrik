@@ -926,7 +926,15 @@ export type AutomationSettings = {
   reason: string
   paused_at: string | null
   paused_by: string
+  /** The workspace's ceilings (MH-234, MH-478), and how much of the parallel one is in use. */
+  max_parallel_runs: number
+  retention_days: number
+  runs_per_hour: number
+  live_runs: number
 }
+
+/** A server job a schedule can run (MH-478). */
+export type AutomationJob = { key: string; params: WorkflowParam[]; allowed: boolean }
 
 export type RunStep = {
   /** A screenshot was kept for this step (MH-478). */
@@ -954,6 +962,14 @@ export type AutomationRun = {
   started_at: string | null
   finished_at: string | null
   created_at: string
+  /** Which workflow, which version of it, and which schedule the run came from (MH-478). */
+  workflow_id: string
+  workflow_name: string
+  workflow_version: number
+  schedule_id: string
+  schedule_name: string
+  screenshots: number
+  extracts: number
 }
 
 // ── Inbox: the email channel ────────────────────────────────────────────
@@ -1080,6 +1096,12 @@ export type AutomationSchedule = {
   last_error: string
   last_run_id: string
   created_at: string
+  /** A server job instead of a browser run (MH-478). */
+  job_key: string
+  failure_count: number
+  missed_count: number
+  /** Five consecutive failures. */
+  failing: boolean
 }
 
 
@@ -1109,6 +1131,8 @@ export type WorkflowParam = {
   /** Redacted from the run record. */
   secret?: boolean
   default?: string
+  /** A line under the field when someone runs or schedules it (MH-478). */
+  help?: string
 }
 
 export type WorkflowStep = { command: string; args?: Record<string, unknown>; continue_on_error?: boolean }
@@ -1124,8 +1148,37 @@ export type AutomationWorkflow = {
   run_count: number
   /** The current version; every save adds one (MH-400). */
   version: number
+  /** How a tool call names it, whether it may run, and when it last did (MH-478). */
+  slug: string
+  enabled: boolean
+  last_run_at: string | null
+  /** From a preset (MH-478): the sites it goes to, its icon, whether it publishes, and which preset. */
+  hosts?: string[]
+  icon?: string
+  writes?: boolean
+  preset?: string
   created_at: string
   updated_at: string
+}
+
+/** One preset of the library (MH-478): fadymondy.com's plugins, ready to add. */
+export type AutomationPreset = {
+  slug: string
+  name: string
+  group: string
+  icon: string
+  colour: string
+  description: string
+  hosts: string[]
+  inputs: { name: string; label?: string; required?: boolean; default?: string; help?: string }[]
+  steps: { command: string; args?: Record<string, unknown> }[]
+  writes: boolean
+  dry_run?: string
+  dry_run_of?: string
+  needs_profile: string[]
+  needs_whatsapp: boolean
+  /** The workflow it became in this workspace, once added. */
+  workflow_id?: string
 }
 
 export type WorkflowVersion = {

@@ -48,6 +48,10 @@ var UserScopes = []ScopeDef{
 	{"campaigns:write", "Draft, edit and send campaigns", authz.Manager},
 	{"automation:read", "Read automations, browser agents and their runs", authz.Member},
 	{"automation:run", "Start and cancel automation runs", authz.Manager},
+	// automation:manage is authz.AutomationManage (MH-478): changing where a
+	// browser may go is the guardrail itself, so it is an admin's, exactly as
+	// on the Automation page (browser_set_allowed_sites).
+	{"automation:manage", "Change the sites a browser may drive", authz.Admin},
 	// Notifications follow authz's own split (MH-380): marking and saving
 	// items is a member right (notifications:write), while creating, rotating,
 	// enabling or disabling a webhook source changes what the whole workspace

@@ -845,29 +845,56 @@ const CANNED = [
   }
 }
 
-// ---- Automation: a saved workflow (no browser is paired, so no schedule) ---------------------
+// ---- Automation: presets on real sites, a browser allowed to reach them, a schedule ------------
+//
+// Two presets from the library (MH-478) that work on the real sites: Google
+// News headlines for a query, and Google Trends' interest in a term. Added
+// with the demo browser, so their sites go onto its allowed sites in the same
+// step, the way an admin does it in the Presets gallery. The browser is the
+// workspace's own when one is connected; otherwise a stand-in is connected
+// through the same approval flow the extension uses, and stays offline until
+// a real extension connects.
 
 {
-  const { workflows } = await s.get("/api/w/workflows")
-  const name = "Check green-coffee supplier prices"
-  if (!workflows.some((w) => w.name === name)) {
-    await s.post("/api/w/workflows", {
-      name,
-      description: "Open the importer's price page, wait for the table, and read the current price per kg for our two origins.",
-      steps: [
-        { command: "goto", args: { url: "{{supplier_url}}" } },
-        { command: "wait", args: { selector: "{{price_table}}", ms: 8000 } },
-        { command: "extract", args: { selector: "{{price_table}} tr", all: true } },
-      ],
-      params: [
-        { name: "supplier_url", label: "Supplier price page", required: true, default: "https://prices.greenbeans-importer.example/egypt" },
-        { name: "price_table", label: "Price table selector", default: "table.prices" },
-      ],
-    })
-    log("workflow: saved")
+  const { browsers } = await s.get("/api/w/browsers")
+  let browser = browsers.find((b) => !b.revoked_at)
+  if (!browser) {
+    const start = await fetch(`${base}/api/agents/connect/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Office Chrome", platform: "Windows", extension_version: "0.5.0", fingerprint: `demo-${Date.now()}` }),
+    }).then((r) => r.json())
+    browser = (await s.post("/api/agents/connect/approve", {
+      code: start.code, key: start.browser_key, workspace: s.ws, name: "Office Chrome", allowed_hosts: [],
+    }, { ws: null })).browser
+    log(`browser: connected a stand-in "${browser.name}" (offline until a real extension connects)`)
   }
-  skipped.push(["Automation schedule", "POST /api/w/schedules requires agent_id of a paired browser (schedule_routes.go checks browser_agents); pairing was out of scope."])
-  skipped.push(["Automation runs", "A run needs a paired browser extension online."])
+
+  // The fake importer this used to point at is replaced by real sites.
+  const { workflows } = await s.get("/api/w/workflows")
+  const fake = workflows.find((w) => w.name === "Check green-coffee supplier prices")
+  if (fake) await s.call("DELETE", `/api/w/workflows/${fake.id}`)
+
+  const { presets } = await s.get("/api/w/automation/presets")
+  for (const slug of ["google-news-search", "google-news-topic", "google-trends-explore"]) {
+    const p = presets.find((x) => x.slug === slug)
+    if (!p) throw new Error(`the preset library has no ${slug}`)
+    if (p.workflow_id) continue
+    const out = await s.post(`/api/w/automation/presets/${slug}/add`, { agent_id: browser.id })
+    log(`preset: ${slug} added; ${browser.name} may now visit ${out.hosts_added.join(", ") || "(already allowed)"}`)
+  }
+
+  const { schedules } = await s.get("/api/w/schedules")
+  const schedName = "Coffee price headlines"
+  if (!schedules.some((x) => x.name === schedName)) {
+    const wf = (await s.get("/api/w/workflows")).workflows.find((w) => w.preset === "google-news-search")
+    await s.post("/api/w/schedules", {
+      name: schedName, workflow_id: wf.id, agent_id: "", cron: "0 8 * * 1-5", timezone: "Africa/Cairo", catch_up: "skip",
+      values: { query: "coffee prices when:7d", hl: "en-US", gl: "EG", ceid: "EG:en" },
+    })
+    log("schedule: weekday coffee-price headlines, in any connected browser")
+  }
+  skipped.push(["Automation runs", "A run needs the browser extension connected; the stand-in browser stays offline."])
 }
 
 skipped.push(["Invitation for info@3x1.io", "Skipped on the owner's instruction (he is added as an owner directly)."])

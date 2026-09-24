@@ -72,6 +72,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, TrendsTools()...)
 	tools = append(tools, AutomationTools()...)
 	tools = append(tools, WorkflowTools()...)
+	tools = append(tools, BrowserTools()...)
 	tools = append(tools, ResearchTools(researchEngine)...)
 	tools = append(tools, ProspectTools(researchEngine)...) // prospect discovery (MH-397)
 	tools = append(tools, GoogleTools()...) // GA4, Search Console, YouTube (MH-447)
