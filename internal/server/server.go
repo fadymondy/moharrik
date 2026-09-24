@@ -317,6 +317,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	channels.RegisterSlack(api, a)
 	channels.RegisterDiscord(api, a)
 	channels.RegisterWorkflowChannels(api, a) // browser-workflow channels (MH-564)
+	channels.RegisterAggregate(api, a)        // the One Channels page (MH-571)
 	whatsapp.Register(api, a)
 	whatsapp.RegisterNotify(api, a)                      // members' WhatsApp notifications (MH-411)
 	imports.RegisterProvider(imports.WhatsAppProvider{}) // MH-562: import WhatsApp chats/groups

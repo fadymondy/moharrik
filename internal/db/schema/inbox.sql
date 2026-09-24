@@ -57,6 +57,13 @@ CREATE TABLE IF NOT EXISTS conversations (
     CHECK (status IN ('open', 'snoozed', 'closed'))
 );
 
+-- Mirrors conversations_mailbox_idx / conversations_source_channel_idx
+-- (internal/db/post/150_mailboxes.sql, 160_channels.sql): the One Channels
+-- page (MH-571) groups conversations by widget_id per workspace the same way
+-- it already does for mailbox_id and source_channel_id.
+CREATE INDEX IF NOT EXISTS conversations_widget_idx
+    ON conversations (workspace_id, widget_id) WHERE widget_id IS NOT NULL;
+
 -- direction is from the workspace's point of view: 'in' is the customer
 -- writing, 'out' is the team replying. author_user_id is NULL for 'in'.
 CREATE TABLE IF NOT EXISTS messages (
