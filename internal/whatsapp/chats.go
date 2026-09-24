@@ -33,8 +33,16 @@ type Chat struct {
 	UpdatedAt   string              `json:"updatedAt,omitempty"`
 }
 
-// Phone is the chat's number, digits only.
-func (c Chat) Phone() string { return Number(c.RemoteJID) }
+// Phone is the chat's number, digits only, or "" when WhatsApp hides it: a
+// privacy-mode chat's remoteJid is a "…@lid" id, and its real phone JID, when
+// Evolution knows it, is only on the last message's key.remoteJidAlt.
+func (c Chat) Phone() string {
+	alt := ""
+	if c.LastMessage != nil {
+		alt = c.LastMessage.Key.RemoteJIDAlt
+	}
+	return PhoneOf(c.RemoteJID, alt)
+}
 
 // DisplayName is the chat's saved name, else the name the contact set for
 // themselves (Evolution v2 only fills pushName on most chats).
@@ -75,8 +83,8 @@ type GroupParticipant struct {
 	Admin string `json:"admin,omitempty" doc:"'admin', 'superadmin', or empty"`
 }
 
-// Phone is the participant's number, digits only.
-func (p GroupParticipant) Phone() string { return Number(p.ID) }
+// Phone is the participant's number, digits only, or "" for a "…@lid" id.
+func (p GroupParticipant) Phone() string { return PhoneOf(p.ID) }
 
 // Group is one group chat Evolution knows about.
 type Group struct {
@@ -109,9 +117,10 @@ func (c *Client) ListGroups(ctx context.Context) ([]Group, error) {
 // group, in delivery order.
 type HistoryMessage struct {
 	Key struct {
-		RemoteJID string `json:"remoteJid"`
-		FromMe    bool   `json:"fromMe"`
-		ID        string `json:"id"`
+		RemoteJID    string `json:"remoteJid"`
+		RemoteJIDAlt string `json:"remoteJidAlt"`
+		FromMe       bool   `json:"fromMe"`
+		ID           string `json:"id"`
 	} `json:"key"`
 	PushName  string   `json:"pushName"`
 	Timestamp UnixTime `json:"messageTimestamp"`

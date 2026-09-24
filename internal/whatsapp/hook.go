@@ -90,8 +90,13 @@ func (m Message) Read() (Inbound, bool) {
 		ID:     strings.TrimSpace(m.Key.ID),
 		FromMe: m.Key.FromMe,
 		Name:   strings.TrimSpace(m.PushName),
-		Phone:  Number(jid),
+		Phone:  PhoneOf(m.Key.RemoteJID, m.Key.RemoteJIDAlt),
 		Group:  strings.Contains(jid, "@g.us"),
+	}
+	if in.Phone == "" {
+		// A privacy-mode sender with no phone anywhere: keep the old
+		// behaviour (file it under the id) rather than drop their message.
+		in.Phone = Number(jid)
 	}
 	if in.Group || in.Phone == "" {
 		// Groups are not customer conversations, and a chat with no number is
@@ -125,6 +130,30 @@ func messageText(m Message) string {
 }
 
 // Number turns a JID into digits: "201234567890@s.whatsapp.net" -> "201234567890".
+// PhoneOf is the phone number behind the first of jids that is a person's
+// phone JID, digits only, or "" if none is. WhatsApp's privacy ids ("…@lid")
+// are 15 digits that look like a number and are not one — Evolution then puts
+// the real phone JID, when it has it, in remoteJidAlt (MH-562).
+func PhoneOf(jids ...string) string {
+	for _, j := range jids {
+		j = strings.TrimSpace(j)
+		if j == "" {
+			continue
+		}
+		if i := strings.IndexByte(j, '@'); i >= 0 {
+			switch j[i+1:] {
+			case "s.whatsapp.net", "c.us":
+			default:
+				continue
+			}
+		}
+		if n := Number(j); n != "" {
+			return n
+		}
+	}
+	return ""
+}
+
 func Number(jid string) string {
 	jid = strings.TrimSpace(jid)
 	if i := strings.IndexByte(jid, '@'); i >= 0 {
