@@ -511,16 +511,13 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, err
 		}
-		res, err := db().ExecContext(ctx, `
-			UPDATE automation_runs SET status = 'cancelled', error = 'cancelled', finished_at = now(), updated_at = now()
-			WHERE workspace_id = $1 AND id = $2 AND status IN ('queued', 'running')`, s.WorkspaceID, in.ID)
+		cancelled, err := CancelRun(ctx, a, s.WorkspaceID, in.ID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not cancel that run")
 		}
-		n, _ := res.RowsAffected()
 		return out(struct {
 			Cancelled bool `json:"cancelled"`
-		}{n > 0}), nil
+		}{cancelled}), nil
 	})
 
 }
