@@ -299,8 +299,9 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	inbox.RegisterMailbox(api, a)
 	inbox.RegisterAttachments(api, a)
 	whatsapp.Register(api, a)
-	whatsapp.RegisterNotify(api, a) // members' WhatsApp notifications (MH-411)
+	whatsapp.RegisterNotify(api, a)                      // members' WhatsApp notifications (MH-411)
 	imports.RegisterProvider(imports.WhatsAppProvider{}) // MH-562: import WhatsApp chats/groups
+	imports.RegisterProvider(imports.EmailProvider{})    // MH-562: import a mailbox's senders
 	imports.Register(api, a)                             // Contacts → "Import from a connection"
 	trends.Register(api, a)
 	trends.RegisterDigest(api, a) // the trends digest (MH-389)
