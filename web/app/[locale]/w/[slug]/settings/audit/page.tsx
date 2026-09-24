@@ -22,11 +22,11 @@ import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { Bdi, isolate } from "@/components/bidi"
+import { DatePicker } from "@/components/date-picker"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AuditEntry } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -140,11 +140,11 @@ function AuditLog() {
             </Field>
             <Field>
               <FieldLabel htmlFor="audit-from">{t("audit.from")}</FieldLabel>
-              <Input id="audit-from" type="date" dir="ltr" value={filter.from} max={filter.to || undefined} onChange={(e) => set("from", e.target.value)} />
+              <DatePicker id="audit-from" value={filter.from} max={filter.to || undefined} onValueChange={(v) => set("from", v)} placeholder={t("audit.anyDate")} clearable />
             </Field>
             <Field>
               <FieldLabel htmlFor="audit-to">{t("audit.to")}</FieldLabel>
-              <Input id="audit-to" type="date" dir="ltr" value={filter.to} min={filter.from || undefined} onChange={(e) => set("to", e.target.value)} />
+              <DatePicker id="audit-to" value={filter.to} min={filter.from || undefined} onValueChange={(v) => set("to", v)} placeholder={t("audit.anyDate")} clearable />
             </Field>
             {filtered ? (
               <div className="sm:col-span-2 lg:col-span-6">
