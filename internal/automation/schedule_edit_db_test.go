@@ -1,6 +1,7 @@
 package automation_test
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -125,7 +126,17 @@ func TestEditingAScheduleKeepsItsSecretUnlessReplaced(t *testing.T) {
 	// that leaves the browser's allow-list, an unknown workflow or browser, an
 	// empty name, a bad cron.
 	patch(map[string]any{"values": map[string]string{"page": ""}}, 422)
+	// With the workspace adding a workflow's sites by itself (MH-517, on by
+	// default), an owner may point a schedule at a workflow whose sites its
+	// runs will add; with that off, it is refused as before.
+	off, on := false, true
+	if err := automation.SaveSiteSettings(context.Background(), a, wsID, &off, nil); err != nil {
+		t.Fatal(err)
+	}
 	patch(map[string]any{"workflow_id": elsewhere.ID}, 422)
+	if err := automation.SaveSiteSettings(context.Background(), a, wsID, &on, nil); err != nil {
+		t.Fatal(err)
+	}
 	patch(map[string]any{"workflow_id": "00000000-0000-0000-0000-000000000000"}, 404)
 	patch(map[string]any{"agent_id": "00000000-0000-0000-0000-000000000000"}, 404)
 	patch(map[string]any{"name": "   "}, 422)

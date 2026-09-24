@@ -145,10 +145,11 @@ func AutomationTools() []Tool {
 				}
 				var status, runErr string
 				var stepCount, okCount int
+				var notes pgtext.Array
 				err := a.SQLDB.QueryRowContext(ctx, `
-					SELECT status, error, step_count, ok_count FROM automation_runs
+					SELECT status, error, step_count, ok_count, notes FROM automation_runs
 					WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.RunID,
-				).Scan(&status, &runErr, &stepCount, &okCount)
+				).Scan(&status, &runErr, &stepCount, &okCount, &notes)
 				if errors.Is(err, sql.ErrNoRows) {
 					return "", errNotFound
 				}
@@ -158,6 +159,11 @@ func AutomationTools() []Tool {
 
 				var b strings.Builder
 				fmt.Fprintf(&b, "run %s: %s (%d/%d steps ok)\n", in.RunID, status, okCount, stepCount)
+				// What the run did before its first step, e.g. the sites it
+				// added to its browser (MH-517).
+				for _, n := range notes {
+					fmt.Fprintf(&b, "note: %s\n", n)
+				}
 				if runErr != "" {
 					fmt.Fprintf(&b, "error: %s\n", runErr)
 				}

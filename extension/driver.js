@@ -39,6 +39,7 @@ Where a person's key would have done something, that path does it itself
 
 import { KEYS, get } from "./config.js"
 import { gotoHost, hostAllowed, pageVerdict } from "./hosts.js"
+import { BROAD, originsFor } from "./grants.js"
 import { attach, cdpAvailable, detach, keepRendering, send, sendSoon } from "./driver/cdp.js"
 import { cursorPath, jitter, keyDelay, moveDelay, pointWithin, randomBetween, sleep, wheelSteps } from "./driver/human.js"
 import { findInPage } from "./driver/locate.js"
@@ -259,6 +260,10 @@ export async function runStep(runID, step) {
 
   const n = Number(step.step)
   run.current = Number.isInteger(n) && n > 0 ? n : null
+  // How long a step may wait for the person at this browser to approve a site
+  // in Chrome (MH-517): the server says, when it added a site this browser
+  // has not approved yet. 0 fails at once, in words they can act on.
+  run.grantWaitMs = Math.max(0, Math.min(Number(step.grant_wait_ms) || 0, 10 * 60_000))
   try {
     const result = await dispatch(run, command, args, step)
     return { ok: true, command, ms: Date.now() - started, ...(run.input ? { input: run.input } : {}), ...result }
@@ -482,12 +487,37 @@ async function inPage(run, func, args) {
       // declined every-site access and has not approved this one yet. Said
       // in words they can act on, not Chrome's.
       if (/cannot access contents|must request permission|missing host permission/i.test(String(err?.message || err))) {
-        throw new Error(`Chrome has not allowed Moharrik on ${hostOfUrl(page.url) || "this site"} yet: approve it under "Waiting for your OK" in the extension`)
+        const host = hostOfUrl(page.url)
+        // Waits on the popup's "Waiting for your OK" rather than failing, when
+        // the server allows it (MH-517); the site is already on the popup's
+        // list, because the server pushed it with the new allowed sites.
+        if (attempt === 0 && run.grantWaitMs > 0 && host && (await waitForGrant(host, run.grantWaitMs, run))) continue
+        throw new Error(`Chrome has not allowed Moharrik on ${host || "this site"} yet: approve it under "Waiting for your OK" in the extension`)
       }
       if (attempt === 0 && page.documentId) continue // the document changed under us
       throw err
     }
   }
+}
+
+/**
+ * Resolves true once Chrome grants this host (or every site), false after ms.
+ * A run that leaves its sites meanwhile stops waiting at once.
+ */
+async function waitForGrant(host, ms, run) {
+  const origins = originsFor(host)
+  const granted = async () =>
+    (await chrome.permissions.contains({ origins: BROAD }).catch(() => false)) ||
+    (await chrome.permissions.contains({ origins: [origins[0]] }).catch(() => false)) ||
+    (await chrome.permissions.contains({ origins: [origins[1]] }).catch(() => false))
+  if (await granted()) return true
+  const deadline = Date.now() + ms
+  while (Date.now() < deadline) {
+    if (run.breach) return false
+    await sleep(500)
+    if (await granted()) return true
+  }
+  return false
 }
 
 function hostOfUrl(url) {

@@ -62,6 +62,10 @@ type SettingsOut struct {
 	LiveRuns        int `json:"live_runs"`
 	// Runs one browser may be asked for in an hour (MH-478).
 	RunsPerHour int `json:"runs_per_hour"`
+	// Whether a run adds its workflow's sites to the browser (MH-517), and
+	// whether a run nobody watches may add sites that came from its values.
+	AutoAddSites      bool `json:"auto_add_sites"`
+	AutoAddInputSites bool `json:"auto_add_input_sites"`
 }
 
 type wsHeader struct {
@@ -273,6 +277,8 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		o.MaxParallelRuns = limits.MaxParallelRuns
 		o.RetentionDays = limits.RetentionDays
 		o.RunsPerHour = limits.RunsPerHour
+		sites := ReadSiteSettings(ctx, a, s.WorkspaceID)
+		o.AutoAddSites, o.AutoAddInputSites = sites.AutoAdd, sites.FromInputs
 		o.LiveRuns, _ = LiveRuns(ctx, a, s.WorkspaceID)
 		return out(o), nil
 	})
@@ -293,6 +299,9 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 			MaxParallelRuns *int `json:"max_parallel_runs,omitempty" minimum:"1" maximum:"50"`
 			RetentionDays   *int `json:"retention_days,omitempty" minimum:"0" maximum:"3650"`
 			RunsPerHour     *int `json:"runs_per_hour,omitempty" minimum:"1" maximum:"1000"`
+			// MH-517's switches; left out, they stay as they are.
+			AutoAddSites      *bool `json:"auto_add_sites,omitempty"`
+			AutoAddInputSites *bool `json:"auto_add_input_sites,omitempty"`
 		}
 	}) (*body[SettingsOut], error) {
 		s, err := scope(ctx, authz.AutomationManage)
@@ -329,14 +338,23 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 			}
 		}
 
+		if in.Body.AutoAddSites != nil || in.Body.AutoAddInputSites != nil {
+			if err := SaveSiteSettings(ctx, a, s.WorkspaceID, in.Body.AutoAddSites, in.Body.AutoAddInputSites); err != nil {
+				return nil, huma.Error500InternalServerError("could not save the setting")
+			}
+		}
+
 		paused, reason, _ := IsPaused(ctx, a, s.WorkspaceID)
 		limits := ReadLimits(ctx, a, s.WorkspaceID)
+		sites := ReadSiteSettings(ctx, a, s.WorkspaceID)
 		live, _ := LiveRuns(ctx, a, s.WorkspaceID)
 		return out(SettingsOut{
 			Paused: paused, Reason: reason,
 			MaxParallelRuns: limits.MaxParallelRuns,
 			RetentionDays:   limits.RetentionDays,
 			RunsPerHour:     limits.RunsPerHour,
+			AutoAddSites:      sites.AutoAdd,
+			AutoAddInputSites: sites.FromInputs,
 			LiveRuns:        live,
 		}), nil
 	})
@@ -592,6 +610,8 @@ func runError(err error) error {
 		return huma.Error409Conflict(err.Error())
 	case errors.Is(err, ErrRevoked):
 		return huma.Error409Conflict(err.Error())
+	case errors.Is(err, ErrSitesNeedAdmin):
+		return huma.Error403Forbidden(err.Error())
 	case errors.Is(err, ErrHostNotAllowed):
 		return huma.Error422UnprocessableEntity(err.Error())
 	}

@@ -70,6 +70,9 @@ type Run struct {
 	// How many of its steps kept a screenshot or extracted data.
 	Screenshots int `json:"screenshots"`
 	Extracts    int `json:"extracts"`
+	// Lines about the run itself, first of all what was done before its first
+	// step: "Added news.google.com to Office Chrome's allowed sites" (MH-517).
+	Notes []string `json:"notes"`
 }
 
 // runSelect is every column a Run is read from, joined with the names a
@@ -79,7 +82,8 @@ const runSelect = `
 	       r.step_count, r.ok_count, r.started_at, r.finished_at, r.created_at,
 	       r.workflow_id, COALESCE(w.name, r.params->>'workflow', ''), r.workflow_version, r.schedule_id, COALESCE(sc.name, ''),
 	       (SELECT count(*) FROM automation_run_steps st WHERE st.workspace_id = r.workspace_id AND st.run_id = r.id AND st.screenshot_path <> ''),
-	       (SELECT count(*) FROM automation_run_steps st WHERE st.workspace_id = r.workspace_id AND st.run_id = r.id AND st.status = 'ok' AND st.command IN ('extract', 'read'))
+	       (SELECT count(*) FROM automation_run_steps st WHERE st.workspace_id = r.workspace_id AND st.run_id = r.id AND st.status = 'ok' AND st.command IN ('extract', 'read')),
+	       r.notes
 	FROM automation_runs r
 	LEFT JOIN browser_agents b ON b.workspace_id = r.workspace_id AND b.id = r.agent_id
 	LEFT JOIN automation_workflows w ON w.workspace_id = r.workspace_id AND w.id = r.workflow_id
@@ -88,10 +92,15 @@ const runSelect = `
 func scanRun(row rowScanner) (Run, error) {
 	var r Run
 	var started, finished sql.NullTime
+	var notes pgtext.Array
 	err := row.Scan(&r.ID, &r.AgentID, &r.AgentName, &r.Trigger, &r.RequestedBy, &r.Status, &r.Error,
 		&r.StepCount, &r.OKCount, &started, &finished, &r.CreatedAt,
-		&r.WorkflowID, &r.WorkflowName, &r.WorkflowVersion, &r.ScheduleID, &r.ScheduleName, &r.Screenshots, &r.Extracts)
+		&r.WorkflowID, &r.WorkflowName, &r.WorkflowVersion, &r.ScheduleID, &r.ScheduleName, &r.Screenshots, &r.Extracts, &notes)
 	r.StartedAt, r.FinishedAt = timep(started), timep(finished)
+	r.Notes = notes
+	if r.Notes == nil {
+		r.Notes = []string{}
+	}
 	return r, err
 }
 
@@ -317,8 +326,16 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 		if keptTab != "" {
 			stepPayload["tab"] = keptTab
 		}
-		if step.TimeoutSeconds > 0 {
-			stepPayload["timeout_ms"] = step.stepTimeout().Milliseconds()
+		timeout := step.stepTimeout()
+		// The browser holds sites one by one and some of its list is still
+		// waiting for the person's OK in Chrome (MH-517): the step waits for
+		// it there instead of failing, and the server waits that long too.
+		if acc, ok := h.AccessIn(workspaceID)[agentID]; ok && acc.Mode == "sites" && len(acc.Pending) > 0 {
+			timeout = MaxStepTimeout
+			stepPayload["grant_wait_ms"] = (MaxStepTimeout - 20*time.Second).Milliseconds()
+		}
+		if step.TimeoutSeconds > 0 || timeout != step.stepTimeout() {
+			stepPayload["timeout_ms"] = timeout.Milliseconds()
 		}
 		payload, _ := json.Marshal(stepPayload)
 
@@ -330,7 +347,7 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 		lastCommandAt = time.Now()
 
 		started := time.Now()
-		reply, err := h.Call(ctx, workspaceID, agentID, Envelope{Type: "run.step", Run: runID, Payload: payload}, step.stepTimeout())
+		reply, err := h.Call(ctx, workspaceID, agentID, Envelope{Type: "run.step", Run: runID, Payload: payload}, timeout)
 		duration := int(time.Since(started).Milliseconds())
 
 		status, summary, result, stepErr, shot := "ok", "", "", "", ""

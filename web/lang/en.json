@@ -3007,5 +3007,19 @@
   "presets.group.gmail": "Gmail",
   "presets.group.whatsapp": "WhatsApp",
   "presets.group.telegram": "Telegram",
-  "presets.group.jobs": "Jobs"
+  "presets.group.jobs": "Jobs",
+  "automation.sites.autoTitle": "Add a workflow's sites automatically",
+  "automation.sites.autoHint": "When a run starts, the sites its workflow needs are added to the browser it runs in, pushed to it at once and noted on the run. Only for people who can manage browsers; others are told which sites an admin has to add.",
+  "automation.sites.inputsTitle": "Also sites that come from values, on runs nobody watches",
+  "automation.sites.inputsHint": "Schedules and MCP add only the sites a saved workflow names. On, they also add a site that a value supplies at run time, such as a page address.",
+  "automation.sites.saved": "Saved.",
+  "automation.note.sitesAdded": "Added {hosts} to {browser}'s allowed sites",
+  "canvas.sites.title": "Sites it needs",
+  "canvas.sites.none": "No site written out yet. A site that only a value supplies is known when the run starts.",
+  "canvas.sites.auto": "A run adds whichever of these its browser doesn't allow yet, and says so on the run.",
+  "canvas.sites.autoAdmin": "A run by an admin adds whichever of these its browser doesn't allow yet. Your runs need them allowed first.",
+  "canvas.sites.off": "Adding sites automatically is off in this workspace: an admin adds them to the browser on the Automation page.",
+  "canvas.sites.values": "Every step is still checked against the browser's allowed sites, on the server and in the browser.",
+  "canvas.sites.nodeAuto": "Sites: {sites} · added when it runs",
+  "canvas.sites.nodeManual": "Sites: {sites}"
 }

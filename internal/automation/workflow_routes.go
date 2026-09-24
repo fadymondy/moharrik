@@ -40,6 +40,9 @@ type Workflow struct {
 	Icon      string   `json:"icon"`
 	Writes    bool     `json:"writes"`
 	Preset    string   `json:"preset"`
+	// Its declared sites plus the written-out hosts its steps go to: what a
+	// run adds to its browser's allowed sites when they are missing (MH-517).
+	RequiredSites []string `json:"required_sites"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -337,12 +340,14 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
 		name := "Test run"
+		var declared []string
 		if in.Body.WorkflowID != "" {
 			w, err := getWorkflow(ctx, db(), s.WorkspaceID, in.Body.WorkflowID)
 			if err != nil {
 				return nil, err
 			}
 			name = w.Name + " (test)"
+			declared = w.Hosts
 		}
 		// The same Fill as a real run: the secrets are substituted into what
 		// runs and redacted from what is stored, and the allow-list sees the
@@ -351,10 +356,17 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, runError(err)
 		}
+		// A test is usually a workflow's first run: its sites go onto the
+		// browser first, as for any run a person starts (MH-517).
+		note, err := addRequiredSites(ctx, a, hub, s.WorkspaceID, s.UserID, "test", in.Body.AgentID, declared, in.Body.Steps, run)
+		if err != nil {
+			return nil, runError(err)
+		}
 		runID, err := hub.Start(ctx, a, s.WorkspaceID, s.UserID, "test", in.Body.AgentID, run)
 		if err != nil {
 			return nil, runError(err)
 		}
+		addRunNote(ctx, a, s.WorkspaceID, runID, note)
 		recordRedacted(ctx, a, s.WorkspaceID, runID, stored, name, in.Body.WorkflowID)
 		return out(struct {
 			RunID string `json:"run_id"`
@@ -411,11 +423,17 @@ func RunWorkflowFrom(ctx context.Context, a *app.App, hub *Hub, workspaceID, use
 	if err != nil {
 		return "", err
 	}
+	// Its sites onto the browser first, where the rules allow (MH-517).
+	note, err := addRequiredSites(ctx, a, hub, workspaceID, userID, trigger, agentID, w.Hosts, w.Steps, run)
+	if err != nil {
+		return "", err
+	}
 
 	runID, err := hub.Start(ctx, a, workspaceID, userID, trigger, agentID, run)
 	if err != nil {
 		return "", err
 	}
+	addRunNote(sctx, a, workspaceID, runID, note)
 	recordRedacted(sctx, a, workspaceID, runID, stored, w.Name, workflowID)
 	_, _ = a.SQLDB.ExecContext(sctx, `
 		UPDATE automation_runs SET workflow_version = $3, schedule_id = $4 WHERE workspace_id = $1 AND id = $2`,
@@ -476,6 +494,7 @@ func scanWorkflow(r rowScanner) (Workflow, error) {
 	if w.Params == nil {
 		w.Params = []Param{}
 	}
+	w.RequiredSites = RequiredHosts(w.Hosts, w.Steps)
 	w.Placeholders = Placeholders(w.Steps)
 	if w.Placeholders == nil {
 		w.Placeholders = []string{}
