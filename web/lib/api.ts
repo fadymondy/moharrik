@@ -1235,6 +1235,28 @@ export type WorkflowChannel = {
   updated_at: string
 }
 
+// ── Unified channels list (MH-571) ──────────────────────────────────────
+
+export type ChannelType = "email" | "whatsapp" | "chat" | "telegram" | "slack" | "discord" | "workflow"
+export type ChannelStatus = "connected" | "error" | "paused"
+
+/** One row of GET /api/w/channels: every inbox channel of every type, in one shape. */
+export type ChannelRow = {
+  id: string
+  type: ChannelType
+  /** Only set on `type: "workflow"` rows — which social network it reads. */
+  network?: "linkedin" | "facebook" | "instagram" | "x"
+  name: string
+  status: ChannelStatus
+  last_error: string
+  last_message_at: string | null
+  conversations_30d: number
+  unread: number
+  enabled: boolean
+}
+
+export type ChannelPage = { channels: ChannelRow[] | null; next_cursor?: string; counts?: Record<ChannelType, number> }
+
 export type NotifyKind = "automation_failed" | "lead" | "notification"
 
 /** The signed-in member's WhatsApp notifications in this workspace (MH-411). */

@@ -31,6 +31,9 @@ import {
   type SlackChannel,
   type DiscordChannel,
   type WorkflowChannel,
+  type ChannelType,
+  type ChannelStatus,
+  type ChannelPage,
   type RunStep,
   type ResearchDetail,
   type CompanySuggestion,
@@ -645,6 +648,26 @@ export const useDiscordChannels = (id?: string | null, enabled = true) =>
 
 export const useWorkflowChannels = (id?: string | null, enabled = true) =>
   useScoped<{ channels: WorkflowChannel[] }>("/api/w/workflow-channels", id, enabled)
+
+// ── Unified channels list (MH-571) ──────────────────────────────────────
+
+export type ChannelFilter = { type?: ChannelType[]; status?: ChannelStatus | ""; q?: string; cursor?: string }
+
+/**
+ * Every inbox channel of every type in one list (MH-571: replaced seven
+ * per-type pages). Filters are URL-driven by the caller; this only builds
+ * the request. The backend sorts channels-in-error first — this hook does
+ * not re-sort, so that ordering survives.
+ */
+export function useChannels(workspaceId: string | null | undefined, filter: ChannelFilter = {}) {
+  const qs = new URLSearchParams()
+  if (filter.type?.length) qs.set("type", filter.type.join(","))
+  if (filter.status) qs.set("status", filter.status)
+  if (filter.q?.trim()) qs.set("q", filter.q.trim())
+  if (filter.cursor) qs.set("cursor", filter.cursor)
+  const path = "/api/w/channels" + (qs.toString() ? `?${qs.toString()}` : "")
+  return useSWR<ChannelPage>(workspaceId ? [path, workspaceId] : null, ([p, id]: [string, string]) => api<ChannelPage>(p, { workspaceId: id }), noRetryOn4xx)
+}
 
 export const useSchedules = (id?: string | null) => useScoped<{ schedules: AutomationSchedule[] | null }>("/api/w/schedules", id)
 
