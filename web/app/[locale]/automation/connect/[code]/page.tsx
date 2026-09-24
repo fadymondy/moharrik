@@ -149,7 +149,7 @@ export default function ConnectBrowserPage() {
               </p>
               <p className="text-sm text-grid-muted">{t("automation.connect.closeTab")}</p>
               {done.browser.allowed_hosts.length === 0 ? <p className="text-sm text-grid-warn-text">{t("automation.connect.noSitesYet")}</p> : null}
-              <Button nativeButton={false} render={<Link href={`/${locale}/w/${done.workspace.slug}/automation`} />} data-open-automation>
+              <Button nativeButton={false} render={<Link href={`/${locale}/w/${done.workspace.slug}/automation/browsers`} />} data-open-automation>
                 {t("automation.connect.openAutomation")}
               </Button>
             </div>
@@ -175,7 +175,7 @@ export default function ConnectBrowserPage() {
               body={r.workspace ? t("automation.connect.decidedBody", { workspace: isolate(r.workspace.name) }) : t(`automation.connect.status.${r.status}`)}
               action={
                 r.workspace ? (
-                  <Button variant="outline" nativeButton={false} render={<Link href={`/${locale}/w/${r.workspace.slug}/automation`} />}>
+                  <Button variant="outline" nativeButton={false} render={<Link href={`/${locale}/w/${r.workspace.slug}/automation/browsers`} />}>
                     {t("automation.connect.openAutomation")}
                   </Button>
                 ) : undefined

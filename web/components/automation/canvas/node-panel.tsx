@@ -640,7 +640,7 @@ export function TriggerPanel({
                 {workflowId ? (
                   <Link
                     className="mt-1 inline-block text-xs underline"
-                    href={`/${locale}/w/${ws.slug}/automation`}
+                    href={`/${locale}/w/${ws.slug}/automation/schedules`}
                   >
                     {t("canvas.start.manageSchedules")}
                   </Link>

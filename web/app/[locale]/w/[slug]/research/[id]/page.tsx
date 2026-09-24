@@ -74,7 +74,7 @@ export default function ResearchRunPage() {
                 {t("research.cancel")}
               </Button>
             ) : null}
-            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/research`} />}>
+            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/research/runs`} />}>
               <ArrowLeftIcon className="rtl:rotate-180" />
               {t("research.back")}
             </Button>

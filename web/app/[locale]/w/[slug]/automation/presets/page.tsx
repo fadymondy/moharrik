@@ -101,7 +101,7 @@ export default function PresetsPage() {
         title={t("presets.title")}
         description={t("presets.hint")}
         action={
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation`} />}>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/browsers`} />}>
             <ArrowLeftIcon className="rtl:rotate-180" />
             {t("automation.backToAutomation")}
           </Button>

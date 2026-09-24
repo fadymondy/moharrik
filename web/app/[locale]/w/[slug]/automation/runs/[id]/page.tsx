@@ -60,9 +60,9 @@ export default function RunPage() {
                 {t("automation.cancelRun")}
               </Button>
             ) : null}
-            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation`} />}>
+            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/runs`} />}>
               <ArrowLeftIcon className="rtl:rotate-180" />
-              {t("automation.backToAutomation")}
+              {t("automation.backToRuns")}
             </Button>
           </div>
         }

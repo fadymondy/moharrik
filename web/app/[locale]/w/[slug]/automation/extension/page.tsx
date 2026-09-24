@@ -48,7 +48,7 @@ export default function ExtensionInstallPage() {
         title={t("automation.ext.title")}
         description={t("automation.ext.hint")}
         action={
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation`} />}>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/browsers`} />}>
             <ArrowLeftIcon className="rtl:rotate-180" />
             {t("automation.backToAutomation")}
           </Button>
@@ -136,7 +136,7 @@ export default function ExtensionInstallPage() {
         {paired.length > 0 ? (
           <p className="px-6 pt-6 text-sm" data-paired-count={paired.length}>
             {t("automation.ext.pairedSoFar", { n: paired.length })}{" "}
-            <Link className="underline" href={`/${locale}/w/${ws.slug}/automation`}>
+            <Link className="underline" href={`/${locale}/w/${ws.slug}/automation/browsers`}>
               {t("automation.ext.seeBrowsers")}
             </Link>
           </p>

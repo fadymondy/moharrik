@@ -3,43 +3,7 @@
 import Link from "next/link"
 import { useEffect, useState, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
-import {
-  BellIcon,
-  BellRingIcon,
-  ChartColumnBigIcon,
-  ChartLineIcon,
-  BotIcon,
-  WorkflowIcon,
-  ClipboardListIcon,
-  Building2Icon,
-  CheckIcon,
-  ChevronsUpDownIcon,
-  HandshakeIcon,
-  InboxIcon,
-  KeyRoundIcon,
-  ScrollTextIcon,
-  LayoutGridIcon,
-  MenuIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  MailIcon,
-  MessageSquarePlusIcon,
-  PlusIcon,
-  RadarIcon,
-  SearchCheckIcon,
-  SearchIcon,
-  TargetIcon,
-  SendIcon,
-  PlugIcon,
-  ServerIcon,
-  WebhookIcon,
-  TrendingUpIcon,
-  UserPlusIcon,
-  UserRoundIcon,
-  UsersIcon,
-  YoutubeIcon,
-  ZapIcon,
-} from "lucide-react"
+import { ArrowLeftIcon, CheckIcon, ChevronRightIcon, ChevronsUpDownIcon, MenuIcon, MessageSquarePlusIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -67,6 +31,7 @@ import { WorkspaceContext } from "@/components/workspace/workspace-context"
 import { MOHARRIK_MARK } from "@/lib/brand/mark"
 import type { WorkspaceSummary } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { groupForPath, itemActive, visibleEntries, visibleItems, type NavGroup, type NavItem } from "@/lib/nav-config"
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { cn } from "@/lib/utils"
@@ -142,18 +107,15 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
   )
 }
 
-function NavLink({ href, icon, children, exact = false, except, onNavigate, mini = false }: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean; except?: string | string[]; onNavigate?: () => void; mini?: boolean }) {
-  const pathname = usePathname()
-  // except: sub-sections with their own entries, so only those entries light up there.
-  const inside = (p: string) => pathname === p || pathname.startsWith(p + "/")
-  const skip = Array.isArray(except) ? except : except ? [except] : []
-  const active = (exact ? pathname === href : inside(href)) && !skip.some(inside)
+/** One navigable row: a real page, whether a top-level link or a page inside a drilled-down group. */
+function NavLink({ href, icon, children, active, onNavigate, mini = false, dataNav }: { href: string; icon: ReactNode; children: ReactNode; active: boolean; onNavigate?: () => void; mini?: boolean; dataNav?: string }) {
   return (
     <Link
       href={href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       title={mini && typeof children === "string" ? children : undefined}
+      data-nav-item={dataNav}
       className={cn(
         "flex items-center gap-2.5 border-s-2 px-3 py-2 text-sm transition-colors [&_svg]:size-4 [&_svg]:shrink-0",
         mini && "justify-center px-0 py-2.5",
@@ -165,6 +127,37 @@ function NavLink({ href, icon, children, exact = false, except, onNavigate, mini
       {icon}
       {mini ? <span className="sr-only">{children}</span> : children}
     </Link>
+  )
+}
+
+/** A group row on the root screen: not a link — pressing it drills the sidebar into that group. */
+function NavGroupButton({ group, active, onOpen, mini = false }: { group: NavGroup; active: boolean; onOpen: () => void; mini?: boolean }) {
+  const { t } = useTranslations()
+  const Icon = group.icon
+  const label = t(group.labelKey)
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={mini ? label : undefined}
+      aria-expanded={active}
+      data-nav-group={group.key}
+      className={cn(
+        "flex w-full items-center gap-2.5 border-s-2 px-3 py-2 text-sm transition-colors [&_svg]:size-4 [&_svg]:shrink-0",
+        mini && "justify-center px-0 py-2.5",
+        active ? "border-grid-action bg-grid-soft font-medium text-grid-fg" : "border-transparent text-grid-body hover:bg-grid-soft hover:text-grid-fg",
+      )}
+    >
+      <Icon />
+      {mini ? (
+        <span className="sr-only">{label}</span>
+      ) : (
+        <>
+          <span className="min-w-0 flex-1 truncate text-start">{label}</span>
+          <ChevronRightIcon className="size-3.5 shrink-0 text-grid-muted rtl:rotate-180" />
+        </>
+      )}
+    </button>
   )
 }
 
@@ -248,7 +241,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         <header className="flex h-14 items-center justify-between gap-2 border-b border-line px-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-1">
             {summary ? (
-              <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label={t("shell.navigation")} onClick={() => setNavOpen(true)}>
+              <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label={t("shell.navigation")} onClick={() => setNavOpen(true)} data-mobile-nav-toggle>
                 <MenuIcon />
               </Button>
             ) : null}
@@ -310,126 +303,105 @@ function ShellSkeleton() {
   )
 }
 
-/** The workspace navigation: the sticky sidebar on desktop, a slide-out sheet below md. */
+/**
+ * The workspace navigation (MH-526): the sticky sidebar on desktop, a slide-out
+ * sheet below md. Two screens, not one long list —
+ *
+ *   ROOT: Overview, then every group button (CRM, Marketing, Inbox, Automation,
+ *   Research, Insights, Notifications), then Members, then Settings.
+ *
+ *   DRILLED: a back arrow, the group's name, and only that group's pages.
+ *
+ * Which screen shows is derived from the URL (a deep link into a group's page
+ * opens straight into that group, drilled), with a `manual` override so
+ * pressing a group button or the back arrow doesn't have to navigate to
+ * change what the sidebar shows. `manual` is cleared on every real navigation,
+ * so once a page is picked, the URL is back in charge.
+ */
 function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNavigate?: () => void; mini?: boolean; can?: string[] }) {
   const { t } = useTranslations()
-  const L = (props: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean; except?: string | string[] }) => <NavLink {...props} onNavigate={onNavigate} mini={mini} />
+  const pathname = usePathname()
+  const rest = pathname.startsWith(base) ? pathname.slice(base.length).replace(/^\//, "") : ""
+  const [manual, setManual] = useState<string | null>(null)
+  useEffect(() => setManual(null), [pathname])
+
+  const entries = visibleEntries(can)
+  const derivedGroup = groupForPath(rest)
+  const openGroup =
+    manual === null
+      ? derivedGroup
+      : manual === ""
+        ? null
+        : ((entries.find((e) => e.type === "group" && e.group.key === manual) as { type: "group"; group: NavGroup } | undefined)?.group ?? null)
+
+  if (openGroup) {
+    const items = visibleItems(openGroup.items, can)
+    return (
+      <nav className="flex flex-col py-3" aria-label={t("shell.navigation")} data-nav-drilled={openGroup.key}>
+        <button
+          type="button"
+          onClick={() => setManual("")}
+          title={mini ? t("nav.back") : undefined}
+          data-nav-back
+          className={cn(
+            "flex items-center gap-2.5 border-s-2 border-transparent px-3 py-2 text-sm text-grid-muted transition-colors hover:bg-grid-soft hover:text-grid-fg [&_svg]:size-4 [&_svg]:shrink-0",
+            mini && "justify-center px-0 py-2.5",
+          )}
+        >
+          <ArrowLeftIcon className="rtl:rotate-180" />
+          {mini ? <span className="sr-only">{t("nav.back")}</span> : t("nav.back")}
+        </button>
+        {mini ? null : <p className="grid-micro px-4 pt-2 pb-1 text-grid-fg">{t(openGroup.labelKey)}</p>}
+        {items.map((item) => {
+          const Icon = item.icon
+          return (
+            <NavLink
+              key={item.key}
+              href={`${base}/${item.path}`}
+              icon={<Icon />}
+              active={itemActive(item, rest)}
+              onNavigate={onNavigate}
+              mini={mini}
+              dataNav={item.key}
+            >
+              {t(item.labelKey)}
+            </NavLink>
+          )
+        })}
+      </nav>
+    )
+  }
+
   return (
-    <nav className="flex flex-col py-3" aria-label={t("shell.navigation")}>
-      <L href={base} exact icon={<LayoutGridIcon />}>
-        {t("nav.overview")}
-      </L>
-      <L href={`${base}/leads`} icon={<UserPlusIcon />}>
-        {t("nav.leads")}
-      </L>
-      <L href={`${base}/companies`} icon={<Building2Icon />}>
-        {t("nav.companies")}
-      </L>
-      <L href={`${base}/contacts`} icon={<MailIcon />}>
-        {t("nav.contacts")}
-      </L>
-      <L href={`${base}/deals`} icon={<HandshakeIcon />}>
-        {t("nav.deals")}
-      </L>
-      {/* The CRM report (MH-394); hidden, not disabled, for a role that cannot read the CRM. */}
-      {can?.includes("contacts:read") ? (
-        <L href={`${base}/reports`} icon={<ChartColumnBigIcon />}>
-          {t("nav.reports")}
-        </L>
-      ) : null}
-      <L href={`${base}/campaigns`} icon={<SendIcon />}>
-        {t("nav.campaigns")}
-      </L>
-      <L href={`${base}/subscribe-forms`} icon={<ClipboardListIcon />}>
-        {t("nav.subscribeForms")}
-      </L>
-      <L href={`${base}/inbox`} icon={<InboxIcon />}>
-        {t("nav.inbox")}
-      </L>
-      <L href={`${base}/automation`} except={[`${base}/automation/workflows`, `${base}/automation/rules`]} icon={<BotIcon />}>
-        {t("nav.automation")}
-      </L>
-      {/* The workflow canvas (MH-480): one click from anywhere. */}
-      <L href={`${base}/automation/workflows`} icon={<WorkflowIcon />}>
-        {t("nav.workflows")}
-      </L>
-      {/* Automation rules (MH-427): when something happens, do something. */}
-      <L href={`${base}/automation/rules`} icon={<ZapIcon />}>
-        {t("nav.rules")}
-      </L>
-      <L href={`${base}/trends`} exact icon={<TrendingUpIcon />}>
-        {t("nav.trends")}
-      </L>
-      {/* The Google data pages (MH-444..442): hidden, not disabled, for a role that cannot read them. */}
-      {can?.includes("analytics:read") ? (
-        <L href={`${base}/analytics`} icon={<ChartLineIcon />}>
-          {t("nav.analytics")}
-        </L>
-      ) : null}
-      {can?.includes("analytics:read") ? (
-        <L href={`${base}/search-console`} icon={<SearchIcon />}>
-          {t("nav.searchConsole")}
-        </L>
-      ) : null}
-      {can?.includes("analytics:read") ? (
-        <L href={`${base}/youtube`} icon={<YoutubeIcon />}>
-          {t("nav.youtube")}
-        </L>
-      ) : null}
-      {/* Hidden, not disabled, for roles that cannot read runs: the API would only answer 403. */}
-      {can?.includes("research:read") ? (
-        <L href={`${base}/research`} icon={<SearchCheckIcon />}>
-          {t("nav.research")}
-        </L>
-      ) : null}
-      {can?.includes("research:read") ? (
-        <L href={`${base}/prospects`} icon={<RadarIcon />}>
-          {t("nav.prospects")}
-        </L>
-      ) : null}
-      <L href={`${base}/notifications`} exact icon={<BellIcon />}>
-        {t("nav.notifications")}
-      </L>
-      <L href={`${base}/members`} icon={<UsersIcon />}>
-        {t("nav.members")}
-      </L>
-      {mini ? <div className="mt-3 border-t border-line pt-3" /> : <p className="grid-micro mt-4 border-t border-line px-4 pt-4 pb-1">{t("nav.settings")}</p>}
-      <L href={`${base}/settings/email`} icon={<ServerIcon />}>
-        {t("nav.email")}
-      </L>
-      {/* The ideal-customer profile (MH-395): readable by anyone who reads the CRM, changed by managers. */}
-      {can?.includes("contacts:read") ? (
-        <L href={`${base}/settings/icp`} icon={<TargetIcon />}>
-          {t("nav.icp")}
-        </L>
-      ) : null}
-      <L href={`${base}/settings/integrations`} icon={<PlugIcon />}>
-        {t("nav.integrations")}
-      </L>
-      <L href={`${base}/notifications/sources`} icon={<WebhookIcon />}>
-        {t("notifications.sources")}
-      </L>
-      <L href={`${base}/settings/mcp`} icon={<KeyRoundIcon />}>
-        {t("nav.mcpTokens")}
-      </L>
-      {/* The workspace profile (MH-478): what a preset's job-application inputs
-          and the extension's own Application autofill panel both fill from. */}
-      {can?.includes("automation:read") ? (
-        <L href={`${base}/settings/automation-profile`} icon={<UserRoundIcon />}>
-          {t("nav.automationProfile")}
-        </L>
-      ) : null}
-      {/* Owners and admins only (MH-392): hidden, not disabled, for everyone else. */}
-      {can?.includes("audit:read") ? (
-        <L href={`${base}/settings/audit`} icon={<ScrollTextIcon />}>
-          {t("nav.audit")}
-        </L>
-      ) : null}
-      {can?.includes("push:manage") ? (
-        <L href={`${base}/settings/delivery`} icon={<BellRingIcon />}>
-          {t("nav.delivery")}
-        </L>
-      ) : null}
+    <nav className="flex flex-col py-3" aria-label={t("shell.navigation")} data-nav-drilled="">
+      {entries.map((e) => {
+        if (e.type === "link") {
+          const Icon = e.item.icon
+          return (
+            <NavLink
+              key={e.item.key}
+              href={e.item.path ? `${base}/${e.item.path}` : base}
+              icon={<Icon />}
+              active={itemActive(e.item, rest)}
+              onNavigate={onNavigate}
+              mini={mini}
+              dataNav={e.item.key}
+            >
+              {t(e.item.labelKey)}
+            </NavLink>
+          )
+        }
+        // Settings sits below a divider, apart from the workspace-level groups above it.
+        // Its own row already reads "Settings" with the drill-down chevron, so the rule
+        // needs no label of its own.
+        const divider = e.group.key === "settings" ? <div key="div" className={cn("border-t border-line", mini ? "mt-3 pt-3" : "mt-4 pt-2")} /> : null
+        return (
+          <span key={e.group.key} className="contents">
+            {divider}
+            <NavGroupButton group={e.group} active={derivedGroup?.key === e.group.key} onOpen={() => setManual(e.group.key)} mini={mini} />
+          </span>
+        )
+      })}
     </nav>
   )
 }
