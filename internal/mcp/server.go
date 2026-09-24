@@ -231,8 +231,28 @@ func (s *server) schemas() []map[string]any {
 		out = append(out, map[string]any{
 			"name":        t.Name,
 			"description": t.Description + " (scope: " + t.Scope + ")",
-			"inputSchema": t.InputSchema,
+			"inputSchema": validInputSchema(t.InputSchema),
 		})
+	}
+	return out
+}
+
+// validInputSchema is the tool's schema as strict MCP clients accept it: an
+// object with an object of properties. A missing schema, or properties left
+// nil, would otherwise reach ChatGPT/Claude Code as null and make them refuse
+// the whole tool list (MH-557), whichever way the tool was declared.
+func validInputSchema(in map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range in {
+		out[k] = v
+	}
+	if out["type"] == nil {
+		out["type"] = "object"
+	}
+	if p, ok := out["properties"]; !ok || p == nil {
+		out["properties"] = map[string]any{}
+	} else if m, ok := p.(map[string]any); ok && m == nil {
+		out["properties"] = map[string]any{}
 	}
 	return out
 }
@@ -304,6 +324,11 @@ func firstLine(s string) string {
 }
 
 func schema(required []string, props map[string]any) map[string]any {
+	// A nil map serialises as "properties": null, which is not JSON Schema:
+	// ChatGPT and Claude Code then reject the whole tools/list (MH-557).
+	if props == nil {
+		props = map[string]any{}
+	}
 	out := map[string]any{"type": "object", "properties": props}
 	if len(required) > 0 {
 		out["required"] = required
