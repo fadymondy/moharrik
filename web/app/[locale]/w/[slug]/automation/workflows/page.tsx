@@ -313,6 +313,11 @@ function WorkflowRow({
           <Badge variant="outline">
             {t("automation.editor.versionBadge", { n: workflow.version })}
           </Badge>
+          {workflow.writes ? (
+            <Badge variant="secondary" data-workflow-writes>
+              {t("presets.publishes")}
+            </Badge>
+          ) : null}
         </p>
         {workflow.description ? (
           <p className="line-clamp-1 text-sm text-grid-muted">

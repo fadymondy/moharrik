@@ -1,66 +1,42 @@
 "use client"
 
 /*
-The preset gallery (MH-478, phase 3a): every browser plugin fadymondy.com runs,
-as a starting point this workspace can add as its own workflow.
+The preset gallery (MH-478, redone for MH-527 as a macOS-Shortcuts-Gallery-
+style store): a shelf of brand tiles, each with its own logo and hex tint
+(components/automation/brand-icon.tsx, built on the simple-icons package).
+Typing in the search box swaps the shelves for a flat, brand-grouped list of
+matching presets; clearing it goes back to the shelves. A brand tile opens
+its own page (./[brand]) with that brand's presets as cards; a card opens
+the detail sheet with Add / Add & run.
 
-Grouped by platform and searchable. Each preset says, before anything is added,
-which sites it goes to, what it asks for, and whether it publishes, sends or
-submits as the signed-in account — and names its rehearsal twin where there is
-one. "Add" saves it as a workflow the workspace owns and, for an admin, can
-allow its sites on a browser in the same step. The workspace profile at the
-bottom is what the job-application presets take their defaults from.
-
-Its own route, so the workflows list can link "New workflow → from a preset"
-straight here.
+The data model, the plain en/ar names (MH-518) and the Add flow (including
+MH-517's auto-allow) are exactly what they were — this redoes the look, not
+the behaviour. Its own route, so the workflows list can still link
+"New workflow → from a preset" straight here.
 */
 
-import Link from "next/link"
-import { useMemo, useState, type FormEvent } from "react"
-import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ExternalLinkIcon, PlusIcon, SearchIcon, ShieldCheckIcon } from "lucide-react"
-import { toast } from "sonner"
+import { useMemo, useState } from "react"
+import { SearchIcon } from "lucide-react"
 
-import { Bdi, isolate } from "@/components/bidi"
-import { PresetIcon } from "@/components/automation/preset-icon"
-import { PickSelect } from "@/components/crm/shared"
+import { Bdi } from "@/components/bidi"
+import { BrandIcon } from "@/components/automation/brand-icon"
+import { BrandTile } from "@/components/automation/brand-tile"
+import { PresetCard, plainOf } from "@/components/automation/preset-card"
+import { PresetDetailSheet } from "@/components/automation/preset-detail-sheet"
+import { PresetProfilePanel } from "@/components/automation/preset-profile-panel"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type AutomationPreset, type BrowserAgent } from "@/lib/api"
-import { useWorkspaceEvents } from "@/lib/events"
+import type { AutomationPreset } from "@/lib/api"
+import { BRANDS, brandForHosts } from "@/lib/brands"
+import { SHELVES } from "@/lib/brand-shelves"
 import { useTranslations } from "@/lib/i18n"
+import { useWorkspaceEvents } from "@/lib/events"
 import { useAutomationProfile, useBrowsers, usePresets } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
-// The order platforms are listed in: reading the web first, then the networks
-// a business posts to, then messaging and jobs.
-const GROUP_ORDER = [
-  "google-news",
-  "google-trends",
-  "search",
-  "news",
-  "linkedin",
-  "x",
-  "facebook",
-  "instagram",
-  "threads",
-  "bluesky",
-  "tiktok",
-  "youtube",
-  "gmail",
-  "whatsapp",
-  "telegram",
-  "jobs",
-]
-
-export default function PresetsPage() {
+export default function PresetsGalleryPage() {
   const { t, locale, formatNumber } = useTranslations()
   const ws = useWorkspace()
   useDocumentTitle(`${t("presets.title")} · ${ws.summary.name}`)
@@ -74,57 +50,47 @@ export default function PresetsPage() {
   })
 
   const [q, setQ] = useState("")
-  const [group, setGroup] = useState("")
-  const [adding, setAdding] = useState<AutomationPreset | null>(null)
+  const [open, setOpen] = useState<AutomationPreset | null>(null)
   const list = presets.data?.presets ?? []
   const bySlug = useMemo(() => new Map(list.map((p) => [p.slug, p])), [list])
 
-  const groups = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    const hit = (p: AutomationPreset) =>
-      (!group || p.group === group) &&
-      (!needle ||
-        `${plainOf(p, locale).name} ${plainOf(p, locale).summary} ${p.name} ${p.slug} ${p.description} ${p.hosts.join(" ")} ${t(`presets.group.${p.group}`)}`
-          .toLowerCase()
-          .includes(needle))
-    const m = new Map<string, AutomationPreset[]>()
-    for (const p of list) if (hit(p)) m.set(p.group, [...(m.get(p.group) ?? []), p])
-    return [...m.entries()].sort((a, b) => rank(a[0]) - rank(b[0]))
-  }, [list, q, group, t, locale])
-  const shown = groups.reduce((n, [, ps]) => n + ps.length, 0)
-  const active = (browsers.data?.browsers ?? []).filter((b) => !b.revoked_at)
+  // Every brand this deployment's presets actually use, with a real logo when
+  // simple-icons has one — counted so an empty shelf never shows.
+  const countByBrand = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of list) {
+      const b = brandForHosts(p.hosts).key
+      m.set(b, (m.get(b) ?? 0) + 1)
+    }
+    return m
+  }, [list])
+
+  const needle = q.trim().toLowerCase()
+  const searchResults = useMemo(() => {
+    if (!needle) return null
+    const hit = (p: AutomationPreset) => {
+      const plain = plainOf(p, locale)
+      const brand = brandForHosts(p.hosts)
+      return `${plain.name} ${plain.summary} ${p.name} ${p.slug} ${p.description} ${p.hosts.join(" ")} ${brand.name}`.toLowerCase().includes(needle)
+    }
+    const byBrand = new Map<string, AutomationPreset[]>()
+    for (const p of list) if (hit(p)) byBrand.set(brandForHosts(p.hosts).key, [...(byBrand.get(brandForHosts(p.hosts).key) ?? []), p])
+    return [...byBrand.entries()].sort((a, b) => (countByBrand.get(b[0]) ?? 0) - (countByBrand.get(a[0]) ?? 0))
+  }, [needle, list, locale, countByBrand])
+  const searchCount = searchResults?.reduce((n, [, ps]) => n + ps.length, 0) ?? 0
 
   return (
     <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("presets.title")}
-        description={t("presets.hint")}
-        action={
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/browsers`} />}>
-            <ArrowLeftIcon className="rtl:rotate-180" />
-            {t("automation.backToAutomation")}
-          </Button>
-        }
-      />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("presets.title")} description={t("presets.hint")} />
 
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-6 py-4">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">
           <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-grid-muted" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("presets.search")} aria-label={t("presets.search")} className="ps-8" data-preset-search />
         </div>
-        <div className="w-52">
-          <PickSelect
-            id="preset-group"
-            value={group}
-            onChange={setGroup}
-            noneLabel={t("presets.allPlatforms")}
-            options={GROUP_ORDER.filter((g) => list.some((p) => p.group === g)).map((g) => ({ value: g, label: t(`presets.group.${g}`) }))}
-          />
-        </div>
-        {presets.data ? (
-          <p className="text-sm text-grid-muted" data-preset-count={shown}>
-            {t("presets.count", { n: formatNumber(shown), total: formatNumber(list.length) })}
+        {presets.data && needle ? (
+          <p className="text-sm text-grid-muted" data-preset-count={searchCount}>
+            {t("presets.count", { n: formatNumber(searchCount), total: formatNumber(list.length) })}
           </p>
         ) : null}
       </div>
@@ -133,249 +99,63 @@ export default function PresetsPage() {
         <ErrorState error={presets.error} />
       ) : presets.isLoading ? (
         <LoadingRows rows={6} />
-      ) : shown === 0 ? (
-        <EmptyState title={t("presets.noMatch", { q })} />
+      ) : needle ? (
+        searchCount === 0 ? (
+          <EmptyState title={t("presets.noMatch", { q })} />
+        ) : (
+          searchResults!.map(([brandKey, ps]) => {
+            const brand = BRANDS[brandKey]
+            return (
+              <section key={brandKey} className="mt-8" data-preset-group={brandKey}>
+                <h2 className="flex items-center gap-2 px-6 pb-2 text-base font-medium">
+                  <BrandIcon brand={brand} size={24} />
+                  {brand.name}
+                  <span className="text-sm font-normal text-grid-muted tabular-nums">{formatNumber(ps.length)}</span>
+                </h2>
+                <ul className="grid gap-3 px-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {ps.map((p) => (
+                    <PresetCard key={p.slug} preset={p} brand={brand} twin={bySlug.get(p.dry_run ?? p.dry_run_of ?? "")} onOpen={() => setOpen(p)} />
+                  ))}
+                </ul>
+              </section>
+            )
+          })
+        )
       ) : (
-        groups.map(([g, ps]) => (
-          <section key={g} className="mt-8" data-preset-group={g}>
-            <h2 className="flex items-center gap-2 px-6 pb-2 text-base font-medium">
-              {t(`presets.group.${g}`)}
-              <span className="text-sm font-normal text-grid-muted tabular-nums">{formatNumber(ps.length)}</span>
-            </h2>
-            <ul className="divide-y divide-line border-y border-line">
-              {ps.map((p) => (
-                <PresetRow key={p.slug} preset={p} twin={bySlug.get(p.dry_run ?? p.dry_run_of ?? "")} canRun={canRun} onAdd={() => setAdding(p)} />
-              ))}
-            </ul>
-          </section>
-        ))
+        SHELVES.map((shelf) => {
+          const brands = shelf.brands.filter((b) => (countByBrand.get(b) ?? 0) > 0)
+          if (brands.length === 0) return null
+          return (
+            <section key={shelf.labelKey} className="mt-8" data-shelf={shelf.labelKey}>
+              <h2 className="px-6 pb-2 text-base font-medium">{t(shelf.labelKey)}</h2>
+              <div className="grid grid-cols-3 gap-2 px-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+                {brands.map((b) => (
+                  <BrandTile key={b} brand={BRANDS[b]} count={countByBrand.get(b) ?? 0} href={`/${locale}/w/${ws.slug}/automation/presets/${b}`} />
+                ))}
+              </div>
+            </section>
+          )
+        })
       )}
 
+      <PresetProfilePanel canManage={canManage} data={profile.data} onSaved={() => profile.mutate()} />
       <div className="pb-8" />
 
-      {adding ? (
-        <AddDialog
-          preset={adding}
-          browsers={active}
+      {open ? (
+        <PresetDetailSheet
+          preset={open}
+          brand={brandForHosts(open.hosts)}
+          browsers={browsers.data?.browsers ?? []}
+          canRun={canRun}
           canManage={canManage}
           profile={profile.data?.profile ?? {}}
-          onClose={() => setAdding(null)}
-          onAdded={() => {
-            setAdding(null)
+          onClose={() => setOpen(null)}
+          onChanged={() => {
             void presets.mutate()
             void browsers.mutate()
           }}
         />
       ) : null}
     </>
-  )
-}
-
-/** The preset's plain words in the page's language (MH-518), English when missing. */
-function plainOf(p: AutomationPreset, locale: string) {
-  return p.plain?.[locale] ?? p.plain?.en ?? { name: p.name, summary: "" }
-}
-
-function rank(g: string) {
-  const i = GROUP_ORDER.indexOf(g)
-  return i < 0 ? GROUP_ORDER.length : i
-}
-
-function PresetRow({ preset: p, twin, canRun, onAdd }: { preset: AutomationPreset; twin?: AutomationPreset; canRun: boolean; onAdd: () => void }) {
-  const { t, locale } = useTranslations()
-  const ws = useWorkspace()
-  const plain = plainOf(p, locale)
-  return (
-    <li className="flex flex-wrap items-start gap-3 px-6 py-4" id={`preset-${p.slug}`} data-preset={p.slug} data-writes={p.writes ? "true" : undefined}>
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border border-line text-grid-muted">
-        <PresetIcon name={p.icon} className="size-4" />
-      </span>
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-          <span data-preset-name>{plain.name}</span>
-          {p.writes ? (
-            <Badge variant="secondary" data-preset-publishes>
-              {t("presets.publishes")}
-            </Badge>
-          ) : null}
-          {p.dry_run_of ? <Badge variant="outline">{t("presets.rehearsal")}</Badge> : null}
-          {p.workflow_id ? (
-            <Badge variant="outline" data-preset-added>
-              <CheckIcon />
-              {t("presets.added")}
-            </Badge>
-          ) : null}
-        </p>
-        {plain.summary ? (
-          <p className="text-sm text-grid-muted" data-preset-summary>
-            {plain.summary}
-          </p>
-        ) : null}
-        <p className="flex items-start gap-1 text-xs text-grid-muted" data-preset-hosts={p.hosts.join(",")}>
-          <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
-          <span className="min-w-0 break-words">{p.hosts.length ? t("presets.goesTo", { hosts: p.hosts.join(", ") }) : t("presets.anySite")}</span>
-        </p>
-        {twin && p.dry_run ? (
-          <p className="text-xs text-grid-muted">
-            {t("presets.rehearseFirst")}{" "}
-            <a className="underline" href={`#preset-${twin.slug}`}>
-              {plainOf(twin, locale).name}
-            </a>
-          </p>
-        ) : null}
-        {/* The technical notes (fadymondy.com's own text: selectors, fields,
-            when it was verified), for whoever edits it — out of the way. */}
-        <Collapsible data-preset-technical>
-          <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-grid-muted underline-offset-2 hover:underline" data-technical-toggle>
-            <ChevronDownIcon className="size-3 transition-transform group-aria-expanded:rotate-180" />
-            {t("presets.technical")}
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2 space-y-1 border-s-2 border-line ps-3" dir="ltr">
-            <p className="text-xs font-medium text-grid-fg">
-              {p.name} <span className="font-mono font-normal text-grid-muted">({p.slug})</span>
-            </p>
-            <p className="text-xs text-grid-muted">{p.description}</p>
-            {p.inputs.length > 0 ? (
-              <p className="text-xs text-grid-muted" data-preset-inputs>
-                {t("presets.asksFor", { names: p.inputs.map((i) => (i.required ? `${i.name}*` : i.name)).join(", ") })}
-              </p>
-            ) : null}
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-      <div className="flex items-center gap-2">
-        {p.workflow_id ? (
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/${p.workflow_id}`} />} data-open-added>
-            <ExternalLinkIcon />
-            {t("presets.open")}
-          </Button>
-        ) : canRun ? (
-          <Button variant="outline" size="sm" onClick={onAdd} data-add-preset={p.slug}>
-            <PlusIcon />
-            {t("presets.add")}
-          </Button>
-        ) : null}
-      </div>
-    </li>
-  )
-}
-
-function AddDialog({
-  preset: p,
-  browsers,
-  canManage,
-  profile,
-  onClose,
-  onAdded,
-}: {
-  preset: AutomationPreset
-  browsers: BrowserAgent[]
-  canManage: boolean
-  profile: Record<string, string>
-  onClose: () => void
-  onAdded: () => void
-}) {
-  const { t, locale } = useTranslations()
-  const ws = useWorkspace()
-  const plainName = plainOf(p, locale).name
-  const [agent, setAgent] = useState(browsers[0]?.id ?? "")
-  const chosen = browsers.find((b) => b.id === agent)
-  const missingHosts = p.hosts.filter((h) => !chosen?.allowed_hosts.some((a) => h === a || h.endsWith(`.${a}`)))
-  const [allow, setAllow] = useState(true)
-  const [number, setNumber] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const missingProfile = p.needs_profile.filter((f) => !profile[f])
-  const canAllow = canManage && browsers.length > 0 && p.hosts.length > 0
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setErr(null)
-    setBusy(true)
-    try {
-      const out = await api<{ workflow: { id: string; name: string }; hosts_added: string[] }>(`/api/w/automation/presets/${encodeURIComponent(p.slug)}/add`, {
-        json: {
-          ...(canAllow && allow && agent && missingHosts.length > 0 ? { agent_id: agent } : {}),
-          ...(p.needs_whatsapp && number.trim() ? { whatsapp_number: number.trim() } : {}),
-          locale: locale === "ar" ? "ar" : "en",
-        },
-        workspaceId: ws.id,
-      })
-      toast.success(
-        out.hosts_added.length
-          ? t("presets.addedWithHosts", { name: isolate(out.workflow.name), hosts: out.hosts_added.join(", ") })
-          : t("presets.addedToast", { name: isolate(out.workflow.name) }),
-      )
-      onAdded()
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(v) => (v ? null : onClose())}>
-      <DialogContent className="sm:max-w-lg">
-        <form onSubmit={submit} noValidate data-form="add-preset" data-preset-dialog={p.slug}>
-          <DialogHeader>
-            <DialogTitle>{t("presets.addTitle", { name: isolate(plainName) })}</DialogTitle>
-            <DialogDescription>{t("presets.addBody")}</DialogDescription>
-          </DialogHeader>
-          <FieldGroup className="my-4">
-            {p.writes ? (
-              <p className="border-s-2 border-grid-danger-text/60 ps-3 text-sm" data-add-writes>
-                {t("presets.writesNote")}
-              </p>
-            ) : null}
-            {p.needs_whatsapp ? (
-              <Field>
-                <FieldLabel htmlFor="preset-number">{t("presets.whatsappNumber")}</FieldLabel>
-                <Input id="preset-number" dir="ltr" inputMode="tel" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="201000000000" />
-                <FieldDescription>{t("presets.whatsappHint")}</FieldDescription>
-              </Field>
-            ) : null}
-            {p.needs_profile.length > 0 ? (
-              <p className="text-sm text-grid-muted" data-add-profile>
-                {missingProfile.length === 0
-                  ? t("presets.profileFilled")
-                  : t("presets.profileMissing", { fields: missingProfile.map((f) => t(`presets.profile.${f}`)).join(", ") })}{" "}
-                <Link className="underline" href={`/${locale}/w/${ws.slug}/settings/automation-profile`} onClick={onClose}>
-                  {t("presets.profileEdit")}
-                </Link>
-              </p>
-            ) : null}
-            {canAllow ? (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="preset-agent">{t("presets.browser")}</FieldLabel>
-                  <PickSelect id="preset-agent" value={agent} onChange={setAgent} options={browsers.map((b) => ({ value: b.id, label: b.name }))} />
-                </Field>
-                {missingHosts.length > 0 ? (
-                  <label className="flex items-start gap-2 text-sm" htmlFor="preset-allow">
-                    <Checkbox id="preset-allow" checked={allow} onCheckedChange={(v) => setAllow(v === true)} className="mt-0.5" data-add-allow />
-                    <span>{t("presets.allowHosts", { hosts: missingHosts.join(", ") })}</span>
-                  </label>
-                ) : (
-                  <p className="text-sm text-grid-muted">{t("presets.hostsAlready", { name: isolate(chosen?.name ?? "") })}</p>
-                )}
-              </>
-            ) : p.hosts.length > 0 ? (
-              <p className="text-sm text-grid-muted">{canManage ? t("presets.noBrowser") : t("presets.adminAllows", { hosts: p.hosts.join(", ") })}</p>
-            ) : null}
-          </FieldGroup>
-          {err ? <FieldError className="mb-3">{err}</FieldError> : null}
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={busy} data-confirm-add>
-              <PlusIcon />
-              {busy ? t("common.working") : t("presets.add")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   )
 }
