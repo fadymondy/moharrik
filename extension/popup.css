@@ -301,6 +301,36 @@ body {
   padding-bottom: 0;
 }
 
+/* The sites waiting for an OK (MH-483). */
+.plist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.plist li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.plist .btn {
+  padding: 4px 8px;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
 .settings {
   border-top: 1px solid var(--line);
   padding-top: 10px;

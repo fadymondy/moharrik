@@ -57,6 +57,18 @@ body.page {
   color: var(--ok);
 }
 
+.mode {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--brand);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+}
+.mode[data-mode="sites"] {
+  border-left-color: var(--brand-accent);
+}
+
 .add {
   display: flex;
   gap: 8px;

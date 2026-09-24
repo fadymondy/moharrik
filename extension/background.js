@@ -24,8 +24,10 @@ a fresh worker would otherwise say "unknown" every time.
 
 import { KEYS, clear, get, loadSettings, set, socketURL } from "./config.js"
 import { createConnect } from "./connect.js"
+import { badgeFor, grantState, newerThan } from "./grants.js"
 import { COMMANDS, closeRun, runStep, syncRuns } from "./driver.js"
 import { tabCapacity } from "./driver/runs.js"
+import { RUN_TABS_KEY } from "./driver/run-tabs-core.js"
 import { cancelPicks, pickElement } from "./pick.js"
 import { addStep, discardRecording, recordingState, startRecording, stopRecording } from "./recorder.js"
 
@@ -36,13 +38,18 @@ const CAPABILITIES = ["multi_tab", "persistent_tabs", "cdp"]
 
 const OFFSCREEN_PATH = "offscreen.html"
 const KEEPALIVE = "moh-keepalive"
+const UPDATE_CHECK = "moh-update-check"
 
 // Woken every minute so a dead socket is noticed while the browser is idle.
 // Alarms are the only timer MV3 guarantees across worker restarts; a minute
 // is Chrome's floor for one.
 chrome.alarms.create(KEEPALIVE, { periodInMinutes: 1 })
+// Whether a newer extension is out, every six hours and on every connect.
+chrome.alarms.create(UPDATE_CHECK, { periodInMinutes: 360 })
 chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === UPDATE_CHECK) void checkForUpdate()
   if (a.name !== KEEPALIVE) return
+  void applyUpdateWhenIdle()
   void ensureConnected()
   // A worker stopped while waiting for an approval picks the wait up again.
   void connector.resume()
@@ -175,6 +182,11 @@ async function onSocketStatus(s) {
       automationWindow: ack.automation_window,
     })
     await setStatus({ state: "connected", error: "", retryInMs: 0 })
+    // Told to the server on every connect: the page's "which mode" is only as
+    // fresh as the last thing this browser said.
+    lastSentState = ""
+    void refreshGrants()
+    void checkForUpdate()
     return
   }
   if (s.fatal) {
@@ -204,6 +216,121 @@ async function onSocketStatus(s) {
   // Nothing waits for a pick's answer any more — and a kill switch must not
   // leave a picking tab open on someone's signed-in page.
   cancelPicks()
+}
+
+/* ------------------------------------------------- Chrome's grant (MH-483) */
+
+let lastSentState = ""
+
+/*
+Where this browser stands against its workspace's list: every site granted
+("all"), or site by site with some still waiting for an OK. Kept in storage for
+the popup and the Sites page, painted on the toolbar icon, and told to the
+server so the Automation page can say it too.
+*/
+async function refreshGrants() {
+  const agent = (await get(KEYS.agent)) || {}
+  const state = await grantState(chrome.permissions, Array.isArray(agent.allowedHosts) ? agent.allowedHosts : [])
+  const prev = (await get(KEYS.grants)) || {}
+  if (prev.mode !== state.mode || JSON.stringify(prev.pending || []) !== JSON.stringify(state.pending)) {
+    await set(KEYS.grants, { ...state, at: Date.now() })
+  }
+  await paintBadge(state)
+  const wire = JSON.stringify(state)
+  if (wire !== lastSentState && (await get(KEYS.token))) {
+    lastSentState = wire
+    await toOffscreen({ command: "agent-state", state: { site_access: state.mode, pending_hosts: state.pending } })
+  }
+  return state
+}
+
+async function paintBadge(state) {
+  const badge = badgeFor(state || (await get(KEYS.grants)), await get(KEYS.update))
+  await chrome.action.setBadgeText({ text: badge.text }).catch(() => {})
+  await chrome.action.setTitle({ title: badge.title }).catch(() => {})
+}
+
+/*
+Is a newer extension out? Asked of the site's public /latest (no session
+needed), on connect and every six hours. A browser installed from the signed
+package by policy updates itself; everyone else is told, with a badge and a
+one-click download in the popup.
+*/
+async function checkForUpdate() {
+  const settings = await loadSettings()
+  const origin = (settings.apiOrigin || settings.siteOrigin).replace(/\/+$/, "")
+  const current = chrome.runtime.getManifest().version
+  try {
+    const res = await fetch(`${origin}/api/automation/extension/latest`, { cache: "no-store" })
+    if (!res.ok) return
+    const body = await res.json()
+    const latest = String(body.version || "")
+    const available = !!latest && newerThan(latest, current)
+    await set(KEYS.update, { latest, current, available, signed: body.signed === true, checkedAt: Date.now() })
+    // Installed from the signed package, Chrome can fetch the new version now
+    // rather than at its own next check, hours away; onUpdateAvailable then
+    // applies it once no run holds a tab. Loaded unpacked, Chrome answers that
+    // there is nothing to update, and the popup's download is the way.
+    if (available && body.signed === true && chrome.runtime.requestUpdateCheck) {
+      chrome.runtime.requestUpdateCheck().catch(() => {})
+    }
+  } catch {
+    return // the site is unreachable; the next check tries again
+  }
+  await paintBadge()
+}
+
+/*
+A browser installed from the signed package (a managed Chrome) is updated by
+Chrome itself — but Chrome holds a new version back while the extension is
+busy, and the offscreen document keeps it busy for good. So the update is
+applied here, the moment no run holds a tab: a run is never cut off halfway,
+and the browser does not sit on an old version until someone restarts Chrome.
+*/
+chrome.runtime.onUpdateAvailable.addListener((details) => {
+  void set("moh.updateReady", details?.version || "?").then(applyUpdateWhenIdle)
+})
+
+async function applyUpdateWhenIdle() {
+  if (!(await get("moh.updateReady"))) return
+  const inFlight = Object.keys((await get(RUN_TABS_KEY)) || {}).length
+  if (inFlight > 0) return // the keepalive alarm asks again in a minute
+  await clear("moh.updateReady")
+  chrome.runtime.reload()
+}
+
+chrome.permissions.onAdded.addListener(() => {
+  void refreshGrants()
+  void startFromIntent()
+})
+chrome.permissions.onRemoved.addListener(() => void refreshGrants())
+
+/*
+A Connect click asks Chrome for every site and connects in the same click. The
+permission prompt can outlive the popup that asked (Chrome may close a popup
+the moment its prompt takes focus), so the popup leaves an intent behind, and
+the grant arriving here starts the connect if the popup could not.
+*/
+async function startFromIntent() {
+  const intent = await get(KEYS.connectIntent)
+  if (!intent || Date.now() - (intent.at || 0) > 5 * 60_000) return
+  if (await get(KEYS.token)) return
+  await startConnect(intent.languages || [])
+}
+
+let connectStarting = null
+
+/** Start connecting once, however many clicks and grants ask for it. */
+async function startConnect(languages) {
+  await clear(KEYS.connectIntent)
+  const pairing = await get(KEYS.pairing)
+  if (pairing?.status === "pending" && Date.now() - (pairing.startedAt || 0) < 15_000) {
+    return { code: pairing.code, expiresAt: pairing.expiresAt }
+  }
+  connectStarting ??= connector.start({ languages }).finally(() => {
+    connectStarting = null
+  })
+  return connectStarting
 }
 
 /* --------------------------------------------------------------- commands */
@@ -276,6 +403,9 @@ async function onPush({ type, run, payload }) {
       ...(typeof payload.name === "string" ? { name: payload.name } : {}),
       ...(Array.isArray(payload.allowed_hosts) ? { allowedHosts: payload.allowed_hosts } : {}),
     })
+    // With every site granted, a site added on the website is usable from the
+    // next step; without, it joins the "waiting for your OK" list at once.
+    await refreshGrants()
   }
 }
 
@@ -302,8 +432,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return true
   }
   if (msg?.type === "connect.start") {
-    connector
-      .start({ languages: msg.languages || [] })
+    startConnect(msg.languages || [])
       .then((out) => reply({ ok: true, ...out }))
       .catch((e) => reply({ ok: false, error: String(e?.message || e) }))
     return true
@@ -314,6 +443,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
   if (msg?.type === "connect.cancel") {
     connector.cancel().then(() => reply({ ok: true }))
+    return true
+  }
+  if (msg?.type === "grants.refresh") {
+    refreshGrants().then(reply)
+    return true
+  }
+  if (msg?.type === "update.check") {
+    checkForUpdate().then(async () => reply((await get(KEYS.update)) || {}))
     return true
   }
   if (msg?.type === "disconnect") {
@@ -448,3 +585,9 @@ async function suggestedName() {
 // A worker that starts for any reason should get the socket back up.
 void ensureConnected()
 void connector.resume()
+void refreshGrants()
+// A worker that has not asked for a while asks now, so a browser that was off
+// for days learns about a new version when it wakes, not six hours later.
+void get(KEYS.update).then((u) => {
+  if (!u?.checkedAt || Date.now() - u.checkedAt > 15 * 60_000) void checkForUpdate()
+})

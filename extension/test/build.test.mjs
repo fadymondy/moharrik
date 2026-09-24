@@ -91,3 +91,48 @@ test("another deployment's site is baked in, and localhost only with --dev", () 
   assert.match(devManifest.name, /\(dev\)$/)
   assert.ok(devManifest.host_permissions.includes("http://localhost:3506/*"))
 })
+
+test("a release build is one extension id everywhere and names the API's update manifest (MH-483)", () => {
+  const { info, zip } = build()
+  const manifest = JSON.parse(unzip(zip)["manifest.json"])
+  const pub = readFileSync(path.join(ext, "signing-key.pub"), "utf8").trim()
+  assert.equal(manifest.key, pub)
+  assert.equal(info.public_key, pub)
+  const sum = createHash("sha256").update(Buffer.from(pub, "base64")).digest("hex").slice(0, 32)
+  assert.equal(info.extension_id, [...sum].map((h) => String.fromCharCode(97 + parseInt(h, 16))).join(""))
+  assert.equal(manifest.update_url, "https://app.moharrik.com/api/automation/extension/updates.xml")
+  // The public half only: nothing in the zip is a private key.
+  for (const [name, data] of Object.entries(unzip(zip))) assert.doesNotMatch(data.toString("latin1"), /PRIVATE KEY/, name)
+  assert.ok(!Object.keys(unzip(zip)).includes("signing-key.pub"))
+
+  const api = build("--site", "https://staging.moharrik.example", "--api", "https://api.staging.moharrik.example")
+  assert.equal(JSON.parse(unzip(api.zip)["manifest.json"]).update_url, "https://api.staging.moharrik.example/api/automation/extension/updates.xml")
+})
+
+test("a dev build has no release id, and --grant-all is for dev checks only", () => {
+  const dev = build("--site", "http://localhost:3506", "--dev", "--grant-all")
+  const manifest = JSON.parse(unzip(dev.zip)["manifest.json"])
+  assert.equal(manifest.key, undefined)
+  assert.equal(manifest.update_url, "http://localhost:3506/api/automation/extension/updates.xml")
+  assert.ok(manifest.host_permissions.includes("https://*/*") && manifest.host_permissions.includes("http://*/*"))
+  const refused = spawnSync(process.execPath, [path.join(ext, "build.mjs"), "--grant-all", "--out", mkdtempSync(path.join(tmpdir(), "x-"))])
+  assert.notEqual(refused.status, 0)
+  // Nor does a release build ever grant every site up front.
+  assert.ok(!JSON.parse(unzip(build().zip)["manifest.json"]).host_permissions.some((h) => h.includes("*://") || h.startsWith("http://*") || h.startsWith("https://*")))
+})
+
+test("the Web Store upload carries no key and no update_url, and leaves the served build alone", () => {
+  const out = mkdtempSync(path.join(tmpdir(), "moh-ext-store-"))
+  execFileSync(process.execPath, [path.join(ext, "build.mjs"), "--out", out], { stdio: "pipe" })
+  const before = readFileSync(path.join(out, "build.json"), "utf8")
+  execFileSync(process.execPath, [path.join(ext, "build.mjs"), "--out", out, "--store"], { stdio: "pipe" })
+  assert.equal(readFileSync(path.join(out, "build.json"), "utf8"), before)
+  const files = readdirSync(out)
+  const storeZip = files.find((f) => f.endsWith("-webstore.zip"))
+  assert.ok(storeZip)
+  assert.ok(files.includes(JSON.parse(before).file), "the served zip is still there")
+  const manifest = JSON.parse(unzip(readFileSync(path.join(out, storeZip)))["manifest.json"])
+  assert.equal(manifest.key, undefined)
+  assert.equal(manifest.update_url, undefined)
+  assert.deepEqual(manifest.host_permissions, ["https://app.moharrik.com/*"])
+})

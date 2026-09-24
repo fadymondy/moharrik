@@ -9,6 +9,7 @@
 // browser that starts without its extension looks exactly like an extension
 // that failed to start (see extension-check.mjs).
 import { chromium } from "playwright-core"
+import { execFile } from "node:child_process"
 import { createServer } from "node:http"
 import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -115,8 +116,17 @@ try {
   out.popupHasNoWorkspaceField = (await popup.$("#workspace-field, input#workspace")) === null
   await shots(popup, "popup-not-connected")
 
-  const opened = ctx.waitForEvent("page", { timeout: 20000 })
+  const opened = ctx.waitForEvent("page", { timeout: 30000 })
+  // Since MH-483 the click first asks Chrome for every site; Chrome's prompt
+  // is browser UI, answered from outside as a person would (uia-click.ps1).
+  const answered = new Promise((resolve) =>
+    execFile("powershell", ["-NoProfile", "-File", path.join(path.dirname(fileURLToPath(import.meta.url)), "uia-click.ps1"), "-Button", "Allow", "-TimeoutSec", "20"], { encoding: "utf8" }, (err, o) =>
+      resolve(!err && /^pressed/.test(String(o).trim())),
+    ),
+  )
+  await popup.bringToFront()
   await popup.click("#connect")
+  out.everySitePromptAnswered = await answered
   const approval = await opened
   await approval.waitForLoadState("domcontentloaded")
   const approvalURL = approval.url()

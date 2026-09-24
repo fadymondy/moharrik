@@ -478,9 +478,23 @@ async function inPage(run, func, args) {
       return result
     } catch (err) {
       if (run.breach) throw breachError(run)
+      // Chrome has not let the extension onto this site (MH-483): the person
+      // declined every-site access and has not approved this one yet. Said
+      // in words they can act on, not Chrome's.
+      if (/cannot access contents|must request permission|missing host permission/i.test(String(err?.message || err))) {
+        throw new Error(`Chrome has not allowed Moharrik on ${hostOfUrl(page.url) || "this site"} yet: approve it under "Waiting for your OK" in the extension`)
+      }
       if (attempt === 0 && page.documentId) continue // the document changed under us
       throw err
     }
+  }
+}
+
+function hostOfUrl(url) {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return ""
   }
 }
 

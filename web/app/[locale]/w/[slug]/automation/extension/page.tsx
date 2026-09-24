@@ -148,6 +148,28 @@ export default function ExtensionInstallPage() {
         <h2 className="px-6 pb-1 text-base font-medium">{t("automation.ext.updateTitle")}</h2>
         <p className="px-6 text-sm text-grid-muted">{t("automation.ext.updateBody")}</p>
       </section>
+
+      {/* ---- self-updating, for managed browsers (MH-483) ---- */}
+      {info?.available ? (
+        <section className="mt-8" data-managed={info.signed ? "signed" : "unsigned"}>
+          <h2 className="px-6 pb-1 text-base font-medium">{t("automation.ext.managedTitle")}</h2>
+          {info.signed && info.extension_id && info.update_url ? (
+            <div className="space-y-3 px-6">
+              <p className="text-sm text-grid-muted">{t("automation.ext.managedBody")}</p>
+              <div className="space-y-1">
+                <p className="text-xs text-grid-muted">{t("automation.ext.managedPolicy")}</p>
+                <CopyField value={`${info.extension_id};${info.update_url}`} nowrap />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-grid-muted">{t("automation.ext.managedId")}</p>
+                <CopyField value={info.extension_id} nowrap />
+              </div>
+            </div>
+          ) : (
+            <p className="px-6 text-sm text-grid-muted">{t("automation.ext.managedUnsigned")}</p>
+          )}
+        </section>
+      ) : null}
       <div className="pb-8" />
     </>
   )
