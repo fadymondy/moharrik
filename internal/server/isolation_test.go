@@ -459,6 +459,14 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	if _, b := alice.do("GET", "/api/w/notify/whatsapp", nil); !strings.Contains(string(b), "201699990000") || !strings.Contains(string(b), marker) {
 		t.Fatalf("alice should see her own WhatsApp notifications: %s", b)
 	}
+	// MH-389: alice's trends digest in A, its last error carrying the marker.
+	if _, err := a.SysDB.Exec(`INSERT INTO member_trend_digest (workspace_id, user_id, frequency, top, last_status, last_error)
+		VALUES ($1, $2, 'weekly', 7, 'failed', $3)`, aID, aliceUserID, marker); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SysDB.Exec(`INSERT INTO trend_digest_sends (workspace_id, user_id, kind, status, error) VALUES ($1, $2, 'digest', 'failed', $3)`, aID, aliceUserID, marker); err != nil {
+		t.Fatal(err)
+	}
 
 	// Trends (MH-385, MH-387): a keyword topic through the API, and a source, an
 	// item and a trending topic (story) written directly: a real source would
@@ -716,6 +724,14 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	if code, b := alice.do("GET", "/api/w/notify/whatsapp", nil); code != 200 || !strings.Contains(string(b), "201699990000") {
 		t.Errorf("alice's WhatsApp notifications were changed or removed from B: %d %s", code, b)
+	}
+	// MH-389: A's digest survived, and B's own shows none of it.
+	if code, b := alice.do("GET", "/api/w/notify/digest", nil); code != 200 || !strings.Contains(string(b), `"frequency":"weekly"`) || !strings.Contains(string(b), marker) {
+		t.Errorf("alice's trends digest was changed or removed from B: %d %s", code, b)
+	}
+	bob.ws = bID
+	if _, b := bob.do("GET", "/api/w/notify/digest", nil); strings.Contains(string(b), marker) || strings.Contains(string(b), `"weekly"`) {
+		t.Errorf("bob's trends digest showed alice's: %s", b)
 	}
 	// MH-427: A's rule, its log and its webhook secret survived B's sweep.
 	if code, b := alice.do("GET", "/api/w/rules/"+ruleID+"/secret", nil); code != 200 || !strings.Contains(string(b), ruleSecret) {

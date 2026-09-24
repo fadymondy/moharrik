@@ -140,6 +140,17 @@ func Boot() *app.App {
 	// it: neither package imports the other, so the wiring happens here.
 	whatsapp.RegisterHook(k.Router, a)
 	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string) error {
+		// "trends" / "ترندات" from a member's verified number is a question to
+		// the workspace, answered with its top trend stories (MH-389) — not a
+		// customer writing in. From anyone else it is filed like any message.
+		if handled, err := trends.HandleWhatsAppCommand(ctx, a, workspaceID, phone, text); handled {
+			if err != nil {
+				a.Log.Warn("could not answer a WhatsApp trends command", "workspace", workspaceID, "err", err)
+			}
+			return nil
+		} else if err != nil {
+			a.Log.Warn("could not check a WhatsApp trends command", "workspace", workspaceID, "err", err)
+		}
 		// "STOP" is the ONLY way out of a WhatsApp broadcast — there is no
 		// unsubscribe header the way email has one — so it is honoured before
 		// anything else happens to the message (MH-320).
@@ -187,6 +198,10 @@ func Boot() *app.App {
 	// listening to the events the triggers write, and fires schedule rules.
 	// RULES=off (or SCHEDULER=off) turns it off; the tests drive it by hand.
 	rules.Start(a)
+
+	// The trends digest (MH-389): one in-process ticker sending the members'
+	// daily and weekly digests when they are due. DIGEST=off turns it off.
+	trends.StartDigest(a)
 
 	// Run retention: finished runs are deleted past each workspace's window
 	// (MH-234). It reads SCHEDULER itself, so it is off wherever the scheduler
@@ -284,6 +299,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	whatsapp.Register(api, a)
 	whatsapp.RegisterNotify(api, a) // members' WhatsApp notifications (MH-411)
 	trends.Register(api, a)
+	trends.RegisterDigest(api, a) // the trends digest (MH-389)
 	automation.Register(api, a, automation.Default())
 	automation.RegisterConnect(api, a, automation.Default()) // connect a browser by approval (MH-478)
 	automation.RegisterSchedules(api, a, automation.Default())

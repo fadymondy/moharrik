@@ -52,6 +52,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"ga4_conversion_settings", "ga4_conversion_events",
 	// automation rules (MH-427)
 	"automation_rules", "automation_rule_events", "automation_rule_runs",
+	// the trends digest and WhatsApp trends answers (MH-389)
+	"member_trend_digest", "trend_digest_sends",
 }
 
 /*
@@ -100,6 +102,7 @@ var AuditExcluded = map[string]string{
 	"ga4_conversion_events":       "the GA4 outbox, written by triggers on leads and deals and marked sent by the sender; the lead's or deal's own change is audited",
 	"automation_rule_events":      "the rules dispatcher's outbox, written by every trigger and marked by every pass",
 	"automation_rule_runs":        "the rules' run log, itself a record of what each rule did; the rule is audited",
+	"trend_digest_sends":          "the trends digest's send log, itself a record",
 }
 
 // AuditedTables are the tenant tables the audit trigger is attached to.

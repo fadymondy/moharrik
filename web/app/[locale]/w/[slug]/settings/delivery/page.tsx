@@ -19,6 +19,7 @@ import { usePushStatus } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi } from "@/components/bidi"
 import { WhatsAppNotifySection } from "@/components/alerts/whatsapp-notify"
+import { TrendsDigestSection } from "@/components/alerts/trends-digest"
 
 /*
 Delivery (MH-378): how this workspace reaches the signed-in member.
@@ -297,6 +298,8 @@ export default function DeliveryPage() {
       )}
       {/* MH-411: a second channel for the same events, the member's own number. */}
       {ws.current ? <WhatsAppNotifySection /> : null}
+      {/* The trends digest (MH-389): for anyone who reads the trends center. */}
+      {ws.current && ws.can("trends:read") ? <TrendsDigestSection /> : null}
     </>
   )
 }
