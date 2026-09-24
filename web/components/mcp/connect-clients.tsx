@@ -13,7 +13,9 @@ import { useTranslations } from "@/lib/i18n"
  * pasted, the member picks the workspace on Moharrik's consent page. Claude
  * Code, Claude Desktop and Cursor are told how to send a pasted token.
  * `token` is the real plaintext right after creating one, a placeholder
- * otherwise; `oauthUrl` is the server's canonical URL (the OAuth audience).
+ * otherwise. `url` and `oauthUrl` are the one server URL the page computes
+ * (MCPServerURL, MH-516) — passed twice because the two kinds of client are
+ * told about it differently, not because they can ever point somewhere else.
  */
 export function ConnectClients({ url, token, oauthUrl }: { url: string; token?: string; oauthUrl?: string }) {
   const { t } = useTranslations()

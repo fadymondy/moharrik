@@ -111,6 +111,19 @@ Ported from fadymondy.com-v2 (`internal/mail`, subscribe/confirm/unsubscribe, ca
 - Transport ported from fadymondy.com-v2 `internal/mcp`; its opt-in scope weakness (FM-22) is
   inverted: a tool without a scope fails the build (`scopes_test.go`) and is denied at dispatch.
   Protocol `2024-11-05`, also negotiates `2025-03-26` / `2025-06-18`.
+- **Dedicated host (MH-516)** — `MCP_PUBLIC_URL`, e.g. `https://mcp.moharrik.com`, gives the
+  same user MCP a second, easier-to-connect entry point: its root path (`POST /`, no `/api/mcp`
+  suffix) is the transport, and `/.well-known/oauth-protected-resource` (+ trailing-slash) is
+  served there too — everything else on that host is a 404, even the legacy `/api/mcp` path.
+  Unset (the default), none of this mounts, and `/api/mcp` on `APP_URL` stays the only way in.
+  The authorization server is still `APP_URL`/`OAUTH_ISSUER` either way — only the resource
+  server moves. The two entry points are separate OAuth audiences (`internal/mcp/oauth.go`,
+  `authOAuthForResource`): a token minted for `MCP_PUBLIC_URL` is refused at `/api/mcp` and vice
+  versa, even though both reach the same tools — existing `mhr_` tokens and OAuth grants against
+  `/api/mcp` are unaffected. `internal/mcp/oauth.go`'s `MCPServerURL()` is the one place that
+  decides which URL to SHOW a person (Settings' `server_url`, the pasted-token config, the
+  claude.ai/ChatGPT instructions): the dedicated host once configured, else the legacy resource.
+  See `internal/mcp/public_host.go`.
 
 ## Problem reports → Mahaam
 

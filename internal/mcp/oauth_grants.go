@@ -51,7 +51,9 @@ func ListGrants(ctx context.Context, a *app.App, s *tenant.Scope) (*grantList, e
 		return nil, err
 	}
 	defer rows.Close()
-	out := &grantList{Grants: []GrantOut{}, All: all, ServerURL: MCPResourceURL()}
+	// The URL Settings shows and hands to claude.ai/ChatGPT: the dedicated
+	// host once one is configured, else the legacy resource (MH-516).
+	out := &grantList{Grants: []GrantOut{}, All: all, ServerURL: MCPServerURL()}
 	ids := map[string]bool{}
 	for rows.Next() {
 		var g GrantOut

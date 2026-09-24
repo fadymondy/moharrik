@@ -65,12 +65,27 @@ func Boot() *app.App {
 		panic(err)
 	}
 
+	// The research engine: search, reader and model, resolved from the
+	// environment once. Each tier is independently optional, and a run says
+	// which ones it had rather than failing opaquely (MH-227). Built here,
+	// ahead of the guard, so mcp.MountPublicHost below can hand its tool
+	// registry to the dedicated MCP host's transport (MH-516).
+	researchEngine := research.NewEngine(k.Log)
+	// Discovery rides on research: settled discovery runs become prospects,
+	// and scheduled discovery runs on the research clock (MH-397).
+	prospects.Init(researchEngine)
+
 	installErrors()
 	installProblemReports(k)          // outermost: sees what the guard and handlers answer
 	installInputGuard(k)              // text Postgres cannot store is a 400 before any query sees it
 	installClientIP(k)                // the visitor's address, from the TRUSTED proxy chain only
 	k.UseMiddleware(audit.Middleware) // who/where for the audit log (MH-392), after the address
 	installChatCORS(k)                // before the guard: a preflight carries no session
+	// The dedicated MCP host (MH-516), if MCP_PUBLIC_URL names one: ahead of
+	// the guard so a path that is not its transport or metadata is a plain
+	// 404 on that host, never a workspace-tier 401 or the SPA. A no-op when
+	// MCP_PUBLIC_URL is unset.
+	mcp.MountPublicHost(k, a, researchEngine)
 	installGuard(k, a)
 
 	// The registry of connected browsers, created BEFORE the routes: the
@@ -91,13 +106,6 @@ func Boot() *app.App {
 	// A step's screenshot (MH-478): bytes, so a plain route, in the workspace tier.
 	automation.MountRunArtifacts(k.Router, a)
 
-	// The research engine: search, reader and model, resolved from the
-	// environment once. Each tier is independently optional, and a run says
-	// which ones it had rather than failing opaquely (MH-227).
-	researchEngine := research.NewEngine(k.Log)
-	// Discovery rides on research: settled discovery runs become prospects,
-	// and scheduled discovery runs on the research clock (MH-397).
-	prospects.Init(researchEngine)
 	// The server jobs a schedule can run (MH-478).
 	registerJobs(a, researchEngine)
 

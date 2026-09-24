@@ -96,12 +96,71 @@ func OAuthIssuer() string {
 	return ""
 }
 
-// MCPResourceURL is the canonical URI of the user MCP server, which is also
-// the audience every OAuth token is bound to.
+// MCPResourceURL is the canonical URI of the legacy user MCP entry point
+// (POST /api/mcp), which is also the audience an OAuth token minted for it is
+// bound to. Unaffected by MCP_PUBLIC_URL — existing connections never move.
 func MCPResourceURL() string { return OAuthIssuer() + "/api/mcp" }
 
 func protectedResourceMetadataURL() string {
 	return OAuthIssuer() + "/.well-known/oauth-protected-resource/api/mcp"
+}
+
+/*
+MCPPublicURL is MCP_PUBLIC_URL, trimmed of a trailing slash: the dedicated MCP
+host (MH-516), e.g. https://mcp.moharrik.com, with no /api/mcp suffix — so
+"add an MCP server by URL" is just the domain. Empty (the default) means
+"APP_URL + /api/mcp": nothing here changes, MCPResourceURL stays the only
+audience and /api/mcp the only entry point.
+*/
+func MCPPublicURL() string {
+	return strings.TrimRight(strings.TrimSpace(os.Getenv("MCP_PUBLIC_URL")), "/")
+}
+
+// MCPServerURL is the URL to SHOW a person or hand to a connector: the
+// dedicated host once MCP_PUBLIC_URL names one, else the legacy resource.
+// This is the one shared place Settings (web/app/.../settings/mcp/page.tsx,
+// via oauth_grants.go's server_url) and any docs route read from, so the two
+// never say different things about where to connect.
+func MCPServerURL() string {
+	if pub := MCPPublicURL(); pub != "" {
+		return pub
+	}
+	return MCPResourceURL()
+}
+
+// acceptedResources are every audience this authorization server will mint a
+// token for: the legacy resource, plus the public one when MCP_PUBLIC_URL
+// names a different URL. A token is bound to exactly ONE of these at
+// authOAuthForResource — never treated as interchangeable, matching the
+// existing single-audience test (a grant's resource changed out from under it
+// is refused, oauth_test.go).
+func acceptedResources() []string {
+	out := []string{MCPResourceURL()}
+	if pub := MCPPublicURL(); pub != "" && pub != MCPResourceURL() {
+		out = append(out, pub)
+	}
+	return out
+}
+
+func validResource(res string) bool {
+	for _, r := range acceptedResources() {
+		if r == res {
+			return true
+		}
+	}
+	return false
+}
+
+// resourceOrDefault is the audience a grant is bound to at consent: the
+// client's explicit `resource` (already checked against acceptedResources by
+// validateAuthz), or the legacy one when the client omitted it — unchanged
+// from before MH-516, so a client that has never heard of the new host keeps
+// working exactly as it did.
+func resourceOrDefault(requested string) string {
+	if requested == "" {
+		return MCPResourceURL()
+	}
+	return requested
 }
 
 type oauthServer struct {
@@ -177,14 +236,22 @@ func scopeNames() []string {
 
 func (s *oauthServer) protectedResource(w http.ResponseWriter, _ *http.Request) {
 	allowAnyOrigin(w)
-	writeJSONNoStore(w, http.StatusOK, map[string]any{
-		"resource":                 MCPResourceURL(),
+	writeJSONNoStore(w, http.StatusOK, protectedResourceBody(MCPResourceURL()))
+}
+
+// protectedResourceBody is RFC 9728's protected-resource metadata, generic in
+// its resource: the legacy handler above binds it to MCPResourceURL, and the
+// dedicated host (public_host.go, MH-516) binds it to MCPPublicURL. Same
+// authorization server either way — there is only ever one.
+func protectedResourceBody(resource string) map[string]any {
+	return map[string]any{
+		"resource":                 resource,
 		"authorization_servers":    []string{OAuthIssuer()},
 		"scopes_supported":         scopeNames(),
 		"bearer_methods_supported": []string{"header"},
 		"resource_name":            "Moharrik",
 		"resource_documentation":   OAuthIssuer() + "/en/workspaces",
-	})
+	}
 }
 
 func (s *oauthServer) serverMetadata(w http.ResponseWriter, _ *http.Request) {
@@ -496,8 +563,8 @@ func (s *oauthServer) validateAuthz(ctx context.Context, p authzParams, fetch bo
 	if !challengeRE.MatchString(p.CodeChallenge) {
 		return client, nil, &authzProblem{http.StatusBadRequest, "invalid_request", "code_challenge is not a base64url SHA-256 digest", true}
 	}
-	if p.Resource != "" && p.Resource != MCPResourceURL() {
-		return client, nil, &authzProblem{http.StatusBadRequest, "invalid_target", "this server only issues tokens for " + MCPResourceURL(), true}
+	if p.Resource != "" && !validResource(p.Resource) {
+		return client, nil, &authzProblem{http.StatusBadRequest, "invalid_target", "this server only issues tokens for " + strings.Join(acceptedResources(), " or "), true}
 	}
 	requested := strings.Fields(p.Scope)
 	if len(requested) == 0 {
@@ -637,7 +704,7 @@ func (s *oauthServer) authorizeRequest(w http.ResponseWriter, r *http.Request) {
 		"loopback_redirect":  isLoopbackRedirect(p.RedirectURI),
 		"requested_scopes":   offered,
 		"workspaces":         wss,
-		"resource":           MCPResourceURL(),
+		"resource":           resourceOrDefault(p.Resource),
 		"access_ttl_seconds": int(oauthAccessTTL.Seconds()),
 	})
 }
@@ -704,11 +771,15 @@ func (s *oauthServer) authorizeDecision(w http.ResponseWriter, r *http.Request) 
 	scope.Via = "session"
 	tenant.RequestFrom(ctx).SetOperation("oauth-approve")
 	wctx := tenant.With(ctx, scope)
+	// The audience the grant is bound to: what the client asked for (already
+	// checked against acceptedResources by validateAuthz above), or the
+	// legacy resource when it asked for none (MH-516).
+	resource := resourceOrDefault(p.Resource)
 	var grantID string
 	if err := s.a.SQLDB.QueryRowContext(wctx, `
 		INSERT INTO oauth_grants (workspace_id, user_id, client_id, client_name, client_uri, scopes, resource)
 		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-		scope.WorkspaceID, id.ID, client.ID, client.Name, client.URI, strings.Join(granted, " "), MCPResourceURL()).Scan(&grantID); err != nil {
+		scope.WorkspaceID, id.ID, client.ID, client.Name, client.URI, strings.Join(granted, " "), resource).Scan(&grantID); err != nil {
 		writeJSONNoStore(w, http.StatusInternalServerError, map[string]string{"error": "could not record the connection"})
 		return
 	}
@@ -817,8 +888,8 @@ func (s *oauthServer) token(w http.ResponseWriter, r *http.Request) {
 		oauthError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
 		return
 	}
-	if res := r.PostForm.Get("resource"); res != "" && res != MCPResourceURL() {
-		oauthError(w, http.StatusBadRequest, "invalid_target", "this server only issues tokens for "+MCPResourceURL())
+	if res := r.PostForm.Get("resource"); res != "" && !validResource(res) {
+		oauthError(w, http.StatusBadRequest, "invalid_target", "this server only issues tokens for "+strings.Join(acceptedResources(), " or "))
 		return
 	}
 	switch r.PostForm.Get("grant_type") {
@@ -1069,13 +1140,23 @@ func (s *oauthServer) revoke(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 /*
-authOAuth resolves an OAuth access token presented to /api/mcp to the same
-tenant.Scope a pasted token gets: the grant's ONE workspace, its member, their
-CURRENT role there, and the approved scopes narrowed by that role. Re-checked
-on every call: the token's expiry, the grant's revocation, its audience, and
-the membership.
+authOAuthForResource resolves an OAuth access token presented to an MCP entry
+point to the same tenant.Scope a pasted token gets: the grant's ONE
+workspace, its member, their CURRENT role there, and the approved scopes
+narrowed by that role. Re-checked on every call: the token's expiry, the
+grant's revocation, its audience, and the membership.
+
+expectedResource is a parameter (MH-516) rather than always MCPResourceURL,
+so the legacy /api/mcp path and the dedicated host's root path (public_host.go)
+each accept only a token whose grant was activated for THAT resource — a
+token minted for one is refused at the other, even though both reach the same
+tools. That mirrors the pre-MH-516 behaviour exactly when only one resource
+exists (MCP_PUBLIC_URL unset), and keeps audiences apart per RFC 8707 when two
+do: nothing about the existing design (the grant's `resource` column, this
+exact-match check, and the test that revokes a grant moved to another
+resource — oauth_test.go) suggested the two should ever be interchangeable.
 */
-func authOAuth(r *http.Request, a *app.App, token string) (context.Context, []string, bool) {
+func authOAuthForResource(r *http.Request, a *app.App, token string, expectedResource string) (context.Context, []string, bool) {
 	if a == nil || a.SysDB == nil || !strings.HasPrefix(token, accessPrefix) {
 		return nil, nil, false
 	}
@@ -1092,7 +1173,7 @@ func authOAuth(r *http.Request, a *app.App, token string) (context.Context, []st
 		return nil, nil, false
 	}
 	// Audience: a token is only good for the resource it was issued for.
-	if resource != MCPResourceURL() {
+	if resource != expectedResource {
 		return nil, nil, false
 	}
 	s, err := tenant.Resolve(ctx, a.SysDB, userID, workspaceID)
@@ -1110,8 +1191,16 @@ func authOAuth(r *http.Request, a *app.App, token string) (context.Context, []st
 	return tenant.With(ctx, s), s.Scopes, true
 }
 
-// authUserOrOAuth is the user MCP's authenticator: a pasted mhr_ token, or an
-// OAuth access token. Existing token access is unchanged.
+// authOAuth is the legacy /api/mcp audience. See authOAuthPublicHost
+// (public_host.go) for the dedicated host's.
+func authOAuth(r *http.Request, a *app.App, token string) (context.Context, []string, bool) {
+	return authOAuthForResource(r, a, token, MCPResourceURL())
+}
+
+// authUserOrOAuth is /api/mcp's authenticator: a pasted mhr_ token, or an
+// OAuth access token bound to the legacy audience. Existing token access is
+// unchanged. See authUserOrOAuthPublicHost (public_host.go) for the
+// dedicated host's.
 func authUserOrOAuth(r *http.Request, a *app.App, token string) (context.Context, []string, bool) {
 	if strings.HasPrefix(token, accessPrefix) {
 		return authOAuth(r, a, token)

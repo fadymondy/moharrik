@@ -40,8 +40,13 @@ export default function McpTokensPage() {
   useDocumentTitle(`${t("nav.mcpTokens")} · ${ws.summary.name}`)
   const tokens = useMcpTokens(ws.id)
   const grants = useOAuthGrants(ws.id)
-  // The server's canonical URL: what claude.ai and ChatGPT are given (MH-391).
-  const oauthUrl = grants.data?.server_url
+  // The one URL every client is shown, pasted-token or OAuth alike: the
+  // dedicated mcp.<domain> host once MCP_PUBLIC_URL names one, else the
+  // legacy /api/mcp resource — server.MCPServerURL() (internal/mcp/oauth.go)
+  // is the shared source, oauth_grants.go's server_url field carries it here
+  // (MH-516). Falls back to the old NEXT_PUBLIC_MCP_ORIGIN-built shape only
+  // while the grants call hasn't answered yet.
+  const serverUrl = grants.data?.server_url ?? `${MCP_ORIGIN}/api/mcp`
   // Owners and admins can open each token's calls in the audit log (MH-392).
   const auditHref = ws.can("audit:read") ? (actor: string) => `/${locale}/w/${ws.summary.slug}/settings/audit?actor=${encodeURIComponent(actor)}` : undefined
   const [creating, setCreating] = useState(false)
@@ -116,7 +121,7 @@ export default function McpTokensPage() {
           <p className="grid-body text-sm">{t("mcp.connectHint")}</p>
         </div>
         <div className="max-w-3xl">
-          <ConnectClients url={`${MCP_ORIGIN}/api/mcp`} oauthUrl={oauthUrl} />
+          <ConnectClients url={serverUrl} oauthUrl={serverUrl} />
         </div>
       </section>
 
@@ -126,6 +131,7 @@ export default function McpTokensPage() {
           onOpenChange={setCreating}
           scopes={tokens.data.scopes ?? []}
           onCreated={() => tokens.mutate()}
+          serverUrl={serverUrl}
         />
       ) : null}
     </>
@@ -219,11 +225,13 @@ function CreateTokenDialog({
   onOpenChange,
   scopes,
   onCreated,
+  serverUrl,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   scopes: McpScope[]
   onCreated: () => void
+  serverUrl: string
 }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
@@ -293,7 +301,7 @@ function CreateTokenDialog({
             </div>
             <div className="space-y-1.5">
               <p className="grid-micro">{t("mcp.connectTitle")}</p>
-              <ConnectClients url={`${MCP_ORIGIN}/api/mcp`} token={plaintext} />
+              <ConnectClients url={serverUrl} token={plaintext} />
             </div>
             <DialogFooter>
               <Button onClick={() => handleOpenChange(false)}>{t("mcp.savedIt")}</Button>
