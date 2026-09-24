@@ -432,6 +432,12 @@ var argsARCRM = map[string]string{
 	"A member's user id or email; empty string unassigns": "معرّف مستخدم العضو أو بريده؛ النص الفارغ يلغي الإسناد",
 	"Replaces the tags (at most 20)":                      "تحلّ محل الوسوم الحالية (20 وسمًا كحدّ أقصى)",
 	"Set the lifecycle stage by hand (recorded as yours)": "ضبط مرحلة دورة الحياة يدويًا (يُسجَّل باسمك)",
+	// MH-561: a contact needs at least one of email/phone/handle, not email alone.
+	"A messaging handle/username on a channel with neither a phone nor an email":        "معرّف أو اسم مستخدم على قناة تواصل بلا هاتف أو بريد",
+	"A mailing list's exact name, to subscribe them (needs an email)":                   "الاسم الدقيق لقائمة بريدية لاشتراكها فيها (يحتاج بريدًا إلكترونيًا)",
+	"A messaging handle/username. Empty string clears it, if an email or phone remains": "معرّف أو اسم مستخدم على قناة تواصل. النص الفارغ يمسحه إن بقي بريد أو هاتف",
+	"Empty string clears it, if a phone or handle remains":                              "النص الفارغ يمسحه إن بقي هاتف أو معرّف",
+	"Empty string clears it, if an email or handle remains":                             "النص الفارغ يمسحه إن بقي بريد أو معرّف",
 
 	// companies
 	"Search name and domain":                                "البحث في الاسم والنطاق",

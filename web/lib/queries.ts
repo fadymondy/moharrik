@@ -21,6 +21,9 @@ import {
   type WorkflowVersion,
   type BrowserAgent,
   type Mailbox,
+  type ImportSourceInfo,
+  type ImportItem,
+  type ImportJob,
   type WhatsAppLink,
   type ContactWhatsApp,
   type WhatsAppNotify,
@@ -579,6 +582,37 @@ export function useRun(workspaceId: string | null | undefined, id?: string) {
 
 /** This workspace's mailboxes (MH-555). */
 export const useMailboxes = (id?: string | null) => useScoped<{ mailboxes: Mailbox[] }>("/api/w/mailboxes", id)
+
+// ── Import a connection's chats/senders (MH-562) ────────────────────────
+
+/** Every import source (whatsapp, email, ...) and this workspace's connections for each. */
+export const useImportSources = (id?: string | null) => useScoped<{ sources: ImportSourceInfo[] }>("/api/w/import/sources", id)
+
+/** One connection's importable items, filtered before anything is written. */
+export const useImportPreview = (
+  id: string | null | undefined,
+  source: string | null | undefined,
+  filters: { connection_id?: string; q?: string; kind?: string } = {},
+) => {
+  const qs = new URLSearchParams()
+  if (filters.connection_id) qs.set("connection_id", filters.connection_id)
+  if (filters.q) qs.set("q", filters.q)
+  if (filters.kind) qs.set("kind", filters.kind)
+  const query = qs.toString()
+  return useScoped<{ items: ImportItem[] }>(
+    source ? `/api/w/import/${encodeURIComponent(source)}/preview${query ? `?${query}` : ""}` : "",
+    id,
+    !!source,
+  )
+}
+
+/** One import job's progress; polled every `poll` ms while it runs. */
+export const useImportJob = (id?: string | null, jobId?: string | null, poll = 0) =>
+  useSWR<{ job: ImportJob }>(
+    id && jobId ? ["/api/w/import/jobs/" + encodeURIComponent(jobId), id] : null,
+    ([p, ws]: [string, string]) => api<{ job: ImportJob }>(p, { workspaceId: ws }),
+    { ...noRetryOn4xx, refreshInterval: poll },
+  )
 
 /** The workspace's WhatsApp link; polled every `poll` ms while a QR or pairing code waits for the phone (MH-413). */
 export const useWhatsApp = (id?: string | null, poll = 0) =>

@@ -1,0 +1,250 @@
+package imports_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/imports"
+	"github.com/fadymondy/moharrik/internal/tenant"
+	"github.com/fadymondy/moharrik/internal/testdb"
+	"github.com/fadymondy/moharrik/internal/whatsapp"
+	"github.com/togo-framework/togo"
+)
+
+/*
+MH-562: the WhatsApp import source against a fake Evolution API (httptest —
+never the real one, per the card's safety rule). Covers the shape a real
+import goes through: list chats and groups (Arabic included), import them
+into contacts + inbox threads, then re-import and see nothing duplicate.
+*/
+
+func testApp(t *testing.T) *app.App {
+	t.Helper()
+	owner, appURL := testdb.Setup(t, "imports", "../..")
+	t.Setenv("DATABASE_URL", owner)
+	t.Setenv("APP_DATABASE_URL", appURL)
+	t.Setenv("DB_DRIVER", "pgx")
+	t.Setenv("AUTH_SECRET", "imports-test-secret-imports-test-secret-01")
+	t.Setenv("STORAGE_DIR", t.TempDir())
+	t.Setenv("SCHEDULER", "off")
+	t.Setenv("TRENDS_COLLECTOR", "off")
+	t.Setenv("MAIL_COLLECTOR", "off")
+
+	k := togo.New()
+	a := app.New(context.Background(), k)
+	t.Cleanup(func() { k.Close() })
+	return a
+}
+
+func workspaceIn(t *testing.T, a *app.App) string {
+	t.Helper()
+	var wsID string
+	slug := "imports-test-" + time.Now().Format("150405.000000000")
+	if err := a.SysDB.QueryRowContext(context.Background(), `
+		INSERT INTO workspaces (name, slug, created_by) VALUES ('Imports Test', $1, 'test') RETURNING id`,
+		slug).Scan(&wsID); err != nil {
+		t.Fatal(err)
+	}
+	return wsID
+}
+
+// fakeEvolution is the same shape web/e2e/fake-evolution.mjs gives a person
+// clicking through the app: real-format chats, a group, and Arabic content.
+func fakeEvolution(t *testing.T) *httptest.Server {
+	t.Helper()
+	now := time.Now().Unix()
+	chats := []map[string]any{
+		{
+			"id": "201015550101@s.whatsapp.net", "remoteJid": "201015550101@s.whatsapp.net", "name": "Rana Fathy",
+			"lastMessage": map[string]any{"message": "هل وصل طلبي رقم NC-20417؟", "messageTimestamp": now - 3600, "fromMe": false},
+		},
+	}
+	groups := []map[string]any{
+		{
+			"id": "120363011234567890@g.us", "subject": "عملاء القهوة - القاهرة", "size": 2,
+			"participants": []map[string]any{
+				{"id": "201015550101@s.whatsapp.net", "name": "Rana Fathy", "admin": "superadmin"},
+				{"id": "201098765432@s.whatsapp.net", "name": "Laila Hassan"},
+			},
+			"lastMessage": map[string]any{"message": "الشحنة الجديدة وصلت اليوم", "messageTimestamp": now - 1800, "fromMe": false},
+		},
+	}
+	history := map[string][]map[string]any{
+		"201015550101@s.whatsapp.net": {
+			{"key": map[string]any{"remoteJid": "201015550101@s.whatsapp.net", "fromMe": false, "id": "wamid.001"}, "pushName": "Rana Fathy", "messageTimestamp": now - 7200, "message": map[string]any{"conversation": "مرحبًا"}},
+			{"key": map[string]any{"remoteJid": "201015550101@s.whatsapp.net", "fromMe": true, "id": "wamid.002"}, "messageTimestamp": now - 3600, "message": map[string]any{"conversation": "هل وصل طلبي رقم NC-20417؟"}},
+		},
+		"120363011234567890@g.us": {
+			{"key": map[string]any{"remoteJid": "120363011234567890@g.us", "fromMe": false, "id": "wamid.101"}, "pushName": "Laila Hassan", "messageTimestamp": now - 1800, "message": map[string]any{"conversation": "الشحنة الجديدة وصلت اليوم"}},
+		},
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/instance/connectionState/", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"instance": map[string]any{"state": "open"}})
+	})
+	mux.HandleFunc("/chat/findChats/", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(chats)
+	})
+	mux.HandleFunc("/group/fetchAllGroups/", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(groups)
+	})
+	mux.HandleFunc("/chat/findMessages/", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Where struct {
+				Key struct {
+					RemoteJID string `json:"remoteJid"`
+				} `json:"key"`
+			} `json:"where"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		_ = json.NewEncoder(w).Encode(map[string]any{"messages": map[string]any{"records": history[in.Where.Key.RemoteJID]}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func waitJob(t *testing.T, ctx context.Context, a *app.App, wsID, jobID string) *imports.Job {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		job, err := imports.JobStatus(ctx, a, wsID, jobID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if job.Status != "running" {
+			return job
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("import job never finished")
+	return nil
+}
+
+func TestWhatsAppImportIdempotent(t *testing.T) {
+	a := testApp(t)
+	wsID := workspaceIn(t, a)
+	evo := fakeEvolution(t)
+
+	if _, err := whatsapp.Ensure(context.Background(), a, wsID, "u-test"); err != nil {
+		t.Fatal(err)
+	}
+	whatsapp.SetState(context.Background(), a, wsID, "open", "201000000000")
+
+	cfg := whatsapp.Config{URL: evo.URL, Key: "fake"}
+	imports.RegisterProvider(imports.WhatsAppProvider{Config: &cfg})
+
+	ctx := tenant.With(context.Background(), &tenant.Scope{WorkspaceID: wsID, UserID: "u-test", Email: "owner@example.test", Role: "owner", Via: "session"})
+
+	// Sources: ready, since state is open.
+	sources, err := imports.ListSources(ctx, a, wsID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sources) != 1 || len(sources[0].Connections) != 1 || !sources[0].Connections[0].Ready {
+		t.Fatalf("sources not ready: %+v", sources)
+	}
+
+	// Preview: one direct chat, one Arabic group.
+	items, err := imports.Preview(ctx, a, wsID, "whatsapp", "", imports.Filters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("want 2 items, got %d: %+v", len(items), items)
+	}
+	var directID, groupID string
+	for _, it := range items {
+		if it.AlreadyImported {
+			t.Fatalf("nothing imported yet, but %q says already_imported", it.ID)
+		}
+		if it.Kind == "direct" {
+			directID = it.ID
+		} else {
+			groupID = it.ID
+			if len(it.Participants) != 2 {
+				t.Fatalf("group participants: got %d, want 2", len(it.Participants))
+			}
+		}
+	}
+	if directID == "" || groupID == "" {
+		t.Fatalf("missing a direct or group item: %+v", items)
+	}
+
+	// Import both, with participants.
+	job, err := imports.StartImport(ctx, a, wsID, "whatsapp", imports.ImportRequest{
+		Items: []string{directID, groupID}, ImportParticipants: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job = waitJob(t, ctx, a, wsID, job.ID)
+	if job.Status != "done" {
+		t.Fatalf("job failed: %+v", job)
+	}
+	if job.ConversationsCreated != 2 {
+		t.Fatalf("conversations_created: got %d, want 2", job.ConversationsCreated)
+	}
+	if job.ContactsCreated != 2 { // Rana (direct) + Laila (participant); Rana is reused for the group
+		t.Fatalf("contacts_created: got %d, want 2", job.ContactsCreated)
+	}
+	if job.MessagesImported != 3 {
+		t.Fatalf("messages_imported: got %d, want 3", job.MessagesImported)
+	}
+
+	// No opt-in implied (MH-410): importing history must never set consent.
+	var optIns int
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM contacts WHERE workspace_id = $1 AND whatsapp_opt_in_at IS NOT NULL`, wsID).Scan(&optIns); err != nil {
+		t.Fatal(err)
+	}
+	if optIns != 0 {
+		t.Fatalf("import set whatsapp_opt_in_at on %d contacts — no opt-in is implied by an import", optIns)
+	}
+
+	// Preview again: both now say already_imported.
+	items2, err := imports.Preview(ctx, a, wsID, "whatsapp", "", imports.Filters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range items2 {
+		if !it.AlreadyImported {
+			t.Fatalf("%q should be already_imported after the import", it.ID)
+		}
+	}
+
+	// Re-import: idempotent, nothing new.
+	job2, err := imports.StartImport(ctx, a, wsID, "whatsapp", imports.ImportRequest{
+		Items: []string{directID, groupID}, ImportParticipants: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job2 = waitJob(t, ctx, a, wsID, job2.ID)
+	if job2.Status != "done" || job2.ConversationsCreated != 0 || job2.ContactsCreated != 0 || job2.MessagesImported != 0 {
+		t.Fatalf("re-import was not a no-op: %+v", job2)
+	}
+	// 3 contacts reused: Rana (the direct chat's contact), then Rana again
+	// plus Laila as the group's two participants.
+	if job2.ConversationsReused != 2 || job2.ContactsReused != 3 {
+		t.Fatalf("re-import did not report the reuse: %+v", job2)
+	}
+
+	// The group conversation's summary: 2 people, both group messages inbound.
+	var groupConvID string
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT id FROM conversations WHERE workspace_id = $1 AND is_group = true`, wsID).Scan(&groupConvID); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := imports.ChatSummary(ctx, a, wsID, groupConvID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sum.IsGroup || sum.ParticipantCount != 2 || sum.MessageCount != 1 || sum.InboundCount != 1 {
+		t.Fatalf("group summary: %+v", sum)
+	}
+}

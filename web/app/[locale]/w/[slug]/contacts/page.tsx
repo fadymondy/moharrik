@@ -65,7 +65,7 @@ const statusVariant: Record<SubscriptionStatus, "default" | "secondary" | "outli
 }
 
 export default function ContactsPage() {
-  const { t } = useTranslations()
+  const { t, locale } = useTranslations()
   const ws = useWorkspace()
   useDocumentTitle(`${t("nav.contacts")} · ${ws.summary.name}`)
 
@@ -86,7 +86,16 @@ export default function ContactsPage() {
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.contacts")} description={t("contacts.hint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("nav.contacts")}
+        description={t("contacts.hint")}
+        action={
+          <Link className="text-sm underline underline-offset-4" href={`/${locale}/w/${ws.slug}/contacts/import`} data-nav="import">
+            {t("import.title")}
+          </Link>
+        }
+      />
       <ListsSection lists={listItems} loading={lists.isLoading} error={lists.error} onChange={changed} />
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />

@@ -70,6 +70,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, InboxTools()...)
 	tools = append(tools, MailboxTools()...) // several IMAP mailboxes (MH-555)
 	tools = append(tools, WhatsAppTools()...)
+	tools = append(tools, ImportTools()...) // import a connection's chats into contacts + inbox (MH-562)
 	tools = append(tools, TrendsTools()...)
 	tools = append(tools, AutomationTools()...)
 	tools = append(tools, WorkflowTools()...)

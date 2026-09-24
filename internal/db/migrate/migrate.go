@@ -54,6 +54,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"automation_rules", "automation_rule_events", "automation_rule_runs",
 	// the trends digest and WhatsApp trends answers (MH-389)
 	"member_trend_digest", "trend_digest_sends",
+	// importing chats/threads from a connection into contacts + inbox (MH-562)
+	"conversation_participants", "import_jobs",
 }
 
 /*

@@ -1085,6 +1085,55 @@ export type WhatsAppLink = {
   failed_today: number
 }
 
+// ── Import a connection's chats/senders (MH-562) ────────────────────────
+
+/** One instance of an import source (a linked WhatsApp number, a mailbox). */
+export type ImportConnection = {
+  id: string
+  label: string
+  ready: boolean
+  note?: string
+}
+
+export type ImportSourceInfo = {
+  source: string
+  connections: ImportConnection[]
+}
+
+export type ImportParticipant = { identity: string; name?: string }
+
+/** One importable chat/sender, with its last message. */
+export type ImportItem = {
+  id: string
+  kind: "direct" | "group"
+  name: string
+  identity: string
+  last_message?: string
+  last_message_at?: string | null
+  message_count?: number
+  participants?: ImportParticipant[]
+  flags?: string[]
+  already_imported: boolean
+}
+
+export type ImportJob = {
+  id: string
+  source: string
+  connection_id: string
+  status: "running" | "done" | "failed"
+  total: number
+  done: number
+  contacts_created: number
+  contacts_reused: number
+  conversations_created: number
+  conversations_reused: number
+  messages_imported: number
+  skipped: number
+  last_error?: string
+  created_at: string
+  updated_at: string
+}
+
 /** Where one contact stands for a WhatsApp message (MH-410). */
 export type ContactWhatsApp = {
   can_send: boolean

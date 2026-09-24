@@ -30,6 +30,7 @@ import (
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
 	"github.com/fadymondy/moharrik/internal/icp"
+	"github.com/fadymondy/moharrik/internal/imports"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/leads"
 	"github.com/fadymondy/moharrik/internal/marketing"
@@ -299,6 +300,8 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	inbox.RegisterAttachments(api, a)
 	whatsapp.Register(api, a)
 	whatsapp.RegisterNotify(api, a) // members' WhatsApp notifications (MH-411)
+	imports.RegisterProvider(imports.WhatsAppProvider{}) // MH-562: import WhatsApp chats/groups
+	imports.Register(api, a)                             // Contacts → "Import from a connection"
 	trends.Register(api, a)
 	trends.RegisterDigest(api, a) // the trends digest (MH-389)
 	automation.Register(api, a, automation.Default())
