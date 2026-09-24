@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type RunStep } from "@/lib/api"
+import { RunNotes } from "@/components/automation/run-notes"
 import { useTranslations } from "@/lib/i18n"
 import { useRun } from "@/lib/queries"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -80,6 +81,7 @@ export default function RunPage() {
             <span className="text-grid-muted">{t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })}</span>
             <span className="text-grid-muted">· {t(`automation.trigger.${run.trigger}`)}</span>
           </div>
+          <RunNotes notes={run.notes} className="space-y-1 px-6 pb-4" />
           {run.error ? (
             <p className="px-6 pb-4 text-sm text-grid-danger-text">
               <Bdi>{run.error}</Bdi>

@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
   CalendarClockIcon,
   CircleHelpIcon,
+  GlobeIcon,
   HandIcon,
   PlayIcon,
   PlusIcon,
@@ -546,7 +547,14 @@ export function TriggerPanel({
   onParams,
   onValues,
   onClose,
+  sites = [],
+  autoAdd = true,
+  canManage = false,
 }: {
+  /** The sites the workflow needs, and whether a run adds them (MH-517). */
+  sites?: string[]
+  autoAdd?: boolean
+  canManage?: boolean
   workflowId?: string
   description: string
   onDescription: (v: string) => void
@@ -647,6 +655,32 @@ export function TriggerPanel({
               </div>
             </li>
           </ul>
+        </section>
+
+        {/* The sites it needs (MH-517): a run adds whichever its browser does
+            not allow yet, under the rights of whoever runs it. */}
+        <section className="space-y-2" data-trigger-required-sites={sites.join(",")}>
+          <h3 className="text-sm font-medium">{t("canvas.sites.title")}</h3>
+          {sites.length === 0 ? (
+            <p className="text-xs text-grid-muted">{t("canvas.sites.none")}</p>
+          ) : (
+            <>
+              <ul className="flex flex-wrap gap-1.5">
+                {sites.map((h) => (
+                  <li key={h}>
+                    <Badge variant="outline" className="font-mono">
+                      <GlobeIcon />
+                      <span dir="ltr">{h}</span>
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-grid-muted" data-auto-add={autoAdd ? "on" : "off"}>
+                {autoAdd ? (canManage ? t("canvas.sites.auto") : t("canvas.sites.autoAdmin")) : t("canvas.sites.off")}
+              </p>
+            </>
+          )}
+          <p className="text-xs text-grid-muted">{t("canvas.sites.values")}</p>
         </section>
 
         <section className="space-y-3">

@@ -132,6 +132,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 			// below sees the hosts this schedule will ACTUALLY visit rather than
 			// a placeholder that could be anything.
 			steps2 := in.Body.Steps
+			var extra []string // sites its runs will add to the browser (MH-517)
 			if in.Body.WorkflowID != "" {
 				if len(in.Body.Steps) > 0 {
 					return nil, huma.Error422UnprocessableEntity("a schedule runs its own steps or a saved workflow, not both")
@@ -145,6 +146,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 					return nil, huma.Error422UnprocessableEntity(ferr.Error())
 				}
 				steps2 = filled
+				extra = scheduledSites(ctx, a, s, w, filled)
 				// The secret values are sealed here and never stored in the clear
 				// (schedule_values.go).
 				plainValues, sealed, err = SplitScheduleValues(w.Params, in.Body.Values)
@@ -158,7 +160,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 			// The steps are checked against the allowed sites NOW, not only when
 			// the schedule fires at 4am with nobody watching: the named browser's,
 			// or — with none named — at least one browser's of the workspace.
-			if err := checkScheduleHosts(ctx, db(), s.WorkspaceID, in.Body.AgentID, steps2); err != nil {
+			if err := checkScheduleHosts(ctx, db(), s.WorkspaceID, in.Body.AgentID, steps2, extra); err != nil {
 				return nil, err
 			}
 		}
@@ -276,6 +278,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 		whatChanged := cur.JobKey == "" && (workflowID != cur.WorkflowID || in.Body.Values != nil || agentID != cur.AgentID)
 		if whatChanged {
 			steps := cur.Steps
+			var extra []string
 			if workflowID != "" {
 				w, err := getWorkflow(ctx, db(), s.WorkspaceID, workflowID)
 				if err != nil {
@@ -299,6 +302,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 					return nil, huma.Error422UnprocessableEntity(ferr.Error())
 				}
 				steps = filled
+				extra = scheduledSites(ctx, a, s, w, filled)
 				plainJSON, sealed, ownSteps = jsonOrEmpty(plain), sealedNow, "[]"
 			}
 			if len(steps) == 0 {
@@ -306,7 +310,7 @@ func RegisterSchedules(api huma.API, a *app.App, hub *Hub) {
 			}
 			// A named browser must allow every step; "any browser" needs one
 			// of the workspace's browsers that does (MH-478).
-			if err := checkScheduleHosts(ctx, db(), s.WorkspaceID, agentID, steps); err != nil {
+			if err := checkScheduleHosts(ctx, db(), s.WorkspaceID, agentID, steps, extra); err != nil {
 				return nil, err
 			}
 		}
@@ -548,7 +552,23 @@ func jsonOrEmpty(v map[string]string) string {
 // checkScheduleHosts refuses a schedule whose steps no browser may run: the
 // named one's allowed sites, or — with none named — at least one of the
 // workspace's browsers' (MH-478).
-func checkScheduleHosts(ctx context.Context, db *sql.DB, workspaceID, agentID string, steps []Step) error {
+// scheduledSites are the sites a schedule's runs will add to its browser
+// (MH-517), so they are not refused now: the workflow's declared sites, and —
+// when the workspace allows sites from values — the filled-in ones, provided
+// the schedule's creator (who its runs act as) may manage browsers.
+func scheduledSites(ctx context.Context, a *app.App, s *tenant.Scope, w Workflow, filled []Step) []string {
+	settings := ReadSiteSettings(ctx, a, s.WorkspaceID)
+	if !settings.AutoAdd || !authz.Can(s.Role, authz.AutomationManage) {
+		return nil
+	}
+	out := RequiredHosts(w.Hosts, w.Steps)
+	if settings.FromInputs {
+		out = append(out, runHosts(filled)...)
+	}
+	return out
+}
+
+func checkScheduleHosts(ctx context.Context, db *sql.DB, workspaceID, agentID string, steps []Step, extra []string) error {
 	if agentID != "" {
 		var hosts pgtext.Array
 		var revoked sql.NullTime
@@ -564,7 +584,7 @@ func checkScheduleHosts(ctx context.Context, db *sql.DB, workspaceID, agentID st
 		if revoked.Valid {
 			return huma.Error409Conflict(ErrRevoked.Error())
 		}
-		if err := CheckSteps(steps, hosts); err != nil {
+		if err := CheckSteps(steps, append(append([]string{}, hosts...), extra...)); err != nil {
 			return runError(err)
 		}
 		return nil
@@ -580,7 +600,7 @@ func checkScheduleHosts(ctx context.Context, db *sql.DB, workspaceID, agentID st
 		if rows.Scan(&hosts) != nil {
 			continue
 		}
-		if err := CheckSteps(steps, hosts); err == nil {
+		if err := CheckSteps(steps, append(append([]string{}, hosts...), extra...)); err == nil {
 			return nil
 		} else {
 			firstErr = runError(err)

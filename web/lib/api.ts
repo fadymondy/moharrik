@@ -931,6 +931,9 @@ export type AutomationSettings = {
   retention_days: number
   runs_per_hour: number
   live_runs: number
+  /** A run adds its workflow's sites to its browser (MH-517), and whether an unwatched run may add sites from values. */
+  auto_add_sites: boolean
+  auto_add_input_sites: boolean
 }
 
 /** A server job a schedule can run (MH-478). */
@@ -950,6 +953,8 @@ export type RunStep = {
 }
 
 export type AutomationRun = {
+  /** Lines about the run itself, e.g. the sites it added before its first step (MH-517). */
+  notes?: string[]
   id: string
   agent_id: string
   agent_name: string
@@ -1157,6 +1162,8 @@ export type AutomationWorkflow = {
   icon?: string
   writes?: boolean
   preset?: string
+  /** Its declared sites plus the written-out hosts its steps go to (MH-517). */
+  required_sites?: string[]
   created_at: string
   updated_at: string
 }
