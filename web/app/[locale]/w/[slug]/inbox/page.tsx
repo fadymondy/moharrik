@@ -1,9 +1,8 @@
 "use client"
 
-import Link from "next/link"
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { BarChart3Icon, ChevronUpIcon, EllipsisVerticalIcon, MailIcon, MessageCircleIcon, MessageSquareIcon, MessageSquareQuoteIcon, SettingsIcon } from "lucide-react"
+import { ChevronUpIcon, EllipsisVerticalIcon, MessageSquareIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
@@ -163,35 +162,6 @@ export default function InboxPage() {
         micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.inbox")}
         description={t("inbox.hint")}
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Stats are everyone's (inbox:read); the settings are a manager's. */}
-            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/stats`} />}>
-              <BarChart3Icon />
-              {t("inbox.stats")}
-            </Button>
-            {canManage ? (
-              <>
-              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/canned`} />}>
-                <MessageSquareQuoteIcon />
-                {t("inbox.canned")}
-              </Button>
-              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/email`} />}>
-                <MailIcon />
-                {t("mailbox.title")}
-              </Button>
-              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/whatsapp`} />}>
-                <MessageCircleIcon />
-                {t("whatsapp.title")}
-              </Button>
-              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox/widgets`} />}>
-                <SettingsIcon />
-                {t("inbox.widgets")}
-              </Button>
-              </>
-            ) : null}
-          </div>
-        }
       />
 
       <div className="flex flex-wrap items-center gap-2 px-6 pb-4" role="group" aria-label={t("inbox.filters")}>
