@@ -16,18 +16,18 @@ import (
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
-// SendEmailReply sends the team's answer out through the workspace's SMTP
-// settings and returns the Message-ID it was sent with.
-//
-// The SMTP settings are the ones internal/marketing already owns: a workspace
-// configures one mail service, not one per feature. Only the direction differs
-// — marketing sends to a list, this answers one person.
-func SendEmailReply(ctx context.Context, a *app.App, workspaceID, convID, to, subject, text string) (string, error) {
+// SendEmailReply sends the team's answer out through the conversation's own
+// mailbox — or the workspace's default SMTP service, for a conversation that
+// predates MH-555 or was never tied to one — and returns the Message-ID it was
+// sent with. text is Markdown (MH-556): it goes out multipart, the rendered
+// HTML alongside the plain text, the same shape marketing.Send already builds
+// for a campaign.
+func SendEmailReply(ctx context.Context, a *app.App, workspaceID, convID, mailboxID, to, subject, text string) (string, error) {
 	to = strings.TrimSpace(to)
 	if to == "" {
 		return "", errors.New("this conversation has no email address to answer")
 	}
-	svc, err := marketing.LoadSMTP(ctx, a.SQLDB, workspaceID)
+	svc, err := resolveSMTP(ctx, a.SQLDB, workspaceID, mailboxID)
 	if err != nil {
 		return "", err
 	}
@@ -50,6 +50,7 @@ func SendEmailReply(ctx context.Context, a *app.App, workspaceID, convID, to, su
 		To:      to,
 		Subject: replySubject(subject),
 		Text:    text,
+		HTML:    RenderMarkdown(text),
 		Headers: headers,
 	}); err != nil {
 		return "", err

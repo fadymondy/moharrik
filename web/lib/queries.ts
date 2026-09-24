@@ -20,7 +20,7 @@ import {
   type ExtensionInfo,
   type WorkflowVersion,
   type BrowserAgent,
-  type MailboxSettings,
+  type Mailbox,
   type WhatsAppLink,
   type ContactWhatsApp,
   type WhatsAppNotify,
@@ -366,10 +366,31 @@ export const useCollectedSources = (id?: string | null) => useScoped<CollectedSo
 
 // ── Inbox ────────────────────────────────────────────────────────────────
 
-export type ConversationFilter = { status?: string; unread?: boolean; channel?: string }
+export type ConversationFilter = {
+  status?: string
+  unread?: boolean
+  channel?: string
+  /** Only this mailbox's email conversations (MH-555). */
+  mailbox_id?: string
+  /** Full-text search (MH-556), kept in the URL by the page, not by this hook. */
+  q?: string
+}
+
+type ConversationPage = { conversations: Conversation[]; unread_count: number; next_cursor?: string }
+
+function conversationsBase(filter: ConversationFilter) {
+  const qs = new URLSearchParams()
+  if (filter.status) qs.set("status", filter.status)
+  if (filter.unread) qs.set("unread", "true")
+  if (filter.channel) qs.set("channel", filter.channel)
+  if (filter.mailbox_id) qs.set("mailbox_id", filter.mailbox_id)
+  if (filter.q) qs.set("q", filter.q)
+  qs.set("limit", "50")
+  return "/api/w/conversations?" + qs.toString()
+}
 
 /**
- * The inbox list.
+ * The inbox list, ONE page (the newest 50).
  *
  * No polling: the page subscribes to the workspace's event stream
  * (useWorkspaceEvents) and revalidates when a message actually arrives. SWR
@@ -377,15 +398,30 @@ export type ConversationFilter = { status?: string; unread?: boolean; channel?: 
  * that dropped while the tab was in the background.
  */
 export function useConversations(workspaceId: string | null | undefined, filter: ConversationFilter = {}) {
-  const qs = new URLSearchParams()
-  if (filter.status) qs.set("status", filter.status)
-  if (filter.unread) qs.set("unread", "true")
-  if (filter.channel) qs.set("channel", filter.channel)
-  const path = "/api/w/conversations" + (qs.toString() ? `?${qs.toString()}` : "")
-  return useSWR<{ conversations: Conversation[]; unread_count: number }>(
+  const path = conversationsBase(filter)
+  return useSWR<ConversationPage>(
     workspaceId ? [path, workspaceId] : null,
-    ([p, id]: [string, string]) => api<{ conversations: Conversation[]; unread_count: number }>(p, { workspaceId: id }),
+    ([p, id]: [string, string]) => api<ConversationPage>(p, { workspaceId: id }),
     noRetryOn4xx,
+  )
+}
+
+/**
+ * The inbox list, cursor-paged and growing (MH-556): the page asks for more
+ * as the list scrolls into view, the same useSWRInfinite shape useNewsPages
+ * and useTrendTopics already use, walking next_cursor instead of has_more.
+ */
+export function useConversationPages(workspaceId: string | null | undefined, filter: ConversationFilter = {}) {
+  const base = conversationsBase(filter)
+  return useSWRInfinite<ConversationPage>(
+    (i, prev: ConversationPage | null) => {
+      if (!workspaceId) return null
+      if (i === 0) return [base, workspaceId]
+      if (!prev?.next_cursor) return null
+      return [`${base}&cursor=${encodeURIComponent(prev.next_cursor)}`, workspaceId]
+    },
+    ([p, id]: [string, string]) => api<ConversationPage>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, revalidateFirstPage: true },
   )
 }
 
@@ -540,7 +576,8 @@ export function useRun(workspaceId: string | null | undefined, id?: string) {
   )
 }
 
-export const useMailbox = (id?: string | null) => useScoped<MailboxSettings>("/api/w/mailbox", id)
+/** This workspace's mailboxes (MH-555). */
+export const useMailboxes = (id?: string | null) => useScoped<{ mailboxes: Mailbox[] }>("/api/w/mailboxes", id)
 
 /** The workspace's WhatsApp link; polled every `poll` ms while a QR or pairing code waits for the phone (MH-413). */
 export const useWhatsApp = (id?: string | null, poll = 0) =>

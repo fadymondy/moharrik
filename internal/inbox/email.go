@@ -28,12 +28,45 @@ type Email struct {
 	FromName   string
 	Subject    string
 	Body       string // text/plain, or HTML stripped to text
-	Date       time.Time
+	// BodyHTML is the message's text/html part, SANITISED (SanitizeEmailHTML)
+	// — safe to store and, eventually, render (MH-556). Empty for a
+	// text/plain-only email; Body is always populated either way.
+	BodyHTML    string
+	Attachments []Attachment
+	Date        time.Time
+}
+
+// Attachment is one non-text part of an inbound email (MH-556): a real
+// attachment, or an image inline in the HTML body (Inline=true, ContentID
+// set — what an <img src="cid:...."> in BodyHTML resolves to).
+type Attachment struct {
+	Filename    string
+	ContentType string
+	Data        []byte
+	ContentID   string
+	Inline      bool
 }
 
 // maxBody caps what is stored from one email. A newsletter can be megabytes of
 // HTML, and the inbox shows a conversation, not a document.
 const maxBody = 16 << 10
+
+// maxHTMLBody is generous next to maxBody: a newsletter's markup is mostly
+// tags and inline styles, and truncating mid-tag would leave something for the
+// sanitiser to choke on. 512 KiB is enough for any real newsletter; past that
+// point storing "here is the text" and dropping the HTML rendering is the
+// right trade, not silently cutting the markup in half.
+const maxHTMLBody = 512 << 10
+
+// attachmentMaxBytes caps a single attachment; attachmentMaxTotal caps a
+// message's attachments together, so one email cannot balloon a workspace's
+// database. A part over the cap is skipped, not truncated — a truncated
+// attachment is a corrupt file offered as a real one.
+const (
+	attachmentMaxBytes = 15 << 20
+	attachmentMaxTotal = 40 << 20
+	attachmentMaxCount = 20
+)
 
 // ParseEmail reads an RFC 5322 message.
 //
@@ -66,6 +99,7 @@ func ParseEmail(r io.Reader) (*Email, error) {
 	}
 
 	var plain, html string
+	attachTotal := 0
 	for {
 		part, err := mr.NextPart()
 		if err == io.EOF {
@@ -76,17 +110,27 @@ func ParseEmail(r io.Reader) (*Email, error) {
 		switch ph := part.Header.(type) {
 		case *mail.InlineHeader:
 			ct, _, _ := ph.ContentType()
-			b, _ := io.ReadAll(io.LimitReader(part.Body, maxBody*4))
-			if strings.HasPrefix(ct, "text/html") {
+			switch {
+			case strings.HasPrefix(ct, "text/html"):
 				if html == "" {
+					b, _ := io.ReadAll(io.LimitReader(part.Body, maxHTMLBody*4))
 					html = string(b)
 				}
-			} else if plain == "" {
-				plain = string(b)
+			case strings.HasPrefix(ct, "text/"):
+				if plain == "" {
+					b, _ := io.ReadAll(io.LimitReader(part.Body, maxBody*4))
+					plain = string(b)
+				}
+			default:
+				// An inline non-text part (Content-Disposition: inline on
+				// something like an embedded image) is still an attachment —
+				// its ContentID is what BodyHTML's <img src="cid:..."> points
+				// at.
+				out.Attachments, attachTotal = addAttachment(out.Attachments, attachTotal, ph, ct, part.Body, true)
 			}
-		default:
-			// An attachment. The body is what the inbox shows; attachments are
-			// not stored in P0, and pretending otherwise would be worse.
+		case *mail.AttachmentHeader:
+			ct, _, _ := ph.ContentType()
+			out.Attachments, attachTotal = addAttachment(out.Attachments, attachTotal, ph, ct, part.Body, false)
 		}
 	}
 	body := plain
@@ -94,7 +138,56 @@ func ParseEmail(r io.Reader) (*Email, error) {
 		body = stripHTML(html)
 	}
 	out.Body = trimTo(strings.TrimSpace(collapseBlankLines(body)), maxBody)
+	if strings.TrimSpace(html) != "" {
+		out.BodyHTML = SanitizeEmailHTML(trimTo(html, maxHTMLBody))
+	}
 	return out, nil
+}
+
+// contentTyper is what both mail.InlineHeader and mail.AttachmentHeader
+// implement (via the embedded message.Header) but mail.PartHeader itself does
+// not promise — read defensively via a type assertion rather than assumed.
+type contentTyper interface {
+	ContentType() (string, map[string]string, error)
+}
+
+// addAttachment reads one non-text part, subject to the per-attachment and
+// per-message caps (email.go's doc explains why a part over the cap is
+// skipped rather than truncated).
+func addAttachment(list []Attachment, total int, ph mail.PartHeader, contentType string, body io.Reader, inline bool) ([]Attachment, int) {
+	if len(list) >= attachmentMaxCount || total >= attachmentMaxTotal {
+		return list, total
+	}
+	data, err := io.ReadAll(io.LimitReader(body, attachmentMaxBytes+1))
+	if err != nil || len(data) == 0 || len(data) > attachmentMaxBytes {
+		return list, total
+	}
+	if total+len(data) > attachmentMaxTotal {
+		return list, total
+	}
+	filename := ""
+	if a, ok := ph.(*mail.AttachmentHeader); ok {
+		if fn, err := a.Filename(); err == nil {
+			filename = strings.TrimSpace(fn)
+		}
+	}
+	if filename == "" {
+		if g, ok := ph.(contentTyper); ok {
+			if _, params, err := g.ContentType(); err == nil {
+				filename = strings.TrimSpace(params["name"])
+			}
+		}
+	}
+	if filename == "" {
+		filename = "attachment"
+	}
+	cid := trimAngles(ph.Get("Content-Id"))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	return append(list, Attachment{
+		Filename: trimTo(filename, 200), ContentType: contentType, Data: data, ContentID: cid, Inline: inline && cid != "",
+	}), total + len(data)
 }
 
 // trimAngles turns "<abc@host>" into "abc@host". A Message-ID is compared

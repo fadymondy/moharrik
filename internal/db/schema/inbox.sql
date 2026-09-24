@@ -73,3 +73,30 @@ CREATE TABLE IF NOT EXISTS messages (
     UNIQUE (workspace_id, id),
     CHECK (direction IN ('in', 'out'))
 );
+
+-- An email's attachments (MH-556). Stored in Postgres rather than a separate
+-- object store: this product's mail is support/sales correspondence, not bulk
+-- file sharing, and internal/inbox/attachment.go caps a single attachment at
+-- attachmentMaxBytes and a message's total at attachmentMaxTotal, so a row
+-- here is always small enough that the extra moving part would not be worth
+-- it. is_inline + content_id are how an HTML body's <img src="cid:...">
+-- resolves to one of these rather than a remote URL.
+CREATE TABLE IF NOT EXISTS message_attachments (
+    id              text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    workspace_id    text        NOT NULL,
+    message_id      text        NOT NULL,
+    filename        text        NOT NULL DEFAULT 'attachment',
+    content_type    text        NOT NULL DEFAULT 'application/octet-stream',
+    size_bytes      bigint      NOT NULL DEFAULT 0,
+    data            bytea       NOT NULL,
+    is_inline       boolean     NOT NULL DEFAULT false,
+    content_id      text        NOT NULL DEFAULT '',
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (workspace_id, id)
+);
+
+-- mailbox_id (conversations, messages), body_html (messages) and the
+-- search_doc/search_doc_msgs full-text columns (conversations) are added by
+-- internal/db/post/150_mailboxes.sql, the same way campaigns.smtp_service_id
+-- was added to the already-shipped campaigns table by post/115 rather than
+-- edited into this file.

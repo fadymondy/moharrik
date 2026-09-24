@@ -49,7 +49,7 @@ func StartMailCollector(a *app.App, interval time.Duration, limit int) context.C
 // does runs on the app pool inside that one workspace (see Poll and File).
 func CollectDue(ctx context.Context, a *app.App, limit int) (int, int) {
 	rows, err := a.SysDB.QueryContext(ctx, `
-		SELECT workspace_id FROM mailboxes
+		SELECT id, workspace_id FROM mailboxes
 		WHERE enabled AND imap_host <> '' AND password_sealed <> ''
 		ORDER BY last_polled_at NULLS FIRST LIMIT $1`, limit)
 	if err != nil {
@@ -58,29 +58,30 @@ func CollectDue(ctx context.Context, a *app.App, limit int) (int, int) {
 	}
 	defer rows.Close()
 
-	var ids []string
+	type due struct{ id, workspaceID string }
+	var list []due
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var d due
+		if err := rows.Scan(&d.id, &d.workspaceID); err != nil {
 			continue
 		}
-		ids = append(ids, id)
+		list = append(list, d)
 	}
 
 	polled, filed := 0, 0
-	for _, workspaceID := range ids {
+	for _, d := range list {
 		if ctx.Err() != nil {
 			break
 		}
-		mb, err := LoadMailbox(ctx, a, workspaceID)
+		mb, err := loadMailboxByID(ctx, a, d.workspaceID, d.id)
 		if err != nil {
 			// A password that cannot be unsealed (AUTH_SECRET changed) is worth
 			// recording on the row rather than logging into the void.
-			recordPoll(ctx, a, workspaceID, 0, err)
+			recordPoll(ctx, a, d.workspaceID, d.id, 0, err)
 			continue
 		}
 		n, perr := Poll(ctx, a, *mb)
-		recordPoll(ctx, a, workspaceID, n, perr)
+		recordPoll(ctx, a, d.workspaceID, d.id, n, perr)
 		polled++
 		filed += n
 	}

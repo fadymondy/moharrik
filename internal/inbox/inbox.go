@@ -43,6 +43,7 @@ type ConversationOut struct {
 	CustomerEmail  string    `json:"customer_email"`
 	ContactID      *string   `json:"contact_id"`
 	AssigneeUserID *string   `json:"assignee_user_id"`
+	MailboxID      *string   `json:"mailbox_id,omitempty" doc:"Which mailbox (MH-555) this email thread arrived on; absent for chat/WhatsApp."`
 	Unread         bool      `json:"unread"`
 	LastMessageAt  time.Time `json:"last_message_at"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -86,8 +87,23 @@ type MessageOut struct {
 	Direction    string    `json:"direction" doc:"in = the customer wrote it, out = the team replied."`
 	AuthorUserID *string   `json:"author_user_id"`
 	AuthorEmail  string    `json:"author_email"`
-	Body         string    `json:"body"`
+	Body         string    `json:"body" doc:"Plain text. For chat/WhatsApp this is Markdown source; for email it is the text/plain rendering."`
+	BodyHTML     string    `json:"body_html,omitempty" doc:"Sanitised HTML (MH-556): an email's own HTML part, or the Markdown in Body rendered. Empty when there is nothing to add over Body (plain-text-only email)."`
+	MailboxID    *string   `json:"mailbox_id,omitempty" doc:"Which mailbox this email arrived on or went out through; absent for chat/WhatsApp."`
+	Attachments  []AttachmentOut `json:"attachments,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+// AttachmentOut is one attachment's metadata — never the bytes; those are
+// fetched separately over a signed URL (MH-556, attachment.go).
+type AttachmentOut struct {
+	ID          string `json:"id"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	SizeBytes   int64  `json:"size_bytes"`
+	Inline      bool   `json:"inline"`
+	ContentID   string `json:"content_id,omitempty"`
+	URL         string `json:"url" doc:"A signed, time-limited download URL. Not authenticated any other way, so it can be used directly as an <img src> or a download link."`
 }
 
 type WidgetOut struct {

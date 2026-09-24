@@ -435,6 +435,16 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	alice.must("POST", "/api/w/campaigns", map[string]any{"list_id": listID, "subject": marker + " campaign", "body": "iso", "smtp_service_id": smtpID}, 201)
 
+	// MH-555: a mailbox in A, named with the marker, and its password carries
+	// the marker too — a leaked credential is caught the same way the SMTP
+	// service's is above.
+	mailboxID := alice.must("POST", "/api/w/mailboxes", map[string]any{
+		"name": marker + " Mailbox", "host": "127.0.0.1", "port": 9, "username": "iso-user", "password": marker + "-mbpw", "tls_mode": "none",
+	}, 201)["mailbox"].(map[string]any)["id"].(string)
+	if _, b := alice.do("GET", "/api/w/mailboxes", nil); strings.Contains(string(b), marker+"-mbpw") {
+		t.Fatalf("the mailbox list handed back its password: %s", b)
+	}
+
 	// MH-411: alice's WhatsApp notifications in A, with a pending event and a
 	// logged message that carry the marker. Written directly: verifying needs
 	// a linked number. B's own /api/w/notify/whatsapp must show none of it.
@@ -607,7 +617,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, notifSrcID, ruleID, ruleRunID, ruleSecret}
+	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, mailboxID, notifSrcID, ruleID, ruleRunID, ruleSecret}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -622,6 +632,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"canned_replies":       cannedID,
 		"oauth_grants":         grantID,
 		"smtp-services":        smtpID,
+		"mailboxes":            mailboxID,
 		"notification_sources": notifSrcID,
 		"research":             runID, "company-suggestions": suggID, "research-schedules": rschedID,
 		"prospects": prospectID,

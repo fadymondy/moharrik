@@ -120,6 +120,15 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/chat/") {
 		return tierPublic
 	}
+	// Downloading an email attachment (MH-556): no session, no X-Workspace-ID —
+	// the attachment id plus its signed, time-limited exp/sig query params ARE
+	// the authorization (internal/inbox/attachment.go), the same shape as
+	// /api/hooks/ and /api/chat/ above. It has to sit outside the workspace
+	// tier: the sandboxed email iframe that loads it as <img src> carries no
+	// cookies or headers of its own.
+	if strings.HasPrefix(path, "/api/attachments/") {
+		return tierPublic
+	}
 	// A visitor typing their address into an embedded subscribe form: no
 	// session, no X-Workspace-ID — the form key in the path plus the Origin
 	// allow-list are the authorization (internal/marketing/subscribe_routes.go),

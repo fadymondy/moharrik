@@ -632,6 +632,8 @@ export type Conversation = {
   /** When a snoozed conversation wakes (MH-383); null otherwise. */
   snoozed_until: string | null
   closed_at: string | null
+  /** Which mailbox (MH-555) an email thread arrived on; null for chat/WhatsApp or a pre-MH-555 thread. */
+  mailbox_id: string | null
 }
 
 export type VisitorGuess = { name: string; email: string; phone: string; locale: "en" | "ar" }
@@ -700,12 +702,28 @@ export type InboxStats = {
   unread_now: number
 }
 
+export type InboxAttachment = {
+  id: string
+  filename: string
+  content_type: string
+  size_bytes: number
+  inline: boolean
+  content_id?: string
+  /** A signed, time-limited download URL — usable directly as <img src> or a link (MH-556). */
+  url: string
+}
+
 export type InboxMessage = {
   id: string
   direction: "in" | "out"
   author_user_id: string | null
   author_email: string
+  /** Plain text: Markdown source for chat/WhatsApp, or the email's text/plain part. */
   body: string
+  /** Sanitised HTML (MH-556): an email's own HTML part, or body's Markdown rendered. Empty when there is nothing beyond body. */
+  body_html?: string
+  mailbox_id?: string | null
+  attachments?: InboxAttachment[]
   created_at: string
 }
 
@@ -977,14 +995,52 @@ export type AutomationRun = {
   extracts: number
 }
 
-// ── Inbox: the email channel ────────────────────────────────────────────
+// ── Inbox: the email channel (MH-555: several mailboxes per workspace) ───
 
+export type Mailbox = {
+  id: string
+  name: string
+  is_primary: boolean
+  host: string
+  port: number
+  username: string
+  /** The password is write-only; this only says whether one is stored. */
+  has_password: boolean
+  tls_mode: "tls" | "starttls" | "none"
+  folder: string
+  /** Which SMTP service (MH-412) a reply on this mailbox goes out through; "" = the workspace default. */
+  smtp_service_id: string
+  smtp_service_name?: string
+  enabled: boolean
+  last_polled_at: string | null
+  last_error: string
+  last_test_at: string | null
+  last_test_ok: boolean | null
+  last_test_error: string
+  message_count: number
+  created_at: string
+}
+
+export type MailboxInput = {
+  name?: string
+  host: string
+  port?: number
+  username: string
+  /** Empty on an update keeps the stored password. */
+  password?: string
+  tls_mode?: "tls" | "starttls" | "none"
+  folder?: string
+  smtp_service_id?: string
+  enabled?: boolean
+  is_primary?: boolean
+}
+
+/** @deprecated superseded by Mailbox[] (MH-555: GET /api/w/mailboxes). */
 export type MailboxSettings = {
   configured: boolean
   host: string
   port: number
   username: string
-  /** The password is write-only; this only says whether one is stored. */
   has_password: boolean
   tls_mode: "tls" | "starttls" | "none"
   folder: string

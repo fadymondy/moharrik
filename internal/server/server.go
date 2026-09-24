@@ -296,6 +296,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	notifications.Register(api, a)
 	inbox.Register(api, a)
 	inbox.RegisterMailbox(api, a)
+	inbox.RegisterAttachments(api, a)
 	whatsapp.Register(api, a)
 	whatsapp.RegisterNotify(api, a) // members' WhatsApp notifications (MH-411)
 	trends.Register(api, a)
