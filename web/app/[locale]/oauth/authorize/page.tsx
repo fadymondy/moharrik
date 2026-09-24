@@ -34,6 +34,7 @@ import { Ltr } from "@/components/copy-field"
 import { Bdi, isolate } from "@/components/bidi"
 import { api, ApiError, type ConsentRequest } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { scopeText } from "@/lib/scope-text"
 import { useMe } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
@@ -245,13 +246,6 @@ async function fetchRequest(path: string): Promise<ConsentRequest> {
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new RequestProblem(body.error ?? String(res.status), body.error_description ?? "", body.redirect_to)
   return body as ConsentRequest
-}
-
-/** The scope's description in the page's language; the API's English one otherwise. */
-function scopeText(t: ReturnType<typeof useTranslations>["t"], scope: string, fallback: string) {
-  const key = `oauth.scope.${scope}`
-  const v = t(key)
-  return v === key ? fallback : v
 }
 
 function requestProblem(err: unknown, t: ReturnType<typeof useTranslations>["t"]): Problem | null {
