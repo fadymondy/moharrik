@@ -98,6 +98,11 @@ func fakeEvolution(t *testing.T) *httptest.Server {
 		},
 	}
 
+	return fakeEvolutionWith(t, chats, groups, history)
+}
+
+func fakeEvolutionWith(t *testing.T, chats, groups []map[string]any, history map[string][]map[string]any) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/instance/connectionState/", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"instance": map[string]any{"state": "open"}})
@@ -268,5 +273,110 @@ func TestWhatsAppImportIdempotent(t *testing.T) {
 	}
 	if !sum.IsGroup || sum.ParticipantCount != 2 || sum.MessageCount != 1 || sum.InboundCount != 1 {
 		t.Fatalf("group summary: %+v", sum)
+	}
+}
+
+// One person, two chats: WhatsApp holds Rana under her phone JID and under a
+// privacy "…@lid" id whose phone is only in remoteJidAlt, and a third chat is a
+// privacy id with no phone at all. She already wrote in live, so the inbox has
+// her thread, filed by digits (inbox.FileWhatsApp). The import must list her
+// once, merge both chats' history into that live thread, and skip the
+// phoneless chat — never mint contacts or threads from a privacy id (MH-562).
+func TestWhatsAppImportMergesPrivacyChatsIntoTheLiveThread(t *testing.T) {
+	a := testApp(t)
+	wsID := workspaceIn(t, a)
+	now := time.Now().Unix()
+	msg := func(jid, alt, id, text string, at int64) map[string]any {
+		return map[string]any{
+			"key":              map[string]any{"remoteJid": jid, "remoteJidAlt": alt, "fromMe": false, "id": id},
+			"pushName":         "Rana Fathy",
+			"message":          map[string]any{"conversation": text},
+			"messageTimestamp": at,
+		}
+	}
+	const phoneJID, lid, orphan = "201015550101@s.whatsapp.net", "144985244578026@lid", "156401385095367@lid"
+	chats := []map[string]any{
+		{"remoteJid": phoneJID, "pushName": "Rana Fathy", "lastMessage": msg(phoneJID, "", "w1", "first", now-7200)},
+		{"remoteJid": lid, "pushName": "Rana F.", "lastMessage": msg(lid, phoneJID, "w2", "second", now-60)},
+		{"remoteJid": orphan, "pushName": "Hidden", "lastMessage": msg(orphan, "", "w3", "no phone", now-30)},
+	}
+	history := map[string][]map[string]any{
+		phoneJID: {msg(phoneJID, "", "w1", "first", now-7200), msg(phoneJID, "", "w0", "live one", now-9000)},
+		lid:      {msg(lid, phoneJID, "w2", "second", now-60)},
+		orphan:   {msg(orphan, "", "w3", "no phone", now-30)},
+	}
+	evo := fakeEvolutionWith(t, chats, nil, history)
+
+	if _, err := whatsapp.Ensure(context.Background(), a, wsID, "u-test"); err != nil {
+		t.Fatal(err)
+	}
+	whatsapp.SetState(context.Background(), a, wsID, "open", "201000000000")
+	cfg := whatsapp.Config{URL: evo.URL, Key: "fake"}
+	imports.RegisterProvider(imports.WhatsAppProvider{Config: &cfg})
+	ctx := tenant.With(context.Background(), &tenant.Scope{WorkspaceID: wsID, UserID: "u-test", Email: "owner@example.test", Role: "owner", Via: "session"})
+
+	// Her live thread, as the webhook files it: digits only, no external id,
+	// already holding message w0.
+	var liveID string
+	if err := a.SQLDB.QueryRowContext(ctx, `
+		INSERT INTO conversations (workspace_id, channel, customer_name, customer_phone, subject)
+		VALUES ($1, 'whatsapp', 'Rana Fathy', '201015550101', 'live one') RETURNING id`, wsID).Scan(&liveID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SQLDB.ExecContext(ctx, `
+		INSERT INTO messages (workspace_id, conversation_id, direction, body, external_id)
+		VALUES ($1, $2, 'in', 'live one', 'w0')`, wsID, liveID); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := imports.Preview(ctx, a, wsID, "whatsapp", "", imports.Filters{Kind: "direct"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("want Rana once and the phoneless chat left out, got %+v", items)
+	}
+	it := items[0]
+	if it.ID != phoneJID || it.Identity != "+201015550101" || it.LastMessage != "second" || it.Name != "Rana F." {
+		t.Fatalf("merged item read wrong: %+v", it)
+	}
+
+	job, err := imports.StartImport(ctx, a, wsID, "whatsapp", imports.ImportRequest{Items: []string{it.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job = waitJob(t, ctx, a, wsID, job.ID)
+	if job.Status != "done" || job.ConversationsCreated != 0 || job.ConversationsReused != 1 || job.MessagesImported != 2 {
+		t.Fatalf("import did not merge into the live thread: %+v", job)
+	}
+
+	var threads, msgs int
+	var ext string
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM conversations WHERE workspace_id = $1`, wsID).Scan(&threads); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM messages WHERE workspace_id = $1 AND conversation_id = $2`, wsID, liveID).Scan(&msgs); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT external_thread_id FROM conversations WHERE id = $1`, liveID).Scan(&ext); err != nil {
+		t.Fatal(err)
+	}
+	if threads != 1 || msgs != 3 || ext != phoneJID {
+		t.Fatalf("threads=%d messages=%d external_thread_id=%q; want 1, 3, %q", threads, msgs, ext, phoneJID)
+	}
+	var fakePhones int
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM contacts WHERE workspace_id = $1 AND (phone LIKE '%144985244578026%' OR phone LIKE '%156401385095367%')`, wsID).Scan(&fakePhones); err != nil {
+		t.Fatal(err)
+	}
+	if fakePhones != 0 {
+		t.Fatalf("%d contacts were created with a privacy id as their phone", fakePhones)
+	}
+
+	again, err := imports.Preview(ctx, a, wsID, "whatsapp", "", imports.Filters{Kind: "direct"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(again) != 1 || !again[0].AlreadyImported {
+		t.Fatalf("preview after import: %+v", again)
 	}
 }
