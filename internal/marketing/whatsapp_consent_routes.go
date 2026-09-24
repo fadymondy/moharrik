@@ -72,6 +72,10 @@ func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 		Locale string `query:"locale" enum:",en,ar" doc:"Only contacts in this language."`
 	}) (*body[struct {
 		Reachable int64 `json:"reachable" doc:"Confirmed subscribers of the list (in that language, when one is given)."`
+		// MH-561: subscribed contacts this send would skip for having no email
+		// (a phone/handle-only contact that got subscribed some other way, e.g.
+		// imported) — said before the send is pressed, not discovered after.
+		Skipped int64 `json:"skipped" doc:"Confirmed subscribers with no email, who the send would skip."`
 	}], error) {
 		s, err := scope(ctx, authz.CampaignsRead)
 		if err != nil {
@@ -90,9 +94,14 @@ func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not count the audience")
 		}
+		skipped, err := CountSkippedEmailAudienceFor(ctx, a.SQLDB, s.WorkspaceID, in.ID, in.Locale)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not count the audience")
+		}
 		return out(struct {
 			Reachable int64 `json:"reachable" doc:"Confirmed subscribers of the list (in that language, when one is given)."`
-		}{n}), nil
+			Skipped   int64 `json:"skipped" doc:"Confirmed subscribers with no email, who the send would skip."`
+		}{n, skipped}), nil
 	})
 
 	huma.Register(api, huma.Operation{

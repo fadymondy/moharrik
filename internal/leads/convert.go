@@ -93,7 +93,7 @@ func Convert(ctx context.Context, db *sql.DB, wsID, leadID, userID string) (*Con
 	var existingCompany sql.NullString
 	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO contacts (workspace_id, email, name, phone, locale, source) VALUES ($1, $2, $3, $4, $5, 'lead')
-		ON CONFLICT (workspace_id, email) DO UPDATE SET
+		ON CONFLICT (workspace_id, email) WHERE email <> '' DO UPDATE SET
 		  name = CASE WHEN contacts.name = '' THEN EXCLUDED.name ELSE contacts.name END,
 		  phone = CASE WHEN contacts.phone = '' THEN EXCLUDED.phone ELSE contacts.phone END,
 		  updated_at = now()

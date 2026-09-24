@@ -226,8 +226,8 @@ function CreateContactForm({ c, visitor, onDone }: { c: Conversation; visitor: V
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!email.trim()) {
-      setErr(t("inbox.crm.emailRequired"))
+    if (!email.trim() && !phone.trim()) {
+      setErr(t("inbox.crm.identityRequired"))
       return
     }
     setBusy(true)
@@ -237,7 +237,7 @@ function CreateContactForm({ c, visitor, onDone }: { c: Conversation; visitor: V
         `/api/w/conversations/${encodeURIComponent(c.id)}/contact`,
         { json: { email: email.trim(), name: name.trim(), phone: phone.trim(), locale: lang }, workspaceId: ws.id },
       )
-      const who = res.conversation.contact ? res.conversation.contact.name || res.conversation.contact.email : email
+      const who = res.conversation.contact ? res.conversation.contact.name || res.conversation.contact.email || phone : email || phone
       toast.success(res.contact_created ? t("inbox.crm.created") : t("inbox.crm.reused", { who: isolate(who) }))
       onDone()
     } catch (e) {
@@ -254,11 +254,15 @@ function CreateContactForm({ c, visitor, onDone }: { c: Conversation; visitor: V
           <Input id="new-contact-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
         </Field>
         <Field>
-          <FieldLabel htmlFor="new-contact-email">{t("contacts.email")}</FieldLabel>
-          <Input id="new-contact-email" type="email" dir="ltr" required value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} />
+          <FieldLabel htmlFor="new-contact-email">
+            {t("contacts.email")} <span className="text-grid-muted">({t("common.optional")})</span>
+          </FieldLabel>
+          <Input id="new-contact-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} />
         </Field>
         <Field>
-          <FieldLabel htmlFor="new-contact-phone">{t("contacts.phone")}</FieldLabel>
+          <FieldLabel htmlFor="new-contact-phone">
+            {t("contacts.phone")} <span className="text-grid-muted">({t("common.optional")})</span>
+          </FieldLabel>
           <Input id="new-contact-phone" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
         </Field>
         <Field>
@@ -274,9 +278,10 @@ function CreateContactForm({ c, visitor, onDone }: { c: Conversation; visitor: V
           />
         </Field>
       </FieldGroup>
+      {!email.trim() && !phone.trim() ? <FieldDescription>{t("contacts.needsIdentity")}</FieldDescription> : null}
       {err ? <FieldError>{err}</FieldError> : null}
       <DialogFooter>
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || (!email.trim() && !phone.trim())}>
           {busy ? t("common.working") : t("inbox.crm.createAction")}
         </Button>
       </DialogFooter>

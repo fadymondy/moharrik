@@ -168,7 +168,7 @@ func (f ContactFilter) where(wsID string) (string, []any) {
 	if f.Q != "" {
 		args = append(args, "%"+likeEscape(f.Q)+"%")
 		n := "$" + strconv.Itoa(len(args))
-		w += " AND (c.email ILIKE " + n + " OR c.name ILIKE " + n + " OR c.phone ILIKE " + n + " OR co.name ILIKE " + n + ")"
+		w += " AND (c.email ILIKE " + n + " OR c.name ILIKE " + n + " OR c.phone ILIKE " + n + " OR c.handle ILIKE " + n + " OR co.name ILIKE " + n + ")"
 	}
 	if f.Lifecycle != "" {
 		stage := f.Lifecycle
@@ -305,7 +305,7 @@ func contactRows(ctx context.Context, db *sql.DB, wsID string, f ContactFilter, 
 	// One more than the page, to know whether there is a next one without a
 	// second query.
 	args = append(args, limit+1)
-	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
+	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.handle, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
 	             c.whatsapp_opt_in_at, c.whatsapp_opt_out_at, c.lifecycle, sc.score, coalesce(sc.reasons, '[]')::text` + contactFrom + `WHERE ` + where +
 		` ORDER BY ` + order + ` LIMIT $` + strconv.Itoa(len(args))
 	rows, err := db.QueryContext(ctx, q, args...)
@@ -319,7 +319,7 @@ func contactRows(ctx context.Context, db *sql.DB, wsID string, f ContactFilter, 
 		var c ContactOut
 		var score sql.NullInt64
 		var reasons string
-		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
+		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Handle, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
 			&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt, &c.Lifecycle, &score, &reasons); err != nil {
 			return nil, err
 		}
@@ -422,9 +422,9 @@ func getContactOut(ctx context.Context, db *sql.DB, wsID, id string) (*ContactOu
 	var score sql.NullInt64
 	var reasons string
 	err := db.QueryRowContext(ctx, `
-		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
+		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.handle, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
 		       c.whatsapp_opt_in_at, c.whatsapp_opt_out_at, c.lifecycle, sc.score, coalesce(sc.reasons, '[]')::text`+contactFrom+`WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
-	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
+	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Handle, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
 		&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt, &c.Lifecycle, &score, &reasons)
 	if err != nil {
 		return nil, err

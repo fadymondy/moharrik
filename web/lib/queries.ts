@@ -251,9 +251,10 @@ export const useWhatsAppAudience = (workspaceId?: string | null, listId?: string
     !!listId,
   )
 
-/** Who an email send to a list would reach right now, in one language or all (MH-413). */
+/** Who an email send to a list would reach right now, in one language or all (MH-413). `skipped` is
+ *  subscribed contacts with no email (MH-561) the send would leave out. */
 export const useEmailAudience = (workspaceId?: string | null, listId?: string | null, locale = "") =>
-  useScoped<{ reachable: number }>(
+  useScoped<{ reachable: number; skipped: number }>(
     `/api/w/mail/lists/${encodeURIComponent(listId ?? "")}/email-audience${locale ? `?locale=${locale}` : ""}`,
     workspaceId,
     !!listId,

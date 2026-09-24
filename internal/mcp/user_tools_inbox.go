@@ -337,15 +337,16 @@ func InboxTools() []Tool {
 		},
 		{
 			Name: "create_contact_from_conversation",
-			Description: "Make a CRM contact from a conversation and link it (get_conversation's visitor has what they gave). " +
-				"Deduped on email: an address the workspace already has is linked instead, only its blank name and phone filled " +
-				"in. A company already on the email's domain is attached; none is created. Needs contacts:write as well as inbox:write.",
+			Description: "Make a CRM contact from a conversation and link it (get_conversation's visitor has what they gave). Needs " +
+				"an email or a phone — a WhatsApp thread usually only has a phone. Deduped on whichever was given: an address or " +
+				"number the workspace already has is linked instead, only its blank fields filled in. A company already on the " +
+				"email's domain is attached; none is created. Needs contacts:write as well as inbox:write.",
 			Scope: "inbox:write",
-			InputSchema: schema([]string{"id", "email"}, map[string]any{
+			InputSchema: schema([]string{"id"}, map[string]any{
 				"id":     prop("string", "Conversation id"),
-				"email":  prop("string", ""),
+				"email":  prop("string", "Required if phone is omitted"),
 				"name":   prop("string", ""),
-				"phone":  prop("string", ""),
+				"phone":  prop("string", "Required if email is omitted"),
 				"locale": map[string]any{"type": "string", "enum": []string{"en", "ar"}},
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {

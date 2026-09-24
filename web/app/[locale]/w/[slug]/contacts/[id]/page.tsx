@@ -21,7 +21,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, LIFECYCLE_STAGES, type ContactDetail, type Lifecycle, type SubscriptionStatus } from "@/lib/api"
+import { api, ApiError, contactIdentity, LIFECYCLE_STAGES, type ContactDetail, type Lifecycle, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContact } from "@/lib/queries"
 import { dateFormat } from "@/lib/i18n-locale"
@@ -37,6 +37,8 @@ const statusVariant: Record<SubscriptionStatus, "default" | "secondary" | "outli
   bounced: "destructive",
 }
 
+const identity = contactIdentity
+
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { t, locale } = useTranslations()
@@ -44,7 +46,7 @@ export default function ContactDetailPage() {
   const canWrite = ws.can("contacts:write")
   const detail = useContact(ws.id, id)
   const [leaving, setLeaving] = useState<UnsubscribeTarget | null>(null)
-  useDocumentTitle(detail.data ? `${detail.data.contact.name || detail.data.contact.email} · ${ws.summary.name}` : t("contacts.detailTitle"))
+  useDocumentTitle(detail.data ? `${detail.data.contact.name || identity(detail.data.contact)} · ${ws.summary.name}` : t("contacts.detailTitle"))
   const base = `/${locale}/w/${ws.slug}`
 
   if (detail.error) {
@@ -60,14 +62,14 @@ export default function ContactDetailPage() {
     <>
       <SectionHeader
         micro={t("nav.contacts")}
-        title={contact.name ? <Bdi>{contact.name}</Bdi> : <Ltr>{contact.email}</Ltr>}
-        description={contact.name ? <Ltr>{contact.email}</Ltr> : undefined}
+        title={contact.name ? <Bdi>{contact.name}</Bdi> : <Ltr>{identity(contact)}</Ltr>}
+        description={contact.name ? <Ltr>{identity(contact)}</Ltr> : undefined}
         action={
           canWrite ? (
             <ConfirmButton
               label={t("common.delete")}
               title={t("contacts.deleteTitle")}
-              description={t("contacts.deleteBody", { email: isolate(contact.email) })}
+              description={t("contacts.deleteBody", { email: isolate(identity(contact)) })}
               confirmLabel={t("common.delete")}
               onConfirm={async () => {
                 await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, { method: "DELETE", workspaceId: ws.id })
@@ -90,7 +92,7 @@ export default function ContactDetailPage() {
                   variant="ghost"
                   size="xs"
                   data-unsubscribe-from={s.list_name}
-                  onClick={() => setLeaving({ contactId: contact.id, who: contact.name || contact.email, listId: s.list_id, listName: s.list_name })}
+                  onClick={() => setLeaving({ contactId: contact.id, who: contact.name || identity(contact), listId: s.list_id, listName: s.list_name })}
                 >
                   <LogOutIcon />
                   {t("contacts.unsubscribe")}
@@ -126,20 +128,32 @@ function EditContact({
   contact,
   onSaved,
 }: {
-  contact: { id: string; name: string; phone: string; title: string; company: { id: string; name: string } | null; owner_user_id: string | null }
+  contact: {
+    id: string
+    name: string
+    email: string
+    phone: string
+    handle: string
+    title: string
+    company: { id: string; name: string } | null
+    owner_user_id: string | null
+  }
   onSaved: () => void
 }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
   const [name, setName] = useState(contact.name)
+  const [email, setEmail] = useState(contact.email)
   const [phone, setPhone] = useState(contact.phone)
+  const [handle, setHandle] = useState(contact.handle)
   const [title, setTitle] = useState(contact.title)
   const [companyId, setCompanyId] = useState(contact.company?.id ?? "")
   const [ownerId, setOwnerId] = useState(contact.owner_user_id ?? "")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  const hasIdentity = !!(email.trim() || phone.trim() || handle.trim())
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -148,7 +162,15 @@ function EditContact({
     try {
       await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, {
         method: "PATCH",
-        json: { name: name.trim(), phone: phone.trim(), title: title.trim(), company_id: companyId, owner_user_id: ownerId },
+        json: {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          handle: handle.trim(),
+          title: title.trim(),
+          company_id: companyId,
+          owner_user_id: ownerId,
+        },
         workspaceId: ws.id,
       })
       toast.success(t("contacts.saved"))
@@ -168,12 +190,20 @@ function EditContact({
           <Input id="edit-contact-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
         </Field>
         <Field>
-          <FieldLabel htmlFor="edit-contact-title">{t("contacts.jobTitle")}</FieldLabel>
-          <Input id="edit-contact-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+          <FieldLabel htmlFor="edit-contact-email">{t("contacts.email")}</FieldLabel>
+          <Input id="edit-contact-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} />
         </Field>
         <Field>
           <FieldLabel htmlFor="edit-contact-phone">{t("contacts.phone")}</FieldLabel>
           <Input id="edit-contact-phone" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-handle">{t("contacts.handle")}</FieldLabel>
+          <Input id="edit-contact-handle" dir="ltr" value={handle} onChange={(e) => setHandle(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-title">{t("contacts.jobTitle")}</FieldLabel>
+          <Input id="edit-contact-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
         </Field>
         <Field>
           <FieldLabel htmlFor="edit-contact-company">{t("companies.title")}</FieldLabel>
@@ -185,10 +215,10 @@ function EditContact({
         </Field>
       </FieldGroup>
       <div className="mt-4 flex items-center gap-3">
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || !hasIdentity}>
           {busy ? t("common.working") : t("common.save")}
         </Button>
-        {err ? <FieldError>{err}</FieldError> : null}
+        {!hasIdentity ? <FieldError>{t("contacts.needsIdentity")}</FieldError> : err ? <FieldError>{err}</FieldError> : null}
       </div>
     </form>
   )

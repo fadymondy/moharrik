@@ -289,10 +289,12 @@ func TestMCPSurface(t *testing.T) {
 	})
 	ct := obj(ctRes["contact"])
 	ctID := ct["id"].(string)
-	if ct["phone"] != "+20 101 555 0101" || ct["title"] != "CTO" || obj(ct["company"])["id"] != coID {
+	// MH-561: phone is stored E.164-normalised (marketing.NormalizePhone), so
+	// the separators given here do not survive — the digits and the + do.
+	if ct["phone"] != "+201015550101" || ct["title"] != "CTO" || obj(ct["company"])["id"] != coID {
 		t.Fatalf("create_contact did not keep its CRM fields: %v", ctRes)
 	}
-	for _, q := range []string{"Rana", "rana@", "555 0101", "Acme Surface"} {
+	for _, q := range []string{"Rana", "rana@", "5550101", "Acme Surface"} {
 		res := mcpJSON(t, agent, "search_contacts", map[string]any{"q": q})
 		if res["total"].(float64) != 1 || obj(arr(res["contacts"])[0])["id"] != ctID {
 			t.Errorf("search_contacts %q: %v", q, res)

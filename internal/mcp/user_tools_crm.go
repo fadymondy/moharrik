@@ -124,18 +124,20 @@ func CrmTools() []Tool {
 		},
 		{
 			Name: "create_contact",
-			Description: "Add a contact by email (an existing contact with that email is reused, not duplicated). Optional: name, locale (en/ar), " +
-				"phone, title, company_id, and list (a mailing list's exact name) to subscribe them — with the double opt-in email when " +
-				"the list asks for one. Returns the contact with its id.",
-			Scope: "contacts:write",
-			InputSchema: schema([]string{"email"}, map[string]any{
+			Description: "Add a contact by email, phone or handle (an existing contact matching one of those is reused, not duplicated) " +
+				"— at least one of the three is required. Optional: name, locale (en/ar), title, company_id, and list (a mailing list's " +
+				"exact name) to subscribe them — with the double opt-in email when the list asks for one; subscribing needs an email. " +
+				"Returns the contact with its id.",
+			Scope:       "contacts:write",
+			InputSchema: schema(nil, map[string]any{
 				"email":      prop("string", ""),
+				"phone":      prop("string", "With country code, e.g. +20 101 234 5678"),
+				"handle":     prop("string", "A messaging handle/username on a channel with neither a phone nor an email"),
 				"name":       prop("string", ""),
 				"locale":     map[string]any{"type": "string", "enum": []string{"en", "ar"}},
-				"phone":      prop("string", "With country code, e.g. +20 101 234 5678"),
 				"title":      prop("string", "Job title"),
 				"company_id": prop("string", "A company id (search_companies)"),
-				"list":       prop("string", "A mailing list's exact name, to subscribe them"),
+				"list":       prop("string", "A mailing list's exact name, to subscribe them (needs an email)"),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, err := need(ctx)
@@ -144,9 +146,10 @@ func CrmTools() []Tool {
 				}
 				var in struct {
 					Email     string  `json:"email"`
+					Phone     *string `json:"phone"`
+					Handle    string  `json:"handle"`
 					Name      string  `json:"name"`
 					Locale    string  `json:"locale"`
-					Phone     *string `json:"phone"`
 					Title     *string `json:"title"`
 					CompanyID *string `json:"company_id"`
 					List      string  `json:"list"`
@@ -157,7 +160,10 @@ func CrmTools() []Tool {
 				if in.Locale != "" && in.Locale != "en" && in.Locale != "ar" {
 					return "", fmt.Errorf("locale must be en or ar")
 				}
-				add := marketing.AddContactInput{Email: in.Email, Name: in.Name, Locale: in.Locale}
+				add := marketing.AddContactInput{Email: in.Email, Name: in.Name, Locale: in.Locale, Handle: in.Handle}
+				if in.Phone != nil {
+					add.Phone = *in.Phone
+				}
 				if list := strings.TrimSpace(in.List); list != "" {
 					if err := a.SQLDB.QueryRowContext(ctx, `SELECT id FROM mail_lists WHERE workspace_id = $1 AND lower(name) = lower($2)`,
 						s.WorkspaceID, list).Scan(&add.ListID); err != nil {
@@ -176,9 +182,9 @@ func CrmTools() []Tool {
 					out["confirmation_error"] = res.Error
 				}
 				// The CRM fields the add does not take go through the same update
-				// the contact page uses.
-				if in.Phone != nil || in.Title != nil || in.CompanyID != nil {
-					c, err := crm.UpdateContact(ctx, a.SQLDB, res.Contact.ID, crm.ContactFields{Phone: in.Phone, Title: in.Title, CompanyID: in.CompanyID})
+				// the contact page uses (phone and handle are set by the add itself).
+				if in.Title != nil || in.CompanyID != nil {
+					c, err := crm.UpdateContact(ctx, a.SQLDB, res.Contact.ID, crm.ContactFields{Title: in.Title, CompanyID: in.CompanyID})
 					if err != nil {
 						return "", fmt.Errorf("the contact was added (id %s) but its details were not saved: %w", res.Contact.ID, err)
 					}
@@ -189,14 +195,17 @@ func CrmTools() []Tool {
 		},
 		{
 			Name: "update_contact",
-			Description: "Change a contact's CRM fields. Give only what changes: name, phone, title, company_id (empty string unlinks), " +
+			Description: "Change a contact's CRM fields. Give only what changes: email, phone, handle (empty string clears one of the " +
+				"three, as long as another stays — a contact always needs at least one), name, title, company_id (empty string unlinks), " +
 				"owner (a member's user id or email; empty unassigns), tags (replaces them all), lifecycle (subscriber, lead, qualified, " +
 				"customer, or empty — set by hand and recorded as yours; events move it forward on their own).",
 			Scope: "contacts:write",
 			InputSchema: schema([]string{"id"}, map[string]any{
 				"id":         prop("string", "Contact id"),
+				"email":      prop("string", "Empty string clears it, if a phone or handle remains"),
 				"name":       prop("string", ""),
-				"phone":      prop("string", ""),
+				"phone":      prop("string", "Empty string clears it, if an email or handle remains"),
+				"handle":     prop("string", "A messaging handle/username. Empty string clears it, if an email or phone remains"),
 				"title":      prop("string", ""),
 				"company_id": prop("string", "A company id; empty string unlinks"),
 				"owner":      prop("string", "A member's user id or email; empty string unassigns"),
@@ -206,8 +215,10 @@ func CrmTools() []Tool {
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				var in struct {
 					ID        string    `json:"id"`
+					Email     *string   `json:"email"`
 					Name      *string   `json:"name"`
 					Phone     *string   `json:"phone"`
+					Handle    *string   `json:"handle"`
 					Title     *string   `json:"title"`
 					CompanyID *string   `json:"company_id"`
 					Owner     *string   `json:"owner"`
@@ -221,7 +232,7 @@ func CrmTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				f := crm.ContactFields{Name: in.Name, Phone: in.Phone, Title: in.Title, CompanyID: in.CompanyID, Tags: in.Tags, Lifecycle: in.Lifecycle}
+				f := crm.ContactFields{Email: in.Email, Name: in.Name, Phone: in.Phone, Handle: in.Handle, Title: in.Title, CompanyID: in.CompanyID, Tags: in.Tags, Lifecycle: in.Lifecycle}
 				if in.Owner != nil {
 					owner, err := memberID(ctx, a, *in.Owner)
 					if err != nil {

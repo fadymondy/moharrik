@@ -206,13 +206,13 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 	var score sql.NullInt64
 	var lifecycleAt sql.NullTime
 	err := db.QueryRowContext(ctx, `
-		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.title, array_to_json(c.tags)::text,
+		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.handle, c.title, array_to_json(c.tags)::text,
 		       c.company_id, co.name, c.owner_user_id, c.created_at, c.lifecycle, c.lifecycle_at, sc.score, coalesce(sc.reasons, '[]')::text
 		FROM contacts c
 		LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
 		LEFT JOIN icp_scores sc ON sc.workspace_id = c.workspace_id AND sc.contact_id = c.id
 		WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
-	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Title, &tags, &companyID, &coName, &owner, &c.CreatedAt,
+	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Handle, &c.Title, &tags, &companyID, &coName, &owner, &c.CreatedAt,
 		&c.Lifecycle, &lifecycleAt, &score, &reasons)
 	if err != nil {
 		return nil, err

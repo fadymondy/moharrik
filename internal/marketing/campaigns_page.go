@@ -77,7 +77,7 @@ func ListCampaignsPage(ctx context.Context, db *sql.DB, wsID, after string, limi
 	args = append(args, limit+1)
 	rows, err := db.QueryContext(ctx, `
 		SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
-		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`, c.audience_locale
+		       c.sent_count, c.failed_count, c.skipped_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`, c.audience_locale
 		FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 		WHERE c.workspace_id = $1`+where+` ORDER BY c.created_at DESC, c.id DESC LIMIT $`+strconv.Itoa(len(args)), args...)
 	if err != nil {
@@ -87,7 +87,7 @@ func ListCampaignsPage(ctx context.Context, db *sql.DB, wsID, after string, limi
 	for rows.Next() {
 		var c CampaignOut
 		if err := rows.Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
-			&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName, &c.AudienceLocale); err != nil {
+			&c.SentCount, &c.FailedCount, &c.SkippedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName, &c.AudienceLocale); err != nil {
 			return nil, err
 		}
 		page.Campaigns = append(page.Campaigns, c)
@@ -118,17 +118,36 @@ func AudienceLocale(l string) string {
 }
 
 // emailAudienceFrom is the email audience rule, written once for the count
-// and the send.
+// and the send. MH-561: a contact can now be email-less (phone or handle
+// only); it was always excludable from an email send by having no
+// subscription, and now it is excluded explicitly too, so the rule reads the
+// same regardless of how it got into list_subscriptions.
 const emailAudienceFrom = `
 		FROM list_subscriptions s
 		JOIN contacts c ON c.id = s.contact_id AND c.workspace_id = s.workspace_id
-		WHERE s.workspace_id = $1 AND s.list_id = $2 AND s.status = 'subscribed'
+		WHERE s.workspace_id = $1 AND s.list_id = $2 AND s.status = 'subscribed' AND c.email <> ''
 		  AND ($3 = '' OR c.locale = $3)`
 
 // CountEmailAudienceFor counts one language's share of it (MH-413).
 func CountEmailAudienceFor(ctx context.Context, db *sql.DB, wsID, listID, locale string) (int64, error) {
 	var n int64
 	err := db.QueryRowContext(ctx, `SELECT count(*) `+emailAudienceFrom, wsID, listID, AudienceLocale(locale)).Scan(&n)
+	return n, err
+}
+
+// CountSkippedEmailAudienceFor is a subscribed contact this send would reach
+// except that it has no email (MH-561) — a phone/handle-only contact that
+// ended up subscribed some other way (e.g. imported). Reported alongside the
+// count so a workspace is told its send will skip them, not just how many it
+// will reach.
+func CountSkippedEmailAudienceFor(ctx context.Context, db *sql.DB, wsID, listID, locale string) (int64, error) {
+	var n int64
+	err := db.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM list_subscriptions s
+		JOIN contacts c ON c.id = s.contact_id AND c.workspace_id = s.workspace_id
+		WHERE s.workspace_id = $1 AND s.list_id = $2 AND s.status = 'subscribed' AND c.email = ''
+		  AND ($3 = '' OR c.locale = $3)`, wsID, listID, AudienceLocale(locale)).Scan(&n)
 	return n, err
 }
 

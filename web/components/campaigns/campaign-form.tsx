@@ -43,9 +43,16 @@ function EmailReach({ listId, audience }: { listId: string; audience: Audience }
   const aud = useEmailAudience(ws.id, listId, audience)
   if (!aud.data) return null
   return (
-    <p className="text-sm text-grid-muted" data-email-reachable={aud.data.reachable}>
-      {t("campaigns.emailReachable", { count: aud.data.reachable })}
-    </p>
+    <>
+      <p className="text-sm text-grid-muted" data-email-reachable={aud.data.reachable}>
+        {t("campaigns.emailReachable", { count: aud.data.reachable })}
+      </p>
+      {aud.data.skipped > 0 ? (
+        <p className="text-sm text-grid-warn-text" data-email-skipped={aud.data.skipped}>
+          {t("campaigns.emailSkipped", { count: aud.data.skipped })}
+        </p>
+      ) : null}
+    </>
   )
 }
 

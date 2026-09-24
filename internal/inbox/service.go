@@ -13,6 +13,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/crm"
+	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
@@ -384,17 +385,21 @@ func UpdateConversation(ctx context.Context, a *app.App, id string, p Conversati
 
 // ---- the CRM side of a conversation (MH-379) --------------------------------------
 
-// NewContactInput is a contact made from a conversation.
+// NewContactInput is a contact made from a conversation. MH-561: a WhatsApp
+// thread's visitor usually has a phone and no email, so at least one of Email
+// or Phone is required, not Email alone — the UI prefills whichever the
+// conversation already has (guessVisitor).
 type NewContactInput struct {
-	Email  string `json:"email" minLength:"3" maxLength:"254"`
+	Email  string `json:"email,omitempty" maxLength:"254"`
 	Name   string `json:"name,omitempty" maxLength:"120"`
 	Phone  string `json:"phone,omitempty" maxLength:"40"`
 	Locale string `json:"locale,omitempty" enum:"en,ar"`
 }
 
 // CreateContactFromConversation creates a CRM contact from a conversation and
-// links it. Deduped on email: an address the workspace already has is linked
-// rather than duplicated, and only its blank name and phone are filled in. A
+// links it. Deduped on whichever identity was given — email if present,
+// otherwise phone — so an address or number the workspace already has is
+// linked rather than duplicated, and only its blank fields are filled in. A
 // company that already has the email's domain is attached; none is created.
 func CreateContactFromConversation(ctx context.Context, a *app.App, id string, in NewContactInput) (*contactResult, error) {
 	wsID, userID, err := crmScope(ctx)
@@ -402,11 +407,21 @@ func CreateContactFromConversation(ctx context.Context, a *app.App, id string, i
 		return nil, err
 	}
 	db := a.SQLDB
-	addr, err := mail.ParseAddress(strings.TrimSpace(in.Email))
-	if err != nil {
-		return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
+	email := ""
+	if raw := strings.TrimSpace(in.Email); raw != "" {
+		addr, err := mail.ParseAddress(raw)
+		if err != nil {
+			return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
+		}
+		email = strings.ToLower(addr.Address)
 	}
-	email := strings.ToLower(addr.Address)
+	phone, err := marketing.NormalizePhone(in.Phone)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+	if email == "" && phone == "" {
+		return nil, huma.Error422UnprocessableEntity("give an email or a phone number")
+	}
 	locale := "en"
 	if in.Locale == "ar" {
 		locale = "ar"
@@ -424,15 +439,19 @@ func CreateContactFromConversation(ctx context.Context, a *app.App, id string, i
 		return nil, huma.Error500InternalServerError("could not read the conversation")
 	}
 	res := &contactResult{}
+	target := "(workspace_id, email) WHERE email <> ''"
+	if email == "" {
+		target = "(workspace_id, phone) WHERE phone <> ''"
+	}
 	// xmax = 0 is true only for a row this statement inserted.
 	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO contacts (workspace_id, email, name, phone, locale, source) VALUES ($1, $2, $3, $4, $5, 'inbox')
-		ON CONFLICT (workspace_id, email) DO UPDATE SET
+		ON CONFLICT `+target+` DO UPDATE SET
 		  name = CASE WHEN contacts.name = '' THEN EXCLUDED.name ELSE contacts.name END,
 		  phone = CASE WHEN contacts.phone = '' THEN EXCLUDED.phone ELSE contacts.phone END,
 		  updated_at = now()
 		RETURNING id, (xmax = 0)`,
-		wsID, email, strings.TrimSpace(in.Name), strings.TrimSpace(in.Phone), locale,
+		wsID, email, strings.TrimSpace(in.Name), phone, locale,
 	).Scan(&res.ContactID, &res.ContactCreated); err != nil {
 		return nil, huma.Error500InternalServerError("could not create the contact")
 	}

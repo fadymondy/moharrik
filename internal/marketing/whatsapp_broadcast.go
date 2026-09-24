@@ -242,6 +242,23 @@ func OnlyDigits(s string) string {
 	return b.String()
 }
 
+// NormalizePhone puts a phone number in E.164 (a leading +, nothing but
+// digits after it) — the shape contacts.phone is stored in (MH-561) and the
+// one OnlyDigits already assumes when comparing two numbers. "" in, "" out;
+// anything left that is not 8-15 digits (E.164's own range) is refused rather
+// than stored malformed.
+func NormalizePhone(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	digits := OnlyDigits(raw)
+	if len(digits) < 8 || len(digits) > 15 {
+		return "", errors.New("phone numbers are 8-15 digits, with the country code")
+	}
+	return "+" + digits, nil
+}
+
 // StartWhatsAppSend broadcasts a campaign and returns as soon as it is
 // accepted, the same shape as the email path.
 //

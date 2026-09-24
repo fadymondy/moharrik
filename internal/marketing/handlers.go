@@ -79,6 +79,9 @@ type ContactOut struct {
 	Locale        string            `json:"locale"`
 	Source        string            `json:"source"`
 	Phone         string            `json:"phone"`
+	// MH-561: a messaging handle/username, the third identity a contact may
+	// carry instead of (or with) email/phone.
+	Handle        string            `json:"handle"`
 	Title         string            `json:"title"`
 	CompanyID     *string           `json:"company_id"`
 	CompanyName   string            `json:"company_name"`
@@ -108,6 +111,9 @@ type CampaignOut struct {
 	RecipientCount int64      `json:"recipient_count"`
 	SentCount      int64      `json:"sent_count"`
 	FailedCount    int64      `json:"failed_count"`
+	// SkippedCount is subscribed contacts an email send left out for having no
+	// email (MH-561) — always 0 for a WhatsApp campaign, which is gated on phone.
+	SkippedCount int64 `json:"skipped_count"`
 	LastError      string     `json:"last_error"`
 	SentAt         *time.Time `json:"sent_at"`
 	CreatedAt      time.Time  `json:"created_at"`
@@ -227,11 +233,11 @@ func getCampaign(ctx context.Context, db *sql.DB, wsID, id string) (*CampaignOut
 	var c CampaignOut
 	err := db.QueryRowContext(ctx, `
 		SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
-		       c.sent_count, c.failed_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`, c.audience_locale
+		       c.sent_count, c.failed_count, c.skipped_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`, c.audience_locale
 		FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 		WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
 	).Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
-		&c.SentCount, &c.FailedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName, &c.AudienceLocale)
+		&c.SentCount, &c.FailedCount, &c.SkippedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName, &c.AudienceLocale)
 	if err != nil {
 		return nil, err
 	}
@@ -910,7 +916,14 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 		_, _ = a.SQLDB.ExecContext(ctx, `UPDATE campaigns SET status = 'failed', last_error = $3 WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, tooLarge.Error())
 		return huma.Error409Conflict(tooLarge.Error())
 	}
-	_, _ = a.SQLDB.ExecContext(ctx, `UPDATE campaigns SET recipient_count = $3 WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, int64(len(list)))
+	// MH-561: subscribed contacts this send reaches nobody, because they have
+	// no email — reported next to recipient_count, not silently dropped.
+	skipped, err := CountSkippedEmailAudienceFor(ctx, a.SQLDB, wsID, listID, audience)
+	if err != nil {
+		skipped = 0
+	}
+	_, _ = a.SQLDB.ExecContext(ctx, `UPDATE campaigns SET recipient_count = $3, skipped_count = $4 WHERE workspace_id = $1 AND id = $2`,
+		wsID, campaignID, int64(len(list)), skipped)
 	PublishCampaigns(a, wsID, campaignID)
 
 	go func() {
@@ -957,12 +970,71 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 	return nil
 }
 
-// AddContactInput is a new contact, optionally subscribed to one list.
+// AddContactInput is a new contact, optionally subscribed to one list. A
+// contact needs at least one of email, phone or handle (MH-561); subscribing
+// to a list additionally needs an email, because a list is an email audience.
 type AddContactInput struct {
-	Email  string `json:"email" minLength:"3" maxLength:"254"`
+	Email  string `json:"email,omitempty" maxLength:"254"`
+	Phone  string `json:"phone,omitempty" maxLength:"40" doc:"With country code, e.g. +20 101 234 5678."`
+	Handle string `json:"handle,omitempty" maxLength:"120" doc:"A messaging handle/username on a channel with neither a phone nor an email."`
 	Name   string `json:"name,omitempty" maxLength:"120"`
 	Locale string `json:"locale,omitempty" enum:"en,ar"`
-	ListID string `json:"list_id,omitempty" doc:"Omit to add the contact to the CRM without subscribing it anywhere."`
+	ListID string `json:"list_id,omitempty" doc:"Omit to add the contact to the CRM without subscribing it anywhere. Requires an email — a list is an email audience."`
+}
+
+// queryRower is the common surface of *sql.DB and *sql.Tx that upsertContact
+// needs, so the same helper serves a plain add and one inside a transaction.
+type queryRower interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// upsertContact adds a contact, or finds the one this workspace already has
+// by whichever identity was given, in priority order email > phone > handle
+// (MH-561: a contact carries at least one of the three, and each is unique
+// per workspace only when present — see internal/db/post/155_contact_identity.sql).
+// A blank incoming field never overwrites an existing value.
+func upsertContact(ctx context.Context, q queryRower, wsID, email, phone, handle, name, locale, source string) (string, bool, error) {
+	var target string
+	switch {
+	case email != "":
+		target = "(workspace_id, email) WHERE email <> ''"
+	case phone != "":
+		target = "(workspace_id, phone) WHERE phone <> ''"
+	default:
+		target = "(workspace_id, handle) WHERE handle <> ''"
+	}
+	var id string
+	var created bool
+	// xmax = 0 is true only for a row this statement inserted.
+	err := q.QueryRowContext(ctx, `
+		INSERT INTO contacts (workspace_id, email, phone, handle, name, locale, source)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT `+target+` DO UPDATE SET
+		  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
+		  phone = CASE WHEN contacts.phone = '' THEN EXCLUDED.phone ELSE contacts.phone END,
+		  handle = CASE WHEN contacts.handle = '' THEN EXCLUDED.handle ELSE contacts.handle END,
+		  updated_at = now()
+		RETURNING id, (xmax = 0)`, wsID, email, phone, handle, name, locale, source,
+	).Scan(&id, &created)
+	if err != nil {
+		return "", false, huma.Error500InternalServerError("could not add the contact")
+	}
+	return id, created, nil
+}
+
+// UpsertContactIdentity finds or creates a contact by whichever identity is
+// given, in priority order email > phone > handle (MH-561's dedup rule,
+// AddContact's without the list-subscription side effects). Blank fields
+// never overwrite an existing value. Used by internal/imports (MH-562) to
+// turn an imported chat/sender into a contact the same way every other path
+// in does. email/phone/handle are taken as already normalised — callers
+// outside this package should run them through mail.ParseAddress /
+// NormalizePhone first, the way AddContact itself does.
+func UpsertContactIdentity(ctx context.Context, db *sql.DB, wsID, email, phone, handle, name, locale, source string) (id string, created bool, err error) {
+	if email == "" && phone == "" && handle == "" {
+		return "", false, huma.Error422UnprocessableEntity("a contact needs an email, a phone number or a handle")
+	}
+	return upsertContact(ctx, db, wsID, email, phone, handle, name, locale, source)
 }
 
 type AddContactResult struct {
@@ -980,24 +1052,32 @@ func AddContact(ctx context.Context, a *app.App, in AddContactInput) (*AddContac
 	if err != nil {
 		return nil, err
 	}
-	addr, err := mail.ParseAddress(strings.TrimSpace(in.Email))
-	if err != nil {
-		return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
+	email := ""
+	if raw := strings.TrimSpace(in.Email); raw != "" {
+		addr, err := mail.ParseAddress(raw)
+		if err != nil {
+			return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
+		}
+		email = strings.ToLower(addr.Address)
 	}
-	email := strings.ToLower(addr.Address)
+	phone, err := NormalizePhone(in.Phone)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+	handle := strings.ToLower(strings.TrimSpace(in.Handle))
+	if email == "" && phone == "" && handle == "" {
+		return nil, huma.Error422UnprocessableEntity("a contact needs an email, a phone number or a handle")
+	}
+	if in.ListID != "" && email == "" {
+		return nil, huma.Error422UnprocessableEntity("subscribing to a mailing list needs an email")
+	}
 	locale := normLocale(in.Locale)
 
 	// A CRM contact with no list: no subscription, no consent email.
 	if in.ListID == "" {
-		var contactID string
-		if err := a.SQLDB.QueryRowContext(ctx, `
-			INSERT INTO contacts (workspace_id, email, name, locale, source) VALUES ($1, $2, $3, $4, 'crm')
-			ON CONFLICT (workspace_id, email) DO UPDATE SET
-			  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
-			  updated_at = now()
-			RETURNING id`, s.WorkspaceID, email, strings.TrimSpace(in.Name), locale,
-		).Scan(&contactID); err != nil {
-			return nil, huma.Error500InternalServerError("could not add the contact")
+		contactID, _, err := upsertContact(ctx, a.SQLDB, s.WorkspaceID, email, phone, handle, strings.TrimSpace(in.Name), locale, "crm")
+		if err != nil {
+			return nil, err
 		}
 		res := AddContactResult{Status: "crm", Confirmation: "not_needed"}
 		if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
@@ -1023,16 +1103,10 @@ func AddContact(ctx context.Context, a *app.App, in AddContactInput) (*AddContac
 		return nil, huma.Error500InternalServerError("could not add the contact")
 	}
 	defer tx.Rollback() //nolint:errcheck
-	var contactID string
-	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO contacts (workspace_id, email, name, locale, source) VALUES ($1, $2, $3, $4, 'manual')
-		ON CONFLICT (workspace_id, email) DO UPDATE SET
-		  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
-		  updated_at = now()
-		RETURNING id`, s.WorkspaceID, email, strings.TrimSpace(in.Name), locale,
-	).Scan(&contactID); err != nil {
+	contactID, _, err := upsertContact(ctx, tx, s.WorkspaceID, email, phone, handle, strings.TrimSpace(in.Name), locale, "manual")
+	if err != nil {
 		slog.ErrorContext(ctx, "upsert contact", "err", err)
-		return nil, huma.Error500InternalServerError("could not add the contact")
+		return nil, err
 	}
 
 	var subID, status, token string

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"net/mail"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/icp"
+	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/paging"
 )
 
@@ -57,10 +59,15 @@ type DealFields struct {
 	ClosedOn *string `json:"closed_on,omitempty" doc:"YYYY-MM-DD, won or lost deals only, not in the future. Omitted = the moment it moved to won/lost."`
 }
 
-// ContactFields is the CRM side of a contact update. nil = unchanged.
+// ContactFields is the CRM side of a contact update. nil = unchanged. Email,
+// Phone and Handle may not all end up empty (MH-561: a contact needs at
+// least one) — the database enforces it (contacts_identity_chk) and a
+// violation comes back as a 422 naming the rule.
 type ContactFields struct {
+	Email       *string   `json:"email,omitempty" maxLength:"254" doc:"Empty string clears it, if a phone or handle remains."`
 	Name        *string   `json:"name,omitempty" maxLength:"120"`
-	Phone       *string   `json:"phone,omitempty" maxLength:"40"`
+	Phone       *string   `json:"phone,omitempty" maxLength:"40" doc:"With country code, e.g. +20 101 234 5678. Empty string clears it, if an email or handle remains."`
+	Handle      *string   `json:"handle,omitempty" maxLength:"120" doc:"A messaging handle/username. Empty string clears it, if an email or phone remains."`
 	Title       *string   `json:"title,omitempty" maxLength:"120"`
 	CompanyID   *string   `json:"company_id,omitempty" doc:"Empty string unlinks."`
 	OwnerUserID *string   `json:"owner_user_id,omitempty"`
@@ -409,11 +416,29 @@ func UpdateContact(ctx context.Context, db *sql.DB, id string, b ContactFields) 
 		return nil, err
 	}
 	u := &update{}
+	if b.Email != nil {
+		email := ""
+		if raw := strings.TrimSpace(*b.Email); raw != "" {
+			addr, err := mail.ParseAddress(raw)
+			if err != nil {
+				return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
+			}
+			email = strings.ToLower(addr.Address)
+		}
+		u.set("email", email)
+	}
 	if b.Name != nil {
 		u.set("name", strings.TrimSpace(*b.Name))
 	}
 	if b.Phone != nil {
-		u.set("phone", strings.TrimSpace(*b.Phone))
+		phone, err := marketing.NormalizePhone(*b.Phone)
+		if err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+		u.set("phone", phone)
+	}
+	if b.Handle != nil {
+		u.set("handle", strings.ToLower(strings.TrimSpace(*b.Handle)))
 	}
 	if b.Title != nil {
 		u.set("title", strings.TrimSpace(*b.Title))

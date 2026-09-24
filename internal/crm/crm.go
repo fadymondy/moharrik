@@ -141,6 +141,7 @@ type ContactDetail struct {
 	Locale        string             `json:"locale"`
 	Source        string             `json:"source"`
 	Phone         string             `json:"phone"`
+	Handle        string             `json:"handle"`
 	Title         string             `json:"title"`
 	Tags          []string           `json:"tags"`
 	Company       *Ref               `json:"company"`
@@ -194,9 +195,20 @@ func linkErr(err error, fallback string) error {
 	case "23505":
 		return huma.Error409Conflict("that already exists in this workspace")
 	case "23514":
+		if constraintName(err) == "contacts_identity_chk" {
+			return huma.Error422UnprocessableEntity("a contact needs at least an email, a phone number or a handle")
+		}
 		return huma.Error422UnprocessableEntity("a value is out of range")
 	}
 	return huma.Error500InternalServerError(fallback)
+}
+
+func constraintName(err error) string {
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) {
+		return pg.ConstraintName
+	}
+	return ""
 }
 
 func strp(n sql.NullString) *string {

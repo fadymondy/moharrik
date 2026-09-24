@@ -166,7 +166,12 @@ func MarketingTools() []Tool {
 					return "", fmt.Errorf("could not create the campaign: %w", err)
 				}
 				recipients, _ := marketing.CountEmailAudienceFor(ctx, a.SQLDB, s.WorkspaceID, listID, in.AudienceLocale)
-				return fmt.Sprintf("Drafted %q for %s (%d confirmed subscriber(s)). Call send_campaign to send it.", subject, listName, recipients), nil
+				skipped, _ := marketing.CountSkippedEmailAudienceFor(ctx, a.SQLDB, s.WorkspaceID, listID, in.AudienceLocale)
+				msg := fmt.Sprintf("Drafted %q for %s (%d confirmed subscriber(s)).", subject, listName, recipients)
+				if skipped > 0 {
+					msg += fmt.Sprintf(" %d subscriber(s) will be skipped — they have no email.", skipped)
+				}
+				return msg + " Call send_campaign to send it.", nil
 			},
 		},
 		{

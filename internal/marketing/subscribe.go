@@ -89,7 +89,7 @@ func Subscribe(ctx context.Context, db *sql.DB, wsID, listID, email, name, local
 
 	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO contacts (workspace_id, email, name, locale, source) VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (workspace_id, email) DO UPDATE SET
+		ON CONFLICT (workspace_id, email) WHERE email <> '' DO UPDATE SET
 		  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
 		  updated_at = now()
 		RETURNING id`, wsID, email, name, locale, source).Scan(&res.ContactID); err != nil {

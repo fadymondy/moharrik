@@ -2,6 +2,7 @@ package marketing_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -78,9 +79,13 @@ func TestCampaignAudienceLocale(t *testing.T) {
 		t.Fatalf("audience_locale fr: %d", res.Code)
 	}
 
-	// WhatsApp counts narrow the same way.
+	// WhatsApp counts narrow the same way. Distinct numbers: MH-561 made phone
+	// unique per workspace when present.
+	i := 0
 	for e := range emails {
-		if _, err := f.a.SQLDB.ExecContext(f.ctx, `UPDATE contacts SET phone = '+20 16 5555 0000', whatsapp_opt_in_at = now() WHERE workspace_id = $1 AND email = $2`, f.ws, e); err != nil {
+		i++
+		phone := fmt.Sprintf("+20 16 5555 000%d", i)
+		if _, err := f.a.SQLDB.ExecContext(f.ctx, `UPDATE contacts SET phone = $3, whatsapp_opt_in_at = now() WHERE workspace_id = $1 AND email = $2`, f.ws, e, phone); err != nil {
 			t.Fatal(err)
 		}
 	}

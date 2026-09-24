@@ -39,11 +39,12 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { useDebounced } from "@/components/crm/contact-picker"
 import { LifecycleBadge, ScoreButton } from "@/components/crm/icp"
+import { PickSelect } from "@/components/crm/shared"
 import { WhatsAppConsent } from "@/components/crm/whatsapp-consent"
 import { EditListDialog, exportList, UnsubscribeDialog, type UnsubscribeTarget } from "@/components/mail/subscriber-admin"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, LIFECYCLE_STAGES, type Contact, type MailList, type SubscriptionStatus } from "@/lib/api"
+import { api, ApiError, contactIdentity, LIFECYCLE_STAGES, type Contact, type MailList, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContactsPage, useMailLists, useSmtpSettings } from "@/lib/queries"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -259,13 +260,17 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
   const isAdmin = ws.can("mail:settings")
   const smtp = useSmtpSettings(ws.id, isAdmin)
   const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [handle, setHandle] = useState("")
   const [name, setName] = useState("")
   const [lang, setLang] = useState<string>(locale === "ar" ? "ar" : "en")
   const [listId, setListId] = useState<string>("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const chosen = listId || lists[0]?.id || ""
+  const hasIdentity = !!(email.trim() || phone.trim() || handle.trim())
+  // A list is an email audience (MH-561): choosing one needs an email too.
+  const listBlocked = !!listId && !email.trim()
   const listItems = lists.map((l) => ({ value: l.id, label: l.name }))
   const langItems = [
     { value: "en", label: t("lang.en") },
@@ -279,13 +284,23 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
     setErr(null)
     try {
       const res = await api<{ status: string; confirmation: string; error?: string; contact: Contact }>("/api/w/contacts", {
-        json: { email: email.trim(), name: name.trim(), locale: lang, list_id: chosen },
+        json: {
+          email: email.trim(),
+          phone: phone.trim(),
+          handle: handle.trim(),
+          name: name.trim(),
+          locale: lang,
+          list_id: listId,
+        },
         workspaceId: ws.id,
       })
       if (res.confirmation === "sent") toast.success(t("contacts.addedConfirmSent"))
       else if (res.confirmation === "not_sent") toast.warning(t("contacts.addedConfirmNotSent", { error: res.error ?? "" }))
       else if (res.status === "subscribed") toast.success(t("contacts.addedSubscribed"))
+      else toast.success(t("contacts.addedCrm"))
       setEmail("")
+      setPhone("")
+      setHandle("")
       setName("")
       onAdded()
     } catch (e) {
@@ -309,58 +324,64 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
           </span>
         </p>
       ) : null}
-      {lists.length === 0 ? (
-        <p className="mt-2 text-sm text-grid-muted">{t("contacts.needList")}</p>
-      ) : (
-        <form onSubmit={onSubmit} noValidate className="mt-5" data-form="add-contact">
-          <FieldGroup className="sm:flex-row sm:items-end">
-            <Field className="sm:flex-1">
-              <FieldLabel htmlFor="contact-email">{t("contacts.email")}</FieldLabel>
-              <Input id="contact-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
-            </Field>
-            <Field className="sm:flex-1">
-              <FieldLabel htmlFor="contact-name">
-                {t("contacts.name")} <span className="text-grid-muted">({t("common.optional")})</span>
-              </FieldLabel>
-              <Input id="contact-name" value={name} onChange={(e) => setName(e.target.value)} />
-            </Field>
-            <Field className="sm:w-36">
-              <FieldLabel htmlFor="contact-lang">{t("contacts.language")}</FieldLabel>
-              <Select items={langItems} value={lang} onValueChange={(v) => setLang(String(v ?? "en"))}>
-                <SelectTrigger id="contact-lang" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {langItems.map((i) => (
-                    <SelectItem key={i.value} value={i.value}>
-                      {i.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+      {lists.length === 0 ? <p className="mt-2 text-sm text-grid-muted">{t("contacts.noListsHint")}</p> : null}
+      <form onSubmit={onSubmit} noValidate className="mt-5" data-form="add-contact">
+        <FieldGroup className="sm:flex-row sm:items-end sm:flex-wrap">
+          <Field className="sm:flex-1 sm:min-w-48">
+            <FieldLabel htmlFor="contact-email">
+              {t("contacts.email")} <span className="text-grid-muted">({t("common.optional")})</span>
+            </FieldLabel>
+            <Input id="contact-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
+          </Field>
+          <Field className="sm:flex-1 sm:min-w-40">
+            <FieldLabel htmlFor="contact-phone">
+              {t("contacts.phone")} <span className="text-grid-muted">({t("common.optional")})</span>
+            </FieldLabel>
+            <Input id="contact-phone" type="tel" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+20 101 234 5678" />
+          </Field>
+          <Field className="sm:flex-1 sm:min-w-40">
+            <FieldLabel htmlFor="contact-handle">
+              {t("contacts.handle")} <span className="text-grid-muted">({t("common.optional")})</span>
+            </FieldLabel>
+            <Input id="contact-handle" dir="ltr" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle" />
+          </Field>
+          <Field className="sm:flex-1 sm:min-w-40">
+            <FieldLabel htmlFor="contact-name">
+              {t("contacts.name")} <span className="text-grid-muted">({t("common.optional")})</span>
+            </FieldLabel>
+            <Input id="contact-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field className="sm:w-36">
+            <FieldLabel htmlFor="contact-lang">{t("contacts.language")}</FieldLabel>
+            <Select items={langItems} value={lang} onValueChange={(v) => setLang(String(v ?? "en"))}>
+              <SelectTrigger id="contact-lang" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {langItems.map((i) => (
+                  <SelectItem key={i.value} value={i.value}>
+                    {i.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {lists.length > 0 ? (
             <Field className="sm:w-44">
-              <FieldLabel htmlFor="contact-list">{t("contacts.list")}</FieldLabel>
-              <Select items={listItems} value={chosen} onValueChange={(v) => setListId(String(v ?? ""))}>
-                <SelectTrigger id="contact-list" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {listItems.map((i) => (
-                    <SelectItem key={i.value} value={i.value}>
-                      <Bdi>{i.label}</Bdi>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FieldLabel htmlFor="contact-list">
+                {t("contacts.list")} <span className="text-grid-muted">({t("common.optional")})</span>
+              </FieldLabel>
+              <PickSelect id="contact-list" value={listId} onChange={setListId} options={listItems} noneLabel={t("contacts.noList")} />
             </Field>
-            <Button type="submit" disabled={busy || !email.trim() || !chosen}>
-              {busy ? t("common.working") : t("contacts.add")}
-            </Button>
-          </FieldGroup>
-          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
-        </form>
-      )}
+          ) : null}
+          <Button type="submit" disabled={busy || !hasIdentity || listBlocked}>
+            {busy ? t("common.working") : t("contacts.add")}
+          </Button>
+        </FieldGroup>
+        {listBlocked ? <FieldDescription className="mt-2">{t("contacts.listNeedsEmail")}</FieldDescription> : null}
+        {!hasIdentity ? <FieldDescription className="mt-2">{t("contacts.needsIdentity")}</FieldDescription> : null}
+        {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+      </form>
     </section>
   )
 }
@@ -668,7 +689,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="ps-6">{t("contacts.email")}</TableHead>
+            <TableHead className="ps-6">{t("contacts.identity")}</TableHead>
             <TableHead>{t("contacts.name")}</TableHead>
             <TableHead>{t("lifecycle.label")}</TableHead>
             <TableHead>{t("icp.score")}</TableHead>
@@ -684,10 +705,10 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
           {items.map((c) => {
             const leavable = (c.subscriptions ?? []).filter((s) => s.status !== "unsubscribed")
             return (
-              <TableRow key={c.id} data-contact-row={c.email}>
+              <TableRow key={c.id} data-contact-row={contactIdentity(c)}>
                 <TableCell className="ps-6">
                   <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
-                    <Ltr>{c.email}</Ltr>
+                    <Ltr>{contactIdentity(c)}</Ltr>
                   </Link>
                 </TableCell>
                 <TableCell>
@@ -703,7 +724,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
                   <LifecycleBadge stage={c.lifecycle ?? ""} />
                 </TableCell>
                 <TableCell>
-                  <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name || c.email)} />
+                  <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name || contactIdentity(c))} />
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1.5">
@@ -739,7 +760,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
                   {canWrite ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger
-                        render={<Button variant="ghost" size="icon-sm" aria-label={t("contacts.actionsFor", { who: isolate(c.email) })} data-row-actions={c.email} />}
+                        render={<Button variant="ghost" size="icon-sm" aria-label={t("contacts.actionsFor", { who: isolate(contactIdentity(c)) })} data-row-actions={contactIdentity(c)} />}
                       >
                         <EllipsisIcon />
                       </DropdownMenuTrigger>
@@ -752,7 +773,7 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
                                 <DropdownMenuItem
                                   key={s.id}
                                   data-unsubscribe-from={s.list_name}
-                                  onClick={() => setLeaving({ contactId: c.id, who: c.name || c.email, listId: s.list_id, listName: s.list_name })}
+                                  onClick={() => setLeaving({ contactId: c.id, who: c.name || contactIdentity(c), listId: s.list_id, listName: s.list_name })}
                                 >
                                   <Bdi>{s.list_name}</Bdi>
                                 </DropdownMenuItem>

@@ -333,6 +333,11 @@ function CampaignTable({
                   <Ltr>
                     {c.status === "draft" ? "—" : `${c.sent_count} / ${c.recipient_count}${c.failed_count ? ` (−${c.failed_count})` : ""}`}
                   </Ltr>
+                  {!wa && c.skipped_count > 0 ? (
+                    <div className="text-xs text-grid-warn-text" data-campaign-skipped={c.skipped_count}>
+                      {t("campaigns.skippedNoEmail", { count: c.skipped_count })}
+                    </div>
+                  ) : null}
                 </TableCell>
                 <TableCell className="text-grid-muted">
                   <Ltr>{formatDate(c.sent_at ?? c.created_at)}</Ltr>

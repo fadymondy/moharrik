@@ -282,7 +282,7 @@ func Accept(ctx context.Context, db *sql.DB, ws, userID, id string, in ProspectA
 	if email != "" {
 		if err := db.QueryRowContext(ctx, `
 			INSERT INTO contacts (workspace_id, email, name, title, company_id, source) VALUES ($1, $2, $3, $4, $5, 'prospect')
-			ON CONFLICT (workspace_id, email) DO UPDATE SET
+			ON CONFLICT (workspace_id, email) WHERE email <> '' DO UPDATE SET
 			  name = CASE WHEN contacts.name = '' THEN EXCLUDED.name ELSE contacts.name END,
 			  title = CASE WHEN contacts.title = '' THEN EXCLUDED.title ELSE contacts.title END,
 			  company_id = coalesce(contacts.company_id, EXCLUDED.company_id), updated_at = now()

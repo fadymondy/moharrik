@@ -285,6 +285,8 @@ export type Contact = {
   locale: "en" | "ar"
   source: string
   phone: string
+  /** A messaging handle/username (MH-561) — the third identity, alongside email and phone. */
+  handle: string
   title: string
   company_id: string | null
   company_name: string
@@ -298,6 +300,11 @@ export type Contact = {
   lifecycle: Lifecycle
   score: number | null
   score_reasons: ScoreReason[] | null
+}
+
+/** A contact's best display identity, email > phone > handle (MH-561: at least one is always present). */
+export function contactIdentity(c: { email: string; phone: string; handle: string }): string {
+  return c.email || c.phone || c.handle
 }
 
 export type CampaignStatus = "draft" | "sending" | "sent" | "failed"
@@ -316,6 +323,8 @@ export type Campaign = {
   recipient_count: number
   sent_count: number
   failed_count: number
+  /** Subscribed contacts this send skipped for having no email (MH-561). Always 0 for WhatsApp. */
+  skipped_count: number
   last_error: string
   sent_at: string | null
   created_at: string
@@ -481,6 +490,8 @@ export type ContactDetail = {
   locale: "en" | "ar"
   source: string
   phone: string
+  /** A messaging handle/username (MH-561) — the third identity, alongside email and phone. */
+  handle: string
   title: string
   tags: string[]
   company: Ref | null
