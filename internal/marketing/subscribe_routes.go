@@ -14,6 +14,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/conversions"
 	"github.com/fadymondy/moharrik/internal/tenant"
+	"github.com/fadymondy/moharrik/internal/triggers"
 )
 
 // tags is shared by every endpoint in this package; it was function-local
@@ -568,6 +569,13 @@ func registerPublicSubscribe(api huma.API, a *app.App) {
 			return nil, huma.Error500InternalServerError("could not record that subscription")
 		}
 		PublishContacts(a, wsID) // MH-413: the contacts page updates live
+
+		// For the automation rules (MH-427): a website form was filled in. The
+		// subscription itself raises contact.opted_in when it is confirmed.
+		triggers.Fire(sctx, a.SQLDB, wsID, triggers.Event{Type: triggers.FormSubmitted, SubjectID: res.ContactID, Data: map[string]any{
+			"form_id": form.ID, "form_name": form.Name, "email": email, "name": strings.TrimSpace(in.Body.Name),
+			"list_id": listID, "list_name": res.ListName, "status": res.Status, "contact_id": res.ContactID, "locale": locale,
+		}})
 
 		// The phone and the WhatsApp consent, if the visitor gave them. Recorded
 		// after the subscription so a failure here cannot cost the subscription

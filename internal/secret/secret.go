@@ -42,6 +42,8 @@ const (
 	DomainScheduleSecret = "moharrik/schedule-secret/v1"
 	// A workspace's GA4 Measurement Protocol API secret (MH-449).
 	DomainGA4APISecret = "moharrik/ga4-api-secret/v1"
+	// An automation rule's signing secret for its outbound webhooks (MH-427).
+	DomainRuleWebhookSecret = "moharrik/rule-webhook-secret/v1"
 )
 
 // minSecret is the shortest AUTH_SECRET a key is derived from.

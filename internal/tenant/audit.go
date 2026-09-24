@@ -27,6 +27,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"sync"
 
 	"github.com/togo-framework/auth"
@@ -136,8 +137,28 @@ func AuditJSON(ctx context.Context) string {
 	if r := RequestFrom(ctx); r != nil {
 		m["rid"], m["ip"], m["ua"], m["op"] = r.ID, r.IP, clip(r.UserAgent, 300), r.Operation()
 	}
+	// The automation rules whose actions are running (MH-427): the database
+	// triggers that raise rule events read it, so an event a rule caused
+	// carries the rule — the loop guard's input (126_automation_rule_triggers.sql).
+	if chain := RuleChain(ctx); len(chain) > 0 {
+		m["rc"] = strings.Join(chain, ">")
+	}
 	b, _ := json.Marshal(m)
 	return string(b)
+}
+
+type ruleChainKey struct{}
+
+// WithRuleChain marks ctx as carrying out the actions of the last rule in
+// chain, which the earlier ones caused (internal/triggers.WithRule).
+func WithRuleChain(ctx context.Context, chain []string) context.Context {
+	return context.WithValue(ctx, ruleChainKey{}, append([]string(nil), chain...))
+}
+
+// RuleChain is the chain of automation rules acting on ctx, oldest first.
+func RuleChain(ctx context.Context) []string {
+	c, _ := ctx.Value(ruleChainKey{}).([]string)
+	return c
 }
 
 // AuditTx makes the rest of tx record against ctx's actor. For writes on the

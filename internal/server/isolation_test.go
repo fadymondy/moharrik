@@ -508,6 +508,16 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatalf("the schedule list handed back a secret value: %s", b)
 	}
 
+	// An automation rule in A (MH-427), named with the marker, and a test run
+	// of it in its log. Its webhook secret is the rule's own and carries no
+	// marker, so it is listed by value: B must never read it.
+	ruleID := alice.must("POST", "/api/w/rules", map[string]any{
+		"name": marker + " Rule", "trigger": "lead.created",
+		"actions": []any{map[string]any{"type": "notify_members", "params": map[string]any{"title": marker + " {{name}}"}}},
+	}, 201)["rule"].(map[string]any)["id"].(string)
+	ruleRunID := alice.must("POST", "/api/w/rules/"+ruleID+"/test", map[string]any{}, 200)["run"].(map[string]any)["id"].(string)
+	ruleSecret := alice.must("GET", "/api/w/rules/"+ruleID+"/secret", nil, 200)["secret"].(string)
+
 	// A connected app in A (MH-391): an OAuth client and a grant bound to A,
 	// inserted directly — approving one needs the consent flow, which
 	// oauth_test.go drives. Its routes (/api/w/oauth_grants) are swept below
@@ -589,7 +599,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, notifSrcID}
+	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, notifSrcID, ruleID, ruleRunID, ruleSecret}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -607,6 +617,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"notification_sources": notifSrcID,
 		"research":             runID, "company-suggestions": suggID, "research-schedules": rschedID,
 		"prospects": prospectID,
+		"rules":     ruleID,
+		"rule-runs": ruleRunID,
 	}
 
 	leaks := func(b []byte) string {
@@ -704,6 +716,13 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	if code, b := alice.do("GET", "/api/w/notify/whatsapp", nil); code != 200 || !strings.Contains(string(b), "201699990000") {
 		t.Errorf("alice's WhatsApp notifications were changed or removed from B: %d %s", code, b)
+	}
+	// MH-427: A's rule, its log and its webhook secret survived B's sweep.
+	if code, b := alice.do("GET", "/api/w/rules/"+ruleID+"/secret", nil); code != 200 || !strings.Contains(string(b), ruleSecret) {
+		t.Errorf("A's rule or its secret was changed or removed from B: %d %s", code, b)
+	}
+	if code, b := alice.do("GET", "/api/w/rule-runs/"+ruleRunID, nil); code != 200 || !strings.Contains(string(b), marker) {
+		t.Errorf("A's rule run was removed from B: %d %s", code, b)
 	}
 	bob.ws = bID
 	if _, b := bob.do("GET", "/api/w/notify/whatsapp", nil); strings.Contains(string(b), "201699990000") || strings.Contains(string(b), marker) {

@@ -42,6 +42,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/reports"
 	"github.com/fadymondy/moharrik/internal/research"
 	"github.com/fadymondy/moharrik/internal/rest"
+	"github.com/fadymondy/moharrik/internal/rules"
 	"github.com/fadymondy/moharrik/internal/searchconsole"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
@@ -182,6 +183,10 @@ func Boot() *app.App {
 	if os.Getenv("RESEARCH_SCHEDULER") != "off" && os.Getenv("SCHEDULER") != "off" {
 		researchEngine.StartScheduler(a, 2*time.Minute)
 	}
+	// Automation rules (MH-427): one in-process loop that runs the rules
+	// listening to the events the triggers write, and fires schedule rules.
+	// RULES=off (or SCHEDULER=off) turns it off; the tests drive it by hand.
+	rules.Start(a)
 
 	// Run retention: finished runs are deleted past each workspace's window
 	// (MH-234). It reads SCHEDULER itself, so it is off wherever the scheduler
@@ -287,6 +292,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterExtension(api)
 	automation.RegisterPick(api, a, automation.Default())
 	automation.RegisterCanvas(api, a) // the workflow canvas: layouts and executions (MH-480)
+	rules.Register(api, a)            // automation rules: event → conditions → actions (MH-427)
 	research.Register(api, a, researchEngine)
 	prospects.Register(api, a, researchEngine) // prospect discovery (MH-397)
 	mcp.RegisterTokenRoutes(api, a)
