@@ -185,3 +185,29 @@ func TestSnippetNeverReachesAViewerWithoutInboxRead(t *testing.T) {
 		t.Errorf("a viewer without inbox:read received conversation content: %+v", got)
 	}
 }
+
+// A lead (MH-497) is for whoever may read leads: every member of the workspace. A client-role
+// member does not hold leads:read and a visitor holds nothing, so neither hears it. Before the
+// fix the event named no permission and reached nobody, the owner included.
+func TestLeadReachesLeadReadersOnly(t *testing.T) {
+	h := NewHub()
+	m, stopM := h.Subscribe("ws", member)
+	defer stopM()
+	owner, stopO := h.Subscribe("ws", Viewer{UserID: "u-owner", Role: "owner"})
+	defer stopO()
+	client, stopC := h.Subscribe("ws", Viewer{UserID: "u-client", Role: "client"})
+	defer stopC()
+	visitor, stopV := h.Subscribe("ws", Viewer{})
+	defer stopV()
+
+	h.Publish("ws", Event{Kind: "lead", Permission: authz.LeadsRead})
+
+	if ev := recv(t, m); ev.Kind != "lead" || ev.Alert {
+		t.Errorf("a member should get the lead, quietly: %+v", ev)
+	}
+	if ev := recv(t, owner); ev.Kind != "lead" {
+		t.Errorf("the owner should get the lead: %+v", ev)
+	}
+	silent(t, client, "a client-role member")
+	silent(t, visitor, "a visitor's socket")
+}

@@ -42,6 +42,10 @@ type APIs struct {
 	YouTube          string // www.googleapis.com/youtube/v3
 	YouTubeAnalytics string // youtubeanalytics.googleapis.com/v2
 	YouTubeReporting string // youtubereporting.googleapis.com/v1
+	// The GA4 Measurement Protocol (MH-449): {base}/mp/collect and the
+	// validation server at {base}/debug/mp/collect. Not an OAuth API: a
+	// workspace's own API secret authorises it.
+	MeasurementProtocol string // www.google-analytics.com
 }
 
 // RealAPIs is Google's own set.
@@ -53,6 +57,8 @@ var RealAPIs = APIs{
 	YouTube:          "https://www.googleapis.com/youtube/v3",
 	YouTubeAnalytics: "https://youtubeanalytics.googleapis.com/v2",
 	YouTubeReporting: "https://youtubereporting.googleapis.com/v1",
+
+	MeasurementProtocol: "https://www.google-analytics.com",
 }
 
 // APIsAt is the set a fake Google at base serves (googletest).
@@ -66,6 +72,8 @@ func APIsAt(base string) APIs {
 		YouTube:          base + "/youtube/v3",
 		YouTubeAnalytics: base + "/youtubeanalytics/v2",
 		YouTubeReporting: base + "/youtubereporting/v1",
+
+		MeasurementProtocol: base + "/ga",
 	}
 }
 

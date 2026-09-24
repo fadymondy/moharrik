@@ -14,7 +14,9 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/clientip"
+	"github.com/fadymondy/moharrik/internal/conversions"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/notifications"
@@ -64,7 +66,7 @@ type inquiryBody struct {
 	// Optional, as typed ("5,000", "$12k"). Converting the lead makes it the deal's value when it
 	// reads as one amount in the workspace's currency (budget.go).
 	Budget string `json:"budget,omitempty" maxLength:"80"`
-	Locale  string `json:"locale,omitempty" maxLength:"35"`
+	Locale string `json:"locale,omitempty" maxLength:"35"`
 	// The honeypot. The snippet hides it from people and from the tab order; a
 	// bot filling every field fills it. Its submission is thanked and dropped.
 	Nickname string `json:"nickname,omitempty" maxLength:"200" doc:"Honeypot: leave empty. A submission that fills it is accepted and discarded."`
@@ -77,6 +79,11 @@ type inquiryBody struct {
 	Referrer    string `json:"referrer,omitempty" maxLength:"2000"`
 	Gclid       string `json:"gclid,omitempty" maxLength:"300"`
 	LandingPage string `json:"landing_page,omitempty" maxLength:"2000"`
+	// GA4 (MH-449), read by the snippet: the visitor's GA client id from the _ga cookie, and the
+	// page's Consent Mode answers for ads. Anything that does not look like one is dropped.
+	GAClientID          string `json:"ga_client_id,omitempty" maxLength:"64" doc:"The GA client id (\"1234567890.1712345678\") or the _ga cookie value."`
+	GAAdUserData        string `json:"ga_ad_user_data,omitempty" maxLength:"16" doc:"granted or denied, as the page's Consent Mode said."`
+	GAAdPersonalization string `json:"ga_ad_personalization,omitempty" maxLength:"16" doc:"granted or denied, as the page's Consent Mode said."`
 }
 
 // ---- rate limits -------------------------------------------------------------
@@ -164,8 +171,9 @@ func intake(ctx context.Context, db *sql.DB, form marketing.PublicForm, b inquir
 	var id string
 	err := db.QueryRowContext(ctx, `
 		INSERT INTO leads (workspace_id, form_id, form_name, name, email, phone, company, message, locale,
-		                   utm_source, utm_medium, utm_campaign, utm_term, utm_content, referrer, gclid, landing_page, origin, budget)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		                   utm_source, utm_medium, utm_campaign, utm_term, utm_content, referrer, gclid, landing_page, origin, budget,
+		                   ga_client_id, ga_ad_user_data, ga_ad_personalization)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 		RETURNING id`,
 		form.WorkspaceID, form.ID, form.Name, strings.TrimSpace(b.Name), strings.ToLower(strings.TrimSpace(b.Email)),
 		strings.TrimSpace(b.Phone), strings.TrimSpace(b.Company), strings.TrimSpace(b.Message), locale,
@@ -173,6 +181,7 @@ func intake(ctx context.Context, db *sql.DB, form marketing.PublicForm, b inquir
 		strings.TrimSpace(b.UtmTerm), strings.TrimSpace(b.UtmContent), strings.TrimSpace(b.Referrer),
 		strings.TrimSpace(b.Gclid), strings.TrimSpace(b.LandingPage), strings.TrimRight(strings.TrimSpace(origin), "/"),
 		strings.TrimSpace(b.Budget),
+		conversions.ClientIDFromCookie(b.GAClientID), conversions.ConsentValue(b.GAAdUserData), conversions.ConsentValue(b.GAAdPersonalization),
 	).Scan(&id)
 	return id, err
 }
@@ -216,7 +225,21 @@ func notify(ctx context.Context, a *app.App, wsID, leadID string, b inquiryBody,
 		a.Log.Warn("could not notify about a new lead", "workspace", wsID, "err", err)
 		return
 	}
-	a.Events.Publish(wsID, realtime.Event{Kind: "lead"})
+	// The bell and the notification center refresh in every open tab of a member who may read
+	// the feed. Quiet: the item is a record of the lead, not a customer waiting in a chat.
+	if a.Events != nil {
+		a.Events.Publish(wsID, realtime.Event{Kind: "notifications", Permission: authz.NotificationsRead})
+	}
+}
+
+// announceLead tells the workspace's open Leads pages that a lead arrived, so the list and its
+// counts update without a reload (MH-497). The audience is whoever may read leads: the hub
+// drops an event that names no permission (fail closed), which is exactly what happened to
+// this one before — the page listened for "lead" and never heard it.
+func announceLead(a *app.App, wsID string) {
+	if a.Events != nil {
+		a.Events.Publish(wsID, realtime.Event{Kind: "lead", Permission: authz.LeadsRead})
+	}
 }
 
 // defaultThanks is what a visitor is told when the form has no copy of its own.
@@ -291,6 +314,9 @@ func registerPublicInquiry(api huma.API, a *app.App) {
 			a.Log.Error("inquiry intake failed", "workspace", form.WorkspaceID, "err", err)
 			return nil, huma.Error500InternalServerError("could not record that message")
 		}
+		// The lead is stored: the Leads page hears about it whether or not the notification
+		// below manages to be written.
+		announceLead(a, form.WorkspaceID)
 		notify(sctx, a, form.WorkspaceID, id, in.Body, form.Name)
 
 		// The SAME answer whether this address is new to the workspace or

@@ -1558,6 +1558,50 @@ export type GoogleResources = {
   can_manage: boolean
 }
 
+// ── GA4 conversions (MH-449) ─────────────────────────────────────────────
+
+export type Ga4ConversionSettings = {
+  /** The GA4 web stream's measurement id (G-…); "" = not set up. */
+  measurement_id: string
+  /** Whether a Measurement Protocol API secret is stored. The secret itself is never returned. */
+  api_secret_set: boolean
+  events_enabled: boolean
+  tag_in_embeds: boolean
+  debug_mode: boolean
+  updated_at: string | null
+}
+
+export type Ga4ConversionEvent = {
+  id: string
+  name: string
+  subject_kind: "lead" | "deal"
+  subject_id: string
+  status: "pending" | "sent" | "failed" | "skipped"
+  attempts: number
+  error: string
+  /** true: the visitor's GA client id; false: a pseudonymous one; null: not sent yet. */
+  attributed: boolean | null
+  debug: boolean
+  occurred_at: string
+  sent_at: string | null
+}
+
+export type Ga4ConversionsPage = {
+  settings: Ga4ConversionSettings
+  events: { name: string; when: "lead_created" | "lead_qualified" | "lead_converted" | "deal_won" }[]
+  recent: Ga4ConversionEvent[] | null
+}
+
+export type Ga4Stream = { property: string; property_name: string; name: string; measurement_id: string; uri: string }
+export type Ga4Streams = { streams: Ga4Stream[] | null; errors: string[] | null }
+
+export type Ga4TestResult = {
+  valid: boolean
+  messages: { fieldPath: string; description: string; validationCode: string }[] | null
+  sent: boolean
+  error?: string
+}
+
 // ── Analytics: GA4 (MH-444) ──────────────────────────────────────────────
 
 export type GaTotals = {

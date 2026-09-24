@@ -48,6 +48,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"research_evidence", "research_companies", "research_schedules", "research_settings",
 	// prospect discovery (MH-397)
 	"prospect_profiles", "prospects", "prospect_feedback", "prospect_drafts",
+	// GA4 conversions: the settings and the Measurement Protocol outbox (MH-449)
+	"ga4_conversion_settings", "ga4_conversion_events",
 }
 
 /*
@@ -93,6 +95,7 @@ var AuditExcluded = map[string]string{
 	"icp_scores":                  "derived from the profile and the records, recomputed on read; the profile is audited",
 	"automation_workflow_layouts": "where a workflow's canvas nodes sit — UI metadata, not the workflow; saving it is recorded by its request row",
 	"research_evidence":           "sentences a research run extracted from its sources; the run itself is audited",
+	"ga4_conversion_events":       "the GA4 outbox, written by triggers on leads and deals and marked sent by the sender; the lead's or deal's own change is audited",
 }
 
 // AuditedTables are the tenant tables the audit trigger is attached to.

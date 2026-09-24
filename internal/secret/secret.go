@@ -40,6 +40,8 @@ const (
 	DomainGoogleRefresh   = "moharrik/google-refresh/v1"
 	// The values a schedule keeps for its workflow's SECRET parameters (MH-403).
 	DomainScheduleSecret = "moharrik/schedule-secret/v1"
+	// A workspace's GA4 Measurement Protocol API secret (MH-449).
+	DomainGA4APISecret = "moharrik/ga4-api-secret/v1"
 )
 
 // minSecret is the shortest AUTH_SECRET a key is derived from.

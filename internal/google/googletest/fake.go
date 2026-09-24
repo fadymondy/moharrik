@@ -98,6 +98,9 @@ type Server struct {
 	DataFor  func(Account) *AccountData
 	lastAuth url.Values
 	lastForm map[string]url.Values
+	// The Measurement Protocol (mp.go): what was sent, and a forced status.
+	mpHits   []MPHit
+	mpStatus int
 }
 
 // New starts a fake Google on a random local port.

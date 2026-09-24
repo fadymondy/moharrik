@@ -4,6 +4,7 @@ import useSWR, { type SWRConfiguration } from "swr"
 import useSWRInfinite from "swr/infinite"
 
 import {
+  type Ga4ConversionsPage,
   type CollectedSourceList,
   type NotificationPage,
   api,
@@ -652,6 +653,15 @@ export function useGoogleResources(workspaceId: string | null | undefined, kind?
       ...noRetryOn4xx,
       refreshInterval: (data) => (data?.resources?.some((r) => r.syncing) ? 3000 : 0),
     },
+  )
+}
+
+/** GA4 conversions: the setup and the latest events (MH-449). Polled while an event is waiting to go out. */
+export function useGa4Conversions(workspaceId: string | null | undefined, enabled = true) {
+  return useSWR<Ga4ConversionsPage>(
+    workspaceId && enabled ? ["/api/w/ga4-conversions", workspaceId] : null,
+    ([p, id]: [string, string]) => api<Ga4ConversionsPage>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, refreshInterval: (data) => (data?.recent?.some((e) => e.status === "pending") ? 3000 : 0) },
   )
 }
 

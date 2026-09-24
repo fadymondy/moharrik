@@ -28,6 +28,7 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type McpScope, type McpToken } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { scopeText } from "@/lib/scope-text"
 import { useMcpTokens, useOAuthGrants } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
@@ -347,10 +348,14 @@ function CreateTokenDialog({
                               onChange={(e) => toggle(s.scope, e.target.checked)}
                             />
                             <span className="min-w-0">
-                              <span dir="ltr" className="ltr-isolate block font-mono text-xs text-grid-fg">
-                                {s.scope}
+                              {/* The block follows the page direction; only the inline name is LTR, so every
+                                  row's name starts at the same edge in /ar (MH-485, as on the OAuth consent page). */}
+                              <span className="block">
+                                <span dir="ltr" className="ltr-isolate font-mono text-xs text-grid-fg">
+                                  {s.scope}
+                                </span>
                               </span>
-                              <span className="block text-sm text-grid-body">{s.description}</span>
+                              <span className="block text-sm text-grid-body">{scopeText(t, s.scope, s.description)}</span>
                               {!s.allowed ? (
                                 <span className="mt-0.5 block text-xs text-grid-muted">
                                   {t("mcp.notAllowed", { role: t(`role.${s.min_role}`) })}

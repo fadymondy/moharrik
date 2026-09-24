@@ -24,6 +24,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/audit"
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/clientip"
+	"github.com/fadymondy/moharrik/internal/conversions"
 	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/google"
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
@@ -115,7 +116,7 @@ func Boot() *app.App {
 		k.Log.Warn("GOOGLE_API_BASE is set but ignored: it is honoured only on a local, non-production APP_URL")
 	}
 
-	api := humachi.New(k.Router, huma.DefaultConfig("Moharrik API", "0.1.0"))
+	api := humachi.New(k.Router, apiConfig())
 	// Before any route: huma applies middleware when an operation is registered.
 	audit.UseHuma(api, a)
 	registerREST(api, a, researchEngine)
@@ -217,6 +218,11 @@ func Boot() *app.App {
 	// Snoozed conversations wake when their time comes (MH-383), so every open
 	// tab's list and bell move without anyone reloading. SNOOZE_WAKER=off
 	// turns it off; the inbox list wakes due threads on read either way.
+	// GA4 conversions (MH-449): drains the outbox the lead and deal triggers fill,
+	// a few seconds after each moment. GA4_SENDER=off turns it off; the tests
+	// drain it themselves, against a fake Google.
+	conversions.StartSender(a, 5*time.Second)
+
 	if os.Getenv("SNOOZE_WAKER") != "off" {
 		inbox.StartSnoozeWaker(a, 30*time.Second)
 	}
@@ -291,6 +297,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	reports.Register(api, a)       // CRM reporting (MH-394)
 	icp.Register(api, a)           // ideal-customer profile + lead score (MH-395)
 	analytics.Register(api, a)     // GA4 (MH-444)
+	conversions.Register(api, a)   // GA4 conversions over the Measurement Protocol (MH-449)
 	searchconsole.Register(api, a) // Search Console performance (MH-445)
 	youtube.Register(api, a)       // YouTube channel, videos, comments (MH-441)
 	audit.Register(api, a)         // the audit log (MH-392)
@@ -333,13 +340,18 @@ func togoVersion() string {
 
 // OpenAPI returns the generated OpenAPI 3.1 document (used by `togo generate`).
 func OpenAPI() ([]byte, error) {
+	return openAPISpec().YAML()
+}
+
+// openAPISpec is the document OpenAPI exports, as an object (the tests walk it).
+func openAPISpec() *huma.OpenAPI {
 	router := chi.NewMux()
 	installErrors()
-	api := humachi.New(router, huma.DefaultConfig("Moharrik API", "0.1.0"))
+	api := humachi.New(router, apiConfig())
 	audit.UseHuma(api, nil)
 	// A zero engine, not a configured one: the export must not read the
 	// environment or reach a search service. Every tier reads as absent, which
 	// changes no route — only the capability flags a live server reports.
 	registerREST(api, nil, &research.Engine{})
-	return api.OpenAPI().YAML()
+	return api.OpenAPI()
 }

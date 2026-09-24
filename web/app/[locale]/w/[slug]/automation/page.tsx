@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, type FormEvent } from "react"
+import { Fragment, useState, type FormEvent } from "react"
 import {
   BookOpenIcon,
   CheckIcon,
@@ -826,7 +826,8 @@ function ScheduleRow({
   return (
     <li data-schedule={schedule.name} data-schedule-status={schedule.last_status || "new"} data-schedule-editing={editing ? "true" : undefined}>
     <div className="flex flex-wrap items-start gap-3 px-6 py-4">
-      <div className="min-w-0 flex-1">
+      {/* basis-64: on a phone the actions wrap below instead of squeezing this column to one word a line. */}
+      <div className="min-w-0 flex-1 basis-64">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <Bdi>{schedule.name}</Bdi>
           <Badge variant={schedule.enabled ? "default" : "outline"}>{schedule.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")}</Badge>
@@ -847,8 +848,20 @@ function ScheduleRow({
         {schedule.workflow_id ? (
           <p className="text-xs text-grid-muted" data-schedule-workflow>
             {t("automation.sched.runs", { name: schedule.workflow_name ? isolate(schedule.workflow_name) : t("automation.sched.deletedWorkflow") })}
-            {Object.entries(schedule.values ?? {}).map(([k, v]) => ` · ${k}: ${v}`)}
-            {(schedule.secret_params ?? []).map((k) => ` · ${k}: ${t("automation.sched.secretSet")}`)}
+            {/* Each "name: value" pair is its own isolated run (MH-482). Bare in an RTL line, the
+                Latin pairs and the Arabic words around them reorder into one another. */}
+            {Object.entries(schedule.values ?? {}).map(([k, v]) => (
+              <Fragment key={`v-${k}`}>
+                {" · "}
+                <Bdi data-schedule-value={k}>{`${k}: ${v}`}</Bdi>
+              </Fragment>
+            ))}
+            {(schedule.secret_params ?? []).map((k) => (
+              <Fragment key={`s-${k}`}>
+                {" · "}
+                <Bdi data-schedule-value={k}>{`${k}: ${t("automation.sched.secretSet")}`}</Bdi>
+              </Fragment>
+            ))}
           </p>
         ) : null}
         <p className="text-xs text-grid-muted">
