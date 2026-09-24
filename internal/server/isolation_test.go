@@ -652,11 +652,25 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, mailboxID, notifSrcID, ruleID, ruleRunID, ruleSecret, tgID, slackID, discordID, workflowChannelID}
+	// An import job and a group conversation's participant (MH-562), written
+	// directly like the rows above — the job is read by id, the participant by
+	// the conversation it belongs to.
+	var importJobID, convPartID string
+	if err := a.SysDB.QueryRow(`INSERT INTO import_jobs (workspace_id, source, status, created_by) VALUES ($1, 'whatsapp', 'done', $2) RETURNING id`,
+		aID, marker).Scan(&importJobID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO conversation_participants (workspace_id, conversation_id, identity, name) VALUES ($1, $2, $3, $4) RETURNING id`,
+		aID, convID, "+201015550"+marker[:3], marker+" participant").Scan(&convPartID); err != nil {
+		t.Fatal(err)
+	}
+
+	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, mailboxID, notifSrcID, ruleID, ruleRunID, ruleSecret, tgID, slackID, discordID, workflowChannelID, importJobID, convPartID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
 		"webhook_sources": srcID, "notifications": itemID,
+		"import":       importJobID,
 		"chat_widgets": widgetID, "conversations": convID,
 		"subscribe-forms": formID, "leads": leadID,
 		"google": googleID,

@@ -134,6 +134,15 @@ export default function WhatsAppPage() {
             <span className="text-grid-muted" data-whatsapp-sends={`${link.data.sent_today}/${link.data.failed_today}`}>
               · {t("whatsapp.sendsToday", { sent: link.data.sent_today, failed: link.data.failed_today })}
             </span>
+            {state === "open" ? (
+              <Link
+                className="text-grid-brand underline underline-offset-4"
+                href={`/${locale}/w/${ws.slug}/contacts/import?source=whatsapp`}
+                data-nav="import-chats"
+              >
+                {t("whatsapp.importChats")}
+              </Link>
+            ) : null}
           </div>
 
           {link.data.last_error ? (

@@ -58,6 +58,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	// channels (MH-564)
 	"telegram_channels", "slack_channels", "discord_channels",
 	"workflow_channels", "workflow_channel_pushes",
+	// importing chats/threads from a connection into contacts + inbox (MH-562)
+	"conversation_participants", "import_jobs",
 }
 
 /*

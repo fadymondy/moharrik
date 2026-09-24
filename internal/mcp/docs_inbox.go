@@ -250,6 +250,9 @@ var docsCampaigns = map[string]ToolDoc{
 }
 
 var argsARInbox = map[string]string{
+	// MH-561: create_contact_from_conversation needs an email or a phone, not email alone.
+	"Required if phone is omitted": "مطلوب إن لم يُذكر الهاتف",
+	"Required if email is omitted": "مطلوب إن لم يُذكر البريد الإلكتروني",
 	// campaigns
 	"The cursor from the previous reply, for the next page":                 "المؤشر الوارد في الرد السابق، للصفحة التالية",
 	"Page size, default 50, at most 200":                                    "حجم الصفحة، 50 افتراضيًا و200 على الأكثر",
