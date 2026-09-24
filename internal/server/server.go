@@ -107,7 +107,7 @@ func Boot() *app.App {
 		k.Log.Warn("GOOGLE_API_BASE is set but ignored: it is honoured only on a local, non-production APP_URL")
 	}
 
-	api := humachi.New(k.Router, huma.DefaultConfig("Moharrik API", "0.1.0"))
+	api := humachi.New(k.Router, apiConfig())
 	// Before any route: huma applies middleware when an operation is registered.
 	audit.UseHuma(api, a)
 	registerREST(api, a, researchEngine)
@@ -325,13 +325,18 @@ func togoVersion() string {
 
 // OpenAPI returns the generated OpenAPI 3.1 document (used by `togo generate`).
 func OpenAPI() ([]byte, error) {
+	return openAPISpec().YAML()
+}
+
+// openAPISpec is the document OpenAPI exports, as an object (the tests walk it).
+func openAPISpec() *huma.OpenAPI {
 	router := chi.NewMux()
 	installErrors()
-	api := humachi.New(router, huma.DefaultConfig("Moharrik API", "0.1.0"))
+	api := humachi.New(router, apiConfig())
 	audit.UseHuma(api, nil)
 	// A zero engine, not a configured one: the export must not read the
 	// environment or reach a search service. Every tier reads as absent, which
 	// changes no route — only the capability flags a live server reports.
 	registerREST(api, nil, &research.Engine{})
-	return api.OpenAPI().YAML()
+	return api.OpenAPI()
 }

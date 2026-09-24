@@ -22,6 +22,14 @@ type wsHeader struct {
 
 type body[T any] struct{ Body T }
 
+// CompanySuggestionList is GET /api/w/company-suggestions. A named type, so the
+// OpenAPI export names its schema (an anonymous struct was published as
+// "BodyStruct { Suggestions … }Body").
+type CompanySuggestionList struct {
+	Suggestions []CompanySuggestion `json:"suggestions"`
+	Total       int                 `json:"total"`
+}
+
 func out[T any](v T) *body[T] { return &body[T]{Body: v} }
 
 func scope(ctx context.Context, action string) (*tenant.Scope, error) {
@@ -240,10 +248,7 @@ func Register(api huma.API, a *app.App, engine *Engine) {
 		wsHeader
 		Status string `query:"status" enum:",suggested,accepted,dismissed,linked" doc:"Default suggested."`
 		Limit  int    `query:"limit" minimum:"1" maximum:"100"`
-	}) (*body[struct {
-		Suggestions []CompanySuggestion `json:"suggestions"`
-		Total       int                 `json:"total"`
-	}], error) {
+	}) (*body[CompanySuggestionList], error) {
 		s, err := scope(ctx, authz.ResearchRead)
 		if err != nil {
 			return nil, err
@@ -252,10 +257,7 @@ func Register(api huma.API, a *app.App, engine *Engine) {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the suggestions")
 		}
-		return out(struct {
-			Suggestions []CompanySuggestion `json:"suggestions"`
-			Total       int                 `json:"total"`
-		}{list, total}), nil
+		return out(CompanySuggestionList{list, total}), nil
 	})
 
 	huma.Register(api, huma.Operation{
