@@ -8,6 +8,7 @@ import {
   BellRingIcon,
   ChartLineIcon,
   BotIcon,
+  WorkflowIcon,
   ClipboardListIcon,
   Building2Icon,
   CheckIcon,
@@ -136,9 +137,11 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
   )
 }
 
-function NavLink({ href, icon, children, exact = false, onNavigate, mini = false }: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean; onNavigate?: () => void; mini?: boolean }) {
+function NavLink({ href, icon, children, exact = false, except, onNavigate, mini = false }: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean; except?: string; onNavigate?: () => void; mini?: boolean }) {
   const pathname = usePathname()
-  const active = exact ? pathname === href : pathname === href || pathname.startsWith(href + "/")
+  // except: a sub-section with its own entry, so only that entry lights up there.
+  const inside = (p: string) => pathname === p || pathname.startsWith(p + "/")
+  const active = (exact ? pathname === href : inside(href)) && !(except && inside(except))
   return (
     <Link
       href={href}
@@ -304,7 +307,7 @@ function ShellSkeleton() {
 /** The workspace navigation: the sticky sidebar on desktop, a slide-out sheet below md. */
 function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNavigate?: () => void; mini?: boolean; can?: string[] }) {
   const { t } = useTranslations()
-  const L = (props: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean }) => <NavLink {...props} onNavigate={onNavigate} mini={mini} />
+  const L = (props: { href: string; icon: ReactNode; children: ReactNode; exact?: boolean; except?: string }) => <NavLink {...props} onNavigate={onNavigate} mini={mini} />
   return (
     <nav className="flex flex-col py-3" aria-label={t("shell.navigation")}>
       <L href={base} exact icon={<LayoutGridIcon />}>
@@ -331,8 +334,12 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/inbox`} icon={<InboxIcon />}>
         {t("nav.inbox")}
       </L>
-      <L href={`${base}/automation`} icon={<BotIcon />}>
+      <L href={`${base}/automation`} except={`${base}/automation/workflows`} icon={<BotIcon />}>
         {t("nav.automation")}
+      </L>
+      {/* The workflow canvas (MH-480): one click from anywhere. */}
+      <L href={`${base}/automation/workflows`} icon={<WorkflowIcon />}>
+        {t("nav.workflows")}
       </L>
       <L href={`${base}/trends`} exact icon={<TrendingUpIcon />}>
         {t("nav.trends")}

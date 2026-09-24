@@ -241,6 +241,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterWorkflows(api, a, automation.Default())
 	automation.RegisterExtension(api)
 	automation.RegisterPick(api, a, automation.Default())
+	automation.RegisterCanvas(api, a) // the workflow canvas: layouts and executions (MH-480)
 	research.Register(api, a, researchEngine)
 	mcp.RegisterTokenRoutes(api, a)
 	mcp.RegisterGrantRoutes(api, a) // connected apps over OAuth (MH-391)

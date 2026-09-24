@@ -648,6 +648,26 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	alice.ws = aID
 
+	// The workflow canvas (MH-480): a layout needs its nodes and signature, so
+	// the sweep's empty body never reached the handler. From B with valid
+	// bodies: A's layout is neither read nor moved, and A's test runs are not
+	// adopted into A's workflow by B (nor could B name them to).
+	alice.must("PUT", "/api/w/workflows/"+wfID+"/layout", map[string]any{"nodes": []map[string]any{{"x": 1, "y": 2}, {"x": 3, "y": 4}}, "signature": "navigate|type"}, 200)
+	bob.ws = bID
+	if code, b := bob.do("PUT", "/api/w/workflows/"+wfID+"/layout", map[string]any{"nodes": []map[string]any{{"x": 999, "y": 999}}, "signature": "bob"}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B moving A's canvas nodes: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("POST", "/api/w/workflows/"+wfID+"/executions/adopt", map[string]any{"run_ids": []string{aID}}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B adopting runs into A's workflow: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("GET", "/api/w/workflow-executions", nil); code != 200 || leaks(b) != "" {
+		t.Errorf("B's workflow executions: %d, leaked %q", code, leaks(b))
+	}
+	alice.ws = aID
+	if l := alice.must("GET", "/api/w/workflows/"+wfID+"/layout", nil, 200); l["signature"] != "navigate|type" {
+		t.Errorf("A's canvas layout changed during the sweep: %v", l)
+	}
+
 	// Leads: the sweep's empty bodies are refused by validation, so try the
 	// writes with VALID bodies from B too. A's lead must stay new, unconverted.
 	bob.ws = bID

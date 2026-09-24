@@ -1,90 +1,130 @@
 "use client"
 
 /*
-The workflow editor (MH-400): edit a saved workflow — or write a new one —
-step by step, pick selectors on the live page, test-run the draft in a paired
-browser with each step's progress shown on its row, and save it as a new
-version. Every earlier version is listed, and any of them can be restored
-(which is itself a new version, so the restore can be undone too).
+The workflow canvas (MH-480): a workflow built and read the way n8n does it.
+
+The trigger sits first; the steps follow as nodes joined by edges, a "+" on
+every edge and after the last node; clicking a node opens its parameters in
+the side panel; "Test workflow" runs what is on the canvas in a connected
+browser and each node lights up as the run reaches it, with what it brought
+back one click away; the Executions tab replays past runs node by node; and
+version history previews and restores every save.
+
+The steps JSON stays the one source of truth. The canvas edits that array and
+nothing else; where the nodes sit is kept apart, as UI metadata
+(/api/w/workflows/{id}/layout), and a save that only moved nodes is not a new
+version. A workflow saved before the canvas existed opens as a graph — laid out
+in a line — and runs exactly as it did.
 */
 
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
-import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { ArrowLeftIcon, FlaskConicalIcon, HistoryIcon, SaveIcon } from "lucide-react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
+import {
+  ArrowLeftIcon,
+  CircleAlertIcon,
+  FlaskConicalIcon,
+  HistoryIcon,
+  LoaderCircleIcon,
+  SaveIcon,
+  SquareIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
-import { PickControl } from "@/components/automation/pick-control"
-import { ParamsEditor, placeholdersIn, validParamName } from "@/components/automation/params-editor"
+import { validParamName } from "@/components/automation/params-editor"
+import { ExecutionIcon, ExecutionsView } from "@/components/automation/canvas/executions-view"
 import {
-  StepEditor,
-  fromEditorSteps,
-  pageFor,
-  toEditorSteps,
-  type EditorStep,
-  type StepStatus,
-} from "@/components/automation/step-editor"
+  autoLayout,
+  canonicalCommand,
+  insertAt,
+  moveStep,
+  newStep,
+  nodeRuns,
+  removeAt,
+  resolveLayout,
+  signatureOf,
+  type Layout,
+  type NodeKind,
+} from "@/components/automation/canvas/model"
+import { NodePicker } from "@/components/automation/canvas/node-picker"
+import { StepPanel, TriggerPanel, type PanelTab } from "@/components/automation/canvas/node-panel"
+import { VersionsPanel } from "@/components/automation/canvas/versions-panel"
+import { WorkflowCanvas, type Selection } from "@/components/automation/canvas/workflow-canvas"
 import { PickSelect } from "@/components/crm/shared"
-import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type AutomationWorkflow, type BrowserAgent, type WorkflowParam, type WorkflowVersion } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  type AutomationWorkflow,
+  type WorkflowParam,
+  type WorkflowStep,
+  type WorkflowVersion,
+} from "@/lib/api"
+import { useWorkflowLayout, type WorkflowLayout } from "@/lib/canvas-queries"
+import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
-import { intlTag } from "@/lib/i18n-locale"
-import { useAutomationSettings, useBrowsers, useRun, useWorkflow, useWorkflowVersions } from "@/lib/queries"
+import {
+  useAutomationSettings,
+  useBrowsers,
+  useRun,
+  useSchedules,
+  useWorkflow,
+  useWorkflowVersions,
+} from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
+import { cn } from "@/lib/utils"
 
-export default function WorkflowEditorPage() {
-  const { t, locale } = useTranslations()
+/** Below md the canvas runs top to bottom and the panels cover it. */
+function useNarrow() {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia("(max-width: 767px)")
+      m.addEventListener("change", cb)
+      return () => m.removeEventListener("change", cb)
+    },
+    () => window.matchMedia("(max-width: 767px)").matches,
+    () => false,
+  )
+}
+
+export default function WorkflowCanvasPage() {
+  return (
+    <Suspense fallback={<LoadingRows rows={5} />}>
+      <CanvasPage />
+    </Suspense>
+  )
+}
+
+function CanvasPage() {
+  const { t } = useTranslations()
   const ws = useWorkspace()
   const params = useParams<{ id: string }>()
   const isNew = params.id === "new"
   const wf = useWorkflow(ws.id, isNew ? undefined : params.id)
   const versions = useWorkflowVersions(ws.id, isNew ? undefined : params.id)
+  const layout = useWorkflowLayout(ws.id, isNew ? undefined : params.id)
   const workflow = wf.data?.workflow
-  useDocumentTitle(`${workflow?.name || t("automation.editor.newTitle")} · ${ws.summary.name}`)
+  useDocumentTitle(`${workflow?.name || t("canvas.newTitle")} · ${ws.summary.name}`)
 
-  const back = (
-    <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation`} />}>
-      <ArrowLeftIcon className="rtl:rotate-180" />
-      {t("automation.backToAutomation")}
-    </Button>
-  )
-
-  if (!ws.can("automation:read")) {
+  if (!ws.can("automation:read"))
     return <ErrorState error={new ApiError(403, t("automation.editor.noAccess"))} />
-  }
-  if (!isNew && wf.error) {
-    return (
-      <>
-        <SectionHeader micro={ws.summary.name} title={t("automation.editor.title")} action={back} />
-        <ErrorState error={wf.error} />
-      </>
-    )
-  }
-  if (!isNew && !workflow) {
-    return (
-      <>
-        <SectionHeader micro={ws.summary.name} title={t("automation.editor.title")} action={back} />
-        <LoadingRows rows={5} />
-      </>
-    )
-  }
+  if (!isNew && wf.error) return <ErrorState error={wf.error} />
+  // The layout is waited for too: drawing a line and then jumping to the saved
+  // places a moment later reads as the graph rearranging itself.
+  if (!isNew && (!workflow || (!layout.data && !layout.error))) return <LoadingRows rows={5} />
+
   return (
     <Editor
       // Remounted on every new version: a save or a restore resets the draft to
@@ -92,70 +132,105 @@ export default function WorkflowEditorPage() {
       key={workflow ? `${workflow.id}-${workflow.version}` : "new"}
       workflow={workflow}
       versions={versions.data?.versions ?? []}
-      back={back}
+      saved={layout.data}
       onSaved={() => {
         void wf.mutate()
         void versions.mutate()
+        void layout.mutate()
       }}
+      onLayoutSaved={() => void layout.mutate()}
     />
   )
 }
 
-type Draft = { name: string; description: string; steps: EditorStep[]; params: WorkflowParam[] }
-
+type Draft = { name: string; description: string; steps: WorkflowStep[]; params: WorkflowParam[] }
 const snapshot = (d: Draft) =>
-  JSON.stringify({ name: d.name.trim(), description: d.description.trim(), steps: fromEditorSteps(d.steps), params: d.params })
+  JSON.stringify({
+    name: d.name.trim(),
+    description: d.description.trim(),
+    steps: d.steps,
+    params: d.params,
+  })
 
 function Editor({
   workflow,
   versions,
-  back,
+  saved,
   onSaved,
+  onLayoutSaved,
 }: {
   workflow?: AutomationWorkflow
   versions: WorkflowVersion[]
-  back: React.ReactNode
+  saved?: WorkflowLayout
   onSaved: () => void
+  onLayoutSaved: () => void
 }) {
-  const { t, locale } = useTranslations()
+  const { t, locale, isRtl } = useTranslations()
   const ws = useWorkspace()
   const router = useRouter()
+  const search = useSearchParams()
   const canEdit = ws.can("automation:run")
+  const narrow = useNarrow()
+  const base = `/${locale}/w/${ws.slug}/automation`
 
+  // ---- the draft: the steps, and nothing but ----
   const initial = useMemo<Draft>(
     () => ({
       name: workflow?.name ?? "",
       description: workflow?.description ?? "",
-      steps: toEditorSteps(workflow?.steps ?? [{ command: "navigate", args: { url: "https://" } }]),
+      steps: workflow?.steps ?? [],
       params: workflow?.params ?? [],
     }),
     [workflow],
   )
   const [draft, setDraft] = useState<Draft>(initial)
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
   const dirty = snapshot(draft) !== snapshot(initial) || !workflow
+  const steps = draft.steps
 
-  // Leaving with unsaved edits asks first.
-  useEffect(() => {
-    if (!dirty || !workflow) return
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
-    window.addEventListener("beforeunload", warn)
-    return () => window.removeEventListener("beforeunload", warn)
-  }, [dirty, workflow])
+  // ---- where the nodes sit: kept apart from the steps ----
+  const initialLayout = useMemo(
+    () => resolveLayout(initial.steps, saved, false),
+    [initial.steps, saved],
+  )
+  const [layout, setLayout] = useState<Layout>(initialLayout)
+  const layoutDirty = JSON.stringify(layout) !== JSON.stringify(initialLayout)
+  const shown = narrow ? autoLayout(steps.length, true) : layout
 
+  // ---- selection and panels ----
+  const [selected, setSelected] = useState<Selection>(null)
+  const [panel, setPanel] = useState<"node" | "picker" | "versions" | null>(null)
+  const [insertIndex, setInsertIndex] = useState(0)
+  const [tab, setTab] = useState<PanelTab>("parameters")
+  const [preview, setPreview] = useState<WorkflowVersion | null>(null)
+  const view = search.get("view") === "executions" && workflow ? "executions" : "editor"
+  const runParam = search.get("run")
+  const go = (next: { view?: string; run?: string | null }) => {
+    const q = new URLSearchParams(search.toString())
+    if (next.view !== undefined)
+      next.view === "editor" ? q.delete("view") : q.set("view", next.view)
+    if (next.run !== undefined) next.run ? q.set("run", next.run) : q.delete("run")
+    const s = q.toString()
+    router.replace(`${base}/workflows/${workflow?.id ?? "new"}${s ? `?${s}` : ""}`, {
+      scroll: false,
+    })
+  }
+
+  const select = useCallback((s: Selection) => {
+    setSelected(s)
+    setPanel(s === null ? null : "node")
+  }, [])
+
+  // ---- browsers ----
   const browsers = useBrowsers(ws.id)
   const settings = useAutomationSettings(ws.id)
+  const schedules = useSchedules(ws.id)
   const usable = (browsers.data?.browsers ?? []).filter((b) => !b.revoked_at)
   const [agentId, setAgentId] = useState("")
-  const agent = usable.find((b) => b.id === agentId) ?? usable.find((b) => b.status === "online") ?? usable[0]
+  const agent =
+    usable.find((b) => b.id === agentId) ?? usable.find((b) => b.status === "online") ?? usable[0]
   const paused = settings.data?.paused ?? false
   const [values, setValues] = useState<Record<string, string>>({})
-
-  const steps = fromEditorSteps(draft.steps)
-  const used = placeholdersIn(steps)
-
-  // Why a browser cannot be used right now — said, never a dead button.
+  // Why a run cannot start right now — said beside the button, never a dead one.
   const browserBlocked = !agent
     ? t("automation.editor.noBrowser")
     : paused
@@ -164,349 +239,598 @@ function Editor({
         ? t("automation.editor.browserOffline", { name: agent.name })
         : ""
 
-  // A page to pick on: the last navigate before the step, with any
-  // placeholder filled from the test values or the parameter's default.
-  const fillUrl = (raw: string) =>
-    raw.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, name: string) => {
-      const p = draft.params.find((x) => x.name === name)
-      if (p?.secret) return m
-      return values[name] || p?.default || m
-    })
-
-  function setStepArg(index: number, field: string, value: string) {
-    setDraft((d) => ({ ...d, steps: d.steps.map((s, i) => (i === index ? { ...s, args: { ...s.args, [field]: value } } : s)) }))
+  // ---- editing ----
+  const setSteps = (next: WorkflowStep[]) => setDraft((d) => ({ ...d, steps: next }))
+  function insert(index: number, kind: Exclude<NodeKind, "unknown">) {
+    setSteps([...steps.slice(0, index), newStep(kind), ...steps.slice(index)])
+    setLayout((l) => insertAt(l, index))
+    setSelected(index)
+    setTab("parameters")
+    setPanel("node")
+  }
+  function remove(index: number) {
+    setSteps(steps.filter((_, i) => i !== index))
+    setLayout((l) => removeAt(l, index))
+    setSelected(null)
+    setPanel(null)
+  }
+  function duplicate(index: number) {
+    setSteps([
+      ...steps.slice(0, index + 1),
+      structuredClone(steps[index]),
+      ...steps.slice(index + 1),
+    ])
+    setLayout((l) => insertAt(l, index + 1))
+    setSelected(index + 1)
+  }
+  function reorder(index: number, to: number) {
+    if (to < 0 || to >= steps.length) return
+    setSteps(moveStep(steps, index, to))
+    if (selected === index) setSelected(to)
   }
 
-  // ---- test run ----------------------------------------------------------
-  const [test, setTest] = useState<{ runId: string; steps: string } | null>(null)
-  const [testing, setTesting] = useState(false)
-  const [testErr, setTestErr] = useState<string | null>(null)
+  // ---- test runs ----
+  const [test, setTest] = useState<{ runId: string; steps: string; upTo: number } | null>(null)
+  const [starting, setStarting] = useState(false)
+  const [runErr, setRunErr] = useState<string | null>(null)
+  // Test runs of a draft not saved yet: they become its first executions once
+  // it is (POST …/executions/adopt).
+  const draftRuns = useRef<string[]>([])
   const run = useRun(ws.id, test?.runId)
-  const runLive = run.data?.run.status === "queued" || run.data?.run.status === "running"
-  const statuses = useMemo(() => {
-    // Only while the draft is still the steps that were tested: a reordered
-    // list would otherwise show each result against the wrong row.
-    if (!run.data || !test || test.steps !== JSON.stringify(steps)) return undefined
-    const out: Record<number, { status: StepStatus; summary?: string; error?: string }> = {}
-    let runningShown = false
-    for (const s of run.data.steps) {
-      let status: StepStatus = s.status
-      if (s.status === "pending" && run.data.run.status === "running" && !runningShown) {
-        status = "running"
-        runningShown = true
-      }
-      out[s.position] = { status, summary: s.summary, error: s.error }
-    }
-    return out
-  }, [run.data, test, steps])
+  useWorkspaceEvents(ws.id, (e) => {
+    if (e.kind === "run" && test) void run.mutate()
+    if (e.kind === "browser") void browsers.mutate()
+  })
+  const runStatus = run.data?.run.status
+  const live = runStatus === "queued" || runStatus === "running"
+  // Results are drawn only while the canvas still holds the steps that ran: a
+  // node moved or edited since would otherwise wear another step's result.
+  const current = !!test && test.steps === JSON.stringify(steps.slice(0, test.upTo))
+  const runs = useMemo(
+    () => (run.data && current ? nodeRuns(run.data.steps, run.data.run.status) : undefined),
+    [run.data, current],
+  )
 
-  async function testRun() {
-    if (!agent) return
-    setTesting(true)
-    setTestErr(null)
+  async function start(upTo: number) {
+    if (!agent || browserBlocked) return
+    const run = steps.slice(0, upTo)
+    const need = draft.params
+      .filter((p) => p.required && !p.secret && !(values[p.name] ?? p.default ?? "").trim())
+      .map((p) => p.name)
+    const needSecret = draft.params
+      .filter((p) => p.required && p.secret && !(values[p.name] ?? "").trim())
+      .map((p) => p.name)
+    if (need.length || needSecret.length) {
+      setRunErr(t("canvas.needValues", { names: [...need, ...needSecret].join(", ") }))
+      select("trigger")
+      return
+    }
+    setStarting(true)
+    setRunErr(null)
     try {
       const { run_id } = await api<{ run_id: string }>("/api/w/workflows/test", {
-        json: { agent_id: agent.id, workflow_id: workflow?.id, steps, params: draft.params.filter((p) => p.name), values },
+        json: {
+          agent_id: agent.id,
+          workflow_id: workflow?.id,
+          steps: run,
+          params: draft.params.filter((p) => p.name),
+          values,
+        },
         workspaceId: ws.id,
       })
-      setTest({ runId: run_id, steps: JSON.stringify(steps) })
+      setTest({ runId: run_id, steps: JSON.stringify(run), upTo })
+      if (!workflow) draftRuns.current.push(run_id)
     } catch (e) {
-      setTestErr(e instanceof ApiError ? e.message : t("common.networkError"))
+      setRunErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
-      setTesting(false)
+      setStarting(false)
+    }
+  }
+  async function stop() {
+    if (!test) return
+    try {
+      await api(`/api/w/runs/${encodeURIComponent(test.runId)}/cancel`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
+      void run.mutate()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     }
   }
 
-  // ---- save --------------------------------------------------------------
-  async function save(e: FormEvent) {
-    e.preventDefault()
-    setErr(null)
-    if (!draft.name.trim()) return setErr(t("automation.editor.needName"))
-    if (steps.length === 0) return setErr(t("automation.editor.needStep"))
+  // ---- save ----
+  const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState<string | null>(null)
+  const nameInput = useRef<HTMLInputElement>(null)
+  const saveLayout = async (id: string, l: Layout, s: WorkflowStep[]) =>
+    api(`/api/w/workflows/${encodeURIComponent(id)}/layout`, {
+      method: "PUT",
+      json: { trigger: l.trigger, nodes: l.nodes, signature: signatureOf(s) },
+      workspaceId: ws.id,
+    })
+
+  const save = useCallback(async () => {
+    setSaveErr(null)
+    if (!draft.name.trim()) {
+      setSaveErr(t("automation.editor.needName"))
+      nameInput.current?.focus()
+      return
+    }
+    if (steps.length === 0) return setSaveErr(t("automation.editor.needStep"))
     const badParam = draft.params.find((p) => !validParamName(p.name))
-    if (badParam) return setErr(t("automation.params.badName", { name: badParam.name || "…" }))
+    if (badParam) {
+      select("trigger")
+      return setSaveErr(t("automation.params.badName", { name: badParam.name || "…" }))
+    }
     setSaving(true)
     try {
-      const body = { name: draft.name.trim(), description: draft.description.trim(), steps, params: draft.params }
+      const body = {
+        name: draft.name.trim(),
+        description: draft.description.trim(),
+        steps,
+        params: draft.params,
+      }
       if (!workflow) {
-        const { workflow: created } = await api<{ workflow: AutomationWorkflow }>("/api/w/workflows", { json: body, workspaceId: ws.id })
+        const { workflow: created } = await api<{ workflow: AutomationWorkflow }>(
+          "/api/w/workflows",
+          { json: body, workspaceId: ws.id },
+        )
+        await saveLayout(created.id, layout, steps)
+        if (draftRuns.current.length) {
+          // Best-effort: the workflow is saved either way.
+          await api(`/api/w/workflows/${encodeURIComponent(created.id)}/executions/adopt`, {
+            json: { run_ids: draftRuns.current },
+            workspaceId: ws.id,
+          }).catch(() => {})
+        }
         toast.success(t("automation.editor.created"))
-        router.replace(`/${locale}/w/${ws.slug}/automation/workflows/${created.id}`)
+        router.replace(`${base}/workflows/${created.id}`)
         return
       }
-      const { workflow: saved } = await api<{ workflow: AutomationWorkflow }>(`/api/w/workflows/${encodeURIComponent(workflow.id)}`, {
-        method: "PUT",
-        json: { ...body, base_version: workflow.version },
-        workspaceId: ws.id,
-      })
-      toast.success(t("automation.editor.savedAs", { n: saved.version }))
+      if (snapshot(draft) === snapshot(initial)) {
+        // Only nodes moved: nothing that runs changed, so no new version.
+        await saveLayout(workflow.id, layout, steps)
+        toast.success(t("canvas.layoutSaved"))
+        onLayoutSaved()
+        return
+      }
+      const { workflow: next } = await api<{ workflow: AutomationWorkflow }>(
+        `/api/w/workflows/${encodeURIComponent(workflow.id)}`,
+        {
+          method: "PUT",
+          json: { ...body, base_version: workflow.version },
+          workspaceId: ws.id,
+        },
+      )
+      await saveLayout(workflow.id, layout, steps)
+      toast.success(t("automation.editor.savedAs", { n: next.version }))
       onSaved()
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
+      setSaveErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
       setSaving(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, steps, layout, workflow, initial])
+
+  // Ctrl/Cmd+S saves, as it does in n8n.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault()
+        if (canEdit && (dirty || layoutDirty) && !saving) void save()
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [save, canEdit, dirty, layoutDirty, saving])
+
+  // Leaving with unsaved edits asks first.
+  useEffect(() => {
+    if (!workflow || !(dirty || layoutDirty)) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [dirty, layoutDirty, workflow])
+
+  // ---- what the canvas shows ----
+  const readOnly = !canEdit || !!preview
+  const canvasSteps = preview ? preview.steps : steps
+  const canvasLayout = preview
+    ? narrow
+      ? autoLayout(preview.steps.length, true)
+      : resolveLayout(preview.steps, saved, false)
+    : shown
+  const mine = (schedules.data?.schedules ?? []).filter(
+    (s) => workflow && s.workflow_id === workflow.id,
+  )
+  const triggerSub = [
+    t("canvas.start.manual"),
+    mine.length ? t("canvas.nSchedules", { n: mine.length }) : "",
+    "MCP",
+  ]
+    .filter(Boolean)
+    .join(" · ")
+  const pageUrl = (index: number) => {
+    for (let i = index; i >= 0; i--) {
+      const s = steps[i]
+      if (s && canonicalCommand(s.command) === "navigate") {
+        return String(s.args?.url ?? "").replace(
+          /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g,
+          (m, name: string) => {
+            const p = draft.params.find((x) => x.name === name)
+            return p?.secret ? m : values[name] || p?.default || m
+          },
+        )
+      }
+    }
+    return ""
   }
 
-  const fields = [...draft.params.filter((p) => p.name), ...used.filter((n) => !draft.params.some((p) => p.name === n)).map((name) => ({ name }) as WorkflowParam)]
+  const done = run.data && !live ? run.data.run : null
+  const panelOpen =
+    view === "editor" &&
+    (panel === "picker" || panel === "versions" || (panel === "node" && selected !== null))
 
   return (
-    <form onSubmit={save} noValidate data-form="workflow-editor" data-version={workflow?.version ?? 0}>
-      <SectionHeader
-        micro={
-          <span className="flex items-center gap-2">
-            <Bdi>{ws.summary.name}</Bdi>
-            {workflow ? <Badge variant="outline">{t("automation.editor.versionBadge", { n: workflow.version })}</Badge> : null}
-          </span>
-        }
-        title={workflow ? <Bdi>{workflow.name}</Bdi> : t("automation.editor.newTitle")}
-        description={t("automation.editor.hint")}
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            {back}
-            {canEdit ? (
-              <Button type="submit" disabled={saving || !dirty} data-save>
-                <SaveIcon />
-                {saving ? t("common.working") : workflow ? t("automation.editor.saveVersion", { n: workflow.version + 1 }) : t("automation.saveWorkflow")}
-              </Button>
-            ) : null}
-          </div>
-        }
-      />
-      {err ? (
-        <FieldError className="mx-6 mb-4" data-save-error>
-          {err}
-        </FieldError>
-      ) : null}
-      {workflow && dirty ? <p className="px-6 pb-4 text-xs text-grid-muted">{t("automation.editor.unsaved")}</p> : null}
-
-      <div className="grid gap-y-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="min-w-0 space-y-8">
-          <section>
-            <FieldGroup className="px-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="wf-name">{t("automation.workflowName")}</FieldLabel>
-                  <Input id="wf-name" value={draft.name} maxLength={80} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="wf-desc">
-                    {t("automation.workflowDescription")} <span className="text-grid-muted">({t("common.optional")})</span>
-                  </FieldLabel>
-                  <Input id="wf-desc" value={draft.description} maxLength={400} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
-                </Field>
-              </div>
-            </FieldGroup>
-          </section>
-
-          <section>
-            <h2 className="px-6 pb-1 text-base font-medium">{t("automation.steps")}</h2>
-            <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.editor.stepsHint")}</p>
-            <StepEditor
-              steps={draft.steps}
-              onChange={(next) => setDraft((d) => ({ ...d, steps: next }))}
-              statuses={statuses}
-              renderPick={(index, field) => (
-                <PickControl
-                  id={`${draft.steps[index]?.key}-${field}`}
-                  agentId={agent?.id ?? ""}
-                  unavailable={browserBlocked || undefined}
-                  pageUrl={fillUrl(pageFor(draft.steps, index))}
-                  onPicked={(selector) => setStepArg(index, field, selector)}
-                />
-              )}
-            />
-          </section>
-
-          <section>
-            <h2 className="px-6 pb-1 text-base font-medium">{t("automation.params.title")}</h2>
-            <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.params.hint")}</p>
-            <ParamsEditor params={draft.params} used={used} onChange={(next) => setDraft((d) => ({ ...d, params: next }))} />
-          </section>
+    <div
+      className="flex h-[calc(100dvh-3.5rem)] min-h-[480px] flex-col"
+      data-canvas-page
+      data-version={workflow?.version ?? 0}
+      data-dirty={dirty || layoutDirty ? "true" : "false"}
+    >
+      {/* ---- the top bar ---- */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-3 py-2 sm:px-4">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          nativeButton={false}
+          render={<Link href={`${base}/workflows`} />}
+          aria-label={t("canvas.backToList")}
+          title={t("canvas.backToList")}
+        >
+          <ArrowLeftIcon className="rtl:rotate-180" />
+        </Button>
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">
+          <Input
+            ref={nameInput}
+            value={draft.name}
+            maxLength={80}
+            readOnly={!canEdit}
+            dir="auto"
+            placeholder={t("canvas.namePlaceholder")}
+            aria-label={t("automation.workflowName")}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            className="h-8 min-w-0 border-transparent bg-transparent px-2 text-base font-medium shadow-none hover:border-line focus-visible:border-ring md:w-64"
+            data-workflow-name
+          />
+          {workflow ? (
+            <Badge variant="outline">
+              {t("automation.editor.versionBadge", { n: workflow.version })}
+            </Badge>
+          ) : null}
+          {dirty || layoutDirty ? (
+            <span className="text-xs whitespace-nowrap text-grid-muted" data-unsaved>
+              {t("canvas.unsaved")}
+            </span>
+          ) : null}
         </div>
 
-        <aside className="min-w-0 space-y-8 lg:border-s lg:border-line">
-          {/* ---- test run ---- */}
-          <section data-test-panel>
-            <h2 className="flex items-center gap-2 px-6 pb-1 text-base font-medium">
-              <FlaskConicalIcon className="size-4" />
-              {t("automation.editor.testTitle")}
-            </h2>
-            <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.editor.testHint")}</p>
-            <FieldGroup className="px-6">
-              <Field>
-                <FieldLabel htmlFor="wf-agent">{t("automation.editor.browser")}</FieldLabel>
-                {usable.length > 0 ? (
-                  <PickSelect
-                    id="wf-agent"
-                    value={agent?.id ?? ""}
-                    onChange={setAgentId}
-                    options={usable.map((b: BrowserAgent) => ({
-                      value: b.id,
-                      label: `${b.name} (${b.status === "online" ? t("automation.online") : t("automation.offline")})`,
-                    }))}
-                  />
-                ) : (
-                  <FieldDescription>
-                    {t("automation.editor.noBrowser")}{" "}
-                    <Link className="underline" href={`/${locale}/w/${ws.slug}/automation/extension`}>
-                      {t("automation.ext.link")}
-                    </Link>
-                  </FieldDescription>
+        <nav
+          className="order-last flex w-full items-center justify-center gap-1 md:order-none md:w-auto md:flex-1"
+          aria-label={t("canvas.views")}
+        >
+          <div className="inline-flex rounded-lg bg-muted p-[3px]">
+            <button
+              type="button"
+              onClick={() => go({ view: "editor", run: null })}
+              className={cn(
+                "rounded-md px-3 py-1 text-sm font-medium transition-colors",
+                view === "editor"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-foreground/60 hover:text-foreground",
+              )}
+              aria-current={view === "editor" ? "page" : undefined}
+              data-view-tab="editor"
+            >
+              {t("canvas.view.editor")}
+            </button>
+            {workflow ? (
+              <button
+                type="button"
+                onClick={() => go({ view: "executions" })}
+                className={cn(
+                  "rounded-md px-3 py-1 text-sm font-medium transition-colors",
+                  view === "executions"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-foreground/60 hover:text-foreground",
                 )}
-              </Field>
-              {fields.map((f) => (
-                <Field key={f.name}>
-                  <FieldLabel htmlFor={`wf-val-${f.name}`}>
-                    {f.label || f.name}
-                    {f.required ? "" : ` (${t("common.optional")})`}
-                  </FieldLabel>
-                  <Input
-                    id={`wf-val-${f.name}`}
-                    type={f.secret ? "password" : "text"}
-                    autoComplete={f.secret ? "new-password" : "off"}
-                    value={values[f.name] ?? f.default ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
-                  />
-                  {f.secret ? <FieldDescription>{t("automation.secretHint")}</FieldDescription> : null}
-                </Field>
-              ))}
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" onClick={testRun} disabled={!canEdit || testing || runLive || !!browserBlocked} data-test-run>
-                  <FlaskConicalIcon />
-                  {testing || runLive ? t("automation.editor.testing") : t("automation.editor.testRun")}
+                aria-current={view === "executions" ? "page" : undefined}
+                data-view-tab="executions"
+              >
+                {t("canvas.view.executions")}
+              </button>
+            ) : null}
+          </div>
+        </nav>
+
+        <div className="flex items-center gap-2">
+          {usable.length > 0 ? (
+            <div className="hidden w-60 lg:block" title={t("automation.editor.browser")}>
+              <PickSelect
+                id="canvas-agent"
+                value={agent?.id ?? ""}
+                onChange={setAgentId}
+                options={usable.map((b) => ({
+                  value: b.id,
+                  label: `${b.name} (${b.status === "online" ? t("automation.online") : t("automation.offline")})`,
+                }))}
+              />
+            </div>
+          ) : null}
+          {workflow ? (
+            <Button
+              variant={panel === "versions" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => {
+                setPanel(panel === "versions" ? null : "versions")
+                if (view !== "editor") go({ view: "editor", run: null })
+              }}
+              data-open-versions
+            >
+              <HistoryIcon />
+              <span className="hidden sm:inline">{t("automation.versions.title")}</span>
+            </Button>
+          ) : null}
+          {canEdit ? (
+            <Button
+              size="sm"
+              onClick={() => void save()}
+              disabled={saving || !(dirty || layoutDirty) || !!preview}
+              data-save
+            >
+              {saving ? <LoaderCircleIcon className="animate-spin" /> : <SaveIcon />}
+              {saving ? t("common.working") : t("common.save")}
+            </Button>
+          ) : null}
+        </div>
+      </header>
+      {saveErr ? (
+        <p
+          className="flex items-center gap-2 border-b border-line bg-grid-card px-4 py-2 text-sm text-grid-danger-text"
+          role="alert"
+          data-save-error
+        >
+          <CircleAlertIcon className="size-4 shrink-0" />
+          {saveErr}
+        </p>
+      ) : null}
+
+      {view === "executions" && workflow ? (
+        <ExecutionsView
+          workflowId={workflow.id}
+          runId={runParam}
+          onSelectRun={(id) => go({ run: id })}
+          saved={saved}
+          vertical={narrow}
+        />
+      ) : (
+        <div className="relative flex min-h-0 flex-1">
+          <div className="relative min-w-0 flex-1" data-canvas-area>
+            {preview ? (
+              <div
+                className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-center gap-2 border-b border-line bg-grid-card px-4 py-2 text-sm"
+                data-preview-banner={preview.version}
+              >
+                <HistoryIcon className="size-4 text-grid-muted" />
+                {t("canvas.previewBanner", { n: preview.version })}
+                <Button size="xs" variant="outline" onClick={() => setPreview(null)}>
+                  {t("canvas.backToCurrent")}
                 </Button>
-                {browserBlocked && usable.length > 0 ? <span className="text-xs text-grid-muted">{browserBlocked}</span> : null}
               </div>
-              {testErr ? <FieldError data-test-error>{testErr}</FieldError> : null}
-              {run.data ? (
-                <div className="flex flex-wrap items-center gap-2 text-sm" data-test-status={run.data.run.status}>
-                  <Badge variant={run.data.run.status === "ok" ? "default" : runLive ? "secondary" : "outline"}>
-                    {t(`automation.status.${run.data.run.status}`)}
-                  </Badge>
-                  <span className="text-grid-muted">{t("automation.stepsDone", { ok: run.data.run.ok_count, total: run.data.run.step_count })}</span>
-                  <Link className="text-xs underline" href={`/${locale}/w/${ws.slug}/automation/runs/${run.data.run.id}`}>
-                    {t("automation.openRun")}
-                  </Link>
-                  {run.data.run.error ? <p className="w-full text-xs text-grid-danger-text">{run.data.run.error}</p> : null}
-                  {!statuses ? <p className="w-full text-xs text-grid-muted">{t("automation.editor.testStale")}</p> : null}
+            ) : null}
+            <WorkflowCanvas
+              steps={canvasSteps}
+              layout={canvasLayout}
+              runs={preview ? undefined : runs}
+              triggerState={
+                !preview && runs && run.data && run.data.run.status !== "queued" ? "ok" : undefined
+              }
+              trigger={{ title: t("canvas.triggerTitle"), subtitle: triggerSub }}
+              selected={preview ? null : selected}
+              readOnly={readOnly}
+              vertical={narrow}
+              onSelect={(s) => {
+                if (preview) return
+                select(s)
+              }}
+              onMove={setLayout}
+              onInsert={(i) => {
+                setInsertIndex(i)
+                setSelected(null)
+                setPanel("picker")
+              }}
+              onDelete={remove}
+              onDuplicate={duplicate}
+              onReorder={reorder}
+              onRunTo={(i) => void start(i + 1)}
+              runBlocked={browserBlocked || (live ? t("automation.editor.testing") : "")}
+            />
+
+            {/* ---- run it ---- */}
+            {!preview && canEdit ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-16 z-10 flex flex-col items-center gap-2 px-4 md:bottom-6">
+                <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
+                  {live ? (
+                    <Button size="lg" variant="outline" onClick={stop} data-stop-run>
+                      <SquareIcon />
+                      {t("canvas.stop")}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="lg"
+                      onClick={() => void start(steps.length)}
+                      disabled={starting || steps.length === 0 || !!browserBlocked}
+                      data-test-run
+                    >
+                      {starting ? (
+                        <LoaderCircleIcon className="animate-spin" />
+                      ) : (
+                        <FlaskConicalIcon />
+                      )}
+                      {t("canvas.test")}
+                    </Button>
+                  )}
                 </div>
-              ) : null}
-            </FieldGroup>
-          </section>
-
-          {workflow ? <Versions workflow={workflow} versions={versions} dirty={dirty} canEdit={canEdit} onRestored={onSaved} /> : null}
-        </aside>
-      </div>
-      <div className="pb-8" />
-    </form>
-  )
-}
-
-function Versions({
-  workflow,
-  versions,
-  dirty,
-  canEdit,
-  onRestored,
-}: {
-  workflow: AutomationWorkflow
-  versions: WorkflowVersion[]
-  dirty: boolean
-  canEdit: boolean
-  onRestored: () => void
-}) {
-  const { t, locale } = useTranslations()
-  const ws = useWorkspace()
-  const [confirm, setConfirm] = useState<WorkflowVersion | null>(null)
-  const [open, setOpen] = useState<number | null>(null)
-  const [busy, setBusy] = useState(false)
-  const when = useMemo(() => new Intl.DateTimeFormat(intlTag(locale), { dateStyle: "medium", timeStyle: "short" }), [locale])
-
-  async function restore(v: WorkflowVersion) {
-    setBusy(true)
-    try {
-      const { workflow: now } = await api<{ workflow: AutomationWorkflow }>(
-        `/api/w/workflows/${encodeURIComponent(workflow.id)}/versions/${v.version}/restore`,
-        { json: { base_version: workflow.version }, workspaceId: ws.id },
-      )
-      toast.success(t("automation.versions.restored", { from: v.version, n: now.version }))
-      setConfirm(null)
-      onRestored()
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <section data-versions>
-      <h2 className="flex items-center gap-2 px-6 pb-1 text-base font-medium">
-        <HistoryIcon className="size-4" />
-        {t("automation.versions.title")}
-      </h2>
-      <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.versions.hint")}</p>
-      <ol className="divide-y divide-line border-y border-line">
-        {versions.map((v) => {
-          const current = v.version === workflow.version
-          return (
-            <li key={v.version} className="px-6 py-3" data-version-row={v.version}>
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="font-medium">{t("automation.editor.versionBadge", { n: v.version })}</span>
-                {current ? <Badge>{t("automation.versions.current")}</Badge> : null}
-                <span className="text-xs text-grid-muted">
-                  {v.note === "restored" && v.restored_from ? t("automation.versions.note.restoredFrom", { n: v.restored_from }) : t(`automation.versions.note.${v.note}`)}
-                  {" · "}
-                  {when.format(new Date(v.created_at))}
-                  {" · "}
-                  {t("automation.stepCount", { n: v.steps.length })}
-                </span>
-              </div>
-              <div className="mt-1 flex items-center gap-1">
-                <Button type="button" variant="ghost" size="xs" onClick={() => setOpen(open === v.version ? null : v.version)}>
-                  {open === v.version ? t("automation.versions.hide") : t("automation.versions.show")}
-                </Button>
-                {!current && canEdit ? (
-                  <Button type="button" variant="ghost" size="xs" onClick={() => setConfirm(v)} data-restore={v.version}>
-                    {t("automation.versions.restore")}
-                  </Button>
+                {live && run.data ? (
+                  <p
+                    className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-grid-card px-3 py-1 text-xs shadow-sm"
+                    data-run-live
+                  >
+                    <LoaderCircleIcon className="size-3.5 animate-spin text-primary" />
+                    {t("canvas.running", {
+                      ok: run.data.run.ok_count,
+                      total: run.data.run.step_count,
+                    })}
+                  </p>
+                ) : done ? (
+                  <p
+                    className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-full border border-line bg-grid-card px-3 py-1 text-xs shadow-sm"
+                    data-test-status={done.status}
+                  >
+                    <ExecutionIcon status={done.status} className="size-3.5" />
+                    {t(`canvas.finished.${done.status}`, {
+                      ok: done.ok_count,
+                      total: done.step_count,
+                    })}
+                    {!current ? (
+                      <span className="text-grid-muted">· {t("automation.editor.testStale")}</span>
+                    ) : null}
+                    {workflow ? (
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => go({ view: "executions", run: done.id })}
+                        data-open-execution
+                      >
+                        {t("canvas.openExecution")}
+                      </button>
+                    ) : (
+                      <Link className="underline" href={`${base}/runs/${done.id}`}>
+                        {t("automation.openRun")}
+                      </Link>
+                    )}
+                  </p>
+                ) : steps.length === 0 ? (
+                  <p className="pointer-events-auto rounded-full border border-line bg-grid-card px-3 py-1 text-xs text-grid-muted">
+                    {t("canvas.emptyHint")}
+                  </p>
+                ) : browserBlocked ? (
+                  <p
+                    className="pointer-events-auto rounded-full border border-line bg-grid-card px-3 py-1 text-xs text-grid-muted"
+                    data-run-blocked
+                  >
+                    {browserBlocked}
+                    {!agent ? (
+                      <>
+                        {" "}
+                        <Link className="underline" href={`${base}/extension`}>
+                          {t("automation.ext.link")}
+                        </Link>
+                      </>
+                    ) : null}
+                  </p>
+                ) : null}
+                {runErr ? (
+                  <p
+                    className="pointer-events-auto max-w-lg rounded-md border border-line bg-grid-card px-3 py-1.5 text-center text-xs text-grid-danger-text"
+                    role="alert"
+                    data-test-error
+                  >
+                    {runErr}
+                  </p>
                 ) : null}
               </div>
-              {open === v.version ? (
-                <ol className="mt-2 space-y-1 text-xs text-grid-muted">
-                  {v.steps.map((s, i) => (
-                    <li key={i} className="flex gap-2">
-                      <span className="tabular-nums">{i + 1}.</span>
-                      <span dir="ltr" className="ltr-isolate font-mono break-all">
-                        {s.command} {String(s.args?.url ?? s.args?.selector ?? s.args?.key ?? "")}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              ) : null}
-            </li>
-          )
-        })}
-      </ol>
+            ) : null}
+          </div>
 
-      <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("automation.versions.confirmTitle", { n: confirm?.version ?? 0 })}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("automation.versions.confirmBody", { n: confirm?.version ?? 0, next: workflow.version + 1 })}
-              {dirty ? ` ${t("automation.versions.confirmDirty")}` : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction disabled={busy} onClick={() => confirm && restore(confirm)} data-restore-confirm>
-              {busy ? t("common.working") : t("automation.versions.restore")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </section>
+          {panelOpen ? (
+            <div
+              className={cn(
+                "z-20 min-h-0 border-line bg-background",
+                narrow ? "absolute inset-0" : "w-[26rem] shrink-0 border-s",
+              )}
+              dir={isRtl ? "rtl" : "ltr"}
+              data-side-panel={panel}
+            >
+              {panel === "picker" ? (
+                <NodePicker
+                  position={insertIndex}
+                  onPick={(k) => insert(insertIndex, k)}
+                  onClose={() => setPanel(null)}
+                />
+              ) : panel === "versions" && workflow ? (
+                <VersionsPanel
+                  workflow={workflow}
+                  versions={versions}
+                  previewing={preview?.version ?? null}
+                  dirty={dirty}
+                  canEdit={canEdit}
+                  onPreview={setPreview}
+                  onRestored={onSaved}
+                  onClose={() => {
+                    setPreview(null)
+                    setPanel(null)
+                  }}
+                />
+              ) : selected === "trigger" ? (
+                <TriggerPanel
+                  workflowId={workflow?.id}
+                  steps={steps}
+                  params={draft.params}
+                  values={values}
+                  schedules={schedules.data?.schedules ?? []}
+                  readOnly={!canEdit}
+                  description={draft.description}
+                  onDescription={(description) => setDraft((d) => ({ ...d, description }))}
+                  onParams={(p) => setDraft((d) => ({ ...d, params: p }))}
+                  onValues={setValues}
+                  onClose={() => select(null)}
+                />
+              ) : typeof selected === "number" && steps[selected] ? (
+                <StepPanel
+                  key={selected}
+                  step={steps[selected]}
+                  index={selected}
+                  readOnly={!canEdit}
+                  tab={tab}
+                  onTab={setTab}
+                  onChange={(s) => setSteps(steps.map((x, i) => (i === selected ? s : x)))}
+                  onClose={() => select(null)}
+                  onDelete={() => remove(selected)}
+                  onRunTo={() => void start(selected + 1)}
+                  runBlocked={browserBlocked || (live ? t("automation.editor.testing") : "")}
+                  output={runs ? run.data?.steps.find((s) => s.position === selected) : undefined}
+                  runId={runs ? test?.runId : undefined}
+                  live={live}
+                  agentId={agent?.id ?? ""}
+                  pickBlocked={browserBlocked || undefined}
+                  pageUrl={pageUrl(selected)}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
+      <span className="sr-only" aria-live="polite">
+        {live
+          ? t("canvas.running", {
+              ok: run.data?.run.ok_count ?? 0,
+              total: run.data?.run.step_count ?? 0,
+            })
+          : ""}
+      </span>
+    </div>
   )
 }
