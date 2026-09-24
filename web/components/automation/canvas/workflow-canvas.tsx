@@ -91,7 +91,7 @@ export type CanvasProps = {
   runs?: Record<number, NodeRun>
   /** Whether the trigger has fired in the run being shown. */
   triggerState?: NodeRun["state"]
-  trigger: { title: string; subtitle: string }
+  trigger: { title: string; subtitle: string; sites?: string[]; autoAdd?: boolean }
   selected: Selection
   readOnly?: boolean
   vertical?: boolean
@@ -120,7 +120,13 @@ const useCanvas = () => {
 }
 
 type StepData = { step: WorkflowStep; index: number }
-type TriggerData = { title: string; subtitle: string }
+type TriggerData = {
+  title: string
+  subtitle: string
+  /** The sites the workflow needs, and whether a run adds them to its browser (MH-517). */
+  sites?: string[]
+  autoAdd?: boolean
+}
 type AddData = { index: number }
 type InsertEdgeData = { index: number; items: number | null; state: string }
 
@@ -211,7 +217,19 @@ const TriggerNode = memo(function TriggerNode({ data }: NodeProps<Node<TriggerDa
           <StateBadge state={c.triggerState} />
         </BaseNode>
       </NodeStatusIndicator>
-      <NodeLabel title={data.title} subtitle={data.subtitle} dir={dir} beside={c.vertical} />
+      <NodeLabel
+        title={data.title}
+        subtitle={data.subtitle}
+        dir={dir}
+        beside={c.vertical}
+        note={
+          data.sites?.length
+            ? t(data.autoAdd ? "canvas.sites.nodeAuto" : "canvas.sites.nodeManual", {
+                sites: data.sites.length > 2 ? `${data.sites.slice(0, 2).join(", ")} +${data.sites.length - 2}` : data.sites.join(", "),
+              })
+            : undefined
+        }
+      />
       <span className="sr-only">{t("canvas.trigger")}</span>
     </div>
   )
@@ -387,11 +405,14 @@ function NodeLabel({
   subtitle,
   dir,
   beside,
+  note,
 }: {
   title: string
   subtitle: string
   dir: "ltr" | "rtl"
   beside?: boolean
+  /** A third line: the trigger's sites (MH-517). */
+  note?: string
 }) {
   // Physical sides on purpose: the canvas is an LTR surface, and the label
   // goes to the page's end side.
@@ -412,6 +433,11 @@ function NodeLabel({
       {subtitle ? (
         <p dir="ltr" className="truncate font-mono text-[11px] text-grid-muted">
           {subtitle}
+        </p>
+      ) : null}
+      {note ? (
+        <p className="truncate text-[11px] text-grid-muted" data-trigger-sites>
+          {note}
         </p>
       ) : null}
     </div>

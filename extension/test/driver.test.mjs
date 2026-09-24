@@ -407,3 +407,22 @@ test("a site Chrome has not allowed yet fails in words a person can act on (MH-4
   }
   await assert.rejects(runStep(run, { command: "click", args: { selector: "#go" } }), /Chrome has not allowed Moharrik on 127\.0\.0\.1 yet: approve it under "Waiting for your OK"/)
 })
+
+test("told to wait, a step waits for Chrome's grant and then goes on (MH-517)", async () => {
+  browser()
+  const run = newRun()
+  await runStep(run, { command: "goto", args: { url: "http://127.0.0.1/replay.html" } })
+  let granted = false
+  const real = globalThis.chrome.scripting.executeScript
+  globalThis.chrome.scripting.executeScript = async (opts) => {
+    if (!granted) throw new Error("Cannot access contents of url. Extension manifest must request permission to access this host.")
+    return real(opts)
+  }
+  globalThis.chrome.permissions = { contains: async ({ origins }) => granted && origins.some((o) => o.includes("127.0.0.1")) }
+  setTimeout(() => (granted = true), 700)
+  const res = await runStep(run, { command: "extract", args: { selector: "h1" }, grant_wait_ms: 5000 })
+  assert.equal(res.ok, true)
+  // Not told to wait: it fails at once, in plain words.
+  granted = false
+  await assert.rejects(runStep(run, { command: "extract", args: { selector: "h1" } }), /Chrome has not allowed Moharrik on 127\.0\.0\.1 yet/)
+})

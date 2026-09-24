@@ -18,6 +18,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationSettings } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -125,6 +126,54 @@ export function LimitsPanel({ settings, canManage, onSaved }: { settings?: Autom
         </FieldGroup>
         {err ? <FieldError className="mt-3">{err}</FieldError> : null}
       </form>
+      <SitesSwitches settings={settings} canManage={canManage} onSaved={onSaved} />
     </section>
+  )
+}
+
+/*
+Whether a run adds its workflow's sites to its browser (MH-517), and whether a
+run nobody watches may add sites that came from its values. Saved as they are
+flipped: a switch with a separate Save is two controls for one decision.
+*/
+function SitesSwitches({ settings, canManage, onSaved }: { settings: AutomationSettings; canManage: boolean; onSaved: () => void }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [busy, setBusy] = useState(false)
+
+  async function flip(key: "auto_add_sites" | "auto_add_input_sites", value: boolean) {
+    setBusy(true)
+    try {
+      await api("/api/w/automation/settings", { json: { [key]: value }, workspaceId: ws.id })
+      toast.success(t("automation.sites.saved"))
+      onSaved()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const row = (key: "auto_add_sites" | "auto_add_input_sites", on: boolean, title: string, hint: string, disabled = false) => (
+    <div className="flex items-start justify-between gap-4 px-6 py-4" data-site-switch={key} data-on={on ? "true" : "false"}>
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="max-w-2xl text-sm text-grid-muted">{hint}</p>
+      </div>
+      <Switch checked={on} disabled={!canManage || busy || disabled} onCheckedChange={(v) => flip(key, v)} aria-label={title} />
+    </div>
+  )
+
+  return (
+    <div className="divide-y divide-line border-b border-line" data-sites-settings>
+      {row("auto_add_sites", settings.auto_add_sites, t("automation.sites.autoTitle"), t("automation.sites.autoHint"))}
+      {row(
+        "auto_add_input_sites",
+        settings.auto_add_input_sites,
+        t("automation.sites.inputsTitle"),
+        t("automation.sites.inputsHint"),
+        !settings.auto_add_sites,
+      )}
+    </div>
   )
 }

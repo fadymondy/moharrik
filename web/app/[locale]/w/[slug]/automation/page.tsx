@@ -21,6 +21,7 @@ import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { LimitsPanel } from "@/components/automation/limits-panel"
+import { RunNotes } from "@/components/automation/run-notes"
 import { ScheduleForm } from "@/components/automation/schedule-form"
 import { StepEditor, fromEditorSteps, toEditorSteps, type EditorStep } from "@/components/automation/step-editor"
 import { PickSelect } from "@/components/crm/shared"
@@ -755,6 +756,7 @@ function RunRow({ run, href }: { run: AutomationRun; href: string }) {
         <p className="text-xs text-grid-muted">
           {t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })} · {t(`automation.trigger.${run.trigger}`)} · {formatDate(run.created_at)}
         </p>
+        <RunNotes notes={run.notes} className="mt-1 space-y-0.5" />
         {run.error ? (
           <p className="mt-1 text-xs text-grid-danger-text">
             <Bdi>{run.error}</Bdi>

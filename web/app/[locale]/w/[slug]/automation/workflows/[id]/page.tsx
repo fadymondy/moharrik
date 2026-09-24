@@ -75,6 +75,7 @@ import {
 import { useWorkflowLayout, type WorkflowLayout } from "@/lib/canvas-queries"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
+import { requiredSites } from "@/lib/required-sites"
 import {
   useAutomationSettings,
   useBrowsers,
@@ -445,6 +446,10 @@ function Editor({
   const mine = (schedules.data?.schedules ?? []).filter(
     (s) => workflow && s.workflow_id === workflow.id,
   )
+  // The sites it needs, as the server works them out (MH-517), for the steps
+  // as they are on the canvas now, saved or not.
+  const requiredHere = requiredSites(workflow?.hosts, steps)
+  const autoAdd = settings.data?.auto_add_sites ?? true
   const triggerSub = [
     t("canvas.start.manual"),
     mine.length ? t("canvas.nSchedules", { n: mine.length }) : "",
@@ -637,7 +642,7 @@ function Editor({
               triggerState={
                 !preview && runs && run.data && run.data.run.status !== "queued" ? "ok" : undefined
               }
-              trigger={{ title: t("canvas.triggerTitle"), subtitle: triggerSub }}
+              trigger={{ title: t("canvas.triggerTitle"), subtitle: triggerSub, sites: requiredHere, autoAdd }}
               selected={preview ? null : selected}
               readOnly={readOnly}
               vertical={narrow}
@@ -797,6 +802,9 @@ function Editor({
                   onParams={(p) => setDraft((d) => ({ ...d, params: p }))}
                   onValues={setValues}
                   onClose={() => select(null)}
+                  sites={requiredHere}
+                  autoAdd={autoAdd}
+                  canManage={ws.can("automation:manage")}
                 />
               ) : typeof selected === "number" && steps[selected] ? (
                 <StepPanel
