@@ -30,6 +30,7 @@ func conversationSummary(c inbox.ConversationOut) map[string]any {
 	return map[string]any{
 		"id": c.ID, "channel": c.Channel, "status": c.Status, "subject": c.Subject,
 		"customer_name": c.CustomerName, "customer_email": c.CustomerEmail, "customer_phone": c.CustomerPhone,
+		"customer_handle": c.CustomerHandle, "source_channel_id": c.SourceChannelID,
 		"contact_id": c.ContactID, "contact": c.Contact, "contact_link": c.LinkedBy, "deal": c.Deal,
 		"assignee_user_id": c.AssigneeUserID, "unread": c.Unread, "snoozed_until": c.SnoozedUntil, "closed_at": c.ClosedAt,
 		"message_count": c.MessageCount, "last_message_at": c.LastMessageAt, "preview": c.Preview,
@@ -64,8 +65,10 @@ func InboxTools() []Tool {
 				"close_conversation and assign_conversation.",
 			Scope: "inbox:read",
 			InputSchema: schema(nil, map[string]any{
-				"status":     map[string]any{"type": "string", "enum": []string{"open", "snoozed", "closed"}},
-				"channel":    map[string]any{"type": "string", "enum": []string{"chat", "email", "whatsapp"}},
+				"status": map[string]any{"type": "string", "enum": []string{"open", "snoozed", "closed"}},
+				"channel": map[string]any{"type": "string", "enum": []string{
+					"chat", "email", "whatsapp", "telegram", "slack", "discord", "linkedin", "facebook", "instagram", "x",
+				}},
 				"unread":     map[string]any{"type": "boolean", "description": "Only conversations nobody has opened since the customer last wrote"},
 				"contact_id": prop("string", "Only conversations linked to this CRM contact"),
 				"mailbox_id": prop("string", "Only email conversations on this mailbox (list_mailboxes shows ids)"),

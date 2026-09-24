@@ -24,6 +24,10 @@ import {
   type WhatsAppLink,
   type ContactWhatsApp,
   type WhatsAppNotify,
+  type TelegramChannel,
+  type SlackChannel,
+  type DiscordChannel,
+  type WorkflowChannel,
   type RunStep,
   type ResearchDetail,
   type CompanySuggestion,
@@ -593,6 +597,20 @@ export const useWhatsAppNotify = (wsId?: string | null) => useScoped<WhatsAppNot
 /** Whether one contact can be messaged on WhatsApp now, and why not (MH-410). */
 export const useContactWhatsApp = (wsId: string | null | undefined, contactId: string, enabled = true) =>
   useScoped<ContactWhatsApp>(`/api/w/contacts/${encodeURIComponent(contactId)}/whatsapp`, wsId, enabled && !!contactId)
+
+// ── Inbox channels: Telegram, Slack, Discord (MH-563), workflow (MH-564) ──
+
+export const useTelegramChannels = (id?: string | null, enabled = true) =>
+  useScoped<{ channels: TelegramChannel[] }>("/api/w/telegram-channels", id, enabled)
+
+export const useSlackChannels = (id?: string | null, enabled = true) =>
+  useScoped<{ channels: SlackChannel[] }>("/api/w/slack-channels", id, enabled)
+
+export const useDiscordChannels = (id?: string | null, enabled = true) =>
+  useScoped<{ channels: DiscordChannel[] }>("/api/w/discord-channels", id, enabled)
+
+export const useWorkflowChannels = (id?: string | null, enabled = true) =>
+  useScoped<{ channels: WorkflowChannel[] }>("/api/w/workflow-channels", id, enabled)
 
 export const useSchedules = (id?: string | null) => useScoped<{ schedules: AutomationSchedule[] | null }>("/api/w/schedules", id)
 

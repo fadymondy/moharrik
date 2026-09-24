@@ -171,6 +171,17 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/whatsapp/hook/") {
 		return tierPublic
 	}
+	// Telegram, Slack and Discord deliveries (MH-563): the same shape as the
+	// WhatsApp hook above — no session, no X-Workspace-ID. Each resolves its
+	// own workspace from the unguessable webhook_id in the path, and its own
+	// signature/token check is the rest of the authorization: Telegram's
+	// secret_token header, Slack's request signature, Discord's Ed25519
+	// signature over the interaction body.
+	if strings.HasPrefix(path, "/api/telegram/hook/") ||
+		strings.HasPrefix(path, "/api/slack/hook/") ||
+		strings.HasPrefix(path, "/api/discord/hook/") {
+		return tierPublic
+	}
 	if strings.HasPrefix(path, "/api/auth/") {
 		return tierPublic // the auth plugin guards its own routes
 	}

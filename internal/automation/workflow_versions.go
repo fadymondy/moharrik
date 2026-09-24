@@ -84,6 +84,9 @@ var knownCommands = map[string]bool{
 	"extract": true, "read": true, "wait": true, "close": true,
 	// The runtime's commands (MH-478, fadymondy.com's FM-91 set).
 	"wait_for": true, "upload": true, "screenshot": true, "eval_readonly": true, "release": true,
+	// Push to inbox (MH-564): the one command dispatch runs itself rather than
+	// sending to the browser — see dispatch's push_inbox branch in runs.go.
+	"push_inbox": true,
 }
 
 var paramNameRE = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)

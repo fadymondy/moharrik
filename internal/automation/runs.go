@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/channels"
 	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -297,6 +298,23 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 			return
 		}
 
+		// Push to inbox (MH-564) is the one command dispatch runs itself: it
+		// touches no page and needs no browser, so it never reaches h.Call.
+		// Every other step below this point assumes a browser round trip.
+		if strings.EqualFold(strings.TrimSpace(step.Command), "push_inbox") {
+			if err := h.dispatchPushInbox(sctx, a, workspaceID, runID, i, step); err != nil {
+				if !step.ContinueOnError {
+					stop(i, (&StepError{Position: i, Err: err}).Error())
+					return
+				}
+				runErr = (&StepError{Position: i, Err: err}).Error()
+			} else {
+				okCount++
+			}
+			notifyRun(a, workspaceID)
+			continue
+		}
+
 		// The allowed sites are re-read for every step, not taken from when the
 		// run was accepted: a site removed from the list mid-run is off it for
 		// the rest of the run. They travel WITH the step, because the browser
@@ -399,6 +417,94 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 		status = "failed" // a step failed and was continued past; the run is not "ok"
 	}
 	h.finish(sctx, a, workspaceID, runID, status, runErr, okCount)
+}
+
+// dispatchPushInbox runs the "push_inbox" step (MH-564): it takes the rows
+// every earlier extract/read step in THIS run collected (ReadRunData reads
+// only steps already written, which at position i is exactly the steps
+// before it — dispatch writes each step's row before moving to the next) and
+// files each one as an inbox message on the named workflow channel, deduped
+// by (thread, message) so a re-run of the same workflow never duplicates.
+//
+// args: workflow_channel_id (required), and optionally thread_field,
+// message_field, profile_field, name_field, text_field to rename which
+// column of an extracted row holds each part — default thread_id, message_id,
+// profile_url, name, text, the shape the four read presets (MH-564) produce.
+func (h *Hub) dispatchPushInbox(sctx context.Context, a *app.App, workspaceID, runID string, i int, step Step) error {
+	started := time.Now()
+	write := func(status, summary, result, stepErr string) {
+		_, _ = a.SQLDB.ExecContext(sctx, `
+			UPDATE automation_run_steps SET status = $4, summary = $5, result = $6, error = $7, duration_ms = $8, updated_at = now()
+			WHERE workspace_id = $1 AND run_id = $2 AND position = $3`,
+			workspaceID, runID, i, status, trim(summary, 300), trim(result, 200_000), trim(stepErr, 500),
+			int(time.Since(started).Milliseconds()))
+	}
+
+	channelID := strings.TrimSpace(stringArg(step.Args, "workflow_channel_id", ""))
+	if channelID == "" {
+		err := errors.New(`push_inbox needs a workflow_channel_id argument`)
+		write("failed", "", "", err.Error())
+		return err
+	}
+
+	data, err := ReadRunData(sctx, a, workspaceID, runID)
+	if err != nil {
+		write("failed", "", "", err.Error())
+		return err
+	}
+	threadField := stringArg(step.Args, "thread_field", "thread_id")
+	messageField := stringArg(step.Args, "message_field", "message_id")
+	profileField := stringArg(step.Args, "profile_field", "profile_url")
+	nameField := stringArg(step.Args, "name_field", "name")
+	textField := stringArg(step.Args, "text_field", "text")
+
+	items := make([]channels.PushItem, 0, len(data.Rows))
+	for _, row := range data.Rows {
+		items = append(items, channels.PushItem{
+			ThreadID:   rowString(row, threadField),
+			MessageID:  rowString(row, messageField),
+			ProfileURL: rowString(row, profileField),
+			Name:       rowString(row, nameField),
+			Text:       rowString(row, textField),
+			SentAt:     time.Now(),
+		})
+	}
+
+	res, err := channels.PushMessages(sctx, a, workspaceID, channelID, items)
+	if err != nil {
+		channels.RecordPushError(sctx, a, workspaceID, channelID, err)
+		write("failed", "", "", err.Error())
+		return err
+	}
+	resultJSON, _ := json.Marshal(map[string]any{"pushed": res.Pushed, "deduped": res.Deduped})
+	summary := fmt.Sprintf("pushed %d, deduped %d", res.Pushed, res.Deduped)
+	write("ok", summary, string(resultJSON), "")
+	return nil
+}
+
+// stringArg reads a string argument, falling back to def when it is absent,
+// empty, or not a string.
+func stringArg(args map[string]any, key, def string) string {
+	if v, ok := args[key].(string); ok && strings.TrimSpace(v) != "" {
+		return strings.TrimSpace(v)
+	}
+	return def
+}
+
+// rowString stringifies one field of an extracted row: a string as itself, a
+// missing or nil field as "", anything else (a number, an object) as JSON —
+// an extracted row's shape is whatever the workflow's own fields produced,
+// not something this step controls.
+func rowString(row map[string]any, key string) string {
+	v, ok := row[key]
+	if !ok || v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 func (h *Hub) finish(ctx context.Context, a *app.App, workspaceID, runID, status, errText string, okCount int) {

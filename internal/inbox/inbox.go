@@ -28,31 +28,39 @@ import (
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
-var channels = map[string]bool{"chat": true, "email": true, "whatsapp": true}
+var channelSet = map[string]bool{
+	"chat": true, "email": true, "whatsapp": true,
+	// Telegram, Slack, Discord (MH-563)
+	"telegram": true, "slack": true, "discord": true,
+	// Browser-workflow channels (MH-564)
+	"linkedin": true, "facebook": true, "instagram": true, "x": true,
+}
 
 var statuses = map[string]bool{"open": true, "snoozed": true, "closed": true}
 
 // ---- wire types -----------------------------------------------------------
 
 type ConversationOut struct {
-	ID             string    `json:"id"`
-	Channel        string    `json:"channel"`
-	Subject        string    `json:"subject"`
-	Status         string    `json:"status"`
-	CustomerName   string    `json:"customer_name"`
-	CustomerEmail  string    `json:"customer_email"`
-	ContactID      *string   `json:"contact_id"`
-	AssigneeUserID *string   `json:"assignee_user_id"`
-	MailboxID      *string   `json:"mailbox_id,omitempty" doc:"Which mailbox (MH-555) this email thread arrived on; absent for chat/WhatsApp."`
-	Unread         bool      `json:"unread"`
-	LastMessageAt  time.Time `json:"last_message_at"`
-	CreatedAt      time.Time `json:"created_at"`
-	Preview        string    `json:"preview" doc:"The most recent message, trimmed."`
-	MessageCount   int       `json:"message_count"`
-	PageURL        string    `json:"page_url" doc:"The page a chat visitor opened the conversation from; empty for other channels."`
-	UserAgent      string    `json:"user_agent" doc:"The chat visitor's browser, as it identified itself."`
-	Locale         string    `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
-	CustomerPhone  string    `json:"customer_phone" doc:"A WhatsApp customer's number; empty for other channels."`
+	ID              string    `json:"id"`
+	Channel         string    `json:"channel"`
+	Subject         string    `json:"subject"`
+	Status          string    `json:"status"`
+	CustomerName    string    `json:"customer_name"`
+	CustomerEmail   string    `json:"customer_email"`
+	ContactID       *string   `json:"contact_id"`
+	AssigneeUserID  *string   `json:"assignee_user_id"`
+	MailboxID       *string   `json:"mailbox_id,omitempty" doc:"Which mailbox (MH-555) this email thread arrived on; absent for chat/WhatsApp."`
+	Unread          bool      `json:"unread"`
+	LastMessageAt   time.Time `json:"last_message_at"`
+	CreatedAt       time.Time `json:"created_at"`
+	Preview         string    `json:"preview" doc:"The most recent message, trimmed."`
+	MessageCount    int       `json:"message_count"`
+	PageURL         string    `json:"page_url" doc:"The page a chat visitor opened the conversation from; empty for other channels."`
+	UserAgent       string    `json:"user_agent" doc:"The chat visitor's browser, as it identified itself."`
+	Locale          string    `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
+	CustomerPhone   string    `json:"customer_phone" doc:"A WhatsApp customer's number; empty for other channels."`
+	CustomerHandle  string    `json:"customer_handle" doc:"A Telegram/Slack/Discord handle or a workflow channel's profile URL; empty for other channels."`
+	SourceChannelID *string   `json:"source_channel_id" doc:"Which of this workspace's connections of that kind this conversation came from; null for chat/email/WhatsApp."`
 	// The CRM side (MH-379).
 	Contact  *LinkedContact `json:"contact" doc:"The CRM contact this conversation is linked to, if any."`
 	LinkedBy string         `json:"contact_link" enum:",auto,manual" doc:"How the contact was linked: auto (an exact email or phone match when the message was filed) or manual (by a member). manual with no contact means a member unlinked it, and no automatic match will relink it."`

@@ -44,6 +44,15 @@ const (
 	DomainGA4APISecret = "moharrik/ga4-api-secret/v1"
 	// An automation rule's signing secret for its outbound webhooks (MH-427).
 	DomainRuleWebhookSecret = "moharrik/rule-webhook-secret/v1"
+	// Inbox channel credentials (MH-563): a Telegram bot token, its webhook
+	// secret_token, a Slack bot token, its signing secret, and a Discord bot
+	// token. Each channel type gets its own domain, the same isolation the
+	// comment on Box explains for every other pair of secrets in this file.
+	DomainTelegramBotToken   = "moharrik/telegram-bot-token/v1"
+	DomainTelegramSecretTok  = "moharrik/telegram-secret-token/v1"
+	DomainSlackBotToken      = "moharrik/slack-bot-token/v1"
+	DomainSlackSigningSecret = "moharrik/slack-signing-secret/v1"
+	DomainDiscordBotToken    = "moharrik/discord-bot-token/v1"
 )
 
 // minSecret is the shortest AUTH_SECRET a key is derived from.
