@@ -111,7 +111,8 @@ await call(other, "POST", `/api/w/campaigns/${id}/send`, {}, wsId)
 await row.locator("text=/^Sent$/").waitFor({ timeout: 20000 })
 out.liveCampaign = { sentShownMs: Date.now() - t1, refetches: campaignFetches }
 const logs = [...(fakeLog(logDir, "smtp-A.json") ?? []), ...(fakeLog(logDir, "smtp-B.json") ?? [])]
-const got = logs.filter((m) => m.subject.includes("MH-413") || m.data.includes(subject)).map((m) => m.to).sort()
+// This run's campaign only: the sinks keep every earlier run's mail too.
+const got = logs.filter((m) => m.data.includes(subject) || m.to.includes(stamp)).map((m) => m.to).sort()
 out.audienceDelivered = {
   to: got.length,
   onlyArabic: got.length === arabic.length && JSON.stringify(got) === JSON.stringify(arabic),
