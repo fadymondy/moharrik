@@ -3,6 +3,7 @@ package imports_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,13 +56,22 @@ func workspaceIn(t *testing.T, a *app.App) string {
 
 // fakeEvolution is the same shape web/e2e/fake-evolution.mjs gives a person
 // clicking through the app: real-format chats, a group, and Arabic content.
+// The chat is the exact shape Evolution v2's findChats returns (MH-562): the
+// name is pushName, the count is unreadCount, and lastMessage is a full message
+// record whose body is an object — a string there once 500'd every preview.
 func fakeEvolution(t *testing.T) *httptest.Server {
 	t.Helper()
 	now := time.Now().Unix()
 	chats := []map[string]any{
 		{
-			"id": "201015550101@s.whatsapp.net", "remoteJid": "201015550101@s.whatsapp.net", "name": "Rana Fathy",
-			"lastMessage": map[string]any{"message": "هل وصل طلبي رقم NC-20417؟", "messageTimestamp": now - 3600, "fromMe": false},
+			"id": "cmchat0001", "remoteJid": "201015550101@s.whatsapp.net", "pushName": "Rana Fathy", "unreadCount": 1,
+			"lastMessage": map[string]any{
+				"key":              map[string]any{"id": "wamid.002", "fromMe": false, "remoteJid": "201015550101@s.whatsapp.net"},
+				"pushName":         "Rana Fathy",
+				"messageType":      "conversation",
+				"message":          map[string]any{"conversation": "هل وصل طلبي رقم NC-20417؟"},
+				"messageTimestamp": now - 3600,
+			},
 		},
 	}
 	groups := []map[string]any{
@@ -71,7 +81,11 @@ func fakeEvolution(t *testing.T) *httptest.Server {
 				{"id": "201015550101@s.whatsapp.net", "name": "Rana Fathy", "admin": "superadmin"},
 				{"id": "201098765432@s.whatsapp.net", "name": "Laila Hassan"},
 			},
-			"lastMessage": map[string]any{"message": "الشحنة الجديدة وصلت اليوم", "messageTimestamp": now - 1800, "fromMe": false},
+			"lastMessage": map[string]any{
+				"key":              map[string]any{"id": "wamid.101", "fromMe": false, "remoteJid": "120363011234567890@g.us"},
+				"message":          map[string]any{"extendedTextMessage": map[string]any{"text": "الشحنة الجديدة وصلت اليوم"}},
+				"messageTimestamp": fmt.Sprint(now - 1800),
+			},
 		},
 	}
 	history := map[string][]map[string]any{
@@ -164,8 +178,16 @@ func TestWhatsAppImportIdempotent(t *testing.T) {
 		if it.AlreadyImported {
 			t.Fatalf("nothing imported yet, but %q says already_imported", it.ID)
 		}
+		// Evolution's real lastMessage is an object; the preview must read its
+		// body and time, and a direct chat's name comes from pushName.
+		if it.LastMessage == "" || it.LastMessageAt == nil {
+			t.Fatalf("%q: last message not read: %+v", it.ID, it)
+		}
 		if it.Kind == "direct" {
 			directID = it.ID
+			if it.Name != "Rana Fathy" || it.LastMessage != "هل وصل طلبي رقم NC-20417؟" {
+				t.Fatalf("direct chat read wrong: %+v", it)
+			}
 		} else {
 			groupID = it.ID
 			if len(it.Participants) != 2 {

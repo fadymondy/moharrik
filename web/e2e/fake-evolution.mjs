@@ -16,18 +16,28 @@ const now = Math.floor(Date.now() / 1000)
 
 const chats = [
   {
-    id: "201015550101@s.whatsapp.net",
+    id: "cmchat0001",
     remoteJid: "201015550101@s.whatsapp.net",
-    name: "Rana Fathy",
-    unreadMessages: 1,
-    lastMessage: { message: "هل وصل طلبي رقم NC-20417؟", messageTimestamp: now - 3600, fromMe: false },
+    pushName: "Rana Fathy",
+    unreadCount: 1,
+    lastMessage: {
+      key: { id: "wamid.002", fromMe: false, remoteJid: "201015550101@s.whatsapp.net" },
+      messageType: "conversation",
+      message: { conversation: "هل وصل طلبي رقم NC-20417؟" },
+      messageTimestamp: now - 3600,
+    },
   },
   {
-    id: "201227654321@s.whatsapp.net",
+    id: "cmchat0002",
     remoteJid: "201227654321@s.whatsapp.net",
-    name: "Omar Khalifa",
-    unreadMessages: 0,
-    lastMessage: { message: "Thanks, see you at the fair!", messageTimestamp: now - 7200, fromMe: true },
+    pushName: "Omar Khalifa",
+    unreadCount: 0,
+    lastMessage: {
+      key: { id: "wamid.003", fromMe: true, remoteJid: "201227654321@s.whatsapp.net" },
+      messageType: "extendedTextMessage",
+      message: { extendedTextMessage: { text: "Thanks, see you at the fair!" } },
+      messageTimestamp: now - 7200,
+    },
   },
 ]
 
@@ -41,7 +51,12 @@ const groups = [
       { id: "201098765432@s.whatsapp.net", name: "Laila Hassan", admin: "" },
       { id: "201155501234@s.whatsapp.net", name: "Youssef Adly", admin: "" },
     ],
-    lastMessage: { message: "الشحنة الجديدة وصلت اليوم ☕", messageTimestamp: now - 1800, fromMe: false },
+    lastMessage: {
+      key: { id: "wamid.101", fromMe: false, remoteJid: "120363011234567890@g.us" },
+      messageType: "conversation",
+      message: { conversation: "الشحنة الجديدة وصلت اليوم ☕" },
+      messageTimestamp: now - 1800,
+    },
   },
 ]
 

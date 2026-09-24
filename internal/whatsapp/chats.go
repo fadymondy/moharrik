@@ -2,7 +2,9 @@ package whatsapp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -14,27 +16,57 @@ paging one chat's messages. Evolution API v2 exposes these under /chat and
 pushed new messages in).
 */
 
-// ChatMessagePreview is the shape a chat/group list embeds for "what did they
-// last say" — the same fields FindMessages returns one of, kept small on
-// purpose since a list of hundreds of chats should not carry full bodies.
-type ChatMessagePreview struct {
-	Text      string `json:"message"`
-	Timestamp int64  `json:"messageTimestamp"`
-	FromMe    bool   `json:"fromMe"`
-}
+// ChatMessagePreview is the "what did they last say" a chat/group list embeds.
+// Evolution sends the same full message record FindMessages returns — the body
+// is an object ({"conversation": ...}, {"extendedTextMessage": ...}), not a
+// string — so it is decoded as one and read with Text().
+type ChatMessagePreview = HistoryMessage
 
 // Chat is one 1:1 conversation Evolution knows about.
 type Chat struct {
-	ID          string               `json:"id"`
-	RemoteJID   string               `json:"remoteJid"`
-	Name        string               `json:"name"`
-	UnreadCount int                  `json:"unreadMessages"`
-	LastMessage *ChatMessagePreview  `json:"lastMessage,omitempty"`
-	UpdatedAt   string               `json:"updatedAt,omitempty"`
+	ID          string              `json:"id"`
+	RemoteJID   string              `json:"remoteJid"`
+	Name        string              `json:"name"`
+	PushName    string              `json:"pushName"`
+	UnreadCount int                 `json:"unreadCount"`
+	LastMessage *ChatMessagePreview `json:"lastMessage,omitempty"`
+	UpdatedAt   string              `json:"updatedAt,omitempty"`
 }
 
 // Phone is the chat's number, digits only.
 func (c Chat) Phone() string { return Number(c.RemoteJID) }
+
+// DisplayName is the chat's saved name, else the name the contact set for
+// themselves (Evolution v2 only fills pushName on most chats).
+func (c Chat) DisplayName() string {
+	if n := strings.TrimSpace(c.Name); n != "" {
+		return n
+	}
+	return strings.TrimSpace(c.PushName)
+}
+
+// UnixTime is a message timestamp in seconds. Evolution sends it as a number,
+// but Baileys' protobuf Long can surface as a string or {low, high}; all three
+// decode, and anything else is zero rather than failing the whole list.
+type UnixTime int64
+
+func (t *UnixTime) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(strings.TrimSpace(string(b)), `"`)
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		*t = UnixTime(n)
+		return nil
+	}
+	var long struct {
+		Low  uint32 `json:"low"`
+		High int32  `json:"high"`
+	}
+	if json.Unmarshal(b, &long) == nil {
+		*t = UnixTime(int64(long.High)<<32 | int64(long.Low))
+		return nil
+	}
+	*t = 0
+	return nil
+}
 
 // GroupParticipant is one member of a group, as Evolution reports it.
 type GroupParticipant struct {
@@ -48,11 +80,11 @@ func (p GroupParticipant) Phone() string { return Number(p.ID) }
 
 // Group is one group chat Evolution knows about.
 type Group struct {
-	ID           string               `json:"id"` // the group JID, e.g. "1203…-1234@g.us"
-	Subject      string               `json:"subject"`
-	Size         int                  `json:"size"`
-	Participants []GroupParticipant   `json:"participants"`
-	LastMessage  *ChatMessagePreview  `json:"lastMessage,omitempty"`
+	ID           string              `json:"id"` // the group JID, e.g. "1203…-1234@g.us"
+	Subject      string              `json:"subject"`
+	Size         int                 `json:"size"`
+	Participants []GroupParticipant  `json:"participants"`
+	LastMessage  *ChatMessagePreview `json:"lastMessage,omitempty"`
 }
 
 // ListChats lists every 1:1 chat the instance has ever exchanged messages
@@ -81,8 +113,8 @@ type HistoryMessage struct {
 		FromMe    bool   `json:"fromMe"`
 		ID        string `json:"id"`
 	} `json:"key"`
-	PushName  string `json:"pushName"`
-	Timestamp int64  `json:"messageTimestamp"`
+	PushName  string   `json:"pushName"`
+	Timestamp UnixTime `json:"messageTimestamp"`
 	Message   struct {
 		Conversation string `json:"conversation"`
 		Extended     struct {

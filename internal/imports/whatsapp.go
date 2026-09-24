@@ -103,10 +103,10 @@ func (p WhatsAppProvider) Preview(ctx context.Context, a *app.App, wsID, connID 
 			if phone == "" {
 				continue
 			}
-			it := Item{ID: c.RemoteJID, Kind: "direct", Name: c.Name, Identity: "+" + phone}
+			it := Item{ID: c.RemoteJID, Kind: "direct", Name: c.DisplayName(), Identity: "+" + phone}
 			if c.LastMessage != nil {
-				it.LastMessage = c.LastMessage.Text
-				t := time.Unix(c.LastMessage.Timestamp, 0).UTC()
+				it.LastMessage = c.LastMessage.Text()
+				t := time.Unix(int64(c.LastMessage.Timestamp), 0).UTC()
 				it.LastMessageAt = &t
 			}
 			items = append(items, it)
@@ -125,8 +125,8 @@ func (p WhatsAppProvider) Preview(ctx context.Context, a *app.App, wsID, connID 
 				}
 			}
 			if g.LastMessage != nil {
-				it.LastMessage = g.LastMessage.Text
-				t := time.Unix(g.LastMessage.Timestamp, 0).UTC()
+				it.LastMessage = g.LastMessage.Text()
+				t := time.Unix(int64(g.LastMessage.Timestamp), 0).UTC()
 				it.LastMessageAt = &t
 			}
 			items = append(items, it)
@@ -250,7 +250,7 @@ func (p WhatsAppProvider) importDirect(ctx context.Context, a *app.App, wsID str
 	if c.Phone() == "" {
 		return errors.New("no phone on this chat")
 	}
-	name := c.Name
+	name := c.DisplayName()
 	locale := localeOf(name)
 	contactID, created, err := marketing.UpsertContactIdentity(ctx, a.SQLDB, wsID, "", phone, "", name, locale, "whatsapp_import")
 	if err != nil {
@@ -353,7 +353,7 @@ func insertHistory(ctx context.Context, a *app.App, wsID, convID string, msgs []
 		if m.Key.FromMe {
 			direction = "out"
 		}
-		at := time.Unix(m.Timestamp, 0).UTC()
+		at := time.Unix(int64(m.Timestamp), 0).UTC()
 		res, err := a.SQLDB.ExecContext(ctx, `
 			INSERT INTO messages (workspace_id, conversation_id, direction, body, external_id, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6)

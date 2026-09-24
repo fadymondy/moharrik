@@ -32,6 +32,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -86,29 +87,29 @@ type Filters struct {
 
 // ImportRequest is one import run.
 type ImportRequest struct {
-	ConnectionID        string   `json:"connection_id"`
-	Items                []string `json:"items" doc:"Item ids from Preview to import."`
-	HistoryDepth         int      `json:"history_depth,omitempty" doc:"Messages per conversation, newest first; 0 = the source's default."`
-	ImportParticipants   bool     `json:"import_participants,omitempty" doc:"Group items only: also create contacts for participants."`
+	ConnectionID       string   `json:"connection_id"`
+	Items              []string `json:"items" doc:"Item ids from Preview to import."`
+	HistoryDepth       int      `json:"history_depth,omitempty" doc:"Messages per conversation, newest first; 0 = the source's default."`
+	ImportParticipants bool     `json:"import_participants,omitempty" doc:"Group items only: also create contacts for participants."`
 }
 
 // Job is one background import run's state (import_jobs).
 type Job struct {
-	ID                    string    `json:"id"`
-	Source                string    `json:"source"`
-	ConnectionID          string    `json:"connection_id"`
-	Status                string    `json:"status" enum:"running,done,failed"`
-	Total                 int       `json:"total"`
-	Done                  int       `json:"done"`
-	ContactsCreated       int       `json:"contacts_created"`
-	ContactsReused        int       `json:"contacts_reused"`
-	ConversationsCreated  int       `json:"conversations_created"`
-	ConversationsReused   int       `json:"conversations_reused"`
-	MessagesImported      int       `json:"messages_imported"`
-	Skipped               int       `json:"skipped"`
-	LastError             string    `json:"last_error,omitempty"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	ID                   string    `json:"id"`
+	Source               string    `json:"source"`
+	ConnectionID         string    `json:"connection_id"`
+	Status               string    `json:"status" enum:"running,done,failed"`
+	Total                int       `json:"total"`
+	Done                 int       `json:"done"`
+	ContactsCreated      int       `json:"contacts_created"`
+	ContactsReused       int       `json:"contacts_reused"`
+	ConversationsCreated int       `json:"conversations_created"`
+	ConversationsReused  int       `json:"conversations_reused"`
+	MessagesImported     int       `json:"messages_imported"`
+	Skipped              int       `json:"skipped"`
+	LastError            string    `json:"last_error,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // Summary is one imported (or any) conversation's analytics — what
@@ -195,7 +196,7 @@ func Kinds() []string {
 // SourceInfo is one entry in ListSources: a source kind and the workspace's
 // connections for it.
 type SourceInfo struct {
-	Source      string       `json:"source"`
+	Source      string             `json:"source"`
 	Connections []ImportConnection `json:"connections"`
 }
 
@@ -242,7 +243,15 @@ func Preview(ctx context.Context, a *app.App, wsID, source, connectionID string,
 	}
 	items, err := p.Preview(ctx, a, wsID, connectionID, f)
 	if err != nil {
-		return nil, err
+		// A source's own server failing (unreachable, an answer we can't read)
+		// is a 502 that says what went wrong — a bare 500 hid MH-562's cause
+		// from both the page and the log.
+		var se huma.StatusError
+		if errors.As(err, &se) {
+			return nil, err
+		}
+		slog.Warn("import preview failed", "source", source, "workspace", wsID, "err", err)
+		return nil, huma.Error502BadGateway("could not read this " + source + " connection: " + err.Error())
 	}
 	if err := markImported(ctx, a, wsID, source, items); err != nil {
 		return nil, err
