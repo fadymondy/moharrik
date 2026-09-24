@@ -17,8 +17,20 @@ import { useTranslations } from "@/lib/i18n"
  * (MCPServerURL, MH-516) — passed twice because the two kinds of client are
  * told about it differently, not because they can ever point somewhere else.
  */
-export function ConnectClients({ url, token, oauthUrl }: { url: string; token?: string; oauthUrl?: string }) {
+export function ConnectClients({
+  url,
+  token,
+  oauthUrl,
+  where = "settings",
+}: {
+  url: string
+  token?: string
+  oauthUrl?: string
+  /** "docs": the public reference (MH-428), which is not the page that lists Connected apps. */
+  where?: "settings" | "docs"
+}) {
   const { t } = useTranslations()
+  const lastOAuthStep = where === "docs" ? t("mcp.client.claudeAi.step4Docs") : t("mcp.client.claudeAi.step4")
   const tok = token ?? "<your token>"
 
   const claudeCode = `claude mcp add --transport http moharrik ${url} --header "Authorization: Bearer ${tok}"`
@@ -76,7 +88,7 @@ export function ConnectClients({ url, token, oauthUrl }: { url: string; token?: 
         <Step n={2}>{t("mcp.client.claudeAi.step2")}</Step>
         <CopyField value={oauthUrl ?? url} label={t("mcp.client.serverUrl")} />
         <Step n={3}>{t("mcp.client.claudeAi.step3")}</Step>
-        <Step n={4}>{t("mcp.client.claudeAi.step4")}</Step>
+        <Step n={4}>{lastOAuthStep}</Step>
       </TabsContent>
 
       <TabsContent value="chatgpt" className="space-y-3" data-connect-oauth="chatgpt">
@@ -85,7 +97,7 @@ export function ConnectClients({ url, token, oauthUrl }: { url: string; token?: 
         <Step n={2}>{t("mcp.client.chatgpt.step2")}</Step>
         <CopyField value={oauthUrl ?? url} label={t("mcp.client.serverUrl")} />
         <Step n={3}>{t("mcp.client.chatgpt.step3")}</Step>
-        <Step n={4}>{t("mcp.client.claudeAi.step4")}</Step>
+        <Step n={4}>{lastOAuthStep}</Step>
       </TabsContent>
 
       <TabsContent value="cursor" className="space-y-3">

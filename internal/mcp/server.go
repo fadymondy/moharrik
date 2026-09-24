@@ -100,6 +100,8 @@ func Mount(k *togo.Kernel, a *app.App, researchEngine *research.Engine) {
 		})
 	}
 	k.Router.Handle("/api/mcp", wrap(user.handler(a)))
+	// The public tool reference (MH-428), generated from this same registry.
+	k.Router.Get("/api/mcp/docs", docsHandler(user.tools))
 	MountOAuth(k, a) // OAuth 2.1 for connectors (MH-391)
 	k.Router.Handle("/api/admin/mcp", wrap(admin.handler(a)))
 }

@@ -32,6 +32,7 @@ import { scopeText } from "@/lib/scope-text"
 import { useMcpTokens, useOAuthGrants } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
+import { mcpDocsHref } from "@/lib/mcp-docs"
 
 const MCP_ORIGIN = process.env.NEXT_PUBLIC_MCP_ORIGIN ?? "http://localhost:8120"
 
@@ -120,6 +121,11 @@ export default function McpTokensPage() {
             {t("mcp.connectTitle")}
           </h2>
           <p className="grid-body text-sm">{t("mcp.connectHint")}</p>
+          <p className="text-sm">
+            <Link href={mcpDocsHref(locale)} className="text-grid-action underline-offset-4 hover:underline" data-mcp-docs-link>
+              {t("mcp.docsLink")}
+            </Link>
+          </p>
         </div>
         <div className="max-w-3xl">
           <ConnectClients url={serverUrl} oauthUrl={serverUrl} />
@@ -131,8 +137,8 @@ export default function McpTokensPage() {
           open={creating}
           onOpenChange={setCreating}
           scopes={tokens.data.scopes ?? []}
-          onCreated={() => tokens.mutate()}
           serverUrl={serverUrl}
+          onCreated={() => tokens.mutate()}
         />
       ) : null}
     </>
@@ -225,16 +231,16 @@ function CreateTokenDialog({
   open,
   onOpenChange,
   scopes,
-  onCreated,
   serverUrl,
+  onCreated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   scopes: McpScope[]
-  onCreated: () => void
   serverUrl: string
+  onCreated: () => void
 }) {
-  const { t } = useTranslations()
+  const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState("")
   const [chosen, setChosen] = useState<string[]>([])
@@ -329,7 +335,12 @@ function CreateTokenDialog({
 
               <FieldSet>
                 <FieldLegend variant="label">{t("mcp.scopes")}</FieldLegend>
-                <FieldDescription>{t("mcp.scopesHint")}</FieldDescription>
+                <FieldDescription>
+                  {t("mcp.scopesHint")}{" "}
+                  <Link href={mcpDocsHref(locale, "scopes")} target="_blank" className="text-grid-action underline-offset-4 hover:underline">
+                    {t("mcp.scopesDocsLink")}
+                  </Link>
+                </FieldDescription>
                 {scopes.length === 0 ? (
                   <p className="text-sm text-grid-muted">{t("mcp.noScopes")}</p>
                 ) : (

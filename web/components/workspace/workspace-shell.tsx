@@ -3,7 +3,18 @@
 import Link from "next/link"
 import { useEffect, useState, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
-import { ArrowLeftIcon, CheckIcon, ChevronRightIcon, ChevronsUpDownIcon, MenuIcon, MessageSquarePlusIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  BookOpenIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  ChevronsUpDownIcon,
+  MenuIcon,
+  MessageSquarePlusIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PlusIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -35,6 +46,7 @@ import { groupForPath, itemActive, visibleEntries, visibleItems, type NavGroup, 
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { cn } from "@/lib/utils"
+import { mcpDocsHref } from "@/lib/mcp-docs"
 import { BdiBlock } from "@/components/bidi"
 
 function Brand({ mini = false }: { mini?: boolean }) {
@@ -319,7 +331,7 @@ function ShellSkeleton() {
  * so once a page is picked, the URL is back in charge.
  */
 function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNavigate?: () => void; mini?: boolean; can?: string[] }) {
-  const { t } = useTranslations()
+  const { t, locale } = useTranslations()
   const pathname = usePathname()
   const rest = pathname.startsWith(base) ? pathname.slice(base.length).replace(/^\//, "") : ""
   const [manual, setManual] = useState<string | null>(null)
@@ -402,6 +414,19 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
           </span>
         )
       })}
+      {/* The public MCP reference (MH-428): every tool, its scope and an example.
+          Not a workspace page (it needs no group or workspace base), so it sits
+          here rather than in nav-config.ts's workspace-relative NAV table. */}
+      <NavLink
+        href={mcpDocsHref(locale)}
+        icon={<BookOpenIcon />}
+        active={pathname === mcpDocsHref(locale)}
+        onNavigate={onNavigate}
+        mini={mini}
+        dataNav="mcp-docs"
+      >
+        {t("nav.mcpDocs")}
+      </NavLink>
     </nav>
   )
 }
