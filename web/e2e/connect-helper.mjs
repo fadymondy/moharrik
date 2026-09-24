@@ -41,7 +41,15 @@ export async function connectExtension({ ctx, extensionID, site, api = "", call,
   await popup.reload()
   await popup.waitForSelector("#connect:not([hidden])", { timeout: 20000 })
   const opened = ctx.waitForEvent("page", { timeout: 20000 })
-  await popup.click("#connect")
+  // Since MH-483 the Connect button first asks Chrome for every site, and a
+  // script cannot answer Chrome's prompt. A build that already holds every
+  // site gets no prompt, so the real button is pressed; otherwise the
+  // connect is started the way the button starts it once Chrome has answered
+  // (extension-access-check.mjs presses the real button and answers the real
+  // prompt).
+  const broad = await popup.evaluate(() => chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }))
+  if (broad) await popup.click("#connect")
+  else await popup.evaluate(() => chrome.runtime.sendMessage({ type: "connect.start", languages: ["en"] }))
   const approval = await opened
   const u = new URL(approval.url())
   const code = u.pathname.split("/").pop()

@@ -18,17 +18,18 @@
       <section class="block">
         <h1 class="page-title">Which sites this browser may drive</h1>
         <p class="hint">
-          Two gates, and both have to open. The workspace lists the sites on its Automation page; Chrome
-          then has to be told, with a click in this browser, that the extension may reach them. Nothing
-          on the website can make that click for you — which is the point.
+          Your workspace decides, on its Automation page. A run only ever goes to the sites listed there
+          for this browser, and this browser checks every step against that list too.
         </p>
+        <!-- Which mode this browser is in (MH-483), said in one line. -->
+        <p id="mode" class="mode" data-mode=""></p>
       </section>
 
       <!-- The sites the workspace allowed for this browser, each with its own Allow. -->
       <section class="block">
         <span class="label">Allowed for this browser by the workspace</span>
         <p id="site-hosts-empty" class="hint" hidden>
-          None yet. An admin adds sites to this browser on the workspace's Automation page; they appear here to allow.
+          None yet. An admin adds sites to this browser on the workspace's Automation page; they appear here.
         </p>
         <ul id="site-hosts" class="list"></ul>
         <div class="actions actions--inline">
@@ -43,10 +44,11 @@
           <input id="all-sites" type="checkbox" role="switch" />
         </div>
         <p class="hint hint--note">
-          Lets Chrome give the extension every website, including ones you are signed into. The
-          workspace's list still decides where a run may go; this only removes the per-site click.
-          Turning it off takes it back immediately.
+          On: a site your workspace adds works straight away. Off: each one waits for your OK in the
+          extension first. Either way a run only goes to the sites your workspace lists. Turning it off
+          takes it back immediately.
         </p>
+        <p id="all-note" class="hint"></p>
       </section>
 
       <!-- Any site, by hand. -->

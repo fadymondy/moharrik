@@ -397,3 +397,13 @@ test("a scroll step needs a distance or an element, in numbers", async () => {
   const r = await runStep(run, { command: "scroll", args: { deltaY: -50 } })
   assert.match(r.summary, /already at the end/)
 })
+
+test("a site Chrome has not allowed yet fails in words a person can act on (MH-483)", async () => {
+  browser()
+  const run = newRun()
+  await runStep(run, { command: "goto", args: { url: "http://127.0.0.1/replay.html" } })
+  globalThis.chrome.scripting.executeScript = async () => {
+    throw new Error("Cannot access contents of url \"http://127.0.0.1/replay.html\". Extension manifest must request permission to access this host.")
+  }
+  await assert.rejects(runStep(run, { command: "click", args: { selector: "#go" } }), /Chrome has not allowed Moharrik on 127\.0\.0\.1 yet: approve it under "Waiting for your OK"/)
+})

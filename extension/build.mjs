@@ -4,6 +4,7 @@ Package the extension for download (MH-399).
   node extension/build.mjs                                   # production: https://app.moharrik.com
   node extension/build.mjs --site https://staging.example    # another deployment
   node extension/build.mjs --site http://localhost:3506 --api http://localhost:8506 --dev
+  node extension/build.mjs --store                            # the Chrome Web Store upload (MH-484)
 
 Chrome loads this directory as it is — nothing in it is compiled — so the build
 is a zip of the directory, with three things a plain zip would not do:
@@ -23,6 +24,16 @@ is a zip of the directory, with three things a plain zip would not do:
   build.json. The API serves that number with the file and refuses to serve a
   file that no longer matches it — so the number on the install page is the
   number of the file it hands out.
+
+  IT MAKES EVERY INSTALL THE SAME EXTENSION (MH-483). The public half of the
+  signing key (signing-key.pub) goes into the manifest as "key", so the zip
+  loaded by hand and the signed CRX the API serves have one id, and the
+  manifest names the API's update manifest as update_url. The private half is
+  never here: the API signs the CRX at run time from EXTENSION_SIGNING_KEY
+  (internal/automation/extension_crx.go).
+
+  --store builds the Web Store upload instead: no key and no update_url (the
+  store assigns both), written beside the others without touching build.json.
 
 No dependencies: a ZIP container is simple enough to write directly, and a
 packaging step that needs `npm install` breaks in an image build the day a
@@ -49,6 +60,14 @@ const site = arg("site", PRODUCTION).replace(/\/+$/, "")
 const api = arg("api").replace(/\/+$/, "")
 const out = path.resolve(arg("out", path.join(here, "dist")))
 const dev = flag("dev")
+const store = flag("store")
+// A build for automated checks only: every site granted up front, standing in
+// for the one click a person gives when connecting, which no script can make.
+const grantAll = flag("grant-all")
+if (grantAll && !dev) {
+  console.error("build: --grant-all is for a --dev build only")
+  process.exit(2)
+}
 
 if (!/^https?:\/\/[^/]+$/.test(site) || (api && !/^https?:\/\/[^/]+$/.test(api))) {
   console.error("build: --site and --api must be bare http(s) origins, e.g. --site https://app.moharrik.com")
@@ -67,8 +86,8 @@ if (!dev && (!site.startsWith("https://") || (api && !api.startsWith("https://")
 /* ------------------------------------------------------------ the files */
 
 // What stays behind. Everything else in the directory is the extension.
-const EXCLUDE_DIRS = new Set(["node_modules", "test", "dist", ".git"])
-const EXCLUDE_FILES = new Set(["package.json", "package-lock.json", "build.mjs", ".gitignore", ".DS_Store"])
+const EXCLUDE_DIRS = new Set(["node_modules", "test", "dist", "store", ".git"])
+const EXCLUDE_FILES = new Set(["package.json", "package-lock.json", "build.mjs", ".gitignore", ".DS_Store", "signing-key.pub"])
 
 function collect(rel = "") {
   const full = path.join(here, rel)
@@ -132,8 +151,34 @@ if (dev) {
   hosts.add("http://localhost/*")
   hosts.add("http://127.0.0.1/*")
 }
+if (grantAll) {
+  hosts.add("http://*/*")
+  hosts.add("https://*/*")
+}
 manifest.host_permissions = [...hosts]
 if (dev) manifest.name = `${manifest.name} (dev)`
+
+// The id and the self-update (MH-483). Not for the Web Store, which assigns
+// its own; not for a dev build, which must not share the release's id.
+let publicKey = ""
+let extensionId = ""
+// A dev build names its own stack's update manifest too, so a signed dev CRX
+// can be checked updating itself; it carries no key, so its unpacked id never
+// collides with the release's.
+if (!store) manifest.update_url = `${api || site}/api/automation/extension/updates.xml`
+if (!store && !dev) {
+  const keyFile = path.join(here, "signing-key.pub")
+  if (fs.existsSync(keyFile)) {
+    publicKey = fs.readFileSync(keyFile, "utf8").trim()
+    manifest.key = publicKey
+    const sum = createHash("sha256").update(Buffer.from(publicKey, "base64")).digest("hex").slice(0, 32)
+    extensionId = [...sum].map((h) => String.fromCharCode(97 + parseInt(h, 16))).join("")
+  }
+}
+if (store) {
+  delete manifest.key
+  delete manifest.update_url
+}
 
 const config = fs
   .readFileSync(path.join(here, "config.js"), "utf8")
@@ -227,10 +272,18 @@ const archive = zip(entries)
 const sha256 = createHash("sha256").update(archive).digest("hex")
 
 fs.mkdirSync(out, { recursive: true })
+
+if (store) {
+  // The store upload sits beside the served build and never replaces it.
+  const storeName = `moharrik-extension-${version}-webstore.zip`
+  fs.writeFileSync(path.join(out, storeName), archive)
+  console.log(`built ${storeName} for the Chrome Web Store: ${entries.length} files, ${archive.length} bytes, sha256 ${sha256}`)
+  process.exit(0)
+}
 // Earlier builds are removed: the API serves what build.json names, and a
 // directory of stale zips is an invitation to serve the wrong one by hand.
 for (const old of fs.readdirSync(out)) {
-  if (/^moharrik-extension-.*\.zip$/.test(old)) fs.rmSync(path.join(out, old))
+  if (/^moharrik-extension-.*\.zip$/.test(old) && !old.endsWith("-webstore.zip")) fs.rmSync(path.join(out, old))
 }
 const zipName = `moharrik-extension-${version}${dev ? "-dev" : ""}.zip`
 fs.writeFileSync(path.join(out, zipName), archive)
@@ -255,10 +308,12 @@ const info = {
   api: api || site,
   dev,
   commit,
+  public_key: publicKey || undefined,
+  extension_id: extensionId || undefined,
   built_at: new Date().toISOString(),
   files: entries.map((e) => e.name),
 }
 fs.writeFileSync(path.join(out, "build.json"), JSON.stringify(info, null, 2) + "\n")
 
 console.log(`built ${zipName}: ${entries.length} files, ${archive.length} bytes, sha256 ${sha256}`)
-console.log(`site ${site}${api ? ` · api ${api}` : ""}${dev ? " · DEV" : ""}`)
+console.log(`site ${site}${api ? ` · api ${api}` : ""}${dev ? " · DEV" : ""}${grantAll ? " · ALL SITES GRANTED (checks only)" : ""}${extensionId ? ` · id ${extensionId}` : ""}`)

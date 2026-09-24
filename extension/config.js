@@ -28,6 +28,13 @@ export const KEYS = {
   paused: "moh.paused",
   // The one folder an upload step may take files from; unset, uploads are off.
   uploadFolder: "moh.uploadFolder",
+  // Chrome's side of the allowed sites (MH-483, grants.js): "all" or "sites",
+  // and the workspace's sites still waiting for an OK here.
+  grants: "moh.grants",
+  // The newest version the site offers, from its public /latest (MH-483).
+  update: "moh.update",
+  // A Connect click whose permission prompt may outlive the popup (MH-483).
+  connectIntent: "moh.connectIntent",
 }
 
 export async function loadSettings() {

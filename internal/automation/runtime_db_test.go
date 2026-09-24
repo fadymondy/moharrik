@@ -334,3 +334,35 @@ func TestRuntimeKeptTabTravelsWithEveryStep(t *testing.T) {
 		t.Fatalf("a run with no kept tab was bound to one: %s", last[len(last)-1].Payload)
 	}
 }
+
+// MH-483: a browser says whether it holds every site or waits for an OK per
+// site, and the workspace (only that workspace) can read it while it is
+// connected. A mode the server does not know is ignored.
+func TestRuntimeBrowserReportsItsSiteAccess(t *testing.T) {
+	a := testApp(t)
+	hub, wsID, agentID, rb, _ := connectRuntime(t, a, "{example.com,news.google.com}", []string{"multi_tab"}, nil)
+	send := func(payload string) {
+		rb.mu.Lock()
+		defer rb.mu.Unlock()
+		if err := rb.ws.WriteJSON(automation.Envelope{Type: "agent.state", Payload: json.RawMessage(payload)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, ok := hub.AccessIn(wsID)[agentID]; ok {
+		t.Fatal("known before the browser said anything")
+	}
+	send(`{"site_access":"sites","pending_hosts":["News.Google.com","https://example.com/x"]}`)
+	eventually(t, "site access", func() bool { return hub.AccessIn(wsID)[agentID].Mode == "sites" })
+	if got := hub.AccessIn(wsID)[agentID].Pending; len(got) != 2 || got[0] != "news.google.com" || got[1] != "example.com" {
+		t.Fatalf("pending: %v", got)
+	}
+	if len(hub.AccessIn("another-workspace")) != 0 {
+		t.Fatal("another workspace sees this browser's access")
+	}
+	send(`{"site_access":"everything","pending_hosts":[]}`)
+	send(`{"site_access":"all","pending_hosts":["example.com"]}`)
+	eventually(t, "all sites", func() bool { return hub.AccessIn(wsID)[agentID].Mode == "all" })
+	if got := hub.AccessIn(wsID)[agentID].Pending; len(got) != 0 {
+		t.Fatalf("every site granted, yet waiting: %v", got)
+	}
+}

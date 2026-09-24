@@ -886,6 +886,14 @@ export type BrowserAgent = {
   status: "online" | "offline"
   /** Empty allows nothing. */
   allowed_hosts: string[]
+  /**
+   * Chrome's side, live while connected (MH-483): "all" — a site added here
+   * works at once — or "sites", each waiting for an OK in the extension.
+   * Empty when offline or not reported.
+   */
+  site_access: "all" | "sites" | ""
+  /** Allowed sites still waiting for that OK. */
+  pending_hosts: string[]
   token_prefix: string
   last_seen_at: string
   revoked_at: string | null
@@ -1088,6 +1096,10 @@ export type ExtensionInfo = {
   built_at?: string
   commit?: string
   download_url?: string
+  /** A signed, self-updating package is offered to policy-managed Chrome (MH-483). */
+  signed?: boolean
+  extension_id?: string
+  update_url?: string
 }
 
 export type WorkflowParam = {

@@ -252,6 +252,12 @@ func (h *Hub) readPump(a *app.App, c *conn) {
 			// it recorded, and losing a recording to a silent failure is the
 			// one outcome worth avoiding here.
 			h.saveRecording(a, c, env)
+		case env.Type == "agent.state":
+			// Whether this browser gave every site at Connect or waits for an
+			// OK per site (MH-483). Only ever describes the browser that sent it.
+			if h.setAccess(c, env.Payload) && a.Events != nil {
+				a.Events.Publish(c.agent.WorkspaceID, realtime.Event{Kind: "browser", Permission: authz.AutomationRead})
+			}
 		case env.Type == "halt":
 			// "Stop everything", pressed in a browser's own popup. Honoured from
 			// any authenticated browser on purpose: a kill switch that only the
@@ -267,6 +273,31 @@ func (h *Hub) readPump(a *app.App, c *conn) {
 			h.touch(a, c.agent)
 		}
 	}
+}
+
+// setAccess records what a browser said about Chrome's grant, cleaned: a mode
+// it does not know is dropped, and at most 100 hosts, each normalised.
+func (h *Hub) setAccess(c *conn, raw json.RawMessage) bool {
+	var in struct {
+		SiteAccess   string   `json:"site_access"`
+		PendingHosts []string `json:"pending_hosts"`
+	}
+	if json.Unmarshal(raw, &in) != nil || (in.SiteAccess != "all" && in.SiteAccess != "sites") {
+		return false
+	}
+	pending := []string{}
+	for _, p := range in.PendingHosts {
+		if hp := normaliseHost(p); hp != "" && len(pending) < 100 {
+			pending = append(pending, hp)
+		}
+	}
+	if in.SiteAccess == "all" {
+		pending = []string{}
+	}
+	c.mu.Lock()
+	c.access = SiteAccess{Mode: in.SiteAccess, Pending: pending}
+	c.mu.Unlock()
+	return true
 }
 
 func (h *Hub) writePump(c *conn) {

@@ -282,6 +282,11 @@ if (globalThis.chrome?.runtime?.onMessage) {
           post("RECORDING_SAVED", { id: message.id, error: "this browser is not connected to the workspace" })
         }
         break
+      case "agent-state":
+        // Whether this browser holds every site or waits for an OK per site
+        // (MH-483), so the Automation page can say which.
+        send({ type: "agent.state", payload: message.state })
+        break
       case "halt":
         // "Stop all automation" from the popup: over the socket, because the
         // extension holds no session for the site's REST API.

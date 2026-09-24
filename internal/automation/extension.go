@@ -58,6 +58,10 @@ type ExtensionBuild struct {
 	Commit  string   `json:"commit"`
 	BuiltAt string   `json:"built_at"`
 	Files   []string `json:"files"`
+	// The public half of the signing key, base64 SubjectPublicKeyInfo, baked
+	// into the manifest as "key" so every install has the same id (MH-483).
+	PublicKey string `json:"public_key,omitempty"`
+	ID        string `json:"extension_id,omitempty"`
 }
 
 // ExtensionDir is where the packaged build lives: extension/dist under the
@@ -137,6 +141,11 @@ type ExtensionInfo struct {
 	BuiltAt   string `json:"built_at,omitempty"`
 	Commit    string `json:"commit,omitempty"`
 	URL       string `json:"download_url,omitempty"`
+	// The signed package a policy-managed Chrome installs and keeps current
+	// (MH-483); false when this server has no signing key.
+	Signed      bool   `json:"signed"`
+	ExtensionID string `json:"extension_id,omitempty"`
+	UpdateURL   string `json:"update_url,omitempty"`
 }
 
 const extensionDownloadPath = "/api/automation/extension/download"
@@ -157,10 +166,14 @@ func RegisterExtension(api huma.API) {
 			// instead of a button that 404s.
 			return out(ExtensionInfo{Reason: "No extension has been packaged on this server yet."}), nil
 		}
-		return out(ExtensionInfo{
+		info := ExtensionInfo{
 			Available: true, Version: b.Version, File: filepath.Base(b.File), Bytes: b.Bytes, SHA256: b.SHA256,
 			Site: b.Site, Dev: b.Dev, BuiltAt: b.BuiltAt, Commit: b.Commit, URL: extensionDownloadPath,
-		}), nil
+		}
+		if _, _, id, err := SignedExtension(); err == nil {
+			info.Signed, info.ExtensionID, info.UpdateURL = true, id, updateOrigin(b)+extensionUpdatesPath
+		}
+		return out(info), nil
 	})
 
 }

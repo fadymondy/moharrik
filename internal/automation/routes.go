@@ -37,6 +37,12 @@ type AgentOut struct {
 	UpdateAvailable bool       `json:"update_available"`
 	Status          string     `json:"status" doc:"online | offline — live, from the socket registry."`
 	AllowedHosts    []string   `json:"allowed_hosts" doc:"Empty allows nothing."`
+	// Chrome's side (MH-483), live while the browser is connected: "all" —
+	// a site added here works at once — or "sites", where each waits for an
+	// OK in the extension; PendingHosts are this list's sites still waiting.
+	// Empty when the browser is offline or too old to say.
+	SiteAccess   string   `json:"site_access" doc:"all | sites | empty when not known."`
+	PendingHosts []string `json:"pending_hosts" doc:"Allowed sites still waiting for an OK in the browser."`
 	TokenPrefix     string     `json:"token_prefix"`
 	LastSeenAt      time.Time  `json:"last_seen_at"`
 	RevokedAt       *time.Time `json:"revoked_at"`
@@ -130,6 +136,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		// the column is the last thing that was written, and a process that
 		// restarted would otherwise show every browser as still online.
 		online := hub.OnlineIn(s.WorkspaceID)
+		access := hub.AccessIn(s.WorkspaceID)
 		latest := LatestExtension()
 
 		list := []AgentOut{}
@@ -151,6 +158,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 				x.Status = "online"
 			}
 			x.UpdateAvailable = x.RevokedAt == nil && Outdated(x.ExtensionVersion, latest)
+			applyAccess(&x, access)
 			list = append(list, x)
 		}
 
@@ -508,7 +516,28 @@ func getAgent(ctx context.Context, db *sql.DB, hub *Hub, workspaceID, id string)
 		x.Status = "online"
 	}
 	x.UpdateAvailable = x.RevokedAt == nil && Outdated(x.ExtensionVersion, LatestExtension())
+	applyAccess(&x, hub.AccessIn(workspaceID))
 	return x, nil
+}
+
+// applyAccess fills in what the browser last said about Chrome's grant. Only
+// hosts still on this browser's list are reported waiting: one removed on the
+// site since the browser spoke is no longer anyone's business.
+func applyAccess(x *AgentOut, access map[string]SiteAccess) {
+	x.PendingHosts = []string{}
+	sa, ok := access[x.ID]
+	if !ok {
+		return
+	}
+	x.SiteAccess = sa.Mode
+	for _, p := range sa.Pending {
+		for _, h := range x.AllowedHosts {
+			if normaliseHost(h) == p {
+				x.PendingHosts = append(x.PendingHosts, p)
+				break
+			}
+		}
+	}
 }
 
 // cleanHosts normalises what someone typed and drops what cannot be a host, so

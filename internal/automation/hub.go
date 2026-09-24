@@ -105,6 +105,9 @@ type conn struct {
 	ws    *websocket.Conn
 	send  chan []byte
 
+	// What the browser last said about Chrome's grant (MH-483), under mu.
+	access SiteAccess
+
 	mu      sync.Mutex
 	pending map[string]chan Envelope
 	closed  bool
@@ -120,6 +123,35 @@ type Hub struct {
 
 func NewHub(log *slog.Logger) *Hub {
 	return &Hub{log: log, conns: make(map[string]*conn)}
+}
+
+// SiteAccess is Chrome's side of a browser's allowed sites (MH-483): "all"
+// when the person gave every site at Connect, so a site added on the website
+// works at once; "sites" when each one waits for their OK in the extension,
+// with the ones still waiting. Live state, told by the browser: known only
+// while it is connected.
+type SiteAccess struct {
+	Mode    string   `json:"mode"`
+	Pending []string `json:"pending"`
+}
+
+// AccessIn is the last SiteAccess each connected browser of a workspace
+// reported. Scoped like OnlineIn.
+func (h *Hub) AccessIn(workspaceID string) map[string]SiteAccess {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := map[string]SiteAccess{}
+	for id, c := range h.conns {
+		if c.agent.WorkspaceID != workspaceID {
+			continue
+		}
+		c.mu.Lock()
+		if c.access.Mode != "" {
+			out[id] = c.access
+		}
+		c.mu.Unlock()
+	}
+	return out
 }
 
 // Online reports whether a browser is connected right now. The database's

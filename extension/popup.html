@@ -43,9 +43,33 @@
         </div>
       </div>
 
-      <!-- Shown only when the site offers a newer build than this one. A note,
-           not an auto-update: an unpacked extension cannot update itself. -->
-      <p id="update" class="hint hint--note" hidden></p>
+      <!-- Sites the workspace added that Chrome has not been told about yet
+           (MH-483): only when every-site access was declined. One click each. -->
+      <section id="waiting-ok" class="section" hidden>
+        <span class="label">Waiting for your OK</span>
+        <ul id="pending-list" class="plist"></ul>
+        <p class="hint">
+          Your workspace added these sites for this browser. Approve each one here, or let Moharrik use
+          every site once and new ones will work without asking.
+        </p>
+        <div class="actions actions--inline">
+          <button id="approve-all-sites" class="btn" type="button">Allow every site</button>
+        </div>
+      </section>
+
+      <!-- A newer build is out (MH-483): checked on connect and every six hours. -->
+      <section id="update-box" class="section" hidden>
+        <div class="row">
+          <span class="label">Update available</span>
+          <span id="update-version" class="value mono"></span>
+        </div>
+        <button id="update-download" class="btn btn--primary" type="button">Download</button>
+        <ol class="steps">
+          <li>Unzip it over the folder this extension was loaded from, replacing the files.</li>
+          <li>Open <span class="mono">chrome://extensions</span> and press the reload arrow on Moharrik.</li>
+          <li>This browser stays connected: nothing to approve again.</li>
+        </ol>
+      </section>
 
       <section class="row" id="last-row">
         <span class="label">Last command</span>
@@ -81,6 +105,11 @@
           <button id="recdiscard" class="btn" type="button" hidden>Discard</button>
         </div>
       </section>
+
+      <p class="hint" id="connect-note" hidden>
+        Connecting asks Chrome to let Moharrik use websites for you. Your workspace still decides which
+        sites, on its Automation page; nothing runs anywhere else.
+      </p>
 
       <div class="actions">
         <button id="connect" class="btn btn--primary" type="button">Connect to the site</button>

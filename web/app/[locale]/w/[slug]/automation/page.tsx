@@ -450,6 +450,7 @@ function BrowsersStatus({ browsers, onManage, installHref }: { browsers: Browser
   const online = browsers.filter((b) => b.status === "online").length
   const outdated = browsers.filter((b) => b.update_available).length
   const hosts = [...new Set(browsers.flatMap((b) => b.allowed_hosts))]
+  const waiting = [...new Set(browsers.filter((b) => b.status === "online").flatMap((b) => b.pending_hosts ?? []))]
   return (
     <section className="flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-line bg-grid-card px-6 py-4" data-browser-status>
       <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground" aria-hidden>
@@ -468,6 +469,13 @@ function BrowsersStatus({ browsers, onManage, installHref }: { browsers: Browser
           <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
           <span className="min-w-0 break-words">{t("automation.mayVisit", { hosts: hosts.join(", ") })}</span>
         </p>
+        {/* A site added here that a browser has not given its OK to yet
+            (MH-483): said in the folded row too, or nobody opens "Manage". */}
+        {waiting.length > 0 ? (
+          <p className="text-xs text-foreground" data-status-pending={waiting.join(",")}>
+            {t("automation.access.pending", { hosts: waiting.join(", ") })}
+          </p>
+        ) : null}
       </div>
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={installHref} />} data-install-link>
@@ -572,6 +580,20 @@ function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; c
               <span className="text-grid-muted">{t("automation.noHostsYet")}</span>
             )}
           </p>
+          {/* Whether a site added here works at once, or waits for an OK in the
+              browser (MH-483). Said only while the browser is connected: it is
+              the browser's own report. */}
+          {browser.status === "online" && browser.site_access && !revoked ? (
+            <p className="mt-1 text-xs text-grid-muted" data-site-access={browser.site_access} data-pending={browser.pending_hosts.join(",")}>
+              {browser.pending_hosts.length > 0 ? (
+                <span className="text-foreground">{t("automation.access.pending", { hosts: browser.pending_hosts.join(", ") })}</span>
+              ) : browser.site_access === "all" ? (
+                t("automation.access.all")
+              ) : (
+                t("automation.access.sites")
+              )}
+            </p>
+          ) : null}
         </div>
         {canManage && !revoked ? (
           <div className="flex flex-wrap items-center gap-2">

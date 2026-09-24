@@ -9,7 +9,8 @@ not know" is rendered as such, never as "fine" — a popup that says connected
 because it once was sends people to schedule work that will never run.
 */
 
-import { DEFAULTS, KEYS, clear, get, loadSettings, saveSettings } from "./config.js"
+import { DEFAULTS, KEYS, clear, get, loadSettings, saveSettings, set } from "./config.js"
+import { BROAD, newerThan, originsFor } from "./grants.js"
 
 const $ = (id) => document.getElementById(id)
 
@@ -35,19 +36,8 @@ function ago(at) {
   return `${Math.round(s / 86400)}d ago`
 }
 
-function newerThan(a, b) {
-  const pa = String(a).split(".").map(Number)
-  const pb = String(b).split(".").map(Number)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i] || 0
-    const y = pb[i] || 0
-    if (x !== y) return x > y
-  }
-  return false
-}
-
 async function read() {
-  const [settings, status, agent, token, pairing, paused, recording] = await Promise.all([
+  const [settings, status, agent, token, pairing, paused, recording, grants, update] = await Promise.all([
     loadSettings(),
     get(KEYS.status),
     get(KEYS.agent),
@@ -55,6 +45,8 @@ async function read() {
     get(KEYS.pairing),
     get(KEYS.paused),
     get("moh.recording"),
+    get(KEYS.grants),
+    get(KEYS.update),
   ])
   return {
     settings,
@@ -64,6 +56,8 @@ async function read() {
     pairing: pairing || null,
     paused: paused === true,
     recording: recording || null,
+    grants: grants || null,
+    update: update || null,
   }
 }
 
@@ -144,13 +138,22 @@ function render(view) {
     ? `${last.type} · ${last.ok ? `${last.ms ?? 0}ms` : `failed: ${last.error ?? "error"}`} · ${ago(last.at)}`
     : "none yet"
 
-  const latest = agent.latestVersion
+  // The newest of what the socket said at connect and what the six-hourly
+  // check found (MH-483).
   const current = chrome.runtime.getManifest().version
-  const outdated = paired && latest && newerThan(latest, current)
-  $("update").hidden = !outdated
+  const latest = [agent.latestVersion, view.update?.latest].filter(Boolean).reduce((a, b) => (newerThan(b, a) ? b : a), "")
+  const outdated = !!latest && newerThan(latest, current)
+  $("update-box").hidden = !outdated
   if (outdated) {
-    $("update").textContent = `Version ${latest} is available (this is ${current}). Download it from the Install the extension page on ${host} and load it in place of this one.`
+    $("update-version").textContent = `${current} → ${latest}`
+    $("update-download").textContent = `Download ${latest}`
   }
+
+  // Sites the workspace added that Chrome has not allowed yet (MH-483).
+  const pending = paired ? view.grants?.pending || [] : []
+  $("waiting-ok").hidden = pending.length === 0
+  renderPending(pending)
+  $("connect-note").hidden = paired || waiting
 
   $("pause-row").hidden = !paired
   $("pause-hint").hidden = !paired
@@ -171,6 +174,37 @@ function render(view) {
   $("halt").hidden = !(paired && status.state === "connected" && !paused)
 
   renderRecording(view)
+}
+
+function renderPending(pending) {
+  const list = $("pending-list")
+  if (list.dataset.hosts === pending.join(",")) return // do not rebuild under the pointer
+  list.dataset.hosts = pending.join(",")
+  list.replaceChildren()
+  for (const host of pending) {
+    const li = document.createElement("li")
+    const name = document.createElement("span")
+    name.textContent = host
+    const button = document.createElement("button")
+    button.className = "btn"
+    button.type = "button"
+    button.textContent = "Approve"
+    button.dataset.approve = host
+    // The request is the click's FIRST call: Chrome honours it only inside the gesture.
+    button.addEventListener("click", () => ask(originsFor(host)))
+    li.append(name, button)
+    list.append(li)
+  }
+}
+
+function ask(origins) {
+  chrome.permissions
+    .request({ origins })
+    .then((ok) => {
+      if (!ok) say("Chrome did not allow it. The site stays waiting until you approve it.")
+    })
+    .catch((e) => say(String(e?.message || e)))
+    .finally(() => chrome.runtime.sendMessage({ type: "grants.refresh" }).catch(() => {}))
 }
 
 /*
@@ -213,24 +247,45 @@ function say(text, isBad = true) {
 /* ---------------------------------------------------------------- actions */
 
 $("connect").addEventListener("click", () => {
-  // The permission request goes FIRST, inside the click. For the production
-  // site the manifest grants it and this returns at once without a prompt.
-  const asked = chrome.permissions.request({ origins: wanted }).catch(() => false)
+  const languages = navigator.languages || [navigator.language]
+  // The permission request goes FIRST, inside the click (MH-483): every
+  // http(s) site, once, so a site the workspace adds later works without a
+  // second click here. The workspace's list still decides where a run may go.
+  const asked = chrome.permissions.request({ origins: [...BROAD, ...wanted] }).catch(() => false)
+  // Left for the worker in case Chrome closes this popup while its prompt is
+  // up: the grant arriving there starts the connect instead (background.js).
+  void set(KEYS.connectIntent, { at: Date.now(), languages })
   $("connect").disabled = true
   asked
     .then(async (granted) => {
       if (!granted) {
-        say("Without permission for that site this browser cannot connect to it.")
-        return
+        void clear(KEYS.connectIntent)
+        // Declined: connect anyway, site by site, when the site itself is
+        // reachable (it always is for the site this build was made for).
+        const siteOk = await chrome.permissions.contains({ origins: wanted }).catch(() => false)
+        if (!siteOk) {
+          say("Without permission for that site this browser cannot connect to it.")
+          return
+        }
       }
-      const out = await chrome.runtime.sendMessage({ type: "connect.start", languages: navigator.languages || [navigator.language] })
+      const out = await chrome.runtime.sendMessage({ type: "connect.start", languages })
       if (!out?.ok) say(out?.error || "The site could not be reached.")
+      else if (!granted) say("Connecting site by site: each site your workspace adds will wait for your OK here.", false)
     })
     .catch((e) => say(String(e?.message || e)))
     .finally(() => {
       $("connect").disabled = false
       refresh()
     })
+})
+
+$("approve-all-sites").addEventListener("click", () => ask(BROAD))
+
+$("update-download").addEventListener("click", async () => {
+  // The signed-in download on the site (its cookie is on the site, not the
+  // API origin): one click, and the zip lands in Downloads.
+  const settings = await loadSettings()
+  await chrome.tabs.create({ url: `${settings.siteOrigin.replace(/\/+$/, "")}/api/automation/extension/download` })
 })
 
 $("reopen").addEventListener("click", () => chrome.runtime.sendMessage({ type: "connect.reopen" }))

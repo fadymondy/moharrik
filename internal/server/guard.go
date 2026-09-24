@@ -100,6 +100,12 @@ func classify(r *http.Request) tier {
 	// an admin of a workspace approves its pairing.
 	case "/api/automation/extension", "/api/automation/extension/download":
 		return tierSignedIn
+	// How the extension updates itself (MH-483): Chrome's updater reads the
+	// update manifest and fetches the signed package with no session, and the
+	// extension asks which version is current before it has connected. The
+	// same files for everyone, nothing secret in them.
+	case "/api/automation/extension/updates.xml", "/api/automation/extension/moharrik.crx", "/api/automation/extension/latest":
+		return tierPublic
 	}
 	// A webhook delivery: no session, no X-Workspace-ID — the id in the path
 	// plus its HMAC signature over the raw body are the authorization
