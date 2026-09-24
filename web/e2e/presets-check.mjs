@@ -97,6 +97,21 @@ try {
   out.searchNarrows = (await page.$$("[data-preset]")).length
   await page.fill("[data-preset-search]", "")
 
+  // ---- plain words first, the technical notes collapsed (MH-518) ----
+  out.plainNameLeads = (await page.textContent("[data-preset='google-news-search'] [data-preset-name]")) === "Search Google News"
+  out.technicalCollapsed = !(await page.isVisible("[data-preset='google-news-search'] [data-preset-technical] [data-preset-inputs]"))
+  await page.click("[data-preset='google-news-search'] [data-technical-toggle]")
+  await page.waitForSelector("[data-preset='google-news-search'] [data-preset-technical] [data-preset-inputs]", { state: "visible", timeout: 5000 })
+  out.technicalOpens = (await page.textContent("[data-preset='google-news-search'] [data-preset-technical]")).includes("Google News: search")
+  await page.goto(`${base}/ar/w/${slug}/automation/presets`, { waitUntil: "load" })
+  await page.waitForSelector("[data-preset='google-news-search'] [data-preset-name]", { timeout: 30000 })
+  out.arabicNames = (await page.textContent("[data-preset='google-news-search'] [data-preset-name]")) === "البحث في أخبار Google" &&
+    /[؀-ۿ]/.test(await page.textContent("[data-preset='linkedin-post'] [data-preset-summary]"))
+  const arAdded = await call("POST", "/api/w/automation/presets/news-headlines-techcrunch/add", { locale: "ar" }, wsID)
+  out.addedInArabicIsNamedInArabic = arAdded.workflow.name === "عناوين TechCrunch"
+  await page.goto(`${base}/en/w/${slug}/automation/presets`, { waitUntil: "load" })
+  await page.waitForSelector("[data-add-preset='google-news-search']", { timeout: 30000 })
+
   // ---- add Google News with the browser: its site allowed in the same step ----
   await page.click("[data-add-preset='google-news-search']")
   await page.waitForSelector("[data-preset-dialog='google-news-search'] [data-add-allow]")

@@ -1182,6 +1182,8 @@ export type AutomationPreset = {
   writes: boolean
   dry_run?: string
   dry_run_of?: string
+  /** Plain words for people, by language (MH-518); name and description above are the technical ones. */
+  plain?: Record<string, { name: string; summary: string }>
   needs_profile: string[]
   needs_whatsapp: boolean
   /** The workflow it became in this workspace, once added. */

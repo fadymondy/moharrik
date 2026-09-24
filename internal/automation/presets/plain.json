@@ -1,0 +1,450 @@
+{
+  "search-google": {
+    "en": {"name": "Google search results", "summary": "The first three pages of Google results for a search."},
+    "ar": {"name": "نتائج بحث Google", "summary": "أول ثلاث صفحات من نتائج Google لعبارة بحث."}
+  },
+  "search-bing": {
+    "en": {"name": "Bing search results", "summary": "The first three pages of Bing results for a search."},
+    "ar": {"name": "نتائج بحث Bing", "summary": "أول ثلاث صفحات من نتائج Bing لعبارة بحث."}
+  },
+  "search-duckduckgo": {
+    "en": {"name": "DuckDuckGo search results", "summary": "The first three pages of DuckDuckGo results for a search."},
+    "ar": {"name": "نتائج بحث DuckDuckGo", "summary": "أول ثلاث صفحات من نتائج DuckDuckGo لعبارة بحث."}
+  },
+  "search-brave": {
+    "en": {"name": "Brave search results", "summary": "The first three pages of Brave Search results for a search."},
+    "ar": {"name": "نتائج بحث Brave", "summary": "أول ثلاث صفحات من نتائج Brave Search لعبارة بحث."}
+  },
+  "search-yahoo": {
+    "en": {"name": "Yahoo search results", "summary": "The first three pages of Yahoo results for a search."},
+    "ar": {"name": "نتائج بحث Yahoo", "summary": "أول ثلاث صفحات من نتائج Yahoo لعبارة بحث."}
+  },
+  "google-news-topic": {
+    "en": {"name": "Google News by topic", "summary": "Today's headlines in a Google News section, such as Business or Technology."},
+    "ar": {"name": "أخبار Google حسب الموضوع", "summary": "عناوين اليوم في قسم من أخبار Google، مثل الأعمال أو التقنية."}
+  },
+  "google-news-search": {
+    "en": {"name": "Search Google News", "summary": "News headlines about any subject, with their source and time."},
+    "ar": {"name": "البحث في أخبار Google", "summary": "عناوين الأخبار عن أي موضوع، مع مصدرها ووقتها."}
+  },
+  "google-trends-now": {
+    "en": {"name": "Trending searches now", "summary": "What people are searching for most right now in a country, from Google Trends."},
+    "ar": {"name": "عمليات البحث الرائجة الآن", "summary": "أكثر ما يبحث عنه الناس الآن في دولة ما، من مؤشرات Google."}
+  },
+  "google-trends-explore": {
+    "en": {"name": "Interest in a keyword over time", "summary": "How interest in a word has moved over the past year, from Google Trends."},
+    "ar": {"name": "الاهتمام بكلمة عبر الزمن", "summary": "كيف تغيّر الاهتمام بكلمة خلال العام الماضي، من مؤشرات Google."}
+  },
+  "news-headlines-theverge": {
+    "en": {"name": "The Verge headlines", "summary": "The latest stories from The Verge."},
+    "ar": {"name": "عناوين The Verge", "summary": "أحدث قصص موقع The Verge."}
+  },
+  "news-headlines-techcrunch": {
+    "en": {"name": "TechCrunch headlines", "summary": "The latest startup and technology news from TechCrunch."},
+    "ar": {"name": "عناوين TechCrunch", "summary": "أحدث أخبار الشركات الناشئة والتقنية من TechCrunch."}
+  },
+  "news-headlines-arstechnica": {
+    "en": {"name": "Ars Technica headlines", "summary": "The latest stories from Ars Technica."},
+    "ar": {"name": "عناوين Ars Technica", "summary": "أحدث قصص موقع Ars Technica."}
+  },
+  "news-headlines-wired": {
+    "en": {"name": "WIRED headlines", "summary": "The most recent stories from WIRED."},
+    "ar": {"name": "عناوين WIRED", "summary": "أحدث قصص مجلة WIRED."}
+  },
+  "news-headlines-technologyreview": {
+    "en": {"name": "MIT Technology Review headlines", "summary": "The latest stories from MIT Technology Review."},
+    "ar": {"name": "عناوين MIT Technology Review", "summary": "أحدث قصص MIT Technology Review."}
+  },
+  "news-headlines-infoq": {
+    "en": {"name": "InfoQ headlines", "summary": "The latest software engineering news from InfoQ."},
+    "ar": {"name": "عناوين InfoQ", "summary": "أحدث أخبار هندسة البرمجيات من InfoQ."}
+  },
+  "news-headlines-github-blog": {
+    "en": {"name": "GitHub Blog posts", "summary": "The newest posts on the GitHub Blog."},
+    "ar": {"name": "مقالات مدونة GitHub", "summary": "أحدث المقالات في مدونة GitHub."}
+  },
+  "news-headlines-devto": {
+    "en": {"name": "DEV Community latest posts", "summary": "The newest posts on DEV Community."},
+    "ar": {"name": "أحدث منشورات DEV Community", "summary": "أحدث المنشورات على DEV Community."}
+  },
+  "news-headlines-hackernews": {
+    "en": {"name": "Hacker News front page", "summary": "The stories on Hacker News right now, with their points and comments."},
+    "ar": {"name": "الصفحة الأولى في Hacker News", "summary": "القصص المعروضة الآن على Hacker News مع نقاطها وتعليقاتها."}
+  },
+  "news-read-article": {
+    "en": {"name": "Read any article", "summary": "The title, author, date and text of an article at any address."},
+    "ar": {"name": "قراءة أي مقال", "summary": "عنوان أي مقال وكاتبه وتاريخه ونصه، من أي عنوان ويب."}
+  },
+  "gmail-read-inbox": {
+    "en": {"name": "Read the Gmail inbox", "summary": "The conversations in the signed-in Gmail inbox: sender, subject and date."},
+    "ar": {"name": "قراءة صندوق Gmail", "summary": "المحادثات في صندوق Gmail للحساب المسجّل: المرسل والموضوع والتاريخ."}
+  },
+  "telegram-channel": {
+    "en": {"name": "Read a Telegram channel", "summary": "The latest posts of a public Telegram channel, without signing in."},
+    "ar": {"name": "قراءة قناة Telegram", "summary": "أحدث منشورات قناة Telegram عامة، دون تسجيل الدخول."}
+  },
+  "gmail-read-message": {
+    "en": {"name": "Read a Gmail conversation", "summary": "Every message in one Gmail conversation."},
+    "ar": {"name": "قراءة محادثة في Gmail", "summary": "كل الرسائل في محادثة واحدة على Gmail."}
+  },
+  "gmail-send": {
+    "en": {"name": "Send an email from Gmail", "summary": "Writes and sends an email from the signed-in Gmail account."},
+    "ar": {"name": "إرسال بريد من Gmail", "summary": "يكتب رسالة ويرسلها من حساب Gmail المسجّل."}
+  },
+  "devto-feed": {
+    "en": {"name": "dev.to feed", "summary": "Posts from a dev.to feed, with their reactions and comments."},
+    "ar": {"name": "خلاصة dev.to", "summary": "منشورات من خلاصة dev.to مع التفاعلات والتعليقات."}
+  },
+  "devto-tag": {
+    "en": {"name": "dev.to posts by tag", "summary": "dev.to posts under one tag."},
+    "ar": {"name": "منشورات dev.to حسب الوسم", "summary": "منشورات dev.to تحت وسم واحد."}
+  },
+  "devto-search": {
+    "en": {"name": "Search dev.to", "summary": "dev.to posts matching a search."},
+    "ar": {"name": "البحث في dev.to", "summary": "منشورات dev.to المطابقة لعبارة بحث."}
+  },
+  "devto-article": {
+    "en": {"name": "Read a dev.to article", "summary": "The title, author, date and text of one dev.to article."},
+    "ar": {"name": "قراءة مقال على dev.to", "summary": "عنوان مقال على dev.to وكاتبه وتاريخه ونصه."}
+  },
+  "medium-tag": {
+    "en": {"name": "Medium stories by tag", "summary": "Medium stories under one tag."},
+    "ar": {"name": "قصص Medium حسب الوسم", "summary": "قصص Medium تحت وسم واحد."}
+  },
+  "medium-search": {
+    "en": {"name": "Search Medium", "summary": "Medium stories matching a search."},
+    "ar": {"name": "البحث في Medium", "summary": "قصص Medium المطابقة لعبارة بحث."}
+  },
+  "medium-article": {
+    "en": {"name": "Read a Medium story", "summary": "The title, author, date and text of one Medium story."},
+    "ar": {"name": "قراءة قصة على Medium", "summary": "عنوان قصة على Medium وكاتبها وتاريخها ونصها."}
+  },
+  "techwd-headlines": {
+    "en": {"name": "Tech World (tech-wd) headlines", "summary": "The latest Arabic technology headlines from tech-wd.com."},
+    "ar": {"name": "عناوين عالم التقنية", "summary": "أحدث عناوين التقنية بالعربية من موقع عالم التقنية."}
+  },
+  "techwd-article": {
+    "en": {"name": "Read a Tech World (tech-wd) article", "summary": "The title, author, date and text of one tech-wd.com article."},
+    "ar": {"name": "قراءة مقال من عالم التقنية", "summary": "عنوان مقال من عالم التقنية وكاتبه وتاريخه ونصه."}
+  },
+  "majarra-oloom-headlines": {
+    "en": {"name": "Oloom (Majarra) headlines", "summary": "The latest Arabic science headlines from Oloom by Majarra."},
+    "ar": {"name": "عناوين العلوم للعموم", "summary": "أحدث عناوين العلوم بالعربية من العلوم للعموم (مجرّة)."}
+  },
+  "majarra-oloom-article": {
+    "en": {"name": "Read an Oloom (Majarra) article", "summary": "The title, author, date and text of one Oloom article."},
+    "ar": {"name": "قراءة مقال من العلوم للعموم", "summary": "عنوان مقال من العلوم للعموم وكاتبه وتاريخه ونصه."}
+  },
+  "jobs-weworkremotely": {
+    "en": {"name": "Remote jobs on We Work Remotely", "summary": "Remote job listings on We Work Remotely for a search."},
+    "ar": {"name": "وظائف عن بُعد على We Work Remotely", "summary": "إعلانات وظائف عن بُعد على We Work Remotely لعبارة بحث."}
+  },
+  "jobs-remoteok": {
+    "en": {"name": "Remote jobs on Remote OK", "summary": "Remote job listings on Remote OK for a skill or role."},
+    "ar": {"name": "وظائف عن بُعد على Remote OK", "summary": "إعلانات وظائف عن بُعد على Remote OK لمهارة أو دور."}
+  },
+  "jobs-remotive": {
+    "en": {"name": "Remote jobs on Remotive", "summary": "Remote job listings on Remotive for a search."},
+    "ar": {"name": "وظائف عن بُعد على Remotive", "summary": "إعلانات وظائف عن بُعد على Remotive لعبارة بحث."}
+  },
+  "jobs-himalayas": {
+    "en": {"name": "Jobs on Himalayas", "summary": "Remote job listings on Himalayas for a search."},
+    "ar": {"name": "وظائف على Himalayas", "summary": "إعلانات وظائف عن بُعد على Himalayas لعبارة بحث."}
+  },
+  "jobs-wellfound": {
+    "en": {"name": "Startup jobs on Wellfound", "summary": "Remote startup roles on Wellfound for a job title."},
+    "ar": {"name": "وظائف الشركات الناشئة على Wellfound", "summary": "أدوار عن بُعد في الشركات الناشئة على Wellfound لمسمّى وظيفي."}
+  },
+  "jobs-greenhouse-board": {
+    "en": {"name": "A company's jobs on Greenhouse", "summary": "The open roles on one company's Greenhouse job board."},
+    "ar": {"name": "وظائف شركة على Greenhouse", "summary": "الوظائف المتاحة في لوحة وظائف شركة على Greenhouse."}
+  },
+  "jobs-lever-board": {
+    "en": {"name": "A company's jobs on Lever", "summary": "The open roles on one company's Lever job board."},
+    "ar": {"name": "وظائف شركة على Lever", "summary": "الوظائف المتاحة في لوحة وظائف شركة على Lever."}
+  },
+  "youtube-search": {
+    "en": {"name": "Search YouTube", "summary": "YouTube videos for a search, with their channel, views and date."},
+    "ar": {"name": "البحث في YouTube", "summary": "فيديوهات YouTube لعبارة بحث، مع القناة والمشاهدات والتاريخ."}
+  },
+  "youtube-read-video": {
+    "en": {"name": "Read a YouTube video's page", "summary": "A video's title, channel, views, description and top comments."},
+    "ar": {"name": "قراءة صفحة فيديو على YouTube", "summary": "عنوان الفيديو وقناته ومشاهداته ووصفه وأبرز التعليقات."}
+  },
+  "youtube-comment": {
+    "en": {"name": "Comment on a YouTube video", "summary": "Posts a comment on a video as the signed-in channel."},
+    "ar": {"name": "التعليق على فيديو في YouTube", "summary": "ينشر تعليقاً على فيديو باسم القناة المسجّلة."}
+  },
+  "x-read-feed": {
+    "en": {"name": "Read the X timeline", "summary": "The posts on the signed-in account's X home timeline."},
+    "ar": {"name": "قراءة الخط الزمني في X", "summary": "المنشورات في الخط الزمني للحساب المسجّل على X."}
+  },
+  "x-trends": {
+    "en": {"name": "Trending on X", "summary": "The topics trending on X right now."},
+    "ar": {"name": "الرائج على X", "summary": "الموضوعات الرائجة الآن على X."}
+  },
+  "x-read-thread": {
+    "en": {"name": "Read a post on X and its replies", "summary": "One X post with the replies under it."},
+    "ar": {"name": "قراءة منشور على X وردوده", "summary": "منشور واحد على X مع الردود عليه."}
+  },
+  "x-search": {
+    "en": {"name": "Search X", "summary": "Top or latest X posts for a search."},
+    "ar": {"name": "البحث في X", "summary": "أبرز منشورات X أو أحدثها لعبارة بحث."}
+  },
+  "facebook-read-feed": {
+    "en": {"name": "Read the Facebook feed", "summary": "The posts on the signed-in account's Facebook news feed."},
+    "ar": {"name": "قراءة آخر الأخبار في Facebook", "summary": "المنشورات في آخر الأخبار للحساب المسجّل على Facebook."}
+  },
+  "facebook-search": {
+    "en": {"name": "Search Facebook", "summary": "Facebook posts, people or pages for a search."},
+    "ar": {"name": "البحث في Facebook", "summary": "منشورات أو أشخاص أو صفحات على Facebook لعبارة بحث."}
+  },
+  "bluesky-read-feed": {
+    "en": {"name": "Read a Bluesky feed", "summary": "The posts in a Bluesky feed, Discover by default."},
+    "ar": {"name": "قراءة خلاصة Bluesky", "summary": "المنشورات في خلاصة على Bluesky، وهي Discover افتراضياً."}
+  },
+  "bluesky-read-profile": {
+    "en": {"name": "Read a Bluesky profile", "summary": "A Bluesky profile's details and recent posts."},
+    "ar": {"name": "قراءة ملف على Bluesky", "summary": "تفاصيل ملف شخصي على Bluesky وأحدث منشوراته."}
+  },
+  "bluesky-search": {
+    "en": {"name": "Search Bluesky", "summary": "Bluesky posts or people for a search."},
+    "ar": {"name": "البحث في Bluesky", "summary": "منشورات أو أشخاص على Bluesky لعبارة بحث."}
+  },
+  "facebook-read-profile": {
+    "en": {"name": "Read a Facebook profile or page", "summary": "A Facebook profile's or page's details and recent posts."},
+    "ar": {"name": "قراءة ملف أو صفحة على Facebook", "summary": "تفاصيل ملف شخصي أو صفحة على Facebook وأحدث المنشورات."}
+  },
+  "facebook-post": {
+    "en": {"name": "Post on Facebook", "summary": "Publishes a text post on the signed-in account's timeline."},
+    "ar": {"name": "النشر على Facebook", "summary": "ينشر منشوراً نصياً على الخط الزمني للحساب المسجّل."}
+  },
+  "facebook-comment": {
+    "en": {"name": "Comment on a Facebook post", "summary": "Posts a comment as the signed-in Facebook account."},
+    "ar": {"name": "التعليق على منشور في Facebook", "summary": "ينشر تعليقاً باسم حساب Facebook المسجّل."}
+  },
+  "instagram-read-feed": {
+    "en": {"name": "Read the Instagram feed", "summary": "The posts on the signed-in account's Instagram home feed."},
+    "ar": {"name": "قراءة الصفحة الرئيسية في Instagram", "summary": "المنشورات في الصفحة الرئيسية للحساب المسجّل على Instagram."}
+  },
+  "job-apply-greenhouse": {
+    "en": {"name": "Apply to a Greenhouse job", "summary": "Fills in a Greenhouse application from the workspace profile and submits it."},
+    "ar": {"name": "التقديم على وظيفة في Greenhouse", "summary": "يملأ طلب التقديم في Greenhouse من ملف المساحة ويرسله."}
+  },
+  "job-apply-lever": {
+    "en": {"name": "Apply to a Lever job", "summary": "Fills in a Lever application from the workspace profile and submits it."},
+    "ar": {"name": "التقديم على وظيفة في Lever", "summary": "يملأ طلب التقديم في Lever من ملف المساحة ويرسله."}
+  },
+  "job-apply-ashby": {
+    "en": {"name": "Apply to an Ashby job", "summary": "Fills in an Ashby application from the workspace profile and submits it."},
+    "ar": {"name": "التقديم على وظيفة في Ashby", "summary": "يملأ طلب التقديم في Ashby من ملف المساحة ويرسله."}
+  },
+  "linkedin-read-feed": {
+    "en": {"name": "Read the LinkedIn feed", "summary": "The posts on the signed-in account's LinkedIn feed."},
+    "ar": {"name": "قراءة الخلاصة في LinkedIn", "summary": "المنشورات في خلاصة الحساب المسجّل على LinkedIn."}
+  },
+  "linkedin-jobs": {
+    "en": {"name": "Search LinkedIn jobs", "summary": "LinkedIn job listings for a search, remote by default."},
+    "ar": {"name": "البحث عن وظائف في LinkedIn", "summary": "إعلانات الوظائف على LinkedIn لعبارة بحث، عن بُعد افتراضياً."}
+  },
+  "linkedin-search": {
+    "en": {"name": "Search LinkedIn", "summary": "LinkedIn people, companies or posts for a search."},
+    "ar": {"name": "البحث في LinkedIn", "summary": "أشخاص أو شركات أو منشورات على LinkedIn لعبارة بحث."}
+  },
+  "instagram-search": {
+    "en": {"name": "Search Instagram", "summary": "Instagram posts for a keyword."},
+    "ar": {"name": "البحث في Instagram", "summary": "منشورات Instagram لكلمة مفتاحية."}
+  },
+  "linkedin-read-notifications": {
+    "en": {"name": "Read LinkedIn notifications", "summary": "The signed-in account's LinkedIn notifications, without opening them."},
+    "ar": {"name": "قراءة إشعارات LinkedIn", "summary": "إشعارات الحساب المسجّل على LinkedIn، دون فتحها."}
+  },
+  "linkedin-post": {
+    "en": {"name": "Post on LinkedIn", "summary": "Publishes a post from the signed-in LinkedIn account."},
+    "ar": {"name": "النشر على LinkedIn", "summary": "ينشر منشوراً من حساب LinkedIn المسجّل."}
+  },
+  "linkedin-comment": {
+    "en": {"name": "Comment on a LinkedIn post", "summary": "Posts a comment as the signed-in LinkedIn account."},
+    "ar": {"name": "التعليق على منشور في LinkedIn", "summary": "ينشر تعليقاً باسم حساب LinkedIn المسجّل."}
+  },
+  "linkedin-easy-apply": {
+    "en": {"name": "LinkedIn Easy Apply", "summary": "Applies to a LinkedIn job with Easy Apply, using the workspace profile, and submits it."},
+    "ar": {"name": "التقديم السهل في LinkedIn", "summary": "يتقدّم لوظيفة على LinkedIn بالتقديم السهل مستخدماً ملف المساحة، ويرسل الطلب."}
+  },
+  "x-post": {
+    "en": {"name": "Post on X", "summary": "Publishes a post from the signed-in X account."},
+    "ar": {"name": "النشر على X", "summary": "ينشر منشوراً من حساب X المسجّل."}
+  },
+  "x-reply": {
+    "en": {"name": "Reply to a post on X", "summary": "Publishes a reply as the signed-in X account."},
+    "ar": {"name": "الرد على منشور في X", "summary": "ينشر رداً باسم حساب X المسجّل."}
+  },
+  "x-read-notifications": {
+    "en": {"name": "Read X notifications", "summary": "The signed-in account's X notifications or mentions, without opening them."},
+    "ar": {"name": "قراءة إشعارات X", "summary": "إشعارات الحساب المسجّل على X أو الإشارات إليه، دون فتحها."}
+  },
+  "threads-read-feed": {
+    "en": {"name": "Read the Threads feed", "summary": "The posts on the signed-in account's Threads feed."},
+    "ar": {"name": "قراءة الخلاصة في Threads", "summary": "المنشورات في خلاصة الحساب المسجّل على Threads."}
+  },
+  "threads-read-profile": {
+    "en": {"name": "Read a Threads profile", "summary": "A Threads profile's details and recent posts."},
+    "ar": {"name": "قراءة ملف على Threads", "summary": "تفاصيل ملف شخصي على Threads وأحدث منشوراته."}
+  },
+  "threads-search": {
+    "en": {"name": "Search Threads", "summary": "Threads posts or profiles for a search."},
+    "ar": {"name": "البحث في Threads", "summary": "منشورات أو ملفات على Threads لعبارة بحث."}
+  },
+  "threads-read-notifications": {
+    "en": {"name": "Read Threads activity", "summary": "The signed-in account's Threads notifications, without opening them."},
+    "ar": {"name": "قراءة النشاط في Threads", "summary": "إشعارات الحساب المسجّل على Threads، دون فتحها."}
+  },
+  "facebook-read-notifications": {
+    "en": {"name": "Read Facebook notifications", "summary": "The signed-in account's Facebook notifications, without opening them."},
+    "ar": {"name": "قراءة إشعارات Facebook", "summary": "إشعارات الحساب المسجّل على Facebook، دون فتحها."}
+  },
+  "youtube-read-notifications": {
+    "en": {"name": "Read YouTube notifications", "summary": "The signed-in account's YouTube notifications, without opening them."},
+    "ar": {"name": "قراءة إشعارات YouTube", "summary": "إشعارات الحساب المسجّل على YouTube، دون فتحها."}
+  },
+  "instagram-read-profile": {
+    "en": {"name": "Read an Instagram profile", "summary": "An Instagram profile's details and recent posts."},
+    "ar": {"name": "قراءة ملف على Instagram", "summary": "تفاصيل ملف شخصي على Instagram وأحدث منشوراته."}
+  },
+  "instagram-post": {
+    "en": {"name": "Post on Instagram", "summary": "Publishes a single-image post from the signed-in Instagram account."},
+    "ar": {"name": "النشر على Instagram", "summary": "ينشر صورة واحدة من حساب Instagram المسجّل."}
+  },
+  "instagram-comment": {
+    "en": {"name": "Comment on an Instagram post", "summary": "Posts a comment as the signed-in Instagram account."},
+    "ar": {"name": "التعليق على منشور في Instagram", "summary": "ينشر تعليقاً باسم حساب Instagram المسجّل."}
+  },
+  "instagram-read-notifications": {
+    "en": {"name": "Read Instagram notifications", "summary": "The signed-in account's Instagram notifications, without opening them."},
+    "ar": {"name": "قراءة إشعارات Instagram", "summary": "إشعارات الحساب المسجّل على Instagram، دون فتحها."}
+  },
+  "tiktok-read-feed": {
+    "en": {"name": "Read the TikTok For You feed", "summary": "The videos on the signed-in account's For You feed."},
+    "ar": {"name": "قراءة خلاصة «لك» في TikTok", "summary": "الفيديوهات في خلاصة «لك» للحساب المسجّل على TikTok."}
+  },
+  "tiktok-search": {
+    "en": {"name": "Search TikTok", "summary": "TikTok videos for a search."},
+    "ar": {"name": "البحث في TikTok", "summary": "فيديوهات TikTok لعبارة بحث."}
+  },
+  "tiktok-read-profile": {
+    "en": {"name": "Read a TikTok profile", "summary": "A TikTok profile's details and recent videos."},
+    "ar": {"name": "قراءة ملف على TikTok", "summary": "تفاصيل ملف شخصي على TikTok وأحدث فيديوهاته."}
+  },
+  "threads-post": {
+    "en": {"name": "Post on Threads", "summary": "Publishes a post from the signed-in Threads account."},
+    "ar": {"name": "النشر على Threads", "summary": "ينشر منشوراً من حساب Threads المسجّل."}
+  },
+  "threads-reply": {
+    "en": {"name": "Reply to a post on Threads", "summary": "Publishes a reply as the signed-in Threads account."},
+    "ar": {"name": "الرد على منشور في Threads", "summary": "ينشر رداً باسم حساب Threads المسجّل."}
+  },
+  "tiktok-post": {
+    "en": {"name": "Post a video on TikTok", "summary": "Publishes a video from the signed-in TikTok account."},
+    "ar": {"name": "نشر فيديو على TikTok", "summary": "ينشر فيديو من حساب TikTok المسجّل."}
+  },
+  "tiktok-comment": {
+    "en": {"name": "Comment on a TikTok video", "summary": "Posts a comment as the signed-in TikTok account."},
+    "ar": {"name": "التعليق على فيديو في TikTok", "summary": "ينشر تعليقاً باسم حساب TikTok المسجّل."}
+  },
+  "bluesky-post": {
+    "en": {"name": "Post on Bluesky", "summary": "Publishes a post from the signed-in Bluesky account."},
+    "ar": {"name": "النشر على Bluesky", "summary": "ينشر منشوراً من حساب Bluesky المسجّل."}
+  },
+  "bluesky-reply": {
+    "en": {"name": "Reply to a post on Bluesky", "summary": "Publishes a reply as the signed-in Bluesky account."},
+    "ar": {"name": "الرد على منشور في Bluesky", "summary": "ينشر رداً باسم حساب Bluesky المسجّل."}
+  },
+  "bluesky-read-notifications": {
+    "en": {"name": "Read Bluesky notifications", "summary": "The signed-in account's Bluesky notifications, without opening them."},
+    "ar": {"name": "قراءة إشعارات Bluesky", "summary": "إشعارات الحساب المسجّل على Bluesky، دون فتحها."}
+  },
+  "whatsapp-send-self": {
+    "en": {"name": "WhatsApp a note to the workspace", "summary": "Sends a message to the workspace's own WhatsApp number, and to no one else."},
+    "ar": {"name": "رسالة واتساب إلى رقم المساحة", "summary": "يرسل رسالة إلى رقم واتساب الخاص بالمساحة، ولا يرسل لأي رقم آخر."}
+  },
+  "whatsapp-read-self": {
+    "en": {"name": "Read the workspace's own WhatsApp chat", "summary": "The messages in the chat with the workspace's own WhatsApp number."},
+    "ar": {"name": "قراءة محادثة واتساب الخاصة بالمساحة", "summary": "الرسائل في المحادثة مع رقم واتساب الخاص بالمساحة."}
+  },
+  "hbr-arabic-headlines": {
+    "en": {"name": "Harvard Business Review Arabic headlines", "summary": "The latest business headlines from HBR Arabic."},
+    "ar": {"name": "عناوين هارفارد بزنس ريفيو العربية", "summary": "أحدث عناوين الأعمال من هارفارد بزنس ريفيو العربية."}
+  },
+  "mittr-arabia-headlines": {
+    "en": {"name": "MIT Technology Review Arabia headlines", "summary": "The latest business or technology headlines from MIT Technology Review Arabia."},
+    "ar": {"name": "عناوين إم آي تي تكنولوجي ريفيو العربية", "summary": "أحدث عناوين الأعمال أو التقنية من إم آي تي تكنولوجي ريفيو العربية."}
+  },
+  "hbr-arabic-article": {
+    "en": {"name": "Read an HBR Arabic article", "summary": "The title, author, date and text of one HBR Arabic article."},
+    "ar": {"name": "قراءة مقال من هارفارد بزنس ريفيو العربية", "summary": "عنوان مقال من هارفارد بزنس ريفيو العربية وكاتبه وتاريخه ونصه."}
+  },
+  "mittr-arabia-article": {
+    "en": {"name": "Read an MIT Technology Review Arabia article", "summary": "The title, author, date and text of one MIT Technology Review Arabia article."},
+    "ar": {"name": "قراءة مقال من إم آي تي تكنولوجي ريفيو العربية", "summary": "عنوان مقال من إم آي تي تكنولوجي ريفيو العربية وكاتبه وتاريخه ونصه."}
+  },
+  "whatsapp-send": {
+    "en": {"name": "Send a WhatsApp message", "summary": "Sends a message to a WhatsApp number from the browser's WhatsApp Web, after checking it opened the right chat."},
+    "ar": {"name": "إرسال رسالة واتساب", "summary": "يرسل رسالة إلى رقم واتساب من WhatsApp Web في المتصفح، بعد التحقق من فتح المحادثة الصحيحة."}
+  },
+  "whatsapp-read-chat": {
+    "en": {"name": "Read a WhatsApp chat", "summary": "The messages in the chat with one WhatsApp number."},
+    "ar": {"name": "قراءة محادثة واتساب", "summary": "الرسائل في المحادثة مع رقم واتساب واحد."}
+  },
+  "tiktok-read-notifications": {
+    "en": {"name": "Read TikTok notifications", "summary": "The signed-in account's TikTok notifications, without opening them."},
+    "ar": {"name": "قراءة إشعارات TikTok", "summary": "إشعارات الحساب المسجّل على TikTok، دون فتحها."}
+  },
+  "jobs-larajobs": {
+    "en": {"name": "Laravel jobs on LaraJobs", "summary": "The newest Laravel and PHP job listings on LaraJobs."},
+    "ar": {"name": "وظائف Laravel على LaraJobs", "summary": "أحدث إعلانات وظائف Laravel وPHP على LaraJobs."}
+  },
+  "jobs-ashby-board": {
+    "en": {"name": "A company's jobs on Ashby", "summary": "The open roles on one company's Ashby job board."},
+    "ar": {"name": "وظائف شركة على Ashby", "summary": "الوظائف المتاحة في لوحة وظائف شركة على Ashby."}
+  },
+  "facebook-groups-list": {
+    "en": {"name": "My Facebook groups", "summary": "The groups the signed-in Facebook account has joined."},
+    "ar": {"name": "مجموعاتي على Facebook", "summary": "المجموعات التي انضم إليها حساب Facebook المسجّل."}
+  },
+  "facebook-group-rules": {
+    "en": {"name": "A Facebook group's rules", "summary": "One Facebook group's description and rules, before anything is shared in it."},
+    "ar": {"name": "قواعد مجموعة على Facebook", "summary": "وصف مجموعة على Facebook وقواعدها، قبل مشاركة أي شيء فيها."}
+  },
+  "facebook-group-share": {
+    "en": {"name": "Share into a Facebook group", "summary": "Publishes a post into one Facebook group, after a person has confirmed the exact post."},
+    "ar": {"name": "المشاركة في مجموعة على Facebook", "summary": "ينشر منشوراً في مجموعة على Facebook، بعد أن يؤكد شخص المنشور نفسه."}
+  },
+  "facebook-group-share-dryrun": {
+    "en": {"name": "Rehearse a Facebook group share", "summary": "Goes through sharing into a Facebook group up to the Post button, and never posts."},
+    "ar": {"name": "تجربة المشاركة في مجموعة على Facebook", "summary": "يمرّ بخطوات المشاركة في مجموعة على Facebook حتى زر النشر، ولا ينشر أبداً."}
+  },
+  "linkedin-groups-list": {
+    "en": {"name": "My LinkedIn groups", "summary": "The groups the signed-in LinkedIn account belongs to."},
+    "ar": {"name": "مجموعاتي على LinkedIn", "summary": "المجموعات التي ينتمي إليها حساب LinkedIn المسجّل."}
+  },
+  "linkedin-group-rules": {
+    "en": {"name": "A LinkedIn group's rules", "summary": "One LinkedIn group's description and rules, before anything is shared in it."},
+    "ar": {"name": "قواعد مجموعة على LinkedIn", "summary": "وصف مجموعة على LinkedIn وقواعدها، قبل مشاركة أي شيء فيها."}
+  },
+  "linkedin-group-share-dryrun": {
+    "en": {"name": "Rehearse a LinkedIn group share", "summary": "Goes through sharing into a LinkedIn group up to the Post button, and never posts."},
+    "ar": {"name": "تجربة المشاركة في مجموعة على LinkedIn", "summary": "يمرّ بخطوات المشاركة في مجموعة على LinkedIn حتى زر النشر، ولا ينشر أبداً."}
+  },
+  "linkedin-group-share": {
+    "en": {"name": "Share into a LinkedIn group", "summary": "Publishes a post into one LinkedIn group, after a person has confirmed the exact post."},
+    "ar": {"name": "المشاركة في مجموعة على LinkedIn", "summary": "ينشر منشوراً في مجموعة على LinkedIn، بعد أن يؤكد شخص المنشور نفسه."}
+  },
+  "x-latest-posts": {
+    "en": {"name": "My latest posts on X", "summary": "The signed-in account's newest X posts, to find the link of one just published."},
+    "ar": {"name": "أحدث منشوراتي على X", "summary": "أحدث منشورات الحساب المسجّل على X، لإيجاد رابط منشور نُشر للتو."}
+  },
+  "threads-latest-posts": {
+    "en": {"name": "My latest posts on Threads", "summary": "The signed-in account's newest Threads posts, to find the link of one just published."},
+    "ar": {"name": "أحدث منشوراتي على Threads", "summary": "أحدث منشورات الحساب المسجّل على Threads، لإيجاد رابط منشور نُشر للتو."}
+  }
+}

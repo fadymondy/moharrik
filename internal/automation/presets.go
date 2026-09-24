@@ -43,6 +43,18 @@ browser's list on every run.
 //go:embed presets/presets.json
 var presetsRaw []byte
 
+// The plain names and one-line summaries, per language (MH-518): what the
+// gallery leads with, the technical notes kept under "Technical details".
+//
+//go:embed presets/plain.json
+var presetsPlainRaw []byte
+
+// PlainText is a preset's name and one-line summary in one language.
+type PlainText struct {
+	Name    string `json:"name"`
+	Summary string `json:"summary"`
+}
+
 // PresetInput is one value a preset asks for.
 type PresetInput struct {
 	Name     string `json:"name"`
@@ -67,6 +79,9 @@ type Preset struct {
 	DryRun      string        `json:"dry_run,omitempty" doc:"The slug of its rehearsal twin, which never posts."`
 	DryRunOf    string        `json:"dry_run_of,omitempty" doc:"The preset this one rehearses."`
 	// What it needs from the workspace when it is added.
+	// Plain words for people, by language: "en" and "ar" (MH-518). Name and
+	// Description above are fadymondy.com's technical ones.
+	Plain map[string]PlainText `json:"plain"`
 	NeedsProfile  []string `json:"needs_profile" doc:"Workspace profile fields its defaults come from."`
 	NeedsWhatsApp bool     `json:"needs_whatsapp" doc:"Sends to the workspace's own WhatsApp number."`
 }
@@ -93,9 +108,17 @@ func loadPresets() {
 		if err := json.Unmarshal(presetsRaw, &library); err != nil {
 			panic("automation: presets.json does not parse: " + err.Error())
 		}
+		plain := map[string]map[string]PlainText{}
+		if err := json.Unmarshal(presetsPlainRaw, &plain); err != nil {
+			panic("automation: presets/plain.json does not parse: " + err.Error())
+		}
 		bySlug = map[string]*Preset{}
 		for i := range library.Presets {
 			p := &library.Presets[i]
+			p.Plain = plain[p.Slug]
+			if p.Plain == nil {
+				p.Plain = map[string]PlainText{}
+			}
 			seen := map[string]bool{}
 			p.NeedsProfile = []string{}
 			for _, in := range p.Inputs {
@@ -199,11 +222,20 @@ type PresetAdd struct {
 	// The number to send to, for a preset that sends to the workspace's own
 	// WhatsApp; the linked number when empty.
 	WhatsApp string
+	// The language the workflow is named in: "en" or "ar" (MH-518).
+	Locale string
 }
 
 // PresetWorkflow turns a preset into what is saved: its placeholders for the
 // workspace filled in, its inputs as the workflow's parameters.
 func PresetWorkflow(p *Preset, profile map[string]string, whatsApp string) (WorkflowInput, error) {
+	return PresetWorkflowIn(p, profile, whatsApp, "en")
+}
+
+// PresetWorkflowIn is PresetWorkflow named in one language: the plain name,
+// and a description that opens with the plain summary and keeps the
+// technical notes under it (MH-518).
+func PresetWorkflowIn(p *Preset, profile map[string]string, whatsApp, locale string) (WorkflowInput, error) {
 	raw, _ := json.Marshal(p.Steps)
 	if whatsAppRE.Match(raw) {
 		number := digitsOnly(whatsApp)
@@ -223,7 +255,19 @@ func PresetWorkflow(p *Preset, profile map[string]string, whatsApp string) (Work
 		})
 		params = append(params, Param{Name: in.Name, Label: in.Label, Required: in.Required, Default: def, Help: in.Help})
 	}
-	return WorkflowInput{Name: p.Name, Slug: p.Slug, Description: p.Description, Steps: steps, Params: params}, nil
+	name, description := p.Name, p.Description
+	plain, ok := p.Plain[locale]
+	if !ok {
+		plain = p.Plain["en"]
+	}
+	if plain.Name != "" {
+		name = plain.Name
+		description = plain.Summary + "\n\n" + p.Description
+		if len(description) > 2000 {
+			description = description[:2000]
+		}
+	}
+	return WorkflowInput{Name: name, Slug: p.Slug, Description: description, Steps: steps, Params: params}, nil
 }
 
 // AddPreset saves a preset as one of the workspace's workflows and, when
@@ -254,7 +298,7 @@ func AddPreset(ctx context.Context, a *app.App, hub *Hub, s *tenant.Scope, slug 
 	if strings.TrimSpace(number) == "" {
 		number = workspaceWhatsApp(ctx, a, s.WorkspaceID)
 	}
-	wf, err := PresetWorkflow(p, profile, number)
+	wf, err := PresetWorkflowIn(p, profile, number, in.Locale)
 	if errors.Is(err, ErrNeedsWhatsApp) {
 		return "", nil, huma.Error422UnprocessableEntity(err.Error())
 	}
@@ -416,6 +460,7 @@ func RegisterPresets(api huma.API, a *app.App, hub *Hub) {
 		Body struct {
 			AgentID        string `json:"agent_id,omitempty" doc:"A browser to allow the preset's sites on."`
 			WhatsAppNumber string `json:"whatsapp_number,omitempty" maxLength:"30"`
+			Locale         string `json:"locale,omitempty" enum:",en,ar" doc:"The language the new workflow is named in."`
 		}
 	}) (*body[struct {
 		Workflow   Workflow `json:"workflow"`
@@ -425,7 +470,7 @@ func RegisterPresets(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, err
 		}
-		id, added, err := AddPreset(ctx, a, hub, s, in.Slug, PresetAdd{AgentID: strings.TrimSpace(in.Body.AgentID), WhatsApp: in.Body.WhatsAppNumber})
+		id, added, err := AddPreset(ctx, a, hub, s, in.Slug, PresetAdd{AgentID: strings.TrimSpace(in.Body.AgentID), WhatsApp: in.Body.WhatsAppNumber, Locale: in.Body.Locale})
 		if err != nil {
 			return nil, err
 		}

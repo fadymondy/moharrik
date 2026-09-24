@@ -111,3 +111,47 @@ func anyURL(steps []Step) string {
 	}
 	return ""
 }
+
+// Every preset has a plain name and a one-line summary in English and Arabic
+// (MH-518), and a workflow added in Arabic is named in Arabic, its technical
+// notes kept under the summary.
+func TestPresetsHavePlainWordsInBothLanguages(t *testing.T) {
+	_, list := Presets()
+	arabic := func(s string) bool {
+		for _, r := range s {
+			if r >= 0x0600 && r <= 0x06FF {
+				return true
+			}
+		}
+		return false
+	}
+	seen := map[string]bool{}
+	for i := range list {
+		p := &list[i]
+		for _, l := range []string{"en", "ar"} {
+			pt := p.Plain[l]
+			if strings.TrimSpace(pt.Name) == "" || strings.TrimSpace(pt.Summary) == "" {
+				t.Errorf("%s has no plain %s name or summary", p.Slug, l)
+				continue
+			}
+			if len([]rune(pt.Summary)) > 160 {
+				t.Errorf("%s: the %s summary is not one line (%d characters)", p.Slug, l, len([]rune(pt.Summary)))
+			}
+			if seen[l+pt.Name] {
+				t.Errorf("%s: the %s name %q is another preset's too", p.Slug, l, pt.Name)
+			}
+			seen[l+pt.Name] = true
+		}
+		if !arabic(p.Plain["ar"].Name) || !arabic(p.Plain["ar"].Summary) {
+			t.Errorf("%s: the Arabic words are not Arabic", p.Slug)
+		}
+	}
+	p := FindPreset("google-news-search")
+	wf, err := PresetWorkflowIn(p, nil, "", "ar")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wf.Name != p.Plain["ar"].Name || !strings.HasPrefix(wf.Description, p.Plain["ar"].Summary+"\n\n") || !strings.Contains(wf.Description, p.Description) {
+		t.Fatalf("added in Arabic: %q / %q", wf.Name, wf.Description)
+	}
+}
