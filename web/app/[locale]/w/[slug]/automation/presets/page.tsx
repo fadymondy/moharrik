@@ -17,7 +17,7 @@ straight here.
 
 import Link from "next/link"
 import { useMemo, useState, type FormEvent } from "react"
-import { ArrowLeftIcon, CheckIcon, ExternalLinkIcon, PlusIcon, SearchIcon, ShieldCheckIcon, UserRoundIcon } from "lucide-react"
+import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ExternalLinkIcon, PlusIcon, SearchIcon, ShieldCheckIcon, UserRoundIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Bdi, isolate } from "@/components/bidi"
@@ -28,6 +28,7 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -82,11 +83,14 @@ export default function PresetsPage() {
     const needle = q.trim().toLowerCase()
     const hit = (p: AutomationPreset) =>
       (!group || p.group === group) &&
-      (!needle || `${p.name} ${p.slug} ${p.description} ${p.hosts.join(" ")} ${t(`presets.group.${p.group}`)}`.toLowerCase().includes(needle))
+      (!needle ||
+        `${plainOf(p, locale).name} ${plainOf(p, locale).summary} ${p.name} ${p.slug} ${p.description} ${p.hosts.join(" ")} ${t(`presets.group.${p.group}`)}`
+          .toLowerCase()
+          .includes(needle))
     const m = new Map<string, AutomationPreset[]>()
     for (const p of list) if (hit(p)) m.set(p.group, [...(m.get(p.group) ?? []), p])
     return [...m.entries()].sort((a, b) => rank(a[0]) - rank(b[0]))
-  }, [list, q, group, t])
+  }, [list, q, group, t, locale])
   const shown = groups.reduce((n, [, ps]) => n + ps.length, 0)
   const active = (browsers.data?.browsers ?? []).filter((b) => !b.revoked_at)
 
@@ -168,6 +172,11 @@ export default function PresetsPage() {
   )
 }
 
+/** The preset's plain words in the page's language (MH-518), English when missing. */
+function plainOf(p: AutomationPreset, locale: string) {
+  return p.plain?.[locale] ?? p.plain?.en ?? { name: p.name, summary: "" }
+}
+
 function rank(g: string) {
   const i = GROUP_ORDER.indexOf(g)
   return i < 0 ? GROUP_ORDER.length : i
@@ -176,7 +185,7 @@ function rank(g: string) {
 function PresetRow({ preset: p, twin, canRun, onAdd }: { preset: AutomationPreset; twin?: AutomationPreset; canRun: boolean; onAdd: () => void }) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
-  const [more, setMore] = useState(false)
+  const plain = plainOf(p, locale)
   return (
     <li className="flex flex-wrap items-start gap-3 px-6 py-4" id={`preset-${p.slug}`} data-preset={p.slug} data-writes={p.writes ? "true" : undefined}>
       <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border border-line text-grid-muted">
@@ -184,7 +193,7 @@ function PresetRow({ preset: p, twin, canRun, onAdd }: { preset: AutomationPrese
       </span>
       <div className="min-w-0 flex-1 space-y-1">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-          <Bdi>{p.name}</Bdi>
+          <span data-preset-name>{plain.name}</span>
           {p.writes ? (
             <Badge variant="secondary" data-preset-publishes>
               {t("presets.publishes")}
@@ -198,31 +207,42 @@ function PresetRow({ preset: p, twin, canRun, onAdd }: { preset: AutomationPrese
             </Badge>
           ) : null}
         </p>
-        <p className={more ? "text-sm text-grid-muted" : "line-clamp-2 text-sm text-grid-muted"} dir="ltr">
-          {p.description}
-        </p>
-        {p.description.length > 160 ? (
-          <button type="button" className="text-xs text-grid-muted underline" onClick={() => setMore((v) => !v)}>
-            {more ? t("presets.less") : t("presets.more")}
-          </button>
+        {plain.summary ? (
+          <p className="text-sm text-grid-muted" data-preset-summary>
+            {plain.summary}
+          </p>
         ) : null}
         <p className="flex items-start gap-1 text-xs text-grid-muted" data-preset-hosts={p.hosts.join(",")}>
           <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
           <span className="min-w-0 break-words">{p.hosts.length ? t("presets.goesTo", { hosts: p.hosts.join(", ") }) : t("presets.anySite")}</span>
         </p>
-        {p.inputs.length > 0 ? (
-          <p className="text-xs text-grid-muted" data-preset-inputs>
-            {t("presets.asksFor", { names: isolate(p.inputs.map((i) => (i.required ? `${i.name}*` : i.name)).join(", ")) })}
-          </p>
-        ) : null}
         {twin && p.dry_run ? (
           <p className="text-xs text-grid-muted">
             {t("presets.rehearseFirst")}{" "}
             <a className="underline" href={`#preset-${twin.slug}`}>
-              <Bdi>{twin.name}</Bdi>
+              {plainOf(twin, locale).name}
             </a>
           </p>
         ) : null}
+        {/* The technical notes (fadymondy.com's own text: selectors, fields,
+            when it was verified), for whoever edits it — out of the way. */}
+        <Collapsible data-preset-technical>
+          <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-grid-muted underline-offset-2 hover:underline" data-technical-toggle>
+            <ChevronDownIcon className="size-3 transition-transform group-aria-expanded:rotate-180" />
+            {t("presets.technical")}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-1 border-s-2 border-line ps-3" dir="ltr">
+            <p className="text-xs font-medium text-grid-fg">
+              {p.name} <span className="font-mono font-normal text-grid-muted">({p.slug})</span>
+            </p>
+            <p className="text-xs text-grid-muted">{p.description}</p>
+            {p.inputs.length > 0 ? (
+              <p className="text-xs text-grid-muted" data-preset-inputs>
+                {t("presets.asksFor", { names: p.inputs.map((i) => (i.required ? `${i.name}*` : i.name)).join(", ") })}
+              </p>
+            ) : null}
+          </CollapsibleContent>
+        </Collapsible>
       </div>
       <div className="flex items-center gap-2">
         {p.workflow_id ? (
@@ -256,8 +276,9 @@ function AddDialog({
   onClose: () => void
   onAdded: () => void
 }) {
-  const { t } = useTranslations()
+  const { t, locale } = useTranslations()
   const ws = useWorkspace()
+  const plainName = plainOf(p, locale).name
   const [agent, setAgent] = useState(browsers[0]?.id ?? "")
   const chosen = browsers.find((b) => b.id === agent)
   const missingHosts = p.hosts.filter((h) => !chosen?.allowed_hosts.some((a) => h === a || h.endsWith(`.${a}`)))
@@ -277,6 +298,7 @@ function AddDialog({
         json: {
           ...(canAllow && allow && agent && missingHosts.length > 0 ? { agent_id: agent } : {}),
           ...(p.needs_whatsapp && number.trim() ? { whatsapp_number: number.trim() } : {}),
+          locale: locale === "ar" ? "ar" : "en",
         },
         workspaceId: ws.id,
       })
@@ -298,7 +320,7 @@ function AddDialog({
       <DialogContent className="sm:max-w-lg">
         <form onSubmit={submit} noValidate data-form="add-preset" data-preset-dialog={p.slug}>
           <DialogHeader>
-            <DialogTitle>{t("presets.addTitle", { name: isolate(p.name) })}</DialogTitle>
+            <DialogTitle>{t("presets.addTitle", { name: isolate(plainName) })}</DialogTitle>
             <DialogDescription>{t("presets.addBody")}</DialogDescription>
           </DialogHeader>
           <FieldGroup className="my-4">
