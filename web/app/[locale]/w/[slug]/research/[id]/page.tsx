@@ -3,10 +3,11 @@
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { Fragment, useState, type ReactNode } from "react"
-import { ArrowLeftIcon, ChevronDownIcon, ExternalLinkIcon, InfoIcon, LoaderCircleIcon, SquareIcon, TriangleAlertIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowRightIcon, ChevronDownIcon, ExternalLinkIcon, InfoIcon, LoaderCircleIcon, SquareIcon, TriangleAlertIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { SectionHeader } from "@/components/public-frame"
+import { CostLine, EvidenceItem, SignalBadge, StageList } from "@/components/research/evidence"
 import { isLive, ResearchStatusBadge, useFormatDateTime } from "@/components/research/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type ResearchRun, type ResearchSource } from "@/lib/api"
+import { api, ApiError, type CompanySuggestion, type Evidence, type ResearchRun, type ResearchSource } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useResearchContent, useResearchRun, useResearchRuns } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
@@ -105,7 +106,25 @@ export default function ResearchRunPage() {
             ) : null}
           </div>
 
+          <StageList stages={run.stages ?? []} />
+          {run.cost ? <CostLine cost={run.cost} /> : null}
+          {run.mode === "urls" && run.urls?.length ? (
+            <div className="px-6 pt-3 text-xs text-grid-muted" data-urls-given>
+              <p className="font-medium text-foreground">{t("research.pagesGiven")}</p>
+              <ul>
+                {run.urls.map((u) => (
+                  <li key={u} className="truncate">
+                    <bdi dir="ltr">{u}</bdi>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className="pb-6" />
+
           <Outcome run={run} sources={sources} live={live} canSummarise={caps.data?.can_summarise} />
+
+          {!live ? <RunEvidence evidence={detail.data?.evidence ?? []} companies={detail.data?.companies ?? []} /> : null}
 
           <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
 
@@ -385,5 +404,62 @@ function SourceRow({
         </div>
       </div>
     </li>
+  )
+}
+
+/** What the run kept: its evidence, and the companies that evidence names. */
+function RunEvidence({ evidence, companies }: { evidence: Evidence[]; companies: CompanySuggestion[] }) {
+  const { t, locale, formatNumber } = useTranslations()
+  const ws = useWorkspace()
+  return (
+    <>
+      <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
+      <h2 className="flex flex-wrap items-baseline gap-x-2 px-6 pt-6 pb-1 text-base font-medium" data-run-evidence={evidence.length}>
+        {t("research.evidence")}
+        <span className="text-sm font-normal text-grid-muted tabular-nums">{formatNumber(evidence.length)}</span>
+      </h2>
+      <p className="px-6 pb-3 text-sm text-grid-muted">{t("research.evidenceHint")}</p>
+      {evidence.length === 0 ? (
+        <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">{t("research.noEvidence")}</p>
+      ) : (
+        <ul className="divide-y divide-line border-y border-line">
+          {evidence.map((e) => (
+            <EvidenceItem key={e.id} e={e} />
+          ))}
+        </ul>
+      )}
+
+      {companies.length ? (
+        <section className="px-6 pt-6" data-run-companies={companies.length}>
+          <h2 className="text-base font-medium">{t("research.companiesFound")}</h2>
+          <p className="pb-3 text-sm text-grid-muted">{t("research.companiesFoundHint")}</p>
+          <ul className="flex flex-wrap gap-2">
+            {companies.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-2 border border-line bg-grid-card px-3 py-2 text-sm" data-run-company={c.name} data-company-status={c.status}>
+                {c.crm_company_id ? (
+                  <Link href={`/${locale}/w/${ws.slug}/companies/${encodeURIComponent(c.crm_company_id)}`} className="font-medium hover:underline">
+                    <Bdi>{c.name}</Bdi>
+                  </Link>
+                ) : (
+                  <span className="font-medium">
+                    <Bdi>{c.name}</Bdi>
+                  </span>
+                )}
+                {c.signal_types.slice(0, 2).map((s) => (
+                  <SignalBadge key={s} signal={s} />
+                ))}
+                <span className="text-xs text-grid-muted">{t(`research.suggestionStatus.${c.status}`)}</span>
+              </li>
+            ))}
+          </ul>
+          {companies.some((c) => c.status === "suggested") ? (
+            <Button variant="outline" size="sm" className="mt-3" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/companies#suggestions`} />}>
+              {t("research.reviewOnCompanies")}
+              <ArrowRightIcon className="rtl:rotate-180" />
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
+    </>
   )
 }

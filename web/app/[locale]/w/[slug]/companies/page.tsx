@@ -11,6 +11,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 
 import { useMemberNames } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
+import { SuggestionsPanel } from "@/components/research/suggestions"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -48,6 +49,9 @@ export default function CompaniesPage() {
   return (
     <>
       <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.companies")} description={t("companies.hint")} />
+
+      {/* What research found (MH-388): suggestions only, never added on their own. */}
+      <SuggestionsPanel onAccepted={() => companies.mutate()} />
 
       {companies.error ? (
         <ErrorState error={companies.error} />

@@ -516,7 +516,52 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal("A's setup left no audit rows: the audit sweep below would prove nothing")
 	}
 
-	aIDs := []string{aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, notifSrcID}
+	// Research (MH-388): a run with a source, a piece of evidence naming a
+	// company, that company's suggestion, and a research schedule — written
+	// directly, because a real run searches the web. The marker is in each.
+	var runID, rsrcID, evID, suggID, rschedID string
+	if err := a.SysDB.QueryRow(`INSERT INTO research_runs (workspace_id, topic, query, status, summary) VALUES ($1, $2, $2, 'ok', $2) RETURNING id`,
+		aID, marker+" research").Scan(&runID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO research_sources (workspace_id, run_id, position, url, title, content, fetched) VALUES ($1, $2, 0, $3, $4, $4, true) RETURNING id`,
+		aID, runID, "https://iso.test/"+marker, marker+" page").Scan(&rsrcID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO research_evidence (workspace_id, run_id, source_id, quote, source_url, company_name, company_key, signal_type, confidence, content_hash)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'funding', 0.9, $8) RETURNING id`,
+		aID, runID, rsrcID, marker+" raised money", "https://iso.test/"+marker, marker+" Corp", "isocorp-"+marker, "h-"+rnd()).Scan(&evID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO research_companies (workspace_id, company_key, name, evidence_count, first_run_id, last_run_id) VALUES ($1, $2, $3, 1, $4, $4) RETURNING id`,
+		aID, "isocorp-"+marker, marker+" Corp", runID).Scan(&suggID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO research_schedules (workspace_id, name, topic, enabled) VALUES ($1, $2, $2, false) RETURNING id`,
+		aID, marker+" schedule").Scan(&rschedID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Prospects (MH-397): A's profile, a prospect on A's suggestion, a verdict
+	// on it and a draft — written directly, like the research rows above.
+	var prospectID, pfbID, pdraftID string
+	if _, err := a.SysDB.Exec(`INSERT INTO prospect_profiles (workspace_id, offer, keywords) VALUES ($1, $2, '{iso}')`, aID, marker+" offer"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO prospects (workspace_id, suggestion_id, score, contact_name) VALUES ($1, $2, 50, $3) RETURNING id`,
+		aID, suggID, marker+" Person").Scan(&prospectID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO prospect_feedback (workspace_id, prospect_id, verdict, reason) VALUES ($1, $2, 'rejected', $3) RETURNING id`,
+		aID, prospectID, marker+" reason").Scan(&pfbID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO prospect_drafts (workspace_id, prospect_id, body) VALUES ($1, $2, $3) RETURNING id`,
+		aID, prospectID, marker+" draft").Scan(&pdraftID); err != nil {
+		t.Fatal(err)
+	}
+
+	aIDs := []string{prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, notifSrcID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -532,6 +577,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"oauth_grants":         grantID,
 		"smtp-services":        smtpID,
 		"notification_sources": notifSrcID,
+		"research":             runID, "company-suggestions": suggID, "research-schedules": rschedID,
+		"prospects": prospectID,
 	}
 
 	leaks := func(b []byte) string {
@@ -1059,7 +1106,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	// is not matched here is tried with every one of A's ids.
 	subjects := []struct{ word, id string }{
 		{"conversation", convID}, {"notification", itemID}, {"webhook_source", srcID},
-		{"trending_topic", trendID}, {"trend_item", newsID}, {"trend_source", feedID}, {"contact", ctID}, {"compan", coID},
+		{"trending_topic", trendID}, {"trend_item", newsID}, {"trend_source", feedID}, {"contact", ctID},
+		{"company_suggestion", suggID}, {"research_schedule", rschedID}, {"opportunit", prospectID}, {"compan", coID},
 		{"deal", dealID}, {"lead", leadID}, {"whatsapp", ctID},
 	}
 	toolsSwept := 0
@@ -1102,6 +1150,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 					}
 				case "trending_topic_id":
 					args[k] = trendID
+				case "run_id":
+					args[k] = runID
 				case "keyword_topic_id":
 					args[k] = kwID
 				case "q":
@@ -1137,6 +1187,29 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	_ = a.SysDB.QueryRow(`SELECT reviewed_at, dismissed_at, saved_at FROM trend_clusters WHERE id = $1`, trendID).Scan(&trendReviewed, &trendDismissed, &trendSaved)
 	if trendReviewed != nil || trendDismissed != nil || trendSaved != nil {
 		t.Errorf("A's trending topic was reviewed from B's MCP sweep: %v %v %v", trendReviewed, trendDismissed, trendSaved)
+	}
+	// A's research: the suggestion is still waiting, the schedule unchanged and
+	// still there, the evidence still there, and no CRM company came of it.
+	var suggStatus, rschedName string
+	var rschedEnabled bool
+	var evLeft, aCompanies int
+	_ = a.SysDB.QueryRow(`SELECT status FROM research_companies WHERE id = $1`, suggID).Scan(&suggStatus)
+	_ = a.SysDB.QueryRow(`SELECT name, enabled FROM research_schedules WHERE id = $1`, rschedID).Scan(&rschedName, &rschedEnabled)
+	_ = a.SysDB.QueryRow(`SELECT count(*) FROM research_evidence WHERE id = $1`, evID).Scan(&evLeft)
+	_ = a.SysDB.QueryRow(`SELECT count(*) FROM companies WHERE workspace_id = $1 AND name = $2`, aID, marker+" Corp").Scan(&aCompanies)
+	if suggStatus != "suggested" || rschedName != marker+" schedule" || rschedEnabled || evLeft != 1 || aCompanies != 0 {
+		t.Errorf("A's research changed under B's MCP sweep: suggestion=%q schedule=%q/%v evidence=%d crm=%d",
+			suggStatus, rschedName, rschedEnabled, evLeft, aCompanies)
+	}
+	// A's prospect is still waiting, with only its own draft, and A's profile
+	// is A's.
+	var pStatus, pOffer string
+	var pDrafts int
+	_ = a.SysDB.QueryRow(`SELECT status FROM prospects WHERE id = $1`, prospectID).Scan(&pStatus)
+	_ = a.SysDB.QueryRow(`SELECT count(*) FROM prospect_drafts WHERE prospect_id = $1`, prospectID).Scan(&pDrafts)
+	_ = a.SysDB.QueryRow(`SELECT offer FROM prospect_profiles WHERE workspace_id = $1`, aID).Scan(&pOffer)
+	if pStatus != "new" || pDrafts != 1 || pOffer != marker+" offer" {
+		t.Errorf("A's prospects changed under B's MCP sweep: status=%q drafts=%d offer=%q", pStatus, pDrafts, pOffer)
 	}
 	if convStatus != "open" || convAssignee != nil || itemSaved != nil || !srcEnabled || newsSaved != nil || !feedEnabled || ctTitle != "" {
 		t.Errorf("A's rows changed under B's MCP sweep: conv=%s/%v item saved=%v source enabled=%v news saved=%v feed enabled=%v contact title=%q",

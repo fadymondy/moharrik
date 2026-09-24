@@ -44,6 +44,10 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"member_whatsapp", "member_whatsapp_events", "member_whatsapp_messages", "member_whatsapp_marks",
 	// collected notification sources (MH-384)
 	"notification_sources",
+	// the research evidence store (MH-388)
+	"research_evidence", "research_companies", "research_schedules", "research_settings",
+	// prospect discovery (MH-397)
+	"prospect_profiles", "prospects", "prospect_feedback", "prospect_drafts",
 }
 
 /*
@@ -88,6 +92,7 @@ var AuditExcluded = map[string]string{
 	"contact_lifecycle_events":    "the stage history, itself a log; the contact's stage change is audited",
 	"icp_scores":                  "derived from the profile and the records, recomputed on read; the profile is audited",
 	"automation_workflow_layouts": "where a workflow's canvas nodes sit — UI metadata, not the workflow; saving it is recorded by its request row",
+	"research_evidence":           "sentences a research run extracted from its sources; the run itself is audited",
 }
 
 // AuditedTables are the tenant tables the audit trigger is attached to.

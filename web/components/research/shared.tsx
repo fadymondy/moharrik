@@ -41,10 +41,10 @@ export function CapabilityNotes({ caps }: { caps: Pick<ResearchList, "can_search
   const { t } = useTranslations()
   const notes: { key: string; text: string }[] = []
   if (!caps.can_search) notes.push({ key: "search", text: t("research.capNoSearch") })
-  else {
-    if (!caps.can_read) notes.push({ key: "read", text: t("research.capNoRead") })
-    if (!caps.can_summarise) notes.push({ key: "summarise", text: t("research.capNoModel") })
-  }
+  if (!caps.can_read) notes.push({ key: "read", text: caps.can_search ? t("research.capNoRead") : t("research.capNoReadNoUrls") })
+  // Evidence is still extracted without a model, word for word — said, so a
+  // reader knows every quote is the page's own sentence.
+  if (!caps.can_summarise && (caps.can_search || caps.can_read)) notes.push({ key: "summarise", text: t("research.capNoModel") })
   if (notes.length === 0) return null
   return (
     <div className="space-y-2 px-6 pb-4" role="status">

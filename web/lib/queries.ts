@@ -23,6 +23,13 @@ import {
   type WhatsAppNotify,
   type RunStep,
   type ResearchDetail,
+  type CompanySuggestion,
+  type EvidencePage,
+  type ResearchBudget,
+  type ResearchSchedule,
+  type ProspectDetail,
+  type ProspectList,
+  type ProspectProfileOut,
   type ResearchList,
   type Activity,
   type Bell,
@@ -580,6 +587,37 @@ export function useResearchContent(workspaceId: string | null | undefined, id: s
     noRetryOn4xx,
   )
 }
+
+// ── Research evidence (MH-388) ───────────────────────────────────────────
+
+export type EvidenceFilter = { q?: string; company?: string; signal?: string; domain?: string; run?: string; limit?: number; offset?: number }
+
+function qs(params: Record<string, string | number | undefined>) {
+  const u = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") u.set(k, String(v))
+  const s = u.toString()
+  return s ? `?${s}` : ""
+}
+
+/** find_evidence, for the page: every run's evidence, filtered. */
+export const useEvidence = (id: string | null | undefined, f: EvidenceFilter) =>
+  useScoped<EvidencePage>(`/api/w/evidence${qs(f)}`, id)
+
+export const useCompanySuggestions = (id: string | null | undefined, status = "suggested", enabled = true) =>
+  useScoped<{ suggestions: CompanySuggestion[]; total: number }>(`/api/w/company-suggestions${qs({ status })}`, id, enabled)
+
+export const useResearchSchedules = (id?: string | null) =>
+  useScoped<{ schedules: ResearchSchedule[]; budget: ResearchBudget }>("/api/w/research-schedules", id)
+
+// ── Prospect discovery (MH-397) ──────────────────────────────────────────
+
+export const useProspectProfile = (id?: string | null) => useScoped<ProspectProfileOut>("/api/w/prospect-profile", id)
+
+export const useProspects = (id: string | null | undefined, status: string, q = "") =>
+  useScoped<ProspectList>(`/api/w/prospects${qs({ status, q })}`, id)
+
+export const useProspect = (id: string | null | undefined, prospectId?: string) =>
+  useScoped<ProspectDetail>(`/api/w/prospects/${encodeURIComponent(prospectId ?? "")}`, id, !!prospectId)
 
 // ── Integrations ────────────────────────────────────────────────────────
 
