@@ -263,7 +263,12 @@ function MailboxCard({
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-grid-muted">
           <span dir="ltr">
-            {mailbox.username}@{mailbox.host}
+            {/* A username is often already a full address (Gmail, most
+                providers) — "@host" is only added when it is a bare login
+                name, so a real address is never shown doubled. */}
+            {mailbox.username}
+            {mailbox.username.includes("@") ? " · " : "@"}
+            {mailbox.host}
           </span>
           <span>{t("mailbox.collected", { n: mailbox.message_count })}</span>
           {mailbox.last_polled_at && formatDate ? <span>{t("mailbox.lastChecked", { date: formatDate(mailbox.last_polled_at) })}</span> : null}
