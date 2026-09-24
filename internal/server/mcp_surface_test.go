@@ -179,6 +179,7 @@ func bootSurface(t *testing.T) *surface {
 	t.Setenv("TRENDS_COLLECTOR", "off")
 	t.Setenv("MAIL_COLLECTOR", "off")
 	t.Setenv("SCHEDULER", "off")
+	t.Setenv("NOTIFY_COLLECTOR", "off")
 	t.Setenv("VAPID_PUBLIC_KEY", "")
 	t.Setenv("VAPID_PRIVATE_KEY", "")
 
@@ -244,6 +245,7 @@ func TestMCPSurface(t *testing.T) {
 	for _, name := range []string{"list_conversations", "get_conversation", "reply", "close_conversation", "assign_conversation",
 		"list_notifications", "get_notification", "saved_notifications", "mark_notification", "save_notification", "mark_all_notifications_read",
 		"list_webhook_sources", "create_webhook_source", "rotate_webhook_source", "disable_webhook_source", "enable_webhook_source",
+		"list_notification_sources", "add_notification_source", "update_notification_source", "collect_notification_source",
 		"get_contact", "search_contacts", "create_contact", "update_contact", "get_company", "search_companies", "update_company",
 		"get_deal", "update_deal", "company_timeline", "list_activities",
 		"snooze_conversation", "link_conversation_contact", "create_contact_from_conversation", "open_deal_from_conversation",
@@ -832,6 +834,7 @@ func TestMCPSurface(t *testing.T) {
 	}
 	for _, name := range []string{"list_conversations", "reply", "close_conversation", "assign_conversation", "get_conversation",
 		"list_notifications", "get_notification", "mark_notification", "save_notification", "rotate_webhook_source", "disable_webhook_source",
+		"list_notification_sources", "add_notification_source", "update_notification_source", "collect_notification_source",
 		"get_contact", "search_contacts", "create_contact", "update_contact", "get_company", "search_companies", "update_company",
 		"get_deal", "update_deal", "company_timeline", "list_trend_items", "mark_trend_item", "collect_now", "add_trend_source",
 		"trend_budget", "list_trending_topics", "get_trending_topic", "review_trending_topic",

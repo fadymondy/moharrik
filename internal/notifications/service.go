@@ -29,11 +29,17 @@ status errors: REST returns them as they are, MCP hands back their message.
 
 // ItemFilter narrows the feed. Every field is optional.
 type ItemFilter struct {
-	Unread   bool
-	Saved    bool
+	Unread bool
+	Saved  bool
+	// SourceID is a source key: a webhook source id, a collected source id, or
+	// "internal:<label>" (NotificationItemOut.SourceKey).
 	SourceID string
 	Severity string
-	Limit    int
+	// Kind narrows to one item kind (reply, video, issue, …).
+	Kind string
+	// Q searches the title, body, actor and source label, case-insensitively (MH-384).
+	Q     string
+	Limit int
 	// Cursor is NextCursor from the previous page.
 	Cursor string
 }
@@ -42,6 +48,14 @@ type ItemFilter struct {
 type ItemList struct {
 	Items       []NotificationItemOut `json:"items"`
 	UnreadCount int64                 `json:"unread_count"`
+	// Total is how many items match the filter, across every page.
+	Total int64 `json:"total"`
+	// SavedCount is how many items are saved, across the workspace.
+	SavedCount int64 `json:"saved_count"`
+	// Sources and Kinds are the filters' values with their counts across the
+	// whole workspace (fadymondy.com's facets), for the filter menus.
+	Sources []SourceFacet `json:"sources"`
+	Kinds   []Facet       `json:"kinds"`
 	// NextCursor fetches the page after this one; empty on the last page.
 	NextCursor string `json:"next_cursor"`
 }
@@ -73,14 +87,27 @@ func ListItems(ctx context.Context, a *app.App, f ItemFilter) (*ItemList, error)
 	if f.Saved {
 		q += ` AND saved_at IS NOT NULL`
 	}
-	if f.SourceID != "" {
-		args = append(args, f.SourceID)
-		q += ` AND source_id = $` + strconv.Itoa(len(args))
+	if f.SourceID = strings.TrimSpace(f.SourceID); f.SourceID != "" {
+		pred, v := sourcePredicate(f.SourceID, len(args)+1)
+		args = append(args, v)
+		q += pred
 	}
 	if f.Severity != "" {
 		args = append(args, f.Severity)
 		q += ` AND severity = $` + strconv.Itoa(len(args))
 	}
+	if f.Kind = strings.TrimSpace(f.Kind); f.Kind != "" {
+		args = append(args, f.Kind)
+		q += ` AND kind = $` + strconv.Itoa(len(args))
+	}
+	if f.Q = strings.TrimSpace(f.Q); f.Q != "" {
+		args = append(args, "%"+likeEscape(f.Q)+"%")
+		n := strconv.Itoa(len(args))
+		q += ` AND (title ILIKE $` + n + ` OR body ILIKE $` + n + ` OR actor ILIKE $` + n + ` OR source_name ILIKE $` + n + `)`
+	}
+	// The same filter without the cursor is what Total counts.
+	countQ := `SELECT count(*) FROM notification_items WHERE workspace_id = $1` + strings.TrimPrefix(q, notificationItemSelect)
+	countArgs := append([]any(nil), args...)
 	if f.Cursor != "" {
 		at, id, ok := decodeCursor(f.Cursor)
 		if !ok {
@@ -116,8 +143,15 @@ func ListItems(ctx context.Context, a *app.App, f ItemFilter) (*ItemList, error)
 		last := res.Items[limit-1]
 		res.NextCursor = encodeCursor(last.OccurredAt, last.ID)
 	}
-	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM notification_items WHERE workspace_id = $1 AND read_at IS NULL`, s.WorkspaceID).Scan(&res.UnreadCount); err != nil {
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE read_at IS NULL), count(*) FILTER (WHERE saved_at IS NOT NULL)
+		FROM notification_items WHERE workspace_id = $1`, s.WorkspaceID).Scan(&res.UnreadCount, &res.SavedCount); err != nil {
 		return nil, huma.Error500InternalServerError("could not count unread notifications")
+	}
+	if err := a.SQLDB.QueryRowContext(ctx, countQ, countArgs...).Scan(&res.Total); err != nil {
+		return nil, huma.Error500InternalServerError("could not count notifications")
+	}
+	if res.Sources, res.Kinds, err = facets(ctx, a, s.WorkspaceID); err != nil {
+		return nil, huma.Error500InternalServerError("could not count notifications by source")
 	}
 	return res, nil
 }
@@ -189,8 +223,9 @@ func MarkAllRead(ctx context.Context, a *app.App, sourceID string) (int64, error
 	q := `UPDATE notification_items SET read_at = now() WHERE workspace_id = $1 AND read_at IS NULL`
 	args := []any{s.WorkspaceID}
 	if sourceID = strings.TrimSpace(sourceID); sourceID != "" {
-		q += ` AND source_id = $2`
-		args = append(args, sourceID)
+		pred, v := sourcePredicate(sourceID, 2)
+		q += pred
+		args = append(args, v)
 	}
 	res, err := a.SQLDB.ExecContext(ctx, q, args...)
 	if err != nil {

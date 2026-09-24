@@ -511,6 +511,11 @@ export type NotificationSeverity = "info" | "warning" | "error"
 export type NotificationItem = {
   id: string
   source_id: string | null
+  /** The collected source (MH-384) that found it. */
+  feed_source_id: string | null
+  origin: NotificationOrigin
+  /** What the list's source filter and mark-all-read take for this item's source. */
+  source_key: string
   source_name: string
   kind: string
   severity: NotificationSeverity
@@ -522,6 +527,62 @@ export type NotificationItem = {
   occurred_at: string
   read_at: string | null
   saved_at: string | null
+}
+
+export type NotificationOrigin = "webhook" | "collected" | "internal"
+
+/** One source in the feed's source filter, with its counts (MH-384). */
+export type NotificationSourceFacet = { key: string; name: string; origin: NotificationOrigin; total: number; unread: number }
+export type NotificationKindFacet = { value: string; total: number; unread: number }
+
+/** One page of the notification feed. */
+export type NotificationPage = {
+  items: NotificationItem[]
+  unread_count: number
+  saved_count: number
+  total: number
+  next_cursor: string
+  sources: NotificationSourceFacet[]
+  kinds: NotificationKindFacet[]
+}
+
+export type CollectedKind = "bluesky" | "youtube" | "rss"
+
+/** A polled notification source: Bluesky, YouTube or an RSS/Atom feed (MH-384). */
+export type CollectedSource = {
+  id: string
+  kind: CollectedKind
+  name: string
+  target: string
+  target_url: string
+  enabled: boolean
+  interval_minutes: number
+  push_enabled: boolean
+  push_kinds: string
+  last_run_at: string | null
+  last_collected_at: string | null
+  next_run_at: string | null
+  last_status: "" | "ok" | "failed"
+  last_error: string
+  last_item_count: number
+  item_count: number
+  unread_count: number
+  created_at: string
+}
+
+/** A kind of source, and whether this server can collect it. */
+export type NotificationKindEntry = {
+  kind: string
+  available: boolean
+  target_hint?: "handle" | "channel" | "url"
+  needs?: "google_oauth" | "oauth_app" | "browser_plugin"
+}
+
+export type CollectedSourceList = {
+  sources: CollectedSource[]
+  catalog: NotificationKindEntry[]
+  budget: { runs_per_hour: number; limit: number }
+  intervals: number[]
 }
 
 // ── Inbox ───────────────────────────────────────────────────────────────

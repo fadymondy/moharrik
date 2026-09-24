@@ -48,9 +48,9 @@ var UserScopes = []ScopeDef{
 	// items is a member right (notifications:write), while creating, rotating,
 	// enabling or disabling a webhook source changes what the whole workspace
 	// collects and shows a secret once, so it is a manager's (…:manage).
-	{"notifications:read", "Read the notification center and its webhook sources", authz.Member},
+	{"notifications:read", "Read the notification center, its webhook sources and its collected sources", authz.Member},
 	{"notifications:write", "Mark notifications read or unread, and save them for later", authz.Member},
-	{"notifications:manage", "Create, rotate, enable and disable webhook sources", authz.Manager},
+	{"notifications:manage", "Create, rotate, enable and disable webhook sources; add, change and collect collected sources", authz.Manager},
 	{"research:read", "Read research runs and collected evidence", authz.Member},
 	{"research:run", "Start research runs", authz.Member},
 	// Trends (MH-386): reading and saving are member rights, as in the REST

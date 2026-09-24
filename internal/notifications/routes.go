@@ -152,12 +152,15 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		Unread   bool   `query:"unread" doc:"Only items not yet marked read."`
 		Saved    bool   `query:"saved" doc:"Only saved items."`
-		SourceID string `query:"source_id"`
+		SourceID string `query:"source_id" doc:"A source key (an item's source_key, or a key from sources): a webhook source, a collected source, or internal:<label>."`
 		Severity string `query:"severity" enum:",info,warning,error"`
+		Kind     string `query:"kind" maxLength:"60" doc:"One item kind, e.g. reply, video, issue."`
+		Q        string `query:"q" maxLength:"200" doc:"Search the title, body, actor and source."`
 		Limit    int    `query:"limit" minimum:"1" maximum:"500"`
 		Cursor   string `query:"cursor" doc:"next_cursor from the previous page"`
 	}) (*body[ItemList], error) {
-		res, err := ListItems(ctx, a, ItemFilter{Unread: in.Unread, Saved: in.Saved, SourceID: in.SourceID, Severity: in.Severity, Limit: in.Limit, Cursor: in.Cursor})
+		res, err := ListItems(ctx, a, ItemFilter{Unread: in.Unread, Saved: in.Saved, SourceID: in.SourceID, Severity: in.Severity,
+			Kind: in.Kind, Q: in.Q, Limit: in.Limit, Cursor: in.Cursor})
 		if err != nil {
 			return nil, err
 		}
@@ -203,11 +206,14 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-mark-all-notifications-read", Method: http.MethodPost, Path: "/api/w/notifications/mark_all_read",
-		Summary: "Mark every unread item read (does not touch saved)", Tags: tags,
-	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
+		Summary: "Mark every unread item read, or only one source's (does not touch saved)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		SourceID string `query:"source_id" doc:"Only this source's items (a source key, as on the list)."`
+	}) (*body[struct {
 		Marked int64 `json:"marked"`
 	}], error) {
-		n, err := MarkAllRead(ctx, a, "")
+		n, err := MarkAllRead(ctx, a, in.SourceID)
 		if err != nil {
 			return nil, err
 		}
@@ -216,6 +222,7 @@ func Register(api huma.API, a *app.App) {
 		}{n}), nil
 	})
 
+	registerCollected(api, a)
 	registerPublicHook(api, a)
 }
 

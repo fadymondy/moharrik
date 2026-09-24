@@ -182,6 +182,13 @@ func Boot() *app.App {
 		google.StartCollector(a, 5*time.Minute, 20)
 	}
 
+	// The notification center's collected sources (MH-384): Bluesky, YouTube
+	// and RSS, each on its own interval. NOTIFY_COLLECTOR=off turns it off —
+	// the tests and the OpenAPI export must not call anybody's servers.
+	if os.Getenv("NOTIFY_COLLECTOR") != "off" {
+		notifications.StartCollector(a, time.Minute, 20)
+	}
+
 	// Snoozed conversations wake when their time comes (MH-383), so every open
 	// tab's list and bell move without anyone reloading. SNOOZE_WAKER=off
 	// turns it off; the inbox list wakes due threads on read either way.

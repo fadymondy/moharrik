@@ -47,6 +47,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/google"
 	"github.com/fadymondy/moharrik/internal/google/googletest"
 	"github.com/fadymondy/moharrik/internal/mcp"
+	"github.com/fadymondy/moharrik/internal/notifications"
 	_ "github.com/fadymondy/moharrik/internal/plugins"
 	"github.com/fadymondy/moharrik/internal/testdb"
 )
@@ -178,6 +179,12 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	// The Google data collector's ticker is off; the connect's own background
 	// discovery and first sync run (against the fake), as in production.
 	t.Setenv("GOOGLE_COLLECTOR", "off")
+	// The notification collector's ticker is off; a collected source in A is
+	// read by hand, from a fake Bluesky (MH-384).
+	t.Setenv("NOTIFY_COLLECTOR", "off")
+	fakePub := newFakePublic()
+	defer fakePub.Close()
+	defer notifications.SetEndpoints(notifications.Endpoints{Bluesky: fakePub.URL, YouTube: fakePub.URL})()
 	// Google connections (MH-439) against the fake Google, never the real one.
 	fakeGoogle := googletest.New()
 	defer fakeGoogle.Close()
@@ -333,6 +340,9 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"contact_id": ctID}, 200)
 	convDealID := alice.must("POST", "/api/w/conversations/"+convID+"/deal", map[string]any{"title": marker + " chat deal"}, 201)["deal_id"].(string)
 	cannedID := alice.must("POST", "/api/w/canned_replies", map[string]any{"title": marker + " canned", "body_en": marker, "body_ar": marker}, 201)["reply"].(map[string]any)["id"].(string)
+	// MH-384: a collected source in A, run once so it has items.
+	notifSrcID := alice.must("POST", "/api/w/notification_sources", map[string]any{"kind": "bluesky", "target": "shop.bsky.social", "name": marker + " Bluesky"}, 201)["source"].(map[string]any)["id"].(string)
+	alice.must("POST", "/api/w/notification_sources/"+notifSrcID+"/collect", nil, 200)
 
 	// Leads (MH-390): an inquiry form, then a real submission through the
 	// PUBLIC route, so the lead exists the way a visitor's website makes it.
@@ -505,7 +515,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal("A's setup left no audit rows: the audit sweep below would prove nothing")
 	}
 
-	aIDs := []string{aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID}
+	aIDs := []string{aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, notifSrcID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -517,9 +527,10 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"push":   pushID,
 		"topics": kwID, "feed_sources": feedID, "news": newsID, "trends": trendID,
 		"browsers": agentID, "workflows": wfID, "schedules": schedID,
-		"canned_replies": cannedID,
-		"oauth_grants":   grantID,
-		"smtp-services":  smtpID,
+		"canned_replies":       cannedID,
+		"oauth_grants":         grantID,
+		"smtp-services":        smtpID,
+		"notification_sources": notifSrcID,
 	}
 
 	leaks := func(b []byte) string {
