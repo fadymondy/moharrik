@@ -92,30 +92,65 @@ function HtmlMessage({ html }: { html: string }) {
   )
 }
 
+/**
+ * A message's non-inline attachments (MH-556, extended for MH-587): an image
+ * gets a thumbnail (WhatsApp's media grid), audio gets a native player (a
+ * voice note, whatever codec the channel actually sent — no waveform is
+ * fabricated), and everything else falls back to the file chip. Driven only
+ * by the attachment's own content_type — nothing here assumes a channel.
+ */
 export function AttachmentList({ attachments }: { attachments?: InboxAttachment[] }) {
   const { t } = useTranslations()
   const files = (attachments ?? []).filter((a) => !a.inline)
   if (files.length === 0) return null
+  const images = files.filter((a) => a.content_type.startsWith("image/"))
+  const audio = files.filter((a) => a.content_type.startsWith("audio/"))
+  const other = files.filter((a) => !a.content_type.startsWith("image/") && !a.content_type.startsWith("audio/"))
+
   return (
-    <ul className="mt-2 flex flex-wrap gap-2" data-attachments>
-      {files.map((a) => (
-        <li key={a.id}>
-          <a
-            href={a.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            download={a.filename}
-            className="flex items-center gap-1.5 rounded-md border border-grid-border bg-grid-soft px-2 py-1 text-xs hover:bg-grid-card"
-            title={`${a.filename} (${Math.ceil(a.size_bytes / 1024)} KB)`}
-          >
-            <PaperclipIcon className="size-3.5 shrink-0" />
-            <span className="max-w-40 truncate">{a.filename}</span>
-            <DownloadIcon className="size-3 shrink-0 text-grid-muted" />
-          </a>
-        </li>
+    <div className="mt-2 flex flex-col gap-2" data-attachments>
+      {images.length > 0 ? (
+        <ul className="grid grid-cols-3 gap-1.5" data-attachment-images>
+          {images.map((a) => (
+            <li key={a.id}>
+              <a href={a.url} target="_blank" rel="noreferrer noopener" title={a.filename} className="block overflow-hidden rounded-md border border-grid-border">
+                {/* Signed, short-lived attachment URLs: next/image would cache
+                    past that window, so a plain <img> is correct here. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.url} alt={a.filename} className="aspect-square size-full object-cover" loading="lazy" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {audio.map((a) => (
+        <div key={a.id} className="flex items-center gap-2" data-attachment-audio>
+          <audio controls preload="none" src={a.url} className="h-9 max-w-64" />
+          <span className="sr-only">{a.filename}</span>
+        </div>
       ))}
-      <li className="sr-only">{t("inbox.attachmentsCount", { n: files.length })}</li>
-    </ul>
+      {other.length > 0 ? (
+        <ul className="flex flex-wrap gap-2" data-attachment-files>
+          {other.map((a) => (
+            <li key={a.id}>
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                download={a.filename}
+                className="flex items-center gap-1.5 rounded-md border border-grid-border bg-grid-soft px-2 py-1 text-xs hover:bg-grid-card"
+                title={`${a.filename} (${Math.ceil(a.size_bytes / 1024)} KB)`}
+              >
+                <PaperclipIcon className="size-3.5 shrink-0" />
+                <span className="max-w-40 truncate">{a.filename}</span>
+                <DownloadIcon className="size-3 shrink-0 text-grid-muted" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <span className="sr-only">{t("inbox.attachmentsCount", { n: files.length })}</span>
+    </div>
   )
 }
 
