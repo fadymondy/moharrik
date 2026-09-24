@@ -4,6 +4,8 @@ import useSWR, { type SWRConfiguration } from "swr"
 import useSWRInfinite from "swr/infinite"
 
 import {
+  type CollectedSourceList,
+  type NotificationPage,
   api,
   ApiError,
   type CrmReport,
@@ -314,22 +316,43 @@ export const useLead = (wsId?: string | null, id?: string) =>
 
 export const useWebhookSources = (id?: string | null) => useScoped<{ sources: WebhookSource[] | null }>("/api/w/webhook_sources", id)
 
-export type NotificationFilter = { unread?: boolean; saved?: boolean; sourceId?: string; severity?: string }
+export type NotificationFilter = {
+  unread?: boolean
+  saved?: boolean
+  /** A source key (NotificationItem.source_key). */
+  sourceId?: string
+  severity?: string
+  kind?: string
+  q?: string
+  limit?: number
+  cursor?: string
+}
 
-/** The notification feed. Query params vary per filter, so this bypasses useScoped's fixed path. */
+/** The notification feed, one page at a time. Query params vary per filter, so this bypasses useScoped's fixed path. */
 export function useNotifications(workspaceId: string | null | undefined, filter: NotificationFilter = {}) {
   const qs = new URLSearchParams()
   if (filter.unread) qs.set("unread", "true")
   if (filter.saved) qs.set("saved", "true")
   if (filter.sourceId) qs.set("source_id", filter.sourceId)
   if (filter.severity) qs.set("severity", filter.severity)
+  if (filter.kind) qs.set("kind", filter.kind)
+  if (filter.q?.trim()) qs.set("q", filter.q.trim())
+  if (filter.limit) qs.set("limit", String(filter.limit))
+  if (filter.cursor) qs.set("cursor", filter.cursor)
   const path = "/api/w/notifications" + (qs.toString() ? `?${qs.toString()}` : "")
-  return useSWR<{ items: NotificationItem[]; unread_count: number }>(
+  return useSWR<NotificationPage>(
     workspaceId ? [path, workspaceId] : null,
-    ([p, id]: [string, string]) => api<{ items: NotificationItem[]; unread_count: number }>(p, { workspaceId: id }),
-    noRetryOn4xx,
+    ([p, id]: [string, string]) => api<NotificationPage>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, keepPreviousData: true },
   )
 }
+
+/** One notification with its raw payload (the detail sheet). */
+export const useNotificationItem = (wsId?: string | null, id?: string | null) =>
+  useScoped<{ item: NotificationItem }>(`/api/w/notifications/${encodeURIComponent(id ?? "")}`, wsId, !!id)
+
+/** Collected sources (Bluesky, YouTube, RSS), the catalog of kinds and the polling budget (MH-384). */
+export const useCollectedSources = (id?: string | null) => useScoped<CollectedSourceList>("/api/w/notification_sources", id)
 
 // ── Inbox ────────────────────────────────────────────────────────────────
 

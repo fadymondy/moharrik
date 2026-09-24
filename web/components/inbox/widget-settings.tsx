@@ -1,0 +1,482 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { MessageCircleIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { toast } from "sonner";
+
+import { Bdi } from "@/components/bidi";
+import { PickSelect } from "@/components/crm/shared";
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useWorkspace } from "@/components/workspace/workspace-context";
+import {
+  api,
+  ApiError,
+  type ChatQuickAction,
+  type ChatWidget,
+  type ChatWidgetSettings,
+} from "@/lib/api";
+import { useTranslations } from "@/lib/i18n";
+
+/*
+Everything a chat widget does on the customer's page (MH-382): greeting, look,
+the invitation, page-dependent quick actions and the lead event. Ported from
+fadymondy.com's chat widget, where these are one site's constants; here each
+widget has its own. The widget reads them from its config, so saving here
+changes every page that already embeds the key.
+*/
+
+const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+// What the SDK paints with when no accent is set (moharrik-chat's DEFAULT_ACCENT).
+const SDK_DEFAULT_ACCENT = "#00A0A8";
+
+/*
+The ink the widget itself puts on the accent: dark or light, whichever reads
+(the SDK's onAccent, WCAG relative luminance). Duplicated so the preview shows
+the embedded widget exactly — these two are the widget's colours, not the
+app's theme.
+*/
+function inkOn(hex: string): string {
+  let h = hex.slice(1);
+  if (h.length === 3) h = h.replace(/./g, (c) => c + c);
+  const lin = (i: number) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const L = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
+  return (L + 0.05) / 0.0575 >= 1.05 / (L + 0.05) ? "#0B1429" : "#ffffff";
+}
+
+function settingsOf(w: ChatWidget): ChatWidgetSettings {
+  return {
+    greeting: w.greeting ?? "",
+    greeting_ar: w.greeting_ar ?? "",
+    title: w.title ?? "",
+    title_ar: w.title_ar ?? "",
+    accent: w.accent ?? "",
+    theme: w.theme ?? "auto",
+    position: w.position ?? "end",
+    invite: !!w.invite,
+    invite_after_seconds: w.invite_after_seconds || 25,
+    quick_actions: (w.quick_actions ?? []).map((q) => ({
+      ...q,
+      path: q.path ?? "",
+      locale: q.locale ?? "",
+    })),
+    lead_event: w.lead_event !== false,
+  };
+}
+
+export function WidgetSettingsSheet({
+  widget,
+  onOpenChange,
+  onSaved,
+}: {
+  widget: ChatWidget | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const { t, isRtl } = useTranslations();
+  return (
+    <Sheet open={!!widget} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={isRtl ? "left" : "right"}
+        className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-xl data-[side=right]:sm:max-w-xl"
+        data-widget-settings
+      >
+        <SheetHeader className="pe-12">
+          <SheetTitle>{widget ? <Bdi>{widget.name}</Bdi> : null}</SheetTitle>
+          <SheetDescription>{t("inbox.widgetSettingsHint")}</SheetDescription>
+        </SheetHeader>
+        {widget ? (
+          <SettingsForm
+            key={widget.id}
+            widget={widget}
+            onSaved={onSaved}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function SettingsForm({
+  widget,
+  onSaved,
+  onCancel,
+}: {
+  widget: ChatWidget;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const { t, locale } = useTranslations();
+  const ws = useWorkspace();
+  const [s, setS] = useState<ChatWidgetSettings>(() => settingsOf(widget));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const set = <K extends keyof ChatWidgetSettings>(k: K, v: ChatWidgetSettings[K]) =>
+    setS((cur) => ({ ...cur, [k]: v }));
+
+  const accentOk = s.accent === "" || HEX.test(s.accent);
+  const previewAccent = accentOk && s.accent ? s.accent : SDK_DEFAULT_ACCENT;
+  // The preview speaks the language this page is in, as the widget would.
+  const ar = locale === "ar";
+  const previewTitle = (ar && s.title_ar) || s.title || t("inbox.widgetDefaultTitle");
+  const previewGreeting = (ar && s.greeting_ar) || s.greeting || t("inbox.widgetDefaultGreeting");
+  const previewActions = s.quick_actions.filter(
+    (q) => q.label.trim() && (!q.locale || q.locale === (ar ? "ar" : "en")),
+  );
+
+  function setAction(i: number, patch: Partial<ChatQuickAction>) {
+    set(
+      "quick_actions",
+      s.quick_actions.map((q, j) => (j === i ? { ...q, ...patch } : q)),
+    );
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!accentOk) {
+      setErr(t("inbox.accentInvalid"));
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/api/w/chat_widgets/${encodeURIComponent(widget.id)}`, {
+        method: "PATCH",
+        workspaceId: ws.id,
+        json: {
+          ...s,
+          quick_actions: s.quick_actions.map((q) => ({
+            label: q.label.trim(),
+            message: q.message.trim(),
+            ...(q.path?.trim() ? { path: q.path.trim() } : {}),
+            ...(q.locale ? { locale: q.locale } : {}),
+          })),
+        },
+      });
+      toast.success(t("inbox.widgetSettingsSaved"));
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-6 px-4 pb-6" data-widget-settings-form>
+      {/* What the visitor sees first, in the colours chosen below. Inline
+          styles only for the accent: it is the workspace's own brand colour,
+          not a theme colour, and the widget itself paints with exactly it. */}
+      <div className="border border-line" aria-hidden data-widget-preview>
+        <div
+          className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium"
+          style={{ background: previewAccent, color: inkOn(previewAccent) }}
+        >
+          <MessageCircleIcon className="size-4" />
+          <span className="truncate" dir="auto">
+            {previewTitle}
+          </span>
+        </div>
+        <div className="flex flex-col gap-2 p-3">
+          <p
+            className="max-w-[85%] self-start bg-grid-card px-3 py-2 text-sm whitespace-pre-wrap"
+            dir="auto"
+          >
+            {previewGreeting}
+          </p>
+          {previewActions.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {previewActions.map((q, i) => (
+                <span key={i} className="border border-line px-2.5 py-1 text-xs" dir="auto">
+                  {q.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <FieldSet>
+        <FieldLegend>{t("inbox.widgetText")}</FieldLegend>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="ws-greeting">{t("inbox.greeting")}</FieldLabel>
+            <Textarea
+              id="ws-greeting"
+              rows={2}
+              maxLength={500}
+              value={s.greeting}
+              onChange={(e) => set("greeting", e.target.value)}
+              dir="auto"
+            />
+            <FieldDescription>{t("inbox.greetingHint")}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="ws-greeting-ar">{t("inbox.greetingAr")}</FieldLabel>
+            <Textarea
+              id="ws-greeting-ar"
+              rows={2}
+              maxLength={500}
+              value={s.greeting_ar}
+              onChange={(e) => set("greeting_ar", e.target.value)}
+              dir="rtl"
+              lang="ar"
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="ws-title">{t("inbox.widgetTitle")}</FieldLabel>
+              <Input
+                id="ws-title"
+                maxLength={60}
+                value={s.title}
+                onChange={(e) => set("title", e.target.value)}
+                placeholder={t("inbox.widgetDefaultTitle")}
+                dir="auto"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="ws-title-ar">{t("inbox.widgetTitleAr")}</FieldLabel>
+              <Input
+                id="ws-title-ar"
+                maxLength={60}
+                value={s.title_ar}
+                onChange={(e) => set("title_ar", e.target.value)}
+                dir="rtl"
+                lang="ar"
+              />
+            </Field>
+          </div>
+        </FieldGroup>
+      </FieldSet>
+
+      <FieldSet>
+        <FieldLegend>{t("inbox.widgetLook")}</FieldLegend>
+        <FieldGroup>
+          <Field data-invalid={!accentOk || undefined}>
+            <FieldLabel htmlFor="ws-accent">{t("inbox.accent")}</FieldLabel>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                aria-label={t("inbox.accent")}
+                className="size-9 shrink-0 cursor-pointer border border-line bg-transparent p-0.5"
+                value={
+                  accentOk && s.accent.length === 7
+                    ? s.accent
+                    : previewAccent.length === 7
+                      ? previewAccent
+                      : SDK_DEFAULT_ACCENT
+                }
+                onChange={(e) => set("accent", e.target.value.toUpperCase())}
+                data-accent-picker
+              />
+              <Input
+                id="ws-accent"
+                dir="ltr"
+                className="font-mono"
+                maxLength={7}
+                value={s.accent}
+                onChange={(e) => set("accent", e.target.value.trim())}
+                placeholder={SDK_DEFAULT_ACCENT}
+                aria-invalid={!accentOk || undefined}
+              />
+              {s.accent ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => set("accent", "")}>
+                  {t("inbox.accentReset")}
+                </Button>
+              ) : null}
+            </div>
+            <FieldDescription>{t("inbox.accentHint")}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel>{t("inbox.widgetTheme")}</FieldLabel>
+            <ToggleGroup
+              variant="outline"
+              size="sm"
+              spacing={0}
+              value={[s.theme]}
+              onValueChange={(v) => v[0] && set("theme", v[0] as ChatWidgetSettings["theme"])}
+              aria-label={t("inbox.widgetTheme")}
+            >
+              {(["auto", "light", "dark"] as const).map((v) => (
+                <ToggleGroupItem key={v} value={v} data-theme-option={v}>
+                  {t(`inbox.theme.${v}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </Field>
+          <Field>
+            <FieldLabel>{t("inbox.widgetPosition")}</FieldLabel>
+            <ToggleGroup
+              variant="outline"
+              size="sm"
+              spacing={0}
+              value={[s.position]}
+              onValueChange={(v) => v[0] && set("position", v[0] as ChatWidgetSettings["position"])}
+              aria-label={t("inbox.widgetPosition")}
+            >
+              {(["end", "start"] as const).map((v) => (
+                <ToggleGroupItem key={v} value={v} data-position-option={v}>
+                  {t(`inbox.position.${v}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <FieldDescription>{t("inbox.positionHint")}</FieldDescription>
+          </Field>
+        </FieldGroup>
+      </FieldSet>
+
+      <FieldSet>
+        <FieldLegend>{t("inbox.widgetBehaviour")}</FieldLegend>
+        <FieldGroup>
+          <Field orientation="horizontal">
+            <Switch id="ws-invite" checked={s.invite} onCheckedChange={(v) => set("invite", v)} />
+            <div className="flex flex-col gap-1">
+              <FieldLabel htmlFor="ws-invite">{t("inbox.invite")}</FieldLabel>
+              <FieldDescription>{t("inbox.inviteHint")}</FieldDescription>
+            </div>
+          </Field>
+          {s.invite ? (
+            <Field className="max-w-48">
+              <FieldLabel htmlFor="ws-invite-after">{t("inbox.inviteAfter")}</FieldLabel>
+              <Input
+                id="ws-invite-after"
+                type="number"
+                min={5}
+                max={600}
+                value={s.invite_after_seconds}
+                onChange={(e) => set("invite_after_seconds", Number(e.target.value) || 0)}
+              />
+            </Field>
+          ) : null}
+          <Field orientation="horizontal">
+            <Switch
+              id="ws-lead"
+              checked={s.lead_event}
+              onCheckedChange={(v) => set("lead_event", v)}
+            />
+            <div className="flex flex-col gap-1">
+              <FieldLabel htmlFor="ws-lead">{t("inbox.leadEvent")}</FieldLabel>
+              <FieldDescription>{t("inbox.leadEventHint")}</FieldDescription>
+            </div>
+          </Field>
+        </FieldGroup>
+      </FieldSet>
+
+      <FieldSet>
+        <FieldLegend>{t("inbox.quickActions")}</FieldLegend>
+        <FieldDescription>{t("inbox.quickActionsHint")}</FieldDescription>
+        <div className="flex flex-col gap-3">
+          {s.quick_actions.map((q, i) => (
+            <div key={i} className="grid gap-2 border border-line p-3" data-quick-action={i}>
+              <div className="flex items-center gap-2">
+                <Input
+                  aria-label={t("inbox.qaLabel")}
+                  placeholder={t("inbox.qaLabel")}
+                  maxLength={40}
+                  value={q.label}
+                  onChange={(e) => setAction(i, { label: e.target.value })}
+                  dir="auto"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("inbox.qaRemove")}
+                  onClick={() =>
+                    set(
+                      "quick_actions",
+                      s.quick_actions.filter((_, j) => j !== i),
+                    )
+                  }
+                >
+                  <Trash2Icon />
+                </Button>
+              </div>
+              <Textarea
+                aria-label={t("inbox.qaMessage")}
+                placeholder={t("inbox.qaMessage")}
+                rows={2}
+                maxLength={500}
+                value={q.message}
+                onChange={(e) => setAction(i, { message: e.target.value })}
+                dir="auto"
+              />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Input
+                  aria-label={t("inbox.qaPath")}
+                  placeholder={t("inbox.qaPathPlaceholder")}
+                  dir="ltr"
+                  maxLength={200}
+                  value={q.path ?? ""}
+                  onChange={(e) => setAction(i, { path: e.target.value })}
+                />
+                <PickSelect
+                  id={`qa-locale-${i}`}
+                  value={q.locale ?? ""}
+                  onChange={(v) => setAction(i, { locale: v as ChatQuickAction["locale"] })}
+                  noneLabel={t("inbox.qaAnyLanguage")}
+                  options={[
+                    { value: "en", label: t("inbox.qaEnglish") },
+                    { value: "ar", label: t("inbox.qaArabic") },
+                  ]}
+                />
+              </div>
+            </div>
+          ))}
+          {s.quick_actions.length < 8 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() =>
+                set("quick_actions", [
+                  ...s.quick_actions,
+                  { label: "", message: "", path: "", locale: "" },
+                ])
+              }
+            >
+              <PlusIcon />
+              {t("inbox.qaAdd")}
+            </Button>
+          ) : null}
+        </div>
+      </FieldSet>
+
+      {err ? <FieldError>{err}</FieldError> : null}
+      <SheetFooter className="flex-row justify-end gap-2 p-0">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="submit" disabled={busy}>
+          {busy ? t("common.working") : t("common.save")}
+        </Button>
+      </SheetFooter>
+    </form>
+  );
+}

@@ -31,6 +31,7 @@ import { api, ApiError, type WebhookSource, type WebhookSourceKind } from "@/lib
 import { useTranslations } from "@/lib/i18n"
 import { useWebhookSources } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { CollectedSources } from "@/components/notifications/collected-sources"
 import { Bdi, isolate } from "@/components/bidi"
 
 export default function WebhookSourcesPage() {
@@ -47,19 +48,23 @@ export default function WebhookSourcesPage() {
 
   return (
     <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("notifications.sources")}
-        description={t("notifications.sourcesHint")}
-        action={
-          canManage ? (
-            <Button onClick={() => setCreating(true)} disabled={!sources.data}>
-              <PlusIcon />
-              {t("notifications.addSource")}
-            </Button>
-          ) : undefined
-        }
-      />
+      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("notifications.sources")} description={t("notifications.sourcesPageHint")} />
+
+      {/* What the center polls (MH-384), then what posts to it. */}
+      <CollectedSources />
+
+      <div className="flex flex-wrap items-end justify-between gap-3 px-6 pt-6 pb-4" data-webhook-sources>
+        <div className="max-w-2xl">
+          <h2 className="text-lg font-semibold">{t("notifications.webhooks")}</h2>
+          <p className="mt-1 text-sm text-grid-muted">{t("notifications.sourcesHint")}</p>
+        </div>
+        {canManage ? (
+          <Button onClick={() => setCreating(true)} disabled={!sources.data}>
+            <PlusIcon />
+            {t("notifications.addSource")}
+          </Button>
+        ) : null}
+      </div>
 
       {sources.error ? (
         <ErrorState error={sources.error} />

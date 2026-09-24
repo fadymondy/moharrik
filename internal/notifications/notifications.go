@@ -69,8 +69,13 @@ type WebhookSourceWithSecret struct {
 }
 
 type NotificationItemOut struct {
-	ID         string     `json:"id"`
-	SourceID   *string    `json:"source_id"`
+	ID       string  `json:"id"`
+	SourceID *string `json:"source_id" doc:"The webhook source that delivered it; null for collected and internal items."`
+	// FeedSourceID is the collected source (MH-384) that found it.
+	FeedSourceID *string `json:"feed_source_id" doc:"The collected source (Bluesky, YouTube, RSS) that found it; null otherwise."`
+	// Origin is where it came from: webhook, collected or internal.
+	Origin     string     `json:"origin" enum:"webhook,collected,internal"`
+	SourceKey  string     `json:"source_key" doc:"The value to filter this item's source by (source_id on the list, mark_all_read)."`
 	SourceName string     `json:"source_name"`
 	Kind       string     `json:"kind"`
 	Severity   string     `json:"severity"`
@@ -168,17 +173,19 @@ func scanSource(row scanner, base string) (WebhookSourceOut, error) {
 }
 
 const notificationItemSelect = `
-	SELECT id, source_id, source_name, kind, severity, title, body, actor, url, payload, occurred_at, read_at, saved_at
+	SELECT id, source_id, feed_source_id, source_name, kind, severity, title, body, actor, url, payload, occurred_at, read_at, saved_at
 	FROM notification_items WHERE workspace_id = $1`
 
 func scanItem(row scanner) (NotificationItemOut, error) {
 	var it NotificationItemOut
-	var sourceID sql.NullString
+	var sourceID, feedID sql.NullString
 	var readAt, savedAt sql.NullTime
-	if err := row.Scan(&it.ID, &sourceID, &it.SourceName, &it.Kind, &it.Severity, &it.Title, &it.Body, &it.Actor, &it.URL, &it.Payload, &it.OccurredAt, &readAt, &savedAt); err != nil {
+	if err := row.Scan(&it.ID, &sourceID, &feedID, &it.SourceName, &it.Kind, &it.Severity, &it.Title, &it.Body, &it.Actor, &it.URL, &it.Payload, &it.OccurredAt, &readAt, &savedAt); err != nil {
 		return it, err
 	}
 	it.SourceID = strp(sourceID)
+	it.FeedSourceID = strp(feedID)
+	it.Origin, it.SourceKey = originOf(sourceID, feedID, it.SourceName)
 	it.ReadAt = timep(readAt)
 	it.SavedAt = timep(savedAt)
 	return it, nil
@@ -196,3 +203,19 @@ func clampSeverity(s string) string {
 	}
 	return "info"
 }
+
+// originOf says where an item came from, and the key its source is filtered by.
+// A webhook's key is its source id and a collected source's is its id (both
+// UUIDs, so they never collide). An item Moharrik raised itself (a lead, a
+// YouTube comment) has neither, so its key is "internal:" + its label.
+func originOf(sourceID, feedID sql.NullString, name string) (string, string) {
+	switch {
+	case sourceID.Valid:
+		return "webhook", sourceID.String
+	case feedID.Valid:
+		return "collected", feedID.String
+	}
+	return "internal", internalKeyPrefix + name
+}
+
+const internalKeyPrefix = "internal:"

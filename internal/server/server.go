@@ -184,6 +184,13 @@ func Boot() *app.App {
 		google.StartCollector(a, 5*time.Minute, 20)
 	}
 
+	// The notification center's collected sources (MH-384): Bluesky, YouTube
+	// and RSS, each on its own interval. NOTIFY_COLLECTOR=off turns it off —
+	// the tests and the OpenAPI export must not call anybody's servers.
+	if os.Getenv("NOTIFY_COLLECTOR") != "off" {
+		notifications.StartCollector(a, time.Minute, 20)
+	}
+
 	// Snoozed conversations wake when their time comes (MH-383), so every open
 	// tab's list and bell move without anyone reloading. SNOOZE_WAKER=off
 	// turns it off; the inbox list wakes due threads on read either way.
@@ -215,6 +222,12 @@ func Boot() *app.App {
 		}
 		return s.WorkspaceID, realtime.Viewer{UserID: s.UserID, Role: s.Role}
 	}))
+
+	// A chat visitor's own stream (MH-382): one conversation, authorized by the
+	// widget key, the Origin allow-list and the visitor token, exactly like the
+	// thread GET. SSE for the same reason as above; /api/chat/ is a public
+	// prefix in the guard and gets the chat CORS headers.
+	k.Router.Get("/api/chat/{key}/events", inbox.VisitorEvents(a))
 
 	// Deliberately NOT mounted from the scaffold:
 	//   /events               — one global SSE stream; would broadcast every

@@ -42,6 +42,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"smtp_services",  // several SMTP services per workspace (MH-412)
 	// members' WhatsApp notifications (MH-411)
 	"member_whatsapp", "member_whatsapp_events", "member_whatsapp_messages", "member_whatsapp_marks",
+	// collected notification sources (MH-384)
+	"notification_sources",
 }
 
 /*

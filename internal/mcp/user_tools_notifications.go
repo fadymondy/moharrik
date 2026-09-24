@@ -35,7 +35,7 @@ const maxPayload = 20000
 
 func itemSummary(it notifications.NotificationItemOut) map[string]any {
 	return map[string]any{
-		"id": it.ID, "source_id": it.SourceID, "source": it.SourceName, "kind": it.Kind, "severity": it.Severity,
+		"id": it.ID, "source_id": it.SourceID, "source_key": it.SourceKey, "origin": it.Origin, "source": it.SourceName, "kind": it.Kind, "severity": it.Severity,
 		"title": it.Title, "body": clipText(it.Body, 300), "actor": it.Actor, "url": it.URL,
 		"occurred_at": it.OccurredAt, "read": it.ReadAt != nil, "saved": it.SavedAt != nil,
 	}
@@ -46,7 +46,18 @@ func itemPage(res *notifications.ItemList) (string, error) {
 	for _, it := range res.Items {
 		list = append(list, itemSummary(it))
 	}
-	return jsonResult(map[string]any{"unread_count": res.UnreadCount, "count": len(list), "items": list, "next_cursor": res.NextCursor})
+	return jsonResult(map[string]any{"unread_count": res.UnreadCount, "total": res.Total, "count": len(list), "items": list,
+		"next_cursor": res.NextCursor, "sources": res.Sources, "kinds": res.Kinds})
+}
+
+func collectedView(c notifications.NotificationSource) map[string]any {
+	return map[string]any{
+		"id": c.ID, "kind": c.Kind, "name": c.Name, "target": c.Target, "target_url": c.TargetURL, "enabled": c.Enabled,
+		"interval_minutes": c.IntervalMinutes, "push_enabled": c.PushEnabled, "push_kinds": c.PushKinds,
+		"last_run_at": c.LastRunAt, "last_collected_at": c.LastCollectedAt, "next_run_at": c.NextRunAt,
+		"last_status": c.LastStatus, "last_error": c.LastError, "last_item_count": c.LastItemCount,
+		"item_count": c.ItemCount, "unread_count": c.UnreadCount,
+	}
 }
 
 func sourceView(s notifications.WebhookSourceOut) map[string]any {
@@ -80,12 +91,15 @@ func NotificationTools() []Tool {
 		{
 			Name: "list_notifications",
 			Description: "The notification feed, newest first, a page at a time: each item's id, source, severity, title, actor, link, " +
-				"and whether it is read or saved. unread_only defaults to true. Filter by source_id or severity; pass next_cursor back " +
+				"and whether it is read or saved. unread_only defaults to true. Search with q; filter by source_id (a source_key from " +
+				"an item or from sources), kind or severity; the answer also counts items per source and per kind. Pass next_cursor back " +
 				"as cursor for more. get_notification opens one in full.",
 			Scope: "notifications:read",
 			InputSchema: schema(nil, map[string]any{
 				"unread_only": map[string]any{"type": "boolean", "description": "Default true"},
-				"source_id":   prop("string", "Only this webhook source's items"),
+				"q":           prop("string", "Search the title, body, actor and source"),
+				"source_id":   prop("string", "Only this source's items: a webhook source id, a collected source id, or internal:<label>"),
+				"kind":        prop("string", "Only this item kind (reply, video, post, issue, …)"),
 				"severity":    map[string]any{"type": "string", "enum": []string{"info", "warning", "error"}},
 				"limit":       prop("integer", "Page size, default 50, at most 500"),
 				"cursor":      prop("string", "next_cursor from the previous answer"),
@@ -93,7 +107,9 @@ func NotificationTools() []Tool {
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				var in struct {
 					UnreadOnly *bool  `json:"unread_only"`
+					Q          string `json:"q"`
 					SourceID   string `json:"source_id"`
+					Kind       string `json:"kind"`
 					Severity   string `json:"severity"`
 					Limit      int    `json:"limit"`
 					Cursor     string `json:"cursor"`
@@ -106,6 +122,7 @@ func NotificationTools() []Tool {
 				}
 				res, err := notifications.ListItems(ctx, a, notifications.ItemFilter{
 					Unread: in.UnreadOnly == nil || *in.UnreadOnly, SourceID: in.SourceID, Severity: in.Severity, Limit: in.Limit, Cursor: in.Cursor,
+					Q: in.Q, Kind: in.Kind,
 				})
 				if err != nil {
 					return "", err
@@ -223,7 +240,7 @@ func NotificationTools() []Tool {
 			Name:        "mark_all_notifications_read",
 			Description: "Mark every unread notification read — or only one source's, with source_id. Saved items stay saved.",
 			Scope:       "notifications:write",
-			InputSchema: schema(nil, map[string]any{"source_id": prop("string", "Only this webhook source's items")}),
+			InputSchema: schema(nil, map[string]any{"source_id": prop("string", "Only this source's items: a webhook source id, a collected source id, or internal:<label>")}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				n, err := notifications.MarkAllRead(ctx, a, str(decodeArgs(raw), "source_id"))
 				if err != nil {
@@ -301,6 +318,102 @@ func NotificationTools() []Tool {
 			Scope:       "notifications:manage",
 			InputSchema: sourceOnly,
 			Run:         setSource(true),
+		},
+		// ---- collected sources (MH-384) ----
+		{
+			Name: "list_notification_sources",
+			Description: "The notification center's collected sources (Bluesky replies, YouTube uploads, RSS/Atom feeds): each one's id, kind, " +
+				"target, interval, push settings, last run, status and error, next run, and item counts. Also the catalog of kinds with " +
+				"which ones are not configured on this server and why (Gmail, Facebook, Instagram, Threads, LinkedIn, X, TikTok), and the " +
+				"polling budget (runs per hour against the workspace's share).",
+			Scope:       "notifications:read",
+			InputSchema: schema(nil, map[string]any{}),
+			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
+				res, err := notifications.ListCollected(ctx, a)
+				if err != nil {
+					return "", err
+				}
+				list := make([]map[string]any, 0, len(res.Sources))
+				for _, c := range res.Sources {
+					list = append(list, collectedView(c))
+				}
+				return jsonResult(map[string]any{"count": len(list), "sources": list, "catalog": res.Catalog, "budget": res.Budget, "intervals": res.Intervals})
+			},
+		},
+		{
+			Name: "add_notification_source",
+			Description: "Add a collected source. kind bluesky: target is a handle (name.bsky.social); it collects replies by other accounts " +
+				"to that account's recent posts. kind youtube: a channel id (UC…), channel URL or @handle; it collects new uploads. kind rss: " +
+				"a feed URL. The target is checked before saving and the first run is queued at once; the first run files items but alerts nobody.",
+			Scope: "notifications:manage",
+			InputSchema: schema([]string{"kind", "target"}, map[string]any{
+				"kind":             map[string]any{"type": "string", "enum": []string{"bluesky", "youtube", "rss"}},
+				"target":           prop("string", "Handle, channel or feed URL"),
+				"name":             prop("string", "Default: taken from what it reads"),
+				"interval_minutes": map[string]any{"type": "integer", "enum": notifications.Intervals, "description": "Default 60"},
+				"push_enabled":     map[string]any{"type": "boolean", "description": "Alert members for new items (default false)"},
+				"push_kinds":       prop("string", "Comma separated item kinds that alert; empty = all"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in notifications.NewNotificationSource
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				c, err := notifications.CreateCollected(ctx, a, in)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"source": collectedView(*c)})
+			},
+		},
+		{
+			Name: "update_notification_source",
+			Description: "Change a collected source: enabled, interval_minutes, push_enabled, push_kinds, name. A change that would poll " +
+				"more than the workspace's budget is refused and says by how much.",
+			Scope: "notifications:manage",
+			InputSchema: schema([]string{"id"}, map[string]any{
+				"id":               prop("string", "Collected source id (list_notification_sources)"),
+				"name":             prop("string", ""),
+				"enabled":          map[string]any{"type": "boolean"},
+				"interval_minutes": map[string]any{"type": "integer", "enum": notifications.Intervals},
+				"push_enabled":     map[string]any{"type": "boolean"},
+				"push_kinds":       prop("string", "Comma separated item kinds that alert; empty = all"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					ID string `json:"id"`
+					notifications.NotificationSourcePatch
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("id", in.ID)
+				if err != nil {
+					return "", err
+				}
+				c, err := notifications.UpdateCollected(ctx, a, id, in.NotificationSourcePatch)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"source": collectedView(*c)})
+			},
+		},
+		{
+			Name:        "collect_notification_source",
+			Description: "Collect one source now instead of waiting for its interval (at most once a minute). Returns the source with its new status and how many new items it filed.",
+			Scope:       "notifications:manage",
+			InputSchema: schema([]string{"id"}, map[string]any{"id": prop("string", "Collected source id")}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				id, err := required("id", str(decodeArgs(raw), "id"))
+				if err != nil {
+					return "", err
+				}
+				c, n, err := notifications.CollectNow(ctx, a, id)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"source": collectedView(*c), "new": n})
+			},
 		},
 	}
 }

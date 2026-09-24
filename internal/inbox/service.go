@@ -225,8 +225,14 @@ func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID
 	_, _ = a.SQLDB.ExecContext(ctx, `
 		UPDATE conversations SET last_message_at = now(), unread = false, updated_at = now(),
 		  status = CASE WHEN status = 'closed' THEN 'open' ELSE status END,
-		  closed_at = NULL
+		  closed_at = NULL,
+		  -- The visitor has a reply they have not seen (MH-382): the widget's
+		  -- launcher badge. Chat only; email and WhatsApp have their own apps.
+		  unread_visitor = unread_visitor + CASE WHEN channel = 'chat' THEN 1 ELSE 0 END
 		WHERE workspace_id = $1 AND id = $2`, wsID, convID)
+	// The visitor's open widget hears it at once rather than on its next poll
+	// (MH-382). Only chat visitors ever subscribe, so other channels no-op.
+	visitors.publish(convID, "message")
 	// Two members can have the same thread open; the one who did not type
 	// should see the reply appear. It names its author, so the author's own
 	// tab is never alerted by it (replies never alert anyone).
@@ -324,6 +330,10 @@ func UpdateConversation(ctx context.Context, a *app.App, id string, p Conversati
 			return nil, huma.Error404NotFound("conversation not found")
 		}
 		changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "conversation", ConversationID: id, AuthorUserID: s.UserID})
+		if status != "" {
+			// Closed or reopened: the visitor's widget shows the note (MH-382).
+			visitors.publish(id, "status")
+		}
 	}
 	c, err := readConversation(ctx, a.SQLDB, s.WorkspaceID, id)
 	if notFound(err) {
