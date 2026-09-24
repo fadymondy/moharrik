@@ -21,6 +21,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/leads"
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/testdb"
 )
 
@@ -300,6 +301,47 @@ func TestLeadIntake(t *testing.T) {
 		}
 		if !found {
 			t.Error("no notification-center item for the new lead")
+		}
+	})
+
+	// MH-497: the Leads page listens for "lead", and the hub drops an event that names no
+	// audience. A member who may read leads hears the new lead (and the bell's refresh); a
+	// client-role member and another workspace hear nothing.
+	t.Run("an open Leads page hears the new lead; a client and another workspace do not", func(t *testing.T) {
+		defer fresh()()
+		member, stopM := a.Events.Subscribe(aID, realtime.Viewer{UserID: "a-member", Role: "member"})
+		defer stopM()
+		clientTab, stopC := a.Events.Subscribe(aID, realtime.Viewer{UserID: "a-client", Role: "client"})
+		defer stopC()
+		otherWS, stopO := a.Events.Subscribe(bID, realtime.Viewer{UserID: "b-owner", Role: "owner"})
+		defer stopO()
+		kinds := func(ch <-chan []byte, wait time.Duration) map[string]int {
+			out := map[string]int{}
+			deadline := time.After(wait)
+			for {
+				select {
+				case b := <-ch:
+					var ev struct {
+						Kind string `json:"kind"`
+					}
+					_ = json.Unmarshal(b, &ev)
+					out[ev.Kind]++
+				case <-deadline:
+					return out
+				}
+			}
+		}
+		if r := postInquiry(t, srv.URL, key, site, "203.0.113.50", msg("live-"+rnd()+"@acme.test")); r.code != 200 {
+			t.Fatalf("post: %d %s", r.code, r.raw)
+		}
+		if got := kinds(member, 500*time.Millisecond); got["lead"] != 1 || got["notifications"] != 1 {
+			t.Errorf("a member's tab got %v, want one lead and one notifications refresh", got)
+		}
+		if got := kinds(clientTab, 150*time.Millisecond); len(got) != 0 {
+			t.Errorf("a client-role member's tab got %v, want nothing", got)
+		}
+		if got := kinds(otherWS, 150*time.Millisecond); len(got) != 0 {
+			t.Errorf("another workspace's tab got %v, want nothing", got)
 		}
 	})
 

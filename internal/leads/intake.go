@@ -14,6 +14,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/clientip"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/marketing"
@@ -64,7 +65,7 @@ type inquiryBody struct {
 	// Optional, as typed ("5,000", "$12k"). Converting the lead makes it the deal's value when it
 	// reads as one amount in the workspace's currency (budget.go).
 	Budget string `json:"budget,omitempty" maxLength:"80"`
-	Locale  string `json:"locale,omitempty" maxLength:"35"`
+	Locale string `json:"locale,omitempty" maxLength:"35"`
 	// The honeypot. The snippet hides it from people and from the tab order; a
 	// bot filling every field fills it. Its submission is thanked and dropped.
 	Nickname string `json:"nickname,omitempty" maxLength:"200" doc:"Honeypot: leave empty. A submission that fills it is accepted and discarded."`
@@ -216,7 +217,21 @@ func notify(ctx context.Context, a *app.App, wsID, leadID string, b inquiryBody,
 		a.Log.Warn("could not notify about a new lead", "workspace", wsID, "err", err)
 		return
 	}
-	a.Events.Publish(wsID, realtime.Event{Kind: "lead"})
+	// The bell and the notification center refresh in every open tab of a member who may read
+	// the feed. Quiet: the item is a record of the lead, not a customer waiting in a chat.
+	if a.Events != nil {
+		a.Events.Publish(wsID, realtime.Event{Kind: "notifications", Permission: authz.NotificationsRead})
+	}
+}
+
+// announceLead tells the workspace's open Leads pages that a lead arrived, so the list and its
+// counts update without a reload (MH-497). The audience is whoever may read leads: the hub
+// drops an event that names no permission (fail closed), which is exactly what happened to
+// this one before — the page listened for "lead" and never heard it.
+func announceLead(a *app.App, wsID string) {
+	if a.Events != nil {
+		a.Events.Publish(wsID, realtime.Event{Kind: "lead", Permission: authz.LeadsRead})
+	}
 }
 
 // defaultThanks is what a visitor is told when the form has no copy of its own.
@@ -291,6 +306,9 @@ func registerPublicInquiry(api huma.API, a *app.App) {
 			a.Log.Error("inquiry intake failed", "workspace", form.WorkspaceID, "err", err)
 			return nil, huma.Error500InternalServerError("could not record that message")
 		}
+		// The lead is stored: the Leads page hears about it whether or not the notification
+		// below manages to be written.
+		announceLead(a, form.WorkspaceID)
 		notify(sctx, a, form.WorkspaceID, id, in.Body, form.Name)
 
 		// The SAME answer whether this address is new to the workspace or
