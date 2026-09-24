@@ -30,7 +30,18 @@ export function cannedText(r: CannedReply, lang: "en" | "ar"): string {
  * API), not the member's UI language: reading the inbox in English, you still
  * answer an Arabic customer in Arabic.
  */
-export function CannedPicker({ lang, onInsert }: { lang: "en" | "ar"; onInsert: (text: string) => void }) {
+export function CannedPicker({
+  lang,
+  onInsert,
+  open,
+  onOpenChange,
+}: {
+  lang: "en" | "ar"
+  onInsert: (text: string) => void
+  /** Controlled open state — the composer opens this with "/" (MH-587). Omit for the default uncontrolled dropdown. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const canned = useCannedReplies(ws.id)
@@ -39,7 +50,7 @@ export function CannedPicker({ lang, onInsert }: { lang: "en" | "ar"; onInsert: 
   const other = t(`inbox.canned.language.${lang === "ar" ? "en" : "ar"}`)
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger render={<Button type="button" variant="outline" data-action="canned" disabled={!canned.data} />}>
         <MessageSquareQuoteIcon />
         {t("inbox.canned.insert")}

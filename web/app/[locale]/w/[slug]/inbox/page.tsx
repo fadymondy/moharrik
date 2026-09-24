@@ -2,41 +2,24 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import {
-  ChevronUpIcon,
-  EllipsisVerticalIcon,
-  FacebookIcon,
-  GlobeIcon,
-  HashIcon,
-  InstagramIcon,
-  LinkedinIcon,
-  MailIcon,
-  MessageCircleIcon,
-  MessageSquareIcon,
-  SendIcon,
-  SlackIcon,
-  type LucideIcon,
-} from "lucide-react"
+import { ChevronUpIcon, EllipsisVerticalIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
-import { CannedPicker } from "@/components/inbox/canned-picker"
-import { AttachmentList, MessageBody } from "@/components/inbox/message-body"
+import { ChatThread } from "@/components/inbox/chat-thread"
 import { SnoozeControl, SnoozedNote } from "@/components/inbox/snooze-control"
 import { ThreadCRM } from "@/components/inbox/thread-crm"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { MarkdownEditor } from "@/components/campaigns/markdown-editor"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, phoneLabel, type ChannelCount, type Conversation, type ConversationStatus, type InboxMessage, type ThreadPage } from "@/lib/api"
+import { channelIcon, channelLabel } from "@/lib/inbox-channels"
 import { useTranslations } from "@/lib/i18n"
-import { renderMarkdownPreview } from "@/lib/markdown"
 import { useSWRConfig } from "swr"
 
 import { useWorkspaceEvents } from "@/lib/events"
@@ -48,35 +31,6 @@ const statusVariant: Record<ConversationStatus, "default" | "secondary" | "outli
   open: "default",
   snoozed: "secondary",
   closed: "outline",
-}
-
-// Channel tabs are data-driven (MH-568): channel_counts on the list response
-// names whatever channels this workspace actually has, which grows as other
-// batches connect telegram/slack/discord and workflow feeds. This map is only
-// a nicer icon for the channels this build happens to know about — an
-// unlisted one still gets a tab, just with GlobeIcon.
-const channelIcons: Record<string, LucideIcon> = {
-  chat: MessageSquareIcon,
-  email: MailIcon,
-  whatsapp: MessageCircleIcon,
-  telegram: SendIcon,
-  slack: SlackIcon,
-  discord: HashIcon,
-  facebook: FacebookIcon,
-  linkedin: LinkedinIcon,
-  instagram: InstagramIcon,
-}
-function channelIcon(channel: string): LucideIcon {
-  return channelIcons[channel] ?? GlobeIcon
-}
-
-// t() falls back to the raw key when a translation is missing (web/lib/i18n.tsx)
-// — used here on purpose: a channel this build has no inbox.channel.<x> string
-// for still gets a readable, capitalised label instead of the literal key.
-function channelLabel(channel: string, t: (key: string) => string): string {
-  const key = `inbox.channel.${channel}`
-  const translated = t(key)
-  return translated === key ? channel.charAt(0).toUpperCase() + channel.slice(1) : translated
 }
 
 export default function InboxPage() {
@@ -529,7 +483,7 @@ function mergeMessages(older: InboxMessage[], newer: InboxMessage[]): InboxMessa
 }
 
 function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
-  const { t, formatDate } = useTranslations()
+  const { t } = useTranslations()
   const ws = useWorkspace()
   const canWrite = ws.can("inbox:write")
   const detail = useConversation(ws.id, id)
@@ -681,65 +635,19 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
         </div>
       ) : null}
 
-      <ol className="flex flex-col gap-3 px-6 py-4" data-messages>
-        {messages.map((m) => (
-          <li
-            key={m.id}
-            data-message={m.direction}
-            className={`max-w-[44rem] rounded-lg border border-line px-4 py-3 text-sm ${m.direction === "out" ? "ms-auto bg-grid-soft" : "bg-grid-card"}`}
-          >
-            <MessageBody body={m.body} bodyHtml={m.body_html} />
-            <AttachmentList attachments={m.attachments} />
-            <p className="mt-1 text-xs text-grid-muted">
-              {m.direction === "out" ? (m.author_user_id ? members.name(m.author_user_id) : t("inbox.team")) : c.customer_name ? <Bdi>{c.customer_name}</Bdi> : t("inbox.customer")} · <Ltr>{formatDate(m.created_at)}</Ltr>
-            </p>
-          </li>
-        ))}
-      </ol>
-
-      {canWrite ? (
-        <form onSubmit={send} noValidate className="border-t border-line px-6 py-4" data-form="reply">
-          <Field>
-            <FieldLabel htmlFor="reply-body" className="sr-only">
-              {t("inbox.replyLabel")}
-            </FieldLabel>
-            <Tabs defaultValue="write">
-              <TabsList className="mb-2">
-                <TabsTrigger value="write" data-tab="write">
-                  {t("inbox.write")}
-                </TabsTrigger>
-                <TabsTrigger value="preview" data-tab="preview">
-                  {t("inbox.preview")}
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="write">
-                <MarkdownEditor id="reply-body" value={reply} onValueChange={setReply} rows={3} className="min-h-24" />
-              </TabsContent>
-              <TabsContent value="preview">
-                <div
-                  className="min-h-24 border border-line bg-grid-card px-3 py-2 text-sm [&_a]:underline [&_code]:rounded [&_code]:bg-grid-soft [&_code]:px-1"
-                  dir="auto"
-                  data-reply-preview
-                  // Rendered through marked then DOMPurify (web/lib/markdown.ts) — the
-                  // same two-pass rule as message-body.tsx: this is a preview of what
-                  // the recipient will see, so it must be exactly as inert.
-                  dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(reply) || `<p class="text-grid-muted">${t("inbox.previewEmpty")}</p>` }}
-                />
-              </TabsContent>
-            </Tabs>
-          </Field>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={busy || !reply.trim()}>
-              <MessageSquareIcon />
-              {busy ? t("common.working") : t("inbox.send")}
-            </Button>
-            <CannedPicker lang={replyLang} onInsert={insert} />
-            {err ? <FieldError>{err}</FieldError> : null}
-          </div>
-        </form>
-      ) : (
-        <p className="border-t border-line px-6 py-4 text-sm text-grid-muted">{t("inbox.readOnly")}</p>
-      )}
+      <ChatThread
+        conversation={c}
+        messages={messages}
+        memberName={members.name}
+        replyLanguage={replyLang}
+        canWrite={canWrite}
+        reply={reply}
+        onReplyChange={setReply}
+        onSubmit={send}
+        busy={busy}
+        error={err}
+        onInsertCanned={insert}
+      />
     </section>
   )
 }
