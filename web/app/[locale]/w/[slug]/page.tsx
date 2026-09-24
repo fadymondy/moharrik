@@ -21,6 +21,7 @@ import {
   setupPending,
 } from "@/components/overview/overview-cards"
 import { TrafficCard, YouTubeCard } from "@/components/overview/google-cards"
+import { ConversationsChartCard, LeadsChartCard, PipelineChartCard } from "@/components/overview/overview-charts"
 import { ErrorState } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -49,7 +50,8 @@ export default function OverviewPage() {
   const o = ov.data
 
   const sections = o
-    ? [o.pipeline, o.leads, o.conversations, o.notifications, o.marketing, o.trends].filter((s) => s !== null).length
+    ? [o.pipeline, o.leads, o.conversations, o.notifications, o.marketing, o.trends, o.traffic, o.leads_daily, o.conversations_daily].filter((s) => s !== null && s !== undefined)
+        .length
     : 0
   const showSetup = !!o && setupPending(o.setup)
 
@@ -87,6 +89,14 @@ export default function OverviewPage() {
             {o.traffic ? <TrafficCard traffic={o.traffic} base={base} /> : null}
             {o.youtube && o.youtube.length ? <YouTubeCard channels={o.youtube} base={base} /> : null}
             <WorkspaceCard base={base} timezone={o.timezone} currency={o.currency} limited={sections === 0} />
+          </div>
+
+          {/* Real charts (MH-567): traffic's own trend lives inside TrafficCard above; these
+              three cover what the rest of the page only ever showed as counts. */}
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2" data-overview-charts>
+            {o.leads_daily ? <LeadsChartCard leadsDaily={o.leads_daily} base={base} /> : null}
+            {o.conversations_daily ? <ConversationsChartCard conversationsDaily={o.conversations_daily} base={base} /> : null}
+            {o.pipeline ? <PipelineChartCard stages={o.pipeline.stages} currency={o.currency} base={base} /> : null}
           </div>
         </div>
       )}

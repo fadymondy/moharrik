@@ -51,6 +51,7 @@ var gaMetricType = map[string]string{
 	"activeUsers": "TYPE_INTEGER", "totalUsers": "TYPE_INTEGER", "newUsers": "TYPE_INTEGER", "sessions": "TYPE_INTEGER",
 	"screenPageViews": "TYPE_INTEGER", "engagedSessions": "TYPE_INTEGER", "userEngagementDuration": "TYPE_SECONDS",
 	"engagementRate": "TYPE_FLOAT", "averageSessionDuration": "TYPE_SECONDS", "bounceRate": "TYPE_FLOAT",
+	"keyEvents": "TYPE_INTEGER", // MH-567: GA4's renamed "conversions" metric.
 }
 
 var gaDimensions = map[string]bool{"date": true, "pagePath": true, "pageTitle": true, "sessionSource": true, "sessionMedium": true, "sessionSourceMedium": true, "country": true, "deviceCategory": true}
@@ -138,8 +139,8 @@ func gaDate(expr string, now time.Time) (time.Time, bool) {
 }
 
 type gaDay struct {
-	date                                               time.Time
-	users, newUsers, sessions, views, engaged, seconds float64
+	date                                                          time.Time
+	users, newUsers, sessions, views, engaged, seconds, keyEvents float64
 }
 
 // gaDaily is a property's synthetic day: zero on some days, as real sites have.
@@ -161,7 +162,8 @@ func gaDaily(prop string, day time.Time) gaDay {
 	sessions := math.Round(users * (1.25 + float64(hashN(key+"s", 20))/100))
 	return gaDay{date: day, users: users, newUsers: math.Round(users * 0.61), sessions: sessions,
 		views: math.Round(sessions * (2.1 + float64(hashN(key+"v", 60))/100)), engaged: math.Round(sessions * 0.56),
-		seconds: math.Round(users * (70 + float64(hashN(key+"e", 50))))}
+		seconds:   math.Round(users * (70 + float64(hashN(key+"e", 50)))),
+		keyEvents: math.Round(sessions * (0.03 + float64(hashN(key+"k", 10))/1000))}
 }
 
 var gaPages = []struct {
@@ -235,6 +237,7 @@ func gaReport(gp GA4Property, req gaRequest) (map[string]any, string) {
 		total.views += g.views
 		total.engaged += g.engaged
 		total.seconds += g.seconds
+		total.keyEvents += g.keyEvents
 	}
 	metric := func(g gaDay, share float64, m string, span int) float64 {
 		users := g.users
@@ -255,6 +258,8 @@ func gaReport(gp GA4Property, req gaRequest) (map[string]any, string) {
 			return math.Round(g.engaged * share)
 		case "userEngagementDuration":
 			return math.Round(g.seconds * share)
+		case "keyEvents":
+			return math.Round(g.keyEvents * share)
 		case "engagementRate":
 			if g.sessions == 0 {
 				return 0
