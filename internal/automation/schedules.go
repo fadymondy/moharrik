@@ -87,10 +87,17 @@ type Schedule struct {
 	Steps      []Step     `json:"steps"`
 	NextRunAt  *time.Time `json:"next_run_at"`
 	LastRunAt  *time.Time `json:"last_run_at"`
-	LastStatus string     `json:"last_status" doc:"running | ok | failed | missed | waiting"`
+	LastStatus string     `json:"last_status" doc:"running | ok | failed | missed | waiting | paused"`
 	LastError  string     `json:"last_error"`
 	LastRunID  string     `json:"last_run_id"`
 	CreatedAt  time.Time  `json:"created_at"`
+	// A server job instead of a browser run (MH-478), and the counters that
+	// make "this has stopped working" visible on the row.
+	JobKey       string `json:"job_key"`
+	FailureCount int    `json:"failure_count"`
+	MissedCount  int    `json:"missed_count"`
+	// Five consecutive failures: the schedule has stopped working.
+	Failing bool `json:"failing"`
 }
 
 // NextAfter computes the next due time for a cron expression in a timezone.
@@ -172,6 +179,7 @@ func (h *Hub) StartScheduler(a *app.App) context.CancelFunc {
 type due struct {
 	ID          string
 	WorkspaceID string
+	// Empty: any connected browser of the workspace (MH-478).
 	AgentID     string
 	Cron        string
 	Timezone    string
@@ -180,11 +188,30 @@ type due struct {
 	Steps       []Step
 	RequestedBy string
 	// A schedule either carries its own steps or names a saved workflow and
-	// the values to fill it with (MH-233).
+	// the values to fill it with (MH-233) — or runs a server job (MH-478).
 	WorkflowID string
+	JobKey     string
 	Values     map[string]string
 	// The sealed secret values (MH-403), opened only at the moment of running.
 	Sealed string
+}
+
+const dueColumns = `id, workspace_id, COALESCE(agent_id, ''), cron, timezone, catch_up, last_status, steps::text, created_by,
+	workflow_id, job_key, params::text, secret_values`
+
+func scanDue(r rowScanner) (due, error) {
+	var d due
+	var steps, values string
+	if err := r.Scan(&d.ID, &d.WorkspaceID, &d.AgentID, &d.Cron, &d.Timezone, &d.CatchUp, &d.LastStatus, &steps, &d.RequestedBy,
+		&d.WorkflowID, &d.JobKey, &values, &d.Sealed); err != nil {
+		return d, err
+	}
+	_ = json.Unmarshal([]byte(steps), &d.Steps)
+	_ = json.Unmarshal([]byte(values), &d.Values)
+	if d.Values == nil {
+		d.Values = map[string]string{}
+	}
+	return d, nil
 }
 
 // Tick fires everything due at `now`. Exported so the tests drive the clock
@@ -194,28 +221,20 @@ func (h *Hub) Tick(ctx context.Context, a *app.App, now time.Time) {
 	// by definition cross-tenant. Everything each schedule then does runs on
 	// the app pool inside its own workspace.
 	rows, err := a.SysDB.QueryContext(ctx, `
-		SELECT id, workspace_id, agent_id, cron, timezone, catch_up, last_status, steps::text, created_by,
-		       workflow_id, params::text, secret_values
+		SELECT `+dueColumns+`
 		FROM automation_schedules
 		WHERE enabled AND next_run_at <= $1
 		ORDER BY next_run_at LIMIT 100`, now)
 	if err != nil {
 		return
 	}
-	defer rows.Close()
-
 	var list []due
 	for rows.Next() {
-		var d due
-		var steps, values string
-		if err := rows.Scan(&d.ID, &d.WorkspaceID, &d.AgentID, &d.Cron, &d.Timezone, &d.CatchUp, &d.LastStatus, &steps, &d.RequestedBy,
-			&d.WorkflowID, &values, &d.Sealed); err != nil {
-			continue
+		if d, err := scanDue(rows); err == nil {
+			list = append(list, d)
 		}
-		_ = json.Unmarshal([]byte(steps), &d.Steps)
-		_ = json.Unmarshal([]byte(values), &d.Values)
-		list = append(list, d)
 	}
+	rows.Close()
 	for _, d := range list {
 		h.fire(ctx, a, d, now)
 	}
@@ -242,6 +261,12 @@ func (h *Hub) fire(ctx context.Context, a *app.App, d due, now time.Time) {
 		return
 	}
 
+	// A server job shares the clock but not the browser path (jobs.go).
+	if d.JobKey != "" {
+		h.fireJob(ctx, a, d)
+		return
+	}
+
 	// Overlap: a schedule whose previous run is still going is passed over, not
 	// queued behind itself.
 	if h.inFlight(sctx, a, d) {
@@ -251,55 +276,132 @@ func (h *Hub) fire(ctx context.Context, a *app.App, d due, now time.Time) {
 
 	// The browser being shut is the NORMAL case, and the reason a miss is
 	// recorded: a gap in the data must have a stated cause.
-	if !h.Online(d.AgentID) {
+	candidates, why := h.pickAgents(sctx, a, d)
+	if len(candidates) == 0 {
 		if d.CatchUp == CatchUpOnce {
 			// Recorded ONCE, then quiet: re-checking every 30s and counting each
 			// check as a new miss would say "missed 3" after ninety seconds of
 			// one closed laptop. It waits, and runs when the browser returns.
 			if d.LastStatus != "waiting" {
-				h.record(sctx, a, d, "waiting", "that browser is not connected; this will run when it comes back", "")
+				h.record(sctx, a, d, "waiting", why+"; this will run when it comes back", "")
 			}
-			// Left due, so the next tick tries again.
-			_, _ = a.SQLDB.ExecContext(sctx, `
-				UPDATE automation_schedules SET next_run_at = $3, updated_at = now()
-				WHERE workspace_id = $1 AND id = $2`, d.WorkspaceID, d.ID, now.Add(-time.Second))
+			h.stayDue(sctx, a, d)
 			return
 		}
-		h.record(sctx, a, d, "missed", "that browser was not connected", "")
+		h.record(sctx, a, d, "missed", why, "")
 		return
 	}
 
-	var runID string
-	if d.WorkflowID != "" {
-		// A saved workflow: its placeholders are filled from the values stored
-		// on the schedule, and the run keeps the redacted copy.
-		var values map[string]string
-		values, err = MergeScheduleValues(d.Values, d.Sealed)
-		if err == nil {
-			runID, err = RunWorkflow(ctx, a, h, d.WorkspaceID, d.RequestedBy, d.WorkflowID, d.AgentID, "schedule", values)
-		}
-	} else {
-		runID, err = h.Start(ctx, a, d.WorkspaceID, d.RequestedBy, "schedule", d.AgentID, d.Steps)
-	}
+	runID, err := h.startScheduled(ctx, a, d, candidates)
 	if err != nil {
-		// Paused, busy, off the allow-list: the guardrails answer here exactly
-		// as they do for a person, and their words are what gets recorded.
-		h.record(sctx, a, d, "missed", err.Error(), "")
+		// Paused, busy, off the allow-list, a workflow turned off: the
+		// guardrails answer here exactly as they do for a person, and their
+		// words are what gets recorded.
+		status := "missed"
+		if errors.Is(err, ErrWorkflowOff) || errors.Is(err, ErrNoWorkflow) {
+			status = "failed"
+		}
+		h.record(sctx, a, d, status, err.Error(), "")
 		return
 	}
 	h.record(sctx, a, d, "running", "", runID)
-	notify(a, d.WorkspaceID)
+	// A run can finish before the line above; settling again keeps "running"
+	// from overwriting its result.
+	var st string
+	if a.SQLDB.QueryRowContext(sctx, `SELECT status FROM automation_runs WHERE workspace_id = $1 AND id = $2`, d.WorkspaceID, runID).Scan(&st) == nil &&
+		st != "queued" && st != "running" {
+		Settle(ctx, a, d.WorkspaceID, runID)
+	}
 	a.Log.Info("schedule fired", "schedule", d.ID, "workspace", d.WorkspaceID, "run", runID, "next", next)
 }
 
-// inFlight reports whether this schedule's last run is still going. The grace
-// window stops one wedged run from freezing a schedule for ever.
+// stayDue pulls next_run_at back to now: "run once when it comes back", or
+// "run when the kill switch is lifted". Eleven missed hours make ONE run.
+func (h *Hub) stayDue(ctx context.Context, a *app.App, d due) {
+	_, _ = a.SQLDB.ExecContext(ctx, `
+		UPDATE automation_schedules SET next_run_at = $3, updated_at = now()
+		WHERE workspace_id = $1 AND id = $2`, d.WorkspaceID, d.ID, time.Now().UTC().Add(-time.Second))
+}
+
+/*
+pickAgents is which browsers may run this, in order.
+
+A named browser is strict: if that machine is not there, the run is missed.
+Quietly using a different browser would run a workflow against somebody else's
+signed-in session. With no browser named, any connected browser of the
+workspace will do (fadymondy.com's rule), oldest first; startScheduled tries
+them in turn, so one whose allowed sites do not cover the steps is passed over
+for one whose do.
+*/
+func (h *Hub) pickAgents(ctx context.Context, a *app.App, d due) ([]string, string) {
+	if d.AgentID != "" {
+		if h.Online(d.AgentID) {
+			return []string{d.AgentID}, ""
+		}
+		name := "that browser"
+		_ = a.SQLDB.QueryRowContext(ctx, `SELECT name FROM browser_agents WHERE workspace_id = $1 AND id = $2`, d.WorkspaceID, d.AgentID).Scan(&name)
+		return nil, name + " was not connected"
+	}
+	rows, err := a.SQLDB.QueryContext(ctx, `
+		SELECT id FROM browser_agents WHERE workspace_id = $1 AND revoked_at IS NULL ORDER BY created_at`, d.WorkspaceID)
+	if err != nil {
+		return nil, "the browsers could not be read"
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil && h.Online(id) {
+			out = append(out, id)
+		}
+	}
+	if len(out) == 0 {
+		return nil, "no browser of this workspace was connected"
+	}
+	return out, ""
+}
+
+// startScheduled starts the schedule's run on the first candidate that takes
+// it. Only a refusal that another browser could avoid moves on to the next.
+func (h *Hub) startScheduled(ctx context.Context, a *app.App, d due, candidates []string) (string, error) {
+	var lastErr error
+	for _, agentID := range candidates {
+		var runID string
+		var err error
+		if d.WorkflowID != "" {
+			var values map[string]string
+			values, err = MergeScheduleValues(d.Values, d.Sealed)
+			if err == nil {
+				runID, err = RunWorkflowFrom(ctx, a, h, d.WorkspaceID, d.RequestedBy, d.WorkflowID, agentID, "schedule", d.ID, values)
+			}
+		} else {
+			runID, err = h.Start(ctx, a, d.WorkspaceID, d.RequestedBy, "schedule", agentID, d.Steps)
+			if err == nil {
+				sctx := tenant.WithWorkspace(ctx, d.WorkspaceID)
+				_, _ = a.SQLDB.ExecContext(sctx, `UPDATE automation_runs SET schedule_id = $3 WHERE workspace_id = $1 AND id = $2`,
+					d.WorkspaceID, runID, d.ID)
+			}
+		}
+		if err == nil {
+			return runID, nil
+		}
+		lastErr = err
+		if !(errors.Is(err, ErrBusy) || errors.Is(err, ErrHostNotAllowed) || errors.Is(err, ErrOffline) || errors.Is(err, ErrHourly)) {
+			return "", err
+		}
+	}
+	return "", lastErr
+}
+
+// inFlight reports whether this schedule's last run is still going. By the
+// SCHEDULE, never by the workflow: two schedules sharing a workflow is
+// normal. The grace window stops one wedged run from freezing it for ever.
 func (h *Hub) inFlight(ctx context.Context, a *app.App, d due) bool {
 	var n int
 	err := a.SQLDB.QueryRowContext(ctx, `
 		SELECT count(*) FROM automation_runs r
-		JOIN automation_schedules s ON s.workspace_id = r.workspace_id AND s.last_run_id = r.id
-		WHERE r.workspace_id = $1 AND s.id = $2
+		WHERE r.workspace_id = $1
+		  AND (r.schedule_id = $2 OR r.id = (SELECT last_run_id FROM automation_schedules WHERE workspace_id = $1 AND id = $2))
 		  AND r.status IN ('queued', 'running')
 		  AND r.created_at > now() - $3::interval`,
 		d.WorkspaceID, d.ID, inFlightGrace.String()).Scan(&n)
@@ -321,9 +423,32 @@ func (h *Hub) record(ctx context.Context, a *app.App, d due, status, why, runID 
 			last_status = $3, last_error = $4,
 			last_run_at = CASE WHEN $3 = 'running' THEN now() ELSE last_run_at END,
 			last_run_id = CASE WHEN $5 = '' THEN last_run_id ELSE $5 END,
+			missed_count = CASE WHEN $3 IN ('missed', 'waiting') THEN missed_count + 1 ELSE missed_count END,
+			failure_count = CASE WHEN $3 = 'failed' THEN failure_count + 1 ELSE failure_count END,
 			updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`, d.WorkspaceID, d.ID, status, trim(why, 300), runID)
+	if status == "failed" {
+		h.warnIfFailing(ctx, a, d.WorkspaceID, d.ID)
+	}
 	notify(a, d.WorkspaceID)
+}
+
+// failureNotifyAt is how many consecutive failures make a schedule "failing".
+// One is a flaky page; five in a row is a schedule that has stopped working.
+const failureNotifyAt = 5
+
+// warnIfFailing says so, once, the moment a schedule reaches failureNotifyAt
+// consecutive failures: in the log, and to the workspace's open pages.
+func (h *Hub) warnIfFailing(ctx context.Context, a *app.App, workspaceID, scheduleID string) {
+	var n int
+	var name, why string
+	if err := a.SQLDB.QueryRowContext(ctx, `
+		SELECT failure_count, name, last_error FROM automation_schedules WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, scheduleID).Scan(&n, &name, &why); err != nil || n != failureNotifyAt {
+		return
+	}
+	a.Log.Warn("schedule has failed repeatedly", "workspace", workspaceID, "schedule", scheduleID, "name", name, "failures", n, "error", why)
+	notify(a, workspaceID)
 }
 
 // disable turns a schedule off and says why. Used when a schedule can never
@@ -336,20 +461,40 @@ func (h *Hub) disable(ctx context.Context, a *app.App, d due, why string) {
 }
 
 // Settle writes a finished run's outcome back onto the schedule that started
-// it, so the list shows what happened rather than "running" for ever.
+// it, so the list shows what happened rather than "running" for ever — and
+// counts a failure against the schedule for what the browser actually did,
+// not merely for the run having been accepted.
+//
+// By the run's own schedule_id when it has one: two schedules may share a
+// workflow, and matching anything else once wrote one schedule's success over
+// its neighbour's misses (fadymondy.com FM-95).
 func Settle(ctx context.Context, a *app.App, workspaceID, runID string) {
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
-	var status, runErr string
+	var status, runErr, scheduleID string
 	if err := a.SQLDB.QueryRowContext(sctx, `
-		SELECT status, error FROM automation_runs WHERE workspace_id = $1 AND id = $2`,
-		workspaceID, runID).Scan(&status, &runErr); err != nil {
+		SELECT status, error, schedule_id FROM automation_runs WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, runID).Scan(&status, &runErr, &scheduleID); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			a.Log.Warn("schedule settle", "run", runID, "err", err)
 		}
 		return
 	}
-	_, _ = a.SQLDB.ExecContext(sctx, `
-		UPDATE automation_schedules SET last_status = $3, last_error = $4, updated_at = now()
-		WHERE workspace_id = $1 AND last_run_id = $2`, workspaceID, runID, status, trim(runErr, 300))
+	if status == "queued" || status == "running" {
+		return
+	}
+	res, _ := a.SQLDB.ExecContext(sctx, `
+		UPDATE automation_schedules SET last_status = $3, last_error = $4,
+		    failure_count = CASE WHEN $3 = 'failed' THEN failure_count + 1 WHEN $3 = 'ok' THEN 0 ELSE failure_count END,
+		    updated_at = now()
+		WHERE workspace_id = $1 AND last_run_id = $2 AND ($5 = '' OR id = $5)
+		  AND last_status = 'running'`, // once: a run is settled by whichever of finish and fire sees it last
+		workspaceID, runID, status, trim(runErr, 300), scheduleID)
+	if res != nil {
+		if n, _ := res.RowsAffected(); n > 0 && status == "failed" && scheduleID != "" {
+			if hub := Default(); hub != nil {
+				hub.warnIfFailing(sctx, a, workspaceID, scheduleID)
+			}
+		}
+	}
 	notify(a, workspaceID)
 }

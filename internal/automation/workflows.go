@@ -36,6 +36,8 @@ type Param struct {
 	// would be embarrassing in a log: a password, a token, a customer's id.
 	Secret  bool   `json:"secret,omitempty"`
 	Default string `json:"default,omitempty"`
+	// A line shown under the field when someone runs or schedules it (MH-478).
+	Help string `json:"help,omitempty"`
 }
 
 // placeholderRE matches {{name}} with optional spaces.

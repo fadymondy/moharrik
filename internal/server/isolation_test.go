@@ -471,7 +471,19 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal("A's setup left no audit rows: the audit sweep below would prove nothing")
 	}
 
-	aIDs := []string{aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID}
+	// A finished run in A with extracted data and a screenshot row (MH-478):
+	// its data export and screenshot are read by id from the path.
+	var runID string
+	if err := a.SysDB.QueryRow(`INSERT INTO automation_runs (workspace_id, agent_id, status, workflow_id, schedule_id) VALUES ($1, $2, 'ok', $3, $4) RETURNING id`,
+		aID, agentID, wfID, schedID).Scan(&runID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SysDB.Exec(`INSERT INTO automation_run_steps (workspace_id, run_id, position, command, status, result, screenshot_path)
+		VALUES ($1, $2, 0, 'extract', 'ok', $3, $4)`, aID, runID, `{"rows":[{"secret":"`+marker+`"}]}`, "automation/"+aID+"/"+runID+"/step-000.png"); err != nil {
+		t.Fatal(err)
+	}
+
+	aIDs := []string{runID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -482,7 +494,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"mail":   listID,
 		"push":   pushID,
 		"topics": kwID, "feed_sources": feedID, "news": newsID, "trends": trendID,
-		"browsers": agentID, "workflows": wfID, "schedules": schedID,
+		"browsers": agentID, "workflows": wfID, "schedules": schedID, "runs": runID,
 		"canned_replies": cannedID,
 		"oauth_grants":   grantID,
 		"smtp-services":  smtpID,
@@ -882,6 +894,21 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		}
 	}
 	alice.ws = aID
+
+	// Runs (MH-478): B cannot read A's run, its data export or its screenshot,
+	// in any format, and B's run list filtered by A's workflow is empty.
+	bob.ws = bID
+	for _, p := range []string{"/api/w/runs/" + runID, "/api/w/runs/" + runID + "/data", "/api/w/runs/" + runID + "/data?format=csv",
+		"/api/w/runs/" + runID + "/steps/0/screenshot", "/api/w/runs?workflow=" + wfID, "/api/w/runs?schedule=" + schedID} {
+		code, b := bob.do("GET", p, nil)
+		if leaks(b) != "" || (code == 200 && !strings.Contains(string(b), `"runs":[]`)) {
+			t.Errorf("B: GET %s -> %d, leaked %q: %.200s", p, code, leaks(b), b)
+		}
+	}
+	alice.ws = aID
+	if code, b := alice.do("GET", "/api/w/runs/"+runID+"/data?format=csv", nil); code != 200 || !strings.Contains(string(b), marker) {
+		t.Errorf("A's own run data: %d %s", code, b)
+	}
 
 	// ---- account level: bob's list never shows A ----------------------------
 	bob.ws = ""

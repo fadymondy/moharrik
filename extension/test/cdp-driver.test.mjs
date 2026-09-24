@@ -303,6 +303,23 @@ test("typing is per-key input that replaces the field, and the result never echo
   await closeRun(r.run)
 })
 
+test("with no selector a type step goes to the focused field; clear: false appends (fadymondy.com's plugins)", async () => {
+  const b = browser()
+  const r = runner()
+  await r.step("goto", { url: "https://allowed.test/start" })
+  // A click opens the composer and focuses it; the next step types without a selector.
+  await r.step("click", { selector: "#q2" })
+  const res = await r.step("type", { text: "hello" })
+  assert.equal(res.characters, 5)
+  assert.equal(res.summary, "typed into the focused field")
+  const field = b.only().window.document.getElementById("q2")
+  assert.equal(field.value, "oldhello") // nothing cleared: the field held "old"
+  // clear: false keeps what is there, as fadymondy.com's type does by default.
+  await r.step("type", { selector: "#q2", text: " world", clear: false })
+  assert.equal(field.value, "oldhello world")
+  await closeRun(r.run)
+})
+
 test("a real Enter that submits to an off-list action stops the run", async () => {
   browser()
   const r = runner()

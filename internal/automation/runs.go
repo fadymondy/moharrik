@@ -25,6 +25,25 @@ type Step struct {
 	// a run whose first step failed is usually not worth continuing, and a step
 	// sequence that carries on regardless produces results nobody can trust.
 	ContinueOnError bool `json:"continue_on_error,omitempty"`
+	// TimeoutSeconds lets one slow step (an upload, a page that loads
+	// forever) wait longer than DefaultStepTimeout, as fadymondy.com's
+	// plugins do. Capped at MaxStepTimeout so no step holds a browser for good.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+}
+
+// MaxStepTimeout is the longest any one step may wait for its browser.
+const MaxStepTimeout = 5 * time.Minute
+
+// stepTimeout is how long the server waits for this step's reply.
+func (s Step) stepTimeout() time.Duration {
+	if s.TimeoutSeconds <= 0 {
+		return DefaultStepTimeout
+	}
+	d := time.Duration(s.TimeoutSeconds) * time.Second
+	if d > MaxStepTimeout {
+		return MaxStepTimeout
+	}
+	return d
 }
 
 // Run is the record of what a browser was asked to do.
@@ -41,6 +60,39 @@ type Run struct {
 	StartedAt   *time.Time `json:"started_at"`
 	FinishedAt  *time.Time `json:"finished_at"`
 	CreatedAt   time.Time  `json:"created_at"`
+	// Which workflow — and which version of it — and which schedule this run
+	// came from, so history reads the same after the workflow is edited (MH-478).
+	WorkflowID      string `json:"workflow_id"`
+	WorkflowName    string `json:"workflow_name"`
+	WorkflowVersion int    `json:"workflow_version"`
+	ScheduleID      string `json:"schedule_id"`
+	ScheduleName    string `json:"schedule_name"`
+	// How many of its steps kept a screenshot or extracted data.
+	Screenshots int `json:"screenshots"`
+	Extracts    int `json:"extracts"`
+}
+
+// runSelect is every column a Run is read from, joined with the names a
+// person reads it by.
+const runSelect = `
+	SELECT r.id, r.agent_id, COALESCE(b.name, ''), r.trigger, r.requested_by, r.status, r.error,
+	       r.step_count, r.ok_count, r.started_at, r.finished_at, r.created_at,
+	       r.workflow_id, COALESCE(w.name, r.params->>'workflow', ''), r.workflow_version, r.schedule_id, COALESCE(sc.name, ''),
+	       (SELECT count(*) FROM automation_run_steps st WHERE st.workspace_id = r.workspace_id AND st.run_id = r.id AND st.screenshot_path <> ''),
+	       (SELECT count(*) FROM automation_run_steps st WHERE st.workspace_id = r.workspace_id AND st.run_id = r.id AND st.status = 'ok' AND st.command IN ('extract', 'read'))
+	FROM automation_runs r
+	LEFT JOIN browser_agents b ON b.workspace_id = r.workspace_id AND b.id = r.agent_id
+	LEFT JOIN automation_workflows w ON w.workspace_id = r.workspace_id AND w.id = r.workflow_id
+	LEFT JOIN automation_schedules sc ON sc.workspace_id = r.workspace_id AND sc.id = r.schedule_id`
+
+func scanRun(row rowScanner) (Run, error) {
+	var r Run
+	var started, finished sql.NullTime
+	err := row.Scan(&r.ID, &r.AgentID, &r.AgentName, &r.Trigger, &r.RequestedBy, &r.Status, &r.Error,
+		&r.StepCount, &r.OKCount, &started, &finished, &r.CreatedAt,
+		&r.WorkflowID, &r.WorkflowName, &r.WorkflowVersion, &r.ScheduleID, &r.ScheduleName, &r.Screenshots, &r.Extracts)
+	r.StartedAt, r.FinishedAt = timep(started), timep(finished)
+	return r, err
 }
 
 // RunStep is one step and what came back for it.
@@ -265,6 +317,9 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 		if keptTab != "" {
 			stepPayload["tab"] = keptTab
 		}
+		if step.TimeoutSeconds > 0 {
+			stepPayload["timeout_ms"] = step.stepTimeout().Milliseconds()
+		}
 		payload, _ := json.Marshal(stepPayload)
 
 		// Steps are spaced out, so no workflow can hammer a site faster than a
@@ -275,7 +330,7 @@ func (h *Hub) dispatch(a *app.App, workspaceID, agentID, runID string, steps []S
 		lastCommandAt = time.Now()
 
 		started := time.Now()
-		reply, err := h.Call(ctx, workspaceID, agentID, Envelope{Type: "run.step", Run: runID, Payload: payload}, DefaultStepTimeout)
+		reply, err := h.Call(ctx, workspaceID, agentID, Envelope{Type: "run.step", Run: runID, Payload: payload}, step.stepTimeout())
 		duration := int(time.Since(started).Milliseconds())
 
 		status, summary, result, stepErr, shot := "ok", "", "", "", ""

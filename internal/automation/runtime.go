@@ -2,12 +2,16 @@ package automation
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -316,6 +320,39 @@ func notifyRun(a *app.App, workspaceID string) {
 // "it came from our own table" is the assumption that stops being true the day
 // something else writes to that table.
 func MountRunArtifacts(router chi.Router, a *app.App) {
+	// Everything the run extracted, as JSON or as a spreadsheet (MH-478).
+	router.Get("/api/w/runs/{id}/data", func(w http.ResponseWriter, r *http.Request) {
+		s, ok := tenant.From(r.Context())
+		if !ok || !authz.Can(s.Role, authz.AutomationRead) {
+			writePlain(w, http.StatusNotFound, "not found")
+			return
+		}
+		data, err := ReadRunData(r.Context(), a, s.WorkspaceID, chi.URLParam(r, "id"))
+		if errors.Is(err, sql.ErrNoRows) {
+			writePlain(w, http.StatusNotFound, "no such run")
+			return
+		}
+		if err != nil {
+			writePlain(w, http.StatusInternalServerError, "could not read the run's data")
+			return
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		name := "run-" + chi.URLParam(r, "id")
+		if r.URL.Query().Get("format") == "csv" {
+			w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+			w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.csv"`)
+			// A byte-order mark, so a spreadsheet opens Arabic text as UTF-8.
+			_, _ = w.Write([]byte("ï»¿"))
+			_, _ = w.Write(data.CSV())
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("download") != "" {
+			w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.json"`)
+		}
+		_ = json.NewEncoder(w).Encode(data)
+	})
+
 	router.Get("/api/w/runs/{id}/steps/{position}/screenshot", func(w http.ResponseWriter, r *http.Request) {
 		s, ok := tenant.From(r.Context())
 		if !ok || !authz.Can(s.Role, authz.AutomationRead) {
@@ -350,4 +387,142 @@ func MountRunArtifacts(router chi.Router, a *app.App) {
 		w.Header().Set("Content-Length", strconv.Itoa(len(png)))
 		_, _ = w.Write(png)
 	})
+}
+
+// ── the data a run extracted (MH-478; fadymondy.com FM-281) ──────────────
+
+// RunDataStep is one extracting step's payload, as the browser sent it.
+type RunDataStep struct {
+	Position int             `json:"position"`
+	Command  string          `json:"command"`
+	Payload  json.RawMessage `json:"payload"`
+}
+
+// RunData is every extraction of a run — per step, and merged: the rows of
+// every per-row extract in step order, the fields of every field extract (a
+// later step wins a clash), and every single value.
+type RunData struct {
+	RunID  string                     `json:"run_id"`
+	Steps  []RunDataStep              `json:"steps"`
+	Rows   []map[string]any           `json:"rows"`
+	Fields map[string]json.RawMessage `json:"fields"`
+	Values []json.RawMessage          `json:"values"`
+}
+
+// ReadRunData collects a run's extracted data. The run must be this
+// workspace's; an unknown id is sql.ErrNoRows.
+func ReadRunData(ctx context.Context, a *app.App, workspaceID, runID string) (*RunData, error) {
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	var exists bool
+	if err := a.SQLDB.QueryRowContext(sctx, `SELECT true FROM automation_runs WHERE workspace_id = $1 AND id = $2`, workspaceID, runID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	rows, err := a.SQLDB.QueryContext(sctx, `
+		SELECT position, command, result FROM automation_run_steps
+		WHERE workspace_id = $1 AND run_id = $2 AND status = 'ok' AND command IN ('extract', 'read', 'eval_readonly') AND result <> ''
+		ORDER BY position`, workspaceID, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := &RunData{RunID: runID, Steps: []RunDataStep{}, Rows: []map[string]any{}, Fields: map[string]json.RawMessage{}, Values: []json.RawMessage{}}
+	for rows.Next() {
+		var st RunDataStep
+		var result string
+		if err := rows.Scan(&st.Position, &st.Command, &result); err != nil {
+			return nil, err
+		}
+		if !json.Valid([]byte(result)) {
+			continue
+		}
+		st.Payload = json.RawMessage(result)
+		out.Steps = append(out.Steps, st)
+		var body struct {
+			Rows   []map[string]any           `json:"rows"`
+			Fields map[string]json.RawMessage `json:"fields"`
+			Values []json.RawMessage          `json:"values"`
+			Value  json.RawMessage            `json:"value"`
+		}
+		if json.Unmarshal(st.Payload, &body) != nil {
+			continue
+		}
+		out.Rows = append(out.Rows, body.Rows...)
+		for k, v := range body.Fields {
+			out.Fields[k] = v
+		}
+		out.Values = append(out.Values, body.Values...)
+		if len(body.Value) > 0 && len(body.Rows) == 0 && len(body.Fields) == 0 {
+			out.Values = append(out.Values, body.Value)
+		}
+	}
+	return out, rows.Err()
+}
+
+// CSV renders the data as a spreadsheet: the rows when there are any (one
+// column per field, in the order fields first appear), else the fields as
+// name,value, else the values one per line.
+func (d *RunData) CSV() []byte {
+	var buf strings.Builder
+	w := csv.NewWriter(&buf)
+	cell := func(v any) string {
+		switch x := v.(type) {
+		case nil:
+			return ""
+		case string:
+			return x
+		default:
+			b, _ := json.Marshal(x)
+			return string(b)
+		}
+	}
+	raw := func(r json.RawMessage) string {
+		var v any
+		if json.Unmarshal(r, &v) != nil {
+			return string(r)
+		}
+		return cell(v)
+	}
+	switch {
+	case len(d.Rows) > 0:
+		var cols []string
+		seen := map[string]bool{}
+		for _, row := range d.Rows {
+			keys := make([]string, 0, len(row))
+			for k := range row {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				if !seen[k] {
+					seen[k] = true
+					cols = append(cols, k)
+				}
+			}
+		}
+		_ = w.Write(cols)
+		for _, row := range d.Rows {
+			line := make([]string, len(cols))
+			for i, c := range cols {
+				line[i] = cell(row[c])
+			}
+			_ = w.Write(line)
+		}
+	case len(d.Fields) > 0:
+		_ = w.Write([]string{"field", "value"})
+		keys := make([]string, 0, len(d.Fields))
+		for k := range d.Fields {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			_ = w.Write([]string{k, raw(d.Fields[k])})
+		}
+	default:
+		_ = w.Write([]string{"value"})
+		for _, v := range d.Values {
+			_ = w.Write([]string{raw(v)})
+		}
+	}
+	w.Flush()
+	return []byte(buf.String())
 }

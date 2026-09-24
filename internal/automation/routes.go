@@ -60,6 +60,8 @@ type SettingsOut struct {
 	MaxParallelRuns int `json:"max_parallel_runs"`
 	RetentionDays   int `json:"retention_days"`
 	LiveRuns        int `json:"live_runs"`
+	// Runs one browser may be asked for in an hour (MH-478).
+	RunsPerHour int `json:"runs_per_hour"`
 }
 
 type wsHeader struct {
@@ -270,6 +272,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		limits := ReadLimits(ctx, a, s.WorkspaceID)
 		o.MaxParallelRuns = limits.MaxParallelRuns
 		o.RetentionDays = limits.RetentionDays
+		o.RunsPerHour = limits.RunsPerHour
 		o.LiveRuns, _ = LiveRuns(ctx, a, s.WorkspaceID)
 		return out(o), nil
 	})
@@ -280,20 +283,23 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body struct {
-			Paused bool   `json:"paused"`
+			// A pointer: the limits form sends no pause at all, and must not
+			// pause or resume anything (MH-478).
+			Paused *bool  `json:"paused,omitempty"`
 			Reason string `json:"reason,omitempty" maxLength:"200"`
 			// Pointers, so "not sent" is distinguishable from "set to zero":
 			// the pause button posts neither, and must not reset the limits
 			// somebody configured (MH-234).
 			MaxParallelRuns *int `json:"max_parallel_runs,omitempty" minimum:"1" maximum:"50"`
 			RetentionDays   *int `json:"retention_days,omitempty" minimum:"0" maximum:"3650"`
+			RunsPerHour     *int `json:"runs_per_hour,omitempty" minimum:"1" maximum:"1000"`
 		}
 	}) (*body[SettingsOut], error) {
 		s, err := scope(ctx, authz.AutomationManage)
 		if err != nil {
 			return nil, err
 		}
-		if in.Body.Paused {
+		if in.Body.Paused != nil && *in.Body.Paused {
 			if err := Pause(ctx, a, s.WorkspaceID, s.UserID, in.Body.Reason); err != nil {
 				return nil, huma.Error500InternalServerError("could not stop automation")
 			}
@@ -302,16 +308,21 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 			// switch.
 			CancelWorkspaceRuns(ctx, a, s.WorkspaceID, "automation was stopped")
 			hub.DisconnectWorkspace(s.WorkspaceID, "automation is stopped")
-		} else if err := Resume(ctx, a, s.WorkspaceID); err != nil {
-			return nil, huma.Error500InternalServerError("could not resume automation")
+		} else if in.Body.Paused != nil {
+			if err := Resume(ctx, a, s.WorkspaceID); err != nil {
+				return nil, huma.Error500InternalServerError("could not resume automation")
+			}
 		}
-		if in.Body.MaxParallelRuns != nil || in.Body.RetentionDays != nil {
+		if in.Body.MaxParallelRuns != nil || in.Body.RetentionDays != nil || in.Body.RunsPerHour != nil {
 			limits := ReadLimits(ctx, a, s.WorkspaceID)
 			if in.Body.MaxParallelRuns != nil {
 				limits.MaxParallelRuns = *in.Body.MaxParallelRuns
 			}
 			if in.Body.RetentionDays != nil {
 				limits.RetentionDays = *in.Body.RetentionDays
+			}
+			if in.Body.RunsPerHour != nil {
+				limits.RunsPerHour = *in.Body.RunsPerHour
 			}
 			if err := SetLimits(ctx, a, s.WorkspaceID, limits); err != nil {
 				return nil, huma.Error422UnprocessableEntity(err.Error())
@@ -325,6 +336,7 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 			Paused: paused, Reason: reason,
 			MaxParallelRuns: limits.MaxParallelRuns,
 			RetentionDays:   limits.RetentionDays,
+			RunsPerHour:     limits.RunsPerHour,
 			LiveRuns:        live,
 		}), nil
 	})
@@ -333,14 +345,19 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-runs", Method: http.MethodGet, Path: "/api/w/runs",
-		Summary: "Recent runs", Tags: tags,
+		Summary: "Recent runs, newest first, filtered and a page at a time", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Agent  string `query:"agent"`
-		Status string `query:"status" enum:",queued,running,ok,failed,cancelled"`
-		Limit  int    `query:"limit" minimum:"1" maximum:"200"`
+		Agent    string `query:"agent"`
+		Status   string `query:"status" enum:",queued,running,ok,failed,cancelled"`
+		Workflow string `query:"workflow" doc:"Only this workflow's runs (MH-478)."`
+		Schedule string `query:"schedule" doc:"Only this schedule's runs."`
+		Trigger  string `query:"trigger" enum:",manual,schedule,mcp,test"`
+		Before   string `query:"before" doc:"next_before from the previous page."`
+		Limit    int    `query:"limit" minimum:"1" maximum:"200"`
 	}) (*body[struct {
-		Runs []Run `json:"runs"`
+		Runs       []Run  `json:"runs"`
+		NextBefore string `json:"next_before,omitempty" doc:"Pass back as before for the next page."`
 	}], error) {
 		s, err := scope(ctx, authz.AutomationRead)
 		if err != nil {
@@ -350,34 +367,45 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		if limit == 0 {
 			limit = 50
 		}
-		rows, err := db().QueryContext(ctx, `
-			SELECT r.id, r.agent_id, COALESCE(b.name, ''), r.trigger, r.requested_by, r.status, r.error,
-			       r.step_count, r.ok_count, r.started_at, r.finished_at, r.created_at
-			FROM automation_runs r
-			LEFT JOIN browser_agents b ON b.workspace_id = r.workspace_id AND b.id = r.agent_id
+		var before any
+		if in.Before != "" {
+			t, perr := time.Parse(time.RFC3339Nano, in.Before)
+			if perr != nil {
+				return nil, huma.Error422UnprocessableEntity("before is not a time")
+			}
+			before = t
+		}
+		rows, err := db().QueryContext(ctx, runSelect+`
 			WHERE r.workspace_id = $1
 			  AND ($2 = '' OR r.agent_id = $2)
 			  AND ($3 = '' OR r.status = $3)
-			ORDER BY r.created_at DESC LIMIT $4`,
-			s.WorkspaceID, in.Agent, in.Status, limit)
+			  AND ($4 = '' OR r.workflow_id = $4)
+			  AND ($5 = '' OR r.schedule_id = $5)
+			  AND ($6 = '' OR r.trigger = $6)
+			  AND ($7::timestamptz IS NULL OR r.created_at < $7)
+			ORDER BY r.created_at DESC LIMIT $8`,
+			s.WorkspaceID, in.Agent, in.Status, in.Workflow, in.Schedule, in.Trigger, before, limit+1)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the runs")
 		}
 		defer rows.Close()
 		list := []Run{}
 		for rows.Next() {
-			var r Run
-			var started, finished sql.NullTime
-			if err := rows.Scan(&r.ID, &r.AgentID, &r.AgentName, &r.Trigger, &r.RequestedBy, &r.Status, &r.Error,
-				&r.StepCount, &r.OKCount, &started, &finished, &r.CreatedAt); err != nil {
+			r, err := scanRun(rows)
+			if err != nil {
 				return nil, huma.Error500InternalServerError("could not read the runs")
 			}
-			r.StartedAt, r.FinishedAt = timep(started), timep(finished)
 			list = append(list, r)
 		}
+		next := ""
+		if len(list) > limit {
+			list = list[:limit]
+			next = list[limit-1].CreatedAt.UTC().Format(time.RFC3339Nano)
+		}
 		return out(struct {
-			Runs []Run `json:"runs"`
-		}{list}), nil
+			Runs       []Run  `json:"runs"`
+			NextBefore string `json:"next_before,omitempty" doc:"Pass back as before for the next page."`
+		}{list, next}), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -394,23 +422,14 @@ func Register(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, err
 		}
-		var r Run
-		var started, finished sql.NullTime
-		err = db().QueryRowContext(ctx, `
-			SELECT r.id, r.agent_id, COALESCE(b.name, ''), r.trigger, r.requested_by, r.status, r.error,
-			       r.step_count, r.ok_count, r.started_at, r.finished_at, r.created_at
-			FROM automation_runs r
-			LEFT JOIN browser_agents b ON b.workspace_id = r.workspace_id AND b.id = r.agent_id
-			WHERE r.workspace_id = $1 AND r.id = $2`, s.WorkspaceID, in.ID,
-		).Scan(&r.ID, &r.AgentID, &r.AgentName, &r.Trigger, &r.RequestedBy, &r.Status, &r.Error,
-			&r.StepCount, &r.OKCount, &started, &finished, &r.CreatedAt)
+		r, err := scanRun(db().QueryRowContext(ctx, runSelect+`
+			WHERE r.workspace_id = $1 AND r.id = $2`, s.WorkspaceID, in.ID))
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("no such run")
 		}
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the run")
 		}
-		r.StartedAt, r.FinishedAt = timep(started), timep(finished)
 
 		rows, err := db().QueryContext(ctx, `
 			SELECT position, command, args::text, status, summary, result, error, duration_ms, screenshot_path <> ''
@@ -567,9 +586,9 @@ func runError(err error) error {
 		return huma.Error409Conflict(err.Error())
 	// Distinct from ErrBusy on purpose: "that browser is occupied" is fixed by
 	// choosing another one, "the workspace is full" is not (MH-234).
-	case errors.Is(err, ErrAtCapacity):
+	case errors.Is(err, ErrAtCapacity), errors.Is(err, ErrHourly):
 		return huma.Error429TooManyRequests(err.Error())
-	case errors.Is(err, ErrOffline):
+	case errors.Is(err, ErrOffline), errors.Is(err, ErrWorkflowOff):
 		return huma.Error409Conflict(err.Error())
 	case errors.Is(err, ErrRevoked):
 		return huma.Error409Conflict(err.Error())

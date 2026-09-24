@@ -92,6 +92,8 @@ func Boot() *app.App {
 	// environment once. Each tier is independently optional, and a run says
 	// which ones it had rather than failing opaquely (MH-227).
 	researchEngine := research.NewEngine(k.Log)
+	// The server jobs a schedule can run (MH-478).
+	registerJobs(a, researchEngine)
 
 	// A fake-Google override that production ignores is still worth a line in
 	// the log: whoever set it expected it to do something (MH-439).

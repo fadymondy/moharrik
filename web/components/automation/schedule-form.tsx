@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type AutomationSchedule, type AutomationWorkflow, type BrowserAgent, type SchedulePreview, type WorkflowParam } from "@/lib/api"
+import { api, ApiError, type AutomationJob, type AutomationSchedule, type AutomationWorkflow, type BrowserAgent, type SchedulePreview, type WorkflowParam } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { intlTag } from "@/lib/i18n-locale"
 
@@ -77,12 +77,15 @@ export function parseCron(cron: string): When {
 export function ScheduleForm({
   browsers,
   workflows,
+  jobs = [],
   onAdded,
   editing,
   onCancel,
 }: {
   browsers: BrowserAgent[]
   workflows: AutomationWorkflow[]
+  /** The server jobs this member may schedule (MH-478). */
+  jobs?: AutomationJob[]
   onAdded: () => void
   /** The schedule being edited; without it the form adds a new one. */
   editing?: AutomationSchedule
@@ -92,11 +95,17 @@ export function ScheduleForm({
   const ws = useWorkspace()
   const initial = editing ? parseCron(editing.cron) : null
   // A schedule of its own steps (from before MH-403) has no workflow to edit.
-  const ownSteps = !!editing && !editing.workflow_id
+  const ownSteps = !!editing && !editing.workflow_id && !editing.job_key
   // Ids per form: an edit form can be open beside the add form.
   const idp = editing ? `sce-${editing.id}` : "sc"
   const [name, setName] = useState(editing?.name ?? "")
-  const [agent, setAgent] = useState(editing?.agent_id ?? browsers[0]?.id ?? "")
+  // "" = any connected browser of the workspace (MH-478).
+  const [agent, setAgent] = useState(editing?.agent_id ?? "")
+  const allowedJobs = jobs.filter((j) => j.allowed)
+  const [kind, setKind] = useState<"workflow" | "job">(
+    editing ? (editing.job_key ? "job" : "workflow") : workflows.length === 0 && allowedJobs.length > 0 ? "job" : "workflow",
+  )
+  const [jobKey, setJobKey] = useState(editing?.job_key || allowedJobs[0]?.key || "")
   const [workflowId, setWorkflowId] = useState(editing ? editing.workflow_id : (workflows[0]?.id ?? ""))
   const [values, setValues] = useState<Record<string, string>>(editing?.values ?? {})
   const [preset, setPreset] = useState<Preset>(initial?.preset ?? "weekdays")
@@ -118,14 +127,16 @@ export function ScheduleForm({
     if (!zoneTouched) setZone(workspaceZone)
   }, [workspaceZone, zoneTouched])
 
-  const workflow = workflows.find((w) => w.id === workflowId)
+  const workflow = kind === "workflow" ? workflows.find((w) => w.id === workflowId) : undefined
+  const job = kind === "job" ? allowedJobs.find((j) => j.key === jobKey) : undefined
   // Secrets this schedule already holds. Switching to another workflow keeps a
   // secret of the same name, as the API does.
   const sealed = new Set(editing?.secret_params ?? [])
   const fields: WorkflowParam[] = useMemo(() => {
+    if (job) return job.params
     if (!workflow) return []
     return workflow.placeholders.map((n) => workflow.params.find((p) => p.name === n) ?? { name: n, required: true })
-  }, [workflow])
+  }, [workflow, job])
 
   const cron = buildCron(preset, time, minute, day, custom)
 
@@ -160,7 +171,8 @@ export function ScheduleForm({
   async function submit(e: FormEvent) {
     e.preventDefault()
     setErr(null)
-    if (!workflow && !ownSteps) return setErr(t("automation.sched.pickWorkflow"))
+    if (kind === "workflow" && !workflow && !ownSteps) return setErr(t("automation.sched.pickWorkflow"))
+    if (kind === "job" && !job) return setErr(t("automation.sched.pickJob"))
     setBusy(true)
     try {
       const filled: Record<string, string> = {}
@@ -180,9 +192,9 @@ export function ScheduleForm({
         onAdded()
         return
       }
-      if (!workflow) return
+      if (!workflow && !job) return
       await api("/api/w/schedules", {
-        json: { ...when, workflow_id: workflow.id, values: filled },
+        json: job ? { name: name.trim(), cron, timezone: zone.trim(), catch_up: catchUp, values: filled, job_key: job.key } : { ...when, workflow_id: workflow!.id, values: filled },
         workspaceId: ws.id,
       })
       toast.success(t("automation.scheduleCreated"))
@@ -196,7 +208,7 @@ export function ScheduleForm({
     }
   }
 
-  if (workflows.length === 0 && !ownSteps) {
+  if (workflows.length === 0 && allowedJobs.length === 0 && !ownSteps) {
     return (
       <p className="px-6 pt-6 text-sm text-grid-muted" data-schedule-needs-workflow>
         {t("automation.sched.noWorkflows")}{" "}
@@ -223,33 +235,77 @@ export function ScheduleForm({
             <FieldLabel htmlFor={`${idp}-name`}>{t("automation.scheduleName")}</FieldLabel>
             <Input id={`${idp}-name`} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
           </Field>
+          {/* What a schedule runs is chosen when it is made; an edit keeps it. */}
+          {editing ? null : (
           <Field>
-            <FieldLabel htmlFor={`${idp}-agent`}>{t("automation.editor.browser")}</FieldLabel>
-            <PickSelect id={`${idp}-agent`} value={agent} onChange={setAgent} options={browsers.map((b) => ({ value: b.id, label: b.name }))} />
+            <FieldLabel htmlFor={`${idp}-kind`}>{t("automation.sched.kind")}</FieldLabel>
+            <PickSelect
+              id={`${idp}-kind`}
+              value={kind}
+              onChange={(v) => {
+                setKind(v as "workflow" | "job")
+                setValues({})
+              }}
+              options={[
+                ...(workflows.length > 0 ? [{ value: "workflow", label: t("automation.sched.kindWorkflow") }] : []),
+                ...(allowedJobs.length > 0 ? [{ value: "job", label: t("automation.sched.kindJob") }] : []),
+              ]}
+            />
+            <FieldDescription>{kind === "job" ? t("automation.sched.kindJobHint") : t("automation.sched.kindWorkflowHint")}</FieldDescription>
           </Field>
+          )}
           {ownSteps ? (
             <p className="text-sm text-grid-muted sm:col-span-2" data-schedule-own-steps>
               {t("automation.sched.ownSteps")}
             </p>
+          ) : kind === "workflow" ? (
+            <>
+              <Field>
+                <FieldLabel htmlFor={`${idp}-workflow`}>{t("automation.sched.workflow")}</FieldLabel>
+                <PickSelect
+                  id={`${idp}-workflow`}
+                  value={workflowId}
+                  onChange={(v) => {
+                    setWorkflowId(v)
+                    setValues({})
+                  }}
+                  options={workflows.map((w) => ({ value: w.id, label: w.enabled === false ? `${w.name} (${t("automation.wf.off")})` : w.name }))}
+                />
+                <FieldDescription>{t("automation.sched.workflowHint")}</FieldDescription>
+              </Field>
+            </>
           ) : (
-          <Field>
-            <FieldLabel htmlFor={`${idp}-workflow`}>{t("automation.sched.workflow")}</FieldLabel>
-            <PickSelect
-              id={`${idp}-workflow`}
-              value={workflowId}
-              onChange={(v) => {
-                setWorkflowId(v)
-                setValues({})
-              }}
-              options={workflows.map((w) => ({ value: w.id, label: w.name }))}
-            />
-            <FieldDescription>{t("automation.sched.workflowHint")}</FieldDescription>
-          </Field>
+            <Field>
+              <FieldLabel htmlFor={`${idp}-job`}>{t("automation.sched.job")}</FieldLabel>
+              <PickSelect
+                id={`${idp}-job`}
+                value={jobKey}
+                onChange={(v) => {
+                  setJobKey(v)
+                  setValues({})
+                }}
+                options={allowedJobs.map((j) => ({ value: j.key, label: t(`automation.job.${j.key}`) }))}
+              />
+              <FieldDescription>{job ? t(`automation.jobHint.${job.key}`) : ""}</FieldDescription>
+            </Field>
           )}
+          {kind === "workflow" ? (
+            <Field>
+              <FieldLabel htmlFor={`${idp}-agent`}>{t("automation.editor.browser")}</FieldLabel>
+              <PickSelect
+                id={`${idp}-agent`}
+                value={agent}
+                onChange={setAgent}
+                noneLabel={t("automation.sched.anyBrowser")}
+                options={browsers.map((b) => ({ value: b.id, label: b.name }))}
+              />
+              <FieldDescription>{agent ? t("automation.sched.namedBrowserHint") : t("automation.sched.anyBrowserHint")}</FieldDescription>
+            </Field>
+          ) : null}
           {fields.map((f) => (
-            <Field key={`${workflowId}-${f.name}`}>
+            <Field key={`${kind}-${workflowId}-${jobKey}-${f.name}`}>
               <FieldLabel htmlFor={`${idp}-val-${f.name}`}>
-                {f.label || f.name}
+                {job ? t(`automation.jobParam.${f.name}`) : f.label || f.name}
                 {f.required ? "" : ` (${t("common.optional")})`}
               </FieldLabel>
               <Input
@@ -263,6 +319,8 @@ export function ScheduleForm({
               />
               {f.secret ? (
                 <FieldDescription>{sealed.has(f.name) ? t("automation.sched.secretKeep") : t("automation.sched.secretHint")}</FieldDescription>
+              ) : f.help ? (
+                <FieldDescription>{f.help}</FieldDescription>
               ) : null}
             </Field>
           ))}
