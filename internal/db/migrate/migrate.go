@@ -42,6 +42,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"smtp_services",  // several SMTP services per workspace (MH-412)
 	// members' WhatsApp notifications (MH-411)
 	"member_whatsapp", "member_whatsapp_events", "member_whatsapp_messages", "member_whatsapp_marks",
+	// the research evidence store (MH-388)
+	"research_evidence", "research_companies", "research_schedules", "research_settings",
 }
 
 /*
@@ -76,6 +78,7 @@ var AuditExcluded = map[string]string{
 	"youtube_comments":           "a mirror of the channel's comments, rewritten by every sync",
 	"automation_run_steps":       "one row per browser step of a run; the run itself is audited",
 	"research_sources":           "evidence a research run collected; the run itself is audited",
+	"research_evidence":          "sentences a research run extracted from its sources; the run itself is audited",
 	"news_items":                 "items a feed collected; saving one is recorded by its request row",
 	"whatsapp_confirmations":     "a one-time confirmation code, deleted on use",
 	"notification_items":         "the inbound feed; marking items read or saved is recorded by its request row",

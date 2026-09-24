@@ -1076,9 +1076,20 @@ export type ResearchRun = {
   started_at: string | null
   finished_at: string | null
   created_at: string
+  mode: "search" | "urls"
+  /** URL mode: the pages it was given. */
+  urls: string[]
+  origin: "manual" | "schedule" | "discovery"
+  schedule_id: string
+  /** The stage it is in while it runs; empty once settled. */
+  stage: string
+  stages: ResearchStage[]
+  cost: ResearchCost
+  evidence_count: number
 }
 
 export type ResearchSource = {
+  id: string
   /** 0-based rank in the search results; the summary cites it as [position + 1]. */
   position: number
   url: string
@@ -1096,9 +1107,108 @@ export type ResearchList = {
   can_search: boolean
   can_read: boolean
   can_summarise: boolean
+  /** Today's allowance for automatic runs (schedules, discovery). */
+  budget: ResearchBudget
 }
 
-export type ResearchDetail = { run: ResearchRun; sources: ResearchSource[] }
+export type ResearchDetail = {
+  run: ResearchRun
+  sources: ResearchSource[]
+  /** Everything the run extracted (MH-388). */
+  evidence: Evidence[]
+  /** The companies its evidence names, whatever their review status. */
+  companies: CompanySuggestion[]
+}
+
+// ── Research evidence (MH-388) ──────────────────────────────────────────
+
+export const SIGNAL_TYPES = ["hiring", "funding", "launch", "expansion", "partnership", "leadership", "technology", "regulatory"] as const
+export type SignalType = (typeof SIGNAL_TYPES)[number]
+
+export type ResearchStage = {
+  stage: "plan" | "search" | "urls" | "read" | "extract" | "summarise"
+  status: "pending" | "running" | "done" | "skipped" | "failed"
+  count: number
+  note: string
+  started_at: string | null
+  finished_at: string | null
+}
+
+/** Usage units, never a price. */
+export type ResearchCost = {
+  search_queries: number
+  pages_tried: number
+  pages_read: number
+  model_calls: number
+  paid_calls: number
+  input_tokens: number
+  output_tokens: number
+  providers: string[]
+}
+
+export type Evidence = {
+  id: string
+  run_id: string
+  run_topic: string
+  source_id: string
+  kind: "quote" | "claim"
+  /** Verbatim page text. */
+  quote: string
+  /** A model's one-line reading; empty when the heuristic extracted it. */
+  claim: string
+  source_url: string
+  source_title: string
+  source_domain: string
+  company_name: string
+  company_domain: string
+  company_key: string
+  signal_type: SignalType | ""
+  confidence: number
+  published_at: string | null
+  captured_at: string
+  /** "heuristic" or "model:<provider>". */
+  extractor: string
+}
+
+export type EvidencePage = { evidence: Evidence[]; total: number; limit: number; offset: number }
+
+export type SuggestionStatus = "suggested" | "accepted" | "dismissed" | "linked"
+
+export type CompanySuggestion = {
+  id: string
+  company_key: string
+  name: string
+  domain: string
+  status: SuggestionStatus
+  crm_company_id: string
+  evidence_count: number
+  strongest: number
+  signal_types: string[]
+  first_run_id: string
+  last_run_id: string
+  first_seen_at: string
+  last_seen_at: string
+  reviewed_at: string | null
+  evidence: Evidence[]
+}
+
+export type ResearchBudget = { daily_run_budget: number; runs_today: number; day: string }
+
+export type ResearchSchedule = {
+  id: string
+  name: string
+  topic: string
+  mode: "search" | "urls"
+  urls: string[]
+  cadence: "daily" | "weekly"
+  enabled: boolean
+  next_run_at: string
+  last_run_id: string
+  last_run_at: string | null
+  last_status: "" | "started" | "over_budget" | "busy" | "not_configured" | "failed"
+  last_note: string
+  created_at: string
+}
 
 // ── Leads (MH-390) ──────────────────────────────────────────────────────
 

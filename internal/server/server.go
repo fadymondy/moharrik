@@ -159,6 +159,14 @@ func Boot() *app.App {
 		agentHub.StartScheduler(a)
 	}
 
+	// The research clock (MH-388): scheduled research, spending each
+	// workspace's daily budget. RESEARCH_SCHEDULER=off turns it off, and so
+	// does SCHEDULER=off — the tests and the OpenAPI export must not search
+	// the web.
+	if os.Getenv("RESEARCH_SCHEDULER") != "off" && os.Getenv("SCHEDULER") != "off" {
+		researchEngine.StartScheduler(a, 2*time.Minute)
+	}
+
 	// Run retention: finished runs are deleted past each workspace's window
 	// (MH-234). It reads SCHEDULER itself, so it is off wherever the scheduler
 	// is — a sweeper that deletes rows under a test is exactly the thing not

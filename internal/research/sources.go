@@ -82,11 +82,18 @@ func (s *Searcher) Search(ctx context.Context, question string, limit int) ([]Fi
 //
 // One variant failing is not a failed run; all of them failing is.
 func (s *Searcher) SearchPlan(ctx context.Context, p Plan, limit int) ([]Finding, error) {
+	f, _, err := s.SearchPlanCounted(ctx, p, limit)
+	return f, err
+}
+
+// SearchPlanCounted is SearchPlan that also says how many queries it sent —
+// what a run records as its search cost (MH-388).
+func (s *Searcher) SearchPlanCounted(ctx context.Context, p Plan, limit int) (findings []Finding, queries int, err error) {
 	if s == nil {
-		return nil, ErrNoSearch
+		return nil, 0, ErrNoSearch
 	}
 	if len(p.Queries) == 0 {
-		return nil, errors.New("a research run needs something to search for")
+		return nil, 0, errors.New("a research run needs something to search for")
 	}
 
 	const k = 60.0 // the usual RRF constant: rank 1 and rank 5 differ, rank 40 and 45 barely
@@ -111,6 +118,7 @@ func (s *Searcher) SearchPlan(ctx context.Context, p Plan, limit int) ([]Finding
 	}
 
 	for _, q := range p.Queries {
+		queries++
 		list, err := s.query(ctx, q, p.Language)
 		if err != nil {
 			if firstErr == nil {
@@ -136,7 +144,7 @@ func (s *Searcher) SearchPlan(ctx context.Context, p Plan, limit int) ([]Finding
 		}
 	}
 	if answered == 0 {
-		return nil, firstErr
+		return nil, queries, firstErr
 	}
 
 	relevant, all := ranked()
@@ -149,7 +157,7 @@ func (s *Searcher) SearchPlan(ctx context.Context, p Plan, limit int) ([]Finding
 	if len(relevant) > limit {
 		relevant = relevant[:limit]
 	}
-	return relevant, nil
+	return relevant, queries, nil
 }
 
 // query runs one SearXNG query and returns its results in rank order.
