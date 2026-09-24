@@ -16,6 +16,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/clientip"
+	"github.com/fadymondy/moharrik/internal/conversions"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/notifications"
@@ -78,6 +79,11 @@ type inquiryBody struct {
 	Referrer    string `json:"referrer,omitempty" maxLength:"2000"`
 	Gclid       string `json:"gclid,omitempty" maxLength:"300"`
 	LandingPage string `json:"landing_page,omitempty" maxLength:"2000"`
+	// GA4 (MH-449), read by the snippet: the visitor's GA client id from the _ga cookie, and the
+	// page's Consent Mode answers for ads. Anything that does not look like one is dropped.
+	GAClientID          string `json:"ga_client_id,omitempty" maxLength:"64" doc:"The GA client id (\"1234567890.1712345678\") or the _ga cookie value."`
+	GAAdUserData        string `json:"ga_ad_user_data,omitempty" maxLength:"16" doc:"granted or denied, as the page's Consent Mode said."`
+	GAAdPersonalization string `json:"ga_ad_personalization,omitempty" maxLength:"16" doc:"granted or denied, as the page's Consent Mode said."`
 }
 
 // ---- rate limits -------------------------------------------------------------
@@ -165,8 +171,9 @@ func intake(ctx context.Context, db *sql.DB, form marketing.PublicForm, b inquir
 	var id string
 	err := db.QueryRowContext(ctx, `
 		INSERT INTO leads (workspace_id, form_id, form_name, name, email, phone, company, message, locale,
-		                   utm_source, utm_medium, utm_campaign, utm_term, utm_content, referrer, gclid, landing_page, origin, budget)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		                   utm_source, utm_medium, utm_campaign, utm_term, utm_content, referrer, gclid, landing_page, origin, budget,
+		                   ga_client_id, ga_ad_user_data, ga_ad_personalization)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 		RETURNING id`,
 		form.WorkspaceID, form.ID, form.Name, strings.TrimSpace(b.Name), strings.ToLower(strings.TrimSpace(b.Email)),
 		strings.TrimSpace(b.Phone), strings.TrimSpace(b.Company), strings.TrimSpace(b.Message), locale,
@@ -174,6 +181,7 @@ func intake(ctx context.Context, db *sql.DB, form marketing.PublicForm, b inquir
 		strings.TrimSpace(b.UtmTerm), strings.TrimSpace(b.UtmContent), strings.TrimSpace(b.Referrer),
 		strings.TrimSpace(b.Gclid), strings.TrimSpace(b.LandingPage), strings.TrimRight(strings.TrimSpace(origin), "/"),
 		strings.TrimSpace(b.Budget),
+		conversions.ClientIDFromCookie(b.GAClientID), conversions.ConsentValue(b.GAAdUserData), conversions.ConsentValue(b.GAAdPersonalization),
 	).Scan(&id)
 	return id, err
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/conversions"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -124,14 +125,18 @@ func subscribeSnippet(key string) string {
 </script>`
 }
 
-func withEmbed(f FormOut) FormOut {
+// withEmbed fills the endpoint and the snippet. tagID, when set, is the
+// workspace's GA4 measurement id: the snippet then starts with the GA4 tag
+// under Consent Mode v2 (MH-449, internal/conversions).
+func withEmbed(f FormOut, tagID string) FormOut {
+	tag := conversions.TagSnippet(tagID)
 	if f.Kind == FormInquiry {
 		f.Endpoint = InquiryEndpoint(f.PublicKey)
-		f.Embed = inquirySnippet(f.PublicKey)
+		f.Embed = tag + inquirySnippet(f.PublicKey)
 		return f
 	}
 	f.Endpoint = subscribeEndpoint(f.PublicKey)
-	f.Embed = subscribeSnippet(f.PublicKey)
+	f.Embed = tag + subscribeSnippet(f.PublicKey)
 	return f
 }
 
@@ -148,6 +153,12 @@ func InquiryEndpoint(key string) string { return publicBase() + "/api/inquiry/" 
 // a visitor who lands on the home page from an ad and fills the form on
 // /contact is still attributed to the ad. The honeypot is a field people never
 // see; a bot that fills it is thanked and filed nowhere.
+//
+// For GA4 conversions (MH-449) it also sends the visitor's GA client id, read
+// from the _ga cookie (there only when the site runs GA and analytics consent
+// was given), and the page's Consent Mode answers for ads, read from the gtag
+// 'consent' commands in its dataLayer. Neither is personal data; both are
+// empty on a site without GA.
 func inquirySnippet(key string) string {
 	id := "moharrik-inquiry-" + key
 	return `<form id="` + id + `">
@@ -180,6 +191,13 @@ func inquirySnippet(key string) string {
     var body = { locale: (document.documentElement.lang || "en").slice(0, 2) };
     ["name", "email", "phone", "company", "budget", "message", "nickname"].forEach(function (k) { body[k] = String(d.get(k) || "").trim(); });
     F.concat(["referrer", "landing_page"]).forEach(function (k) { body[k] = String(a[k] || "").slice(0, 2000); });
+    var ga = (document.cookie.match(/(?:^|;\s*)_ga=([^;]+)/) || [])[1], gp = ga ? decodeURIComponent(ga).split(".") : [];
+    body.ga_client_id = gp.length >= 4 ? gp[gp.length - 2] + "." + gp[gp.length - 1] : "";
+    ["ad_user_data", "ad_personalization"].forEach(function (k) {
+      var v = "";
+      (window.dataLayer || []).forEach(function (e) { if (e && e[0] === "consent" && e[2] && typeof e[2][k] === "string") v = e[2][k]; });
+      body["ga_" + k] = v;
+    });
     btn.disabled = true;
     fetch("` + InquiryEndpoint(key) + `", {
       method: "POST",
@@ -300,6 +318,8 @@ func registerFormAdmin(api huma.API, a *app.App) {
 		}
 		defer rows.Close()
 
+		// The GA4 tag the snippets carry, when the workspace asked for it (MH-449).
+		tagID := conversions.TagID(ctx, a, s.WorkspaceID)
 		forms := []FormOut{}
 		for rows.Next() {
 			var f FormOut
@@ -309,7 +329,7 @@ func registerFormAdmin(api huma.API, a *app.App) {
 				return nil, huma.Error500InternalServerError("could not read the forms")
 			}
 			f.AllowedOrigins = splitOrigins(origins)
-			forms = append(forms, withEmbed(f))
+			forms = append(forms, withEmbed(f, tagID))
 		}
 		return out(struct {
 			Forms []FormOut `json:"forms"`
@@ -388,7 +408,7 @@ func registerFormAdmin(api huma.API, a *app.App) {
 			ID: id, Kind: kind, ListID: strings.TrimSpace(in.Body.ListID), ListName: listName, Name: strings.TrimSpace(in.Body.Name),
 			PublicKey: key, AllowedOrigins: splitOrigins(origins), Enabled: true,
 			ThanksEN: in.Body.ThanksEN, ThanksAR: in.Body.ThanksAR, CreatedAt: createdAt,
-		})}), nil
+		}, conversions.TagID(ctx, a, s.WorkspaceID))}), nil
 	})
 
 	huma.Register(api, huma.Operation{

@@ -6,6 +6,7 @@ import { ChartLineIcon, CheckCircle2Icon, RefreshCwIcon, SearchIcon, TriangleAle
 import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
+import { Ga4Conversions } from "@/components/google/ga4-conversions"
 import { ResourcePicker } from "@/components/google/resource-picker"
 import { Ltr } from "@/components/copy-field"
 import { SectionHeader } from "@/components/public-frame"
@@ -106,6 +107,9 @@ function Integrations() {
               </div>
             )}
           </section>
+
+          <div className="grid-separator-contained hatch-band" aria-hidden />
+          <Ga4Conversions googleConnected={list.some((c) => (c.products ?? []).includes("analytics"))} />
         </>
       )}
     </>

@@ -183,6 +183,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	// The notification collector's ticker is off; a collected source in A is
 	// read by hand, from a fake Bluesky (MH-384).
 	t.Setenv("NOTIFY_COLLECTOR", "off")
+	// The GA4 sender's ticker is off: nothing here is meant to reach even the fake (MH-449).
+	t.Setenv("GA4_SENDER", "off")
 	fakePub := newFakePublic()
 	defer fakePub.Close()
 	defer notifications.SetEndpoints(notifications.Endpoints{Bluesky: fakePub.URL, YouTube: fakePub.URL})()
@@ -344,6 +346,17 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	// MH-384: a collected source in A, run once so it has items.
 	notifSrcID := alice.must("POST", "/api/w/notification_sources", map[string]any{"kind": "bluesky", "target": "shop.bsky.social", "name": marker + " Bluesky"}, 201)["source"].(map[string]any)["id"].(string)
 	alice.must("POST", "/api/w/notification_sources/"+notifSrcID+"/collect", nil, 200)
+
+	// MH-449: GA4 conversions in A, switched on before the lead below arrives, so
+	// its generate_lead sits in A's outbox under the lead's id. The API secret
+	// carries the marker: no response may ever hand it back, to A or to anyone.
+	ga4Secret := marker + "-ga4"
+	ga4Page := alice.must("PATCH", "/api/w/ga4-conversions", map[string]any{
+		"measurement_id": "G-ISO12345", "api_secret": ga4Secret, "events_enabled": true, "tag_in_embeds": true,
+	}, 200)
+	if b, _ := json.Marshal(ga4Page); strings.Contains(string(b), ga4Secret) {
+		t.Fatalf("the GA4 settings handed back the API secret: %s", b)
+	}
 
 	// Leads (MH-390): an inquiry form, then a real submission through the
 	// PUBLIC route, so the lead exists the way a visitor's website makes it.
@@ -702,6 +715,12 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	if code, b := alice.do("GET", "/api/w/smtp-services", nil); code != 200 || !strings.Contains(string(b), smtpID) || !strings.Contains(string(b), `"is_default":true`) {
 		t.Errorf("A's SMTP service was changed or removed from B: %d %s", code, b)
+	}
+	// MH-449: A's GA4 setup and outbox survived B's PATCH and test, and still hold A's lead.
+	if code, b := alice.do("GET", "/api/w/ga4-conversions", nil); code != 200 || !strings.Contains(string(b), `"measurement_id":"G-ISO12345"`) ||
+		!strings.Contains(string(b), `"events_enabled":true`) || !strings.Contains(string(b), `"api_secret_set":true`) || !strings.Contains(string(b), leadID) ||
+		strings.Contains(string(b), ga4Secret) {
+		t.Errorf("A's GA4 conversions were changed from B, or leaked the secret: %d %s", code, b)
 	}
 
 	// The sweep's empty body is refused by validation before the handler runs,

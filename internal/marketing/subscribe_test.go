@@ -226,12 +226,51 @@ func TestInquirySnippetPostsToTheInquiryEndpointWithAttributionAndAHoneypot(t *t
 
 func TestWithEmbedPicksTheSnippetForTheFormKind(t *testing.T) {
 	t.Setenv("PUBLIC_URL", "https://app.example.test")
-	sub := withEmbed(FormOut{Kind: FormSubscribe, PublicKey: "sf_a"})
-	inq := withEmbed(FormOut{Kind: FormInquiry, PublicKey: "if_b"})
+	sub := withEmbed(FormOut{Kind: FormSubscribe, PublicKey: "sf_a"}, "")
+	inq := withEmbed(FormOut{Kind: FormInquiry, PublicKey: "if_b"}, "")
 	if sub.Endpoint != "https://app.example.test/api/subscribe/sf_a" || !strings.Contains(sub.Embed, "whatsapp_opt_in") {
 		t.Errorf("subscribe form got the wrong embed: %q", sub.Endpoint)
 	}
 	if inq.Endpoint != "https://app.example.test/api/inquiry/if_b" || !strings.Contains(inq.Embed, `name="message"`) {
 		t.Errorf("inquiry form got the wrong embed: %q", inq.Endpoint)
+	}
+}
+
+// MH-449: with the workspace's measurement id, both snippets start with the GA4 tag under
+// Consent Mode v2 (everything denied until the site's banner grants it); without one, neither
+// carries a tag. The inquiry snippet always sends the GA client id and the ads consent it can
+// read, so a site's own GA tag is enough for the lead to join the visitor's journey.
+func TestEmbedsCarryTheGA4TagOnlyWhenAsked(t *testing.T) {
+	t.Setenv("PUBLIC_URL", "https://app.example.test")
+	for _, kind := range []string{FormSubscribe, FormInquiry} {
+		plain := withEmbed(FormOut{Kind: kind, PublicKey: "k"}, "")
+		if strings.Contains(plain.Embed, "googletagmanager") || strings.Contains(plain.Embed, "gtag(") {
+			t.Errorf("%s: a snippet without a measurement id carries a tag", kind)
+		}
+		tagged := withEmbed(FormOut{Kind: kind, PublicKey: "k"}, "G-TEST1234")
+		for _, want := range []string{
+			`https://www.googletagmanager.com/gtag/js?id=G-TEST1234`,
+			`gtag("config", "G-TEST1234")`,
+			`ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied"`,
+			`analytics_storage: "denied"`,
+			// A page that already runs gtag keeps its own consent defaults.
+			`if (typeof window.gtag !== "function")`,
+		} {
+			if !strings.Contains(tagged.Embed, want) {
+				t.Errorf("%s: tagged snippet missing %q", kind, want)
+			}
+		}
+		if !strings.HasPrefix(tagged.Embed, "<!-- GA4 (G-TEST1234)") {
+			t.Errorf("%s: the tag must come first, before the form", kind)
+		}
+	}
+	if s := withEmbed(FormOut{Kind: FormSubscribe, PublicKey: "k"}, "not-an-id").Embed; strings.Contains(s, "gtag") {
+		t.Error("an invalid measurement id must not be written into a snippet")
+	}
+	inq := inquirySnippet("if_k1")
+	for _, want := range []string{`_ga=`, `body.ga_client_id`, `e[0] === "consent"`, `body["ga_" + k]`} {
+		if !strings.Contains(inq, want) {
+			t.Errorf("inquiry snippet missing %q", want)
+		}
 	}
 }
