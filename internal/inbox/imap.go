@@ -13,6 +13,7 @@ import (
 	"github.com/emersion/go-imap/client"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/recency"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -44,6 +45,9 @@ type Mailbox struct {
 	TLSMode       string
 	Folder        string
 	SMTPServiceID string // which of the workspace's SMTP services a reply on this mailbox goes out through; "" = the workspace default
+	// ConnectedAt is when the mailbox was added. Poll files only mail sent
+	// from (a day before) then on — see internal/recency.
+	ConnectedAt time.Time
 }
 
 // fetchLimit caps one poll. A mailbox with ten thousand unread messages should
@@ -224,8 +228,14 @@ func Poll(ctx context.Context, a *app.App, mb Mailbox) (int, error) {
 		return 0, fmt.Errorf("could not open %s: %w", folder, err)
 	}
 
+	// Unseen AND recent. Unseen alone reached back to 2019 on a mailbox whose
+	// owner never read their newsletters — and marked all of it read in their
+	// own client. IMAP's SINCE is date-granular, so the exact cutoff is checked
+	// again per message below.
+	cutoff := recency.Cutoff(mb.ConnectedAt)
 	criteria := imap.NewSearchCriteria()
 	criteria.WithoutFlags = []string{imap.SeenFlag}
+	criteria.Since = cutoff
 	ids, err := c.Search(criteria)
 	if err != nil {
 		return 0, fmt.Errorf("could not search the mailbox: %w", err)
@@ -255,6 +265,11 @@ func Poll(ctx context.Context, a *app.App, mb Mailbox) (int, error) {
 		if err != nil {
 			// Unparseable: mark it seen anyway, or it is retried for ever.
 			filedIDs = append(filedIDs, msg.SeqNum)
+			continue
+		}
+		if recency.TooOld(email.Date, mb.ConnectedAt) {
+			// Older than the channel: not ours to file, and not ours to mark
+			// read either — it stays exactly as the owner left it.
 			continue
 		}
 		if err := File(ctx, a, mb.WorkspaceID, mb.ID, email); err != nil {
