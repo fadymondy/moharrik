@@ -395,6 +395,9 @@ func ListDiscordChannels(ctx context.Context, a *app.App, workspaceID, connID, g
 	if err != nil {
 		return nil, err
 	}
+	if !isSnowflake(guildID) {
+		return nil, fmt.Errorf("invalid Discord server id")
+	}
 	raw, err := discordCall(ctx, token, http.MethodGet, "/guilds/"+guildID+"/channels", nil)
 	if err != nil {
 		return nil, err
@@ -443,6 +446,9 @@ func DiscordChannelHistory(ctx context.Context, a *app.App, workspaceID, connID,
 	if limit <= 0 || limit > 100 {
 		limit = 100
 	}
+	if !isSnowflake(channelID) {
+		return nil, fmt.Errorf("invalid Discord channel id")
+	}
 	raw, err := discordCall(ctx, token, http.MethodGet, fmt.Sprintf("/channels/%s/messages?limit=%d", channelID, limit), nil)
 	if err != nil {
 		return nil, err
@@ -484,6 +490,21 @@ func discordConnAndToken(ctx context.Context, a *app.App, workspaceID, connID st
 	}
 	token, err := discordBotBox.Open(botSealed)
 	return c, token, err
+}
+
+// isSnowflake reports whether id is a Discord snowflake (all digits). Ids from
+// the caller go into the request path, so anything else — "../", "?" — is
+// refused rather than letting it reach another endpoint with the bot token.
+func isSnowflake(id string) bool {
+	if id == "" || len(id) > 20 {
+		return false
+	}
+	for _, r := range id {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // ---- the Discord REST API client ----------------------------------------

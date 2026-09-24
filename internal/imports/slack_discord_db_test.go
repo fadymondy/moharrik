@@ -59,13 +59,13 @@ func fakeDiscordAPI(t *testing.T) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/@me/guilds", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[{"id":"G1"}]`))
+		_, _ = w.Write([]byte(`[{"id":"1111111111"}]`))
 	})
-	mux.HandleFunc("/guilds/G1/channels", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/guilds/1111111111/channels", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[{"id":"D1","name":"support","type":0},{"id":"D2","name":"voice","type":2}]`))
+		_, _ = w.Write([]byte(`[{"id":"2222222222","name":"support","type":0},{"id":"3333333333","name":"voice","type":2}]`))
 	})
-	mux.HandleFunc("/channels/D1/messages", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/channels/2222222222/messages", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[
 			{"id":"999","content":"need help","timestamp":"2024-01-01T00:00:01Z","author":{"id":"U-CUST","bot":false,"username":"customer"}},
@@ -193,11 +193,11 @@ func TestDiscordImportKeysAndDedupesLikeALiveDelivery(t *testing.T) {
 	}
 	// Only the GUILD_TEXT channel (type 0) shows up; the voice channel
 	// (type 2) is filtered out.
-	if len(items) != 1 || items[0].ID != "D1" || items[0].Name != "support" {
+	if len(items) != 1 || items[0].ID != "2222222222" || items[0].Name != "support" {
 		t.Fatalf("preview: %+v", items)
 	}
 
-	job, err := imports.StartImport(ctx, a, wsID, "discord", imports.ImportRequest{ConnectionID: conn.ID, Items: []string{"D1"}})
+	job, err := imports.StartImport(ctx, a, wsID, "discord", imports.ImportRequest{ConnectionID: conn.ID, Items: []string{"2222222222"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestDiscordImportKeysAndDedupesLikeALiveDelivery(t *testing.T) {
 
 	// A live delivery keyed exactly the way handleDiscordMessage's deliver()
 	// call keys it must land in the SAME conversation.
-	if err := inbox.FileChannelMessage(ctx, a, wsID, "discord", conn.ID, "D1", "U-CUST", "customer", "one more thing", "discord:997"); err != nil {
+	if err := inbox.FileChannelMessage(ctx, a, wsID, "discord", conn.ID, "2222222222", "U-CUST", "customer", "one more thing", "discord:997"); err != nil {
 		t.Fatal(err)
 	}
 	var convCount int
@@ -226,7 +226,7 @@ func TestDiscordImportKeysAndDedupesLikeALiveDelivery(t *testing.T) {
 		t.Fatalf("import and a live delivery on the same channel produced %d conversations, want 1", convCount)
 	}
 
-	job2, err := imports.StartImport(ctx, a, wsID, "discord", imports.ImportRequest{ConnectionID: conn.ID, Items: []string{"D1"}})
+	job2, err := imports.StartImport(ctx, a, wsID, "discord", imports.ImportRequest{ConnectionID: conn.ID, Items: []string{"2222222222"}})
 	if err != nil {
 		t.Fatal(err)
 	}
