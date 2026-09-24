@@ -24,7 +24,21 @@ const CHROME = process.env.E2E_CHROME ?? "C:/Program Files/Google/Chrome/Applica
 const GROUPS = [
   { key: "crm", items: ["leads", "companies", "contacts", "deals", "reports"] },
   { key: "marketing", items: ["campaigns", "subscribe-forms"] },
-  { key: "inbox", items: ["inbox", "inbox/stats", "inbox/canned", "inbox/email", "inbox/whatsapp", "inbox/widgets"] },
+  {
+    key: "inbox",
+    items: [
+      "inbox",
+      "inbox/stats",
+      "inbox/canned",
+      "inbox/email",
+      "inbox/whatsapp",
+      "inbox/telegram",
+      "inbox/slack",
+      "inbox/discord",
+      "inbox/workflow-channels",
+      "inbox/widgets",
+    ],
+  },
   {
     key: "automation",
     items: ["automation/browsers", "automation/workflows", "automation/presets", "automation/rules", "automation/runs", "automation/schedules", "automation/settings"],

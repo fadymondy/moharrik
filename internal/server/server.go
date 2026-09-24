@@ -23,6 +23,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/audit"
 	"github.com/fadymondy/moharrik/internal/automation"
+	"github.com/fadymondy/moharrik/internal/channels"
 	"github.com/fadymondy/moharrik/internal/clientip"
 	"github.com/fadymondy/moharrik/internal/conversions"
 	"github.com/fadymondy/moharrik/internal/crm"
@@ -174,6 +175,20 @@ func Boot() *app.App {
 		return inbox.FileWhatsApp(ctx, a, workspaceID, phone, name, text, externalID)
 	})
 
+	// Telegram, Slack and Discord inbox channels (MH-563), and browser-workflow
+	// channels (MH-564): the same "neither package imports the other" wiring
+	// as WhatsApp above.
+	channels.RegisterTelegramHook(k.Router, a)
+	channels.RegisterSlackHook(k.Router, a)
+	channels.RegisterDiscordHook(k.Router, a)
+	channels.SetFiler(func(ctx context.Context, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID string) error {
+		return inbox.FileChannelMessage(ctx, a, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID)
+	})
+	// Reconnects every enabled Discord connection's gateway session on boot.
+	// DISCORD_GATEWAY=off turns it off for the tests and the OpenAPI export —
+	// same switch shape as TRENDS_COLLECTOR.
+	channels.StartAllGateways(a)
+
 	// Members' WhatsApp notifications (MH-411): one in-process ticker that
 	// reads new events and sends each member's batch when their rules allow.
 	// WHATSAPP_NOTIFY=off turns it off.
@@ -297,6 +312,10 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	inbox.Register(api, a)
 	inbox.RegisterMailbox(api, a)
 	inbox.RegisterAttachments(api, a)
+	channels.RegisterTelegram(api, a)
+	channels.RegisterSlack(api, a)
+	channels.RegisterDiscord(api, a)
+	channels.RegisterWorkflowChannels(api, a) // browser-workflow channels (MH-564)
 	whatsapp.Register(api, a)
 	whatsapp.RegisterNotify(api, a) // members' WhatsApp notifications (MH-411)
 	trends.Register(api, a)

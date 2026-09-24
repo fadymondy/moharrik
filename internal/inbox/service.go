@@ -12,6 +12,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/channels"
 	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/realtime"
@@ -79,7 +80,7 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	if f.Status != "" && !statuses[f.Status] {
 		return nil, huma.Error422UnprocessableEntity("status must be open, snoozed or closed")
 	}
-	if f.Channel != "" && !channels[f.Channel] {
+	if f.Channel != "" && !channelSet[f.Channel] {
 		return nil, huma.Error422UnprocessableEntity("channel must be chat, email or whatsapp")
 	}
 	wakeDue(ctx, a, s.WorkspaceID)
@@ -208,11 +209,12 @@ func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error
 	if len(text) > maxMessage {
 		return nil, huma.Error422UnprocessableEntity("that message is too long (at most 8000 characters)")
 	}
-	var channel, customerEmail, customerPhone, subject string
+	var channel, customerEmail, customerPhone, subject, sourceChannelID, externalThreadID string
 	var mailboxID sql.NullString
 	if err := a.SQLDB.QueryRowContext(ctx, `
-		SELECT channel, customer_email, customer_phone, subject, mailbox_id FROM conversations WHERE workspace_id = $1 AND id = $2`,
-		s.WorkspaceID, id).Scan(&channel, &customerEmail, &customerPhone, &subject, &mailboxID); err != nil {
+		SELECT channel, customer_email, customer_phone, subject, mailbox_id, coalesce(source_channel_id, ''), external_thread_id
+		FROM conversations WHERE workspace_id = $1 AND id = $2`,
+		s.WorkspaceID, id).Scan(&channel, &customerEmail, &customerPhone, &subject, &mailboxID, &sourceChannelID, &externalThreadID); err != nil {
 		if notFound(err) {
 			return nil, huma.Error404NotFound("conversation not found")
 		}
@@ -235,6 +237,21 @@ func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error
 		sentID, err = whatsapp.SendAs(ctx, a, s.WorkspaceID, customerPhone, text, whatsapp.KindReply)
 		if err != nil {
 			return nil, whatsappError(err)
+		}
+	case "telegram":
+		sentID, err = channels.SendTelegramReply(ctx, a, s.WorkspaceID, sourceChannelID, externalThreadID, text)
+		if err != nil {
+			return nil, channelError(err)
+		}
+	case "slack":
+		sentID, err = channels.SendSlackReply(ctx, a, s.WorkspaceID, sourceChannelID, externalThreadID, text)
+		if err != nil {
+			return nil, channelError(err)
+		}
+	case "discord":
+		sentID, err = channels.SendDiscordReply(ctx, a, s.WorkspaceID, sourceChannelID, externalThreadID, text)
+		if err != nil {
+			return nil, channelError(err)
 		}
 	}
 	return recordOutbound(ctx, a, s.WorkspaceID, s.UserID, s.Email, id, mailboxID.String, text, sentID)

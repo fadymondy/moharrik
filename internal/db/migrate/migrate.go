@@ -54,6 +54,10 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"automation_rules", "automation_rule_events", "automation_rule_runs",
 	// the trends digest and WhatsApp trends answers (MH-389)
 	"member_trend_digest", "trend_digest_sends",
+	// inbox channels: Telegram, Slack, Discord (MH-563) and browser-workflow
+	// channels (MH-564)
+	"telegram_channels", "slack_channels", "discord_channels",
+	"workflow_channels", "workflow_channel_pushes",
 }
 
 /*
@@ -103,6 +107,7 @@ var AuditExcluded = map[string]string{
 	"automation_rule_events":      "the rules dispatcher's outbox, written by every trigger and marked by every pass",
 	"automation_rule_runs":        "the rules' run log, itself a record of what each rule did; the rule is audited",
 	"trend_digest_sends":          "the trends digest's send log, itself a record",
+	"workflow_channel_pushes":     "the push-to-inbox step's dedupe log, written by every push; the workflow run itself is audited",
 }
 
 // AuditedTables are the tenant tables the audit trigger is attached to.

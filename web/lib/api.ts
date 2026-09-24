@@ -1096,6 +1096,85 @@ export type ContactWhatsApp = {
   recent: { at: string; kind: "reply" | "broadcast" | "direct" | string; ok: boolean; error: string }[]
 }
 
+// ── Inbox channels: Telegram, Slack, Discord (MH-563), workflow (MH-564) ──
+
+/** One of the workspace's Telegram bot connections. The bot token is never returned. */
+export type TelegramChannel = {
+  id: string
+  name: string
+  bot_username: string
+  has_token: boolean
+  allowed_chat_ids: string
+  enabled: boolean
+  last_delivery_at: string | null
+  last_error: string
+  last_error_at: string | null
+  last_test_at: string | null
+  last_test_ok: boolean | null
+  webhook_url: string
+  created_at: string
+  updated_at: string
+}
+
+/** One of the workspace's Slack app connections. Tokens/secrets are never returned. */
+export type SlackChannel = {
+  id: string
+  name: string
+  has_bot_token: boolean
+  has_signing_secret: boolean
+  team_id: string
+  team_name: string
+  bot_user_id: string
+  allowed_channel_ids: string
+  enabled: boolean
+  last_delivery_at: string | null
+  last_error: string
+  last_error_at: string | null
+  last_test_at: string | null
+  last_test_ok: boolean | null
+  webhook_url: string
+  created_at: string
+  updated_at: string
+}
+
+/** One of the workspace's Discord bot connections. The bot token is never returned. */
+export type DiscordChannel = {
+  id: string
+  name: string
+  has_token: boolean
+  application_id: string
+  public_key: string
+  bot_username: string
+  allowed_guild_ids: string
+  allowed_channel_ids: string
+  enabled: boolean
+  gateway_state: "disconnected" | "connecting" | "connected"
+  last_delivery_at: string | null
+  last_error: string
+  last_error_at: string | null
+  last_test_at: string | null
+  last_test_ok: boolean | null
+  interactions_url: string
+  created_at: string
+  updated_at: string
+}
+
+/** A browser-workflow inbox channel (MH-564): LinkedIn, Facebook, Instagram or X. */
+export type WorkflowChannel = {
+  id: string
+  name: string
+  network: "linkedin" | "facebook" | "instagram" | "x"
+  workflow_id: string | null
+  allow_replies: boolean
+  enabled: boolean
+  last_run_at: string | null
+  last_error: string
+  last_error_at: string | null
+  last_pushed_count: number
+  created_at: string
+  updated_at: string
+}
+
 export type NotifyKind = "automation_failed" | "lead" | "notification"
 
 /** The signed-in member's WhatsApp notifications in this workspace (MH-411). */

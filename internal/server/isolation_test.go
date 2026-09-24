@@ -44,6 +44,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/fadymondy/moharrik/internal/channels"
 	"github.com/fadymondy/moharrik/internal/google"
 	"github.com/fadymondy/moharrik/internal/google/googletest"
 	"github.com/fadymondy/moharrik/internal/mcp"
@@ -185,6 +186,15 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	t.Setenv("NOTIFY_COLLECTOR", "off")
 	// The GA4 sender's ticker is off: nothing here is meant to reach even the fake (MH-449).
 	t.Setenv("GA4_SENDER", "off")
+	// No real gateway socket, and Telegram's connect-time setWebhook call goes
+	// to a local fake, never api.telegram.org (MH-563: never a real bot).
+	t.Setenv("DISCORD_GATEWAY", "off")
+	fakeTelegramAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"id":1,"is_bot":true,"username":"isobot"}}`))
+	}))
+	defer fakeTelegramAPI.Close()
+	defer channels.SetTelegramAPIBase(fakeTelegramAPI.URL)()
 	fakePub := newFakePublic()
 	defer fakePub.Close()
 	defer notifications.SetEndpoints(notifications.Endpoints{Bluesky: fakePub.URL, YouTube: fakePub.URL})()
@@ -445,6 +455,31 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatalf("the mailbox list handed back its password: %s", b)
 	}
 
+	// MH-563/MH-564: a Telegram, a Slack, a Discord and a workflow channel in
+	// A, each named with the marker. Bot tokens and secrets carry the marker
+	// too, so a leak is caught the same way the SMTP password above is.
+	tgID := alice.must("POST", "/api/w/telegram-channels", map[string]any{
+		"name": marker + " Telegram", "bot_token": marker + "-tg-token",
+	}, 201)["channel"].(map[string]any)["id"].(string)
+	if _, b := alice.do("GET", "/api/w/telegram-channels", nil); strings.Contains(string(b), marker+"-tg-token") {
+		t.Fatalf("the Telegram channel list handed back the bot token: %s", b)
+	}
+	slackID := alice.must("POST", "/api/w/slack-channels", map[string]any{
+		"name": marker + " Slack", "bot_token": marker + "-slack-token", "signing_secret": marker + "-slack-signing",
+	}, 201)["channel"].(map[string]any)["id"].(string)
+	if _, b := alice.do("GET", "/api/w/slack-channels", nil); strings.Contains(string(b), marker+"-slack-token") || strings.Contains(string(b), marker+"-slack-signing") {
+		t.Fatalf("the Slack channel list handed back a secret: %s", b)
+	}
+	discordID := alice.must("POST", "/api/w/discord-channels", map[string]any{
+		"name": marker + " Discord", "bot_token": marker + "-discord-token",
+	}, 201)["channel"].(map[string]any)["id"].(string)
+	if _, b := alice.do("GET", "/api/w/discord-channels", nil); strings.Contains(string(b), marker+"-discord-token") {
+		t.Fatalf("the Discord channel list handed back the bot token: %s", b)
+	}
+	workflowChannelID := alice.must("POST", "/api/w/workflow-channels", map[string]any{
+		"name": marker + " LinkedIn", "network": "linkedin",
+	}, 201)["channel"].(map[string]any)["id"].(string)
+
 	// MH-411: alice's WhatsApp notifications in A, with a pending event and a
 	// logged message that carry the marker. Written directly: verifying needs
 	// a linked number. B's own /api/w/notify/whatsapp must show none of it.
@@ -617,7 +652,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, mailboxID, notifSrcID, ruleID, ruleRunID, ruleSecret}
+	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, mailboxID, notifSrcID, ruleID, ruleRunID, ruleSecret, tgID, slackID, discordID, workflowChannelID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -634,6 +669,10 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"smtp-services":        smtpID,
 		"mailboxes":            mailboxID,
 		"notification_sources": notifSrcID,
+		"telegram-channels":    tgID,
+		"slack-channels":       slackID,
+		"discord-channels":     discordID,
+		"workflow-channels":    workflowChannelID,
 		"research":             runID, "company-suggestions": suggID, "research-schedules": rschedID,
 		"prospects": prospectID,
 		"rules":     ruleID,
@@ -856,6 +895,34 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	alice.ws = aID
 	if l := alice.must("GET", "/api/w/leads/"+leadID, nil, 200)["lead"].(map[string]any); l["status"] != "new" || l["converted_deal"] != nil {
 		t.Errorf("A's lead was changed from B: %+v", l)
+	}
+
+	// MH-563/MH-564: with VALID bodies from B, A's channels cannot be renamed,
+	// re-keyed, tested, pushed into or deleted.
+	bob.ws = bID
+	if code, b := bob.do("PUT", "/api/w/telegram-channels/"+tgID, map[string]any{"name": "bob owns this", "bot_token": "bob-token"}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B editing A's Telegram channel: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("POST", "/api/w/telegram-channels/"+tgID+"/test", map[string]any{}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B testing A's Telegram channel: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("DELETE", "/api/w/slack-channels/"+slackID, nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B deleting A's Slack channel: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("PUT", "/api/w/discord-channels/"+discordID, map[string]any{"name": "bob", "bot_token": "bob-token"}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B editing A's Discord channel: got %d, want 404: %s", code, b)
+	}
+	if code, b := bob.do("POST", "/api/w/workflow-channels/"+workflowChannelID+"/push", map[string]any{
+		"items": []map[string]any{{"thread_id": "bob-t", "message_id": "bob-m", "text": "bob's message"}},
+	}); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B pushing into A's workflow channel: got %d, want 404: %s", code, b)
+	}
+	alice.ws = aID
+	if l := alice.must("GET", "/api/w/telegram-channels", nil, 200)["channels"].([]any); len(l) != 1 || l[0].(map[string]any)["name"] != marker+" Telegram" {
+		t.Errorf("A's Telegram channel was changed or removed from B: %v", l)
+	}
+	if l := alice.must("GET", "/api/w/slack-channels", nil, 200)["channels"].([]any); len(l) != 1 {
+		t.Errorf("A's Slack channel was deleted from B: %v", l)
 	}
 
 	// Inbox → CRM and canned replies (MH-379, MH-383), with VALID bodies from B:
