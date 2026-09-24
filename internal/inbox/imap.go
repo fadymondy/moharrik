@@ -31,15 +31,19 @@ of step, and a message that failed to file is retried on the next poll because
 it was never marked.
 */
 
-// Mailbox is one workspace's incoming mail account.
+// Mailbox is one of a workspace's incoming mail accounts (MH-555: a workspace
+// may have several, the way it may have several SMTP services).
 type Mailbox struct {
-	WorkspaceID string
-	Host        string
-	Port        int
-	Username    string
-	Password    string
-	TLSMode     string
-	Folder      string
+	ID            string
+	WorkspaceID   string
+	Name          string
+	Host          string
+	Port          int
+	Username      string
+	Password      string
+	TLSMode       string
+	Folder        string
+	SMTPServiceID string // which of the workspace's SMTP services a reply on this mailbox goes out through; "" = the workspace default
 }
 
 // fetchLimit caps one poll. A mailbox with ten thousand unread messages should
@@ -50,6 +54,149 @@ const fetchLimit = 50
 // imapTimeout bounds a whole poll: a mail server that accepts the connection
 // and then stops answering must not pin the collector.
 const imapTimeout = 90 * time.Second
+
+// testTimeout bounds a "test connection" check (MH-555) — shorter than a poll
+// because it does nothing but dial, log in and open the folder.
+const testTimeout = 20 * time.Second
+
+// TestConnection checks a mailbox's credentials without collecting anything:
+// dial, log in, open the folder, log out. Nothing is fetched and nothing is
+// marked \Seen, so running it never loses or duplicates mail.
+func TestConnection(ctx context.Context, mb Mailbox) error {
+	ctx, cancel := context.WithTimeout(ctx, testTimeout)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		c, err := dial(mb)
+		if err != nil {
+			done <- err
+			return
+		}
+		defer func() { _ = c.Logout() }()
+		if err := c.Login(mb.Username, mb.Password); err != nil {
+			done <- fmt.Errorf("could not sign in to the mailbox: %w", err)
+			return
+		}
+		folder := mb.Folder
+		if strings.TrimSpace(folder) == "" {
+			folder = "INBOX"
+		}
+		if _, err := c.Select(folder, true); err != nil { // read-only: never risks marking anything
+			done <- fmt.Errorf("could not open %s: %w", folder, err)
+			return
+		}
+		done <- nil
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("the mail server did not answer in time")
+	}
+}
+
+// listTimeout bounds ListMessages — generous next to a poll, since browsing a
+// date range can touch far more messages than "what's new since last time".
+const listTimeout = 5 * time.Minute
+
+// listFetchLimit caps one ListMessages call, the same reasoning as fetchLimit
+// for Poll: a mailbox with years of history should be browsed a page at a
+// time by the caller (moving `until` back), not read in one huge fetch.
+const listFetchLimit = 500
+
+// ListMessages reads a mailbox's mail with a Date header in [since, until),
+// read-only: nothing is filed into the inbox, nothing is marked \Seen, and
+// none of it touches the database. It exists for other features built ON TOP
+// of a mailbox — a contact/history importer, for one — that need to browse
+// what a mailbox holds without it becoming part of the conversation list Poll
+// feeds. Poll and ListMessages are the only two things in this package that
+// open an IMAP connection, and they stay deliberately separate: Poll's
+// contract is "the mailbox itself is the queue" (imap.go's own doc), and that
+// contract breaks the moment something else reads the mailbox and forms
+// opinions about what still needs collecting.
+//
+// until zero means "up to now". Messages come back newest first, capped at
+// listFetchLimit — a caller wanting more pages back further by moving until
+// to the oldest Date it got.
+func ListMessages(ctx context.Context, mb Mailbox, since, until time.Time) ([]*Email, error) {
+	ctx, cancel := context.WithTimeout(ctx, listTimeout)
+	defer cancel()
+
+	c, err := dial(mb)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = c.Logout() }()
+
+	if err := c.Login(mb.Username, mb.Password); err != nil {
+		return nil, fmt.Errorf("could not sign in to the mailbox: %w", err)
+	}
+
+	folder := mb.Folder
+	if strings.TrimSpace(folder) == "" {
+		folder = "INBOX"
+	}
+	// Read-only (the second argument): this connection can never mark a
+	// message \Seen or otherwise change the mailbox, whatever else in this
+	// function might be wrong.
+	if _, err := c.Select(folder, true); err != nil {
+		return nil, fmt.Errorf("could not open %s: %w", folder, err)
+	}
+
+	criteria := imap.NewSearchCriteria()
+	if !since.IsZero() {
+		criteria.SentSince = since
+	}
+	if !until.IsZero() {
+		criteria.SentBefore = until
+	}
+	ids, err := c.Search(criteria)
+	if err != nil {
+		return nil, fmt.Errorf("could not search the mailbox: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	// Newest first, capped: Search returns ascending UIDs/sequence numbers,
+	// which on almost every server tracks arrival order.
+	if len(ids) > listFetchLimit {
+		ids = ids[len(ids)-listFetchLimit:]
+	}
+	for i, j := 0, len(ids)-1; i < j; i, j = i+1, j-1 {
+		ids[i], ids[j] = ids[j], ids[i]
+	}
+
+	seqset := new(imap.SeqSet)
+	seqset.AddNum(ids...)
+	section := &imap.BodySectionName{}
+	messages := make(chan *imap.Message, 10)
+	done := make(chan error, 1)
+	go func() { done <- c.Fetch(seqset, []imap.FetchItem{section.FetchItem()}, messages) }()
+
+	byUID := make(map[uint32]*Email, len(ids))
+	for msg := range messages {
+		body := msg.GetBody(section)
+		if body == nil {
+			continue
+		}
+		email, err := ParseEmail(body)
+		if err != nil {
+			continue // unparseable: skipped, not an error for the whole browse
+		}
+		byUID[msg.SeqNum] = email
+	}
+	if err := <-done; err != nil {
+		return nil, fmt.Errorf("could not read the mailbox: %w", err)
+	}
+
+	out := make([]*Email, 0, len(byUID))
+	for _, id := range ids {
+		if e, ok := byUID[id]; ok {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
 
 // Poll fetches this mailbox's unseen mail and files it. It returns how many
 // messages were filed.
@@ -110,7 +257,7 @@ func Poll(ctx context.Context, a *app.App, mb Mailbox) (int, error) {
 			filedIDs = append(filedIDs, msg.SeqNum)
 			continue
 		}
-		if err := File(ctx, a, mb.WorkspaceID, email); err != nil {
+		if err := File(ctx, a, mb.WorkspaceID, mb.ID, email); err != nil {
 			// Left UNSEEN on purpose: the next poll retries it. The mailbox is
 			// the queue, so a failure here loses nothing.
 			continue
@@ -169,9 +316,19 @@ func dial(mb Mailbox) (*client.Client, error) {
 // File puts one email on the right conversation, creating it if this is a new
 // thread. It is exported so the tests and the "check this mailbox now" button
 // share exactly one code path with the collector.
-func File(ctx context.Context, a *app.App, workspaceID string, e *Email) error {
+//
+// mailboxID names which of the workspace's mailboxes (MH-555) this email
+// arrived on; "" is accepted (a test, or a caller with no mailbox context) and
+// stores NULL. findThread and the "same sender, same subject" fallback stay
+// scoped to workspace + channel, NOT to mailboxID — deliberately: two
+// mailboxes on the same workspace collecting mail from the same customer
+// dedupe and thread together exactly as if they were one mailbox, because a
+// customer does not know or care which of the workspace's addresses they
+// wrote to.
+func File(ctx context.Context, a *app.App, workspaceID, mailboxID string, e *Email) error {
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
 	db := a.SQLDB
+	mbID := nullable(mailboxID)
 
 	// 1. Already filed? A redelivery is the same row, not a second message.
 	if e.MessageID != "" {
@@ -194,23 +351,33 @@ func File(ctx context.Context, a *app.App, workspaceID string, e *Email) error {
 
 	if convID == "" {
 		if err := db.QueryRowContext(sctx, `
-			INSERT INTO conversations (workspace_id, channel, customer_name, customer_email, subject, last_message_at, unread)
-			VALUES ($1, 'email', $2, $3, $4, $5, true) RETURNING id`,
-			workspaceID, trimTo(e.FromName, 120), e.From, subjectOrDefault(e.Subject), e.Date,
+			INSERT INTO conversations (workspace_id, channel, mailbox_id, customer_name, customer_email, subject, last_message_at, unread)
+			VALUES ($1, 'email', $2, $3, $4, $5, $6, true) RETURNING id`,
+			workspaceID, mbID, trimTo(e.FromName, 120), e.From, subjectOrDefault(e.Subject), e.Date,
 		).Scan(&convID); err != nil {
 			return err
 		}
 	}
 
-	ins, err := db.ExecContext(sctx, `
-		INSERT INTO messages (workspace_id, conversation_id, direction, body, external_id, created_at)
-		VALUES ($1, $2, 'in', $3, $4, $5)
-		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING`,
-		workspaceID, convID, e.Body, e.MessageID, e.Date)
-	if err != nil {
+	var msgID string
+	err = db.QueryRowContext(sctx, `
+		INSERT INTO messages (workspace_id, conversation_id, direction, body, body_html, mailbox_id, external_id, created_at)
+		VALUES ($1, $2, 'in', $3, $4, $5, $6, $7)
+		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING
+		RETURNING id`,
+		workspaceID, convID, e.Body, e.BodyHTML, mbID, e.MessageID, e.Date).Scan(&msgID)
+	inserted := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	inserted, _ := ins.RowsAffected()
+
+	if inserted && len(e.Attachments) > 0 {
+		if err := storeAttachments(sctx, db, workspaceID, msgID, e.Attachments); err != nil {
+			// The message itself is already filed; a failed attachment insert
+			// must not lose it or retry the whole email forever.
+			a.Log.Warn("could not store an email's attachments", "workspace", workspaceID, "message", msgID, "err", err)
+		}
+	}
 
 	// An inbound message makes the thread unread for the team again, and
 	// reopens it rather than answering into a closed conversation.
@@ -228,10 +395,30 @@ func File(ctx context.Context, a *app.App, workspaceID string, e *Email) error {
 	// Email used to arrive in silence: nothing published, so an open inbox did
 	// not even refresh. Now it is announced like every other channel — once,
 	// for a message actually written (a redelivery wrote nothing).
-	if inserted > 0 {
+	if inserted {
 		announceInbound(ctx, a, workspaceID, convID, e.Body, e.Date)
 	}
 	return nil
+}
+
+// storeAttachments writes one message's attachments. Best-effort and
+// all-or-nothing per message: a partial write would offer a thread that looks
+// complete but is missing a file, which is worse than missing them all.
+func storeAttachments(ctx context.Context, db *sql.DB, workspaceID, messageID string, atts []Attachment) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	for _, at := range atts {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO message_attachments (workspace_id, message_id, filename, content_type, size_bytes, data, is_inline, content_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			workspaceID, messageID, at.Filename, at.ContentType, len(at.Data), at.Data, at.Inline, at.ContentID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // findThread answers "which conversation is this" in the order the rules are

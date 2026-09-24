@@ -38,7 +38,7 @@ const conversationSelect = `
 	                 ORDER BY m.created_at DESC LIMIT 1), ''),
 	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id),
 	       c.customer_phone, c.contact_link, ct.name, ct.email, ct.company_id, co.name, c.deal_id, d.title,
-	       c.snoozed_until, c.closed_at
+	       c.snoozed_until, c.closed_at, c.mailbox_id
 	FROM conversations c
 	LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
 	LEFT JOIN companies co ON co.workspace_id = ct.workspace_id AND co.id = ct.company_id
@@ -47,16 +47,17 @@ const conversationSelect = `
 
 func scanConversation(row interface{ Scan(...any) error }) (ConversationOut, error) {
 	var c ConversationOut
-	var contactID, assignee, ctName, ctEmail, companyID, coName, dealID, dealTitle sql.NullString
+	var contactID, assignee, ctName, ctEmail, companyID, coName, dealID, dealTitle, mailboxID sql.NullString
 	var snoozed, closed sql.NullTime
 	var preview string
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
 		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount,
-		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle, &snoozed, &closed); err != nil {
+		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle, &snoozed, &closed, &mailboxID); err != nil {
 		return c, err
 	}
 	c.ContactID = strp(contactID)
 	c.AssigneeUserID = strp(assignee)
+	c.MailboxID = strp(mailboxID)
 	c.Preview = trim(preview, 140)
 	if contactID.Valid {
 		c.Contact = &LinkedContact{ID: contactID.String, Name: ctName.String, Email: ctEmail.String}
@@ -99,11 +100,14 @@ func Register(api huma.API, a *app.App) {
 		Unread    bool   `query:"unread" doc:"Only conversations the team has not opened since the last inbound message."`
 		Channel   string `query:"channel" enum:",chat,email,whatsapp"`
 		ContactID string `query:"contact_id" doc:"Only conversations linked to this CRM contact."`
-		Q         string `query:"q" maxLength:"200" doc:"Search the customer's name, email and phone and the subject."`
-		Limit     int    `query:"limit" minimum:"1" maximum:"200"`
+		MailboxID string `query:"mailbox_id" doc:"Only email conversations on this mailbox (MH-555)."`
+		Q         string `query:"q" maxLength:"200" doc:"Full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in the thread."`
+		Cursor    string `query:"cursor" doc:"next_cursor from the page before this one; empty for the newest page."`
+		Limit     int    `query:"limit" minimum:"0" maximum:"200"`
 	}) (*body[ConversationList], error) {
 		res, err := ListConversations(ctx, a, ConversationFilter{
-			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, Q: in.Q, Limit: in.Limit,
+			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, MailboxID: in.MailboxID,
+			Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
 		})
 		if err != nil {
 			return nil, err

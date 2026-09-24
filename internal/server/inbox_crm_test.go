@@ -175,10 +175,10 @@ func TestInboxCRM(t *testing.T) {
 	known := "omar-" + rnd() + "@buyer.test"
 	omarID := alice.must("POST", "/api/w/contacts", map[string]any{"email": known, "name": "Omar"}, 201)["contact"].(map[string]any)["id"].(string)
 	alice.must("PATCH", "/api/w/contacts/"+omarID, map[string]any{"phone": "+966 51 234 5678"}, 200)
-	if err := inbox.File(ctx, a, wsID, &inbox.Email{MessageID: "m1-" + rnd() + "@buyer.test", From: strings.ToUpper(known), FromName: "Omar", Subject: "Order", Body: "Hello", Date: time.Now()}); err != nil {
+	if err := inbox.File(ctx, a, wsID, "", &inbox.Email{MessageID: "m1-" + rnd() + "@buyer.test", From: strings.ToUpper(known), FromName: "Omar", Subject: "Order", Body: "Hello", Date: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
-	if err := inbox.File(ctx, a, wsID, &inbox.Email{MessageID: "m2-" + rnd() + "@x.test", From: "stranger-" + rnd() + "@x.test", Subject: "Hi", Body: "Hello", Date: time.Now()}); err != nil {
+	if err := inbox.File(ctx, a, wsID, "", &inbox.Email{MessageID: "m2-" + rnd() + "@x.test", From: "stranger-" + rnd() + "@x.test", Subject: "Hi", Body: "Hello", Date: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	if err := inbox.FileWhatsApp(ctx, a, wsID, "966512345678", "Omar", "مرحبا، أريد طلبية", "wa-"+rnd()); err != nil {

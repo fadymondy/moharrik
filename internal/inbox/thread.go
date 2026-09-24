@@ -56,7 +56,7 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 		where = ` AND (created_at, id) < ($4, $5)`
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, direction, author_user_id, body, created_at
+		SELECT id, direction, author_user_id, body, body_html, mailbox_id, created_at
 		FROM messages WHERE workspace_id = $1 AND conversation_id = $2`+where+`
 		ORDER BY created_at DESC, id DESC LIMIT $3`, args...)
 	if err != nil {
@@ -66,11 +66,12 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 	newestFirst := []MessageOut{}
 	for rows.Next() {
 		var m MessageOut
-		var author sql.NullString
-		if err := rows.Scan(&m.ID, &m.Direction, &author, &m.Body, &m.CreatedAt); err != nil {
+		var author, mailboxID sql.NullString
+		if err := rows.Scan(&m.ID, &m.Direction, &author, &m.Body, &m.BodyHTML, &mailboxID, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		m.AuthorUserID = strp(author)
+		m.MailboxID = strp(mailboxID)
 		newestFirst = append(newestFirst, m)
 	}
 	if err := rows.Err(); err != nil {
@@ -85,11 +86,31 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 	for i := len(newestFirst) - 1; i >= 0; i-- {
 		page.Messages = append(page.Messages, newestFirst[i])
 	}
+	if err := attachMessages(ctx, db, wsID, page.Messages); err != nil {
+		return nil, err
+	}
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM messages WHERE workspace_id = $1 AND conversation_id = $2`,
 		wsID, convID).Scan(&page.Total); err != nil {
 		return nil, err
 	}
 	return page, nil
+}
+
+// attachMessages fills in each message's Attachments, one query for the
+// whole page.
+func attachMessages(ctx context.Context, db *sql.DB, wsID string, msgs []MessageOut) error {
+	ids := make([]string, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+	}
+	byMsg, err := attachmentsFor(ctx, db, wsID, ids)
+	if err != nil {
+		return err
+	}
+	for i := range msgs {
+		msgs[i].Attachments = byMsg[msgs[i].ID]
+	}
+	return nil
 }
 
 // ThreadMessages is one page of a conversation's thread, for "Load earlier".

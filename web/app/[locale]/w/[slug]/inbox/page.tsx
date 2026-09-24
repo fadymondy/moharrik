@@ -1,13 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { BarChart3Icon, ChevronUpIcon, MailIcon, MessageCircleIcon, MessageSquareIcon, MessageSquareQuoteIcon, SettingsIcon } from "lucide-react"
+import { BarChart3Icon, ChevronUpIcon, EllipsisVerticalIcon, MailIcon, MessageCircleIcon, MessageSquareIcon, MessageSquareQuoteIcon, SettingsIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { CannedPicker } from "@/components/inbox/canned-picker"
+import { AttachmentList, MessageBody } from "@/components/inbox/message-body"
 import { SnoozeControl, SnoozedNote } from "@/components/inbox/snooze-control"
 import { ThreadCRM } from "@/components/inbox/thread-crm"
 import { SectionHeader } from "@/components/public-frame"
@@ -15,15 +16,18 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { MarkdownEditor } from "@/components/campaigns/markdown-editor"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Conversation, type ConversationStatus, type InboxMessage, type ThreadPage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { renderMarkdownPreview } from "@/lib/markdown"
 import { useSWRConfig } from "swr"
 
 import { useWorkspaceEvents } from "@/lib/events"
-import { useConversation, useConversations } from "@/lib/queries"
+import { useConversation, useConversationPages } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, BdiBlock } from "@/components/bidi"
 
@@ -58,18 +62,94 @@ export default function InboxPage() {
   const linkedUnread = params.get("unread") === "1"
   const [status, setStatus] = useState(() => (params.get("c") || linkedUnread ? "" : "open"))
   const [unread, setUnread] = useState(linkedUnread)
+  // The search term lives in the URL too (?q=, MH-556), the same reason `c` does:
+  // a search someone is looking at survives a reload or a shared link.
+  const [q, setQ] = useState(() => params.get("q") ?? "")
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = new URLSearchParams(params.toString())
+      if (q.trim()) next.set("q", q.trim())
+      else next.delete("q")
+      const qs = next.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, 300)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q])
 
-  const list = useConversations(ws.id, { status: status || undefined, unread })
+  const pages = useConversationPages(ws.id, { status: status || undefined, unread, q: params.get("q") ?? undefined })
+  const list = { error: pages.error, data: pages.data?.[0], mutate: pages.mutate }
+  const items = (pages.data ?? []).flatMap((p) => p.conversations)
+  const hasMore = !!pages.data?.[pages.data.length - 1]?.next_cursor
+  const loadingMore = pages.isValidating && pages.size > 1
 
   // No timer: the API tells this tab when a message actually arrives, and the
   // affected thread is revalidated by key so an open conversation updates too.
   const { mutate } = useSWRConfig()
   useWorkspaceEvents(ws.id, (e) => {
     if (e.kind !== "message" && e.kind !== "conversation") return
-    void list.mutate()
+    void pages.mutate()
     if (e.conversation_id) void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, ws.id])
   })
-  const items = list.data?.conversations ?? []
+
+  // Infinite scroll (MH-556): the sentinel below the list asks for the next
+  // page as soon as it is in view, instead of a "Load more" button.
+  const sentinelRef = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !loadingMore) void pages.setSize(pages.size + 1)
+      },
+      { rootMargin: "400px" },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, loadingMore, pages.size])
+
+  // Keyboard navigation (MH-556): j/k or the arrows move the highlighted
+  // conversation, Enter/n open it, Esc clears the search, / focuses it. Typing
+  // in a field never triggers these — checked via the event's own target.
+  const [cursorIdx, setCursorIdx] = useState(0)
+  const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  useEffect(() => {
+    function isTyping(t: EventTarget | null) {
+      const el = t as HTMLElement | null
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key === "/" && !isTyping(e.target)) {
+        e.preventDefault()
+        document.getElementById("inbox-search")?.focus()
+        return
+      }
+      if (isTyping(e.target)) return
+      if (items.length === 0) return
+      if (e.key === "j" || e.key === "ArrowDown" || e.key === "n") {
+        e.preventDefault()
+        setCursorIdx((i) => Math.min(i + 1, items.length - 1))
+      } else if (e.key === "k" || e.key === "ArrowUp" || e.key === "p") {
+        e.preventDefault()
+        setCursorIdx((i) => Math.max(i - 1, 0))
+      } else if (e.key === "Enter") {
+        const c = items[cursorIdx]
+        if (c) select(c.id)
+      } else if (e.key === "Escape") {
+        select(null)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, cursorIdx])
+  useEffect(() => {
+    const c = items[cursorIdx]
+    if (c) rowRefs.current[c.id]?.scrollIntoView({ block: "nearest" })
+  }, [cursorIdx, items])
 
   const statusOpts = [
     { value: "open", label: t("inbox.status.open") },
@@ -122,6 +202,16 @@ export default function InboxPage() {
           {t("inbox.filterUnread")}
           {list.data?.unread_count ? ` (${list.data.unread_count})` : ""}
         </Button>
+        <input
+          id="inbox-search"
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("inbox.searchPlaceholder")}
+          dir="auto"
+          data-search="conversations"
+          className="h-8 min-w-40 flex-1 border border-line bg-grid-card px-3 text-sm placeholder:text-grid-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grid-brand"
+        />
       </div>
 
       {list.error ? (
@@ -133,9 +223,24 @@ export default function InboxPage() {
       ) : (
         <div className="grid grid-cols-1 border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
           <ul className="min-w-0 divide-y divide-line lg:border-e lg:border-line" data-conversation-list>
-            {items.map((c) => (
-              <ConversationRow key={c.id} c={c} active={c.id === selected} onSelect={() => select(c.id)} />
+            {items.map((c, i) => (
+              <ConversationRow
+                key={c.id}
+                c={c}
+                active={c.id === selected}
+                highlighted={i === cursorIdx}
+                onSelect={() => {
+                  setCursorIdx(i)
+                  select(c.id)
+                }}
+                buttonRef={(el) => {
+                  rowRefs.current[c.id] = el
+                }}
+                onChanged={() => void pages.mutate()}
+              />
             ))}
+            <li ref={sentinelRef} aria-hidden className="h-1" data-scroll-sentinel />
+            {loadingMore ? <li className="px-6 py-3 text-center text-xs text-grid-muted">{t("common.working")}</li> : null}
           </ul>
           <div className="min-w-0">
             {selected ? (
@@ -151,18 +256,61 @@ export default function InboxPage() {
   )
 }
 
-function ConversationRow({ c, active, onSelect }: { c: Conversation; active: boolean; onSelect: () => void }) {
+function ConversationRow({
+  c,
+  active,
+  highlighted,
+  onSelect,
+  buttonRef,
+  onChanged,
+}: {
+  c: Conversation
+  active: boolean
+  highlighted?: boolean
+  onSelect: () => void
+  buttonRef?: (el: HTMLButtonElement | null) => void
+  onChanged?: () => void
+}) {
   const { t, formatDate } = useTranslations()
+  const ws = useWorkspace()
   const who = c.customer_name || c.customer_email || t("inbox.anonymous")
+  const [menuOpen, setMenuOpen] = useState(false)
+  const longPress = useRef<number | null>(null)
+
+  // The context menu (MH-556): a kebab button, right-click, and a touch
+  // long-press all open the SAME menu — one set of actions, three ways in.
+  async function act(patch: Record<string, unknown>, message: string) {
+    try {
+      await api(`/api/w/conversations/${encodeURIComponent(c.id)}`, { method: "PATCH", json: patch, workspaceId: ws.id })
+      toast.success(message)
+      onChanged?.()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    }
+  }
+
   return (
-    <li>
+    <li
+      className="group relative"
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setMenuOpen(true)
+      }}
+      onTouchStart={() => {
+        longPress.current = window.setTimeout(() => setMenuOpen(true), 500)
+      }}
+      onTouchEnd={() => {
+        if (longPress.current) window.clearTimeout(longPress.current)
+      }}
+    >
       <button
+        ref={buttonRef}
         type="button"
         onClick={onSelect}
         aria-current={active ? "true" : undefined}
         data-conversation={c.id}
         data-conversation-unread={c.unread ? "true" : "false"}
-        className={`flex w-full min-w-0 flex-col gap-1 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} hover:bg-grid-soft`}
+        className={`flex w-full min-w-0 flex-col gap-1 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
       >
         <span className="flex min-w-0 items-center gap-2">
           {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
@@ -178,6 +326,33 @@ function ConversationRow({ c, active, onSelect }: { c: Conversation; active: boo
           {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> · {t("inbox.messageCount", { n: c.message_count })}
         </span>
       </button>
+
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              aria-label={t("inbox.moreActions")}
+              data-context-menu-trigger
+              onClick={(e) => e.stopPropagation()}
+              className="absolute end-2 top-3 rounded-md p-1 text-grid-muted opacity-0 hover:bg-grid-card focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+            />
+          }
+        >
+          <EllipsisVerticalIcon className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem onClick={() => act({ unread: !c.unread }, c.unread ? t("inbox.markedRead") : t("inbox.markedUnread"))} data-action="toggle-unread">
+            {c.unread ? t("inbox.markRead") : t("inbox.markUnread")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => act({ status: c.status === "closed" ? "open" : "closed" }, c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"))}
+            data-action="toggle-status"
+          >
+            {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </li>
   )
 }
@@ -417,9 +592,8 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
             data-message={m.direction}
             className={`max-w-[44rem] rounded-lg border border-line px-4 py-3 text-sm ${m.direction === "out" ? "ms-auto bg-grid-soft" : "bg-grid-card"}`}
           >
-            <p className="text-start break-words whitespace-pre-wrap" dir="auto">
-              {m.body}
-            </p>
+            <MessageBody body={m.body} bodyHtml={m.body_html} />
+            <AttachmentList attachments={m.attachments} />
             <p className="mt-1 text-xs text-grid-muted">
               {m.direction === "out" ? (m.author_user_id ? members.name(m.author_user_id) : t("inbox.team")) : c.customer_name ? <Bdi>{c.customer_name}</Bdi> : t("inbox.customer")} · <Ltr>{formatDate(m.created_at)}</Ltr>
             </p>
@@ -433,15 +607,30 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
             <FieldLabel htmlFor="reply-body" className="sr-only">
               {t("inbox.replyLabel")}
             </FieldLabel>
-            <Textarea
-              id="reply-body"
-              dir="auto"
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              rows={3}
-              placeholder={t("inbox.replyPlaceholder")}
-              maxLength={8000}
-            />
+            <Tabs defaultValue="write">
+              <TabsList className="mb-2">
+                <TabsTrigger value="write" data-tab="write">
+                  {t("inbox.write")}
+                </TabsTrigger>
+                <TabsTrigger value="preview" data-tab="preview">
+                  {t("inbox.preview")}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="write">
+                <MarkdownEditor id="reply-body" value={reply} onValueChange={setReply} rows={3} className="min-h-24" />
+              </TabsContent>
+              <TabsContent value="preview">
+                <div
+                  className="min-h-24 border border-line bg-grid-card px-3 py-2 text-sm [&_a]:underline [&_code]:rounded [&_code]:bg-grid-soft [&_code]:px-1"
+                  dir="auto"
+                  data-reply-preview
+                  // Rendered through marked then DOMPurify (web/lib/markdown.ts) — the
+                  // same two-pass rule as message-body.tsx: this is a preview of what
+                  // the recipient will see, so it must be exactly as inert.
+                  dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(reply) || `<p class="text-grid-muted">${t("inbox.previewEmpty")}</p>` }}
+                />
+              </TabsContent>
+            </Tabs>
           </Field>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={busy || !reply.trim()}>

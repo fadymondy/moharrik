@@ -13,6 +13,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/crm"
+	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
 )
@@ -38,15 +39,23 @@ type ConversationFilter struct {
 	Channel   string
 	Unread    bool
 	ContactID string
-	// Q matches the customer's name, email and phone and the subject.
-	Q     string
-	Limit int
+	MailboxID string
+	// Q is a full-text search (MH-556) over the customer's name, email and
+	// phone, the subject, AND every message's body (not just the preview) —
+	// conversations.search and messages.search, both generated tsvector
+	// columns (internal/db/post/150_mailboxes.sql).
+	Q string
+	// Cursor walks back from the newest page (MH-556, the same keyset shape
+	// thread.go's threadPage already uses for a thread's own messages).
+	Cursor string
+	Limit  int
 }
 
-// ConversationList is the inbox, most recent first.
+// ConversationList is a page of the inbox, most recent first.
 type ConversationList struct {
 	Conversations []ConversationOut `json:"conversations"`
 	UnreadCount   int64             `json:"unread_count"`
+	NextCursor    string            `json:"next_cursor,omitempty" doc:"Fetches the next OLDER page. Empty when this page reaches the last conversation."`
 }
 
 // ConversationPatch is a partial update. nil = unchanged; "" unassigns/unlinks.
@@ -92,30 +101,55 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	if id := strings.TrimSpace(f.ContactID); id != "" {
 		add(` AND c.contact_id = $?`, id)
 	}
+	if id := strings.TrimSpace(f.MailboxID); id != "" {
+		add(` AND c.mailbox_id = $?`, id)
+	}
 	if term := strings.TrimSpace(f.Q); term != "" {
-		add(` AND (c.customer_name ILIKE $? ESCAPE '\' OR c.customer_email ILIKE $? ESCAPE '\'
-		      OR c.customer_phone ILIKE $? ESCAPE '\' OR c.subject ILIKE $? ESCAPE '\')`, "%"+likeEscape(term)+"%")
+		// Matches the conversation's own fields (customer, subject) OR any
+		// message in its thread — a hit inside a long thread still surfaces
+		// the conversation, not just a hit in its preview.
+		args = append(args, term, term)
+		n1, n2 := strconv.Itoa(len(args)-1), strconv.Itoa(len(args))
+		q += ` AND (c.search @@ websearch_to_tsquery('simple', $` + n1 + `)
+		      OR EXISTS (SELECT 1 FROM messages sm WHERE sm.workspace_id = c.workspace_id AND sm.conversation_id = c.id
+		                 AND sm.search @@ websearch_to_tsquery('simple', $` + n2 + `)))`
 	}
-	limit := f.Limit
-	if limit <= 0 {
-		limit = 100
+	cur, err := paging.Decode(f.Cursor, 2)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
-	if limit > 200 {
-		limit = 200
+	if cur != nil {
+		at, perr := time.Parse(time.RFC3339Nano, cur[0])
+		if perr != nil {
+			return nil, huma.Error422UnprocessableEntity(paging.ErrBadCursor.Error())
+		}
+		args = append(args, at, cur[1])
+		n1, n2 := strconv.Itoa(len(args)-1), strconv.Itoa(len(args))
+		q += ` AND (c.last_message_at, c.id) < ($` + n1 + `, $` + n2 + `)`
 	}
-	q += ` ORDER BY c.last_message_at DESC LIMIT ` + strconv.Itoa(limit)
+	limit, lerr := paging.Limit(f.Limit, 50, 200)
+	if lerr != nil {
+		return nil, huma.Error422UnprocessableEntity(lerr.Error())
+	}
+	q += ` ORDER BY c.last_message_at DESC, c.id DESC LIMIT ` + strconv.Itoa(limit+1)
 	rows, err := a.SQLDB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not list conversations")
 	}
 	defer rows.Close()
-	res := &ConversationList{Conversations: []ConversationOut{}}
+	list := []ConversationOut{}
 	for rows.Next() {
 		c, err := scanConversation(rows)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not list conversations")
 		}
-		res.Conversations = append(res.Conversations, c)
+		list = append(list, c)
+	}
+	res := &ConversationList{Conversations: list}
+	if len(list) > limit {
+		last := list[limit-1]
+		res.NextCursor = paging.Encode(last.LastMessageAt.UTC().Format(time.RFC3339Nano), last.ID)
+		res.Conversations = list[:limit]
 	}
 	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM conversations WHERE workspace_id = $1 AND unread`, s.WorkspaceID).Scan(&res.UnreadCount); err != nil {
 		return nil, huma.Error500InternalServerError("could not count unread conversations")
@@ -175,9 +209,10 @@ func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error
 		return nil, huma.Error422UnprocessableEntity("that message is too long (at most 8000 characters)")
 	}
 	var channel, customerEmail, customerPhone, subject string
+	var mailboxID sql.NullString
 	if err := a.SQLDB.QueryRowContext(ctx, `
-		SELECT channel, customer_email, customer_phone, subject FROM conversations WHERE workspace_id = $1 AND id = $2`,
-		s.WorkspaceID, id).Scan(&channel, &customerEmail, &customerPhone, &subject); err != nil {
+		SELECT channel, customer_email, customer_phone, subject, mailbox_id FROM conversations WHERE workspace_id = $1 AND id = $2`,
+		s.WorkspaceID, id).Scan(&channel, &customerEmail, &customerPhone, &subject, &mailboxID); err != nil {
 		if notFound(err) {
 			return nil, huma.Error404NotFound("conversation not found")
 		}
@@ -191,7 +226,7 @@ func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error
 	var sentID string
 	switch channel {
 	case "email":
-		sentID, err = SendEmailReply(ctx, a, s.WorkspaceID, id, customerEmail, subject, text)
+		sentID, err = SendEmailReply(ctx, a, s.WorkspaceID, id, mailboxID.String, customerEmail, subject, text)
 		if err != nil {
 			return nil, mailError(err)
 		}
@@ -202,21 +237,24 @@ func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error
 			return nil, whatsappError(err)
 		}
 	}
-	return recordOutbound(ctx, a, s.WorkspaceID, s.UserID, s.Email, id, text, sentID)
+	return recordOutbound(ctx, a, s.WorkspaceID, s.UserID, s.Email, id, mailboxID.String, text, sentID)
 }
 
 // recordOutbound writes the team's message to the thread after it has gone
 // out, and moves the conversation on: read, and reopened (with no close time)
 // if it was closed.
-func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID, text, sentID string) (*MessageOut, error) {
+func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID, mailboxID, text, sentID string) (*MessageOut, error) {
 	var msgID string
 	var createdAt time.Time
 	// sentID is the Message-ID this reply went out with: storing it is what
-	// lets the customer's answer thread back onto this conversation.
+	// lets the customer's answer thread back onto this conversation. The reply
+	// is Markdown (MH-556): body_html is its rendering, so the thread shows the
+	// same formatting on every channel, not just the one that was actually sent
+	// multipart (email).
 	if err := a.SQLDB.QueryRowContext(ctx, `
-		INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body, external_id)
-		VALUES ($1, $2, 'out', $3, $4, $5) RETURNING id, created_at`,
-		wsID, convID, userID, text, sentID,
+		INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body, body_html, mailbox_id, external_id)
+		VALUES ($1, $2, 'out', $3, $4, $5, $6, $7) RETURNING id, created_at`,
+		wsID, convID, userID, text, RenderMarkdown(text), nullable(mailboxID), sentID,
 	).Scan(&msgID, &createdAt); err != nil {
 		return nil, huma.Error500InternalServerError("could not send the reply")
 	}
