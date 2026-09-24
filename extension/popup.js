@@ -173,6 +173,12 @@ function render(view) {
   // Travels over the socket, so offered only while connected.
   $("halt").hidden = !(paired && status.state === "connected" && !paused)
 
+  // Application autofill (MH-478): offered whenever this browser could act at
+  // all. Whether the CURRENT tab is on an allowed site is decided by Preview
+  // itself, in words, rather than a check here that could go stale between
+  // opening the popup and pressing the button.
+  $("autofill-box").hidden = !(paired && !paused && status.state === "connected")
+
   renderRecording(view)
 }
 
@@ -345,6 +351,86 @@ async function recordAction(type) {
 $("rec").addEventListener("click", () => recordAction("record.start"))
 $("recstop").addEventListener("click", () => recordAction("record.stop"))
 $("recdiscard").addEventListener("click", () => recordAction("record.discard"))
+
+/* ------------------------------------------------------- application autofill
+
+fadymondy.com's Autofill, generalised: reads the CURRENT tab's form, matches it
+against the workspace profile, and shows the mapping — nothing is filled until
+each field is reviewed and Fill is pressed. Nothing here can submit anything.
+*/
+let autofillMatches = []
+
+function renderAutofillNote(text, bad) {
+  $("autofill-note").textContent = text
+  $("autofill-note").classList.toggle("detail--bad", !!bad)
+}
+
+function renderAutofillMatches(matches) {
+  autofillMatches = matches || []
+  const list = $("autofill-list")
+  list.replaceChildren()
+  if (autofillMatches.length === 0) {
+    list.hidden = true
+    $("autofill-run").hidden = true
+    return
+  }
+  autofillMatches.forEach((m, i) => {
+    const li = document.createElement("li")
+    li.dataset.autofillMatch = m.profileKey
+    const label = document.createElement("label")
+    label.style.display = "flex"
+    label.style.gap = "6px"
+    label.style.alignItems = "center"
+    const cb = document.createElement("input")
+    cb.type = "checkbox"
+    cb.checked = true
+    cb.dataset.i = String(i)
+    const span = document.createElement("span")
+    span.dir = "auto"
+    span.textContent = `${m.label || m.profileKey} → ${m.value}`
+    label.append(cb, span)
+    li.append(label)
+    list.append(li)
+  })
+  list.hidden = false
+  $("autofill-run").hidden = false
+  $("autofill-run").textContent = `Fill ${autofillMatches.length} field(s)`
+}
+
+$("autofill-preview").addEventListener("click", async () => {
+  $("autofill-preview").disabled = true
+  renderAutofillNote("Reading the page…", false)
+  const res = await chrome.runtime.sendMessage({ type: "autofill.preview" }).catch((e) => ({ error: String(e?.message || e) }))
+  $("autofill-preview").disabled = false
+  if (res?.error) {
+    renderAutofillNote(res.error, true)
+    renderAutofillMatches([])
+    return
+  }
+  renderAutofillMatches(res.matches)
+  renderAutofillNote(
+    res.matches.length > 0
+      ? `${res.matches.length} of ${res.fieldCount} field(s) on this page matched the workspace profile. Nothing is filled yet — review below, then press Fill. It never submits.`
+      : "Nothing on this page matched the workspace profile.",
+    false,
+  )
+})
+
+$("autofill-run").addEventListener("click", async () => {
+  const chosen = [...document.querySelectorAll("#autofill-list input[type=checkbox]:checked")].map((cb) => autofillMatches[Number(cb.dataset.i)])
+  if (chosen.length === 0) return
+  $("autofill-run").disabled = true
+  const res = await chrome.runtime.sendMessage({ type: "autofill.fill", matches: chosen }).catch((e) => ({ error: String(e?.message || e) }))
+  $("autofill-run").disabled = false
+  if (res?.error) {
+    renderAutofillNote(res.error, true)
+    return
+  }
+  const leftAlone = res.skipped?.length ? `; ${res.skipped.length} left as they were` : ""
+  renderAutofillNote(`${res.filled} field(s) filled${leftAlone}. Review the page, then submit it yourself — this never submits anything.`, false)
+  $("autofill-list").hidden = true
+  $("autofill-run").hidden = true
+})
 
 $("save-site").addEventListener("click", () => {
   const norm = (v) => {

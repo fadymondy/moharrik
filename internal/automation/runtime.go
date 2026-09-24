@@ -153,7 +153,9 @@ func (h *Hub) Push(workspaceID, agentID string, env Envelope) bool {
 	return c.trySend(frame)
 }
 
-// PushAgentUpdate tells a connected browser its current name and allowed sites.
+// PushAgentUpdate tells a connected browser its current name, allowed sites
+// and workspace profile (MH-478): whatever the extension's popup and its
+// Application autofill panel read from storage.
 func PushAgentUpdate(ctx context.Context, a *app.App, hub *Hub, workspaceID, agentID string) {
 	if hub == nil {
 		return
@@ -167,8 +169,21 @@ func PushAgentUpdate(ctx context.Context, a *app.App, hub *Hub, workspaceID, age
 	if err != nil {
 		return
 	}
-	payload, _ := json.Marshal(map[string]any{"name": name, "allowed_hosts": hosts})
+	payload, _ := json.Marshal(map[string]any{"name": name, "allowed_hosts": hosts, "profile": profileOrEmpty(sctx, a, workspaceID)})
 	hub.Push(workspaceID, agentID, Envelope{Type: "agent.update", Payload: payload})
+}
+
+// PushProfileUpdate tells every browser of the workspace connected right now
+// its new profile — the workspace profile is shared by all of them, so saving
+// it once (Settings → Application profile) reaches every open popup without
+// anyone reconnecting.
+func PushProfileUpdate(ctx context.Context, a *app.App, hub *Hub, workspaceID string) {
+	if hub == nil {
+		return
+	}
+	for agentID := range hub.OnlineIn(workspaceID) {
+		PushAgentUpdate(ctx, a, hub, workspaceID, agentID)
+	}
 }
 
 // syncLoop tells a multi-tab browser which of its runs are really in flight,

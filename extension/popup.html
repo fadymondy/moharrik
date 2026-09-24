@@ -106,6 +106,22 @@
         </div>
       </section>
 
+      <!-- Application autofill (MH-478), generalised from fadymondy.com's
+           job-application autofill: fills the CURRENT tab's form from the
+           workspace profile, on an allowed site only, and never submits. -->
+      <section id="autofill-box" class="section" hidden data-autofill>
+        <div class="row">
+          <span class="label">Application</span>
+          <span id="autofill-state" class="value">ready</span>
+        </div>
+        <p id="autofill-note" class="hint"></p>
+        <ul id="autofill-list" class="plist" hidden data-autofill-list></ul>
+        <div class="actions actions--inline">
+          <button id="autofill-preview" class="btn btn--primary" type="button" data-autofill-preview>Preview autofill</button>
+          <button id="autofill-run" class="btn btn--primary" type="button" hidden data-autofill-run>Fill checked fields</button>
+        </div>
+      </section>
+
       <p class="hint" id="connect-note" hidden>
         Connecting asks Chrome to let Moharrik use websites for you. Your workspace still decides which
         sites, on its Automation page; nothing runs anywhere else.

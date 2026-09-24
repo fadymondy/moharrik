@@ -26,8 +26,10 @@ import { KEYS, clear, get, loadSettings, set, socketURL } from "./config.js"
 import { createConnect } from "./connect.js"
 import { badgeFor, grantState, newerThan } from "./grants.js"
 import { COMMANDS, closeRun, runStep, syncRuns } from "./driver.js"
+import { fillMatched, matchProfileToFields, readForm } from "./driver/autofill.js"
 import { tabCapacity } from "./driver/runs.js"
 import { RUN_TABS_KEY } from "./driver/run-tabs-core.js"
+import { hostAllowed } from "./hosts.js"
 import { cancelPicks, pickElement } from "./pick.js"
 import { addStep, discardRecording, recordingState, startRecording, stopRecording } from "./recorder.js"
 
@@ -176,6 +178,9 @@ async function onSocketStatus(s) {
       workspaceName: ack.workspace_name || "",
       workspaceSlug: ack.workspace_slug || "",
       latestVersion: ack.latest_version || "",
+      // The workspace profile (MH-478): what the Application autofill panel
+      // fills a form with, and a preset's job-application inputs default to.
+      profile: ack.profile && typeof ack.profile === "object" ? ack.profile : {},
       // How the runtime is to behave here (driver/runs.js, driver/tabs.js).
       tabsPerBrowser: ack.tabs_per_browser,
       persistentTabs: Array.isArray(ack.persistent_tabs) ? ack.persistent_tabs : undefined,
@@ -333,6 +338,112 @@ async function startConnect(languages) {
   return connectStarting
 }
 
+/* ------------------------------------------------------- application autofill
+
+Generalised from fadymondy.com's job-application autofill (FM-143/199): fills
+the CURRENT tab's form from the workspace profile, on an allowed site only,
+and never submits anything. Unlike a run, this touches no automation tab and
+opens no page — see driver/autofill.js for the field reader and the rules.
+*/
+
+const AUTOFILL_KEY = "moh.autofill"
+
+async function setAutofill(patch) {
+  const current = (await get(AUTOFILL_KEY)) || {}
+  await set(AUTOFILL_KEY, { ...current, ...patch, at: Date.now() })
+}
+
+/**
+ * The tab the popup acts on: the real page the person had open, never this
+ * extension's own popup, options or approval pages. The action popup is not
+ * a tab in a normal browser — chrome.tabs.query never sees it — but a test
+ * harness that drives it as one would otherwise shadow the actual page, so
+ * anything on chrome-extension:// is filtered out here rather than trusted
+ * blindly as "whatever is active".
+ */
+async function activeTab() {
+  const tabs = await chrome.tabs.query({ lastFocusedWindow: true })
+  const real = tabs.filter((t) => !String(t.url || "").startsWith("chrome-extension://"))
+  return real.find((t) => t.active) || real[real.length - 1] || null
+}
+
+/**
+ * May this tab be autofilled at all? The same two gates a run checks
+ * (MH-422): the workspace's allowed sites, and Chrome's own host permission —
+ * without the second, scripting.executeScript cannot reach the page.
+ */
+async function autofillAllowed(tab) {
+  if (!tab?.url) return "this tab has no page to fill"
+  let url
+  try {
+    url = new URL(tab.url)
+  } catch {
+    return "this tab has no page to fill"
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return `cannot fill a ${url.protocol}// page`
+  const agent = (await get(KEYS.agent)) || {}
+  const hosts = Array.isArray(agent.allowedHosts) ? agent.allowedHosts : []
+  if (!hostAllowed(hosts, url.hostname)) {
+    return `${url.hostname} is not on this browser's allowed sites — add it on the workspace's Automation page`
+  }
+  if (!(await chrome.permissions.contains({ origins: [`${url.origin}/*`] }))) {
+    return `Chrome has not allowed this extension on ${url.hostname} yet — allow it on the Sites page`
+  }
+  return ""
+}
+
+/** Reads the current tab's form and matches it against the workspace profile: the preview. */
+async function autofillPreview() {
+  const tab = await activeTab()
+  const refused = await autofillAllowed(tab)
+  if (refused) return { error: refused }
+  const profile = ((await get(KEYS.agent)) || {}).profile || {}
+  if (Object.keys(profile).length === 0) {
+    return { error: "the workspace profile is empty — an admin fills it in on Settings → Application profile" }
+  }
+  let form
+  try {
+    ;[{ result: form } = {}] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readForm })
+  } catch (err) {
+    return { error: String(err?.message || err) }
+  }
+  if (!form) return { error: "could not read this page" }
+  const matches = matchProfileToFields(form.fields, profile)
+  await setAutofill({ state: "previewed", tabId: tab.id, url: form.url, matches, filled: null })
+  return { ok: true, tabId: tab.id, url: form.url, fieldCount: form.fields.length, matches }
+}
+
+/**
+ * Fills exactly the matches given (a subset the popup's checkboxes chose from
+ * the last preview) — never recomputed, and only on the SAME tab the preview
+ * read. Nothing here can click, press a key or navigate.
+ */
+async function autofillFill(matches) {
+  const tab = await activeTab()
+  const refused = await autofillAllowed(tab)
+  if (refused) return { error: refused }
+  const current = await get(AUTOFILL_KEY)
+  if (!current || current.tabId !== tab.id) {
+    return { error: "the page changed since Preview — press Preview again" }
+  }
+  const chosen = (Array.isArray(matches) ? matches : current.matches || []).filter((m) => m?.sel)
+  if (chosen.length === 0) return { error: "nothing was chosen to fill" }
+  let results
+  try {
+    ;[{ result: results } = {}] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: fillMatched,
+      args: [chosen],
+    })
+  } catch (err) {
+    return { error: String(err?.message || err) }
+  }
+  const filled = (results || []).filter((r) => r.ok).length
+  const skipped = (results || []).filter((r) => !r.ok)
+  await setAutofill({ state: "filled", filled, skipped })
+  return { ok: true, filled, skipped }
+}
+
 /* --------------------------------------------------------------- commands */
 
 /** Every command the server can send, answered by the worker. */
@@ -402,6 +513,9 @@ async function onPush({ type, run, payload }) {
       ...prev,
       ...(typeof payload.name === "string" ? { name: payload.name } : {}),
       ...(Array.isArray(payload.allowed_hosts) ? { allowedHosts: payload.allowed_hosts } : {}),
+      // The workspace profile changed (Settings → Application profile): the
+      // popup's Application panel reads it fresh next time it opens.
+      ...(payload.profile && typeof payload.profile === "object" ? { profile: payload.profile } : {}),
     })
     // With every site granted, a site added on the website is usable from the
     // next step; without, it joins the "waiting for your OK" list at once.
@@ -458,6 +572,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       await setStatus({ state: "unpaired", error: "" })
       reply({ ok: true })
     })
+    return true
+  }
+  if (msg?.type === "autofill.preview") {
+    autofillPreview().then(reply)
+    return true
+  }
+  if (msg?.type === "autofill.fill") {
+    autofillFill(msg.matches).then(reply)
     return true
   }
   if (msg?.type === "halt") {

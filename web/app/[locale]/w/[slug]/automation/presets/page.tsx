@@ -17,7 +17,7 @@ straight here.
 
 import Link from "next/link"
 import { useMemo, useState, type FormEvent } from "react"
-import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ExternalLinkIcon, PlusIcon, SearchIcon, ShieldCheckIcon, UserRoundIcon } from "lucide-react"
+import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ExternalLinkIcon, PlusIcon, SearchIcon, ShieldCheckIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Bdi, isolate } from "@/components/bidi"
@@ -151,7 +151,6 @@ export default function PresetsPage() {
         ))
       )}
 
-      <ProfilePanel canManage={canManage} data={profile.data} onSaved={() => profile.mutate()} />
       <div className="pb-8" />
 
       {adding ? (
@@ -341,9 +340,9 @@ function AddDialog({
                 {missingProfile.length === 0
                   ? t("presets.profileFilled")
                   : t("presets.profileMissing", { fields: missingProfile.map((f) => t(`presets.profile.${f}`)).join(", ") })}{" "}
-                <a className="underline" href="#profile" onClick={onClose}>
+                <Link className="underline" href={`/${locale}/w/${ws.slug}/settings/automation-profile`} onClick={onClose}>
                   {t("presets.profileEdit")}
-                </a>
+                </Link>
               </p>
             ) : null}
             {canAllow ? (
@@ -378,70 +377,5 @@ function AddDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function ProfilePanel({ canManage, data, onSaved }: { canManage: boolean; data?: { profile: Record<string, string>; fields: string[] }; onSaved: () => void }) {
-  const { t } = useTranslations()
-  const ws = useWorkspace()
-  const [draft, setDraft] = useState<Record<string, string> | null>(null)
-  const [busy, setBusy] = useState(false)
-  if (!data) return null
-  const values = draft ?? data.profile
-
-  async function save(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    try {
-      await api("/api/w/automation/profile", { method: "PUT", json: { profile: values }, workspaceId: ws.id })
-      toast.success(t("presets.profileSaved"))
-      setDraft(null)
-      onSaved()
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <section className="mt-10 scroll-mt-20" id="profile" data-profile>
-      <div className="px-6 pb-4">
-        <h2 className="flex items-center gap-2 text-base font-medium">
-          <UserRoundIcon className="size-4" />
-          {t("presets.profileTitle")}
-        </h2>
-        <p className="max-w-2xl text-sm text-grid-muted">{t("presets.profileHint")}</p>
-      </div>
-      <form onSubmit={save} className="border-y border-line px-6 py-5" data-form="profile">
-        <FieldGroup>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {data.fields.map((f) => (
-              <Field key={f}>
-                <FieldLabel htmlFor={`profile-${f}`}>{t(`presets.profile.${f}`)}</FieldLabel>
-                <Input
-                  id={`profile-${f}`}
-                  dir={/email|phone|linkedin|github|website/.test(f) ? "ltr" : undefined}
-                  value={values[f] ?? ""}
-                  disabled={!canManage}
-                  maxLength={200}
-                  onChange={(e) => setDraft({ ...values, [f]: e.target.value })}
-                />
-              </Field>
-            ))}
-          </div>
-          {canManage ? (
-            <div>
-              <Button type="submit" disabled={busy || !draft} data-save-profile>
-                <CheckIcon />
-                {busy ? t("common.working") : t("common.save")}
-              </Button>
-            </div>
-          ) : (
-            <p className="text-xs text-grid-muted">{t("presets.profileAdminOnly")}</p>
-          )}
-        </FieldGroup>
-      </form>
-    </section>
   )
 }

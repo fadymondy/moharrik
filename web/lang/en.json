@@ -119,6 +119,7 @@
   "members.status": "Status",
   "nav.comingNext": "Contacts, inbox, campaigns and automation are coming in the next phases.",
   "nav.mcpTokens": "MCP tokens",
+  "nav.automationProfile": "Application profile",
   "nav.members": "Members",
   "nav.overview": "Overview",
   "notFound.back": "Back to workspaces",

@@ -197,6 +197,10 @@ func (h *Hub) authenticate(ctx context.Context, a *app.App, ws *websocket.Conn) 
 		"allowed_hosts":  hosts,
 		"workspace_name": agent.WorkspaceName,
 		"workspace_slug": agent.WorkspaceSlug,
+		// The workspace profile (MH-478): what the extension's own-tab
+		// Application autofill panel fills a form with. Read once at connect,
+		// refreshed on the fly by PushProfileUpdate when it is saved.
+		"profile": profileOrEmpty(sctx, a, agent.WorkspaceID),
 	}
 	if latest := LatestExtension(); latest != nil {
 		helloAck["latest_version"] = latest.Version

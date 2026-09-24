@@ -35,6 +35,7 @@ import {
   WebhookIcon,
   TrendingUpIcon,
   UserPlusIcon,
+  UserRoundIcon,
   UsersIcon,
   YoutubeIcon,
   ZapIcon,
@@ -411,6 +412,13 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       <L href={`${base}/settings/mcp`} icon={<KeyRoundIcon />}>
         {t("nav.mcpTokens")}
       </L>
+      {/* The workspace profile (MH-478): what a preset's job-application inputs
+          and the extension's own Application autofill panel both fill from. */}
+      {can?.includes("automation:read") ? (
+        <L href={`${base}/settings/automation-profile`} icon={<UserRoundIcon />}>
+          {t("nav.automationProfile")}
+        </L>
+      ) : null}
       {/* Owners and admins only (MH-392): hidden, not disabled, for everyone else. */}
       {can?.includes("audit:read") ? (
         <L href={`${base}/settings/audit`} icon={<ScrollTextIcon />}>

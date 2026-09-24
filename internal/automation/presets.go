@@ -171,6 +171,16 @@ func ReadProfile(ctx context.Context, a *app.App, workspaceID string) (map[strin
 	return out, nil
 }
 
+// profileOrEmpty is ReadProfile with nothing to say on error: hello.ok must
+// still answer, a browser's autofill panel just starts with an empty profile.
+func profileOrEmpty(ctx context.Context, a *app.App, workspaceID string) map[string]string {
+	p, err := ReadProfile(ctx, a, workspaceID)
+	if err != nil || p == nil {
+		return map[string]string{}
+	}
+	return p
+}
+
 // SaveProfile replaces the workspace profile. Unknown fields are dropped.
 func SaveProfile(ctx context.Context, a *app.App, workspaceID string, in map[string]string) (map[string]string, error) {
 	clean := map[string]string{}
@@ -527,6 +537,9 @@ func RegisterPresets(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not save the workspace profile")
 		}
+		// Every connected browser's popup reads the profile it holds now
+		// (MH-478); a save reaches them without anyone reconnecting.
+		PushProfileUpdate(ctx, a, hub, s.WorkspaceID)
 		return out(struct {
 			Profile map[string]string `json:"profile"`
 		}{p}), nil
