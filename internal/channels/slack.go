@@ -372,6 +372,129 @@ func SendSlackReply(ctx context.Context, a *app.App, workspaceID, connID, channe
 	return "slack:" + r.Ts, nil
 }
 
+// ---- history, for internal/imports (MH-562) -----------------------------
+//
+// internal/imports never opens a sealed token itself (internal/secret stays
+// inside this package, per this package's own doc comment); it calls these
+// two exported functions instead, which mirror SendSlackReply/slackCall's
+// plumbing but read instead of write.
+
+// SlackConversationInfo is one channel/DM the bot can see
+// (conversations.list), enough for MH-562's import preview.
+type SlackConversationInfo struct {
+	ID         string
+	Name       string
+	IsIM       bool
+	IsPrivate  bool
+	NumMembers int
+}
+
+// ListSlackConversations lists every public/private channel and DM the
+// bot is a member of, across conversations.list's cursor pages.
+func ListSlackConversations(ctx context.Context, a *app.App, workspaceID, connID string) ([]SlackConversationInfo, error) {
+	token, err := slackToken(ctx, a, workspaceID, connID)
+	if err != nil {
+		return nil, err
+	}
+	var out []SlackConversationInfo
+	cursor := ""
+	for {
+		params := map[string]any{"types": "public_channel,private_channel,im", "limit": 200}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+		raw, err := slackCall(ctx, token, "conversations.list", params)
+		if err != nil {
+			return nil, err
+		}
+		var r struct {
+			Channels []struct {
+				ID         string `json:"id"`
+				Name       string `json:"name"`
+				IsIM       bool   `json:"is_im"`
+				IsPrivate  bool   `json:"is_private"`
+				NumMembers int    `json:"num_members"`
+				User       string `json:"user"` // IM only: the other person's user id
+			} `json:"channels"`
+			ResponseMetadata struct {
+				NextCursor string `json:"next_cursor"`
+			} `json:"response_metadata"`
+		}
+		if err := json.Unmarshal(raw, &r); err != nil {
+			return nil, err
+		}
+		for _, c := range r.Channels {
+			name := c.Name
+			if c.IsIM && name == "" {
+				name = c.User
+			}
+			out = append(out, SlackConversationInfo{ID: c.ID, Name: name, IsIM: c.IsIM, IsPrivate: c.IsPrivate, NumMembers: c.NumMembers})
+		}
+		cursor = r.ResponseMetadata.NextCursor
+		if cursor == "" || len(r.Channels) == 0 {
+			break
+		}
+	}
+	return out, nil
+}
+
+// SlackHistoryMessage is one message read back by conversations.history.
+type SlackHistoryMessage struct {
+	Ts   string // Slack's own message identifier/timestamp, e.g. "1234567890.123456"
+	User string
+	Text string
+}
+
+// SlackConversationHistory reads a channel's recent messages
+// (conversations.history), newest first, capped at limit (Slack's own
+// per-call max is 999; MH-562 never needs more than a few hundred).
+func SlackConversationHistory(ctx context.Context, a *app.App, workspaceID, connID, channelID string, limit int) ([]SlackHistoryMessage, error) {
+	token, err := slackToken(ctx, a, workspaceID, connID)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	raw, err := slackCall(ctx, token, "conversations.history", map[string]any{"channel": channelID, "limit": limit})
+	if err != nil {
+		return nil, err
+	}
+	var r struct {
+		Messages []struct {
+			Type string `json:"type"`
+			User string `json:"user"`
+			Text string `json:"text"`
+			Ts   string `json:"ts"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return nil, err
+	}
+	out := make([]SlackHistoryMessage, 0, len(r.Messages))
+	for _, m := range r.Messages {
+		if m.Type != "message" || strings.TrimSpace(m.Text) == "" {
+			continue
+		}
+		out = append(out, SlackHistoryMessage{Ts: m.Ts, User: m.User, Text: m.Text})
+	}
+	return out, nil
+}
+
+// slackToken resolves and opens one connection's bot token — the only place
+// outside CreateSlack/UpdateSlack/TestSlack/SendSlackReply that touches
+// slackBotBox, so a decrypted token never crosses the package boundary.
+func slackToken(ctx context.Context, a *app.App, workspaceID, connID string) (string, error) {
+	_, botSealed, _, _, err := getSlack(ctx, a.SQLDB, workspaceID, connID)
+	if err != nil {
+		return "", err
+	}
+	if botSealed == "" {
+		return "", fmt.Errorf("this Slack connection has no bot token configured")
+	}
+	return slackBotBox.Open(botSealed)
+}
+
 // ---- the Slack Web API client -------------------------------------------
 
 func slackCall(ctx context.Context, token, method string, params map[string]any) ([]byte, error) {

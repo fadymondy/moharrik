@@ -322,6 +322,10 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	whatsapp.RegisterNotify(api, a)                      // members' WhatsApp notifications (MH-411)
 	imports.RegisterProvider(imports.WhatsAppProvider{}) // MH-562: import WhatsApp chats/groups
 	imports.RegisterProvider(imports.EmailProvider{})    // MH-562: import a mailbox's senders
+	imports.RegisterProvider(imports.SlackProvider{})    // MH-562: import Slack channels/DMs
+	imports.RegisterProvider(imports.DiscordProvider{})  // MH-562: import Discord guild channels
+	imports.RegisterProvider(imports.TelegramProvider{}) // MH-562: no history API — honestly not-ready
+	imports.RegisterProvider(imports.WorkflowProvider{}) // MH-562: no history source — honestly not-ready
 	imports.Register(api, a)                             // Contacts → "Import from a connection"
 	trends.Register(api, a)
 	trends.RegisterDigest(api, a) // the trends digest (MH-389)
