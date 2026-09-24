@@ -13,6 +13,7 @@ import {
   PlusIcon,
   SettingsIcon,
   ShieldCheckIcon,
+  WorkflowIcon,
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -221,11 +222,20 @@ export default function AutomationPage() {
           title={t("automation.workflows")}
           hint={t("automation.workflowsHint")}
           action={
-            canRun && workflowList.length > 0 ? (
-              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/new`} />} data-new-workflow>
-                <PlusIcon />
-                {t("automation.editor.newWorkflow")}
-              </Button>
+            workflowList.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {/* The canvas list (MH-480): every workflow as a graph, and its executions. */}
+                <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows`} />} data-open-workflows>
+                  <WorkflowIcon />
+                  {t("workflows.openList")}
+                </Button>
+                {canRun ? (
+                  <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/new`} />} data-new-workflow>
+                    <PlusIcon />
+                    {t("automation.editor.newWorkflow")}
+                  </Button>
+                ) : null}
+              </div>
             ) : undefined
           }
         />
@@ -889,7 +899,9 @@ function WorkflowRow({
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-            <Bdi>{workflow.name}</Bdi>
+            <Link href={`/${locale}/w/${ws.slug}/automation/workflows/${workflow.id}`} className="hover:underline">
+              <Bdi>{workflow.name}</Bdi>
+            </Link>
             <Badge variant="outline">{t("automation.editor.versionBadge", { n: workflow.version })}</Badge>
           </p>
           {workflow.description ? (

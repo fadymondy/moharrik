@@ -122,3 +122,68 @@
 [dir="rtl"] .bidi-block {
   text-align: right;
 }
+
+/* The workflow canvas (MH-480): React Flow drawn with the grid tokens, so it
+   follows light and dark without a colour of its own. */
+.react-flow {
+  --xy-background-color: var(--grid-bg);
+  --xy-background-pattern-color: color-mix(in oklab, var(--grid-muted) 40%, transparent);
+  --xy-edge-stroke: color-mix(in oklab, var(--grid-muted) 75%, transparent);
+  --xy-edge-stroke-width: 2;
+  --xy-edge-stroke-selected: var(--primary);
+  --xy-connectionline-stroke: var(--grid-muted);
+  --xy-node-border-radius: 0.5rem;
+  --xy-attribution-background-color: transparent;
+  --xy-selection-background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+  --xy-selection-border: 1px dotted var(--primary);
+}
+.react-flow__attribution a {
+  color: var(--grid-muted);
+}
+/* The nodes draw their own frame (components/flow/base-node.tsx). */
+.react-flow__node-trigger,
+.react-flow__node-step,
+.react-flow__node-add {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.react-flow__node:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 0.75rem;
+}
+/* A running step's border (components/flow/node-status-indicator.tsx). */
+@keyframes flow-status-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+.flow-status-spinner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 160%;
+  aspect-ratio: 1;
+  transform-origin: center;
+  animation: flow-status-spin 1.6s linear infinite;
+}
+/* The edge into the step that is going. */
+@keyframes flow-edge-dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.flow-edge-running {
+  stroke-dasharray: 6 4;
+  animation: flow-edge-dash 0.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-status-spinner,
+  .flow-edge-running {
+    animation: none;
+  }
+}
