@@ -27,6 +27,7 @@ import {
   CornerDownLeftIcon,
   GlobeIcon,
   HourglassIcon,
+  InboxIcon,
   KeyboardIcon,
   ListChecksIcon,
   LogOutIcon,
@@ -59,6 +60,7 @@ export type NodeKind =
   | "eval_readonly"
   | "release"
   | "close"
+  | "push_inbox"
   | "unknown"
 
 export type FieldKind = "url" | "selector" | "text" | "textarea" | "number" | "bool" | "fields"
@@ -237,13 +239,29 @@ export const SPECS: Record<Exclude<NodeKind, "unknown">, NodeSpec> = {
     ],
     defaults: {},
   },
+  // Push to inbox (MH-564): the one node the server runs itself, never the
+  // browser — see internal/automation/runs.go's dispatch. It takes the rows
+  // every earlier extract step in the same workflow collected and files each
+  // as a message on the named workflow channel (Inbox → Workflow channels),
+  // deduped by thread+message id so a re-run never duplicates. The four
+  // *_field arguments rename which column of an extracted row holds each
+  // part; left out, they default to thread_id/message_id/profile_url/name/text
+  // — the shape the read presets produce — and stay editable as JSON below.
+  push_inbox: {
+    kind: "push_inbox",
+    command: "push_inbox",
+    category: "data",
+    icon: InboxIcon,
+    fields: [{ name: "workflow_channel_id", kind: "text", required: true }],
+    defaults: {},
+  },
 }
 
 export const CATEGORIES: { id: Category; kinds: Exclude<NodeKind, "unknown">[] }[] = [
   { id: "browser", kinds: ["navigate", "release", "close"] },
   { id: "interact", kinds: ["click", "type", "press", "select", "scroll", "upload"] },
   { id: "wait", kinds: ["wait", "wait_for"] },
-  { id: "data", kinds: ["extract", "extract_data", "screenshot", "eval_readonly"] },
+  { id: "data", kinds: ["extract", "extract_data", "screenshot", "eval_readonly", "push_inbox"] },
 ]
 
 /** What the driver also accepts, and the canvas shows under its canonical name. */
@@ -311,6 +329,8 @@ export function subtitleOf(step: WorkflowStep): string {
       return pick("expression")
     case "upload":
       return pick("file", "selector")
+    case "push_inbox":
+      return pick("workflow_channel_id")
     case "unknown":
       return step.command
     default:
