@@ -2143,6 +2143,12 @@ export type OverviewTrends = {
 
 export type SetupKey = "inquiry_form" | "smtp" | "chat_widget" | "whatsapp" | "google" | "browser"
 
+/** One day of a zero-filled count series (MH-567). */
+export type OverviewCountDay = { date: string; count: number }
+
+/** One day of conversations started, split by channel (MH-567). */
+export type OverviewConversationDay = { date: string; chat: number; email: number; whatsapp: number }
+
 export type Overview = {
   currency: string
   timezone: string
@@ -2159,6 +2165,10 @@ export type Overview = {
   traffic?: OverviewTraffic | null
   /** Each enabled YouTube channel (MH-441/442). */
   youtube?: OverviewYouTube[] | null
+  /** Leads created per day, the last 28 days ending today, zero-filled. Null without leads:read (MH-567). */
+  leads_daily?: OverviewCountDay[] | null
+  /** Conversations started per day by channel, the last 28 days ending today, zero-filled. Null without inbox:read (MH-567). */
+  conversations_daily?: OverviewConversationDay[] | null
 }
 
 export type OverviewYouTube = {
@@ -2195,6 +2205,78 @@ export type OverviewTraffic = {
     end_date: string | null
     last_error: string
   }[] | null
+  /**
+   * The cross-source summary that replaced one row per property (MH-567):
+   * totals over the last 28 days, each with its % change vs the 28 days
+   * before that when the comparison is known. Never null when traffic
+   * itself is not null.
+   */
+  summary: OverviewTrafficSummary | null
+}
+
+/** GA4's part of the rollup (MH-567). A total never fetched is null; a delta
+ * that cannot be computed (no prior history) is null too — never a fake 0%. */
+export type OverviewGA4Summary = {
+  properties_count: number
+  users: number | null
+  users_delta_pct: number | null
+  sessions: number | null
+  sessions_delta_pct: number | null
+  views: number | null
+  views_delta_pct: number | null
+  /** engaged sessions / sessions, 0..1, summed across properties. */
+  engagement_rate: number | null
+  avg_session_seconds: number | null
+  key_events: number | null
+}
+
+/** Search Console's part of the rollup (MH-567), impression-weighted CTR/position. */
+export type OverviewSearchConsoleSummary = {
+  sites_count: number
+  clicks: number | null
+  clicks_delta_pct: number | null
+  impressions: number | null
+  impressions_delta_pct: number | null
+  ctr: number | null
+  avg_position: number | null
+}
+
+/** YouTube's part of the rollup (MH-567). Never a delta: no history to compare against. */
+export type OverviewYouTubeSummary = {
+  channels_count: number
+  views_28: number | null
+  subscribers: number | null
+}
+
+/** One row of the top-properties breakdown (MH-567), up to 5, by users. */
+export type OverviewTopProperty = {
+  resource_id: string
+  name: string
+  kind: "ga4_property"
+  users: number | null
+}
+
+/** One day of the traffic-over-time chart (MH-567). A source with nothing
+ * fetched for that day is null that day, never 0. */
+export type OverviewTrafficDay = {
+  date: string
+  users: number | null
+  sessions: number | null
+  clicks: number | null
+}
+
+export type OverviewTrafficSummary = {
+  /** YYYY-MM-DD, workspace time zone. */
+  period_start: string
+  period_end: string
+  /** Null with no enabled GA4 property. */
+  ga4: OverviewGA4Summary | null
+  /** Null with no enabled Search Console site. */
+  search_console: OverviewSearchConsoleSummary | null
+  /** Null with no enabled YouTube channel. */
+  youtube: OverviewYouTubeSummary | null
+  daily: OverviewTrafficDay[]
+  top_properties: OverviewTopProperty[]
 }
 
 // ── CRM report (MH-394) ────────────────────────────────────────────────────

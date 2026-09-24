@@ -73,6 +73,9 @@ type Totals struct {
 	EngagementRate      float64 `json:"engagement_rate" doc:"engaged_sessions / sessions, 0..1; 0 when there were no sessions."`
 	EngagementSeconds   int64   `json:"engagement_seconds" doc:"userEngagementDuration, seconds."`
 	AvgEngagementPerUse float64 `json:"avg_engagement_seconds_per_user" doc:"engagement_seconds / users; 0 when there were no users."`
+	// KeyEvents (MH-567): GA4's replacement name for "conversions", the same
+	// cheap batchRunReports call — one more column, no extra quota charge.
+	KeyEvents int64 `json:"key_events" doc:"keyEvents over the window (GA4's conversion count)."`
 }
 
 // Day is one day of the trend.
@@ -213,7 +216,7 @@ func Fetch(ctx context.Context, c *google.Client, property string, days int, now
 	}
 	dr := []dateRange{{StartDate: strconv.Itoa(days) + "daysAgo", EndDate: "yesterday"}}
 	req := map[string]any{"requests": []runReport{
-		{DateRanges: dr, Metrics: metrics("activeUsers", "newUsers", "sessions", "screenPageViews", "engagedSessions", "userEngagementDuration")},
+		{DateRanges: dr, Metrics: metrics("activeUsers", "newUsers", "sessions", "screenPageViews", "engagedSessions", "userEngagementDuration", "keyEvents")},
 		{DateRanges: dr, Dimensions: []dim{{"date"}}, Metrics: metrics("activeUsers", "sessions", "screenPageViews"),
 			OrderBys: []orderBy{{Dimension: map[string]any{"dimensionName": "date"}}}, Limit: "400"},
 		{DateRanges: dr, Dimensions: []dim{{"pagePath"}}, Metrics: metrics("screenPageViews", "activeUsers"),
@@ -263,7 +266,8 @@ func build(reps []gaReport, days int, now time.Time) *Report {
 	if t := reps[0].table(); len(t) > 0 {
 		r := t[0]
 		tot := Totals{Users: i64(r, "activeUsers"), NewUsers: i64(r, "newUsers"), Sessions: i64(r, "sessions"),
-			Views: i64(r, "screenPageViews"), EngagedSessions: i64(r, "engagedSessions"), EngagementSeconds: i64(r, "userEngagementDuration")}
+			Views: i64(r, "screenPageViews"), EngagedSessions: i64(r, "engagedSessions"), EngagementSeconds: i64(r, "userEngagementDuration"),
+			KeyEvents: i64(r, "keyEvents")}
 		if tot.Sessions > 0 {
 			tot.EngagementRate = float64(tot.EngagedSessions) / float64(tot.Sessions)
 		}

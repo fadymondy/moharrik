@@ -20,6 +20,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -46,6 +47,25 @@ type Overview struct {
 	Setup         []SetupItem        `json:"setup" doc:"Only the items the caller's role can see."`
 	Traffic       *Traffic           `json:"traffic" doc:"Null without analytics:read, or when no GA4 property or Search Console site is enabled (MH-444/445)."`
 	YouTube       []YouTubeChannel   `json:"youtube" doc:"Each enabled YouTube channel. Null without analytics:read or with none enabled (MH-441/442)."`
+	// LeadsDaily/ConversationsDaily (MH-567): the Overview's own charts. Zero-
+	// filled every day in the 28-day window — a lead or a conversation is this
+	// workspace's own data, so a day with none really is 0, never a dash.
+	LeadsDaily         []CountDay        `json:"leads_daily" doc:"Leads created per day, the last 28 days ending today, zero-filled. Null without leads:read."`
+	ConversationsDaily []ConversationDay `json:"conversations_daily" doc:"Conversations started per day by channel, the last 28 days ending today, zero-filled. Null without inbox:read."`
+}
+
+// CountDay is one day of a zero-filled count series.
+type CountDay struct {
+	Date  string `json:"date" doc:"YYYY-MM-DD, workspace time zone."`
+	Count int64  `json:"count"`
+}
+
+// ConversationDay is one day of conversations started, split by channel.
+type ConversationDay struct {
+	Date     string `json:"date" doc:"YYYY-MM-DD, workspace time zone."`
+	Chat     int64  `json:"chat"`
+	Email    int64  `json:"email"`
+	WhatsApp int64  `json:"whatsapp"`
 }
 
 // YouTubeChannel is one enabled channel on the front page: its counters from
@@ -69,6 +89,100 @@ type YouTubeChannel struct {
 type Traffic struct {
 	Properties []TrafficProperty `json:"properties"`
 	Sites      []TrafficSite     `json:"sites"`
+	// Summary (MH-567) is the one-card rollup that replaced a row per
+	// property: totals across every source, each with its change vs the
+	// previous 28 days where that comparison is known, a daily trend and the
+	// top properties by users. Never null when Traffic itself is not null.
+	Summary *TrafficSummary `json:"summary"`
+}
+
+// TrafficSummary is the cross-source analytics summary (MH-567): one set of
+// totals for the last 28 days, each with its % change vs the 28 days before
+// that when the history to compare against actually exists. A total that has
+// never been fetched is null; a delta that cannot be computed (no prior
+// history, or a source with nothing enabled) is null too — never a fake 0%.
+type TrafficSummary struct {
+	PeriodStart string `json:"period_start" doc:"YYYY-MM-DD, workspace time zone."`
+	PeriodEnd   string `json:"period_end" doc:"YYYY-MM-DD, workspace time zone."`
+
+	GA4           *GA4Summary           `json:"ga4" doc:"Null with no enabled GA4 property."`
+	SearchConsole *SearchConsoleSummary `json:"search_console" doc:"Null with no enabled Search Console site."`
+	YouTube       *YouTubeSummary       `json:"youtube" doc:"Null with no enabled YouTube channel."`
+
+	// Daily is the traffic-over-time chart: GA4 users/sessions and Search
+	// Console clicks, summed across every enabled source, one point per day.
+	// A source with nothing fetched for a day is null that day, not 0.
+	Daily []TrafficDay `json:"daily"`
+
+	// TopProperties: up to 5 GA4 properties by users, replacing the old
+	// one-row-per-property list. Links to /analytics.
+	TopProperties []TopProperty `json:"top_properties"`
+}
+
+// GA4Summary is GA4's part of the rollup: totals from the stored 28-day
+// snapshot (ga4_reports, GA4's own dedup'd totals) summed across every
+// enabled property, plus whatever the snapshot's payload carries beyond
+// users/sessions/views. The % change is computed separately, from the daily
+// history (ga4_daily) on a like-for-like basis (sum of days vs sum of days),
+// which is why the two can disagree very slightly with the headline total.
+type GA4Summary struct {
+	PropertiesCount int `json:"properties_count"`
+
+	Users    *int64   `json:"users"`
+	UsersPct *float64 `json:"users_delta_pct" doc:"% change vs the previous 28 days; null when that period's daily history is not (yet) stored."`
+
+	Sessions    *int64   `json:"sessions"`
+	SessionsPct *float64 `json:"sessions_delta_pct"`
+
+	Views    *int64   `json:"views"`
+	ViewsPct *float64 `json:"views_delta_pct"`
+
+	EngagementRate    *float64 `json:"engagement_rate" doc:"engaged sessions / sessions, 0..1, summed across properties."`
+	AvgSessionSeconds *float64 `json:"avg_session_seconds" doc:"Engagement time per session, summed across properties."`
+	KeyEvents         *int64   `json:"key_events"`
+}
+
+// SearchConsoleSummary is Search Console's part of the rollup, summed across
+// every enabled site (gsc_search_totals_daily, which already carries
+// anonymised queries — the site's real totals).
+type SearchConsoleSummary struct {
+	SitesCount int `json:"sites_count"`
+
+	Clicks    *int64   `json:"clicks"`
+	ClicksPct *float64 `json:"clicks_delta_pct"`
+
+	Impressions    *int64   `json:"impressions"`
+	ImpressionsPct *float64 `json:"impressions_delta_pct"`
+
+	// CTR and AvgPosition are impression-weighted, the same rule the
+	// Search Console page itself uses when it sums more than one row.
+	CTR         *float64 `json:"ctr"`
+	AvgPosition *float64 `json:"avg_position"`
+}
+
+// YouTubeSummary is YouTube's part of the rollup. Subscribers and video
+// counts are the channels' current counters, not a 28-day window, so there
+// is no previous period to compare against — never a delta here.
+type YouTubeSummary struct {
+	ChannelsCount int    `json:"channels_count"`
+	Views28       *int64 `json:"views_28"`
+	Subscribers   *int64 `json:"subscribers" doc:"Null when every enabled channel hides its subscriber count."`
+}
+
+// TopProperty is one row of the top-properties breakdown.
+type TopProperty struct {
+	ResourceID string `json:"resource_id"`
+	Name       string `json:"name"`
+	Kind       string `json:"kind" enum:"ga4_property"`
+	Users      *int64 `json:"users"`
+}
+
+// TrafficDay is one day of the traffic-over-time chart.
+type TrafficDay struct {
+	Date     string `json:"date" doc:"YYYY-MM-DD, workspace time zone."`
+	Users    *int64 `json:"users" doc:"GA4 activeUsers, summed across enabled properties. Null: no property had data fetched for this day."`
+	Sessions *int64 `json:"sessions"`
+	Clicks   *int64 `json:"clicks" doc:"Search Console clicks, summed across enabled sites. Null: not imported for this day."`
 }
 
 // TrafficSite is one Search Console site's clicks over the 28 days ending on
@@ -308,13 +422,20 @@ func Build(ctx context.Context, db *sql.DB, wsID, role string, env Env, now time
 	can := func(action string) bool { return authz.Can(role, action) }
 	b := builder{ctx: ctx, q: tx, ws: wsID}
 
+	// The charts' own 28-day window: today and the 27 days before it, in the
+	// workspace's own time zone — the same "today" the stat strip uses.
+	chartEnd := midnight
+	chartStart := midnight.AddDate(0, 0, -27)
+
 	if can(authz.LeadsRead) {
 		o.Today.Leads, o.Today.LeadsReceivedToday = b.leadCounts(midnight)
 		o.Leads = b.latestLeads()
+		o.LeadsDaily = b.leadsDaily(o.Timezone, chartStart, chartEnd)
 	}
 	if can(authz.InboxRead) {
 		o.Today.UnreadConversations = b.count(`SELECT count(*) FROM conversations WHERE workspace_id = $1 AND unread`)
 		o.Conversations = b.latestConversations()
+		o.ConversationsDaily = b.conversationsDaily(o.Timezone, chartStart, chartEnd)
 	}
 	if can(authz.NotificationsRead) {
 		o.Today.UnreadNotifications = b.count(`SELECT count(*) FROM notification_items WHERE workspace_id = $1 AND read_at IS NULL`)
@@ -334,7 +455,14 @@ func Build(ctx context.Context, db *sql.DB, wsID, role string, env Env, now time
 	}
 	o.Setup = b.setup(can, env)
 	if can(authz.AnalyticsRead) {
-		o.Traffic = b.traffic()
+		// The analytics summary's own 28-day window ends yesterday (GA4/Search
+		// Console lag today's partial day), unlike the leads/conversations
+		// charts above which run through today.
+		periodEnd := midnight.AddDate(0, 0, -1)
+		periodStart := periodEnd.AddDate(0, 0, -27)
+		prevEnd := periodStart.AddDate(0, 0, -1)
+		prevStart := prevEnd.AddDate(0, 0, -27)
+		o.Traffic = b.traffic(periodStart, periodEnd, prevStart, prevEnd)
 		o.YouTube = b.youtube()
 	}
 
@@ -621,9 +749,10 @@ func (b *builder) trends() *Trends {
 }
 
 // traffic reads the enabled GA4 properties' 28-day snapshots and the enabled
-// Search Console sites' imported clicks. nil when nothing is enabled: the
-// card is not shown at all.
-func (b *builder) traffic() *Traffic {
+// Search Console sites' imported clicks, plus the cross-source summary
+// (MH-567): totals, deltas vs the previous 28 days, a daily trend and the top
+// properties. nil when nothing is enabled: the card is not shown at all.
+func (b *builder) traffic(periodStart, periodEnd, prevStart, prevEnd time.Time) *Traffic {
 	t := &Traffic{Properties: []TrafficProperty{}, Sites: []TrafficSite{}}
 	b.each(`
 		SELECT r.id, r.display_name, g.users, g.sessions, to_char(g.start_date, 'YYYY-MM-DD'), to_char(g.end_date, 'YYYY-MM-DD'),
@@ -666,7 +795,324 @@ func (b *builder) traffic() *Traffic {
 	if b.err != nil || len(t.Properties)+len(t.Sites) == 0 {
 		return nil
 	}
+	t.Summary = b.trafficSummary(t.Properties, periodStart, periodEnd, prevStart, prevEnd)
 	return t
+}
+
+func ymd(t time.Time) string { return t.Format("2006-01-02") }
+
+// trafficSummary builds the cross-source rollup once traffic() already knows
+// at least one property or site is enabled.
+func (b *builder) trafficSummary(props []TrafficProperty, periodStart, periodEnd, prevStart, prevEnd time.Time) *TrafficSummary {
+	if b.err != nil {
+		return nil
+	}
+	s := &TrafficSummary{
+		PeriodStart: ymd(periodStart), PeriodEnd: ymd(periodEnd),
+		Daily: []TrafficDay{}, TopProperties: []TopProperty{},
+	}
+	s.GA4 = b.ga4Summary(len(props), periodStart, periodEnd, prevStart, prevEnd)
+	s.SearchConsole = b.searchConsoleSummary(periodStart, periodEnd, prevStart, prevEnd)
+	s.YouTube = b.youtubeSummary()
+	s.Daily = b.trafficDaily(periodStart, periodEnd)
+	s.TopProperties = topProperties(props)
+	if b.err != nil {
+		return nil
+	}
+	return s
+}
+
+// ga4Summary sums the stored 28-day snapshot (ga4_reports: GA4's own dedup'd
+// totals) across every enabled property for the headline figures, and sums
+// the daily history (ga4_daily) on both sides of the boundary for the %
+// change — the same source on both sides, so the comparison is honest even
+// though it can read a little differently from the headline sum.
+func (b *builder) ga4Summary(propCount int, periodStart, periodEnd, prevStart, prevEnd time.Time) *GA4Summary {
+	if propCount == 0 || b.err != nil {
+		return nil
+	}
+	g := &GA4Summary{PropertiesCount: propCount}
+	var users, sessions, views, engSess, engSec, keyEvents sql.NullInt64
+	row := b.q.QueryRowContext(b.ctx, `
+		SELECT sum(g.users), sum(g.sessions), sum(g.views),
+		       sum((g.payload->'totals'->>'engaged_sessions')::bigint),
+		       sum((g.payload->'totals'->>'engagement_seconds')::bigint),
+		       sum((g.payload->'totals'->>'key_events')::bigint)
+		FROM google_resources r
+		JOIN ga4_reports g ON g.workspace_id = r.workspace_id AND g.resource_id = r.id AND g.days = 28
+		WHERE r.workspace_id = $1 AND r.kind = 'ga4_property' AND r.enabled`, b.ws)
+	if b.fail(row.Scan(&users, &sessions, &views, &engSess, &engSec, &keyEvents)) {
+		return nil
+	}
+	if users.Valid {
+		g.Users = &users.Int64
+	}
+	if sessions.Valid {
+		g.Sessions = &sessions.Int64
+	}
+	if views.Valid {
+		g.Views = &views.Int64
+	}
+	if keyEvents.Valid {
+		g.KeyEvents = &keyEvents.Int64
+	}
+	if sessions.Valid && sessions.Int64 > 0 && engSess.Valid {
+		rate := float64(engSess.Int64) / float64(sessions.Int64)
+		g.EngagementRate = &rate
+	}
+	if sessions.Valid && sessions.Int64 > 0 && engSec.Valid {
+		avg := float64(engSec.Int64) / float64(sessions.Int64)
+		g.AvgSessionSeconds = &avg
+	}
+
+	curUsers, curSessions, curViews, _ := b.ga4DailySums(periodStart, periodEnd)
+	prevUsers, prevSessions, prevViews, prevDays := b.ga4DailySums(prevStart, prevEnd)
+	// "Known" means the previous window's daily history is essentially
+	// complete — at least 20 of its 28 days were actually synced. Anything
+	// thinner is a workspace still filling in its history, not a real trend.
+	known := prevDays >= 20
+	g.UsersPct = pctDelta(curUsers, prevUsers, known)
+	g.SessionsPct = pctDelta(curSessions, prevSessions, known)
+	g.ViewsPct = pctDelta(curViews, prevViews, known)
+	return g
+}
+
+// ga4DailySums sums ga4_daily across every enabled GA4 property for one
+// window, and reports how many distinct days in that window have any row at
+// all (so the caller can tell a real, complete window from a thin one).
+func (b *builder) ga4DailySums(start, end time.Time) (users, sessions, views sql.NullInt64, days int64) {
+	if b.err != nil {
+		return
+	}
+	row := b.q.QueryRowContext(b.ctx, `
+		SELECT sum(g.users), sum(g.sessions), sum(g.views), count(DISTINCT g.day)
+		FROM google_resources r
+		JOIN ga4_daily g ON g.workspace_id = r.workspace_id AND g.resource_id = r.id
+		WHERE r.workspace_id = $1 AND r.kind = 'ga4_property' AND r.enabled AND g.day BETWEEN $2 AND $3`,
+		b.ws, ymd(start), ymd(end))
+	b.fail(row.Scan(&users, &sessions, &views, &days))
+	return
+}
+
+// pctDelta is (cur-prev)/prev as a percentage, or nil when the previous
+// period is not known well enough to trust, or was itself 0 (a % of nothing
+// is not a number).
+func pctDelta(cur, prev sql.NullInt64, known bool) *float64 {
+	if !known || !cur.Valid || !prev.Valid || prev.Int64 == 0 {
+		return nil
+	}
+	v := (float64(cur.Int64) - float64(prev.Int64)) / float64(prev.Int64) * 100
+	return &v
+}
+
+// searchConsoleSummary sums gsc_search_totals_daily (the site's real totals,
+// anonymised queries included) across every enabled site. CTR and average
+// position are impression-weighted, the same rule the Search Console page
+// itself uses when summing more than one row.
+func (b *builder) searchConsoleSummary(periodStart, periodEnd, prevStart, prevEnd time.Time) *SearchConsoleSummary {
+	if b.err != nil {
+		return nil
+	}
+	var siteCount int
+	if b.fail(b.q.QueryRowContext(b.ctx, `SELECT count(*) FROM google_resources WHERE workspace_id = $1 AND kind = 'gsc_site' AND enabled`, b.ws).Scan(&siteCount)) {
+		return nil
+	}
+	if siteCount == 0 {
+		return nil
+	}
+	sc := &SearchConsoleSummary{SitesCount: siteCount}
+	clicks, impressions := b.gscSums(periodStart, periodEnd)
+	if clicks.Valid {
+		sc.Clicks = &clicks.Int64
+	}
+	if impressions.Valid {
+		sc.Impressions = &impressions.Int64
+		if impressions.Int64 > 0 && clicks.Valid {
+			ctr := float64(clicks.Int64) / float64(impressions.Int64)
+			sc.CTR = &ctr
+		}
+	}
+	var avgPos sql.NullFloat64
+	if b.fail(b.q.QueryRowContext(b.ctx, `
+		SELECT CASE WHEN sum(g.impressions) > 0 THEN sum(g.position * g.impressions) / sum(g.impressions) END
+		FROM google_resources r
+		JOIN gsc_search_totals_daily g ON g.workspace_id = r.workspace_id AND g.resource_id = r.id
+		WHERE r.workspace_id = $1 AND r.kind = 'gsc_site' AND r.enabled AND g.date BETWEEN $2 AND $3`,
+		b.ws, ymd(periodStart), ymd(periodEnd)).Scan(&avgPos)) {
+		return nil
+	}
+	if avgPos.Valid {
+		sc.AvgPosition = &avgPos.Float64
+	}
+	prevClicks, prevImpressions := b.gscSums(prevStart, prevEnd)
+	// Known when both a click and an impression row exist somewhere in the
+	// previous window (Search Console has actually been imported that far back).
+	known := prevClicks.Valid && prevImpressions.Valid
+	sc.ClicksPct = pctDelta(clicks, prevClicks, known)
+	sc.ImpressionsPct = pctDelta(impressions, prevImpressions, known)
+	return sc
+}
+
+func (b *builder) gscSums(start, end time.Time) (clicks, impressions sql.NullInt64) {
+	if b.err != nil {
+		return
+	}
+	row := b.q.QueryRowContext(b.ctx, `
+		SELECT sum(g.clicks), sum(g.impressions)
+		FROM google_resources r
+		JOIN gsc_search_totals_daily g ON g.workspace_id = r.workspace_id AND g.resource_id = r.id
+		WHERE r.workspace_id = $1 AND r.kind = 'gsc_site' AND r.enabled AND g.date BETWEEN $2 AND $3`,
+		b.ws, ymd(start), ymd(end))
+	b.fail(row.Scan(&clicks, &impressions))
+	return
+}
+
+// youtubeSummary sums each enabled channel's current counters. There is no
+// history to compare against (youtube_channels only ever holds the latest
+// sync), so this never carries a delta.
+func (b *builder) youtubeSummary() *YouTubeSummary {
+	if b.err != nil {
+		return nil
+	}
+	var channelCount int
+	if b.fail(b.q.QueryRowContext(b.ctx, `SELECT count(*) FROM google_resources WHERE workspace_id = $1 AND kind = 'yt_channel' AND enabled`, b.ws).Scan(&channelCount)) {
+		return nil
+	}
+	if channelCount == 0 {
+		return nil
+	}
+	y := &YouTubeSummary{ChannelsCount: channelCount}
+	var views, subs sql.NullInt64
+	row := b.q.QueryRowContext(b.ctx, `
+		SELECT
+		  (SELECT sum((y.payload->'totals'->>'views')::bigint) FROM youtube_analytics y
+		     JOIN google_resources r ON r.workspace_id = y.workspace_id AND r.id = y.resource_id
+		     WHERE r.workspace_id = $1 AND r.kind = 'yt_channel' AND r.enabled AND y.scope = 'channel' AND y.days = 28),
+		  (SELECT sum(CASE WHEN c.subscribers_hidden THEN NULL ELSE c.subscriber_count END) FROM youtube_channels c
+		     JOIN google_resources r ON r.workspace_id = c.workspace_id AND r.id = c.resource_id
+		     WHERE r.workspace_id = $1 AND r.kind = 'yt_channel' AND r.enabled)`, b.ws)
+	if b.fail(row.Scan(&views, &subs)) {
+		return nil
+	}
+	if views.Valid {
+		y.Views28 = &views.Int64
+	}
+	if subs.Valid {
+		y.Subscribers = &subs.Int64
+	}
+	return y
+}
+
+// trafficDaily is the traffic-over-time chart: GA4 users/sessions and Search
+// Console clicks, one row per day, summed across enabled sources. A day with
+// no row at all for a source (nothing fetched that far back, or a brand new
+// property with no data yet) is null — the same "never a fake number" rule
+// as everything else this card shows.
+func (b *builder) trafficDaily(start, end time.Time) []TrafficDay {
+	list := []TrafficDay{}
+	b.each(`
+		SELECT d::date,
+		  (SELECT sum(g.users) FROM ga4_daily g JOIN google_resources r ON r.workspace_id = g.workspace_id AND r.id = g.resource_id
+		     WHERE r.workspace_id = $1 AND r.kind = 'ga4_property' AND r.enabled AND g.day = d::date),
+		  (SELECT sum(g.sessions) FROM ga4_daily g JOIN google_resources r ON r.workspace_id = g.workspace_id AND r.id = g.resource_id
+		     WHERE r.workspace_id = $1 AND r.kind = 'ga4_property' AND r.enabled AND g.day = d::date),
+		  (SELECT sum(g.clicks) FROM gsc_search_totals_daily g JOIN google_resources r ON r.workspace_id = g.workspace_id AND r.id = g.resource_id
+		     WHERE r.workspace_id = $1 AND r.kind = 'gsc_site' AND r.enabled AND g.date = d::date)
+		FROM generate_series($2::date, $3::date, interval '1 day') d
+		ORDER BY d`, []any{ymd(start), ymd(end)}, func(r *sql.Rows) error {
+		var day time.Time
+		var td TrafficDay
+		var users, sessions, clicks sql.NullInt64
+		if err := r.Scan(&day, &users, &sessions, &clicks); err != nil {
+			return err
+		}
+		td.Date = day.Format("2006-01-02")
+		if users.Valid {
+			td.Users = &users.Int64
+		}
+		if sessions.Valid {
+			td.Sessions = &sessions.Int64
+		}
+		if clicks.Valid {
+			td.Clicks = &clicks.Int64
+		}
+		list = append(list, td)
+		return nil
+	})
+	return list
+}
+
+// topProperties picks the top 5 GA4 properties by users, in memory: traffic()
+// already has the whole (short) list loaded, so this needs no extra query.
+// A property never fetched sorts last, not first.
+func topProperties(props []TrafficProperty) []TopProperty {
+	sorted := make([]TrafficProperty, len(props))
+	copy(sorted, props)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		ui, uj := sorted[i].Users, sorted[j].Users
+		if ui == nil && uj == nil {
+			return false
+		}
+		if ui == nil {
+			return false
+		}
+		if uj == nil {
+			return true
+		}
+		return *ui > *uj
+	})
+	if len(sorted) > 5 {
+		sorted = sorted[:5]
+	}
+	out := make([]TopProperty, len(sorted))
+	for i, p := range sorted {
+		out[i] = TopProperty{ResourceID: p.ResourceID, Name: p.Name, Kind: "ga4_property", Users: p.Users}
+	}
+	return out
+}
+
+// leadsDaily zero-fills a lead-count-per-day series over [start, end], in the
+// workspace's own time zone.
+func (b *builder) leadsDaily(tz string, start, end time.Time) []CountDay {
+	list := []CountDay{}
+	b.each(`
+		SELECT d::date, count(l.id)
+		FROM generate_series($2::date, $3::date, interval '1 day') d
+		LEFT JOIN leads l ON l.workspace_id = $1 AND (l.created_at AT TIME ZONE $4::text)::date = d::date
+		GROUP BY d ORDER BY d`, []any{ymd(start), ymd(end), tz}, func(r *sql.Rows) error {
+		var day time.Time
+		var n int64
+		if err := r.Scan(&day, &n); err != nil {
+			return err
+		}
+		list = append(list, CountDay{Date: day.Format("2006-01-02"), Count: n})
+		return nil
+	})
+	return list
+}
+
+// conversationsDaily zero-fills a conversations-started-per-day series, split
+// by channel, over [start, end], in the workspace's own time zone.
+func (b *builder) conversationsDaily(tz string, start, end time.Time) []ConversationDay {
+	list := []ConversationDay{}
+	b.each(`
+		SELECT d::date,
+		       count(c.id) FILTER (WHERE c.channel = 'chat'),
+		       count(c.id) FILTER (WHERE c.channel = 'email'),
+		       count(c.id) FILTER (WHERE c.channel = 'whatsapp')
+		FROM generate_series($2::date, $3::date, interval '1 day') d
+		LEFT JOIN conversations c ON c.workspace_id = $1 AND (c.created_at AT TIME ZONE $4::text)::date = d::date
+		GROUP BY d ORDER BY d`, []any{ymd(start), ymd(end), tz}, func(r *sql.Rows) error {
+		var day time.Time
+		var cd ConversationDay
+		if err := r.Scan(&day, &cd.Chat, &cd.Email, &cd.WhatsApp); err != nil {
+			return err
+		}
+		cd.Date = day.Format("2006-01-02")
+		list = append(list, cd)
+		return nil
+	})
+	return list
 }
 
 // youtube reads each enabled channel. nil when none is enabled.
