@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -173,7 +174,7 @@ func attachAuditTriggers(ctx context.Context, db *sql.DB, logf func(string, ...a
 
 func applyDir(ctx context.Context, db *sql.DB, dir string, logf func(string, ...any)) error {
 	files, _ := filepath.Glob(filepath.Join(dir, "*.sql"))
-	sort.Strings(files)
+	sortMigrations(files)
 	for _, f := range files {
 		b, err := os.ReadFile(f)
 		if err != nil {
@@ -185,6 +186,35 @@ func applyDir(ctx context.Context, db *sql.DB, dir string, logf func(string, ...
 		logf("applied %s", filepath.Base(f))
 	}
 	return nil
+}
+
+// sortMigrations orders files by their leading number, not as text: "115_x" runs
+// after "96_y", which a plain string sort gets backwards once numbers pass 99.
+// Files without a number keep their text order, after the numbered ones.
+func sortMigrations(files []string) {
+	num := func(f string) (int, bool) {
+		base := filepath.Base(f)
+		i := 0
+		for i < len(base) && base[i] >= '0' && base[i] <= '9' {
+			i++
+		}
+		if i == 0 {
+			return 0, false
+		}
+		n, err := strconv.Atoi(base[:i])
+		return n, err == nil
+	}
+	sort.SliceStable(files, func(a, b int) bool {
+		na, oka := num(files[a])
+		nb, okb := num(files[b])
+		switch {
+		case oka && okb && na != nb:
+			return na < nb
+		case oka != okb:
+			return oka
+		}
+		return filepath.Base(files[a]) < filepath.Base(files[b])
+	})
 }
 
 // ensureAppRole creates/updates the role named in APP_DATABASE_URL: login,
