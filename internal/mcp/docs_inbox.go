@@ -27,15 +27,18 @@ const (
 
 var docsInbox = map[string]ToolDoc{
 	"list_conversations": {
-		AR: "صندوق الوارد المشترك — محادثات نافذة الدردشة والبريد وواتساب — الأحدث أولًا، مع عدد غير المقروء. " +
-			"يمكن التصفية حسب status (open أو snoozed أو closed) وchannel (chat أو email أو whatsapp) وunread وcontact_id، " +
+		AR: "صندوق الوارد المشترك — محادثات الدردشة والبريد وواتساب وأي قناة أخرى متصلة — الأحدث أولًا، مع عدد غير المقروء " +
+			"وchannel_counts (MH-568: إجمالي كل قناة وعدد غير المقروء فيها، مُصفّاة بنفس status وq المستخدمَين في هذا الاستدعاء، " +
+			"لمقارنة القنوات ببعضها قبل اختيار واحدة). يمكن التصفية حسب status (open أو snoozed أو closed) وchannel (أي قيمة " +
+			"تذكرها channel_counts في الرد — القائمة تكبر مع اتصال قنوات جديدة، فهي ليست قائمة ثابتة) وunread وcontact_id، " +
 			"وmailbox_id (للبريد فقط: صندوق بريد بعينه من list_mailboxes)، أو البحث النصي الكامل عبر q في اسم العميل وبريده وهاتفه " +
 			"وفي الموضوع وفي نص كل رسالة في المحادثة، لا في المعاينة فقط. تحمل الصفحة limit محادثة على الأكثر؛ وإذا عادت next_cursor " +
 			"بقيمة فمرّرها في cursor لتحصل على الصفحة التالية — وهو التمرير اللانهائي نفسه في صفحة الوارد. تحمل كل محادثة معرّفها id " +
 			"الذي تأخذه get_conversation وreply وclose_conversation وassign_conversation.",
 		Example: map[string]any{"status": "open", "limit": 2},
 		Result: `{"conversations":[` + inboxExWhatsApp + `,` + inboxExChat + `],"count":2,` +
-			`"next_cursor":"MjAyNi0wOS0yM1QxMTo0MjozMFp8YTRlOGIyYzY","unread_count":1}`,
+			`"next_cursor":"MjAyNi0wOS0yM1QxMTo0MjozMFp8YTRlOGIyYzY","unread_count":1,` +
+			`"channel_counts":[{"channel":"chat","total":1,"unread":0},{"channel":"email","total":0,"unread":0},{"channel":"whatsapp","total":1,"unread":1}]}`,
 	},
 	"get_conversation": {
 		AR: "محادثة واحدة كاملة: من هو العميل (الاسم والبريد والهاتف ومعرّف جهة الاتصال المرتبطة contact_id)، وقناتها وحالتها والمسؤول عنها، " +
@@ -271,6 +274,7 @@ var argsARInbox = map[string]string{
 	"The draft campaign's exact subject":                                                                                  "الموضوع الدقيق لمسودة الحملة",
 
 	// inbox
+	"chat, email, whatsapp, telegram, slack, discord, or any other channel this workspace has (channel_counts on the response lists them)": "chat أو email أو whatsapp أو telegram أو slack أو discord أو أي قناة أخرى متصلة بهذا المساحة (تذكرها channel_counts في الرد)",
 	"Only conversations linked to this CRM contact":                                            "المحادثات المرتبطة بجهة الاتصال هذه في إدارة العملاء فقط",
 	"At most this many (default 50, max 200)":                                                  "هذا العدد على الأكثر (50 افتراضيًا، و200 حدًّا أقصى)",
 	"Search the customer's name, email and phone and the subject":                              "البحث في اسم العميل وبريده وهاتفه وفي الموضوع",

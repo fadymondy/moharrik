@@ -2,7 +2,21 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ChevronUpIcon, EllipsisVerticalIcon, MessageSquareIcon } from "lucide-react"
+import {
+  ChevronUpIcon,
+  EllipsisVerticalIcon,
+  FacebookIcon,
+  GlobeIcon,
+  HashIcon,
+  InstagramIcon,
+  LinkedinIcon,
+  MailIcon,
+  MessageCircleIcon,
+  MessageSquareIcon,
+  SendIcon,
+  SlackIcon,
+  type LucideIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
@@ -20,13 +34,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MarkdownEditor } from "@/components/campaigns/markdown-editor"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type Conversation, type ConversationStatus, type InboxMessage, type ThreadPage } from "@/lib/api"
+import { api, ApiError, type ChannelCount, type Conversation, type ConversationStatus, type InboxMessage, type ThreadPage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { renderMarkdownPreview } from "@/lib/markdown"
 import { useSWRConfig } from "swr"
 
 import { useWorkspaceEvents } from "@/lib/events"
-import { useConversation, useConversationPages } from "@/lib/queries"
+import { useConversation, useConversationPages, useMailboxes } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, BdiBlock } from "@/components/bidi"
 
@@ -34,6 +48,35 @@ const statusVariant: Record<ConversationStatus, "default" | "secondary" | "outli
   open: "default",
   snoozed: "secondary",
   closed: "outline",
+}
+
+// Channel tabs are data-driven (MH-568): channel_counts on the list response
+// names whatever channels this workspace actually has, which grows as other
+// batches connect telegram/slack/discord and workflow feeds. This map is only
+// a nicer icon for the channels this build happens to know about — an
+// unlisted one still gets a tab, just with GlobeIcon.
+const channelIcons: Record<string, LucideIcon> = {
+  chat: MessageSquareIcon,
+  email: MailIcon,
+  whatsapp: MessageCircleIcon,
+  telegram: SendIcon,
+  slack: SlackIcon,
+  discord: HashIcon,
+  facebook: FacebookIcon,
+  linkedin: LinkedinIcon,
+  instagram: InstagramIcon,
+}
+function channelIcon(channel: string): LucideIcon {
+  return channelIcons[channel] ?? GlobeIcon
+}
+
+// t() falls back to the raw key when a translation is missing (web/lib/i18n.tsx)
+// — used here on purpose: a channel this build has no inbox.channel.<x> string
+// for still gets a readable, capitalised label instead of the literal key.
+function channelLabel(channel: string, t: (key: string) => string): string {
+  const key = `inbox.channel.${channel}`
+  const translated = t(key)
+  return translated === key ? channel.charAt(0).toUpperCase() + channel.slice(1) : translated
 }
 
 export default function InboxPage() {
@@ -61,6 +104,28 @@ export default function InboxPage() {
   const linkedUnread = params.get("unread") === "1"
   const [status, setStatus] = useState(() => (params.get("c") || linkedUnread ? "" : "open"))
   const [unread, setUnread] = useState(linkedUnread)
+
+  // Channel tabs (MH-568): kept in the URL (?channel=) like ?c= and ?q=, so a
+  // reload or a shared link keeps the tab you were on. Choosing a channel other
+  // than email drops a stale ?mailbox=, since that sub-filter only means
+  // anything under Email.
+  const channel = params.get("channel") ?? ""
+  function setChannel(next: string) {
+    const p = new URLSearchParams(params.toString())
+    if (next) p.set("channel", next)
+    else p.delete("channel")
+    if (next !== "email") p.delete("mailbox")
+    const qs = p.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
+  const mailboxFilter = params.get("mailbox") ?? ""
+  function setMailboxFilter(next: string) {
+    const p = new URLSearchParams(params.toString())
+    if (next) p.set("mailbox", next)
+    else p.delete("mailbox")
+    const qs = p.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
   // The search term lives in the URL too (?q=, MH-556), the same reason `c` does:
   // a search someone is looking at survives a reload or a shared link.
   const [q, setQ] = useState(() => params.get("q") ?? "")
@@ -77,11 +142,25 @@ export default function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
 
-  const pages = useConversationPages(ws.id, { status: status || undefined, unread, q: params.get("q") ?? undefined })
+  const pages = useConversationPages(ws.id, {
+    status: status || undefined,
+    unread,
+    q: params.get("q") ?? undefined,
+    channel: channel || undefined,
+    // Only meaningful under Email (MH-555); dropped everywhere else so a
+    // leftover value can never silently narrow another channel's list.
+    mailbox_id: channel === "email" ? mailboxFilter || undefined : undefined,
+  })
   const list = { error: pages.error, data: pages.data?.[0], mutate: pages.mutate }
   const items = (pages.data ?? []).flatMap((p) => p.conversations)
   const hasMore = !!pages.data?.[pages.data.length - 1]?.next_cursor
   const loadingMore = pages.isValidating && pages.size > 1
+  const channelCounts: ChannelCount[] = list.data?.channel_counts ?? []
+
+  // Mailboxes (MH-555): the sub-filter under Email only earns its place when
+  // there is more than one to choose between.
+  const mailboxes = useMailboxes(ws.id)
+  const mailboxOpts = mailboxes.data?.mailboxes ?? []
 
   // No timer: the API tells this tab when a message actually arrives, and the
   // affected thread is revalidated by key so an open conversation updates too.
@@ -127,6 +206,16 @@ export default function InboxPage() {
         return
       }
       if (isTyping(e.target)) return
+      // Cycle channel tabs (MH-568): [ / ] step through All + whatever
+      // channel_counts lists, same order the tab strip renders them in.
+      if (e.key === "[" || e.key === "]") {
+        e.preventDefault()
+        const order = ["", ...channelCounts.map((c) => c.channel)]
+        const i = order.indexOf(channel)
+        const next = e.key === "]" ? order[(i + 1 + order.length) % order.length] : order[(i - 1 + order.length) % order.length]
+        setChannel(next)
+        return
+      }
       if (items.length === 0) return
       if (e.key === "j" || e.key === "ArrowDown" || e.key === "n") {
         e.preventDefault()
@@ -164,10 +253,47 @@ export default function InboxPage() {
         description={t("inbox.hint")}
       />
 
+      {/* Channel tabs (MH-568): data-driven from channel_counts, not a fixed
+          list — a channel this workspace has never had a conversation on or a
+          connection for gets no tab at all. overflow-x-auto + no wrap on the
+          list so on a phone the strip scrolls sideways instead of wrapping. */}
+      {channelCounts.length > 0 ? (
+        <div className="overflow-x-auto px-6 pb-2">
+          <Tabs value={channel || "all"} onValueChange={(v) => setChannel(v === "all" ? "" : String(v))}>
+            <TabsList variant="line" className="w-max">
+              <TabsTrigger value="all" data-channel-tab="all">
+                {t("inbox.channel.all")}
+              </TabsTrigger>
+              {channelCounts.map((c) => {
+                const Icon = channelIcon(c.channel)
+                return (
+                  <TabsTrigger key={c.channel} value={c.channel} data-channel-tab={c.channel}>
+                    <Icon />
+                    {channelLabel(c.channel, t)}
+                    {c.unread ? <Badge variant="secondary">{c.unread}</Badge> : null}
+                  </TabsTrigger>
+                )
+              })}
+            </TabsList>
+          </Tabs>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2 px-6 pb-4" role="group" aria-label={t("inbox.filters")}>
         <div className="w-40">
           <PickSelect id="inbox-status" value={status} onChange={setStatus} options={statusOpts} noneLabel={t("inbox.allStatuses")} />
         </div>
+        {channel === "email" && mailboxOpts.length > 1 ? (
+          <div className="w-44">
+            <PickSelect
+              id="inbox-mailbox"
+              value={mailboxFilter}
+              onChange={setMailboxFilter}
+              options={mailboxOpts.map((m) => ({ value: m.id, label: m.name }))}
+              noneLabel={t("inbox.mailbox.all")}
+            />
+          </div>
+        ) : null}
         <Button type="button" size="sm" variant={unread ? "default" : "outline"} aria-pressed={unread} onClick={() => setUnread((v) => !v)} data-filter="unread">
           {t("inbox.filterUnread")}
           {list.data?.unread_count ? ` (${list.data.unread_count})` : ""}

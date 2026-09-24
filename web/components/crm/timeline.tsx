@@ -311,7 +311,11 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
 }
 
 
-const channelIcon = { chat: MessageSquareIcon, email: MailIcon, whatsapp: MessageCircleIcon }
+// Record<string, ...> on purpose (MH-568): ConversationChannel is no longer a
+// closed union, so a channel this map doesn't name (telegram, slack, a
+// workflow feed) falls through to the MessageSquareIcon default below rather
+// than failing to typecheck.
+const channelIcon: Record<string, typeof MessageSquareIcon> = { chat: MessageSquareIcon, email: MailIcon, whatsapp: MessageCircleIcon }
 
 /** An inbox conversation on a CRM timeline (MH-379): who, where, how much, and the way back to the thread. */
 function ConversationItem({ c, target }: { c: ConversationRef; target: Target }) {

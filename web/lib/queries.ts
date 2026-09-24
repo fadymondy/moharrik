@@ -24,6 +24,7 @@ import {
   type ImportSourceInfo,
   type ImportItem,
   type ImportJob,
+  type ChannelCount,
   type WhatsAppLink,
   type ContactWhatsApp,
   type WhatsAppNotify,
@@ -384,7 +385,13 @@ export type ConversationFilter = {
   q?: string
 }
 
-type ConversationPage = { conversations: Conversation[]; unread_count: number; next_cursor?: string }
+type ConversationPage = {
+  conversations: Conversation[]
+  unread_count: number
+  next_cursor?: string
+  /** One row per channel this workspace has a conversation on or a connection for (MH-568). */
+  channel_counts: ChannelCount[]
+}
 
 function conversationsBase(filter: ConversationFilter) {
   const qs = new URLSearchParams()

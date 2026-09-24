@@ -611,8 +611,16 @@ export type CollectedSourceList = {
 
 // ── Inbox ───────────────────────────────────────────────────────────────
 
-export type ConversationChannel = "chat" | "email" | "whatsapp"
+// Not a closed union on purpose (MH-568): chat, email and whatsapp are the
+// channels this build knows about, but the API accepts and lists whatever a
+// workspace actually has — telegram/slack/discord and workflow-fed channels
+// from a parallel batch included — so a hardcoded union here would make the
+// frontend the thing standing in their way once they exist.
+export type ConversationChannel = string
 export type ConversationStatus = "open" | "snoozed" | "closed"
+
+/** One channel's conversation counts (MH-568) — ConversationPage.channel_counts. */
+export type ChannelCount = { channel: ConversationChannel; total: number; unread: number }
 
 export type Conversation = {
   id: string

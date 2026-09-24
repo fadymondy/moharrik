@@ -57,18 +57,18 @@ func InboxTools() []Tool {
 	return []Tool{
 		{
 			Name: "list_conversations",
-			Description: "The shared inbox — chat, email and WhatsApp conversations — most recent first, with the unread count. " +
-				"Filter by status (open, snoozed, closed), channel (chat, email, whatsapp), unread, contact_id, mailbox_id (MH-555, email only), " +
+			Description: "The shared inbox — chat, email, WhatsApp and any other connected channel — most recent first, with the unread count " +
+				"and channel_counts (MH-568: total and unread per channel, narrowed by status and q the same way this list is, so a caller can " +
+				"see what every channel holds before picking one). Filter by status (open, snoozed, closed), channel (any value channel_counts " +
+				"lists — the set grows as channels are connected, so it is not a fixed enum), unread, contact_id, mailbox_id (MH-555, email only), " +
 				"or q — a full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in each thread, " +
 				"not just its preview. A page holds at most limit; when next_cursor comes back non-empty, pass it as cursor to get the page after " +
 				"it — the same walk the inbox page's own infinite scroll does. Each conversation carries its id for get_conversation, reply, " +
 				"close_conversation and assign_conversation.",
 			Scope: "inbox:read",
 			InputSchema: schema(nil, map[string]any{
-				"status": map[string]any{"type": "string", "enum": []string{"open", "snoozed", "closed"}},
-				"channel": map[string]any{"type": "string", "enum": []string{
-					"chat", "email", "whatsapp", "telegram", "slack", "discord", "linkedin", "facebook", "instagram", "x",
-				}},
+				"status":     map[string]any{"type": "string", "enum": []string{"open", "snoozed", "closed"}},
+				"channel":    prop("string", "chat, email, whatsapp, telegram, slack, discord, or any other channel this workspace has (channel_counts on the response lists them)"),
 				"unread":     map[string]any{"type": "boolean", "description": "Only conversations nobody has opened since the customer last wrote"},
 				"contact_id": prop("string", "Only conversations linked to this CRM contact"),
 				"mailbox_id": prop("string", "Only email conversations on this mailbox (list_mailboxes shows ids)"),
@@ -104,7 +104,10 @@ func InboxTools() []Tool {
 				for _, c := range res.Conversations {
 					list = append(list, conversationSummary(c))
 				}
-				return jsonResult(map[string]any{"unread_count": res.UnreadCount, "count": len(list), "conversations": list, "next_cursor": res.NextCursor})
+				return jsonResult(map[string]any{
+					"unread_count": res.UnreadCount, "count": len(list), "conversations": list, "next_cursor": res.NextCursor,
+					"channel_counts": res.ChannelCounts,
+				})
 			},
 		},
 		{
