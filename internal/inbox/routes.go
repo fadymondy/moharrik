@@ -102,7 +102,7 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		Status    string `query:"status" enum:",open,snoozed,closed"`
 		Unread    bool   `query:"unread" doc:"Only conversations the team has not opened since the last inbound message."`
-		Channel   string `query:"channel" enum:",chat,email,whatsapp,telegram,slack,discord,linkedin,facebook,instagram,x"`
+		Channel   string `query:"channel" maxLength:"40" doc:"chat, email, whatsapp, telegram, slack, discord, or any other channel this workspace has (MH-568's channel_counts lists them); empty for every channel."`
 		ContactID string `query:"contact_id" doc:"Only conversations linked to this CRM contact."`
 		MailboxID string `query:"mailbox_id" doc:"Only email conversations on this mailbox (MH-555)."`
 		Q         string `query:"q" maxLength:"200" doc:"Full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in the thread."`

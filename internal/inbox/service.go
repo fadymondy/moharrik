@@ -58,6 +58,23 @@ type ConversationList struct {
 	Conversations []ConversationOut `json:"conversations"`
 	UnreadCount   int64             `json:"unread_count"`
 	NextCursor    string            `json:"next_cursor,omitempty" doc:"Fetches the next OLDER page. Empty when this page reaches the last conversation."`
+	// ChannelCounts is one row per channel the workspace has a conversation on
+	// OR a connection for (an enabled chat widget, an enabled mailbox, a linked
+	// WhatsApp number) — MH-568's channel tabs. total and unread are narrowed
+	// by the SAME status and q this call used, but never by channel, unread or
+	// mailbox_id themselves: the whole point is comparing channels against
+	// each other under the rest of the filters. Data-driven on purpose — a
+	// channel this build has never heard of (telegram, slack, a workflow feed)
+	// still gets counted and a tab, the moment a row names it.
+	ChannelCounts []ChannelCount `json:"channel_counts"`
+}
+
+// ChannelCount is one channel's conversation counts (MH-568). See
+// ConversationList.ChannelCounts for what total and unread are narrowed by.
+type ChannelCount struct {
+	Channel string `json:"channel"`
+	Total   int64  `json:"total"`
+	Unread  int64  `json:"unread"`
 }
 
 // ConversationPatch is a partial update. nil = unchanged; "" unassigns/unlinks.
@@ -81,9 +98,12 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	if f.Status != "" && !statuses[f.Status] {
 		return nil, huma.Error422UnprocessableEntity("status must be open, snoozed or closed")
 	}
-	if f.Channel != "" && !channelSet[f.Channel] {
-		return nil, huma.Error422UnprocessableEntity("channel must be chat, email or whatsapp")
-	}
+	// Channel is deliberately NOT checked against a fixed set: telegram,
+	// slack, discord and workflow-fed channels (MH-563/564) already exist on
+	// main, and a filter on one of them must work the moment a conversation
+	// exists on it, not the next time this package is redeployed. An unknown
+	// channel just matches nothing, the same as any other filter with no hits.
+	f.Channel = strings.TrimSpace(f.Channel)
 	wakeDue(ctx, a, s.WorkspaceID)
 	q := conversationSelect
 	args := []any{s.WorkspaceID}
@@ -156,7 +176,66 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM conversations WHERE workspace_id = $1 AND unread`, s.WorkspaceID).Scan(&res.UnreadCount); err != nil {
 		return nil, huma.Error500InternalServerError("could not count unread conversations")
 	}
+	cc, err := channelCounts(ctx, a.SQLDB, s.WorkspaceID, f.Status, f.Q)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not count conversations per channel")
+	}
+	res.ChannelCounts = cc
 	return res, nil
+}
+
+// channelCounts is every channel the workspace has a conversation on OR a
+// connection for, each with its total and unread count (MH-568). status and q
+// narrow the counts the same way they narrow ListConversations' own query;
+// channel, unread and mailbox_id do not — see ConversationList.ChannelCounts.
+//
+// "a connection" is deliberately loose: an enabled chat widget, an enabled
+// mailbox, or a WhatsApp number linked at any point (whatsapp.Status uses the
+// same test — a link that is currently reconnecting is still a channel worth
+// a tab). A channel with neither a connection nor a single conversation gets
+// no row at all, so the frontend never renders an empty tab for a channel
+// this workspace has nothing to do with.
+func channelCounts(ctx context.Context, db *sql.DB, wsID, status, q string) ([]ChannelCount, error) {
+	args := []any{wsID}
+	where := "workspace_id = $1"
+	if status != "" {
+		args = append(args, status)
+		where += " AND status = $" + strconv.Itoa(len(args))
+	}
+	if term := strings.TrimSpace(q); term != "" {
+		args = append(args, term)
+		n := strconv.Itoa(len(args))
+		where += ` AND (search @@ websearch_to_tsquery('simple', $` + n + `)
+			OR EXISTS (SELECT 1 FROM messages sm WHERE sm.workspace_id = conversations.workspace_id AND sm.conversation_id = conversations.id
+			           AND sm.search @@ websearch_to_tsquery('simple', $` + n + `)))`
+	}
+	rows, err := db.QueryContext(ctx, `
+		WITH counts AS (
+			SELECT channel, count(*) AS total, count(*) FILTER (WHERE unread) AS unread
+			FROM conversations WHERE `+where+` GROUP BY channel
+		), connected AS (
+			SELECT 'chat' AS channel WHERE EXISTS (SELECT 1 FROM chat_widgets WHERE workspace_id = $1 AND enabled)
+			UNION ALL
+			SELECT 'email' WHERE EXISTS (SELECT 1 FROM mailboxes WHERE workspace_id = $1 AND enabled)
+			UNION ALL
+			SELECT 'whatsapp' WHERE EXISTS (SELECT 1 FROM whatsapp_links WHERE workspace_id = $1)
+		)
+		SELECT coalesce(c.channel, n.channel), coalesce(c.total, 0), coalesce(c.unread, 0)
+		FROM counts c FULL OUTER JOIN connected n ON n.channel = c.channel
+		ORDER BY 1`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list := []ChannelCount{}
+	for rows.Next() {
+		var c ChannelCount
+		if err := rows.Scan(&c.Channel, &c.Total, &c.Unread); err != nil {
+			return nil, err
+		}
+		list = append(list, c)
+	}
+	return list, rows.Err()
 }
 
 // GetConversation reads one conversation and the newest page of its thread
