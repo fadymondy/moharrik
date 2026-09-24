@@ -25,6 +25,9 @@ import {
   type EvidencePage,
   type ResearchBudget,
   type ResearchSchedule,
+  type ProspectDetail,
+  type ProspectList,
+  type ProspectProfileOut,
   type ResearchList,
   type Activity,
   type Bell,
@@ -582,6 +585,16 @@ export const useCompanySuggestions = (id: string | null | undefined, status = "s
 
 export const useResearchSchedules = (id?: string | null) =>
   useScoped<{ schedules: ResearchSchedule[]; budget: ResearchBudget }>("/api/w/research-schedules", id)
+
+// ── Prospect discovery (MH-397) ──────────────────────────────────────────
+
+export const useProspectProfile = (id?: string | null) => useScoped<ProspectProfileOut>("/api/w/prospect-profile", id)
+
+export const useProspects = (id: string | null | undefined, status: string, q = "") =>
+  useScoped<ProspectList>(`/api/w/prospects${qs({ status, q })}`, id)
+
+export const useProspect = (id: string | null | undefined, prospectId?: string) =>
+  useScoped<ProspectDetail>(`/api/w/prospects/${encodeURIComponent(prospectId ?? "")}`, id, !!prospectId)
 
 // ── Integrations ────────────────────────────────────────────────────────
 

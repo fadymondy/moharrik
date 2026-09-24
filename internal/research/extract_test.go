@@ -171,3 +171,24 @@ func TestDescribedCompaniesAndDataSites(t *testing.T) {
 		t.Errorf("a careers page: %+v", pc)
 	}
 }
+
+func TestAdverbBeforeTheVerb(t *testing.T) {
+	if got, _ := companyIn("Egyptian fintech company Khazna has successfully raised $16 million in a pre-Series B round.", pageCo{}); got != "Khazna" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestPlacesAndPlainWordsAreNotCompanies(t *testing.T) {
+	for _, s := range []string{
+		"Egypt raised more venture funding than any other country in the region this quarter.",
+		"RAISE announced the top startups of the week in a new funding report.",
+		"Saudi Arabia launched a new fintech sandbox for payment startups.",
+	} {
+		if got, _ := companyIn(s, pageCo{}); got != "" {
+			t.Errorf("companyIn(%q) = %q, want none", s, got)
+		}
+	}
+	if got, _ := companyIn("Venture Garden raised $5 million for its payments platform.", pageCo{}); got != "Venture Garden" {
+		t.Errorf("a company whose name contains a generic word was dropped: %q", got)
+	}
+}

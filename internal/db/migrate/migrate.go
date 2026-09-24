@@ -44,6 +44,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"member_whatsapp", "member_whatsapp_events", "member_whatsapp_messages", "member_whatsapp_marks",
 	// the research evidence store (MH-388)
 	"research_evidence", "research_companies", "research_schedules", "research_settings",
+	// prospect discovery (MH-397)
+	"prospect_profiles", "prospects", "prospect_feedback", "prospect_drafts",
 }
 
 /*

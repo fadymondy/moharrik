@@ -1210,6 +1210,67 @@ export type ResearchSchedule = {
   created_at: string
 }
 
+// ── Prospect discovery (MH-397) ─────────────────────────────────────────
+
+export type ProspectProfile = {
+  offer: string
+  industries: string[]
+  keywords: string[]
+  regions: string[]
+  exclude_keywords: string[]
+  signal_weights: Record<string, number>
+  queries: string[]
+  enabled: boolean
+  cadence: "daily" | "weekly"
+  next_run_at: string
+  last_run_id: string
+  last_run_at: string | null
+  last_status: "" | "started" | "over_budget" | "busy" | "not_configured" | "failed" | "no_queries"
+  last_note: string
+  configured: boolean
+  effective_queries: string[]
+}
+
+export type ProspectProfileOut = { profile: ProspectProfile; can_search: boolean; can_summarise: boolean; budget: ResearchBudget }
+
+export type ProspectReason = {
+  dimension: "signals" | "fit" | "region" | "evidence" | "recency" | "excluded" | "feedback_down" | "feedback_up"
+  points: number
+  items: string[] | null
+  count: number
+  text: string
+}
+
+export type ProspectStatus = "new" | "accepted" | "rejected"
+
+export type Prospect = {
+  id: string
+  suggestion_id: string
+  name: string
+  domain: string
+  company_key: string
+  status: ProspectStatus
+  score: number
+  reasons: ProspectReason[]
+  signal_types: string[]
+  evidence_count: number
+  contact: { name: string; title: string; email: string; source_url: string }
+  crm_company_id: string
+  crm_contact_id: string
+  crm_deal_id: string
+  reject_reason: string
+  first_run_id: string
+  decided_at: string | null
+  scored_at: string
+  created_at: string
+}
+
+export type ProspectDraft = { id: string; locale: "en" | "ar"; subject: string; body: string; generator: string; evidence_ids: string[]; created_at: string }
+
+export type ProspectDetail = { prospect: Prospect; timeline: Evidence[]; drafts: ProspectDraft[] }
+
+export type ProspectList = { prospects: Prospect[]; counts: Record<ProspectStatus, number> }
+
 // ── Leads (MH-390) ──────────────────────────────────────────────────────
 
 export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "spam"

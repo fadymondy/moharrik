@@ -36,6 +36,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/notifications"
 	"github.com/fadymondy/moharrik/internal/overview"
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
+	"github.com/fadymondy/moharrik/internal/prospects"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/reports"
 	"github.com/fadymondy/moharrik/internal/research"
@@ -93,6 +94,9 @@ func Boot() *app.App {
 	// environment once. Each tier is independently optional, and a run says
 	// which ones it had rather than failing opaquely (MH-227).
 	researchEngine := research.NewEngine(k.Log)
+	// Discovery rides on research: settled discovery runs become prospects,
+	// and scheduled discovery runs on the research clock (MH-397).
+	prospects.Init(researchEngine)
 
 	// A fake-Google override that production ignores is still worth a line in
 	// the log: whoever set it expected it to do something (MH-439).
@@ -252,6 +256,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterExtension(api)
 	automation.RegisterPick(api, a, automation.Default())
 	research.Register(api, a, researchEngine)
+	prospects.Register(api, a, researchEngine) // prospect discovery (MH-397)
 	mcp.RegisterTokenRoutes(api, a)
 	mcp.RegisterGrantRoutes(api, a) // connected apps over OAuth (MH-391)
 	google.Register(api, a)

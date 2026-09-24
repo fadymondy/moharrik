@@ -137,9 +137,9 @@ var (
 	// "mylo hiring Full-Stack Engineer in Cairo | LinkedIn": the job boards'
 	// own title format names the employer before "hiring", in any case.
 	titleHiring = regexp.MustCompile(`(?i)^\s*(.{2,60}?)\s+(?:is\s+)?hiring\b`)
-	spaceRun   = regexp.MustCompile(`\s+`)
-	boilerRe   = regexp.MustCompile(`(?i)cookie|subscribe|sign up|sign in|log in|all rights reserved|privacy policy|terms of (use|service)|javascript|newsletter|jump to|skip to|share this|click here|read more|جميع الحقوق|اشترك|سياسه الخصوصيه`)
-	abbrevWord = set(`inc ltd co corp mr mrs ms dr st jr sr vs e.g i.e u.s u.k no fig etc approx dept`)
+	spaceRun    = regexp.MustCompile(`\s+`)
+	boilerRe    = regexp.MustCompile(`(?i)cookie|subscribe|sign up|sign in|log in|all rights reserved|privacy policy|terms of (use|service)|javascript|newsletter|jump to|skip to|share this|click here|read more|جميع الحقوق|اشترك|سياسه الخصوصيه`)
+	abbrevWord  = set(`inc ltd co corp mr mrs ms dr st jr sr vs e.g i.e u.s u.k no fig etc approx dept`)
 )
 
 // Sentences splits page text into clean candidate sentences.
@@ -348,7 +348,7 @@ func dedupeKey(q string) string {
 var (
 	// "Acme Pay raised…", "Nile Logistics has announced…": a capitalised name
 	// right before a news verb.
-	subjectVerb = regexp.MustCompile(`(?:^|[\s,;:(“"])((?:[A-Z][\w&'.-]*)(?:\s+(?:[A-Z][\w&'.-]*|of|and|&)){0,3})\s+(?:has\s+|have\s+|is\s+|was\s+|today\s+|recently\s+|officially\s+)?` +
+	subjectVerb = regexp.MustCompile(`(?:^|[\s,;:(“"])((?:[A-Z][\w&'.-]*)(?:\s+(?:[A-Z][\w&'.-]*|of|and|&)){0,3})\s+(?:has\s+|have\s+|is\s+|was\s+|today\s+|recently\s+|officially\s+)?(?:[a-z]+ly\s+)?` +
 		`(raised|raises|announced|announces|launched|launches|unveiled|unveils|introduced|introduces|hired|hires|hiring|appointed|appoints|named|names|expanded|expands|opened|opens|partnered|partners|signed|signs|secured|secures|acquired|acquires|closed|closes|released|releases|adopted|adopts|migrated|migrates|deployed|deploys|selected|selects|entered|enters)\b`)
 	// "Acme Ltd", "Nile Holdings".
 	legalName = regexp.MustCompile(`\b([A-Z][\w&'-]*(?:\s+[A-Z][\w&'-]*){0,3})\s+(Inc\.?|Ltd\.?|LLC|GmbH|Corp\.?|Corporation|Limited|PLC|S\.A\.E?\.?|Group|Holdings)\b`)
@@ -429,8 +429,29 @@ func cleanName(n string) string {
 	if len([]rune(n)) < 2 || strings.ToUpper(n) == n && len(n) <= 2 {
 		return ""
 	}
+	// A place or a plain word is not a company, however it is capitalised:
+	// "Egypt raises…", "RAISE: the week in funding".
+	generic := true
+	for _, w := range words {
+		lw := strings.ToLower(strings.Trim(w, "'’"))
+		if !notCompany[lw] && !enStop[lw] {
+			generic = false
+			break
+		}
+	}
+	if generic {
+		return ""
+	}
 	return n
 }
+
+// notCompany are words that name places, markets and kinds of news — never,
+// on their own, a company.
+var notCompany = set(`egypt egyptian cairo giza alexandria saudi arabia ksa uae emirates dubai abu dhabi riyadh jeddah qatar doha kuwait bahrain oman jordan
+morocco tunisia algeria lebanon iraq turkey kenya nigeria ghana africa african mena gcc middle east north gulf europe asia america us usa uk london
+global world international region regional market markets sector industry ecosystem government ministry
+raise raises raised funding fund funds round rounds seed series investment investments investor investors capital venture ventures
+startup startups company companies fintech fintechs business businesses news report reports update weekly daily the`)
 
 // pageCo is the company whose own site a page is on.
 type pageCo struct{ name, domain string }
@@ -681,3 +702,14 @@ func evidenceHash(quote, sourceURL string) string {
 }
 
 func round2(f float64) float64 { return float64(int(f*100+0.5)) / 100 }
+
+// Normalise and Stem are the matching forms extraction uses, for the
+// packages that score what research found (prospects, MH-397): the same
+// Arabic folding and English plural trimming, so a keyword matches there
+// exactly when it matches here.
+func Normalise(s string) string { return normalise(s) }
+
+func Stem(s string) string { return stem(normalise(s)) }
+
+// DedupeKey is how two quotes are compared for being the same line.
+func DedupeKey(q string) string { return dedupeKey(q) }

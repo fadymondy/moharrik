@@ -24,6 +24,7 @@ import {
   MailIcon,
   MessageSquarePlusIcon,
   PlusIcon,
+  RadarIcon,
   SearchCheckIcon,
   SearchIcon,
   TargetIcon,
@@ -365,6 +366,11 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       {can?.includes("research:read") ? (
         <L href={`${base}/research`} icon={<SearchCheckIcon />}>
           {t("nav.research")}
+        </L>
+      ) : null}
+      {can?.includes("research:read") ? (
+        <L href={`${base}/prospects`} icon={<RadarIcon />}>
+          {t("nav.prospects")}
         </L>
       ) : null}
       <L href={`${base}/notifications`} exact icon={<BellIcon />}>

@@ -498,7 +498,26 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	aIDs := []string{runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID}
+	// Prospects (MH-397): A's profile, a prospect on A's suggestion, a verdict
+	// on it and a draft — written directly, like the research rows above.
+	var prospectID, pfbID, pdraftID string
+	if _, err := a.SysDB.Exec(`INSERT INTO prospect_profiles (workspace_id, offer, keywords) VALUES ($1, $2, '{iso}')`, aID, marker+" offer"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO prospects (workspace_id, suggestion_id, score, contact_name) VALUES ($1, $2, 50, $3) RETURNING id`,
+		aID, suggID, marker+" Person").Scan(&prospectID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO prospect_feedback (workspace_id, prospect_id, verdict, reason) VALUES ($1, $2, 'rejected', $3) RETURNING id`,
+		aID, prospectID, marker+" reason").Scan(&pfbID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SysDB.QueryRow(`INSERT INTO prospect_drafts (workspace_id, prospect_id, body) VALUES ($1, $2, $3) RETURNING id`,
+		aID, prospectID, marker+" draft").Scan(&pdraftID); err != nil {
+		t.Fatal(err)
+	}
+
+	aIDs := []string{prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -514,6 +533,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"oauth_grants":   grantID,
 		"smtp-services":  smtpID,
 		"research":       runID, "company-suggestions": suggID, "research-schedules": rschedID,
+		"prospects": prospectID,
 	}
 
 	leaks := func(b []byte) string {
@@ -1022,7 +1042,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	subjects := []struct{ word, id string }{
 		{"conversation", convID}, {"notification", itemID}, {"webhook_source", srcID},
 		{"trending_topic", trendID}, {"trend_item", newsID}, {"trend_source", feedID}, {"contact", ctID},
-		{"company_suggestion", suggID}, {"research_schedule", rschedID}, {"compan", coID},
+		{"company_suggestion", suggID}, {"research_schedule", rschedID}, {"opportunit", prospectID}, {"compan", coID},
 		{"deal", dealID}, {"lead", leadID}, {"whatsapp", ctID},
 	}
 	toolsSwept := 0
@@ -1115,6 +1135,16 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	if suggStatus != "suggested" || rschedName != marker+" schedule" || rschedEnabled || evLeft != 1 || aCompanies != 0 {
 		t.Errorf("A's research changed under B's MCP sweep: suggestion=%q schedule=%q/%v evidence=%d crm=%d",
 			suggStatus, rschedName, rschedEnabled, evLeft, aCompanies)
+	}
+	// A's prospect is still waiting, with only its own draft, and A's profile
+	// is A's.
+	var pStatus, pOffer string
+	var pDrafts int
+	_ = a.SysDB.QueryRow(`SELECT status FROM prospects WHERE id = $1`, prospectID).Scan(&pStatus)
+	_ = a.SysDB.QueryRow(`SELECT count(*) FROM prospect_drafts WHERE prospect_id = $1`, prospectID).Scan(&pDrafts)
+	_ = a.SysDB.QueryRow(`SELECT offer FROM prospect_profiles WHERE workspace_id = $1`, aID).Scan(&pOffer)
+	if pStatus != "new" || pDrafts != 1 || pOffer != marker+" offer" {
+		t.Errorf("A's prospects changed under B's MCP sweep: status=%q drafts=%d offer=%q", pStatus, pDrafts, pOffer)
 	}
 	if convStatus != "open" || convAssignee != nil || itemSaved != nil || !srcEnabled || newsSaved != nil || !feedEnabled || ctTitle != "" {
 		t.Errorf("A's rows changed under B's MCP sweep: conv=%s/%v item saved=%v source enabled=%v news saved=%v feed enabled=%v contact title=%q",
