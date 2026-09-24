@@ -43,6 +43,7 @@ import {
   type OverviewToday,
   type OverviewTrends,
   type SetupKey,
+  phoneLabel,
 } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat, numberFormat, relativeTimeFormat } from "@/lib/i18n-locale"
@@ -447,7 +448,7 @@ export function InboxCard({ items, unread, base, canAddWidget }: { items: Overvi
               <span className="flex min-w-0 items-center gap-2">
                 {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" role="img" aria-label={t("inbox.unread")} /> : null}
                 <span className={cn("bidi-block truncate text-sm text-grid-fg", c.unread && "font-medium")} dir="auto">
-                  {c.customer_name || c.customer_email || t("inbox.anonymous")}
+                  {c.customer_name || c.customer_email || phoneLabel(c.customer_phone) || t("inbox.anonymous")}
                 </span>
                 <Badge variant="outline" className="ms-auto shrink-0">{t(`inbox.channel.${c.channel}`)}</Badge>
               </span>

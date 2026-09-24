@@ -307,6 +307,16 @@ export function contactIdentity(c: { email: string; phone: string; handle: strin
   return c.email || c.phone || c.handle
 }
 
+/**
+ * A phone as a name stands in for a thread with none: WhatsApp filing stores
+ * digits only, so it gets its "+" back. "" when there is no phone.
+ */
+export function phoneLabel(phone: string | null | undefined): string {
+  const p = (phone ?? "").trim()
+  if (!p) return ""
+  return /^\d+$/.test(p) ? `+${p}` : p
+}
+
 export type CampaignStatus = "draft" | "sending" | "sent" | "failed"
 
 export type CampaignChannel = "email" | "whatsapp"
@@ -2120,6 +2130,7 @@ export type OverviewConversation = {
   status: ConversationStatus
   customer_name: string
   customer_email: string
+  customer_phone: string
   subject: string
   unread: boolean
   preview: string

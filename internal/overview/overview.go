@@ -302,6 +302,7 @@ type ConversationItem struct {
 	Status        string    `json:"status" enum:"open,snoozed,closed"`
 	CustomerName  string    `json:"customer_name"`
 	CustomerEmail string    `json:"customer_email"`
+	CustomerPhone string    `json:"customer_phone"`
 	Subject       string    `json:"subject"`
 	Unread        bool      `json:"unread"`
 	Preview       string    `json:"preview" doc:"The last message, trimmed to 140 characters."`
@@ -572,13 +573,13 @@ func (b *builder) latestLeads() []LeadItem {
 func (b *builder) latestConversations() []ConversationItem {
 	list := []ConversationItem{}
 	b.each(`
-		SELECT c.id, c.channel, c.status, c.customer_name, c.customer_email, c.subject, c.unread, c.last_message_at,
+		SELECT c.id, c.channel, c.status, c.customer_name, c.customer_email, c.customer_phone, c.subject, c.unread, c.last_message_at,
 		       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
 		                 ORDER BY m.created_at DESC LIMIT 1), '')
 		FROM conversations c WHERE c.workspace_id = $1
 		ORDER BY c.unread DESC, c.last_message_at DESC, c.id LIMIT $2`, []any{Latest}, func(r *sql.Rows) error {
 		var c ConversationItem
-		if err := r.Scan(&c.ID, &c.Channel, &c.Status, &c.CustomerName, &c.CustomerEmail, &c.Subject, &c.Unread, &c.LastMessageAt, &c.Preview); err != nil {
+		if err := r.Scan(&c.ID, &c.Channel, &c.Status, &c.CustomerName, &c.CustomerEmail, &c.CustomerPhone, &c.Subject, &c.Unread, &c.LastMessageAt, &c.Preview); err != nil {
 			return err
 		}
 		c.Preview = trim(c.Preview, 140)

@@ -34,7 +34,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MarkdownEditor } from "@/components/campaigns/markdown-editor"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type ChannelCount, type Conversation, type ConversationStatus, type InboxMessage, type ThreadPage } from "@/lib/api"
+import { api, ApiError, phoneLabel, type ChannelCount, type Conversation, type ConversationStatus, type InboxMessage, type ThreadPage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { renderMarkdownPreview } from "@/lib/markdown"
 import { useSWRConfig } from "swr"
@@ -369,7 +369,7 @@ function ConversationRow({
 }) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
-  const who = c.customer_name || c.customer_email || t("inbox.anonymous")
+  const who = c.customer_name || c.customer_email || phoneLabel(c.customer_phone) || t("inbox.anonymous")
   const [menuOpen, setMenuOpen] = useState(false)
   const longPress = useRef<number | null>(null)
 
