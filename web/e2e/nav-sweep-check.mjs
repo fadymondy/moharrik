@@ -32,7 +32,10 @@ const GROUPS = [
   { key: "research", items: ["research/runs", "research/evidence", "research/schedules", "prospects"] },
   { key: "insights", items: ["trends", "trends/sources", "analytics", "search-console", "youtube"] }, // the owner role can see all five
   { key: "notifications", items: ["notifications", "notifications/sources"] },
-  { key: "settings", items: ["settings/email", "settings/icp", "settings/integrations", "settings/mcp", "settings/audit", "settings/delivery"] }, // the owner role can see all six
+  {
+    key: "settings",
+    items: ["settings/email", "settings/icp", "settings/integrations", "settings/mcp", "settings/automation-profile", "settings/audit", "settings/delivery"],
+  }, // the owner role can see all seven
 ]
 const TOP_LEVEL = ["", "members"] // "" = Overview
 
