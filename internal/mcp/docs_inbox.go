@@ -1,5 +1,7 @@
 package mcp
 
+import "strings"
+
 // Docs for the inbox, WhatsApp and campaign tools (user_tools_inbox.go,
 // user_tools_marketing.go). See docs.go.
 
@@ -12,13 +14,13 @@ const (
 	inboxExWhatsApp = `{"assignee_user_id":"7f3e9a12-6b4c-4d1e-8f2a-1b5c9d0e3f47","channel":"whatsapp","closed_at":null,` +
 		`"contact":` + inboxExContact + `,"contact_id":"8d2f4a61-0c7e-4b93-b5a1-6e9c3d7f2b18","contact_link":"auto",` +
 		`"customer_email":"","customer_name":"Mona Adel","customer_phone":"201000000000","deal":null,` +
-		`"id":"3c9a7e21-4b6d-4f80-a2c5-9e1d7b3f6a04","last_message_at":"2026-09-23T14:05:12Z","message_count":6,` +
+		`"id":"3c9a7e21-4b6d-4f80-a2c5-9e1d7b3f6a04","last_message_at":"2026-09-23T14:05:12Z","mailbox_id":null,"message_count":6,` +
 		`"preview":"Do you deliver to Alexandria?","snoozed_until":null,"status":"open",` +
 		`"subject":"Hello, I saw your catalogue","unread":true}`
 
 	inboxExChat = `{"assignee_user_id":null,"channel":"chat","closed_at":null,"contact":null,"contact_id":null,"contact_link":"",` +
 		`"customer_email":"karim@mail.example","customer_name":"Karim Nabil","customer_phone":"","deal":null,` +
-		`"id":"a4e8b2c6-1d3f-4a5b-8c7d-9e0f1a2b3c4d","last_message_at":"2026-09-23T11:42:30Z","message_count":2,` +
+		`"id":"a4e8b2c6-1d3f-4a5b-8c7d-9e0f1a2b3c4d","last_message_at":"2026-09-23T11:42:30Z","mailbox_id":null,"message_count":2,` +
 		`"preview":"Does the Growth plan include WhatsApp?","snoozed_until":null,"status":"open",` +
 		`"subject":"Pricing question","unread":false}`
 )
@@ -27,10 +29,13 @@ var docsInbox = map[string]ToolDoc{
 	"list_conversations": {
 		AR: "صندوق الوارد المشترك — محادثات نافذة الدردشة والبريد وواتساب — الأحدث أولًا، مع عدد غير المقروء. " +
 			"يمكن التصفية حسب status (open أو snoozed أو closed) وchannel (chat أو email أو whatsapp) وunread وcontact_id، " +
-			"أو البحث عبر q في اسم العميل أو بريده أو هاتفه أو في الموضوع. تحمل كل محادثة معرّفها id الذي تأخذه " +
-			"get_conversation وreply وclose_conversation وassign_conversation.",
+			"وmailbox_id (للبريد فقط: صندوق بريد بعينه من list_mailboxes)، أو البحث النصي الكامل عبر q في اسم العميل وبريده وهاتفه " +
+			"وفي الموضوع وفي نص كل رسالة في المحادثة، لا في المعاينة فقط. تحمل الصفحة limit محادثة على الأكثر؛ وإذا عادت next_cursor " +
+			"بقيمة فمرّرها في cursor لتحصل على الصفحة التالية — وهو التمرير اللانهائي نفسه في صفحة الوارد. تحمل كل محادثة معرّفها id " +
+			"الذي تأخذه get_conversation وreply وclose_conversation وassign_conversation.",
 		Example: map[string]any{"status": "open", "limit": 2},
-		Result:  `{"conversations":[` + inboxExWhatsApp + `,` + inboxExChat + `],"count":2,"unread_count":1}`,
+		Result: `{"conversations":[` + inboxExWhatsApp + `,` + inboxExChat + `],"count":2,` +
+			`"next_cursor":"MjAyNi0wOS0yM1QxMTo0MjozMFp8YTRlOGIyYzY","unread_count":1}`,
 	},
 	"get_conversation": {
 		AR: "محادثة واحدة كاملة: من هو العميل (الاسم والبريد والهاتف ومعرّف جهة الاتصال المرتبطة contact_id)، وقناتها وحالتها والمسؤول عنها، " +
@@ -62,6 +67,12 @@ var docsInbox = map[string]ToolDoc{
 			`"direction":"out","author_user_id":"7f3e9a12-6b4c-4d1e-8f2a-1b5c9d0e3f47","author_email":"sara@mail.example",` +
 			`"body":"Yes, we deliver to Alexandria within 2 working days. Shall I send you the order form?",` +
 			`"created_at":"2026-09-24T09:15:44Z"},"sent":true}`,
+	},
+	"mark_conversation": {
+		AR: "تعليم محادثة كمقروءة أو غير مقروءة — الإجراء نفسه في قائمة السياق بصفحة الوارد (النقر بالزر الأيمن، أو زر ⋯، " +
+			"أو الضغط المطوّل على صف المحادثة في شاشات اللمس). unread = true تجعلها غير مقروءة، وfalse تجعلها مقروءة.",
+		Example: map[string]any{"id": "3c9a7e21-4b6d-4f80-a2c5-9e1d7b3f6a04", "unread": false},
+		Result:  `{"conversation":` + strings.Replace(inboxExWhatsApp, `"unread":true`, `"unread":false`, 1) + `}`,
 	},
 	"close_conversation": {
 		AR: "إغلاق محادثة. تبقى المحادثة متاحة للقراءة، وتُفتح من تلقاء نفسها حين يكتب العميل مجددًا أو يرد عليها أحد. " +
