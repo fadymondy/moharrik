@@ -241,7 +241,7 @@ func BrowserTools() []Tool {
 					return fmt.Sprintf("%s publishes as the signed-in account on %s. Nothing was run. Check the inputs "+
 						"with the person you act for, then call again with confirm: true.", w.Name, strings.Join(w.Hosts, ", ")), nil
 				}
-				b, why, err := findBrowser(ctx, a, s.WorkspaceID, in.Agent)
+				b, why, err := resolveOnline(ctx, a, s.WorkspaceID, in.Agent)
 				if err != nil || b == nil {
 					return why, err
 				}
@@ -255,13 +255,19 @@ func BrowserTools() []Tool {
 				}
 				runID, err := automation.RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, w.ID, b.id, "mcp", values)
 				if err != nil {
+					// Sentences a model can act on, not failures of the tool:
+					// a value missing, a site only an admin can allow.
 					var missing *automation.MissingParam
-					if errors.As(err, &missing) {
+					if errors.As(err, &missing) || errors.Is(err, automation.ErrSitesNeedAdmin) {
 						return err.Error(), nil
+					}
+					if errors.Is(err, automation.ErrHostNotAllowed) {
+						return fmt.Sprintf("%s. Nothing was run. An admin can allow the site with browser_set_allowed_sites, or on the Automation page.", err.Error()), nil
 					}
 					return "", err
 				}
-				return fmt.Sprintf("Run %s of %s started on %s. Read it with get_browser_run.", runID, w.Slug, b.name), nil
+				// As fadymondy.com's does: wait a short window, then the data or the key.
+				return waitAndDescribe(ctx, a, s.WorkspaceID, b.name, runID)
 			},
 		},
 		{

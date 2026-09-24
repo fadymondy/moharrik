@@ -1211,6 +1211,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 					args[k] = agentID
 				case "plugin":
 					args[k] = wfID
+				case "run":
+					args[k] = autoRunID
 				case "add", "replace":
 					args[k] = []string{"evil.test"}
 				}

@@ -482,3 +482,18 @@ func (h *Hub) endRun(workspaceID, runID string) {
 		}
 	}
 }
+
+// CancelRun stops a queued or running run of the workspace: the dispatcher
+// checks the status before every step, so it stops after the step in flight.
+// Reports whether there was a run to stop.
+func CancelRun(ctx context.Context, a *app.App, workspaceID, runID string) (bool, error) {
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	res, err := a.SQLDB.ExecContext(sctx, `
+		UPDATE automation_runs SET status = 'cancelled', error = 'cancelled', finished_at = now(), updated_at = now()
+		WHERE workspace_id = $1 AND id = $2 AND status IN ('queued', 'running')`, workspaceID, runID)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
