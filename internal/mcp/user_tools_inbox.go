@@ -33,6 +33,7 @@ func conversationSummary(c inbox.ConversationOut) map[string]any {
 		"contact_id": c.ContactID, "contact": c.Contact, "contact_link": c.LinkedBy, "deal": c.Deal,
 		"assignee_user_id": c.AssigneeUserID, "unread": c.Unread, "snoozed_until": c.SnoozedUntil, "closed_at": c.ClosedAt,
 		"message_count": c.MessageCount, "last_message_at": c.LastMessageAt, "preview": c.Preview,
+		"mailbox_id": c.MailboxID, // MH-555: which of the workspace's mailboxes an email thread arrived on
 	}
 }
 
@@ -56,15 +57,20 @@ func InboxTools() []Tool {
 		{
 			Name: "list_conversations",
 			Description: "The shared inbox — chat, email and WhatsApp conversations — most recent first, with the unread count. " +
-				"Filter by status (open, snoozed, closed), channel (chat, email, whatsapp), unread, contact_id, or q (customer name, email, phone or subject). " +
-				"Each conversation carries its id for get_conversation, reply, close_conversation and assign_conversation.",
+				"Filter by status (open, snoozed, closed), channel (chat, email, whatsapp), unread, contact_id, mailbox_id (MH-555, email only), " +
+				"or q — a full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in each thread, " +
+				"not just its preview. A page holds at most limit; when next_cursor comes back non-empty, pass it as cursor to get the page after " +
+				"it — the same walk the inbox page's own infinite scroll does. Each conversation carries its id for get_conversation, reply, " +
+				"close_conversation and assign_conversation.",
 			Scope: "inbox:read",
 			InputSchema: schema(nil, map[string]any{
 				"status":     map[string]any{"type": "string", "enum": []string{"open", "snoozed", "closed"}},
 				"channel":    map[string]any{"type": "string", "enum": []string{"chat", "email", "whatsapp"}},
 				"unread":     map[string]any{"type": "boolean", "description": "Only conversations nobody has opened since the customer last wrote"},
 				"contact_id": prop("string", "Only conversations linked to this CRM contact"),
-				"q":          prop("string", "Search the customer's name, email and phone and the subject"),
+				"mailbox_id": prop("string", "Only email conversations on this mailbox (list_mailboxes shows ids)"),
+				"q":          prop("string", "Full-text search over the customer's name, email and phone, the subject, and every message's body"),
+				"cursor":     prop("string", "next_cursor from a previous call, for the page after it"),
 				"limit":      prop("integer", "At most this many (default 50, max 200)"),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
@@ -72,7 +78,9 @@ func InboxTools() []Tool {
 					Status    string `json:"status"`
 					Channel   string `json:"channel"`
 					ContactID string `json:"contact_id"`
+					MailboxID string `json:"mailbox_id"`
 					Q         string `json:"q"`
+					Cursor    string `json:"cursor"`
 					Unread    bool   `json:"unread"`
 					Limit     int    `json:"limit"`
 				}
@@ -83,7 +91,8 @@ func InboxTools() []Tool {
 					in.Limit = 50
 				}
 				res, err := inbox.ListConversations(ctx, a, inbox.ConversationFilter{
-					Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, Q: in.Q, Limit: in.Limit,
+					Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID,
+					MailboxID: in.MailboxID, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
 				})
 				if err != nil {
 					return "", err
@@ -92,7 +101,7 @@ func InboxTools() []Tool {
 				for _, c := range res.Conversations {
 					list = append(list, conversationSummary(c))
 				}
-				return jsonResult(map[string]any{"unread_count": res.UnreadCount, "count": len(list), "conversations": list})
+				return jsonResult(map[string]any{"unread_count": res.UnreadCount, "count": len(list), "conversations": list, "next_cursor": res.NextCursor})
 			},
 		},
 		{
@@ -187,6 +196,37 @@ func InboxTools() []Tool {
 					status = "open"
 				}
 				c, err := inbox.UpdateConversation(ctx, a, id, inbox.ConversationPatch{Status: &status})
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"conversation": conversationSummary(*c)})
+			},
+		},
+		{
+			Name: "mark_conversation",
+			Description: "Mark a conversation read or unread — the same action the inbox page's context menu offers " +
+				"(right-click, the ⋯ button, or a touch long-press on a conversation row).",
+			Scope: "inbox:write",
+			InputSchema: schema([]string{"id", "unread"}, map[string]any{
+				"id":     prop("string", "Conversation id"),
+				"unread": map[string]any{"type": "boolean", "description": "true = mark unread, false = mark read"},
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					ID     string `json:"id"`
+					Unread *bool  `json:"unread"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("id", in.ID)
+				if err != nil {
+					return "", err
+				}
+				if in.Unread == nil {
+					return "", fmt.Errorf("unread is required")
+				}
+				c, err := inbox.UpdateConversation(ctx, a, id, inbox.ConversationPatch{Unread: in.Unread})
 				if err != nil {
 					return "", err
 				}

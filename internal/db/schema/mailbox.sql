@@ -1,12 +1,15 @@
 -- The inbox's email channel (MH-133, extended by MH-555): several IMAP
 -- mailboxes per workspace, each polled independently, the way a workspace can
--- already have several WhatsApp-style linked accounts or several SMTP
--- services (MH-412) — one workspace, several inboxes feeding one thread list.
+-- already have several SMTP services (MH-412) — one workspace, several
+-- inboxes feeding one thread list.
 --
--- mailbox_legacy below is the ORIGINAL one-row-per-workspace table (MH-133).
--- It is kept, not dropped — internal/db/post/150_mailboxes.sql copies its one
--- row into this table as "Mailbox 1" exactly once, the same shape as
--- smtp_services' migration of smtp_settings (MH-412).
+-- This is the shape for a FRESH database. An existing one still has the
+-- MH-133 table (workspace_id as primary key, none of the columns below the
+-- comma after username) — CREATE TABLE IF NOT EXISTS does not touch it, so
+-- internal/db/post/150_mailboxes.sql carries the ALTER TABLE upgrade for
+-- that case, column by column, ending in the same shape as this file. Every
+-- statement there is written to be a no-op HERE, on a database that already
+-- has every column this file declares.
 --
 -- id PK (not workspace_id) is what makes "several" possible; UNIQUE
 -- (workspace_id, id) is the composite key every in-workspace foreign key here
@@ -53,29 +56,5 @@ CREATE TABLE IF NOT EXISTS mailboxes (
     updated_at      timestamptz NOT NULL DEFAULT now(),
     UNIQUE (workspace_id, id),
     UNIQUE (workspace_id, name),
-    CHECK (tls_mode IN ('tls', 'starttls', 'none'))
-);
-
--- The pre-MH-555 table: one row per workspace. internal/db/post/150_mailboxes.sql
--- copies each row into `mailboxes` once (migrated_at marks it done) and never
--- again, so a workspace that later deletes its migrated mailbox does not get
--- it back on the next `migrate`.
-CREATE TABLE IF NOT EXISTS mailbox_legacy (
-    workspace_id    text        PRIMARY KEY,
-    imap_host       text        NOT NULL,
-    imap_port       integer     NOT NULL DEFAULT 993,
-    username        text        NOT NULL,
-    password_sealed text        NOT NULL DEFAULT '',
-    tls_mode        text        NOT NULL DEFAULT 'tls',
-    folder          text        NOT NULL DEFAULT 'INBOX',
-    enabled         boolean     NOT NULL DEFAULT true,
-    last_polled_at  timestamptz,
-    last_error      text        NOT NULL DEFAULT '',
-    last_error_at   timestamptz,
-    message_count   integer     NOT NULL DEFAULT 0,
-    created_by      text        NOT NULL DEFAULT '',
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    updated_at      timestamptz NOT NULL DEFAULT now(),
-    migrated_at     timestamptz,
     CHECK (tls_mode IN ('tls', 'starttls', 'none'))
 );

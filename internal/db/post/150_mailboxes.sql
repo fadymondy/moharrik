@@ -1,9 +1,72 @@
 -- Several IMAP mailboxes per workspace (MH-555), and the inbox-rendering
 -- columns MH-556 needs on the messages/conversations these mailboxes feed.
 --
--- Batch U's reserved block is 150-154. Every statement is idempotent.
+-- Batch U's reserved block is 150-154. Every statement is idempotent, and —
+-- this is the part that was wrong in the first version of this file — every
+-- statement is written to also upgrade a database that already ran MH-133's
+-- original migration, where `mailboxes` has workspace_id as its primary key
+-- and none of the columns below exist yet. On such a database, schema.sql's
+-- CREATE TABLE IF NOT EXISTS is a no-op (the table already exists), so this
+-- file is the ONLY place those columns get added. On a fresh database,
+-- schema/mailbox.sql already created every column and the id primary key, so
+-- every ALTER TABLE ADD COLUMN / the primary-key move below is a no-op there.
+--
+-- Each pre-existing row is, by MH-133's own design, the ONE mailbox its
+-- workspace had — so it becomes that workspace's "Mailbox 1", primary, with
+-- everything else (host, password, folder, poll state) carried over exactly
+-- because these are ALTERs on the same row, not a copy into a new one.
 
--- ---- mailboxes: keys, one primary per workspace, RLS -----------------------
+-- ---- upgrade the OLD mailboxes table in place, column by column -----------
+
+ALTER TABLE mailboxes ADD COLUMN IF NOT EXISTS id text;
+UPDATE mailboxes SET id = gen_random_uuid()::text WHERE id IS NULL;
+ALTER TABLE mailboxes ALTER COLUMN id SET NOT NULL;
+ALTER TABLE mailboxes ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+
+ALTER TABLE mailboxes ADD COLUMN IF NOT EXISTS name text;
+UPDATE mailboxes SET name = 'Mailbox 1' WHERE name IS NULL;
+ALTER TABLE mailboxes ALTER COLUMN name SET NOT NULL;
+ALTER TABLE mailboxes ALTER COLUMN name SET DEFAULT 'Mailbox';
+
+ALTER TABLE mailboxes ADD COLUMN IF NOT EXISTS is_primary boolean;
+UPDATE mailboxes SET is_primary = true WHERE is_primary IS NULL;
+ALTER TABLE mailboxes ALTER COLUMN is_primary SET NOT NULL;
+ALTER TABLE mailboxes ALTER COLUMN is_primary SET DEFAULT false;
+
+ALTER TABLE mailboxes ADD COLUMN IF NOT EXISTS smtp_service_id text;
+ALTER TABLE mailboxes ADD COLUMN IF NOT EXISTS last_test_at    timestamptz;
+ALTER TABLE mailboxes ADD COLUMN IF NOT EXISTS last_test_ok    boolean;
+ALTER TABLE mailboxes ADD COLUMN IF NOT EXISTS last_test_error text NOT NULL DEFAULT '';
+
+-- Move the primary key from workspace_id (MH-133) to id (MH-555), if it has
+-- not moved already (a fresh database's schema.sql already put it on id, so
+-- this whole block is a no-op there — the search below finds nothing to move).
+DO $$
+DECLARE old_pk text;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+        WHERE c.conrelid = 'mailboxes'::regclass AND c.contype = 'p' AND a.attname = 'id'
+    ) THEN
+        SELECT conname INTO old_pk FROM pg_constraint WHERE conrelid = 'mailboxes'::regclass AND contype = 'p';
+        IF old_pk IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE mailboxes DROP CONSTRAINT %I', old_pk);
+        END IF;
+        ALTER TABLE mailboxes ADD PRIMARY KEY (id);
+    END IF;
+END $$;
+
+-- The composite keys every in-workspace foreign key here points at
+-- (internal/db/schema/crm.sql explains why: a single-column FK could name
+-- another workspace's row). Plain unique INDEXES, not ADD CONSTRAINT UNIQUE —
+-- a foreign key accepts either, and CREATE UNIQUE INDEX has an IF NOT EXISTS.
+-- Named to match exactly what Postgres would auto-name the table-level UNIQUE
+-- constraints in schema/mailbox.sql, so a fresh database (which gets those
+-- constraints straight from CREATE TABLE) finds these already satisfied
+-- rather than creating a redundant second index.
+CREATE UNIQUE INDEX IF NOT EXISTS mailboxes_workspace_id_id_key ON mailboxes (workspace_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS mailboxes_workspace_id_name_key ON mailboxes (workspace_id, name);
 
 DO $$
 BEGIN
@@ -19,10 +82,6 @@ BEGIN
             FOREIGN KEY (workspace_id, smtp_service_id) REFERENCES smtp_services (workspace_id, id)
             ON DELETE SET NULL (smtp_service_id);
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'mailbox_legacy_workspace_fk') THEN
-        ALTER TABLE mailbox_legacy ADD CONSTRAINT mailbox_legacy_workspace_fk
-            FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE;
-    END IF;
 END $$;
 
 -- At most one primary mailbox per workspace: a partial unique index, so "which
@@ -36,37 +95,6 @@ DROP POLICY IF EXISTS tenant_isolation ON mailboxes;
 CREATE POLICY tenant_isolation ON mailboxes
     USING (workspace_id = current_setting('app.workspace_id', true))
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
-
-ALTER TABLE mailbox_legacy ENABLE ROW LEVEL SECURITY;
-ALTER TABLE mailbox_legacy FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON mailbox_legacy;
-CREATE POLICY tenant_isolation ON mailbox_legacy
-    USING (workspace_id = current_setting('app.workspace_id', true))
-    WITH CHECK (workspace_id = current_setting('app.workspace_id', true));
-
--- ---- the legacy row: copied into mailboxes ONCE -----------------------------
---
--- Each workspace's single mailbox_legacy row becomes its first mailbox, named
--- "Mailbox 1" and marked primary, so every conversation and reply that worked
--- before MH-555 keeps working after it. Copied once: migrated_at marks the
--- row, so deleting the migrated mailbox later does not bring it back on the
--- next `migrate` (the smtp_services precedent, post/115_smtp_services.sql).
-WITH copied AS (
-    INSERT INTO mailboxes (workspace_id, name, is_primary, imap_host, imap_port, username, password_sealed,
-                            tls_mode, folder, enabled, last_polled_at, last_error, last_error_at, message_count,
-                            created_by, created_at, updated_at)
-    SELECT l.workspace_id, 'Mailbox 1', true, l.imap_host, l.imap_port, l.username, l.password_sealed,
-           l.tls_mode, l.folder, l.enabled, l.last_polled_at, l.last_error, l.last_error_at, l.message_count,
-           l.created_by, l.created_at, l.updated_at
-    FROM mailbox_legacy l
-    WHERE l.migrated_at IS NULL
-      AND NOT EXISTS (SELECT 1 FROM mailboxes m WHERE m.workspace_id = l.workspace_id AND m.name = 'Mailbox 1')
-    RETURNING id, workspace_id
-)
-UPDATE mailbox_legacy SET migrated_at = now()
-WHERE migrated_at IS NULL
-  AND workspace_id IN (SELECT workspace_id FROM copied
-                       UNION SELECT workspace_id FROM mailboxes WHERE name = 'Mailbox 1');
 
 -- ---- conversations / messages: which mailbox, and the HTML body (MH-556) ---
 
@@ -89,7 +117,9 @@ BEGIN
 END $$;
 
 -- Backfill: every email conversation/message that predates MH-555 belongs to
--- the mailbox that was just migrated from mailbox_legacy for its workspace.
+-- the mailbox that was just upgraded in place from the workspace's MH-133 row
+-- — "Mailbox 1", exactly (the UPDATE ... WHERE name IS NULL above gave it
+-- that name whether the row was upgraded today or ten releases ago).
 UPDATE conversations c SET mailbox_id = m.id
 FROM mailboxes m
 WHERE c.mailbox_id IS NULL AND c.channel = 'email' AND m.workspace_id = c.workspace_id AND m.name = 'Mailbox 1';
