@@ -430,6 +430,46 @@ func Register(api huma.API, a *app.App) {
 		}{*c}), nil
 	})
 
+	huma.Register(api, huma.Operation{
+		OperationID: "w-upload-contact-avatar", Method: http.MethodPost, Path: "/api/w/contacts/{id}/avatar",
+		Summary:     "Upload or replace a contact's photo (MH-602)",
+		Description: "PNG, JPEG or WEBP only, at most 2MB. base64 in the body, the same shape as vCard import's text-in-JSON, not multipart.",
+		Tags:        tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body struct {
+			Data        string `json:"data" doc:"Base64-encoded image bytes."`
+			ContentType string `json:"content_type" enum:"image/png,image/jpeg,image/webp"`
+			Filename    string `json:"filename,omitempty"`
+		}
+	}) (*body[struct {
+		Contact ContactDetail `json:"contact"`
+	}], error) {
+		c, err := UploadContactAvatar(ctx, db(), in.ID, in.Body.Data, in.Body.ContentType, in.Body.Filename)
+		if err != nil {
+			return nil, err
+		}
+		return out(struct {
+			Contact ContactDetail `json:"contact"`
+		}{*c}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-remove-contact-avatar", Method: http.MethodDelete, Path: "/api/w/contacts/{id}/avatar",
+		Summary: "Remove a contact's uploaded photo (falls back to a provider photo or initials)", Tags: tags,
+	}, func(ctx context.Context, in *idPath) (*body[struct {
+		Contact ContactDetail `json:"contact"`
+	}], error) {
+		c, err := RemoveContactAvatar(ctx, db(), in.ID)
+		if err != nil {
+			return nil, err
+		}
+		return out(struct {
+			Contact ContactDetail `json:"contact"`
+		}{*c}), nil
+	})
+
 	// ---- activities ----------------------------------------------------------
 
 	huma.Register(api, huma.Operation{

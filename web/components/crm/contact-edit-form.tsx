@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react"
 import { toast } from "sonner"
+import { useSWRConfig } from "swr"
 
+import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { CompanyPicker } from "@/components/crm/company-picker"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { Button } from "@/components/ui/button"
@@ -21,6 +23,145 @@ export type ContactEditable = {
   title: string
   company: { id: string; name: string } | null
   owner_user_id: string | null
+  avatar_url?: string
+}
+
+// MH-602: server-validated too (internal/crm/avatar.go), this is only so a
+// bad file never leaves the browser and wastes a round trip.
+const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"]
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
+function readAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      // "data:image/png;base64,AAAA..." — only the part after the comma is
+      // what the API's `data` field wants.
+      const result = String(reader.result ?? "")
+      resolve(result.slice(result.indexOf(",") + 1))
+    }
+    reader.onerror = () => reject(reader.error ?? new Error("read failed"))
+    reader.readAsDataURL(file)
+  })
+}
+
+/**
+ * Upload/replace/remove a contact's photo (MH-602). Kept separate from the
+ * name/email/etc. PATCH below: each avatar action is its own request against
+ * /api/w/contacts/{id}/avatar and takes effect immediately, rather than
+ * waiting on the surrounding form's Save.
+ */
+function ContactAvatarControl({
+  contactId,
+  name,
+  avatarUrl,
+  onChanged,
+  idPrefix,
+}: {
+  contactId: string
+  name: string
+  avatarUrl?: string
+  onChanged: (avatarUrl: string) => void
+  idPrefix: string
+}) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const { mutate } = useSWRConfig()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  // The dialog this control lives in re-fetches the contact fresh every time
+  // it opens (useContact keys off `open`), but SWR's own cache for that same
+  // key can still be the one from a moment ago — so reopening right after an
+  // upload/remove served the STALE avatar_url and the "Remove" button never
+  // appeared. Updating this cache entry in place, the instant the server
+  // confirms the change, means the next open reads the truth immediately
+  // instead of racing SWR's dedupe window.
+  function syncContactCache(nextAvatarUrl: string) {
+    void mutate(
+      [`/api/w/contacts/${encodeURIComponent(contactId)}`, ws.id],
+      (cur: { contact: { avatar_url?: string } } | undefined) => (cur ? { ...cur, contact: { ...cur.contact, avatar_url: nextAvatarUrl } } : cur),
+      { revalidate: false },
+    )
+  }
+
+  async function onPick(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    setErr(null)
+    if (!AVATAR_TYPES.includes(file.type)) {
+      setErr(t("contacts.avatar.badType"))
+      return
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setErr(t("contacts.avatar.tooLarge"))
+      return
+    }
+    setBusy(true)
+    try {
+      const data = await readAsBase64(file)
+      const res = await api<{ contact: { avatar_url?: string } }>(`/api/w/contacts/${encodeURIComponent(contactId)}/avatar`, {
+        method: "POST",
+        json: { data, content_type: file.type, filename: file.name },
+        workspaceId: ws.id,
+      })
+      onChanged(res.contact.avatar_url ?? "")
+      syncContactCache(res.contact.avatar_url ?? "")
+      toast.success(t("contacts.avatar.uploaded"))
+    } catch (err) {
+      setErr(err instanceof ApiError ? err.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove() {
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await api<{ contact: { avatar_url?: string } }>(`/api/w/contacts/${encodeURIComponent(contactId)}/avatar`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
+      onChanged(res.contact.avatar_url ?? "")
+      syncContactCache(res.contact.avatar_url ?? "")
+      toast.success(t("contacts.avatar.removed"))
+    } catch (err) {
+      setErr(err instanceof ApiError ? err.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3" data-contact-avatar-control>
+      <PersonAvatar name={name} photoUrl={avatarUrl} size="lg" />
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileRef}
+            id={`${idPrefix}-avatar-file`}
+            type="file"
+            accept={AVATAR_TYPES.join(",")}
+            className="hidden"
+            onChange={onPick}
+            data-avatar-input
+          />
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => fileRef.current?.click()} data-avatar-upload>
+            {busy ? t("common.working") : avatarUrl ? t("contacts.avatar.replace") : t("contacts.avatar.upload")}
+          </Button>
+          {avatarUrl ? (
+            <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={remove} data-avatar-remove>
+              {t("contacts.avatar.remove")}
+            </Button>
+          ) : null}
+        </div>
+        {err ? <FieldError>{err}</FieldError> : <p className="text-xs text-grid-muted">{t("contacts.avatar.hint")}</p>}
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -41,6 +182,7 @@ export function ContactEditForm({ contact, onSaved, idPrefix = "edit-contact" }:
   const [title, setTitle] = useState(contact.title)
   const [companyId, setCompanyId] = useState(contact.company?.id ?? "")
   const [ownerId, setOwnerId] = useState(contact.owner_user_id ?? "")
+  const [avatarUrl, setAvatarUrl] = useState(contact.avatar_url ?? "")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -75,6 +217,7 @@ export function ContactEditForm({ contact, onSaved, idPrefix = "edit-contact" }:
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4" data-form="edit-contact">
+      <ContactAvatarControl contactId={contact.id} name={name || contact.name} avatarUrl={avatarUrl} onChanged={setAvatarUrl} idPrefix={idPrefix} />
       <FieldGroup className="grid gap-4 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-name`}>{t("contacts.name")}</FieldLabel>

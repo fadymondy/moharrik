@@ -569,6 +569,11 @@ export type ContactDetail = {
   birthday?: string | null
   biography?: string
   photo_url?: string
+  /** MH-602: what the UI should actually render — an uploaded photo, else a
+   *  cached provider (WhatsApp) photo, else "" so the client falls back to
+   *  initials. Never derive this from photo_url yourself; the API already
+   *  picked the right source. */
+  avatar_url?: string
   /** Free-form key/value pairs Fady asked for by name. */
   meta: Record<string, string>
   /** Every linked account on every channel, including the ones denormalised above. */
@@ -713,6 +718,9 @@ export type Conversation = {
   customer_phone: string
   /** The CRM contact it is linked to (MH-379). */
   contact: { id: string; name: string; email: string; company: Ref | null } | null
+  /** MH-602: the linked contact's photo when there is one, else this
+   *  conversation's own cached WhatsApp photo, else "" for initials. */
+  avatar_url: string
   /** auto: matched on the exact email/phone when filed; manual: a member linked (or unlinked) it. */
   contact_link: "" | "auto" | "manual"
   /** The deal it was turned into. */

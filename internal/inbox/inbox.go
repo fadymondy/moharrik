@@ -60,6 +60,12 @@ type ConversationOut struct {
 	Locale          string    `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
 	CustomerPhone   string    `json:"customer_phone" doc:"A WhatsApp customer's number; empty for other channels."`
 	CustomerHandle  string    `json:"customer_handle" doc:"A Telegram/Slack/Discord handle or a workflow channel's profile URL; empty for other channels."`
+	// AvatarURL is MH-602's single answer for "what photo, if any" — a linked
+	// contact's uploaded/provider photo when there is one, else this
+	// conversation's own cached WhatsApp photo (set for an unlinked customer),
+	// else empty so the client renders initials. Never build this from
+	// Contact.* directly; crm.AvatarURL already picked the right source.
+	AvatarURL       string    `json:"avatar_url"`
 	SourceChannelID *string   `json:"source_channel_id" doc:"Which of this workspace's connections of that kind this conversation came from; null for chat/email/WhatsApp."`
 	// The CRM side (MH-379).
 	Contact  *LinkedContact `json:"contact" doc:"The CRM contact this conversation is linked to, if any."`

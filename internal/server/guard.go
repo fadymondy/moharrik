@@ -132,6 +132,13 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/attachments/") {
 		return tierPublic
 	}
+	// Downloading an uploaded contact avatar (MH-602): same shape as
+	// /api/attachments/ just above — the id plus its signed exp/sig query
+	// params are the authorization, needed because a plain <img src> in the
+	// inbox or contact page carries no cookies or headers of its own either.
+	if strings.HasPrefix(path, "/api/contact-avatars/") {
+		return tierPublic
+	}
 	// A visitor typing their address into an embedded subscribe form: no
 	// session, no X-Workspace-ID — the form key in the path plus the Origin
 	// allow-list are the authorization (internal/marketing/subscribe_routes.go),

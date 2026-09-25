@@ -13,6 +13,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/clientip"
+	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -38,23 +39,33 @@ const conversationSelect = `
 	                 ORDER BY m.created_at DESC LIMIT 1), ''),
 	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id),
 	       c.customer_phone, c.contact_link, ct.name, ct.email, ct.company_id, co.name, c.deal_id, d.title,
-	       c.snoozed_until, c.closed_at, c.mailbox_id, c.customer_handle, c.source_channel_id
+	       c.snoozed_until, c.closed_at, c.mailbox_id, c.customer_handle, c.source_channel_id,
+	       ct.photo_attachment_id, ct.photo_url, c.photo_url
 	FROM conversations c
 	LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
 	LEFT JOIN companies co ON co.workspace_id = ct.workspace_id AND co.id = ct.company_id
 	LEFT JOIN deals d ON d.workspace_id = c.workspace_id AND d.id = c.deal_id
 	WHERE c.workspace_id = $1`
 
-func scanConversation(row interface{ Scan(...any) error }) (ConversationOut, error) {
+func scanConversation(wsID string, row interface{ Scan(...any) error }) (ConversationOut, error) {
 	var c ConversationOut
 	var contactID, assignee, ctName, ctEmail, companyID, coName, dealID, dealTitle, mailboxID, sourceChannelID sql.NullString
+	var ctPhotoAttachmentID, ctPhotoURL, ownPhotoURL sql.NullString
 	var snoozed, closed sql.NullTime
 	var preview string
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
 		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount,
 		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle, &snoozed, &closed,
-		&mailboxID, &c.CustomerHandle, &sourceChannelID); err != nil {
+		&mailboxID, &c.CustomerHandle, &sourceChannelID,
+		&ctPhotoAttachmentID, &ctPhotoURL, &ownPhotoURL); err != nil {
 		return c, err
+	}
+	// MH-602: a linked contact's photo (uploaded or provider) wins; an
+	// unlinked WhatsApp conversation falls back to its OWN cached photo.
+	if contactID.Valid {
+		c.AvatarURL = crm.AvatarURL(wsID, ctPhotoAttachmentID.String, ctPhotoURL.String)
+	} else {
+		c.AvatarURL = ownPhotoURL.String
 	}
 	if sourceChannelID.Valid {
 		c.SourceChannelID = &sourceChannelID.String
@@ -85,7 +96,7 @@ func scanConversation(row interface{ Scan(...any) error }) (ConversationOut, err
 
 // readConversation is one conversation by id, in the list's shape.
 func readConversation(ctx context.Context, db *sql.DB, wsID, id string) (ConversationOut, error) {
-	return scanConversation(db.QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, wsID, id))
+	return scanConversation(wsID, db.QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, wsID, id))
 }
 
 // Register mounts the inbox endpoints. `a` may be nil (OpenAPI export).

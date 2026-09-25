@@ -66,6 +66,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"contact_identities",
 	// vCard import bookkeeping (MH-584)
 	"vcard_imports",
+	// uploaded contact avatars (MH-602)
+	"contact_avatars",
 }
 
 /*

@@ -171,6 +171,12 @@ type ContactDetail struct {
 	Birthday           *string           `json:"birthday" doc:"YYYY-MM-DD"`
 	Biography          string            `json:"biography"`
 	PhotoURL           string            `json:"photo_url"`
+	// AvatarURL is what the UI should actually render (MH-602): an uploaded
+	// photo first, then a cached provider photo (PhotoURL, already a
+	// downloaded data: URI or a signed local URL — never the two are the
+	// same value by coincidence), then empty so the client falls back to
+	// initials. See AvatarURL() in avatar.go for the priority.
+	AvatarURL          string            `json:"avatar_url"`
 	Meta               map[string]string `json:"meta" doc:"Free-form key/value pairs on this contact."`
 	Identities         []ContactIdentity `json:"identities" doc:"Every linked account: email, phone, whatsapp, telegram, slack, discord, messenger, instagram, linkedin, x, widget, sip, other."`
 }

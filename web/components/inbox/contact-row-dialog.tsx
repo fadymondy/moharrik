@@ -34,17 +34,31 @@ export function ConversationContactDialog({
   const ws = useWorkspace()
   const contactId = c.contact_id
   const detail = useContact(ws.id, open && contactId ? contactId : undefined)
+  // MH-602: once the contact has loaded, its own name replaces the generic
+  // "Edit contact" title — the same precedence the list row and thread header
+  // give it (a linked contact's name over the raw customer_name/phone).
+  const editTitle = detail.data?.contact.name || t("inbox.crm.editContactTitle")
 
   function done() {
     onDone()
     onOpenChange(false)
   }
 
+  // MH-602: an avatar upload/remove takes effect immediately (its own request,
+  // not the form's Save) and never calls `done()`, so closing the dialog any
+  // other way — Escape, the overlay, the X button — must still tell the row
+  // to refetch, or a photo just uploaded stays invisible on the list until an
+  // unrelated change happens to revalidate it.
+  function handleOpenChange(next: boolean) {
+    if (!next) onDone()
+    onOpenChange(next)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg" data-contact-dialog>
         <DialogHeader>
-          <DialogTitle>{contactId ? t("inbox.crm.editContactTitle") : t("inbox.crm.createTitle")}</DialogTitle>
+          <DialogTitle>{contactId ? editTitle : t("inbox.crm.createTitle")}</DialogTitle>
           <DialogDescription>{contactId ? t("inbox.crm.editContactHint") : t("inbox.crm.createHint")}</DialogDescription>
         </DialogHeader>
         {contactId ? (

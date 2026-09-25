@@ -201,7 +201,7 @@ func getCompany(ctx context.Context, db *sql.DB, wsID, id string) (*CompanyOut, 
 
 func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetail, error) {
 	var c ContactDetail
-	var companyID, coName, owner sql.NullString
+	var companyID, coName, owner, photoAttachmentID sql.NullString
 	var tags, reasons, metaJSON string
 	var score sql.NullInt64
 	var lifecycleAt, birthday sql.NullTime
@@ -209,7 +209,7 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.handle, c.title, array_to_json(c.tags)::text,
 		       c.company_id, co.name, c.owner_user_id, c.created_at, c.lifecycle, c.lifecycle_at, sc.score, coalesce(sc.reasons, '[]')::text,
 		       c.given_name, c.family_name, c.middle_name, c.name_prefix, c.name_suffix,
-		       c.phonetic_given_name, c.phonetic_family_name, c.nickname, c.birthday, c.biography, c.photo_url,
+		       c.phonetic_given_name, c.phonetic_family_name, c.nickname, c.birthday, c.biography, c.photo_url, c.photo_attachment_id,
 		       coalesce(c.meta, '{}'::jsonb)::text
 		FROM contacts c
 		LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
@@ -218,11 +218,12 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Handle, &c.Title, &tags, &companyID, &coName, &owner, &c.CreatedAt,
 		&c.Lifecycle, &lifecycleAt, &score, &reasons,
 		&c.GivenName, &c.FamilyName, &c.MiddleName, &c.NamePrefix, &c.NameSuffix,
-		&c.PhoneticGivenName, &c.PhoneticFamilyName, &c.Nickname, &birthday, &c.Biography, &c.PhotoURL,
+		&c.PhoneticGivenName, &c.PhoneticFamilyName, &c.Nickname, &birthday, &c.Biography, &c.PhotoURL, &photoAttachmentID,
 		&metaJSON)
 	if err != nil {
 		return nil, err
 	}
+	c.AvatarURL = AvatarURL(wsID, photoAttachmentID.String, c.PhotoURL)
 	c.LifecycleAt = timep(lifecycleAt)
 	c.Birthday = datep(birthday)
 	c.Score, c.ScoreReasons = scoreOf(score, reasons)
