@@ -9,6 +9,16 @@ import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { ScheduleForm } from "@/components/automation/schedule-form"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -38,6 +48,10 @@ export function ScheduleRow({
   const [busy, setBusy] = useState(false)
   // Edited in place (MH-471): the form opens under the row it changes.
   const [editing, setEditing] = useState(false)
+  // A publishing workflow asks first (MH-558), the same as the canvas and any
+  // other place a run of it can start.
+  const [confirmRun, setConfirmRun] = useState(false)
+  const workflow = workflows.find((w) => w.id === schedule.workflow_id)
   // The schedule's own browser stays offerable even if it is not in the
   // active list (revoked since): the API refuses it with a reason, rather than
   // the form silently switching it to another.
@@ -144,7 +158,12 @@ export function ScheduleRow({
       {canRun ? (
         <div className="flex items-center gap-2">
           <Switch checked={schedule.enabled} onCheckedChange={toggle} aria-label={schedule.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")} />
-          <Button variant="ghost" size="sm" onClick={runNow} disabled={busy}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => (workflow?.writes ? setConfirmRun(true) : void runNow())}
+            disabled={busy}
+          >
             <PlayIcon />
             {busy ? t("common.working") : t("automation.runNow")}
           </Button>
@@ -175,6 +194,30 @@ export function ScheduleRow({
           }}
         />
       ) : null}
+      {/* A publishing workflow asks first (MH-558): only this confirm starts the run. */}
+      <AlertDialog open={confirmRun} onOpenChange={setConfirmRun}>
+        <AlertDialogContent data-confirm-run-dialog>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("presets.confirmTitle", { name: isolate(workflow?.name ?? schedule.name) })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("presets.confirmBody", { hosts: (workflow?.required_sites?.length ? workflow.required_sites : workflow?.hosts ?? []).join(", ") })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={async () => {
+                await runNow()
+                setConfirmRun(false)
+              }}
+              data-confirm-run
+            >
+              {busy ? t("common.working") : t("presets.runAndPublish")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </li>
   )
 }

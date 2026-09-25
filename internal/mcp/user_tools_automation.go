@@ -261,13 +261,15 @@ func WorkflowTools() []Tool {
 			},
 		},
 		{
-			Name:        "start_workflow",
-			Description: "Run a saved workflow on a paired browser, supplying values for its placeholders.",
-			Scope:       "automation:run",
+			Name: "start_workflow",
+			Description: "Run a saved workflow on a paired browser, supplying values for its placeholders. " +
+				"A workflow that publishes, sends or submits needs confirm: true.",
+			Scope: "automation:run",
 			InputSchema: schema([]string{"workflow_id", "browser_id"}, map[string]any{
 				"workflow_id": map[string]any{"type": "string", "description": "From list_workflows"},
 				"browser_id":  map[string]any{"type": "string", "description": "From list_browsers"},
 				"values":      map[string]any{"type": "object", "description": "Values for the workflow's placeholders"},
+				"confirm":     map[string]any{"type": "boolean", "description": "required for a workflow that publishes"},
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
@@ -278,15 +280,24 @@ func WorkflowTools() []Tool {
 					WorkflowID string            `json:"workflow_id"`
 					BrowserID  string            `json:"browser_id"`
 					Values     map[string]string `json:"values"`
+					Confirm    bool              `json:"confirm"`
 				}
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", err
+				}
+				w, err := automation.FindWorkflow(ctx, a, s.WorkspaceID, in.WorkflowID)
+				if err != nil {
+					return "", err
+				}
+				if w.Writes && !in.Confirm {
+					return fmt.Sprintf("%s publishes as the signed-in account on %s. Nothing was run. Check the inputs "+
+						"with the person you act for, then call again with confirm: true.", w.Name, strings.Join(w.Hosts, ", ")), nil
 				}
 				hub := automation.Default()
 				if hub == nil {
 					return "", errors.New("the browser registry is not running")
 				}
-				runID, err := automation.RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, in.WorkflowID, in.BrowserID, "mcp", in.Values)
+				runID, err := automation.RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, w.ID, in.BrowserID, "mcp", in.Values)
 				if err != nil {
 					return "", err
 				}
