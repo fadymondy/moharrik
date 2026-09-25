@@ -11,10 +11,23 @@ import { CopyField, Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -53,12 +66,21 @@ export default function SubscribeFormsPage() {
           canManage ? (
             <div className="flex flex-wrap items-center gap-2">
               {/* An inquiry form needs no list, so it is available from the start. */}
-              <Button variant="outline" onClick={() => setEditing("new-inquiry")} disabled={!forms.data} data-new-form="inquiry">
+              <Button
+                variant="outline"
+                onClick={() => setEditing("new-inquiry")}
+                disabled={!forms.data}
+                data-new-form="inquiry"
+              >
                 <MessageSquareTextIcon />
                 {t("forms.addInquiry")}
               </Button>
               {listItems.length > 0 ? (
-                <Button onClick={() => setEditing("new-subscribe")} disabled={!forms.data} data-new-form="subscribe">
+                <Button
+                  onClick={() => setEditing("new-subscribe")}
+                  disabled={!forms.data}
+                  data-new-form="subscribe"
+                >
                   <PlusIcon />
                   {t("forms.add")}
                 </Button>
@@ -81,11 +103,20 @@ export default function SubscribeFormsPage() {
       ) : forms.isLoading ? (
         <LoadingRows />
       ) : items.length === 0 ? (
-        <EmptyState title={t("forms.empty")} body={canManage ? t("forms.emptyBody") : t("forms.readOnly")} />
+        <EmptyState
+          title={t("forms.empty")}
+          body={canManage ? t("forms.emptyBody") : t("forms.readOnly")}
+        />
       ) : (
         <ul className="divide-y divide-line border-y border-line">
           {items.map((f) => (
-            <FormRow key={f.id} form={f} canManage={canManage} onEdit={() => setEditing(f)} onChange={() => forms.mutate()} />
+            <FormRow
+              key={f.id}
+              form={f}
+              canManage={canManage}
+              onEdit={() => setEditing(f)}
+              onChange={() => forms.mutate()}
+            />
           ))}
         </ul>
       )}
@@ -95,7 +126,13 @@ export default function SubscribeFormsPage() {
         <FormDialog
           key={typeof editing === "string" ? editing : editing.id}
           form={typeof editing === "string" ? null : editing}
-          kind={typeof editing === "string" ? (editing === "new-inquiry" ? "inquiry" : "subscribe") : editing.kind}
+          kind={
+            typeof editing === "string"
+              ? editing === "new-inquiry"
+                ? "inquiry"
+                : "subscribe"
+              : editing.kind
+          }
           lists={listItems}
           onClose={() => setEditing(null)}
           onSaved={() => forms.mutate()}
@@ -105,7 +142,17 @@ export default function SubscribeFormsPage() {
   )
 }
 
-function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; canManage: boolean; onEdit: () => void; onChange: () => void }) {
+function FormRow({
+  form,
+  canManage,
+  onEdit,
+  onChange,
+}: {
+  form: SubscribeForm
+  canManage: boolean
+  onEdit: () => void
+  onChange: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [saving, setSaving] = useState(false)
@@ -116,7 +163,11 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
   async function toggle() {
     setSaving(true)
     try {
-      await api(`/api/w/subscribe-forms/${encodeURIComponent(form.id)}`, { method: "PATCH", json: { enabled: !form.enabled }, workspaceId: ws.id })
+      await api(`/api/w/subscribe-forms/${encodeURIComponent(form.id)}`, {
+        method: "PATCH",
+        json: { enabled: !form.enabled },
+        workspaceId: ws.id,
+      })
       toast.success(form.enabled ? t("forms.disabledToast") : t("forms.enabledToast"))
       onChange()
     } catch (e) {
@@ -128,7 +179,10 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
 
   async function remove() {
     try {
-      await api(`/api/w/subscribe-forms/${encodeURIComponent(form.id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/subscribe-forms/${encodeURIComponent(form.id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(t("forms.deleted"))
       onChange()
     } catch (e) {
@@ -142,9 +196,17 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
         <p className="text-sm font-medium">
           <Bdi>{form.name}</Bdi>
         </p>
-        <Badge variant="secondary">{inquiry ? t("forms.kind.inquiry") : t("forms.kind.subscribe")}</Badge>
-        <Badge variant="outline">{inquiry ? t("forms.toLeads") : t("forms.toList", { list: isolate(form.list_name) || "—" })}</Badge>
-        <Badge variant={form.enabled ? "default" : "outline"}>{form.enabled ? t("forms.enabled") : t("forms.disabled")}</Badge>
+        <Badge variant="secondary">
+          {inquiry ? t("forms.kind.inquiry") : t("forms.kind.subscribe")}
+        </Badge>
+        <Badge variant="outline">
+          {inquiry
+            ? t("forms.toLeads")
+            : t("forms.toList", { list: isolate(form.list_name) || "—" })}
+        </Badge>
+        <Badge variant={form.enabled ? "default" : "outline"}>
+          {form.enabled ? t("forms.enabled") : t("forms.disabled")}
+        </Badge>
         {blocked ? (
           <span className="flex items-center gap-1 text-xs text-grid-warn-text" data-no-origins>
             <TriangleAlertIcon className="size-3.5" />
@@ -166,7 +228,9 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
             <ConfirmButton
               label={t("common.delete")}
               title={t("forms.deleteTitle")}
-              description={t(inquiry ? "forms.deleteBodyInquiry" : "forms.deleteBody", { name: form.name })}
+              description={t(inquiry ? "forms.deleteBodyInquiry" : "forms.deleteBody", {
+                name: form.name,
+              })}
               confirmLabel={t("common.delete")}
               onConfirm={remove}
             />
@@ -182,13 +246,17 @@ function FormRow({ form, canManage, onEdit, onChange }: { form: SubscribeForm; c
           </Ltr>
         </dd>
         <dt>{t("forms.allowedOrigins")}</dt>
-        <dd className="min-w-0 break-all">{blocked ? t("forms.noOriginsShort") : <Ltr>{origins.join(", ")}</Ltr>}</dd>
+        <dd className="min-w-0 break-all">
+          {blocked ? t("forms.noOriginsShort") : <Ltr>{origins.join(", ")}</Ltr>}
+        </dd>
       </dl>
 
       <div className="mt-3 space-y-1.5">
         <p className="grid-micro">{t("forms.embed")}</p>
         <CopyField value={form.embed} label={t("forms.embed")} />
-        <p className="text-xs text-grid-muted">{t(inquiry ? "forms.embedHintInquiry" : "forms.embedHint")}</p>
+        <p className="text-xs text-grid-muted">
+          {t(inquiry ? "forms.embedHintInquiry" : "forms.embedHint")}
+        </p>
       </div>
     </li>
   )
@@ -225,11 +293,20 @@ function FormDialog({
     setBusy(true)
     setErr(null)
     // An inquiry form has no list; its kind is fixed when it is created.
-    const common = { name: name.trim(), allowed_origins: parsed, thanks_en: thanksEn.trim(), thanks_ar: thanksAr.trim() }
+    const common = {
+      name: name.trim(),
+      allowed_origins: parsed,
+      thanks_en: thanksEn.trim(),
+      thanks_ar: thanksAr.trim(),
+    }
     const json = inquiry ? (form ? common : { ...common, kind }) : { ...common, list_id: listId }
     try {
       if (form) {
-        await api(`/api/w/subscribe-forms/${encodeURIComponent(form.id)}`, { method: "PATCH", json, workspaceId: ws.id })
+        await api(`/api/w/subscribe-forms/${encodeURIComponent(form.id)}`, {
+          method: "PATCH",
+          json,
+          workspaceId: ws.id,
+        })
         toast.success(t("forms.saved"))
       } else {
         await api("/api/w/subscribe-forms", { json, workspaceId: ws.id })
@@ -247,10 +324,20 @@ function FormDialog({
   return (
     <Dialog open onOpenChange={(v) => (v ? null : onClose())}>
       <DialogContent className="sm:max-w-lg">
-        <form onSubmit={submit} className="flex flex-col gap-4" data-form={inquiry ? "inquiry-form" : "subscribe-form"}>
+        <form
+          onSubmit={submit}
+          className="flex flex-col gap-4"
+          data-form={inquiry ? "inquiry-form" : "subscribe-form"}
+        >
           <DialogHeader>
-            <DialogTitle>{form ? t(inquiry ? "forms.editTitleInquiry" : "forms.editTitle") : t(inquiry ? "forms.addInquiry" : "forms.add")}</DialogTitle>
-            <DialogDescription>{t(inquiry ? "forms.dialogHintInquiry" : "forms.dialogHint")}</DialogDescription>
+            <DialogTitle>
+              {form
+                ? t(inquiry ? "forms.editTitleInquiry" : "forms.editTitle")
+                : t(inquiry ? "forms.addInquiry" : "forms.add")}
+            </DialogTitle>
+            <DialogDescription>
+              {t(inquiry ? "forms.dialogHintInquiry" : "forms.dialogHint")}
+            </DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
@@ -264,21 +351,25 @@ function FormDialog({
               />
             </Field>
             {inquiry ? null : (
-            <Field>
-              <FieldLabel htmlFor="form-list">{t("forms.list")}</FieldLabel>
-              <Select items={listItems} value={listId} onValueChange={(v) => setListId(String(v ?? ""))}>
-                <SelectTrigger id="form-list" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {listItems.map((i) => (
-                    <SelectItem key={i.value} value={i.value}>
-                      <Bdi>{i.label}</Bdi>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+              <Field>
+                <FieldLabel htmlFor="form-list">{t("forms.list")}</FieldLabel>
+                <Select
+                  items={listItems}
+                  value={listId}
+                  onValueChange={(v) => setListId(String(v ?? ""))}
+                >
+                  <SelectTrigger id="form-list" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {listItems.map((i) => (
+                      <SelectItem key={i.value} value={i.value}>
+                        <Bdi>{i.label}</Bdi>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
             )}
             <Field>
               <FieldLabel htmlFor="form-origins">{t("forms.allowedOrigins")}</FieldLabel>
@@ -292,7 +383,11 @@ function FormDialog({
               />
               <FieldDescription>{t("forms.allowedOriginsHint")}</FieldDescription>
               {parsed.length === 0 ? (
-                <p className="flex items-center gap-1 text-xs text-grid-warn-text" role="status" data-no-origins-warning>
+                <p
+                  className="flex items-center gap-1 text-xs text-grid-warn-text"
+                  role="status"
+                  data-no-origins-warning
+                >
                   <TriangleAlertIcon className="size-3.5 shrink-0" />
                   {t("forms.noOrigins")}
                 </p>
@@ -300,16 +395,32 @@ function FormDialog({
             </Field>
             <Field>
               <FieldLabel htmlFor="form-thanks-en">
-                {t("forms.thanksEn")} <span className="text-grid-muted">({t("common.optional")})</span>
+                {t("forms.thanksEn")}{" "}
+                <span className="text-grid-muted">({t("common.optional")})</span>
               </FieldLabel>
-              <Input id="form-thanks-en" dir="ltr" value={thanksEn} onChange={(e) => setThanksEn(e.target.value)} maxLength={300} />
+              <Input
+                id="form-thanks-en"
+                dir="ltr"
+                value={thanksEn}
+                onChange={(e) => setThanksEn(e.target.value)}
+                maxLength={300}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="form-thanks-ar">
-                {t("forms.thanksAr")} <span className="text-grid-muted">({t("common.optional")})</span>
+                {t("forms.thanksAr")}{" "}
+                <span className="text-grid-muted">({t("common.optional")})</span>
               </FieldLabel>
-              <Input id="form-thanks-ar" dir="rtl" value={thanksAr} onChange={(e) => setThanksAr(e.target.value)} maxLength={300} />
-              <FieldDescription>{t(inquiry ? "forms.thanksHintInquiry" : "forms.thanksHint")}</FieldDescription>
+              <Input
+                id="form-thanks-ar"
+                dir="rtl"
+                value={thanksAr}
+                onChange={(e) => setThanksAr(e.target.value)}
+                maxLength={300}
+              />
+              <FieldDescription>
+                {t(inquiry ? "forms.thanksHintInquiry" : "forms.thanksHint")}
+              </FieldDescription>
             </Field>
           </FieldGroup>
           {err ? <FieldError>{err}</FieldError> : null}

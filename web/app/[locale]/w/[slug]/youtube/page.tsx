@@ -10,7 +10,15 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ExternalLinkIcon, LoaderIcon, MessageSquareIcon, ThumbsUpIcon, EyeIcon, CheckIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  LoaderIcon,
+  MessageSquareIcon,
+  ThumbsUpIcon,
+  EyeIcon,
+  CheckIcon,
+  TriangleAlertIcon,
+} from "lucide-react"
 
 import { Ltr } from "@/components/copy-field"
 import { DataError, NoResource, ResourceSwitcher, useEnabled } from "@/components/google/data-page"
@@ -23,7 +31,13 @@ import { EmptyState, ErrorState } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -51,7 +65,9 @@ function YouTube() {
   const pathname = usePathname()
   const enabled = useEnabled("yt_channel")
   const chosen = params.get("channel") ?? ""
-  const resourceId = enabled.list.some((r) => r.id === chosen) ? chosen : (enabled.list[0]?.id ?? "")
+  const resourceId = enabled.list.some((r) => r.id === chosen)
+    ? chosen
+    : (enabled.list[0]?.id ?? "")
   const ch = useYtChannel(ws.id, resourceId, !!resourceId)
   const open = params.get("video")
 
@@ -71,7 +87,16 @@ function YouTube() {
         micro={ws.summary.name}
         title={t("nav.youtube")}
         description={t("yt.hint")}
-        action={resourceId ? <ResourceSwitcher kind="yt_channel" list={enabled.list} value={resourceId} onChange={(id) => set({ channel: id, video: "" })} /> : null}
+        action={
+          resourceId ? (
+            <ResourceSwitcher
+              kind="yt_channel"
+              list={enabled.list}
+              value={resourceId}
+              onChange={(id) => set({ channel: id, video: "" })}
+            />
+          ) : null
+        }
       />
       {!ws.can("analytics:read") ? (
         <p className="px-6 py-6 text-sm text-grid-muted">{t("gdata.noAccess")}</p>
@@ -87,12 +112,19 @@ function YouTube() {
         <Skeleton className="mx-6 h-40" />
       ) : !out.channel ? (
         out.resource?.syncing || (!out.resource?.last_error && !out.resource?.last_synced_at) ? (
-          <div className="flex items-center gap-3 border-y border-line bg-grid-card px-6 py-10 text-sm text-grid-body" role="status" data-yt-syncing>
+          <div
+            className="flex items-center gap-3 border-y border-line bg-grid-card px-6 py-10 text-sm text-grid-body"
+            role="status"
+            data-yt-syncing
+          >
             <LoaderIcon className="size-4 animate-spin text-grid-muted" />
             {t("yt.firstSync")}
           </div>
         ) : (
-          <DataError message={out.resource?.last_error || t("yt.notSynced")} resource={out.resource} />
+          <DataError
+            message={out.resource?.last_error || t("yt.notSynced")}
+            resource={out.resource}
+          />
         )
       ) : (
         <div className="pb-10" data-youtube>
@@ -103,7 +135,11 @@ function YouTube() {
         </div>
       )}
       <Sheet open={!!open && !!resourceId} onOpenChange={(v) => !v && set({ video: "" })}>
-        <SheetContent side={isRtl ? "left" : "right"} className="w-full gap-0 overflow-y-auto p-0 sm:max-w-xl" data-video-sheet>
+        <SheetContent
+          side={isRtl ? "left" : "right"}
+          className="w-full gap-0 overflow-y-auto p-0 sm:max-w-xl"
+          data-video-sheet
+        >
           {open && resourceId ? <VideoDetail resourceId={resourceId} id={open} /> : null}
         </SheetContent>
       </Sheet>
@@ -122,7 +158,12 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
         <div className="flex min-w-0 flex-1 items-center gap-4">
           {c.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.avatar_url} alt="" className="size-14 shrink-0 rounded-full border border-line" referrerPolicy="no-referrer" />
+            <img
+              src={c.avatar_url}
+              alt=""
+              className="size-14 shrink-0 rounded-full border border-line"
+              referrerPolicy="no-referrer"
+            />
           ) : null}
           <div className="min-w-0">
             <p className="truncate text-lg font-medium text-grid-fg">
@@ -130,7 +171,12 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
             </p>
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-grid-muted">
               {c.handle ? <Ltr>{c.handle}</Ltr> : null}
-              <a href={c.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-grid-fg">
+              <a
+                href={c.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 hover:text-grid-fg"
+              >
                 {t("yt.openChannel")}
                 <ExternalLinkIcon className="size-3.5" />
               </a>
@@ -141,7 +187,13 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
         <dl className="grid grid-cols-3 gap-6 text-sm">
           <div data-yt-stat="subscribers">
             <dt className="grid-micro">{t("yt.subscribers")}</dt>
-            <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">{c.subscribers_hidden ? <span className="text-sm text-grid-muted">{t("yt.hidden")}</span> : f.n(c.subscribers)}</dd>
+            <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">
+              {c.subscribers_hidden ? (
+                <span className="text-sm text-grid-muted">{t("yt.hidden")}</span>
+              ) : (
+                f.n(c.subscribers)
+              )}
+            </dd>
           </div>
           <div data-yt-stat="views">
             <dt className="grid-micro">{t("yt.lifetimeViews")}</dt>
@@ -151,7 +203,11 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
             <dt className="grid-micro">{t("yt.uploads")}</dt>
             <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">{f.n(c.uploads)}</dd>
             {c.videos !== c.public_uploads ? (
-              <dd className="mt-0.5 max-w-44 text-xs text-grid-muted" title={t("yt.countHint")} data-yt-count-differs>
+              <dd
+                className="mt-0.5 max-w-44 text-xs text-grid-muted"
+                title={t("yt.countHint")}
+                data-yt-count-differs
+              >
                 {t("yt.youtubeCounts", { n: f.n(c.videos), p: f.n(c.public_uploads) })}
               </dd>
             ) : null}
@@ -160,12 +216,20 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
       </div>
       <Steps steps={c.steps ?? []} />
       {out.resource?.last_error ? (
-        <p className="border-t border-line px-6 py-2 text-xs break-words text-grid-danger-text" data-last-error>
+        <p
+          className="border-t border-line px-6 py-2 text-xs break-words text-grid-danger-text"
+          data-last-error
+        >
           <Ltr>{out.resource.last_error}</Ltr>
         </p>
       ) : null}
       <p className="border-t border-line px-6 py-2 text-xs text-grid-muted" data-yt-quota>
-        {t("yt.quota", { used: f.n(q.workspace_used), limit: f.n(q.workspace_limit), all: f.n(q.global_used), allLimit: f.n(q.global_limit) })}
+        {t("yt.quota", {
+          used: f.n(q.workspace_used),
+          limit: f.n(q.workspace_limit),
+          all: f.n(q.global_used),
+          allLimit: f.n(q.global_limit),
+        })}
       </p>
     </section>
   )
@@ -180,8 +244,19 @@ function Steps({ steps }: { steps: YtSyncStep[] }) {
   return (
     <ul className="divide-y divide-line border-t border-line" data-yt-steps>
       {bad.map((s) => (
-        <li key={s.name} className="flex items-start gap-3 px-6 py-2 text-xs" data-yt-step={s.name} data-state={s.state}>
-          <TriangleAlertIcon className={s.state === "failed" ? "mt-0.5 size-3.5 shrink-0 text-grid-danger" : "mt-0.5 size-3.5 shrink-0 text-grid-warn"} />
+        <li
+          key={s.name}
+          className="flex items-start gap-3 px-6 py-2 text-xs"
+          data-yt-step={s.name}
+          data-state={s.state}
+        >
+          <TriangleAlertIcon
+            className={
+              s.state === "failed"
+                ? "mt-0.5 size-3.5 shrink-0 text-grid-danger"
+                : "mt-0.5 size-3.5 shrink-0 text-grid-warn"
+            }
+          />
           <p className="min-w-0 break-words">
             <span className="font-medium text-grid-fg">
               {t(`yt.step.${s.name}`)} · {t(`yt.stepState.${s.state}`)}
@@ -213,7 +288,10 @@ function Videos({ resourceId, onOpen }: { resourceId: string; onOpen: (id: strin
     const id = setTimeout(() => setSearch(q.trim()), 300)
     return () => clearTimeout(id)
   }, [q])
-  const pages = useYtVideos(ws.id, resourceId, { q: search, privacy: privacy === "all" ? "" : privacy })
+  const pages = useYtVideos(ws.id, resourceId, {
+    q: search,
+    privacy: privacy === "all" ? "" : privacy,
+  })
   const first = pages.data?.[0]
   const videos = (pages.data ?? []).flatMap((p) => p.videos ?? [])
   const last = pages.data?.[pages.data.length - 1]
@@ -222,11 +300,30 @@ function Videos({ resourceId, onOpen }: { resourceId: string; onOpen: (id: strin
   return (
     <section className="pt-6" data-yt-videos>
       <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
-        <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("yt.search")} aria-label={t("yt.search")} className="w-full sm:w-64" data-yt-search />
-        <ToggleGroup variant="outline" size="sm" spacing={0} className="flex-wrap" value={[privacy]} onValueChange={(v) => v[0] && setPrivacy(v[0] as (typeof PRIVACY)[number])} aria-label={t("yt.privacy")}>
+        <Input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("yt.search")}
+          aria-label={t("yt.search")}
+          className="w-full sm:w-64"
+          data-yt-search
+        />
+        <ToggleGroup
+          variant="outline"
+          size="sm"
+          spacing={0}
+          className="flex-wrap"
+          value={[privacy]}
+          onValueChange={(v) => v[0] && setPrivacy(v[0] as (typeof PRIVACY)[number])}
+          aria-label={t("yt.privacy")}
+        >
           {PRIVACY.map((p) => (
             <ToggleGroupItem key={p} value={p} data-privacy={p}>
-              {t(`yt.privacy.${p}`)} <span className="text-grid-muted tabular-nums">{first ? f.n(p === "all" ? first.total : (counts[p] ?? 0)) : ""}</span>
+              {t(`yt.privacy.${p}`)}{" "}
+              <span className="text-grid-muted tabular-nums">
+                {first ? f.n(p === "all" ? first.total : (counts[p] ?? 0)) : ""}
+              </span>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -240,7 +337,10 @@ function Videos({ resourceId, onOpen }: { resourceId: string; onOpen: (id: strin
           ))}
         </div>
       ) : videos.length === 0 ? (
-        <EmptyState title={search || privacy !== "all" ? t("yt.noMatch") : t("yt.noVideos")} body={search || privacy !== "all" ? undefined : t("yt.noVideosBody")} />
+        <EmptyState
+          title={search || privacy !== "all" ? t("yt.noMatch") : t("yt.noVideos")}
+          body={search || privacy !== "all" ? undefined : t("yt.noVideosBody")}
+        />
       ) : (
         <ul className="divide-y divide-line border-y border-line">
           {videos.map((v) => (
@@ -250,7 +350,13 @@ function Videos({ resourceId, onOpen }: { resourceId: string; onOpen: (id: strin
       )}
       {last?.has_more ? (
         <div className="flex justify-center py-4">
-          <Button variant="outline" size="sm" onClick={() => pages.setSize(pages.size + 1)} disabled={pages.isValidating} data-load-more>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => pages.setSize(pages.size + 1)}
+            disabled={pages.isValidating}
+            data-load-more
+          >
             {pages.isValidating ? t("common.working") : t("yt.more")}
           </Button>
         </div>
@@ -286,7 +392,8 @@ function Counts({ v }: { v: YtVideo }) {
 function PrivacyBadge({ v }: { v: YtVideo }) {
   const { t } = useTranslations()
   if (v.scheduled) return <Badge variant="outline">{t("yt.privacy.scheduled")}</Badge>
-  if (v.privacy_status && v.privacy_status !== "public") return <Badge variant="outline">{t(`yt.privacy.${v.privacy_status}`)}</Badge>
+  if (v.privacy_status && v.privacy_status !== "public")
+    return <Badge variant="outline">{t(`yt.privacy.${v.privacy_status}`)}</Badge>
   return null
 }
 
@@ -301,16 +408,30 @@ function VideoRow({ v, onOpen }: { v: YtVideo; onOpen: () => void }) {
   const f = useFormat()
   return (
     <li>
-      <button type="button" onClick={onOpen} className="flex w-full items-start gap-4 px-6 py-3 text-start transition-colors hover:bg-grid-soft" data-video={v.id}>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full items-start gap-4 px-6 py-3 text-start transition-colors hover:bg-grid-soft"
+        data-video={v.id}
+      >
         <span className="relative w-32 shrink-0 sm:w-40">
           {v.thumbnail_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={v.thumbnail_url} alt="" className="aspect-video w-full rounded-sm border border-line object-cover" referrerPolicy="no-referrer" loading="lazy" />
+            <img
+              src={v.thumbnail_url}
+              alt=""
+              className="aspect-video w-full rounded-sm border border-line object-cover"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+            />
           ) : (
             <span className="block aspect-video w-full rounded-sm border border-line bg-grid-soft" />
           )}
           {v.duration_seconds ? (
-            <span dir="ltr" className="absolute end-1 bottom-1 rounded-sm bg-black/75 px-1 text-[11px] text-white tabular-nums">
+            <span
+              dir="ltr"
+              className="absolute end-1 bottom-1 rounded-sm bg-black/75 px-1 text-[11px] text-white tabular-nums"
+            >
               {duration(v.duration_seconds)}
             </span>
           ) : null}
@@ -320,7 +441,9 @@ function VideoRow({ v, onOpen }: { v: YtVideo; onOpen: () => void }) {
             <bdi>{v.title}</bdi>
           </span>
           <span className="flex flex-wrap items-center gap-2 text-xs text-grid-muted">
-            {v.published_at ? <span title={f.exact(v.published_at)}>{f.ago(v.published_at)}</span> : null}
+            {v.published_at ? (
+              <span title={f.exact(v.published_at)}>{f.ago(v.published_at)}</span>
+            ) : null}
             <PrivacyBadge v={v} />
           </span>
           <Counts v={v} />
@@ -335,7 +458,12 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
   const ws = useWorkspace()
   const f = useFormat()
   const d = useYtVideo(ws.id, resourceId, id)
-  if (d.error) return <div className="p-6"><ErrorState error={d.error} /></div>
+  if (d.error)
+    return (
+      <div className="p-6">
+        <ErrorState error={d.error} />
+      </div>
+    )
   const v = d.data
   if (!v)
     return (
@@ -351,23 +479,40 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
     <div data-video-detail={v.id}>
       {v.thumbnail_url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={v.thumbnail_url.replace("mqdefault", "hqdefault")} alt="" className="aspect-video w-full border-b border-line object-cover" referrerPolicy="no-referrer" />
+        <img
+          src={v.thumbnail_url.replace("mqdefault", "hqdefault")}
+          alt=""
+          className="aspect-video w-full border-b border-line object-cover"
+          referrerPolicy="no-referrer"
+        />
       ) : null}
       <SheetHeader className="gap-2 px-6 pt-5 pb-3">
         <SheetTitle className="text-base">
           <bdi>{v.title}</bdi>
         </SheetTitle>
         <SheetDescription className="flex flex-wrap items-center gap-2">
-          {v.published_at ? <span title={f.exact(v.published_at)}>{f.exact(v.published_at)}</span> : null}
+          {v.published_at ? (
+            <span title={f.exact(v.published_at)}>{f.exact(v.published_at)}</span>
+          ) : null}
           <PrivacyBadge v={v} />
         </SheetDescription>
         <Counts v={v} />
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button variant="outline" size="sm" nativeButton={false} render={<a href={v.url} target="_blank" rel="noreferrer" />}>
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<a href={v.url} target="_blank" rel="noreferrer" />}
+          >
             <ExternalLinkIcon />
             {t("yt.watch")}
           </Button>
-          <Button variant="outline" size="sm" nativeButton={false} render={<a href={v.studio_url} target="_blank" rel="noreferrer" />}>
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<a href={v.studio_url} target="_blank" rel="noreferrer" />}
+          >
             <ExternalLinkIcon />
             {t("yt.studio")}
           </Button>
@@ -376,7 +521,9 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
       <YouTubeAnalytics resourceId={resourceId} video={v.id} compact />
       {v.description ? (
         <p className="border-t border-line px-6 py-4 text-sm whitespace-pre-wrap text-grid-body">
-          <bdi>{v.description.length > 1200 ? v.description.slice(0, 1200) + "…" : v.description}</bdi>
+          <bdi>
+            {v.description.length > 1200 ? v.description.slice(0, 1200) + "…" : v.description}
+          </bdi>
         </p>
       ) : null}
       {v.tags && v.tags.length ? (
@@ -394,9 +541,17 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
           <p className="px-6 pb-5 text-sm text-grid-muted" data-comments-off>
             {t("yt.commentsDisabled")}
           </p>
-        ) : v.comment_note === "comments_unavailable" || v.comment_note === "comments_not_public" ? (
-          <p className="px-6 pb-5 text-sm text-grid-muted" data-comments-unavailable={v.comment_note}>
-            {t(v.comment_note === "comments_unavailable" ? "yt.commentsUnavailable" : "yt.commentsNotPublic")}
+        ) : v.comment_note === "comments_unavailable" ||
+          v.comment_note === "comments_not_public" ? (
+          <p
+            className="px-6 pb-5 text-sm text-grid-muted"
+            data-comments-unavailable={v.comment_note}
+          >
+            {t(
+              v.comment_note === "comments_unavailable"
+                ? "yt.commentsUnavailable"
+                : "yt.commentsNotPublic",
+            )}
           </p>
         ) : (
           <>
@@ -415,7 +570,9 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
                       <span className="font-medium text-grid-fg">
                         <bdi>{c.author}</bdi>
                       </span>
-                      {c.published_at ? <span title={f.exact(c.published_at)}>{f.ago(c.published_at)}</span> : null}
+                      {c.published_at ? (
+                        <span title={f.exact(c.published_at)}>{f.ago(c.published_at)}</span>
+                      ) : null}
                       {c.answered ? (
                         <span className="inline-flex items-center gap-1 text-grid-ok-text">
                           <CheckIcon className="size-3" />
@@ -431,7 +588,13 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
                         <ThumbsUpIcon className="size-3" aria-hidden /> {f.n(c.likes)}
                       </span>
                       <span>{t("yt.replies", { n: f.n(c.replies) })}</span>
-                      <a href={c.reply_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-grid-fg hover:underline" data-reply>
+                      <a
+                        href={c.reply_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-grid-fg hover:underline"
+                        data-reply
+                      >
                         {t("yt.reply")}
                         <ExternalLinkIcon className="size-3" />
                       </a>

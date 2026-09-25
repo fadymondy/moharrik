@@ -24,7 +24,11 @@ export default function AutomationProfileSettingsPage() {
 
   return (
     <>
-      <SectionHeader micro={t("nav.settings")} title={t("presets.profileTitle")} description={t("presets.profileHint")} />
+      <SectionHeader
+        micro={t("nav.settings")}
+        title={t("presets.profileTitle")}
+        description={t("presets.profileHint")}
+      />
       <ProfilePanel canManage={canManage} data={profile.data} onSaved={() => profile.mutate()} />
       <div className="pb-8" />
     </>

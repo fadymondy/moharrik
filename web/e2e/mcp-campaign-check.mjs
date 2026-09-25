@@ -30,7 +30,8 @@ function smtpCatcher(port) {
         }
         if (!line) continue
         const up = line.toUpperCase()
-        if (up.startsWith("EHLO") || up.startsWith("HELO")) socket.write("250-catcher\r\n250 OK\r\n")
+        if (up.startsWith("EHLO") || up.startsWith("HELO"))
+          socket.write("250-catcher\r\n250 OK\r\n")
         else if (up.startsWith("MAIL FROM")) socket.write("250 ok\r\n")
         else if (up.startsWith("RCPT TO")) {
           current.to.push((line.match(/<(.+)>/) || [])[1] ?? line)
@@ -46,7 +47,9 @@ function smtpCatcher(port) {
     })
     socket.on("error", () => {})
   })
-  return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve({ server, inbox })))
+  return new Promise((resolve) =>
+    server.listen(port, "127.0.0.1", () => resolve({ server, inbox })),
+  )
 }
 
 const out = {}
@@ -80,7 +83,10 @@ await page.fill("#smtp-from-name", "Moharrik")
 const tls = await page.$("#smtp-tls")
 if (tls) {
   await page.click("#smtp-tls")
-  await page.getByRole("option", { name: /none/i }).click({ timeout: 4000 }).catch(() => {})
+  await page
+    .getByRole("option", { name: /none/i })
+    .click({ timeout: 4000 })
+    .catch(() => {})
 }
 await page.click('[data-form="smtp"] button[type=submit]')
 await page.waitForTimeout(1200)
@@ -91,11 +97,11 @@ await page.fill("#list-name", "Announcements")
 // Base UI renders a hidden <input> for the Switch; the clickable element is
 // the one carrying role=switch. Turning it OFF means the contact is confirmed
 // immediately, so the campaign has a recipient without an email round-trip.
-await page.click('[data-form=create-list] [role=switch]')
-await page.click('[data-form=create-list] button[type=submit]')
+await page.click("[data-form=create-list] [role=switch]")
+await page.click("[data-form=create-list] button[type=submit]")
 await page.waitForSelector('[data-list-row="Announcements"]', { timeout: 10000 })
 await page.fill("#contact-email", "reader@example.test")
-await page.click('[data-form=add-contact] button[type=submit]')
+await page.click("[data-form=add-contact] button[type=submit]")
 await page.waitForSelector('[data-contact-row="reader@example.test"]', { timeout: 10000 })
 
 // An MCP token that may read and write campaigns.
@@ -104,8 +110,15 @@ const token = await page.evaluate(async () => {
   const ws = (await (await fetch("/api/me/workspaces")).json()).workspaces[0].id
   const r = await fetch("/api/w/mcp_tokens", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf.csrf_token, "X-Workspace-ID": ws },
-    body: JSON.stringify({ name: "campaign check", scopes: ["contacts:read", "campaigns:read", "campaigns:write"] }),
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrf.csrf_token,
+      "X-Workspace-ID": ws,
+    },
+    body: JSON.stringify({
+      name: "campaign check",
+      scopes: ["contacts:read", "campaigns:read", "campaigns:write"],
+    }),
   })
   return (await r.json()).plaintext
 })
@@ -115,15 +128,28 @@ async function call(name, args = {}) {
   const res = await fetch(`${base}/api/mcp`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name, arguments: args },
+    }),
   })
   const j = await res.json()
   if (j.error) return { error: j.error.message }
   return { text: j.result.content?.[0]?.text ?? "", isError: !!j.result.isError }
 }
 
-out.createUnknownList = (await call("create_campaign", { list: "Nope", subject: "x", body: "y" })).text
-out.create = (await call("create_campaign", { list: "Announcements", subject: "Launch week", body: "# Hello\n\nWe shipped." })).text
+out.createUnknownList = (
+  await call("create_campaign", { list: "Nope", subject: "x", body: "y" })
+).text
+out.create = (
+  await call("create_campaign", {
+    list: "Announcements",
+    subject: "Launch week",
+    body: "# Hello\n\nWe shipped.",
+  })
+).text
 out.sendUnknown = (await call("send_campaign", { subject: "Not a campaign" })).text
 out.send = (await call("send_campaign", { subject: "Launch week" })).text
 
@@ -147,7 +173,11 @@ const narrow = await page.evaluate(async () => {
   const ws = (await (await fetch("/api/me/workspaces")).json()).workspaces[0].id
   const r = await fetch("/api/w/mcp_tokens", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf.csrf_token, "X-Workspace-ID": ws },
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrf.csrf_token,
+      "X-Workspace-ID": ws,
+    },
     body: JSON.stringify({ name: "read only", scopes: ["campaigns:read"] }),
   })
   return (await r.json()).plaintext
@@ -155,10 +185,18 @@ const narrow = await page.evaluate(async () => {
 const refused = await fetch(`${base}/api/mcp`, {
   method: "POST",
   headers: { Authorization: `Bearer ${narrow}`, "Content-Type": "application/json" },
-  body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "send_campaign", arguments: { subject: "Launch week" } } }),
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/call",
+    params: { name: "send_campaign", arguments: { subject: "Launch week" } },
+  }),
 })
 const rj = await refused.json()
-out.withoutScope = { isError: !!rj.result?.isError, text: rj.result?.content?.[0]?.text ?? rj.error?.message }
+out.withoutScope = {
+  isError: !!rj.result?.isError,
+  text: rj.result?.content?.[0]?.text ?? rj.error?.message,
+}
 
 server.close()
 await ctx.close()

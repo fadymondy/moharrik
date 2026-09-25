@@ -96,7 +96,9 @@ export function AttachmentList({ attachments }: { attachments?: InboxAttachment[
   if (files.length === 0) return null
   const images = files.filter((a) => a.content_type.startsWith("image/"))
   const audio = files.filter((a) => a.content_type.startsWith("audio/"))
-  const other = files.filter((a) => !a.content_type.startsWith("image/") && !a.content_type.startsWith("audio/"))
+  const other = files.filter(
+    (a) => !a.content_type.startsWith("image/") && !a.content_type.startsWith("audio/"),
+  )
 
   return (
     <div className="mt-2 flex flex-col gap-2" data-attachments>
@@ -104,11 +106,22 @@ export function AttachmentList({ attachments }: { attachments?: InboxAttachment[
         <ul className="grid grid-cols-3 gap-1.5" data-attachment-images>
           {images.map((a) => (
             <li key={a.id}>
-              <a href={a.url} target="_blank" rel="noreferrer noopener" title={a.filename} className="block overflow-hidden rounded-md border border-grid-border">
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                title={a.filename}
+                className="block overflow-hidden rounded-md border border-grid-border"
+              >
                 {/* Signed, short-lived attachment URLs: next/image would cache
                     past that window, so a plain <img> is correct here. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={a.url} alt={a.filename} className="aspect-square size-full object-cover" loading="lazy" />
+                <img
+                  src={a.url}
+                  alt={a.filename}
+                  className="aspect-square size-full object-cover"
+                  loading="lazy"
+                />
               </a>
             </li>
           ))}
@@ -145,7 +158,15 @@ export function AttachmentList({ attachments }: { attachments?: InboxAttachment[
   )
 }
 
-export function MessageBody({ body, bodyHtml, attachments }: { body: string; bodyHtml?: string; attachments?: InboxAttachment[] }) {
+export function MessageBody({
+  body,
+  bodyHtml,
+  attachments,
+}: {
+  body: string
+  bodyHtml?: string
+  attachments?: InboxAttachment[]
+}) {
   if (bodyHtml && bodyHtml.trim()) {
     return <HtmlMessage html={bodyHtml} attachments={attachments} />
   }

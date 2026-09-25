@@ -20,7 +20,15 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, contactIdentity, LIFECYCLE_STAGES, type ContactDetail, type Lifecycle, type SubscriptionStatus } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  contactIdentity,
+  LIFECYCLE_STAGES,
+  type ContactDetail,
+  type Lifecycle,
+  type SubscriptionStatus,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContact } from "@/lib/queries"
 import { dateFormat } from "@/lib/i18n-locale"
@@ -31,7 +39,10 @@ import { IdentitiesPanel, MetaPanel } from "@/components/crm/contact-identities"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
-const statusVariant: Record<SubscriptionStatus, "default" | "secondary" | "outline" | "destructive"> = {
+const statusVariant: Record<
+  SubscriptionStatus,
+  "default" | "secondary" | "outline" | "destructive"
+> = {
   subscribed: "default",
   pending: "secondary",
   unsubscribed: "outline",
@@ -47,12 +58,24 @@ export default function ContactDetailPage() {
   const canWrite = ws.can("contacts:write")
   const detail = useContact(ws.id, id)
   const [leaving, setLeaving] = useState<UnsubscribeTarget | null>(null)
-  useDocumentTitle(detail.data ? `${detail.data.contact.name || identity(detail.data.contact)} · ${ws.summary.name}` : t("contacts.detailTitle"))
+  useDocumentTitle(
+    detail.data
+      ? `${detail.data.contact.name || identity(detail.data.contact)} · ${ws.summary.name}`
+      : t("contacts.detailTitle"),
+  )
   const base = `/${locale}/w/${ws.slug}`
 
   if (detail.error) {
     const notFound = detail.error instanceof ApiError && detail.error.status === 404
-    if (notFound) return <NotFoundState title={t("contacts.notFound")} body={t("contacts.notFoundBody")} backHref={`${base}/contacts`} backLabel={t("contacts.backToList")} />
+    if (notFound)
+      return (
+        <NotFoundState
+          title={t("contacts.notFound")}
+          body={t("contacts.notFoundBody")}
+          backHref={`${base}/contacts`}
+          backLabel={t("contacts.backToList")}
+        />
+      )
     return <ErrorState error={detail.error} />
   }
   if (!detail.data) return <LoadingRows rows={6} />
@@ -65,7 +88,11 @@ export default function ContactDetailPage() {
         micro={t("nav.contacts")}
         title={
           <span className="flex items-center gap-2">
-            <PersonAvatar id={contact.id} name={contact.name || identity(contact)} photoUrl={contact.avatar_url} />
+            <PersonAvatar
+              id={contact.id}
+              name={contact.name || identity(contact)}
+              photoUrl={contact.avatar_url}
+            />
             {contact.name ? <Bdi>{contact.name}</Bdi> : <Ltr>{identity(contact)}</Ltr>}
           </span>
         }
@@ -78,7 +105,10 @@ export default function ContactDetailPage() {
               description={t("contacts.deleteBody", { email: isolate(identity(contact)) })}
               confirmLabel={t("common.delete")}
               onConfirm={async () => {
-                await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, { method: "DELETE", workspaceId: ws.id })
+                await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, {
+                  method: "DELETE",
+                  workspaceId: ws.id,
+                })
                 window.location.href = `${base}/contacts`
               }}
             />
@@ -87,7 +117,10 @@ export default function ContactDetailPage() {
       />
 
       {(contact.subscriptions ?? []).length > 0 ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 pb-6" data-contact-subscriptions>
+        <div
+          className="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 pb-6"
+          data-contact-subscriptions
+        >
           {contact.subscriptions.map((s) => (
             <span key={s.id} className="inline-flex items-center gap-1">
               <Badge variant={statusVariant[s.status]} data-sub={`${s.list_name}:${s.status}`}>
@@ -98,7 +131,14 @@ export default function ContactDetailPage() {
                   variant="ghost"
                   size="xs"
                   data-unsubscribe-from={s.list_name}
-                  onClick={() => setLeaving({ contactId: contact.id, who: contact.name || identity(contact), listId: s.list_id, listName: s.list_name })}
+                  onClick={() =>
+                    setLeaving({
+                      contactId: contact.id,
+                      who: contact.name || identity(contact),
+                      listId: s.list_id,
+                      listName: s.list_name,
+                    })
+                  }
                 >
                   <LogOutIcon />
                   {t("contacts.unsubscribe")}
@@ -108,7 +148,11 @@ export default function ContactDetailPage() {
           ))}
         </div>
       ) : null}
-      <UnsubscribeDialog target={leaving} onClose={() => setLeaving(null)} onDone={() => detail.mutate()} />
+      <UnsubscribeDialog
+        target={leaving}
+        onClose={() => setLeaving(null)}
+        onDone={() => detail.mutate()}
+      />
 
       <ContactFit contact={contact} canWrite={canWrite} onSaved={() => detail.mutate()} />
       <ContactWhatsAppPanel key={contact.phone} contact={contact} />
@@ -120,11 +164,22 @@ export default function ContactDetailPage() {
       ) : null}
 
       <div className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
-        <IdentitiesPanel contactId={contact.id} identities={contact.identities ?? []} canWrite={canWrite} onChanged={() => detail.mutate()} />
+        <IdentitiesPanel
+          contactId={contact.id}
+          identities={contact.identities ?? []}
+          canWrite={canWrite}
+          onChanged={() => detail.mutate()}
+        />
         {/* keyed on the map's contents: MetaPanel seeds its row state from `meta` only on
             mount, so a re-fetch after save (or another editor's change) needs a remount
             to actually show the new server truth instead of stale local rows. */}
-        <MetaPanel key={JSON.stringify(contact.meta ?? {})} contactId={contact.id} meta={contact.meta ?? {}} canWrite={canWrite} onChanged={() => detail.mutate()} />
+        <MetaPanel
+          key={JSON.stringify(contact.meta ?? {})}
+          contactId={contact.id}
+          meta={contact.meta ?? {}}
+          canWrite={canWrite}
+          onChanged={() => detail.mutate()}
+        />
       </div>
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
@@ -136,11 +191,20 @@ export default function ContactDetailPage() {
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
-      <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} conversations={detail.data.conversations ?? []} target={{ contact_id: contact.id }} onChange={() => detail.mutate()} />
+      <Timeline
+        items={activities}
+        total={detail.data.activities_total}
+        nextCursor={detail.data.activities_next_cursor}
+        conversations={detail.data.conversations ?? []}
+        target={{ contact_id: contact.id }}
+        onChange={() => detail.mutate()}
+      />
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
-      <ContactContextPanel contact={{ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone }} />
+      <ContactContextPanel
+        contact={{ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone }}
+      />
       <div className="pb-8" />
     </>
   )
@@ -152,19 +216,33 @@ const NO_STAGE = "__none"
  * Where the contact is in the lifecycle (MH-395), how it got there, and how well it fits the
  * workspace's ideal customer — the score with every reason behind it.
  */
-function ContactFit({ contact, canWrite, onSaved }: { contact: ContactDetail; canWrite: boolean; onSaved: () => void }) {
+function ContactFit({
+  contact,
+  canWrite,
+  onSaved,
+}: {
+  contact: ContactDetail
+  canWrite: boolean
+  onSaved: () => void
+}) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
   const [busy, setBusy] = useState(false)
   const history = contact.lifecycle_history ?? []
   const when = dateFormat(locale, { dateStyle: "medium", timeStyle: "short" })
-  const stageOptions = [...LIFECYCLE_STAGES.map((st) => ({ value: st, label: t(`lifecycle.${st}`) }))]
+  const stageOptions = [
+    ...LIFECYCLE_STAGES.map((st) => ({ value: st, label: t(`lifecycle.${st}`) })),
+  ]
 
   async function setStage(next: Lifecycle) {
     setBusy(true)
     try {
-      await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, { method: "PATCH", json: { lifecycle: next }, workspaceId: ws.id })
+      await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, {
+        method: "PATCH",
+        json: { lifecycle: next },
+        workspaceId: ws.id,
+      })
       toast.success(t("lifecycle.saved"))
       onSaved()
     } catch (e) {
@@ -199,16 +277,26 @@ function ContactFit({ contact, canWrite, onSaved }: { contact: ContactDetail; ca
         ) : (
           <ol className="divide-y divide-line px-5 pb-2" data-lifecycle-history>
             {history.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2.5 text-sm" data-lifecycle-event={e.source}>
+              <li
+                key={e.id}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2.5 text-sm"
+                data-lifecycle-event={e.source}
+              >
                 <span className="inline-flex items-center gap-1.5">
-                  {e.from ? <LifecycleBadge stage={e.from} /> : <span className="text-grid-muted">{t("lifecycle.none")}</span>}
+                  {e.from ? (
+                    <LifecycleBadge stage={e.from} />
+                  ) : (
+                    <span className="text-grid-muted">{t("lifecycle.none")}</span>
+                  )}
                   <span className="text-grid-muted rtl:-scale-x-100" aria-hidden>
                     →
                   </span>
                   <LifecycleBadge stage={e.to} />
                 </span>
                 <span className="text-grid-muted">
-                  {e.source === "manual" ? t("lifecycle.source.manualBy", { who: members.name(e.actor_user_id) }) : t(`lifecycle.source.${e.source}`)}
+                  {e.source === "manual"
+                    ? t("lifecycle.source.manualBy", { who: members.name(e.actor_user_id) })
+                    : t(`lifecycle.source.${e.source}`)}
                 </span>
                 <span className="ms-auto text-xs text-grid-muted">
                   <Ltr>{when.format(new Date(e.at))}</Ltr>
@@ -216,7 +304,9 @@ function ContactFit({ contact, canWrite, onSaved }: { contact: ContactDetail; ca
               </li>
             ))}
             {contact.lifecycle_history_total > history.length ? (
-              <li className="py-2 text-xs text-grid-muted">{t("lifecycle.more", { n: contact.lifecycle_history_total - history.length })}</li>
+              <li className="py-2 text-xs text-grid-muted">
+                {t("lifecycle.more", { n: contact.lifecycle_history_total - history.length })}
+              </li>
             ) : null}
           </ol>
         )}
@@ -226,7 +316,10 @@ function ContactFit({ contact, canWrite, onSaved }: { contact: ContactDetail; ca
         <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
           <h2 className="text-base font-medium">{t("icp.fit")}</h2>
           <ScoreMeter score={contact.score} />
-          <Link className="ms-auto text-xs text-grid-muted hover:text-grid-fg hover:underline" href={`/${locale}/w/${ws.slug}/settings/icp`}>
+          <Link
+            className="ms-auto text-xs text-grid-muted hover:text-grid-fg hover:underline"
+            href={`/${locale}/w/${ws.slug}/settings/icp`}
+          >
             {t("icp.editProfile")}
           </Link>
         </div>

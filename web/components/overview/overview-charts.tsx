@@ -16,8 +16,18 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { Bdi } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
 import { Panel, useFormat } from "@/components/overview/overview-cards"
-import { type BarRow, type Column, DataTable, HorizontalBars } from "@/components/reports/report-charts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import {
+  type BarRow,
+  type Column,
+  DataTable,
+  HorizontalBars,
+} from "@/components/reports/report-charts"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { OverviewConversationDay, OverviewCountDay, OverviewStage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -29,7 +39,15 @@ const SERIES_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--grid-brand)"] 
 export type SeriesPoint = { date: string } & Record<string, number | string | null>
 
 /** A panel's two views: the chart, and the same numbers as a table. */
-export function ViewToggle({ value, onChange, id }: { value: "chart" | "table"; onChange: (v: "chart" | "table") => void; id: string }) {
+export function ViewToggle({
+  value,
+  onChange,
+  id,
+}: {
+  value: "chart" | "table"
+  onChange: (v: "chart" | "table") => void
+  id: string
+}) {
   const { t } = useTranslations()
   return (
     <ToggleGroup
@@ -78,15 +96,25 @@ export function TrendChart({
 }) {
   const { isRtl, dir } = useTranslations()
   const config = Object.fromEntries(
-    seriesKeys.map((k, i) => [k, { label: seriesLabels[i], color: SERIES_COLORS[i % SERIES_COLORS.length] }]),
+    seriesKeys.map((k, i) => [
+      k,
+      { label: seriesLabels[i], color: SERIES_COLORS[i % SERIES_COLORS.length] },
+    ]),
   ) satisfies ChartConfig
   return (
     <>
       {seriesKeys.length > 1 ? (
-        <ul className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-grid-muted" data-legend>
+        <ul
+          className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-grid-muted"
+          data-legend
+        >
           {seriesKeys.map((k, i) => (
             <li key={k} className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} aria-hidden />
+              <span
+                className="size-2.5 rounded-full"
+                style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }}
+                aria-hidden
+              />
               {seriesLabels[i]}
             </li>
           ))}
@@ -94,30 +122,67 @@ export function TrendChart({
       ) : null}
       {/* dir="ltr": SVG text anchors follow the document's direction, not a CSS property, so the
           mirroring is explicit — a reversed time axis and the value axis on the right in RTL. */}
-      <ChartContainer id={id} config={config} className="aspect-auto h-56 w-full" data-chart-id={id} dir="ltr">
+      <ChartContainer
+        id={id}
+        config={config}
+        className="aspect-auto h-56 w-full"
+        data-chart-id={id}
+        dir="ltr"
+      >
         <LineChart data={data} margin={{ top: 8, bottom: 0, left: 4, right: 4 }} accessibilityLayer>
           <CartesianGrid vertical={false} />
-          <XAxis dataKey="date" reversed={isRtl} tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} tickFormatter={(v: string) => formatDay(v)} />
-          <YAxis orientation={isRtl ? "right" : "left"} tickLine={false} axisLine={false} width={48} allowDecimals={false} tickFormatter={(v: number) => formatTick(v)} />
+          <XAxis
+            dataKey="date"
+            reversed={isRtl}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={24}
+            tickFormatter={(v: string) => formatDay(v)}
+          />
+          <YAxis
+            orientation={isRtl ? "right" : "left"}
+            tickLine={false}
+            axisLine={false}
+            width={48}
+            allowDecimals={false}
+            tickFormatter={(v: number) => formatTick(v)}
+          />
           <ChartTooltip
             cursor={{ strokeOpacity: 0.4 }}
             content={
               <ChartTooltipContent
-                labelFormatter={(_l, payload) => formatDay(String(payload?.[0]?.payload?.date ?? ""))}
+                labelFormatter={(_l, payload) =>
+                  formatDay(String(payload?.[0]?.payload?.date ?? ""))
+                }
                 formatter={(value, name, item) => (
                   <div className="flex w-full items-center justify-between gap-4" dir={dir}>
                     <span className="flex items-center gap-1.5 text-grid-muted">
-                      <span className="size-2.5 rounded-full" style={{ background: item.color }} aria-hidden />
+                      <span
+                        className="size-2.5 rounded-full"
+                        style={{ background: item.color }}
+                        aria-hidden
+                      />
                       {config[String(name)]?.label}
                     </span>
-                    <Ltr className="font-medium text-grid-fg tabular-nums">{value == null ? "—" : formatTick(Number(value))}</Ltr>
+                    <Ltr className="font-medium text-grid-fg tabular-nums">
+                      {value == null ? "—" : formatTick(Number(value))}
+                    </Ltr>
                   </div>
                 )}
               />
             }
           />
           {seriesKeys.map((k, i) => (
-            <Line key={k} dataKey={k} stroke={SERIES_COLORS[i % SERIES_COLORS.length]} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
+            <Line
+              key={k}
+              dataKey={k}
+              stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+              strokeWidth={2}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
           ))}
         </LineChart>
       </ChartContainer>
@@ -126,7 +191,13 @@ export function TrendChart({
 }
 
 /** The same series as an accessible table: date, then one numeric column per series. */
-export function trendColumns(dayHead: string, seriesKeys: string[], seriesLabels: string[], formatTick: (n: number) => string, formatDay: (ymd: string) => string): Column<SeriesPoint>[] {
+export function trendColumns(
+  dayHead: string,
+  seriesKeys: string[],
+  seriesLabels: string[],
+  formatTick: (n: number) => string,
+  formatDay: (ymd: string) => string,
+): Column<SeriesPoint>[] {
   return [
     { key: "date", head: dayHead, cell: (r) => <Ltr>{formatDay(r.date)}</Ltr> },
     ...seriesKeys.map((k, i) => ({
@@ -169,11 +240,24 @@ export function ChartOrTable({
       </div>
       {view === "chart" ? (
         <div className="px-3 pb-4">
-          <TrendChart data={data} seriesKeys={seriesKeys} seriesLabels={seriesLabels} formatTick={formatTick} formatDay={formatDay} id={id} />
+          <TrendChart
+            data={data}
+            seriesKeys={seriesKeys}
+            seriesLabels={seriesLabels}
+            formatTick={formatTick}
+            formatDay={formatDay}
+            id={id}
+          />
         </div>
       ) : (
         <div className="px-3 pb-4">
-          <DataTable id={id} caption={caption} rows={data} rowKey={(r) => r.date} columns={trendColumns(dayHead, seriesKeys, seriesLabels, formatTick, formatDay)} />
+          <DataTable
+            id={id}
+            caption={caption}
+            rows={data}
+            rowKey={(r) => r.date}
+            columns={trendColumns(dayHead, seriesKeys, seriesLabels, formatTick, formatDay)}
+          />
         </div>
       )}
     </div>
@@ -183,7 +267,13 @@ export function ChartOrTable({
 // ── the three Overview panels ───────────────────────────────────────────────
 
 /** Leads created per day, the last 28 days, zero-filled — a single-series trend. */
-export function LeadsChartCard({ leadsDaily, base }: { leadsDaily: OverviewCountDay[]; base: string }) {
+export function LeadsChartCard({
+  leadsDaily,
+  base,
+}: {
+  leadsDaily: OverviewCountDay[]
+  base: string
+}) {
   const { t, locale } = useTranslations()
   const f = useFormat()
   const day = dateFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" })
@@ -191,7 +281,13 @@ export function LeadsChartCard({ leadsDaily, base }: { leadsDaily: OverviewCount
   const data: SeriesPoint[] = leadsDaily.map((d) => ({ date: d.date, leads: d.count }))
   const total = leadsDaily.reduce((sum, d) => sum + d.count, 0)
   return (
-    <Panel id="leads-trend" title={t("overview.leadsChart")} icon={<TrendingUpIcon />} href={`${base}/leads`} meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}>
+    <Panel
+      id="leads-trend"
+      title={t("overview.leadsChart")}
+      icon={<TrendingUpIcon />}
+      href={`${base}/leads`}
+      meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}
+    >
       <ChartOrTable
         id="leads-trend"
         caption={t("overview.leadsChart")}
@@ -208,12 +304,23 @@ export function LeadsChartCard({ leadsDaily, base }: { leadsDaily: OverviewCount
 }
 
 /** Conversations started per day, the last 28 days, split by channel and zero-filled. */
-export function ConversationsChartCard({ conversationsDaily, base }: { conversationsDaily: OverviewConversationDay[]; base: string }) {
+export function ConversationsChartCard({
+  conversationsDaily,
+  base,
+}: {
+  conversationsDaily: OverviewConversationDay[]
+  base: string
+}) {
   const { t, locale } = useTranslations()
   const f = useFormat()
   const day = dateFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" })
   const formatDay = (ymd: string) => day.format(new Date(`${ymd}T00:00:00Z`))
-  const data: SeriesPoint[] = conversationsDaily.map((d) => ({ date: d.date, chat: d.chat, email: d.email, whatsapp: d.whatsapp }))
+  const data: SeriesPoint[] = conversationsDaily.map((d) => ({
+    date: d.date,
+    chat: d.chat,
+    email: d.email,
+    whatsapp: d.whatsapp,
+  }))
   const total = conversationsDaily.reduce((sum, d) => sum + d.chat + d.email + d.whatsapp, 0)
   return (
     <Panel
@@ -228,7 +335,11 @@ export function ConversationsChartCard({ conversationsDaily, base }: { conversat
         caption={t("overview.conversationsChart")}
         data={data}
         seriesKeys={["chat", "email", "whatsapp"]}
-        seriesLabels={[t("inbox.channel.chat"), t("inbox.channel.email"), t("inbox.channel.whatsapp")]}
+        seriesLabels={[
+          t("inbox.channel.chat"),
+          t("inbox.channel.email"),
+          t("inbox.channel.whatsapp"),
+        ]}
         formatTick={f.n}
         formatDay={formatDay}
         dayHead={t("reports.bucketHead.day")}
@@ -239,7 +350,15 @@ export function ConversationsChartCard({ conversationsDaily, base }: { conversat
 }
 
 /** Open pipeline value by stage, right now — the same figures as PipelineCard, as a chart. */
-export function PipelineChartCard({ stages, currency, base }: { stages: OverviewStage[]; currency: string; base: string }) {
+export function PipelineChartCard({
+  stages,
+  currency,
+  base,
+}: {
+  stages: OverviewStage[]
+  currency: string
+  base: string
+}) {
   const { t } = useTranslations()
   const f = useFormat()
   const [view, setView] = useState<"chart" | "table">("chart")
@@ -253,7 +372,8 @@ export function PipelineChartCard({ stages, currency, base }: { stages: Overview
       <span className="flex flex-col gap-0.5">
         <Bdi className="font-medium text-grid-fg">{s.name}</Bdi>
         <span className="text-grid-muted">
-          <Ltr>{f.money(s.value_minor, currency)}</Ltr> · {t("overview.deals", { n: f.n(s.deal_count) })}
+          <Ltr>{f.money(s.value_minor, currency)}</Ltr> ·{" "}
+          {t("overview.deals", { n: f.n(s.deal_count) })}
         </span>
       </span>
     ),
@@ -264,13 +384,20 @@ export function PipelineChartCard({ stages, currency, base }: { stages: Overview
       title={t("reports.pipelineByStage")}
       icon={<HandshakeIcon />}
       href={`${base}/deals`}
-      meta={openDeals ? <ViewToggle id="pipeline-chart" value={view} onChange={setView} /> : undefined}
+      meta={
+        openDeals ? <ViewToggle id="pipeline-chart" value={view} onChange={setView} /> : undefined
+      }
     >
       {openDeals === 0 ? (
         <NoChartData id="pipeline-chart" />
       ) : view === "chart" ? (
         <div className="px-3 pb-4 pt-3">
-          <HorizontalBars id="pipeline-chart" rows={rows} series={t("overview.value")} format={(n) => f.money(n, currency)} />
+          <HorizontalBars
+            id="pipeline-chart"
+            rows={rows}
+            series={t("overview.value")}
+            format={(n) => f.money(n, currency)}
+          />
         </div>
       ) : (
         <div className="px-3 pb-4 pt-3">
@@ -281,8 +408,18 @@ export function PipelineChartCard({ stages, currency, base }: { stages: Overview
             rowKey={(s) => s.id}
             columns={[
               { key: "stage", head: t("overview.stage"), cell: (s) => <Bdi>{s.name}</Bdi> },
-              { key: "deals", head: t("overview.deals"), cell: (s) => f.n(s.deal_count), numeric: true },
-              { key: "value", head: t("overview.value"), cell: (s) => <Ltr>{f.money(s.value_minor, currency)}</Ltr>, numeric: true },
+              {
+                key: "deals",
+                head: t("overview.deals"),
+                cell: (s) => f.n(s.deal_count),
+                numeric: true,
+              },
+              {
+                key: "value",
+                head: t("overview.value"),
+                cell: (s) => <Ltr>{f.money(s.value_minor, currency)}</Ltr>,
+                numeric: true,
+              },
             ]}
           />
         </div>

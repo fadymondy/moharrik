@@ -22,7 +22,11 @@ export function RunNotes({ notes, className }: { notes?: string[]; className?: s
       {notes.map((n, i) => {
         const m = SITES_ADDED.exec(n)
         return (
-          <li key={i} className="flex items-start gap-1.5 text-xs text-grid-muted" data-run-note={m ? "sites-added" : "text"}>
+          <li
+            key={i}
+            className="flex items-start gap-1.5 text-xs text-grid-muted"
+            data-run-note={m ? "sites-added" : "text"}
+          >
             <GlobeIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
             <span className="min-w-0 break-words">
               {m ? t("automation.note.sitesAdded", { hosts: m[1], browser: m[2] }) : <Bdi>{n}</Bdi>}

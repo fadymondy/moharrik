@@ -56,7 +56,8 @@ export function proxy(request: NextRequest) {
   if (!locale) {
     const url = request.nextUrl.clone()
     const target = preferredLocale(request)
-    url.pathname = pathname === "/" ? `/${target}/${signedIn ? "workspaces" : "login"}` : `/${target}${pathname}`
+    url.pathname =
+      pathname === "/" ? `/${target}/${signedIn ? "workspaces" : "login"}` : `/${target}${pathname}`
     return NextResponse.redirect(url)
   }
 

@@ -9,7 +9,12 @@ import { PlayIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect } from "@/components/crm/shared"
-import { StepEditor, fromEditorSteps, toEditorSteps, type EditorStep } from "@/components/automation/step-editor"
+import {
+  StepEditor,
+  fromEditorSteps,
+  toEditorSteps,
+  type EditorStep,
+} from "@/components/automation/step-editor"
 import { RunNotes } from "@/components/automation/run-notes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,11 +24,21 @@ import { api, ApiError, type AutomationRun, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { Bdi } from "@/components/bidi"
 
-export function StartRun({ browsers, paused, onStarted }: { browsers: BrowserAgent[]; paused: boolean; onStarted: () => void }) {
+export function StartRun({
+  browsers,
+  paused,
+  onStarted,
+}: {
+  browsers: BrowserAgent[]
+  paused: boolean
+  onStarted: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [agent, setAgent] = useState(browsers[0]?.id ?? "")
-  const [steps, setSteps] = useState<EditorStep[]>(() => toEditorSteps([{ command: "navigate", args: { url: "https://" } }]))
+  const [steps, setSteps] = useState<EditorStep[]>(() =>
+    toEditorSteps([{ command: "navigate", args: { url: "https://" } }]),
+  )
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -37,7 +52,10 @@ export function StartRun({ browsers, paused, onStarted }: { browsers: BrowserAge
     }
     setBusy(true)
     try {
-      await api<{ run_id: string }>("/api/w/runs", { json: { agent_id: agent, steps: parsed }, workspaceId: ws.id })
+      await api<{ run_id: string }>("/api/w/runs", {
+        json: { agent_id: agent, steps: parsed },
+        workspaceId: ws.id,
+      })
       toast.success(t("automation.runStarted"))
       onStarted()
     } catch (e) {
@@ -59,7 +77,10 @@ export function StartRun({ browsers, paused, onStarted }: { browsers: BrowserAge
               id="run-agent"
               value={agent}
               onChange={setAgent}
-              options={browsers.map((b) => ({ value: b.id, label: `${b.name} (${b.status === "online" ? t("automation.online") : t("automation.offline")})` }))}
+              options={browsers.map((b) => ({
+                value: b.id,
+                label: `${b.name} (${b.status === "online" ? t("automation.online") : t("automation.offline")})`,
+              }))}
             />
           </div>
           <Button type="submit" disabled={busy || paused || offline}>
@@ -93,16 +114,23 @@ export function RunRow({ run, href }: { run: AutomationRun; href: string }) {
     cancelled: "outline",
   }
   return (
-    <li className="flex flex-wrap items-center gap-3 px-6 py-4" data-run={run.id} data-run-status={run.status}>
+    <li
+      className="flex flex-wrap items-center gap-3 px-6 py-4"
+      data-run={run.id}
+      data-run-status={run.status}
+    >
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <Link href={href} className="hover:underline">
             {run.agent_name ? <Bdi>{run.agent_name}</Bdi> : t("automation.unnamedBrowser")}
           </Link>
-          <Badge variant={tone[run.status] ?? "outline"}>{t(`automation.status.${run.status}`)}</Badge>
+          <Badge variant={tone[run.status] ?? "outline"}>
+            {t(`automation.status.${run.status}`)}
+          </Badge>
         </p>
         <p className="text-xs text-grid-muted">
-          {t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })} · {t(`automation.trigger.${run.trigger}`)} · {formatDate(run.created_at)}
+          {t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })} ·{" "}
+          {t(`automation.trigger.${run.trigger}`)} · {formatDate(run.created_at)}
         </p>
         <RunNotes notes={run.notes} className="mt-1 space-y-0.5" />
         {run.error ? (

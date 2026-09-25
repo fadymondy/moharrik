@@ -53,7 +53,12 @@ export default function AutomationRunsPage() {
         description={t("automation.runsHint")}
         action={
           canRun && hasBrowser ? (
-            <Button variant="outline" size="sm" onClick={() => setRunningOnce((v) => !v)} data-run-once>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRunningOnce((v) => !v)}
+              data-run-once
+            >
               {runningOnce ? <XIcon /> : <PlayIcon />}
               {runningOnce ? t("common.cancel") : t("automation.flow.runOnce")}
             </Button>
@@ -76,7 +81,10 @@ export default function AutomationRunsPage() {
       ) : runs.isLoading ? (
         <LoadingRows rows={3} />
       ) : (runs.data?.runs ?? []).length === 0 ? (
-        <EmptyState title={t("automation.noRuns")} body={hasBrowser ? undefined : t("automation.flow.runsNeedBrowser")} />
+        <EmptyState
+          title={t("automation.noRuns")}
+          body={hasBrowser ? undefined : t("automation.flow.runsNeedBrowser")}
+        />
       ) : (
         <ul className="divide-y divide-line border-y border-line">
           {(runs.data?.runs ?? []).map((r) => (

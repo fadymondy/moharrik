@@ -50,7 +50,9 @@ export function useChimeMuted(): [boolean, (muted: boolean) => void] {
 export function chime() {
   if (chimeMuted()) return
   try {
-    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!Ctx) return
     const ctx = new Ctx()
     const now = ctx.currentTime
@@ -77,7 +79,9 @@ export function chime() {
 export type Permission = NotificationPermission | "unsupported"
 
 export function notificationPermission(): Permission {
-  return typeof window === "undefined" || typeof Notification === "undefined" ? "unsupported" : Notification.permission
+  return typeof window === "undefined" || typeof Notification === "undefined"
+    ? "unsupported"
+    : Notification.permission
 }
 
 /** The permission, re-read when the tab regains focus (it can change in site settings). */
@@ -109,7 +113,10 @@ export function useNotificationPermission(): [Permission, () => Promise<Permissi
 export async function desktopNotify(title: string, body: string, tag: string, url: string) {
   if (notificationPermission() !== "granted") return
   try {
-    const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration(SW_SCOPE) : undefined
+    const reg =
+      "serviceWorker" in navigator
+        ? await navigator.serviceWorker.getRegistration(SW_SCOPE)
+        : undefined
     if (reg) {
       await reg.showNotification(title, { body, tag, data: { url } })
       return
@@ -133,7 +140,12 @@ export const SW_SCOPE = "/"
 export const PUSH_MESSAGE = "moharrik-push"
 
 export function pushSupported(): boolean {
-  return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined"
+  return (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    typeof Notification !== "undefined"
+  )
 }
 
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
@@ -171,12 +183,17 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
  * browser that shared it nothing it still had: its row answers 410 on the next
  * push and is removed the same way.
  */
-export async function subscribePush(publicKey: string, known?: string[]): Promise<PushSubscriptionJSON> {
+export async function subscribePush(
+  publicKey: string,
+  known?: string[],
+): Promise<PushSubscriptionJSON> {
   const reg = await pushRegistration()
   const key = keyBytes(publicKey)
   let sub = await reg.pushManager.getSubscription()
   if (sub) {
-    const current = sub.options.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null
+    const current = sub.options.applicationServerKey
+      ? new Uint8Array(sub.options.applicationServerKey)
+      : null
     const same = current && current.length === key.length && current.every((b, i) => b === key[i])
     if (!same || (known && !known.includes(sub.endpoint))) {
       await sub.unsubscribe()

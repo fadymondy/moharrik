@@ -34,7 +34,12 @@ export function ConfirmButton({
 
   return (
     <>
-      <Button variant="ghost" size="sm" className="text-grid-danger-text" onClick={() => setOpen(true)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-grid-danger-text"
+        onClick={() => setOpen(true)}
+      >
         {label}
       </Button>
       <AlertDialog open={open} onOpenChange={setOpen}>

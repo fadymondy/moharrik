@@ -3,7 +3,14 @@
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState } from "react"
-import { ArrowLeftIcon, CopyIcon, ExternalLinkIcon, LanguagesIcon, LoaderCircleIcon, MailIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  LanguagesIcon,
+  LoaderCircleIcon,
+  MailIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Bdi } from "@/components/bidi"
@@ -40,7 +47,12 @@ export default function ProspectPage() {
         title={p ? <Bdi>{p.name}</Bdi> : <Skeleton className="h-7 w-60" />}
         description={p?.domain ? <span dir="ltr">{p.domain}</span> : undefined}
         action={
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`${base}/prospects`} />}>
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={`${base}/prospects`} />}
+          >
             <ArrowLeftIcon className="rtl:rotate-180" />
             {t("prospects.back")}
           </Button>
@@ -52,13 +64,20 @@ export default function ProspectPage() {
         <LoadingRows rows={5} />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-3 px-6 pb-4" data-prospect-detail={p.status}>
+          <div
+            className="flex flex-wrap items-center gap-3 px-6 pb-4"
+            data-prospect-detail={p.status}
+          >
             <ScoreBadge score={p.score} />
             <StatusBadge status={p.status} />
             {p.signal_types.map((s) => (
               <SignalBadge key={s} signal={s} />
             ))}
-            {p.decided_at ? <span className="text-xs text-grid-muted">{t("prospects.decided", { date: fmt(p.decided_at) })}</span> : null}
+            {p.decided_at ? (
+              <span className="text-xs text-grid-muted">
+                {t("prospects.decided", { date: fmt(p.decided_at) })}
+              </span>
+            ) : null}
             <div className="ms-auto">
               {p.status === "new" ? (
                 canDecide ? (
@@ -69,17 +88,32 @@ export default function ProspectPage() {
               ) : p.status === "accepted" ? (
                 <div className="flex flex-wrap gap-2 text-sm">
                   {p.crm_company_id ? (
-                    <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`${base}/companies/${p.crm_company_id}`} />}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`${base}/companies/${p.crm_company_id}`} />}
+                    >
                       {t("prospects.openCompany")}
                     </Button>
                   ) : null}
                   {p.crm_contact_id ? (
-                    <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`${base}/contacts/${p.crm_contact_id}`} />}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`${base}/contacts/${p.crm_contact_id}`} />}
+                    >
                       {t("prospects.openContact")}
                     </Button>
                   ) : null}
                   {p.crm_deal_id ? (
-                    <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`${base}/deals/${p.crm_deal_id}`} />}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`${base}/deals/${p.crm_deal_id}`} />}
+                    >
                       {t("prospects.openDeal")}
                     </Button>
                   ) : null}
@@ -104,7 +138,9 @@ export default function ProspectPage() {
                   {p.contact.name ? (
                     <p className="font-medium">
                       <Bdi>{p.contact.name}</Bdi>
-                      {p.contact.title ? <span className="font-normal text-grid-muted"> · {p.contact.title}</span> : null}
+                      {p.contact.title ? (
+                        <span className="font-normal text-grid-muted"> · {p.contact.title}</span>
+                      ) : null}
                     </p>
                   ) : null}
                   {p.contact.email ? (
@@ -116,7 +152,13 @@ export default function ProspectPage() {
                   {p.contact.source_url ? (
                     <p className="text-xs text-grid-muted">
                       {t("prospects.contactFound")}{" "}
-                      <a href={p.contact.source_url} target="_blank" rel="noopener noreferrer" className="text-grid-brand hover:underline" dir="ltr">
+                      <a
+                        href={p.contact.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-grid-brand hover:underline"
+                        dir="ltr"
+                      >
                         {hostOf(p.contact.source_url)}
                         <ExternalLinkIcon className="ms-1 inline size-3" />
                       </a>
@@ -129,12 +171,20 @@ export default function ProspectPage() {
             </section>
           </div>
 
-          <Drafts prospectId={p.id} drafts={detail.data?.drafts ?? []} canDraft={canDecide} onMade={() => detail.mutate()} />
+          <Drafts
+            prospectId={p.id}
+            drafts={detail.data?.drafts ?? []}
+            canDraft={canDecide}
+            onMade={() => detail.mutate()}
+          />
 
           <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
           <h2 className="px-6 pt-6 pb-1 text-base font-medium">{t("prospects.timeline")}</h2>
           <p className="px-6 pb-3 text-sm text-grid-muted">{t("prospects.timelineHint")}</p>
-          <ol className="divide-y divide-line border-y border-line" data-timeline={detail.data?.timeline.length ?? 0}>
+          <ol
+            className="divide-y divide-line border-y border-line"
+            data-timeline={detail.data?.timeline.length ?? 0}
+          >
             {(detail.data?.timeline ?? []).map((e) => (
               <EvidenceItem key={e.id} e={e} showRun />
             ))}
@@ -155,7 +205,17 @@ function hostOf(u: string) {
 }
 
 /** Outreach drafts: made on request, shown with how they were written, copied by a person. Never sent. */
-function Drafts({ prospectId, drafts, canDraft, onMade }: { prospectId: string; drafts: ProspectDraft[]; canDraft: boolean; onMade: () => void }) {
+function Drafts({
+  prospectId,
+  drafts,
+  canDraft,
+  onMade,
+}: {
+  prospectId: string
+  drafts: ProspectDraft[]
+  canDraft: boolean
+  onMade: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [busy, setBusy] = useState<"" | "en" | "ar">("")
@@ -165,7 +225,10 @@ function Drafts({ prospectId, drafts, canDraft, onMade }: { prospectId: string; 
   async function make(locale: "en" | "ar") {
     setBusy(locale)
     try {
-      await api(`/api/w/prospects/${encodeURIComponent(prospectId)}/draft`, { json: { locale }, workspaceId: ws.id })
+      await api(`/api/w/prospects/${encodeURIComponent(prospectId)}/draft`, {
+        json: { locale },
+        workspaceId: ws.id,
+      })
       onMade()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -181,7 +244,14 @@ function Drafts({ prospectId, drafts, canDraft, onMade }: { prospectId: string; 
         {canDraft ? (
           <div className="ms-auto flex flex-wrap gap-2">
             {(["en", "ar"] as const).map((l) => (
-              <Button key={l} variant="outline" size="sm" onClick={() => make(l)} disabled={!!busy} data-action={`draft-${l}`}>
+              <Button
+                key={l}
+                variant="outline"
+                size="sm"
+                onClick={() => make(l)}
+                disabled={!!busy}
+                data-action={`draft-${l}`}
+              >
                 {busy === l ? <LoaderCircleIcon className="animate-spin" /> : <LanguagesIcon />}
                 {l === "en" ? t("prospects.draftEn") : t("prospects.draftAr")}
               </Button>
@@ -215,7 +285,11 @@ function DraftCard({ d }: { d: ProspectDraft }) {
     }
   }
   return (
-    <article className="border border-line bg-grid-card" data-draft={d.locale} data-generator={d.generator}>
+    <article
+      className="border border-line bg-grid-card"
+      data-draft={d.locale}
+      data-generator={d.generator}
+    >
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 text-xs">
         <Badge variant="outline">{d.locale === "ar" ? "العربية" : "English"}</Badge>
         <Badge variant="secondary" data-not-sent>
@@ -234,7 +308,11 @@ function DraftCard({ d }: { d: ProspectDraft }) {
             {d.subject}
           </span>
         </p>
-        <pre className="font-sans text-sm leading-relaxed whitespace-pre-wrap break-words" dir={d.locale === "ar" ? "rtl" : "ltr"} lang={d.locale}>
+        <pre
+          className="font-sans text-sm leading-relaxed whitespace-pre-wrap break-words"
+          dir={d.locale === "ar" ? "rtl" : "ltr"}
+          lang={d.locale}
+        >
           {d.body}
         </pre>
       </div>

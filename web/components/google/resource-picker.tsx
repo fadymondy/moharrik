@@ -9,7 +9,13 @@
 */
 
 import { useState, type ReactNode } from "react"
-import { ChartLineIcon, RefreshCwIcon, SearchIcon, TriangleAlertIcon, YoutubeIcon } from "lucide-react"
+import {
+  ChartLineIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  TriangleAlertIcon,
+  YoutubeIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Ltr } from "@/components/copy-field"
@@ -19,7 +25,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, GOOGLE_KINDS, type GoogleDiscovery, type GoogleKind, type GoogleResource, type GoogleResources } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  GOOGLE_KINDS,
+  type GoogleDiscovery,
+  type GoogleKind,
+  type GoogleResource,
+  type GoogleResources,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useGoogleResources } from "@/lib/queries"
 
@@ -29,7 +43,11 @@ export const KIND_ICON: Record<GoogleKind, ReactNode> = {
   yt_channel: <YoutubeIcon />,
 }
 
-const KIND_PRODUCT: Record<GoogleKind, string> = { ga4_property: "analytics", gsc_site: "search_console", yt_channel: "youtube" }
+const KIND_PRODUCT: Record<GoogleKind, string> = {
+  ga4_property: "analytics",
+  gsc_site: "search_console",
+  yt_channel: "youtube",
+}
 
 export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
   const { t } = useTranslations()
@@ -45,7 +63,10 @@ export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
   async function discover() {
     setLooking(true)
     try {
-      const out = await api<GoogleResources>("/api/w/google/resources/discover", { method: "POST", workspaceId: ws.id })
+      const out = await api<GoogleResources>("/api/w/google/resources/discover", {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       await res.mutate(out, { revalidate: false })
       toast.success(t("resources.discovered"))
     } catch (e) {
@@ -73,9 +94,17 @@ export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
       </div>
 
       {needs.length > 0 ? (
-        <div role="status" className="mx-6 mb-4 flex items-start gap-3 border border-grid-action bg-grid-card px-4 py-3 text-sm" data-choose>
+        <div
+          role="status"
+          className="mx-6 mb-4 flex items-start gap-3 border border-grid-action bg-grid-card px-4 py-3 text-sm"
+          data-choose
+        >
           <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-action" />
-          <p className="text-grid-fg">{t("resources.chooseBody", { kinds: needs.map((k) => t(`resources.kind.${k}`)).join(" · ") })}</p>
+          <p className="text-grid-fg">
+            {t("resources.chooseBody", {
+              kinds: needs.map((k) => t(`resources.kind.${k}`)).join(" · "),
+            })}
+          </p>
         </div>
       ) : null}
 
@@ -99,7 +128,13 @@ export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
           const all = list.filter((r) => r.kind === k)
           // Switched-on rows first, so what is being read is never lost in a long list.
           const rows = all
-            .filter((r) => !needle || [r.display_name, r.external_id, r.parent_name].some((v) => v.toLowerCase().includes(needle)))
+            .filter(
+              (r) =>
+                !needle ||
+                [r.display_name, r.external_id, r.parent_name].some((v) =>
+                  v.toLowerCase().includes(needle),
+                ),
+            )
             .sort((a, b) => Number(b.enabled) - Number(a.enabled))
           const errs = failures.filter((d) => d.product === KIND_PRODUCT[k])
           if (all.length === 0 && errs.length === 0) return null
@@ -108,18 +143,31 @@ export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
               <p className="flex items-center gap-2 bg-grid-soft px-6 py-2 text-xs font-medium text-grid-muted [&_svg]:size-3.5">
                 {KIND_ICON[k]}
                 {t(`resources.kind.${k}`)}
-                {needs.includes(k) ? <Badge variant="outline">{t("resources.chooseBadge")}</Badge> : null}
+                {needs.includes(k) ? (
+                  <Badge variant="outline">{t("resources.chooseBadge")}</Badge>
+                ) : null}
                 <span className="ms-auto tabular-nums" data-kind-count>
                   {t("resources.count", { on: all.filter((r) => r.enabled).length, n: all.length })}
                 </span>
               </p>
               {errs.map((d) => (
-                <DiscoveryError key={d.connection_id + d.product} d={d} email={emails[d.connection_id]} />
+                <DiscoveryError
+                  key={d.connection_id + d.product}
+                  d={d}
+                  email={emails[d.connection_id]}
+                />
               ))}
-              {needle && rows.length === 0 ? <p className="px-6 py-3 text-sm text-grid-muted">{t("resources.noMatch")}</p> : null}
+              {needle && rows.length === 0 ? (
+                <p className="px-6 py-3 text-sm text-grid-muted">{t("resources.noMatch")}</p>
+              ) : null}
               <ul className="divide-y divide-line">
                 {rows.map((r) => (
-                  <ResourceRow key={r.id} r={r} onChange={() => res.mutate()} showAccount={new Set(list.map((x) => x.connection_id)).size > 1} />
+                  <ResourceRow
+                    key={r.id}
+                    r={r}
+                    onChange={() => res.mutate()}
+                    showAccount={new Set(list.map((x) => x.connection_id)).size > 1}
+                  />
                 ))}
               </ul>
             </div>
@@ -133,10 +181,16 @@ export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
 function DiscoveryError({ d, email }: { d: GoogleDiscovery; email?: string }) {
   const { t } = useTranslations()
   return (
-    <div role="alert" className="flex items-start gap-3 px-6 py-3 text-sm" data-discovery-error={d.product}>
+    <div
+      role="alert"
+      className="flex items-start gap-3 px-6 py-3 text-sm"
+      data-discovery-error={d.product}
+    >
       <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-danger" />
       <div className="min-w-0 space-y-0.5">
-        <p className="text-grid-danger-text">{t("resources.discoveryFailed", { product: t(`integrations.product.${d.product}`) })}</p>
+        <p className="text-grid-danger-text">
+          {t("resources.discoveryFailed", { product: t(`integrations.product.${d.product}`) })}
+        </p>
         <p className="break-words text-grid-muted">
           {email ? (
             <>
@@ -164,7 +218,8 @@ export function SyncStatus({ r }: { r: GoogleResource }) {
     )
   if (!r.enabled) return null
   if (r.last_error) return <Badge variant="destructive">{t("resources.failed")}</Badge>
-  if (!r.last_synced_at) return <span className="text-xs text-grid-muted">{t("resources.notSyncedYet")}</span>
+  if (!r.last_synced_at)
+    return <span className="text-xs text-grid-muted">{t("resources.notSyncedYet")}</span>
   return (
     <span className="text-xs text-grid-muted" title={f.exact(r.last_synced_at)}>
       {t("resources.syncedAgo", { when: f.ago(r.last_synced_at) })}
@@ -172,7 +227,15 @@ export function SyncStatus({ r }: { r: GoogleResource }) {
   )
 }
 
-function ResourceRow({ r, onChange, showAccount }: { r: GoogleResource; onChange: () => void; showAccount: boolean }) {
+function ResourceRow({
+  r,
+  onChange,
+  showAccount,
+}: {
+  r: GoogleResource
+  onChange: () => void
+  showAccount: boolean
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [busy, setBusy] = useState(false)
@@ -180,7 +243,11 @@ function ResourceRow({ r, onChange, showAccount }: { r: GoogleResource; onChange
   async function toggle(enabled: boolean) {
     setBusy(true)
     try {
-      await api(`/api/w/google/resources/${encodeURIComponent(r.id)}`, { method: "PATCH", json: { enabled }, workspaceId: ws.id })
+      await api(`/api/w/google/resources/${encodeURIComponent(r.id)}`, {
+        method: "PATCH",
+        json: { enabled },
+        workspaceId: ws.id,
+      })
       onChange()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -192,7 +259,10 @@ function ResourceRow({ r, onChange, showAccount }: { r: GoogleResource; onChange
   async function syncNow() {
     setBusy(true)
     try {
-      await api(`/api/w/google/resources/${encodeURIComponent(r.id)}/sync`, { method: "POST", workspaceId: ws.id })
+      await api(`/api/w/google/resources/${encodeURIComponent(r.id)}/sync`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       onChange()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -202,22 +272,45 @@ function ResourceRow({ r, onChange, showAccount }: { r: GoogleResource; onChange
   }
 
   const avatar = r.kind === "yt_channel" ? r.details?.avatar_url : undefined
-  const sub = r.kind === "gsc_site" ? t(`resources.permission.${r.parent_name}`, {}) : r.kind === "yt_channel" ? r.details?.handle : r.parent_name
+  const sub =
+    r.kind === "gsc_site"
+      ? t(`resources.permission.${r.parent_name}`, {})
+      : r.kind === "yt_channel"
+        ? r.details?.handle
+        : r.parent_name
   return (
-    <li className="flex flex-col gap-2 px-6 py-3 sm:flex-row sm:items-center" data-resource={r.external_id} data-enabled={r.enabled}>
+    <li
+      className="flex flex-col gap-2 px-6 py-3 sm:flex-row sm:items-center"
+      data-resource={r.external_id}
+      data-enabled={r.enabled}
+    >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatar} alt="" className="size-8 shrink-0 rounded-full border border-line" referrerPolicy="no-referrer" />
+          <img
+            src={avatar}
+            alt=""
+            className="size-8 shrink-0 rounded-full border border-line"
+            referrerPolicy="no-referrer"
+          />
         ) : null}
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
             <bdi>{r.display_name}</bdi>
-            {r.auto_enabled && r.enabled ? <span className="ms-2 text-xs font-normal text-grid-muted">{t("resources.autoEnabled")}</span> : null}
+            {r.auto_enabled && r.enabled ? (
+              <span className="ms-2 text-xs font-normal text-grid-muted">
+                {t("resources.autoEnabled")}
+              </span>
+            ) : null}
           </p>
           <p className="truncate text-xs text-grid-muted">
             <Ltr mono>{r.external_id}</Ltr>
-            {sub && !sub.startsWith("resources.permission.") ? <> · <bdi>{sub}</bdi></> : null}
+            {sub && !sub.startsWith("resources.permission.") ? (
+              <>
+                {" "}
+                · <bdi>{sub}</bdi>
+              </>
+            ) : null}
             {showAccount && r.connection_email ? (
               <>
                 {" · "}
@@ -235,7 +328,13 @@ function ResourceRow({ r, onChange, showAccount }: { r: GoogleResource; onChange
       <div className="flex shrink-0 items-center gap-3 sm:justify-end">
         <SyncStatus r={r} />
         {r.enabled && !r.reauth && !r.syncing ? (
-          <Button variant="ghost" size="sm" onClick={syncNow} disabled={busy || !!r.backoff_until} data-sync-now>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={syncNow}
+            disabled={busy || !!r.backoff_until}
+            data-sync-now
+          >
             <RefreshCwIcon />
             {t("resources.syncNow")}
           </Button>
@@ -244,7 +343,9 @@ function ResourceRow({ r, onChange, showAccount }: { r: GoogleResource; onChange
           checked={r.enabled}
           onCheckedChange={(v) => toggle(v)}
           disabled={busy || (!r.available && !r.enabled)}
-          aria-label={t(r.enabled ? "resources.turnOff" : "resources.turnOn", { name: r.display_name })}
+          aria-label={t(r.enabled ? "resources.turnOff" : "resources.turnOn", {
+            name: r.display_name,
+          })}
           data-toggle
         />
       </div>

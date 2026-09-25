@@ -12,7 +12,13 @@ import { useTranslations } from "@/lib/i18n"
 
 const SLUG_RE = /^[a-z0-9-]{3,40}$/
 
-export function CreateWorkspaceForm({ onCreated, autoFocus }: { onCreated?: () => void; autoFocus?: boolean }) {
+export function CreateWorkspaceForm({
+  onCreated,
+  autoFocus,
+}: {
+  onCreated?: () => void
+  autoFocus?: boolean
+}) {
   const { t, locale } = useTranslations()
   const router = useRouter()
   const { mutate } = useSWRConfig()
@@ -62,7 +68,8 @@ export function CreateWorkspaceForm({ onCreated, autoFocus }: { onCreated?: () =
         </Field>
         <Field data-invalid={!!error || undefined}>
           <FieldLabel htmlFor="ws-slug">
-            {t("workspaces.slug")} <span className="font-normal text-grid-muted">({t("common.optional")})</span>
+            {t("workspaces.slug")}{" "}
+            <span className="font-normal text-grid-muted">({t("common.optional")})</span>
           </FieldLabel>
           <Input
             id="ws-slug"

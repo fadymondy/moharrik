@@ -29,7 +29,14 @@ hands to an open tab; whichever arrives first wins and the other is dropped.
 const DEDUPE_MS = 5000
 const SHOW_MS = 10000
 
-type Alert = { key: string; title: string; body: string; url: string; kind: "message" | "notification"; conversationId?: string }
+type Alert = {
+  key: string
+  title: string
+  body: string
+  url: string
+  kind: "message" | "notification"
+  conversationId?: string
+}
 
 export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: string }) {
   const { t, locale } = useTranslations()
@@ -57,7 +64,12 @@ export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: s
         id: a.key, // a second message on the same thread replaces the first popup
         description: a.body ? <span dir="auto">{a.body}</span> : undefined,
         duration: SHOW_MS,
-        icon: a.kind === "message" ? <MessageCircleIcon className="size-4 text-grid-action" /> : <BellIcon className="size-4 text-grid-action" />,
+        icon:
+          a.kind === "message" ? (
+            <MessageCircleIcon className="size-4 text-grid-action" />
+          ) : (
+            <BellIcon className="size-4 text-grid-action" />
+          ),
         action: { label: t("alerts.open"), onClick: () => router.push(a.url) },
         className: "moharrik-alert",
       })
@@ -74,7 +86,9 @@ export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: s
           kind: "message",
           key: `conv-${e.conversation_id}`,
           conversationId: e.conversation_id,
-          title: e.sender ? t("alerts.messageFrom", { name: isolate(e.sender) }) : t("alerts.newMessage"),
+          title: e.sender
+            ? t("alerts.messageFrom", { name: isolate(e.sender) })
+            : t("alerts.newMessage"),
           body: e.snippet ?? "",
           url: `/${locale}/w/${slug}/inbox?c=${encodeURIComponent(e.conversation_id)}`,
         }
@@ -103,7 +117,17 @@ export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: s
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return
     const onMessage = (ev: MessageEvent) => {
-      const data = ev.data as { type?: string; payload?: { kind?: string; title?: string; body?: string; url?: string; tag?: string; conversation_id?: string } }
+      const data = ev.data as {
+        type?: string
+        payload?: {
+          kind?: string
+          title?: string
+          body?: string
+          url?: string
+          tag?: string
+          conversation_id?: string
+        }
+      }
       const p = data?.payload
       if (data?.type !== PUSH_MESSAGE || !p?.tag || !p.url || p.kind === "test") return
       // Only this workspace's pushes, and only to a path on this origin.

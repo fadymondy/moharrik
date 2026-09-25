@@ -41,14 +41,36 @@ const GROUPS = [
   },
   {
     key: "automation",
-    items: ["automation/browsers", "automation/workflows", "automation/presets", "automation/rules", "automation/runs", "automation/schedules", "automation/settings"],
+    items: [
+      "automation/browsers",
+      "automation/workflows",
+      "automation/presets",
+      "automation/rules",
+      "automation/runs",
+      "automation/schedules",
+      "automation/settings",
+    ],
   },
-  { key: "research", items: ["research/runs", "research/evidence", "research/schedules", "prospects"] },
-  { key: "insights", items: ["trends", "trends/sources", "analytics", "search-console", "youtube"] }, // the owner role can see all five
+  {
+    key: "research",
+    items: ["research/runs", "research/evidence", "research/schedules", "prospects"],
+  },
+  {
+    key: "insights",
+    items: ["trends", "trends/sources", "analytics", "search-console", "youtube"],
+  }, // the owner role can see all five
   { key: "notifications", items: ["notifications", "notifications/sources"] },
   {
     key: "settings",
-    items: ["settings/email", "settings/icp", "settings/integrations", "settings/mcp", "settings/automation-profile", "settings/audit", "settings/delivery"],
+    items: [
+      "settings/email",
+      "settings/icp",
+      "settings/integrations",
+      "settings/mcp",
+      "settings/automation-profile",
+      "settings/audit",
+      "settings/delivery",
+    ],
   }, // the owner role can see all seven
 ]
 const TOP_LEVEL = ["", "members"] // "" = Overview
@@ -105,9 +127,12 @@ try {
     await page.click(`[data-nav-group="${g.key}"]`)
     await page.waitForSelector(`[data-nav-drilled="${g.key}"]`)
     out[`drill:${g.key}:hasBack`] = (await page.$("[data-nav-back]")) !== null
-    const hrefs = await page.$$eval("[data-nav-drilled] a[data-nav-item]", (as) => as.map((a) => a.getAttribute("href")))
+    const hrefs = await page.$$eval("[data-nav-drilled] a[data-nav-item]", (as) =>
+      as.map((a) => a.getAttribute("href")),
+    )
     const want = g.items.map((i) => `/en/w/${slug}/${i}`)
-    out[`drill:${g.key}:items`] = hrefs.join(",") === want.join(",") ? "match" : `got ${hrefs.join(",")}`
+    out[`drill:${g.key}:items`] =
+      hrefs.join(",") === want.join(",") ? "match" : `got ${hrefs.join(",")}`
 
     for (const item of g.items) {
       const resp = await page.goto(w(item), { waitUntil: "load" })
@@ -162,13 +187,21 @@ try {
     for (const locale of ["en", "ar"]) {
       for (const theme of ["light", "dark"]) {
         for (const width of [1440, 390]) {
-          const c = await shooter.newContext({ storageState: state, viewport: { width, height: 900 }, colorScheme: theme })
+          const c = await shooter.newContext({
+            storageState: state,
+            viewport: { width, height: 900 },
+            colorScheme: theme,
+          })
           const p = await c.newPage()
           for (const g of GROUPS) {
             await p.goto(`${base}/${locale}/w/${slug}/${g.items[0]}`, { waitUntil: "load" })
-            await p.waitForSelector(`[data-nav-drilled="${g.key}"]`, { timeout: 15000 }).catch(() => {})
+            await p
+              .waitForSelector(`[data-nav-drilled="${g.key}"]`, { timeout: 15000 })
+              .catch(() => {})
             await p.waitForTimeout(400)
-            await p.screenshot({ path: `${SHOTS}/${card}-${g.key}-${locale}-${theme}-${width}.png` })
+            await p.screenshot({
+              path: `${SHOTS}/${card}-${g.key}-${locale}-${theme}-${width}.png`,
+            })
           }
           await c.close()
         }

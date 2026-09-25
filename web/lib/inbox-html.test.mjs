@@ -52,7 +52,10 @@ test("a plain http(s) remote image is still blocked when blockImages is true", (
   const html = `<img src="https://tracker.example.com/pixel.gif">`
   const { html: out, hadRemoteImages } = renderEmailHtml(html, { blockImages: true }, attachments)
   assert.equal(hadRemoteImages, true)
-  assert.ok(!/<img[^>]*\ssrc="https:\/\/tracker\.example\.com/.test(out), "remote src attribute must be stripped")
+  assert.ok(
+    !/<img[^>]*\ssrc="https:\/\/tracker\.example\.com/.test(out),
+    "remote src attribute must be stripped",
+  )
   assert.match(out, /data-blocked-src="https:\/\/tracker\.example\.com\/pixel\.gif"/)
 })
 

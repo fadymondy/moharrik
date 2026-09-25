@@ -660,7 +660,12 @@ function Editor({
               triggerState={
                 !preview && runs && run.data && run.data.run.status !== "queued" ? "ok" : undefined
               }
-              trigger={{ title: t("canvas.triggerTitle"), subtitle: triggerSub, sites: requiredHere, autoAdd }}
+              trigger={{
+                title: t("canvas.triggerTitle"),
+                subtitle: triggerSub,
+                sites: requiredHere,
+                autoAdd,
+              }}
               selected={preview ? null : selected}
               readOnly={readOnly}
               vertical={narrow}

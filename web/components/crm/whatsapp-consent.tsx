@@ -36,7 +36,13 @@ Three states, each shown as what it is. Recording an opt-in is a member's
 note that the contact agreed. For a contact who said STOP the control is NOT
 a re-tick: it is a separately worded, confirmed reversal, and a manager's call.
 */
-export function WhatsAppConsent({ contact, onChange }: { contact: ConsentContact; onChange: () => void }) {
+export function WhatsAppConsent({
+  contact,
+  onChange,
+}: {
+  contact: ConsentContact
+  onChange: () => void
+}) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
   const [open, setOpen] = useState<null | "optin" | "reverse">(null)
@@ -66,7 +72,10 @@ export function WhatsAppConsent({ contact, onChange }: { contact: ConsentContact
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5" data-wa-consent={optedOut ? "opted_out" : optedIn ? "opted_in" : "none"}>
+    <div
+      className="flex flex-wrap items-center gap-1.5"
+      data-wa-consent={optedOut ? "opted_out" : optedIn ? "opted_in" : "none"}
+    >
       {optedOut ? (
         <Badge variant="destructive" title={formatDate(contact.whatsapp_opt_out_at!)}>
           {t("contacts.waOptedOut")}
@@ -78,15 +87,27 @@ export function WhatsAppConsent({ contact, onChange }: { contact: ConsentContact
       ) : (
         <span className="text-xs text-grid-muted">{t("contacts.waNone")}</span>
       )}
-      {optedIn && noPhone ? <span className="text-xs text-grid-warn">{t("contacts.waNoPhone")}</span> : null}
+      {optedIn && noPhone ? (
+        <span className="text-xs text-grid-warn">{t("contacts.waNoPhone")}</span>
+      ) : null}
 
       {!optedOut && !optedIn && ws.can("contacts:write") ? (
-        <Button variant="link" size="sm" className="h-auto px-1 text-xs" onClick={() => setOpen("optin")}>
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto px-1 text-xs"
+          onClick={() => setOpen("optin")}
+        >
           {t("contacts.waRecordOptIn")}
         </Button>
       ) : null}
       {optedOut && ws.can("campaigns:write") ? (
-        <Button variant="link" size="sm" className="h-auto px-1 text-xs text-grid-danger-text" onClick={() => setOpen("reverse")}>
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto px-1 text-xs text-grid-danger-text"
+          onClick={() => setOpen("reverse")}
+        >
           {t("contacts.waReverse")}
         </Button>
       ) : null}
@@ -94,9 +115,13 @@ export function WhatsAppConsent({ contact, onChange }: { contact: ConsentContact
       <AlertDialog open={open !== null} onOpenChange={(v) => (v ? null : setOpen(null))}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{open === "reverse" ? t("contacts.waReverseTitle") : t("contacts.waOptInTitle")}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {open === "reverse" ? t("contacts.waReverseTitle") : t("contacts.waOptInTitle")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {open === "reverse" ? t("contacts.waReverseBody", { who }) : t("contacts.waOptInBody", { who })}
+              {open === "reverse"
+                ? t("contacts.waReverseBody", { who })
+                : t("contacts.waOptInBody", { who })}
               {noPhone ? ` ${t("contacts.waOptInNoPhone")}` : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -107,7 +132,11 @@ export function WhatsAppConsent({ contact, onChange }: { contact: ConsentContact
               disabled={busy}
               onClick={() => open && run(open)}
             >
-              {busy ? t("common.working") : open === "reverse" ? t("contacts.waReverseConfirm") : t("contacts.waOptInConfirm")}
+              {busy
+                ? t("common.working")
+                : open === "reverse"
+                  ? t("contacts.waReverseConfirm")
+                  : t("contacts.waOptInConfirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

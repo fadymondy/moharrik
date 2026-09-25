@@ -5,7 +5,13 @@ import { useMemo } from "react"
 
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { COMPANY_SIZES, type ActivityKind, type StageKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { isLocale, numberFormat } from "@/lib/i18n-locale"
@@ -17,7 +23,10 @@ import { Bdi } from "@/components/bidi"
 
 export function currencyDigits(currency: string): number {
   try {
-    return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2
+    return (
+      new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions()
+        .maximumFractionDigits ?? 2
+    )
   } catch {
     return 2
   }
@@ -158,19 +167,41 @@ export function CompanyEditFields({
     <FieldGroup className="grid gap-4 sm:grid-cols-2">
       <Field>
         <FieldLabel htmlFor={id("name")}>{t("companies.name")}</FieldLabel>
-        <Input id={id("name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
+        <Input
+          id={id("name")}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={200}
+        />
       </Field>
       <Field>
         <FieldLabel htmlFor={id("domain")}>{t("companies.domain")}</FieldLabel>
-        <Input id={id("domain")} dir="ltr" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="company.com" />
+        <Input
+          id={id("domain")}
+          dir="ltr"
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          placeholder="company.com"
+        />
       </Field>
       <Field>
         <FieldLabel htmlFor={id("industry")}>{t("companies.industry")}</FieldLabel>
-        <Input id={id("industry")} value={industry} onChange={(e) => setIndustry(e.target.value)} maxLength={120} />
+        <Input
+          id={id("industry")}
+          value={industry}
+          onChange={(e) => setIndustry(e.target.value)}
+          maxLength={120}
+        />
       </Field>
       <Field>
         <FieldLabel htmlFor={id("size")}>{t("companies.size")}</FieldLabel>
-        <PickSelect id={id("size")} value={size} onChange={setSize} options={sizeOpts} noneLabel={t("companies.sizeUnknown")} />
+        <PickSelect
+          id={id("size")}
+          value={size}
+          onChange={setSize}
+          options={sizeOpts}
+          noneLabel={t("companies.sizeUnknown")}
+        />
       </Field>
     </FieldGroup>
   )

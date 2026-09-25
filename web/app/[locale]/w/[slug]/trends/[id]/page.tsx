@@ -6,7 +6,14 @@ import { ArrowLeftIcon } from "lucide-react"
 
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { ItemLine, ReasonChips, Score, TopicActions, useDayLabel, useWhen } from "@/components/trends/shared"
+import {
+  ItemLine,
+  ReasonChips,
+  Score,
+  TopicActions,
+  useDayLabel,
+  useWhen,
+} from "@/components/trends/shared"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -31,7 +38,13 @@ export default function TrendTopicPage() {
   })
 
   const back = (
-    <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/trends`} />} data-back>
+    <Button
+      variant="ghost"
+      size="sm"
+      nativeButton={false}
+      render={<Link href={`/${locale}/w/${ws.slug}/trends`} />}
+      data-back
+    >
       <ArrowLeftIcon className="rtl:rotate-180" />
       {t("trends.backToTopics")}
     </Button>
@@ -41,7 +54,11 @@ export default function TrendTopicPage() {
     return (
       <>
         <div className="px-6 pt-6">{back}</div>
-        {res.error instanceof ApiError && res.error.status === 404 ? <EmptyState title={t("trends.topicGone")} /> : <ErrorState error={res.error} />}
+        {res.error instanceof ApiError && res.error.status === 404 ? (
+          <EmptyState title={t("trends.topicGone")} />
+        ) : (
+          <ErrorState error={res.error} />
+        )}
       </>
     )
   }
@@ -54,7 +71,11 @@ export default function TrendTopicPage() {
     )
   }
 
-  const onChange = (updated: TrendTopic) => void res.mutate((d?: TrendTopicDetail) => (d ? { ...d, topic: { ...updated, items: d.topic.items } } : d), { revalidate: true })
+  const onChange = (updated: TrendTopic) =>
+    void res.mutate(
+      (d?: TrendTopicDetail) => (d ? { ...d, topic: { ...updated, items: d.topic.items } } : d),
+      { revalidate: true },
+    )
   const summaryNote =
     topic.summary_source === "extractive"
       ? t("trends.summary.extractive")
@@ -90,7 +111,10 @@ export default function TrendTopicPage() {
               {t("trends.summaryTitle")}
             </h2>
             {topic.summary ? (
-              <p className="max-w-3xl break-words text-sm leading-relaxed" data-topic-summary={topic.summary_source}>
+              <p
+                className="max-w-3xl break-words text-sm leading-relaxed"
+                data-topic-summary={topic.summary_source}
+              >
                 <bdi>{topic.summary}</bdi>
               </p>
             ) : (
@@ -137,11 +161,16 @@ export default function TrendTopicPage() {
             <h2 id="topic-outlets" className="grid-micro">
               {t("trends.outlets")}
             </h2>
-            <ul className="flex flex-col divide-y divide-line border-y border-line text-sm" data-topic-outlets>
+            <ul
+              className="flex flex-col divide-y divide-line border-y border-line text-sm"
+              data-topic-outlets
+            >
               {(res.data?.outlets ?? []).map((o) => (
                 <li key={o.outlet} className="flex items-center justify-between gap-2 py-2">
                   <bdi className="min-w-0 truncate">{o.outlet}</bdi>
-                  <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{formatNumber(o.count)}</span>
+                  <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                    {formatNumber(o.count)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -152,7 +181,11 @@ export default function TrendTopicPage() {
             <dt className="text-muted-foreground">{t("trends.lastSeen")}</dt>
             <dd>{when(topic.last_seen_at)}</dd>
             <dt className="text-muted-foreground">{t("trends.grouping")}</dt>
-            <dd>{topic.cluster_method.startsWith("deterministic+embed") ? t("trends.method.embed") : t("trends.method.deterministic")}</dd>
+            <dd>
+              {topic.cluster_method.startsWith("deterministic+embed")
+                ? t("trends.method.embed")
+                : t("trends.method.deterministic")}
+            </dd>
           </dl>
         </aside>
       </div>

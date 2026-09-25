@@ -37,7 +37,9 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
   const [offer, setOffer] = useState(p.offer)
   const [exclude, setExclude] = useState(join(p.exclude_keywords))
   const [queries, setQueries] = useState(p.queries.join("\n"))
-  const [weights, setWeights] = useState<Record<string, string>>(() => Object.fromEntries(SIGNAL_TYPES.map((s) => [s, String(p.signal_weights[s] ?? 1)])))
+  const [weights, setWeights] = useState<Record<string, string>>(() =>
+    Object.fromEntries(SIGNAL_TYPES.map((s) => [s, String(p.signal_weights[s] ?? 1)])),
+  )
   const [enabled, setEnabled] = useState(p.enabled)
   const [cadence, setCadence] = useState<string>(p.cadence)
   const [busy, setBusy] = useState(false)
@@ -58,7 +60,9 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
             .split("\n")
             .map((q) => q.trim())
             .filter(Boolean),
-          signal_weights: Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, Math.max(0, Math.min(3, Number(v) || 0))])),
+          signal_weights: Object.fromEntries(
+            Object.entries(weights).map(([k, v]) => [k, Math.max(0, Math.min(3, Number(v) || 0))]),
+          ),
           enabled,
           cadence,
         },
@@ -81,7 +85,14 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
         <fieldset disabled={!canEdit} className="space-y-5">
           <Field>
             <FieldLabel htmlFor="pp-offer">{t("prospects.offer")}</FieldLabel>
-            <Textarea id="pp-offer" dir="auto" rows={2} maxLength={600} value={offer} onChange={(e) => setOffer(e.target.value)} />
+            <Textarea
+              id="pp-offer"
+              dir="auto"
+              rows={2}
+              maxLength={600}
+              value={offer}
+              onChange={(e) => setOffer(e.target.value)}
+            />
             <FieldDescription>{t("prospects.offerHint")}</FieldDescription>
           </Field>
           <div data-icp-who="" className="rounded-md border border-line p-4">
@@ -128,16 +139,31 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
           </div>
           <Field>
             <FieldLabel htmlFor="pp-ex">{t("prospects.exclude")}</FieldLabel>
-            <Input id="pp-ex" dir="auto" value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="crypto" />
+            <Input
+              id="pp-ex"
+              dir="auto"
+              value={exclude}
+              onChange={(e) => setExclude(e.target.value)}
+              placeholder="crypto"
+            />
             <FieldDescription>{t("prospects.listHint")}</FieldDescription>
           </Field>
           <Field>
             <FieldLabel htmlFor="pp-q">{t("prospects.queries")}</FieldLabel>
-            <Textarea id="pp-q" dir="auto" rows={3} value={queries} onChange={(e) => setQueries(e.target.value)} />
+            <Textarea
+              id="pp-q"
+              dir="auto"
+              rows={3}
+              value={queries}
+              onChange={(e) => setQueries(e.target.value)}
+            />
             <FieldDescription>{t("prospects.queriesHint")}</FieldDescription>
           </Field>
           {p.effective_queries.length ? (
-            <div className="text-xs text-grid-muted" data-effective-queries={p.effective_queries.length}>
+            <div
+              className="text-xs text-grid-muted"
+              data-effective-queries={p.effective_queries.length}
+            >
               <p>{t("prospects.willSearch")}</p>
               <ol className="mt-1 list-decimal space-y-0.5 ps-5">
                 {p.effective_queries.slice(0, 6).map((q) => (
@@ -175,7 +201,12 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
           </div>
           <div className="flex flex-wrap items-end gap-4 border-t border-line pt-4">
             <div className="flex items-center gap-2">
-              <Switch id="pp-on" checked={enabled} onCheckedChange={(v) => setEnabled(!!v)} disabled={!data.can_search && !p.enabled} />
+              <Switch
+                id="pp-on"
+                checked={enabled}
+                onCheckedChange={(v) => setEnabled(!!v)}
+                disabled={!data.can_search && !p.enabled}
+              />
               <label htmlFor="pp-on" className="text-sm font-medium">
                 {t("prospects.schedule")}
               </label>
@@ -196,8 +227,13 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
             </Field>
           </div>
           <p className="text-xs text-grid-muted">
-            {t("prospects.scheduleHint", { used: formatNumber(data.budget.runs_today), budget: formatNumber(data.budget.daily_run_budget) })}
-            {p.last_status ? ` ${t("prospects.lastPass", { date: fmt(p.last_run_at), status: t(`prospects.last.${p.last_status}`) })}` : ""}
+            {t("prospects.scheduleHint", {
+              used: formatNumber(data.budget.runs_today),
+              budget: formatNumber(data.budget.daily_run_budget),
+            })}
+            {p.last_status
+              ? ` ${t("prospects.lastPass", { date: fmt(p.last_run_at), status: t(`prospects.last.${p.last_status}`) })}`
+              : ""}
           </p>
         </fieldset>
         {err ? <FieldError>{err}</FieldError> : null}

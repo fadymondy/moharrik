@@ -16,7 +16,14 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { ACTIVITY_KINDS, api, ApiError, type Activity, type ActivityKind, type ConversationRef } from "@/lib/api"
+import {
+  ACTIVITY_KINDS,
+  api,
+  ApiError,
+  type Activity,
+  type ActivityKind,
+  type ConversationRef,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMe } from "@/lib/queries"
 import { Bdi } from "@/components/bidi"
@@ -57,31 +64,56 @@ export function Timeline({
   const canWrite = ws.can("contacts:write")
   // Older pages, fetched on demand (MH-467: the timeline used to stop at the newest 500). They
   // belong to one first page: when it is refetched (an entry added or changed), they are dropped.
-  const [older, setOlder] = useState<{ from: string; items: Activity[]; conversations: ConversationRef[]; cursor: string }>({
+  const [older, setOlder] = useState<{
+    from: string
+    items: Activity[]
+    conversations: ConversationRef[]
+    cursor: string
+  }>({
     from: nextCursor,
     items: [],
     conversations: [],
     cursor: nextCursor,
   })
   const [loading, setLoading] = useState(false)
-  const fresh = older.from === nextCursor ? older : { from: nextCursor, items: [], conversations: [], cursor: nextCursor }
+  const fresh =
+    older.from === nextCursor
+      ? older
+      : { from: nextCursor, items: [], conversations: [], cursor: nextCursor }
   const all = [...items, ...fresh.items.filter((a) => !items.some((b) => b.id === a.id))]
-  const allConversations = [...conversations, ...fresh.conversations.filter((c) => !conversations.some((d) => d.id === c.id))]
+  const allConversations = [
+    ...conversations,
+    ...fresh.conversations.filter((c) => !conversations.some((d) => d.id === c.id)),
+  ]
   const open = all.filter((a) => a.kind === "task" && !a.done_at)
   const rest = all.filter((a) => !(a.kind === "task" && !a.done_at))
   // Newest first, activities and conversations together.
   const history = [
-    ...rest.map((a) => ({ at: a.created_at, activity: a, conversation: null as ConversationRef | null })),
-    ...allConversations.map((c) => ({ at: c.last_message_at, activity: null as Activity | null, conversation: c })),
+    ...rest.map((a) => ({
+      at: a.created_at,
+      activity: a,
+      conversation: null as ConversationRef | null,
+    })),
+    ...allConversations.map((c) => ({
+      at: c.last_message_at,
+      activity: null as Activity | null,
+      conversation: c,
+    })),
   ].sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0))
 
   async function loadOlder() {
     if (!fresh.cursor) return
     setLoading(true)
     try {
-      const qs = new URLSearchParams(Object.entries(target).filter(([, v]) => !!v) as [string, string][])
+      const qs = new URLSearchParams(
+        Object.entries(target).filter(([, v]) => !!v) as [string, string][],
+      )
       qs.set("cursor", fresh.cursor)
-      const page = await api<{ activities: Activity[]; next_cursor: string; conversations?: ConversationRef[] }>(`/api/w/activities?${qs}`, {
+      const page = await api<{
+        activities: Activity[]
+        next_cursor: string
+        conversations?: ConversationRef[]
+      }>(`/api/w/activities?${qs}`, {
         workspaceId: ws.id,
       })
       setOlder({
@@ -114,7 +146,10 @@ export function Timeline({
       ) : null}
       <p className="grid-micro px-6 pt-4 pb-2">{t("timeline.history")}</p>
       {history.length === 0 && !fresh.cursor ? (
-        <EmptyState title={t("timeline.empty")} body={canWrite ? t("timeline.emptyBody") : undefined} />
+        <EmptyState
+          title={t("timeline.empty")}
+          body={canWrite ? t("timeline.emptyBody") : undefined}
+        />
       ) : (
         <ul className="divide-y divide-line border-y border-line">
           {history.map((h) =>
@@ -132,7 +167,13 @@ export function Timeline({
             {t("timeline.showing", { shown: formatNumber(all.length), total: formatNumber(total) })}
           </span>
           {fresh.cursor ? (
-            <Button variant="outline" size="sm" onClick={loadOlder} disabled={loading} data-timeline-load-older>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadOlder}
+              disabled={loading}
+              data-timeline-load-older
+            >
               {loading ? t("common.working") : t("timeline.loadOlder")}
             </Button>
           ) : null}
@@ -157,7 +198,12 @@ function Composer({ target, onAdded }: { target: Target; onAdded: () => void }) 
     setErr(null)
     try {
       await api("/api/w/activities", {
-        json: { kind, body: body.trim(), due_at: kind === "task" && due ? due : undefined, ...target },
+        json: {
+          kind,
+          body: body.trim(),
+          due_at: kind === "task" && due ? due : undefined,
+          ...target,
+        },
         workspaceId: ws.id,
       })
       toast.success(t(`timeline.logged.${kind}`))
@@ -173,7 +219,11 @@ function Composer({ target, onAdded }: { target: Target; onAdded: () => void }) 
 
   return (
     <form onSubmit={submit} noValidate className="px-6 pb-4" data-form="activity">
-      <div role="radiogroup" aria-label={t("timeline.kind")} className="mb-3 flex flex-wrap gap-1.5">
+      <div
+        role="radiogroup"
+        aria-label={t("timeline.kind")}
+        className="mb-3 flex flex-wrap gap-1.5"
+      >
         {ACTIVITY_KINDS.map((k) => (
           <Button
             key={k}
@@ -207,7 +257,13 @@ function Composer({ target, onAdded }: { target: Target; onAdded: () => void }) 
         {kind === "task" ? (
           <Field className="w-44">
             <FieldLabel htmlFor="activity-due">{t("timeline.due")}</FieldLabel>
-            <Input id="activity-due" type="date" dir="ltr" value={due} onChange={(e) => setDue(e.target.value)} />
+            <Input
+              id="activity-due"
+              type="date"
+              dir="ltr"
+              value={due}
+              onChange={(e) => setDue(e.target.value)}
+            />
           </Field>
         ) : null}
         <Button type="submit" disabled={busy || !body.trim()}>
@@ -226,13 +282,22 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
   const canWrite = ws.can("contacts:write")
   const me = useMe()
   // The API lets the author or a manager (pipeline:manage is manager+) delete an activity.
-  const canDelete = canWrite && (String(me.data?.id ?? "") === a.created_by || ws.can("pipeline:manage"))
+  const canDelete =
+    canWrite && (String(me.data?.id ?? "") === a.created_by || ws.can("pipeline:manage"))
   const base = `/${locale}/w/${ws.slug}`
-  const overdue = a.kind === "task" && !a.done_at && a.due_at && new Date(a.due_at) < new Date(new Date().toDateString())
+  const overdue =
+    a.kind === "task" &&
+    !a.done_at &&
+    a.due_at &&
+    new Date(a.due_at) < new Date(new Date().toDateString())
 
   async function toggle() {
     try {
-      await api(`/api/w/activities/${encodeURIComponent(a.id)}`, { method: "PATCH", json: { done: !a.done_at }, workspaceId: ws.id })
+      await api(`/api/w/activities/${encodeURIComponent(a.id)}`, {
+        method: "PATCH",
+        json: { done: !a.done_at },
+        workspaceId: ws.id,
+      })
       onChange()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -241,7 +306,10 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
 
   async function remove() {
     try {
-      await api(`/api/w/activities/${encodeURIComponent(a.id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/activities/${encodeURIComponent(a.id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(t("timeline.deleted"))
       onChange()
     } catch (e) {
@@ -251,12 +319,22 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
 
   // Links to the other records this activity is on (not the page we are on).
   const refs: { href: string; label: string }[] = []
-  if (a.contact && a.contact.id !== target.contact_id) refs.push({ href: `${base}/contacts/${a.contact.id}`, label: a.contact.name || a.contact.email })
-  if (a.company && a.company.id !== target.company_id) refs.push({ href: `${base}/companies/${a.company.id}`, label: a.company.name })
-  if (a.deal && a.deal.id !== target.deal_id) refs.push({ href: `${base}/deals/${a.deal.id}`, label: a.deal.name })
+  if (a.contact && a.contact.id !== target.contact_id)
+    refs.push({
+      href: `${base}/contacts/${a.contact.id}`,
+      label: a.contact.name || a.contact.email,
+    })
+  if (a.company && a.company.id !== target.company_id)
+    refs.push({ href: `${base}/companies/${a.company.id}`, label: a.company.name })
+  if (a.deal && a.deal.id !== target.deal_id)
+    refs.push({ href: `${base}/deals/${a.deal.id}`, label: a.deal.name })
 
   return (
-    <li className="flex items-start gap-3 px-6 py-4" data-activity={a.kind} data-activity-done={a.done_at ? "true" : "false"}>
+    <li
+      className="flex items-start gap-3 px-6 py-4"
+      data-activity={a.kind}
+      data-activity-done={a.done_at ? "true" : "false"}
+    >
       {a.kind === "task" ? (
         <input
           type="checkbox"
@@ -310,12 +388,15 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
   )
 }
 
-
 // Record<string, ...> on purpose (MH-568): ConversationChannel is no longer a
 // closed union, so a channel this map doesn't name (telegram, slack, a
 // workflow feed) falls through to the MessageSquareIcon default below rather
 // than failing to typecheck.
-const channelIcon: Record<string, typeof MessageSquareIcon> = { chat: MessageSquareIcon, email: MailIcon, whatsapp: MessageCircleIcon }
+const channelIcon: Record<string, typeof MessageSquareIcon> = {
+  chat: MessageSquareIcon,
+  email: MailIcon,
+  whatsapp: MessageCircleIcon,
+}
 
 /** An inbox conversation on a CRM timeline (MH-379): who, where, how much, and the way back to the thread. */
 function ConversationItem({ c, target }: { c: ConversationRef; target: Target }) {
@@ -344,12 +425,21 @@ function ConversationItem({ c, target }: { c: ConversationRef; target: Target })
           ) : null}
         </p>
         {c.preview ? (
-          <p dir="auto" className="mt-0.5 line-clamp-2 text-start text-sm break-words text-grid-muted">
+          <p
+            dir="auto"
+            className="mt-0.5 line-clamp-2 text-start text-sm break-words text-grid-muted"
+          >
             {c.preview}
           </p>
         ) : null}
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
-          <Badge variant={c.status === "open" ? "default" : c.status === "snoozed" ? "secondary" : "outline"}>{t(`inbox.status.${c.status}`)}</Badge>
+          <Badge
+            variant={
+              c.status === "open" ? "default" : c.status === "snoozed" ? "secondary" : "outline"
+            }
+          >
+            {t(`inbox.status.${c.status}`)}
+          </Badge>
           <span>{t("inbox.messageCount", { n: c.message_count })}</span>
           <span aria-hidden>·</span>
           <Ltr>{formatDate(c.last_message_at)}</Ltr>
@@ -362,7 +452,11 @@ function ConversationItem({ c, target }: { c: ConversationRef; target: Target })
             </>
           ) : null}
           <span aria-hidden>·</span>
-          <Link className="underline underline-offset-4" href={`${base}/inbox?c=${encodeURIComponent(c.id)}`} data-open-in-inbox>
+          <Link
+            className="underline underline-offset-4"
+            href={`${base}/inbox?c=${encodeURIComponent(c.id)}`}
+            data-open-in-inbox
+          >
             {t("timeline.openInInbox")}
           </Link>
         </p>
@@ -381,11 +475,21 @@ function ActivityBody({ body, done }: { body: string; done: boolean }) {
   const long = body.split("\n").length > CLAMP_LINES || body.length > 1200
   return (
     <>
-      <p dir="auto" className={`text-start text-sm break-words whitespace-pre-wrap ${done ? "text-grid-muted line-through" : ""} ${long && !all ? "line-clamp-[12]" : ""}`}>
+      <p
+        dir="auto"
+        className={`text-start text-sm break-words whitespace-pre-wrap ${done ? "text-grid-muted line-through" : ""} ${long && !all ? "line-clamp-[12]" : ""}`}
+      >
         {body}
       </p>
       {long ? (
-        <Button variant="link" size="xs" className="px-0" onClick={() => setAll((v) => !v)} aria-expanded={all} data-activity-more>
+        <Button
+          variant="link"
+          size="xs"
+          className="px-0"
+          onClick={() => setAll((v) => !v)}
+          aria-expanded={all}
+          data-activity-more
+        >
           {all ? t("timeline.showLess") : t("timeline.showAll")}
         </Button>
       ) : null}

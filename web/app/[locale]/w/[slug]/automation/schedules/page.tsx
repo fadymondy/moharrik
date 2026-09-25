@@ -16,7 +16,14 @@ import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import { useWorkspaceEvents } from "@/lib/events"
-import { useAutomationSettings, useBrowsers, useJobs, useRuns, useSchedules, useWorkflows } from "@/lib/queries"
+import {
+  useAutomationSettings,
+  useBrowsers,
+  useJobs,
+  useRuns,
+  useSchedules,
+  useWorkflows,
+} from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi } from "@/components/bidi"
 
@@ -59,7 +66,12 @@ export default function AutomationSchedulesPage() {
         description={t("automation.schedulesHint")}
         action={
           canRun && (hasBrowser || canJob) && (schedules.data?.schedules ?? []).length > 0 ? (
-            <Button variant="outline" size="sm" onClick={() => setScheduling((v) => !v)} data-new-schedule>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setScheduling((v) => !v)}
+              data-new-schedule
+            >
               {scheduling ? <XIcon /> : <PlusIcon />}
               {scheduling ? t("common.cancel") : t("automation.sched.new")}
             </Button>
@@ -79,7 +91,12 @@ export default function AutomationSchedulesPage() {
             title={t("automation.sched.needBrowserTitle")}
             body={t("automation.sched.needBrowserBody")}
             action={
-              <Button size="sm" nativeButton={false} render={<Link href={installHref} />} data-schedule-install>
+              <Button
+                size="sm"
+                nativeButton={false}
+                render={<Link href={installHref} />}
+                data-schedule-install
+              >
                 <DownloadIcon />
                 {t("automation.ext.link")}
               </Button>

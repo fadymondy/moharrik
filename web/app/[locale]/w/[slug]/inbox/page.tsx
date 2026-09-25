@@ -17,7 +17,13 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -36,7 +42,12 @@ import { useTranslations } from "@/lib/i18n"
 import { useSWRConfig } from "swr"
 
 import { useWorkspaceEvents } from "@/lib/events"
-import { useConversation, useConversationPages, useMailboxes, useSenderGroupPages } from "@/lib/queries"
+import {
+  useConversation,
+  useConversationPages,
+  useMailboxes,
+  useSenderGroupPages,
+} from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, BdiBlock } from "@/components/bidi"
 
@@ -143,25 +154,33 @@ export default function InboxPage() {
   // person just left would move, and coming back to its slot opened a
   // different conversation. The API keeps these among the unread until reload.
   const keepRef = useRef<string[]>([])
-  const pages = useConversationPages(ws.id, {
-    status: status || undefined,
-    unread,
-    q: params.get("q") ?? undefined,
-    channel: channel || undefined,
-    // Only meaningful under Email (MH-555); dropped everywhere else so a
-    // leftover value can never silently narrow another channel's list.
-    mailbox_id: channel === "email" ? mailboxFilter || undefined : undefined,
-    // MH-600: narrowed to one sender, drilled into from the grouped view.
-    customer_email: channel === "email" ? sender || undefined : undefined,
-    // Ten at a time, unread on top (MH-592): what needs an answer is what
-    // opens first, and the rest arrives as the list is scrolled or searched.
-    limit: 10,
-    order: "unread_first",
-  }, () => keepRef.current)
+  const pages = useConversationPages(
+    ws.id,
+    {
+      status: status || undefined,
+      unread,
+      q: params.get("q") ?? undefined,
+      channel: channel || undefined,
+      // Only meaningful under Email (MH-555); dropped everywhere else so a
+      // leftover value can never silently narrow another channel's list.
+      mailbox_id: channel === "email" ? mailboxFilter || undefined : undefined,
+      // MH-600: narrowed to one sender, drilled into from the grouped view.
+      customer_email: channel === "email" ? sender || undefined : undefined,
+      // Ten at a time, unread on top (MH-592): what needs an answer is what
+      // opens first, and the rest arrives as the list is scrolled or searched.
+      limit: 10,
+      order: "unread_first",
+    },
+    () => keepRef.current,
+  )
   const list = { error: pages.error, data: pages.data?.[0], mutate: pages.mutate }
   const items = (pages.data ?? []).flatMap((p) => p.conversations)
   const hasMore = !!pages.data?.[pages.data.length - 1]?.next_cursor
-  if (selected && !keepRef.current.includes(selected) && items.some((c) => c.id === selected && c.unread)) {
+  if (
+    selected &&
+    !keepRef.current.includes(selected) &&
+    items.some((c) => c.id === selected && c.unread)
+  ) {
     keepRef.current = [...keepRef.current, selected].slice(-100)
   }
 
@@ -191,7 +210,8 @@ export default function InboxPage() {
   useWorkspaceEvents(ws.id, (e) => {
     if (e.kind !== "message" && e.kind !== "conversation") return
     void pages.mutate()
-    if (e.conversation_id) void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, ws.id])
+    if (e.conversation_id)
+      void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, ws.id])
   })
 
   // Virtualised conversation list (MH-556 cont'd): 1,000+ rows must not mean
@@ -224,7 +244,8 @@ export default function InboxPage() {
     if (!el) return
     const obs = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && hasMore && !loadingMore) void pages.setSize(pages.size + 1)
+        if (entries[0]?.isIntersecting && hasMore && !loadingMore)
+          void pages.setSize(pages.size + 1)
       },
       // The list scrolls inside its own <ul>, so that is the root: against the
       // viewport the margin would be clipped by the list and never reach ahead.
@@ -242,7 +263,8 @@ export default function InboxPage() {
   // including the one where loadingMore turns false.
   const lastRendered = virtualItems[virtualItems.length - 1]?.index ?? -1
   useEffect(() => {
-    if (lastRendered >= items.length - 5 && items.length > 0 && hasMore && !loadingMore) void pages.setSize(pages.size + 1)
+    if (lastRendered >= items.length - 5 && items.length > 0 && hasMore && !loadingMore)
+      void pages.setSize(pages.size + 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastRendered, items.length, hasMore, loadingMore, pages.size])
 
@@ -270,7 +292,10 @@ export default function InboxPage() {
         e.preventDefault()
         const order = ["", ...channelCounts.map((c) => c.channel)]
         const i = order.indexOf(channel)
-        const next = e.key === "]" ? order[(i + 1 + order.length) % order.length] : order[(i - 1 + order.length) % order.length]
+        const next =
+          e.key === "]"
+            ? order[(i + 1 + order.length) % order.length]
+            : order[(i - 1 + order.length) % order.length]
         setChannel(next)
         return
       }
@@ -321,7 +346,10 @@ export default function InboxPage() {
           list so on a phone the strip scrolls sideways instead of wrapping. */}
       {channelCounts.length > 0 ? (
         <div className="overflow-x-auto px-6 pb-2">
-          <Tabs value={channel || "all"} onValueChange={(v) => setChannel(v === "all" ? "" : String(v))}>
+          <Tabs
+            value={channel || "all"}
+            onValueChange={(v) => setChannel(v === "all" ? "" : String(v))}
+          >
             <TabsList variant="line" className="w-max">
               <TabsTrigger value="all" data-channel-tab="all">
                 {t("inbox.channel.all")}
@@ -341,9 +369,19 @@ export default function InboxPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 px-6 pb-4" role="group" aria-label={t("inbox.filters")}>
+      <div
+        className="flex flex-wrap items-center gap-2 px-6 pb-4"
+        role="group"
+        aria-label={t("inbox.filters")}
+      >
         <div className="w-40">
-          <PickSelect id="inbox-status" value={status} onChange={setStatus} options={statusOpts} noneLabel={t("inbox.allStatuses")} />
+          <PickSelect
+            id="inbox-status"
+            value={status}
+            onChange={setStatus}
+            options={statusOpts}
+            noneLabel={t("inbox.allStatuses")}
+          />
         </div>
         {channel === "email" && mailboxOpts.length > 1 ? (
           <div className="w-44">
@@ -356,7 +394,14 @@ export default function InboxPage() {
             />
           </div>
         ) : null}
-        <Button type="button" size="sm" variant={unread ? "default" : "outline"} aria-pressed={unread} onClick={() => setUnread((v) => !v)} data-filter="unread">
+        <Button
+          type="button"
+          size="sm"
+          variant={unread ? "default" : "outline"}
+          aria-pressed={unread}
+          onClick={() => setUnread((v) => !v)}
+          data-filter="unread"
+        >
           {t("inbox.filterUnread")}
           {list.data?.unread_count ? ` (${list.data.unread_count})` : ""}
         </Button>
@@ -364,7 +409,11 @@ export default function InboxPage() {
           // MH-600: grouped-by-sender vs the flat list. Two buttons rather than
           // a single toggle switch — each state names itself, so it reads right
           // in both LTR and RTL without a direction-aware icon.
-          <div className="ms-auto flex items-center gap-1" role="group" aria-label={t("inbox.senderGroups.toggleGrouped")}>
+          <div
+            className="ms-auto flex items-center gap-1"
+            role="group"
+            aria-label={t("inbox.senderGroups.toggleGrouped")}
+          >
             <Button
               type="button"
               size="sm"
@@ -394,7 +443,11 @@ export default function InboxPage() {
             search is right above what it finds, and the list below it. The
             search stays put while the list loads, errors or comes back empty,
             so a search with no hits can be changed where it was typed. */}
-        <div className="flex min-w-0 flex-col lg:border-e lg:border-line" style={{ height: "min(70vh, 44rem)" }} data-conversation-column>
+        <div
+          className="flex min-w-0 flex-col lg:border-e lg:border-line"
+          style={{ height: "min(70vh, 44rem)" }}
+          data-conversation-column
+        >
           <div className="shrink-0 border-b border-line p-2">
             <input
               id="inbox-search"
@@ -417,9 +470,18 @@ export default function InboxPage() {
               data-sender-filter-banner
             >
               <span className="min-w-0 truncate text-grid-fg">
-                {t("inbox.senderGroups.showingSender", { who: senderGroupItems.find((g) => g.sender_email === sender)?.sender_name || sender })}
+                {t("inbox.senderGroups.showingSender", {
+                  who:
+                    senderGroupItems.find((g) => g.sender_email === sender)?.sender_name || sender,
+                })}
               </span>
-              <Button type="button" size="sm" variant="outline" onClick={() => setSender("")} data-sender-clear>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setSender("")}
+                data-sender-clear
+              >
                 {grouped ? t("inbox.senderGroups.back") : t("inbox.senderGroups.clear")}
               </Button>
             </div>
@@ -432,9 +494,16 @@ export default function InboxPage() {
             ) : senderGroupItems.length === 0 ? (
               <EmptyState title={t("inbox.senderGroups.empty")} />
             ) : (
-              <ul className="relative min-h-0 min-w-0 flex-1 divide-y divide-line overflow-y-auto" data-sender-group-list>
+              <ul
+                className="relative min-h-0 min-w-0 flex-1 divide-y divide-line overflow-y-auto"
+                data-sender-group-list
+              >
                 {senderGroupItems.map((g) => (
-                  <SenderGroupRow key={g.sender_email} group={g} onSelect={() => setSender(g.sender_email)} />
+                  <SenderGroupRow
+                    key={g.sender_email}
+                    group={g}
+                    onSelect={() => setSender(g.sender_email)}
+                  />
                 ))}
                 {senderGroupsHasMore ? (
                   <li className="p-2">
@@ -458,13 +527,20 @@ export default function InboxPage() {
           ) : !list.data ? (
             <LoadingRows rows={5} />
           ) : items.length === 0 ? (
-            <EmptyState title={t("inbox.empty")} body={canManage && !q.trim() ? t("inbox.emptyBody") : undefined} />
+            <EmptyState
+              title={t("inbox.empty")}
+              body={canManage && !q.trim() ? t("inbox.emptyBody") : undefined}
+            />
           ) : (
             // Virtualised (MH-556): position:relative + overflow-y-auto on this
             // same element, with every row (and the sentinel) absolutely
             // positioned directly inside it — see the virtualizer setup above
             // for why there is no separate inner sizer wrapper.
-            <ul ref={listParentRef} className="relative min-h-0 min-w-0 flex-1 divide-y divide-line overflow-y-auto" data-conversation-list>
+            <ul
+              ref={listParentRef}
+              className="relative min-h-0 min-w-0 flex-1 divide-y divide-line overflow-y-auto"
+              data-conversation-list
+            >
               {virtualItems.map((vi) => {
                 const c = items[vi.index]!
                 return (
@@ -483,15 +559,37 @@ export default function InboxPage() {
                     onChanged={() => void pages.mutate()}
                     measureRef={virtualizer.measureElement}
                     dataIndex={vi.index}
-                    style={{ position: "absolute", top: 0, insetInlineStart: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      insetInlineStart: 0,
+                      width: "100%",
+                      transform: `translateY(${vi.start}px)`,
+                    }}
                   />
                 )
               })}
-              <li ref={sentinelRef} aria-hidden className="h-1" data-scroll-sentinel style={{ position: "absolute", top: listBottom, insetInlineStart: 0, width: "100%" }} />
+              <li
+                ref={sentinelRef}
+                aria-hidden
+                className="h-1"
+                data-scroll-sentinel
+                style={{
+                  position: "absolute",
+                  top: listBottom,
+                  insetInlineStart: 0,
+                  width: "100%",
+                }}
+              />
               {loadingMore ? (
                 <li
                   className="px-6 py-3 text-center text-xs text-grid-muted"
-                  style={{ position: "absolute", top: listBottom + 4, insetInlineStart: 0, width: "100%" }}
+                  style={{
+                    position: "absolute",
+                    top: listBottom + 4,
+                    insetInlineStart: 0,
+                    width: "100%",
+                  }}
                 >
                   {t("common.working")}
                 </li>
@@ -525,9 +623,16 @@ function SenderGroupRow({ group, onSelect }: { group: SenderGroup; onSelect: () 
         className={`flex w-full min-w-0 flex-col gap-1 px-6 py-4 text-start transition-colors ${group.unread_count > 0 ? "bg-grid-card" : ""} hover:bg-grid-soft`}
       >
         <span className="flex min-w-0 items-center gap-2">
-          {group.unread_count > 0 ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
+          {group.unread_count > 0 ? (
+            <span
+              className="size-2 shrink-0 rounded-full bg-grid-brand"
+              aria-label={t("inbox.unread")}
+            />
+          ) : null}
           <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
-          <span className="ms-auto shrink-0 text-xs text-grid-muted">{formatDate(group.latest_message_at)}</span>
+          <span className="ms-auto shrink-0 text-xs text-grid-muted">
+            {formatDate(group.latest_message_at)}
+          </span>
         </span>
         <span className="min-w-0 truncate text-xs text-grid-muted" dir="auto">
           {group.sender_email}
@@ -539,7 +644,9 @@ function SenderGroupRow({ group, onSelect }: { group: SenderGroup; onSelect: () 
           <BdiBlock className="truncate text-xs text-grid-muted">{group.latest_preview}</BdiBlock>
         ) : null}
         <span className="flex items-center gap-3 text-xs text-grid-muted">
-          <span data-sender-group-count>{t("inbox.senderGroups.conversationCount", { n: group.conversation_count })}</span>
+          <span data-sender-group-count>
+            {t("inbox.senderGroups.conversationCount", { n: group.conversation_count })}
+          </span>
           {group.unread_count > 0 ? (
             <Badge variant="default" data-sender-group-unread-badge>
               {t("inbox.senderGroups.unreadCount", { n: group.unread_count })}
@@ -578,7 +685,12 @@ function ConversationRow({
   // MH-602: a linked contact's own name wins over customer_name (which, for
   // an unlinked WhatsApp thread, is often just the raw phone) — never the
   // other way around.
-  const who = c.contact?.name || c.customer_name || c.customer_email || phoneLabel(c.customer_phone) || t("inbox.anonymous")
+  const who =
+    c.contact?.name ||
+    c.customer_name ||
+    c.customer_email ||
+    phoneLabel(c.customer_phone) ||
+    t("inbox.anonymous")
   const [contactOpen, setContactOpen] = useState(false)
 
   // The row's menu (MH-556, MH-596): right-click, a touch long-press and
@@ -588,7 +700,11 @@ function ConversationRow({
   // plain click on the row still just opens the conversation.
   async function act(patch: Record<string, unknown>, message: string) {
     try {
-      await api(`/api/w/conversations/${encodeURIComponent(c.id)}`, { method: "PATCH", json: patch, workspaceId: ws.id })
+      await api(`/api/w/conversations/${encodeURIComponent(c.id)}`, {
+        method: "PATCH",
+        json: patch,
+        workspaceId: ws.id,
+      })
       toast.success(message)
       onChanged?.()
     } catch (e) {
@@ -599,7 +715,15 @@ function ConversationRow({
   return (
     <ContextMenu>
       <ContextMenuTrigger
-        render={<li ref={measureRef} data-index={dataIndex} className="group relative" style={style} data-row-menu="context" />}
+        render={
+          <li
+            ref={measureRef}
+            data-index={dataIndex}
+            className="group relative"
+            style={style}
+            data-row-menu="context"
+          />
+        }
       >
         <button
           ref={buttonRef}
@@ -610,10 +734,20 @@ function ConversationRow({
           data-conversation-unread={c.unread ? "true" : "false"}
           className={`flex w-full min-w-0 items-start gap-3 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
         >
-          <PersonAvatar id={c.contact_id || c.id} name={who} photoUrl={c.avatar_url} className="mt-0.5 shrink-0" />
+          <PersonAvatar
+            id={c.contact_id || c.id}
+            name={who}
+            photoUrl={c.avatar_url}
+            className="mt-0.5 shrink-0"
+          />
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="flex min-w-0 items-center gap-2">
-              {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
+              {c.unread ? (
+                <span
+                  className="size-2 shrink-0 rounded-full bg-grid-brand"
+                  aria-label={t("inbox.unread")}
+                />
+              ) : null}
               <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
               <Badge variant={statusVariant[c.status]} className="ms-auto shrink-0">
                 {t(`inbox.status.${c.status}`)}
@@ -623,18 +757,29 @@ function ConversationRow({
               {c.preview || c.subject}
             </BdiBlock>
             <span className="text-xs text-grid-muted">
-              {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> · {t("inbox.messageCount", { n: c.message_count })}
+              {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> ·{" "}
+              {t("inbox.messageCount", { n: c.message_count })}
             </span>
           </span>
         </button>
       </ContextMenuTrigger>
 
       <ContextMenuContent className="min-w-48">
-        <ContextMenuItem onClick={() => act({ unread: !c.unread }, c.unread ? t("inbox.markedRead") : t("inbox.markedUnread"))} data-action="toggle-unread">
+        <ContextMenuItem
+          onClick={() =>
+            act({ unread: !c.unread }, c.unread ? t("inbox.markedRead") : t("inbox.markedUnread"))
+          }
+          data-action="toggle-unread"
+        >
           {c.unread ? t("inbox.markRead") : t("inbox.markUnread")}
         </ContextMenuItem>
         <ContextMenuItem
-          onClick={() => act({ status: c.status === "closed" ? "open" : "closed" }, c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"))}
+          onClick={() =>
+            act(
+              { status: c.status === "closed" ? "open" : "closed" },
+              c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"),
+            )
+          }
           data-action="toggle-status"
         >
           {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
@@ -646,7 +791,12 @@ function ConversationRow({
         </ContextMenuItem>
       </ContextMenuContent>
 
-      <ConversationContactDialog c={c} open={contactOpen} onOpenChange={setContactOpen} onDone={() => onChanged?.()} />
+      <ConversationContactDialog
+        c={c}
+        open={contactOpen}
+        onOpenChange={setContactOpen}
+        onDone={() => onChanged?.()}
+      />
     </ContextMenu>
   )
 }
@@ -665,7 +815,8 @@ function VisitorContext({ c }: { c: Conversation }) {
   const pageIsLink = /^https?:\/\//i.test(c.page_url)
   let language = c.locale
   try {
-    language = (c.locale && new Intl.DisplayNames([locale], { type: "language" }).of(c.locale)) || c.locale
+    language =
+      (c.locale && new Intl.DisplayNames([locale], { type: "language" }).of(c.locale)) || c.locale
   } catch {
     // An unusual tag: show it as sent.
   }
@@ -686,7 +837,12 @@ function VisitorContext({ c }: { c: Conversation }) {
               start. rtl:text-right keeps a short value next to its label. */}
           <dd dir="ltr" className="min-w-0 truncate rtl:text-right" data-context="page">
             {pageIsLink ? (
-              <a href={c.page_url} target="_blank" rel="noopener noreferrer nofollow" className="text-grid-fg underline-offset-2 hover:underline">
+              <a
+                href={c.page_url}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="text-grid-fg underline-offset-2 hover:underline"
+              >
                 {c.page_url}
               </a>
             ) : (
@@ -706,7 +862,12 @@ function VisitorContext({ c }: { c: Conversation }) {
       {c.user_agent ? (
         <>
           <dt>{t("inbox.context.browser")}</dt>
-          <dd dir="ltr" className="min-w-0 truncate rtl:text-right" data-context="browser" title={c.user_agent}>
+          <dd
+            dir="ltr"
+            className="min-w-0 truncate rtl:text-right"
+            data-context="browser"
+            title={c.user_agent}
+          >
             {c.user_agent}
           </dd>
         </>
@@ -777,7 +938,10 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
     setBusy(true)
     setErr(null)
     try {
-      await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, { json: { body: text }, workspaceId: ws.id })
+      await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, {
+        json: { body: text },
+        workspaceId: ws.id,
+      })
       setReply("")
       refresh()
     } catch (e) {
@@ -789,7 +953,11 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
 
   async function patch(json: Record<string, unknown>, done: string) {
     try {
-      await api(`/api/w/conversations/${encodeURIComponent(id)}`, { method: "PATCH", json, workspaceId: ws.id })
+      await api(`/api/w/conversations/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        json,
+        workspaceId: ws.id,
+      })
       toast.success(done)
       refresh()
     } catch (e) {
@@ -805,12 +973,23 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
 
   const assigneeOpts = members.options
   // MH-602: same precedence as the list row — the linked contact's name wins.
-  const headerWho = c.contact?.name || c.customer_name || c.customer_email || c.customer_phone || t("inbox.anonymous")
+  const headerWho =
+    c.contact?.name ||
+    c.customer_name ||
+    c.customer_email ||
+    c.customer_phone ||
+    t("inbox.anonymous")
 
   return (
     <section data-thread={id}>
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-6 py-4">
-        <PersonAvatar id={c.contact_id || c.id} name={headerWho} photoUrl={c.avatar_url} size="lg" className="shrink-0" />
+        <PersonAvatar
+          id={c.contact_id || c.id}
+          name={headerWho}
+          photoUrl={c.avatar_url}
+          size="lg"
+          className="shrink-0"
+        />
         {/* Its own row on a phone: beside the assignee and snooze controls it was cut to one letter. */}
         <div className="min-w-0 flex-1 max-sm:basis-full">
           <BdiBlock as="p" className="truncate text-sm font-medium" data-thread-title>
@@ -857,7 +1036,12 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
               variant="outline"
               size="sm"
               data-action={c.status === "closed" ? "reopen" : "close"}
-              onClick={() => patch({ status: c.status === "closed" ? "open" : "closed" }, c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"))}
+              onClick={() =>
+                patch(
+                  { status: c.status === "closed" ? "open" : "closed" },
+                  c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"),
+                )
+              }
             >
               {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
             </Button>
@@ -871,10 +1055,18 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
       {total > detail.data.messages.length ? (
         <div className="flex flex-wrap items-center gap-3 px-6 pt-4" data-thread-paging>
           <p className="text-xs text-grid-muted" data-thread-count>
-            {cursor ? t("inbox.shownOfTotal", { n: messages.length, total }) : t("inbox.allShown", { total })}
+            {cursor
+              ? t("inbox.shownOfTotal", { n: messages.length, total })
+              : t("inbox.allShown", { total })}
           </p>
           {cursor ? (
-            <Button variant="outline" size="sm" onClick={loadEarlier} disabled={loadingEarlier} data-load-earlier>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadEarlier}
+              disabled={loadingEarlier}
+              data-load-earlier
+            >
               <ChevronUpIcon />
               {loadingEarlier ? t("common.working") : t("inbox.loadEarlier")}
             </Button>

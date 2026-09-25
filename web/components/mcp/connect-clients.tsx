@@ -30,7 +30,8 @@ export function ConnectClients({
   where?: "settings" | "docs"
 }) {
   const { t } = useTranslations()
-  const lastOAuthStep = where === "docs" ? t("mcp.client.claudeAi.step4Docs") : t("mcp.client.claudeAi.step4")
+  const lastOAuthStep =
+    where === "docs" ? t("mcp.client.claudeAi.step4Docs") : t("mcp.client.claudeAi.step4")
   const tok = token ?? "<your token>"
 
   const claudeCode = `claude mcp add --transport http moharrik ${url} --header "Authorization: Bearer ${tok}"`
@@ -47,7 +48,11 @@ export function ConnectClients({
     null,
     2,
   )
-  const cursor = JSON.stringify({ mcpServers: { moharrik: { url, headers: { Authorization: `Bearer ${tok}` } } } }, null, 2)
+  const cursor = JSON.stringify(
+    { mcpServers: { moharrik: { url, headers: { Authorization: `Bearer ${tok}` } } } },
+    null,
+    2,
+  )
 
   const clients = [
     { id: "claude-code", label: "Claude Code" },
@@ -112,7 +117,9 @@ export function ConnectClients({
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <p className="flex gap-2.5 text-sm text-grid-body">
-      <span className="grid size-5 shrink-0 place-items-center border border-line font-mono text-[11px] text-grid-muted">{n}</span>
+      <span className="grid size-5 shrink-0 place-items-center border border-line font-mono text-[11px] text-grid-muted">
+        {n}
+      </span>
       <span className="min-w-0">{children}</span>
     </p>
   )

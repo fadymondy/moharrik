@@ -11,8 +11,21 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -50,7 +63,11 @@ export default function ImportPage() {
   const [kind, setKind] = useState<"" | "direct" | "group">("")
   const [q, setQ] = useState("")
   const debouncedQ = useDebounced(q, 300)
-  const preview = useImportPreview(ws.id, conn?.ready ? source : null, { connection_id: conn?.id, kind, q: debouncedQ })
+  const preview = useImportPreview(ws.id, conn?.ready ? source : null, {
+    connection_id: conn?.id,
+    kind,
+    q: debouncedQ,
+  })
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   useEffect(() => setSelected(new Set()), [source, kind, debouncedQ])
@@ -80,20 +97,26 @@ export default function ImportPage() {
     })
   }
 
-  const selectableIds = useMemo(() => items.filter((it) => !it.already_imported).map((it) => it.id), [items])
+  const selectableIds = useMemo(
+    () => items.filter((it) => !it.already_imported).map((it) => it.id),
+    [items],
+  )
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
 
   async function startImport() {
     try {
-      const res = await api<{ job: { id: string } }>(`/api/w/import/${encodeURIComponent(source)}`, {
-        json: {
-          connection_id: conn?.id,
-          items: [...selected],
-          history_depth: historyDepth ? Number(historyDepth) : undefined,
-          import_participants: importParticipants,
+      const res = await api<{ job: { id: string } }>(
+        `/api/w/import/${encodeURIComponent(source)}`,
+        {
+          json: {
+            connection_id: conn?.id,
+            items: [...selected],
+            history_depth: historyDepth ? Number(historyDepth) : undefined,
+            import_participants: importParticipants,
+          },
+          workspaceId: ws.id,
         },
-        workspaceId: ws.id,
-      })
+      )
       setJobId(res.job.id)
       setSelected(new Set())
       toast.success(t("import.started"))
@@ -119,7 +142,10 @@ export default function ImportPage() {
         <Field className="w-56">
           <FieldLabel htmlFor="import-source">{t("import.source")}</FieldLabel>
           <Select
-            items={(sources.data?.sources ?? []).map((s) => ({ value: s.source, label: t(`import.source.${s.source}`) }))}
+            items={(sources.data?.sources ?? []).map((s) => ({
+              value: s.source,
+              label: t(`import.source.${s.source}`),
+            }))}
             value={source}
             onValueChange={(v) => setSource(String(v ?? ""))}
           >
@@ -153,7 +179,12 @@ export default function ImportPage() {
           <div className="flex flex-wrap items-end gap-4 px-6 pb-4">
             <Field className="w-72">
               <FieldLabel htmlFor="import-q">{t("import.search")}</FieldLabel>
-              <Input id="import-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("import.searchPlaceholder")} />
+              <Input
+                id="import-q"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t("import.searchPlaceholder")}
+              />
             </Field>
             <Field className="w-44">
               <FieldLabel htmlFor="import-kind">{t("import.kind")}</FieldLabel>
@@ -193,7 +224,11 @@ export default function ImportPage() {
           {anyGroupSelected ? (
             <div className="px-6 pb-4">
               <Field orientation="horizontal">
-                <Checkbox id="import-participants" checked={importParticipants} onCheckedChange={(v) => setImportParticipants(!!v)} />
+                <Checkbox
+                  id="import-participants"
+                  checked={importParticipants}
+                  onCheckedChange={(v) => setImportParticipants(!!v)}
+                />
                 <FieldLabel htmlFor="import-participants" className="font-normal">
                   {t("import.importParticipants")}
                 </FieldLabel>
@@ -240,11 +275,17 @@ export default function ImportPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {it.kind === "group" ? <UsersIcon className="size-4 text-grid-muted" /> : <MessageCircleIcon className="size-4 text-grid-muted" />}
+                          {it.kind === "group" ? (
+                            <UsersIcon className="size-4 text-grid-muted" />
+                          ) : (
+                            <MessageCircleIcon className="size-4 text-grid-muted" />
+                          )}
                           <Bdi>{it.name || it.identity}</Bdi>
                         </div>
                         {it.kind === "group" && it.participants?.length ? (
-                          <div className="mt-1 text-xs text-grid-muted">{t("import.participantsCount", { count: it.participants.length })}</div>
+                          <div className="mt-1 text-xs text-grid-muted">
+                            {t("import.participantsCount", { count: it.participants.length })}
+                          </div>
                         ) : null}
                       </TableCell>
                       <TableCell className="text-grid-muted">
@@ -269,8 +310,15 @@ export default function ImportPage() {
           )}
 
           <div className="flex flex-wrap items-center gap-4 px-6 py-6">
-            <Button type="button" disabled={!canWrite || selected.size === 0 || running} onClick={startImport} data-action="start-import">
-              {running ? t("import.importing") : t("import.importSelected", { count: selected.size })}
+            <Button
+              type="button"
+              disabled={!canWrite || selected.size === 0 || running}
+              onClick={startImport}
+              data-action="start-import"
+            >
+              {running
+                ? t("import.importing")
+                : t("import.importSelected", { count: selected.size })}
             </Button>
             {!canWrite ? <FieldDescription>{t("contacts.readOnly")}</FieldDescription> : null}
             {job.data?.job ? (

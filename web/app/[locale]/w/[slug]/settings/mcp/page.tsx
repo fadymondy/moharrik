@@ -14,10 +14,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
@@ -50,12 +71,18 @@ export default function McpTokensPage() {
   // while the grants call hasn't answered yet.
   const serverUrl = grants.data?.server_url ?? `${MCP_ORIGIN}/api/mcp`
   // Owners and admins can open each token's calls in the audit log (MH-392).
-  const auditHref = ws.can("audit:read") ? (actor: string) => `/${locale}/w/${ws.summary.slug}/settings/audit?actor=${encodeURIComponent(actor)}` : undefined
+  const auditHref = ws.can("audit:read")
+    ? (actor: string) =>
+        `/${locale}/w/${ws.summary.slug}/settings/audit?actor=${encodeURIComponent(actor)}`
+    : undefined
   const [creating, setCreating] = useState(false)
 
   async function revoke(id: string) {
     try {
-      await api(`/api/w/mcp_tokens/${encodeURIComponent(id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/mcp_tokens/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(t("mcp.revoked"))
       await tokens.mutate()
     } catch (err) {
@@ -106,7 +133,14 @@ export default function McpTokensPage() {
             </TableHeader>
             <TableBody>
               {list.map((tok) => (
-                <TokenRow key={tok.id} tok={tok} showHolder={all} formatDate={formatDate} onRevoke={() => revoke(tok.id)} activityHref={auditHref?.(tok.id)} />
+                <TokenRow
+                  key={tok.id}
+                  tok={tok}
+                  showHolder={all}
+                  formatDate={formatDate}
+                  onRevoke={() => revoke(tok.id)}
+                  activityHref={auditHref?.(tok.id)}
+                />
               ))}
             </TableBody>
           </Table>
@@ -122,7 +156,11 @@ export default function McpTokensPage() {
           </h2>
           <p className="grid-body text-sm">{t("mcp.connectHint")}</p>
           <p className="text-sm">
-            <Link href={mcpDocsHref(locale)} className="text-grid-action underline-offset-4 hover:underline" data-mcp-docs-link>
+            <Link
+              href={mcpDocsHref(locale)}
+              className="text-grid-action underline-offset-4 hover:underline"
+              data-mcp-docs-link
+            >
               {t("mcp.docsLink")}
             </Link>
           </p>
@@ -194,7 +232,11 @@ function TokenRow({
       <TableCell className="text-grid-muted">
         {tok.last_used_at ? <Ltr>{formatDate(tok.last_used_at)}</Ltr> : t("mcp.never")}
         {activityHref && tok.last_used_at ? (
-          <Link href={activityHref} className="block text-xs text-grid-action underline-offset-4 hover:underline" data-token-activity>
+          <Link
+            href={activityHref}
+            className="block text-xs text-grid-action underline-offset-4 hover:underline"
+            data-token-activity
+          >
             {t("mcp.recentCalls")}
           </Link>
         ) : null}
@@ -214,7 +256,10 @@ function TokenRow({
             description={
               tok.mine
                 ? t("mcp.revokeBody", { name: isolate(tok.name) })
-                : t("mcp.revokeOtherBody", { name: isolate(tok.name), who: isolate(tok.user_email) })
+                : t("mcp.revokeOtherBody", {
+                    name: isolate(tok.name),
+                    who: isolate(tok.user_email),
+                  })
             }
             confirmLabel={t("common.revoke")}
             onConfirm={onRevoke}
@@ -249,7 +294,10 @@ function CreateTokenDialog({
   const [error, setError] = useState<string | null>(null)
   const [plaintext, setPlaintext] = useState<string | null>(null)
 
-  const expiryItems = EXPIRY.map((v) => ({ value: v, label: v === "never" ? t("mcp.expiryNever") : t("mcp.expiryDays", { n: v }) }))
+  const expiryItems = EXPIRY.map((v) => ({
+    value: v,
+    label: v === "never" ? t("mcp.expiryNever") : t("mcp.expiryDays", { n: v }),
+  }))
 
   function reset() {
     setName("")
@@ -279,7 +327,10 @@ function CreateTokenDialog({
     try {
       const body: Record<string, unknown> = { name: name.trim(), scopes: chosen }
       if (expiry !== "never") body.expires_in_days = Number(expiry)
-      const res = await api<{ token: McpToken; plaintext: string }>("/api/w/mcp_tokens", { json: body, workspaceId: ws.id })
+      const res = await api<{ token: McpToken; plaintext: string }>("/api/w/mcp_tokens", {
+        json: body,
+        workspaceId: ws.id,
+      })
       setPlaintext(res.plaintext)
       onCreated()
     } catch (err) {
@@ -298,7 +349,10 @@ function CreateTokenDialog({
               <DialogTitle>{t("mcp.createdTitle")}</DialogTitle>
               <DialogDescription>{t("mcp.createdHint")}</DialogDescription>
             </DialogHeader>
-            <p className="flex items-start gap-2 border border-line bg-grid-card p-3 text-sm text-grid-warn-text" role="alert">
+            <p
+              className="flex items-start gap-2 border border-line bg-grid-card p-3 text-sm text-grid-warn-text"
+              role="alert"
+            >
               <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
               {t("mcp.shownOnce")}
             </p>
@@ -337,7 +391,11 @@ function CreateTokenDialog({
                 <FieldLegend variant="label">{t("mcp.scopes")}</FieldLegend>
                 <FieldDescription>
                   {t("mcp.scopesHint")}{" "}
-                  <Link href={mcpDocsHref(locale, "scopes")} target="_blank" className="text-grid-action underline-offset-4 hover:underline">
+                  <Link
+                    href={mcpDocsHref(locale, "scopes")}
+                    target="_blank"
+                    className="text-grid-action underline-offset-4 hover:underline"
+                  >
                     {t("mcp.scopesDocsLink")}
                   </Link>
                 </FieldDescription>
@@ -349,7 +407,10 @@ function CreateTokenDialog({
                       const id = `scope-${s.scope}`
                       return (
                         <li key={s.scope} className={s.allowed ? "" : "bg-grid-soft/50"}>
-                          <label htmlFor={id} className={`flex items-start gap-3 px-3 py-2.5 ${s.allowed ? "cursor-pointer" : "cursor-not-allowed"}`}>
+                          <label
+                            htmlFor={id}
+                            className={`flex items-start gap-3 px-3 py-2.5 ${s.allowed ? "cursor-pointer" : "cursor-not-allowed"}`}
+                          >
                             <input
                               id={id}
                               type="checkbox"
@@ -362,11 +423,16 @@ function CreateTokenDialog({
                               {/* The block follows the page direction; only the inline name is LTR, so every
                                   row's name starts at the same edge in /ar (MH-485, as on the OAuth consent page). */}
                               <span className="block">
-                                <span dir="ltr" className="ltr-isolate font-mono text-xs text-grid-fg">
+                                <span
+                                  dir="ltr"
+                                  className="ltr-isolate font-mono text-xs text-grid-fg"
+                                >
                                   {s.scope}
                                 </span>
                               </span>
-                              <span className="block text-sm text-grid-body">{scopeText(t, s.scope, s.description)}</span>
+                              <span className="block text-sm text-grid-body">
+                                {scopeText(t, s.scope, s.description)}
+                              </span>
                               {!s.allowed ? (
                                 <span className="mt-0.5 block text-xs text-grid-muted">
                                   {t("mcp.notAllowed", { role: t(`role.${s.min_role}`) })}
@@ -383,7 +449,11 @@ function CreateTokenDialog({
 
               <Field>
                 <FieldLabel htmlFor="mcp-expiry">{t("mcp.expiry")}</FieldLabel>
-                <Select items={expiryItems} value={expiry} onValueChange={(v) => setExpiry(String(v ?? "90"))}>
+                <Select
+                  items={expiryItems}
+                  value={expiry}
+                  onValueChange={(v) => setExpiry(String(v ?? "90"))}
+                >
                   <SelectTrigger id="mcp-expiry" className="w-full sm:w-56">
                     <SelectValue />
                   </SelectTrigger>

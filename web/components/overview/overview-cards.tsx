@@ -98,7 +98,11 @@ export function Panel({
 }) {
   const { t } = useTranslations()
   return (
-    <section aria-labelledby={`ov-${id}`} data-card={id} className={cn("flex min-w-0 flex-col border border-line bg-grid-card", className)}>
+    <section
+      aria-labelledby={`ov-${id}`}
+      data-card={id}
+      className={cn("flex min-w-0 flex-col border border-line bg-grid-card", className)}
+    >
       <header className="flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 px-5 pt-4 pb-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-grid-muted">
         {icon}
         <h2 id={`ov-${id}`} className="text-base font-medium text-grid-fg">
@@ -112,7 +116,11 @@ export function Panel({
         </h2>
         {meta}
         {href ? (
-          <Link href={href} className="ms-auto inline-flex items-center gap-1 text-xs text-grid-muted transition-colors hover:text-grid-fg" data-view-all={id}>
+          <Link
+            href={href}
+            className="ms-auto inline-flex items-center gap-1 text-xs text-grid-muted transition-colors hover:text-grid-fg"
+            data-view-all={id}
+          >
             {t("overview.viewAll")}
             <ArrowRightIcon className="size-3.5 rtl:-scale-x-100" aria-hidden />
           </Link>
@@ -124,13 +132,27 @@ export function Panel({
 }
 
 /** What a card says when there is nothing to show, and the action that fills it. */
-export function Empty({ title, body, action }: { title: string; body?: string; action?: { href: string; label: string } }) {
+export function Empty({
+  title,
+  body,
+  action,
+}: {
+  title: string
+  body?: string
+  action?: { href: string; label: string }
+}) {
   return (
     <div className="flex flex-1 flex-col items-start justify-center gap-1.5 px-5 py-6" data-empty>
       <p className="text-sm font-medium text-grid-fg">{title}</p>
       {body ? <p className="max-w-md text-sm text-grid-muted">{body}</p> : null}
       {action ? (
-        <Button variant="outline" size="sm" className="mt-2" nativeButton={false} render={<Link href={action.href} />}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          nativeButton={false}
+          render={<Link href={action.href} />}
+        >
           {action.label}
         </Button>
       ) : null}
@@ -146,10 +168,22 @@ function Rows({ children, label }: { children: ReactNode; label: string }) {
   )
 }
 
-function RowLink({ href, children, className, ...rest }: { href: string; children: ReactNode; className?: string } & Record<`data-${string}`, string>) {
+function RowLink({
+  href,
+  children,
+  className,
+  ...rest
+}: { href: string; children: ReactNode; className?: string } & Record<`data-${string}`, string>) {
   return (
     <li>
-      <Link href={href} className={cn("flex flex-col gap-1 px-5 py-3 transition-colors hover:bg-grid-soft", className)} {...rest}>
+      <Link
+        href={href}
+        className={cn(
+          "flex flex-col gap-1 px-5 py-3 transition-colors hover:bg-grid-soft",
+          className,
+        )}
+        {...rest}
+      >
         {children}
       </Link>
     </li>
@@ -163,9 +197,25 @@ function RowLink({ href, children, className, ...rest }: { href: string; childre
  * one word that says what the number is) and reserves two lines below lg, so the numbers in a row
  * still line up. Numbers are Western digits in both languages (lib/i18n-locale.ts).
  */
-function Tile({ href, label, value, sub, id }: { href: string; label: string; value: string; sub?: ReactNode; id: string }) {
+function Tile({
+  href,
+  label,
+  value,
+  sub,
+  id,
+}: {
+  href: string
+  label: string
+  value: string
+  sub?: ReactNode
+  id: string
+}) {
   return (
-    <Link href={href} className="flex min-w-0 flex-col gap-2 border border-line bg-grid-card px-5 py-4 transition-colors hover:bg-grid-soft" data-tile={id}>
+    <Link
+      href={href}
+      className="flex min-w-0 flex-col gap-2 border border-line bg-grid-card px-5 py-4 transition-colors hover:bg-grid-soft"
+      data-tile={id}
+    >
       <span className="grid-micro min-h-[2lh] text-balance lg:min-h-0">{label}</span>
       <span className="text-4xl leading-none font-medium text-grid-fg tabular-nums" data-tile-value>
         {value}
@@ -232,7 +282,10 @@ export function TodayStrip({ today, base }: { today: OverviewToday; base: string
   if (!tiles.length) return null
   return (
     <div
-      className={cn("grid grid-cols-2 gap-3 sm:gap-4", tiles.length >= 4 ? "lg:grid-cols-4" : tiles.length === 3 ? "lg:grid-cols-3" : "")}
+      className={cn(
+        "grid grid-cols-2 gap-3 sm:gap-4",
+        tiles.length >= 4 ? "lg:grid-cols-4" : tiles.length === 3 ? "lg:grid-cols-3" : "",
+      )}
       role="group"
       aria-label={t("overview.today")}
       data-today
@@ -249,7 +302,17 @@ export function TodayStrip({ today, base }: { today: OverviewToday; base: string
  * and no legend; the value is printed in the row, so the bar is decoration for
  * assistive tech (the table is the data).
  */
-export function PipelineCard({ p, currency, base, className }: { p: OverviewPipeline; currency: string; base: string; className?: string }) {
+export function PipelineCard({
+  p,
+  currency,
+  base,
+  className,
+}: {
+  p: OverviewPipeline
+  currency: string
+  base: string
+  className?: string
+}) {
   const { t } = useTranslations()
   const f = useFormat()
   const max = Math.max(0, ...p.stages.map((s) => s.value_minor))
@@ -265,46 +328,72 @@ export function PipelineCard({ p, currency, base, className }: { p: OverviewPipe
       meta={
         hasDeals ? (
           <span className="text-xs text-grid-muted">
-            <Ltr>{f.money(p.open_value_minor, currency)}</Ltr> · {t("overview.openDeals", { n: f.n(p.open_deals) })}
+            <Ltr>{f.money(p.open_value_minor, currency)}</Ltr> ·{" "}
+            {t("overview.openDeals", { n: f.n(p.open_deals) })}
           </span>
         ) : null
       }
       className={className}
     >
       {!hasDeals ? (
-        <Empty title={t("overview.noDeals")} body={t("overview.noDealsBody")} action={{ href: `${base}/deals`, label: t("deals.newDeal") }} />
+        <Empty
+          title={t("overview.noDeals")}
+          body={t("overview.noDealsBody")}
+          action={{ href: `${base}/deals`, label: t("deals.newDeal") }}
+        />
       ) : (
         <div className="grid flex-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:divide-x lg:divide-line rtl:lg:divide-x-reverse">
           <div className="min-w-0">
             <table className="w-full text-sm" data-pipeline-stages>
               <thead>
                 <tr className="border-b border-line text-start text-xs text-grid-muted">
-                  <th scope="col" className="w-full px-5 py-2 text-start font-normal">{t("overview.stage")}</th>
-                  <th scope="col" className="px-2 py-2 text-end font-normal">{t("overview.deals")}</th>
-                  <th scope="col" className="px-5 py-2 text-end font-normal">{t("overview.value")}</th>
+                  <th scope="col" className="w-full px-5 py-2 text-start font-normal">
+                    {t("overview.stage")}
+                  </th>
+                  <th scope="col" className="px-2 py-2 text-end font-normal">
+                    {t("overview.deals")}
+                  </th>
+                  <th scope="col" className="px-5 py-2 text-end font-normal">
+                    {t("overview.value")}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {p.stages.map((s) => (
                   <tr key={s.id} data-stage={s.name}>
                     <th scope="row" className="px-5 pt-2.5 pb-3 text-start align-top font-normal">
-                      <Link href={`${base}/deals`} className="hover:underline hover:underline-offset-4">
+                      <Link
+                        href={`${base}/deals`}
+                        className="hover:underline hover:underline-offset-4"
+                      >
                         <bdi className="text-grid-fg">{s.name}</bdi>
                       </Link>
                       {/* One hue, 8px, 4px rounded data-end, square at the baseline. */}
                       <div className="mt-2 h-2" aria-hidden title={t("overview.stageBarLabel")}>
                         <div
                           className="h-2 rounded-e-[4px] bg-grid-brand"
-                          style={{ width: max > 0 && s.value_minor > 0 ? `max(2px, ${(s.value_minor / max) * 100}%)` : 0 }}
+                          style={{
+                            width:
+                              max > 0 && s.value_minor > 0
+                                ? `max(2px, ${(s.value_minor / max) * 100}%)`
+                                : 0,
+                          }}
                         />
                       </div>
                     </th>
                     <td className="px-2 pt-2.5 text-end align-top tabular-nums">
-                      <Link href={`${base}/deals`} className="hover:underline hover:underline-offset-4" data-stage-count>
+                      <Link
+                        href={`${base}/deals`}
+                        className="hover:underline hover:underline-offset-4"
+                        data-stage-count
+                      >
                         {f.n(s.deal_count)}
                       </Link>
                     </td>
-                    <td className="px-5 pt-2.5 text-end align-top whitespace-nowrap tabular-nums text-grid-fg" data-stage-value>
+                    <td
+                      className="px-5 pt-2.5 text-end align-top whitespace-nowrap tabular-nums text-grid-fg"
+                      data-stage-value
+                    >
                       <Ltr>{f.money(s.value_minor, currency)}</Ltr>
                     </td>
                   </tr>
@@ -312,18 +401,27 @@ export function PipelineCard({ p, currency, base, className }: { p: OverviewPipe
               </tbody>
             </table>
             {p.other_currency_deals > 0 ? (
-              <p className="border-t border-line px-5 py-2.5 text-xs text-grid-muted" data-other-currency>
+              <p
+                className="border-t border-line px-5 py-2.5 text-xs text-grid-muted"
+                data-other-currency
+              >
                 {t("overview.otherCurrency", { n: f.n(p.other_currency_deals) })}
               </p>
             ) : null}
-            <Link href={`${base}/deals`} className="flex flex-col gap-1 border-t border-line px-5 py-3 transition-colors hover:bg-grid-soft" data-won-month>
+            <Link
+              href={`${base}/deals`}
+              className="flex flex-col gap-1 border-t border-line px-5 py-3 transition-colors hover:bg-grid-soft"
+              data-won-month
+            >
               <span className="grid-micro">{t("overview.wonThisMonth")}</span>
               <span className="text-2xl font-medium text-grid-fg">
                 <Ltr>{f.money(won.value_minor, currency)}</Ltr>
               </span>
               <span className="text-xs text-grid-muted">
                 {t("overview.wonCount", { n: f.n(won.count) })}
-                {won.other_currency_deals > 0 ? ` · ${t("overview.wonOtherCurrency", { n: f.n(won.other_currency_deals) })}` : ""}
+                {won.other_currency_deals > 0
+                  ? ` · ${t("overview.wonOtherCurrency", { n: f.n(won.other_currency_deals) })}`
+                  : ""}
               </span>
             </Link>
           </div>
@@ -335,11 +433,19 @@ export function PipelineCard({ p, currency, base, className }: { p: OverviewPipe
             ) : (
               <Rows label={t("overview.nextCloses")}>
                 {p.next_closes.map((d) => (
-                  <RowLink key={d.id} href={`${base}/deals/${d.id}`} className="flex-row items-baseline gap-3" data-next-close={d.title}>
+                  <RowLink
+                    key={d.id}
+                    href={`${base}/deals/${d.id}`}
+                    className="flex-row items-baseline gap-3"
+                    data-next-close={d.title}
+                  >
                     <span className="min-w-0 flex-1">
-                      <span className="bidi-block block truncate text-sm text-grid-fg" dir="auto">{d.title}</span>
+                      <span className="bidi-block block truncate text-sm text-grid-fg" dir="auto">
+                        {d.title}
+                      </span>
                       <span className="block truncate text-xs text-grid-muted">
-                        <bdi>{d.company_name ?? d.stage_name}</bdi> · <Ltr>{f.date(d.expected_close)}</Ltr>
+                        <bdi>{d.company_name ?? d.stage_name}</bdi> ·{" "}
+                        <Ltr>{f.date(d.expected_close)}</Ltr>
                       </span>
                     </span>
                     <span className="shrink-0 text-sm tabular-nums">
@@ -372,9 +478,18 @@ export function LeadsCard({
   const { t } = useTranslations()
   const f = useFormat()
   return (
-    <Panel id="leads" title={t("overview.latestLeads")} icon={<UserPlusIcon />} href={`${base}/leads`}>
+    <Panel
+      id="leads"
+      title={t("overview.latestLeads")}
+      icon={<UserPlusIcon />}
+      href={`${base}/leads`}
+    >
       {counts && leads.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5 border-b border-line px-5 py-2.5" role="group" aria-label={t("overview.leadsByStatus")}>
+        <div
+          className="flex flex-wrap gap-1.5 border-b border-line px-5 py-2.5"
+          role="group"
+          aria-label={t("overview.leadsByStatus")}
+        >
           {LEAD_STATUSES.map((s) => (
             <Link
               key={s}
@@ -392,21 +507,33 @@ export function LeadsCard({
         <Empty
           title={t("overview.noLeads")}
           body={t("overview.noLeadsBody")}
-          action={canAddForm ? { href: `${base}/subscribe-forms`, label: t("forms.addInquiry") } : undefined}
+          action={
+            canAddForm
+              ? { href: `${base}/subscribe-forms`, label: t("forms.addInquiry") }
+              : undefined
+          }
         />
       ) : (
         <Rows label={t("overview.latestLeads")}>
           {leads.map((l) => (
             <RowLink key={l.id} href={`${base}/leads/${l.id}`} data-overview-lead={l.email}>
               <span className="flex min-w-0 items-center gap-2">
-                <span className="bidi-block truncate text-sm font-medium text-grid-fg" dir="auto">{l.name || l.email}</span>
-                {l.company ? <span className="hidden truncate text-sm text-grid-muted sm:inline">·&nbsp;<bdi>{l.company}</bdi></span> : null}
+                <span className="bidi-block truncate text-sm font-medium text-grid-fg" dir="auto">
+                  {l.name || l.email}
+                </span>
+                {l.company ? (
+                  <span className="hidden truncate text-sm text-grid-muted sm:inline">
+                    ·&nbsp;<bdi>{l.company}</bdi>
+                  </span>
+                ) : null}
                 <LeadStatusBadge status={l.status} className="ms-auto shrink-0" />
               </span>
               <span className="flex flex-wrap gap-x-2 text-xs text-grid-muted">
                 <bdi>{leadSource(l, t)}</bdi>
                 <span aria-hidden>·</span>
-                <time dateTime={l.created_at} title={f.exact(l.created_at)}>{f.ago(l.created_at)}</time>
+                <time dateTime={l.created_at} title={f.exact(l.created_at)}>
+                  {f.ago(l.created_at)}
+                </time>
               </span>
             </RowLink>
           ))}
@@ -418,7 +545,17 @@ export function LeadsCard({
 
 // ── inbox ────────────────────────────────────────────────────────────────
 
-export function InboxCard({ items, unread, base, canAddWidget }: { items: OverviewConversation[]; unread: number | null; base: string; canAddWidget: boolean }) {
+export function InboxCard({
+  items,
+  unread,
+  base,
+  canAddWidget,
+}: {
+  items: OverviewConversation[]
+  unread: number | null
+  base: string
+  canAddWidget: boolean
+}) {
   const { t } = useTranslations()
   const f = useFormat()
   return (
@@ -429,8 +566,13 @@ export function InboxCard({ items, unread, base, canAddWidget }: { items: Overvi
       href={`${base}/inbox`}
       meta={
         unread ? (
-          <Link href={`${base}/inbox?unread=1`} className="text-xs text-grid-muted hover:text-grid-fg hover:underline" data-unread-link>
-            {t("overview.unreadConversations")}: <span className="font-medium text-grid-fg">{f.n(unread)}</span>
+          <Link
+            href={`${base}/inbox?unread=1`}
+            className="text-xs text-grid-muted hover:text-grid-fg hover:underline"
+            data-unread-link
+          >
+            {t("overview.unreadConversations")}:{" "}
+            <span className="font-medium text-grid-fg">{f.n(unread)}</span>
           </Link>
         ) : null
       }
@@ -439,22 +581,56 @@ export function InboxCard({ items, unread, base, canAddWidget }: { items: Overvi
         <Empty
           title={t("overview.noConversations")}
           body={t("overview.noConversationsBody")}
-          action={canAddWidget ? { href: `${base}/inbox/widgets`, label: t("inbox.addWidget") } : undefined}
+          action={
+            canAddWidget
+              ? { href: `${base}/inbox/widgets`, label: t("inbox.addWidget") }
+              : undefined
+          }
         />
       ) : (
         <Rows label={t("nav.inbox")}>
           {items.map((c) => (
-            <RowLink key={c.id} href={`${base}/inbox?c=${encodeURIComponent(c.id)}`} className={c.unread ? "bg-grid-card" : undefined} data-overview-conversation={c.id}>
+            <RowLink
+              key={c.id}
+              href={`${base}/inbox?c=${encodeURIComponent(c.id)}`}
+              className={c.unread ? "bg-grid-card" : undefined}
+              data-overview-conversation={c.id}
+            >
               <span className="flex min-w-0 items-center gap-2">
-                {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" role="img" aria-label={t("inbox.unread")} /> : null}
-                <span className={cn("bidi-block truncate text-sm text-grid-fg", c.unread && "font-medium")} dir="auto">
-                  {c.customer_name || c.customer_email || phoneLabel(c.customer_phone) || t("inbox.anonymous")}
+                {c.unread ? (
+                  <span
+                    className="size-2 shrink-0 rounded-full bg-grid-brand"
+                    role="img"
+                    aria-label={t("inbox.unread")}
+                  />
+                ) : null}
+                <span
+                  className={cn(
+                    "bidi-block truncate text-sm text-grid-fg",
+                    c.unread && "font-medium",
+                  )}
+                  dir="auto"
+                >
+                  {c.customer_name ||
+                    c.customer_email ||
+                    phoneLabel(c.customer_phone) ||
+                    t("inbox.anonymous")}
                 </span>
-                <Badge variant="outline" className="ms-auto shrink-0">{t(`inbox.channel.${c.channel}`)}</Badge>
+                <Badge variant="outline" className="ms-auto shrink-0">
+                  {t(`inbox.channel.${c.channel}`)}
+                </Badge>
               </span>
               <span className="flex min-w-0 gap-2 text-xs text-grid-muted">
-                <span className="bidi-block min-w-0 flex-1 truncate" dir="auto">{c.preview || c.subject}</span>
-                <time className="shrink-0" dateTime={c.last_message_at} title={f.exact(c.last_message_at)}>{f.ago(c.last_message_at)}</time>
+                <span className="bidi-block min-w-0 flex-1 truncate" dir="auto">
+                  {c.preview || c.subject}
+                </span>
+                <time
+                  className="shrink-0"
+                  dateTime={c.last_message_at}
+                  title={f.exact(c.last_message_at)}
+                >
+                  {f.ago(c.last_message_at)}
+                </time>
               </span>
             </RowLink>
           ))}
@@ -466,7 +642,11 @@ export function InboxCard({ items, unread, base, canAddWidget }: { items: Overvi
 
 // ── notifications ────────────────────────────────────────────────────────
 
-const severityTone: Record<NotificationSeverity, string> = { info: "bg-grid-brand", warning: "bg-grid-warn", error: "bg-grid-danger" }
+const severityTone: Record<NotificationSeverity, string> = {
+  info: "bg-grid-brand",
+  warning: "bg-grid-warn",
+  error: "bg-grid-danger",
+}
 
 export function NotificationsCard({
   items,
@@ -489,8 +669,13 @@ export function NotificationsCard({
       href={`${base}/notifications`}
       meta={
         unread ? (
-          <Link href={`${base}/notifications?unread=1`} className="text-xs text-grid-muted hover:text-grid-fg hover:underline" data-unread-link>
-            {t("overview.unreadNotifications")}: <span className="font-medium text-grid-fg">{f.n(unread)}</span>
+          <Link
+            href={`${base}/notifications?unread=1`}
+            className="text-xs text-grid-muted hover:text-grid-fg hover:underline"
+            data-unread-link
+          >
+            {t("overview.unreadNotifications")}:{" "}
+            <span className="font-medium text-grid-fg">{f.n(unread)}</span>
           </Link>
         ) : null
       }
@@ -499,7 +684,11 @@ export function NotificationsCard({
         <Empty
           title={t("overview.noNotifications")}
           body={t("overview.noNotificationsBody")}
-          action={canAddSource ? { href: `${base}/notifications/sources`, label: t("notifications.addSource") } : undefined}
+          action={
+            canAddSource
+              ? { href: `${base}/notifications/sources`, label: t("notifications.addSource") }
+              : undefined
+          }
         />
       ) : (
         <Rows label={t("nav.notifications")}>
@@ -510,15 +699,28 @@ export function NotificationsCard({
               className={cn("flex-row items-start gap-3", !n.read && "bg-grid-card")}
               data-overview-notification={n.title}
             >
-              <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", severityTone[n.severity])} aria-hidden />
+              <span
+                className={cn("mt-1.5 size-2 shrink-0 rounded-full", severityTone[n.severity])}
+                aria-hidden
+              />
               <span className="min-w-0 flex-1">
-                <span className={cn("bidi-block block truncate text-sm text-grid-fg", !n.read && "font-medium")} dir="auto">{n.title}</span>
+                <span
+                  className={cn(
+                    "bidi-block block truncate text-sm text-grid-fg",
+                    !n.read && "font-medium",
+                  )}
+                  dir="auto"
+                >
+                  {n.title}
+                </span>
                 <span className="flex flex-wrap gap-x-2 text-xs text-grid-muted">
                   <span>{t(`notifications.severity.${n.severity}`)}</span>
                   <span aria-hidden>·</span>
                   <bdi>{n.source_name || t("notifications.unknownSource")}</bdi>
                   <span aria-hidden>·</span>
-                  <time dateTime={n.occurred_at} title={f.exact(n.occurred_at)}>{f.ago(n.occurred_at)}</time>
+                  <time dateTime={n.occurred_at} title={f.exact(n.occurred_at)}>
+                    {f.ago(n.occurred_at)}
+                  </time>
                 </span>
               </span>
             </RowLink>
@@ -531,40 +733,76 @@ export function NotificationsCard({
 
 // ── marketing ────────────────────────────────────────────────────────────
 
-export function MarketingCard({ m, base, canWriteContacts, canWriteCampaigns }: { m: OverviewMarketing; base: string; canWriteContacts: boolean; canWriteCampaigns: boolean }) {
+export function MarketingCard({
+  m,
+  base,
+  canWriteContacts,
+  canWriteCampaigns,
+}: {
+  m: OverviewMarketing
+  base: string
+  canWriteContacts: boolean
+  canWriteCampaigns: boolean
+}) {
   const { t } = useTranslations()
   const f = useFormat()
   return (
-    <Panel id="marketing" title={t("overview.marketing")} icon={<SendIcon />} href={`${base}/campaigns`}>
+    <Panel
+      id="marketing"
+      title={t("overview.marketing")}
+      icon={<SendIcon />}
+      href={`${base}/campaigns`}
+    >
       {m.lists !== null ? (
         m.lists.length === 0 ? (
           <Empty
             title={t("overview.noLists")}
             body={t("overview.noListsBody")}
-            action={canWriteContacts ? { href: `${base}/contacts`, label: t("lists.create") } : undefined}
+            action={
+              canWriteContacts ? { href: `${base}/contacts`, label: t("lists.create") } : undefined
+            }
           />
         ) : (
           <table className="w-full text-sm" data-marketing-lists>
             <thead>
               <tr className="border-b border-line text-xs text-grid-muted">
-                <th scope="col" className="w-full px-5 py-2 text-start font-normal">{t("lists.title")}</th>
-                <th scope="col" className="px-2 py-2 text-end font-normal whitespace-nowrap">{t("lists.subscribed")}</th>
-                <th scope="col" className="px-5 py-2 text-end font-normal whitespace-nowrap">{t("lists.pending")}</th>
+                <th scope="col" className="w-full px-5 py-2 text-start font-normal">
+                  {t("lists.title")}
+                </th>
+                <th scope="col" className="px-2 py-2 text-end font-normal whitespace-nowrap">
+                  {t("lists.subscribed")}
+                </th>
+                <th scope="col" className="px-5 py-2 text-end font-normal whitespace-nowrap">
+                  {t("lists.pending")}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {m.lists.map((l) => (
                 <tr key={l.id} data-list={l.name}>
                   <th scope="row" className="max-w-0 truncate px-5 py-2.5 text-start font-normal">
-                    <Link href={`${base}/contacts`} className="text-grid-fg hover:underline hover:underline-offset-4">
+                    <Link
+                      href={`${base}/contacts`}
+                      className="text-grid-fg hover:underline hover:underline-offset-4"
+                    >
                       <bdi>{l.name}</bdi>
                     </Link>
                   </th>
                   <td className="px-2 py-2.5 text-end tabular-nums" data-subscribed>
-                    <Link href={`${base}/contacts`} className="hover:underline hover:underline-offset-4">{f.n(l.subscribed)}</Link>
+                    <Link
+                      href={`${base}/contacts`}
+                      className="hover:underline hover:underline-offset-4"
+                    >
+                      {f.n(l.subscribed)}
+                    </Link>
                   </td>
                   <td className="px-5 py-2.5 text-end tabular-nums text-grid-muted" data-pending>
-                    <Link href={`${base}/contacts`} className="hover:underline hover:underline-offset-4">{f.n(l.pending)}</Link>
+                    <Link
+                      href={`${base}/contacts`}
+                      className="hover:underline hover:underline-offset-4"
+                    >
+                      {f.n(l.pending)}
+                    </Link>
                   </td>
                 </tr>
               ))}
@@ -572,9 +810,18 @@ export function MarketingCard({ m, base, canWriteContacts, canWriteCampaigns }: 
           </table>
         )
       ) : null}
-      <div className={cn("flex items-center gap-2 px-5 pt-3 pb-1", m.lists !== null && "border-t border-line")}>
+      <div
+        className={cn(
+          "flex items-center gap-2 px-5 pt-3 pb-1",
+          m.lists !== null && "border-t border-line",
+        )}
+      >
         <p className="grid-micro">{t("overview.drafts")}</p>
-        <Link href={`${base}/campaigns`} className="text-xs font-medium text-grid-fg hover:underline" data-draft-count>
+        <Link
+          href={`${base}/campaigns`}
+          className="text-xs font-medium text-grid-fg hover:underline"
+          data-draft-count
+        >
           {f.n(m.draft_count)}
         </Link>
       </div>
@@ -582,7 +829,12 @@ export function MarketingCard({ m, base, canWriteContacts, canWriteCampaigns }: 
         <div className="flex flex-wrap items-center gap-3 px-5 pb-4">
           <p className="text-sm text-grid-muted">{t("overview.noDrafts")}</p>
           {canWriteCampaigns ? (
-            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`${base}/campaigns`} />}>
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`${base}/campaigns`} />}
+            >
               {t("overview.newCampaign")}
             </Button>
           ) : null}
@@ -590,10 +842,21 @@ export function MarketingCard({ m, base, canWriteContacts, canWriteCampaigns }: 
       ) : (
         <Rows label={t("overview.drafts")}>
           {m.drafts.map((d) => (
-            <RowLink key={d.id} href={`${base}/campaigns`} className="flex-row items-center gap-2" data-draft={d.subject}>
-              <span className="bidi-block min-w-0 flex-1 truncate text-sm text-grid-fg" dir="auto">{d.subject}</span>
-              <span className="hidden shrink-0 truncate text-xs text-grid-muted sm:inline"><bdi>{d.list_name}</bdi></span>
-              <Badge variant="outline" className="shrink-0">{t(`campaigns.channel.${d.channel}`)}</Badge>
+            <RowLink
+              key={d.id}
+              href={`${base}/campaigns`}
+              className="flex-row items-center gap-2"
+              data-draft={d.subject}
+            >
+              <span className="bidi-block min-w-0 flex-1 truncate text-sm text-grid-fg" dir="auto">
+                {d.subject}
+              </span>
+              <span className="hidden shrink-0 truncate text-xs text-grid-muted sm:inline">
+                <bdi>{d.list_name}</bdi>
+              </span>
+              <Badge variant="outline" className="shrink-0">
+                {t(`campaigns.channel.${d.channel}`)}
+              </Badge>
             </RowLink>
           ))}
         </Rows>
@@ -604,10 +867,20 @@ export function MarketingCard({ m, base, canWriteContacts, canWriteCampaigns }: 
 
 // ── trends ───────────────────────────────────────────────────────────────
 
-export function TrendsCard({ tr, base, canManage }: { tr: OverviewTrends; base: string; canManage: boolean }) {
+export function TrendsCard({
+  tr,
+  base,
+  canManage,
+}: {
+  tr: OverviewTrends
+  base: string
+  canManage: boolean
+}) {
   const { t } = useTranslations()
   const f = useFormat()
-  const manage = canManage ? { href: `${base}/trends/sources`, label: t("trends.addTopic") } : undefined
+  const manage = canManage
+    ? { href: `${base}/trends/sources`, label: t("trends.addTopic") }
+    : undefined
   return (
     <Panel
       id="trends"
@@ -617,7 +890,8 @@ export function TrendsCard({ tr, base, canManage }: { tr: OverviewTrends; base: 
       meta={
         tr.topics > 0 ? (
           <span className="text-xs text-grid-muted">
-            {t("overview.topicsFollowed", { n: f.n(tr.topics) })} · {t("overview.matchedItems", { n: f.n(tr.matched) })}
+            {t("overview.topicsFollowed", { n: f.n(tr.topics) })} ·{" "}
+            {t("overview.matchedItems", { n: f.n(tr.matched) })}
           </span>
         ) : null
       }
@@ -631,20 +905,36 @@ export function TrendsCard({ tr, base, canManage }: { tr: OverviewTrends; base: 
           {tr.items.map((it) => (
             <li key={it.id} className="flex flex-col gap-1 px-5 py-3" data-trend={it.title}>
               {it.url ? (
-                <a href={it.url} target="_blank" rel="noreferrer" className="group inline-flex items-start gap-1.5 text-sm text-grid-fg hover:underline hover:underline-offset-4">
-                  <span className="bidi-block line-clamp-2" dir="auto">{it.title}</span>
-                  <ExternalLinkIcon className="mt-0.5 size-3.5 shrink-0 text-grid-muted" aria-hidden />
+                <a
+                  href={it.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group inline-flex items-start gap-1.5 text-sm text-grid-fg hover:underline hover:underline-offset-4"
+                >
+                  <span className="bidi-block line-clamp-2" dir="auto">
+                    {it.title}
+                  </span>
+                  <ExternalLinkIcon
+                    className="mt-0.5 size-3.5 shrink-0 text-grid-muted"
+                    aria-hidden
+                  />
                 </a>
               ) : (
-                <span className="bidi-block line-clamp-2 text-sm text-grid-fg" dir="auto">{it.title}</span>
+                <span className="bidi-block line-clamp-2 text-sm text-grid-fg" dir="auto">
+                  {it.title}
+                </span>
               )}
               <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
                 {it.topics.map((name) => (
-                  <Badge key={name} variant="secondary"><bdi>{name}</bdi></Badge>
+                  <Badge key={name} variant="secondary">
+                    <bdi>{name}</bdi>
+                  </Badge>
                 ))}
                 <bdi>{it.source_name}</bdi>
                 <span aria-hidden>·</span>
-                <time dateTime={it.published_at} title={f.exact(it.published_at)}>{f.ago(it.published_at)}</time>
+                <time dateTime={it.published_at} title={f.exact(it.published_at)}>
+                  {f.ago(it.published_at)}
+                </time>
               </span>
             </li>
           ))}
@@ -695,7 +985,10 @@ export function SetupCard({
       title={t("overview.setup")}
       icon={<ListChecksIcon />}
       meta={
-        <span className="ms-auto flex items-center gap-2 text-xs text-grid-muted" data-setup-progress>
+        <span
+          className="ms-auto flex items-center gap-2 text-xs text-grid-muted"
+          data-setup-progress
+        >
           {t("overview.setupProgress", { done: f.n(done), total: f.n(doable.length) })}
           <span className="h-1.5 w-20 overflow-hidden rounded-full bg-grid-soft" aria-hidden>
             <span className="block h-full rounded-full bg-grid-ok" style={{ width: `${pct}%` }} />
@@ -706,25 +999,50 @@ export function SetupCard({
     >
       {/* Only what is still to do is spelled out; finished items fold into one line. They used
           to be struck through, which read as errors rather than progress. */}
-      <ul className="grid divide-y divide-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3" aria-label={t("overview.setup")}>
+      <ul
+        className="grid divide-y divide-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3"
+        aria-label={t("overview.setup")}
+      >
         {open.map((it) => {
           const cfg = SETUP[it.key]
           const canFix = can(cfg.perm)
           return (
-            <li key={it.key} className="flex items-start gap-3 px-5 py-4" data-setup={it.key} data-setup-done="false">
+            <li
+              key={it.key}
+              className="flex items-start gap-3 px-5 py-4"
+              data-setup={it.key}
+              data-setup-done="false"
+            >
               <CircleIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" aria-hidden />
               <div className="min-w-0 flex-1">
-                <p className={cn("text-sm", it.available ? "font-medium text-grid-fg" : "text-grid-muted")}>{t(`overview.setup.${it.key}`)}</p>
-                <p className="mt-0.5 text-xs text-grid-muted">{t(`overview.setup.${it.key}.hint`)}</p>
+                <p
+                  className={cn(
+                    "text-sm",
+                    it.available ? "font-medium text-grid-fg" : "text-grid-muted",
+                  )}
+                >
+                  {t(`overview.setup.${it.key}`)}
+                </p>
+                <p className="mt-0.5 text-xs text-grid-muted">
+                  {t(`overview.setup.${it.key}.hint`)}
+                </p>
                 {!it.available ? (
-                  <p className="mt-1.5 text-xs text-grid-muted" data-setup-unavailable>{t("overview.unavailable")}</p>
+                  <p className="mt-1.5 text-xs text-grid-muted" data-setup-unavailable>
+                    {t("overview.unavailable")}
+                  </p>
                 ) : canFix ? (
-                  <Link href={`${base}/${cfg.path}`} className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-grid-fg underline underline-offset-4" data-setup-link={it.key}>
+                  <Link
+                    href={`${base}/${cfg.path}`}
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-grid-fg underline underline-offset-4"
+                    data-setup-link={it.key}
+                  >
                     {t("overview.setUp")}
                     <ArrowRightIcon className="size-3 rtl:-scale-x-100" aria-hidden />
                   </Link>
                 ) : (
-                  <p className="mt-1.5 text-xs text-grid-muted">{t(cfg.role === "admin" ? "overview.needsAdmin" : "overview.needsManager")}</p>
+                  <p className="mt-1.5 text-xs text-grid-muted">
+                    {t(cfg.role === "admin" ? "overview.needsAdmin" : "overview.needsManager")}
+                  </p>
                 )}
               </div>
             </li>
@@ -733,16 +1051,33 @@ export function SetupCard({
       </ul>
       {doneItems.length ? (
         <Collapsible className="border-t border-line">
-          <CollapsibleTrigger className="group flex w-full items-center gap-2 px-5 py-3 text-start text-xs text-grid-muted transition-colors hover:text-grid-fg" data-setup-done-toggle>
+          <CollapsibleTrigger
+            className="group flex w-full items-center gap-2 px-5 py-3 text-start text-xs text-grid-muted transition-colors hover:text-grid-fg"
+            data-setup-done-toggle
+          >
             <CheckCircle2Icon className="size-4 shrink-0 text-grid-ok" aria-hidden />
             {t("overview.showDone", { n: f.n(doneItems.length) })}
-            <ChevronDownIcon className="size-3.5 transition-transform group-aria-expanded:rotate-180" aria-hidden />
+            <ChevronDownIcon
+              className="size-3.5 transition-transform group-aria-expanded:rotate-180"
+              aria-hidden
+            />
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <ul className="flex flex-wrap gap-x-6 gap-y-2 px-5 pb-4" aria-label={t("overview.done")}>
+            <ul
+              className="flex flex-wrap gap-x-6 gap-y-2 px-5 pb-4"
+              aria-label={t("overview.done")}
+            >
               {doneItems.map((it) => (
-                <li key={it.key} className="flex items-center gap-2 text-sm text-grid-muted" data-setup={it.key} data-setup-done="true">
-                  <CheckCircle2Icon className="size-4 shrink-0 text-grid-ok" aria-label={t("overview.done")} />
+                <li
+                  key={it.key}
+                  className="flex items-center gap-2 text-sm text-grid-muted"
+                  data-setup={it.key}
+                  data-setup-done="true"
+                >
+                  <CheckCircle2Icon
+                    className="size-4 shrink-0 text-grid-ok"
+                    aria-label={t("overview.done")}
+                  />
                   {t(`overview.setup.${it.key}`)}
                 </li>
               ))}

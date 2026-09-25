@@ -676,7 +676,11 @@ export function TriggerPanel({
                 ))}
               </ul>
               <p className="text-xs text-grid-muted" data-auto-add={autoAdd ? "on" : "off"}>
-                {autoAdd ? (canManage ? t("canvas.sites.auto") : t("canvas.sites.autoAdmin")) : t("canvas.sites.off")}
+                {autoAdd
+                  ? canManage
+                    ? t("canvas.sites.auto")
+                    : t("canvas.sites.autoAdmin")
+                  : t("canvas.sites.off")}
               </p>
             </>
           )}

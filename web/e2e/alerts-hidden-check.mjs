@@ -26,7 +26,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const out = {}
 const check = (k, v) => {
   out[k] = v
-  console.error(`${v ? "ok " : "FAIL"} ${k}${typeof v === "boolean" ? "" : " = " + JSON.stringify(v)}`)
+  console.error(
+    `${v ? "ok " : "FAIL"} ${k}${typeof v === "boolean" ? "" : " = " + JSON.stringify(v)}`,
+  )
 }
 
 const proc = spawn(
@@ -60,7 +62,9 @@ function cdp(url) {
     await ready
     return new Promise((resolve, reject) => {
       const i = ++id
-      pending.set(i, (d) => (d.error ? reject(new Error(`${method}: ${d.error.message}`)) : resolve(d.result)))
+      pending.set(i, (d) =>
+        d.error ? reject(new Error(`${method}: ${d.error.message}`)) : resolve(d.result),
+      )
       ws.send(JSON.stringify({ id: i, method, params }))
     })
   }
@@ -70,7 +74,9 @@ function cdp(url) {
 const version = await (await fetch(`http://127.0.0.1:${PORT}/json/version`)).json()
 const browser = cdp(version.webSocketDebuggerUrl)
 await browser.send("Browser.grantPermissions", { permissions: ["notifications"], origin: base })
-const target = (await (await fetch(`http://127.0.0.1:${PORT}/json`)).json()).find((t) => t.type === "page")
+const target = (await (await fetch(`http://127.0.0.1:${PORT}/json`)).json()).find(
+  (t) => t.type === "page",
+)
 const tab = cdp(target.webSocketDebuggerUrl)
 await tab.send("Page.enable")
 await tab.send("Runtime.enable")
@@ -94,14 +100,20 @@ await tab.send("Page.addScriptToEvaluateOnNewDocument", {
 })
 
 const evaluate = async (expression) => {
-  const r = await tab.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true })
-  if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? "evaluate failed")
+  const r = await tab.send("Runtime.evaluate", {
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
+  })
+  if (r.exceptionDetails)
+    throw new Error(r.exceptionDetails.exception?.description ?? "evaluate failed")
   return r.result.value
 }
 const goto = async (url) => {
   await tab.send("Page.navigate", { url })
   await sleep(500)
-  for (let i = 0; i < 60 && (await evaluate("document.readyState")) !== "complete"; i++) await sleep(250)
+  for (let i = 0; i < 60 && (await evaluate("document.readyState")) !== "complete"; i++)
+    await sleep(250)
 }
 const waitFor = async (expression, ms = 15000) => {
   const end = Date.now() + ms
@@ -131,7 +143,9 @@ check("member signed up with a workspace and widget", setup.reg === 201 && !!set
 const srv = await new Promise((resolve) => {
   const s = http.createServer((_, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-    res.end(`<!doctype html><html><body><h1>Shop</h1><script src="${base}/chat/v1.js" data-key="${setup.key}" data-visitor-name="Rana" defer></script></body></html>`)
+    res.end(
+      `<!doctype html><html><body><h1>Shop</h1><script src="${base}/chat/v1.js" data-key="${setup.key}" data-visitor-name="Rana" defer></script></body></html>`,
+    )
   })
   s.listen(SITE_PORT, "127.0.0.1", () => resolve(s))
 })
@@ -141,11 +155,20 @@ await goto(`${base}/en/w/${setup.slug}/contacts`)
 check("bell rendered on contacts", await waitFor(`!!document.querySelector("[data-bell]")`))
 check(
   "painting: rAF frames in 1s",
-  await evaluate(`new Promise(r => { let n = 0; const s = performance.now(); const f = () => { n++; performance.now() - s < 1000 ? requestAnimationFrame(f) : r(n) }; requestAnimationFrame(f) })`),
+  await evaluate(
+    `new Promise(r => { let n = 0; const s = performance.now(); const f = () => { n++; performance.now() - s < 1000 ? requestAnimationFrame(f) : r(n) }; requestAnimationFrame(f) })`,
+  ),
 )
 await sleep(1000) // the event stream is open
-await browser.send("Target.createTarget", { url: "about:blank", newWindow: false, background: false })
-check("member tab is hidden after switching tabs", await waitFor(`document.visibilityState === "hidden"`, 5000))
+await browser.send("Target.createTarget", {
+  url: "about:blank",
+  newWindow: false,
+  background: false,
+})
+check(
+  "member tab is hidden after switching tabs",
+  await waitFor(`document.visibilityState === "hidden"`, 5000),
+)
 
 // ---- the visitor writes, from another origin -----------------------------------
 const vb = await chromium.launch({ executablePath: CHROME, headless: true })
@@ -159,14 +182,19 @@ await visitor.evaluate(() => {
   sr.querySelector(".form").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
 })
 await visitor.waitForFunction(() =>
-  [...document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg")].some((m) => m.textContent.includes("Friday")),
+  [...document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg")].some(
+    (m) => m.textContent.includes("Friday"),
+  ),
 )
 
 // ---- the hidden tab raised a desktop notification ------------------------------
 const raised = await waitFor(`window.__desktop.length > 0`, 10000)
 const desktop = await evaluate(`window.__desktop`)
 check("desktop notification raised by the hidden tab", raised ? desktop : false)
-check("…from Rana, with the message", raised && desktop.some((d) => /Rana/.test(d.title) && /Friday/.test(d.body ?? "")))
+check(
+  "…from Rana, with the message",
+  raised && desktop.some((d) => /Rana/.test(d.title) && /Friday/.test(d.body ?? "")),
+)
 check("still hidden when it fired", await evaluate(`document.visibilityState`))
 const onScreen = await evaluate(`(async () => {
   const reg = await navigator.serviceWorker.getRegistration("/")

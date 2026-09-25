@@ -51,7 +51,18 @@ export function CannedPicker({
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="sm" data-action="canned" data-quick-replies disabled={!canned.data} />}>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-action="canned"
+            data-quick-replies
+            disabled={!canned.data}
+          />
+        }
+      >
         <MessageSquareQuoteIcon />
         {t("inbox.canned.insert")}
         <ChevronDownIcon />
@@ -68,12 +79,24 @@ export function CannedPicker({
               const text = cannedText(r, lang)
               const fallback = lang === "ar" ? !r.body_ar : !r.body_en
               return (
-                <DropdownMenuItem key={r.id} data-canned={r.title} onClick={() => onInsert(text)} className="flex-col items-start gap-0.5">
+                <DropdownMenuItem
+                  key={r.id}
+                  data-canned={r.title}
+                  onClick={() => onInsert(text)}
+                  className="flex-col items-start gap-0.5"
+                >
                   <Bdi className="font-medium">{r.title}</Bdi>
-                  <span dir="auto" className="line-clamp-2 w-full text-start text-xs text-grid-muted">
+                  <span
+                    dir="auto"
+                    className="line-clamp-2 w-full text-start text-xs text-grid-muted"
+                  >
                     {text}
                   </span>
-                  {fallback ? <span className="text-xs text-grid-warn-text">{t("inbox.canned.fallback", { language, other })}</span> : null}
+                  {fallback ? (
+                    <span className="text-xs text-grid-warn-text">
+                      {t("inbox.canned.fallback", { language, other })}
+                    </span>
+                  ) : null}
                 </DropdownMenuItem>
               )
             })
@@ -82,7 +105,9 @@ export function CannedPicker({
         {ws.can("inbox:manage") ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href={`/${locale}/w/${ws.slug}/inbox/canned`} />}>{t("inbox.canned.manage")}</DropdownMenuItem>
+            <DropdownMenuItem render={<Link href={`/${locale}/w/${ws.slug}/inbox/canned`} />}>
+              {t("inbox.canned.manage")}
+            </DropdownMenuItem>
           </>
         ) : null}
       </DropdownMenuContent>

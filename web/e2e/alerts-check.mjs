@@ -26,7 +26,9 @@ const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe"
 const out = { checks: {}, shots: [] }
 const check = (k, v) => {
   out.checks[k] = v
-  console.error(`${v ? "ok " : "FAIL"} ${k}${typeof v === "boolean" ? "" : " = " + JSON.stringify(v)}`)
+  console.error(
+    `${v ? "ok " : "FAIL"} ${k}${typeof v === "boolean" ? "" : " = " + JSON.stringify(v)}`,
+  )
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -89,7 +91,11 @@ async function apiCall(page, method, p, body) {
       const res = await fetch(p, {
         method,
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": c.csrf_token, "X-Workspace-ID": wsId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": c.csrf_token,
+          "X-Workspace-ID": wsId,
+        },
         body: body ? JSON.stringify(body) : undefined,
       })
       return { status: res.status, body: await res.json().catch(() => null) }
@@ -149,7 +155,10 @@ out.wsId = await page.evaluate(async (slug) => {
   return r.workspaces.find((w) => w.slug === slug).id
 }, slug)
 
-const widget = await apiCall(page, "POST", "/api/w/chat_widgets", { name: "Rana's shop", allowed_origins: [SITE] })
+const widget = await apiCall(page, "POST", "/api/w/chat_widgets", {
+  name: "Rana's shop",
+  allowed_origins: [SITE],
+})
 const key = widget.body.widget.public_key
 const hook = await apiCall(page, "POST", "/api/w/webhook_sources", { name: "CI" })
 const hookID = hook.body.source.id
@@ -160,17 +169,26 @@ const site = await servePage(SITE_PORT, key)
 const visitorBrowser = await chromium.launch({ executablePath: CHROME, headless: true })
 const visitor = await visitorBrowser.newPage()
 await visitor.goto(`${SITE}/`, { waitUntil: "networkidle" })
-await visitor.waitForFunction(() => !!document.querySelector("[data-moharrik-chat]"), { timeout: 15000 })
-await visitor.evaluate(() => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".btn").click())
+await visitor.waitForFunction(() => !!document.querySelector("[data-moharrik-chat]"), {
+  timeout: 15000,
+})
+await visitor.evaluate(() =>
+  document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".btn").click(),
+)
 async function visitorWrites(text) {
   await visitor.evaluate((text) => {
     const sr = document.querySelector("[data-moharrik-chat]").shadowRoot
     sr.querySelector(".ta").value = text
-    sr.querySelector(".form").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+    sr.querySelector(".form").dispatchEvent(
+      new Event("submit", { cancelable: true, bubbles: true }),
+    )
   }, text)
   // Sent = the widget shows it (it only does once the API accepted it).
   await visitor.waitForFunction(
-    (text) => [...document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg")].some((m) => m.textContent.includes(text)),
+    (text) =>
+      [...document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg")].some(
+        (m) => m.textContent.includes(text),
+      ),
     text,
     { timeout: 15000 },
   )
@@ -188,35 +206,57 @@ const toastText = toast ? await toast.innerText() : ""
 check("popup names the sender", /Rana/.test(toastText))
 check("popup shows the snippet", /blue jacket/.test(toastText))
 await page.waitForSelector("[data-bell-count]", { timeout: 10000 })
-check("bell badge count", await page.$eval("[data-bell-count]", (e) => e.getAttribute("data-bell-count")))
-check("chime played (AudioContext created)", (await page.evaluate(() => window.__alerts.chimes)) >= 1)
+check(
+  "bell badge count",
+  await page.$eval("[data-bell-count]", (e) => e.getAttribute("data-bell-count")),
+)
+check(
+  "chime played (AudioContext created)",
+  (await page.evaluate(() => window.__alerts.chimes)) >= 1,
+)
 check("still on contacts (no navigation)", page.url().endsWith("/contacts"))
 await page.screenshot({ path: path.join(shots, "mh378-popup-en-light-1440.png") })
 out.shots.push("mh378-popup-en-light-1440.png")
 
 // ---- 2. clicking Open lands on the thread via ?c= -----------------------------
-await page.click(".moharrik-alert [data-button]").catch(async () => page.click('.moharrik-alert button:has-text("Open")'))
+await page
+  .click(".moharrik-alert [data-button]")
+  .catch(async () => page.click('.moharrik-alert button:has-text("Open")'))
 await page.waitForURL(/\/inbox\?c=/, { timeout: 10000 })
 const convId = new URL(page.url()).searchParams.get("c")
 await page.waitForSelector(`[data-thread="${convId}"]`, { timeout: 10000 })
 check("Open lands on /inbox?c=<id> with that thread open", !!convId)
-check("the thread shows the message", await page.evaluate(() => document.body.innerText.includes("blue jacket")))
+check(
+  "the thread shows the message",
+  await page.evaluate(() => document.body.innerText.includes("blue jacket")),
+)
 // Reloading keeps the thread (it lives in the URL now).
 await page.reload({ waitUntil: "load" })
-check("reload keeps the thread open", !!(await page.waitForSelector(`[data-thread="${convId}"]`, { timeout: 10000 }).catch(() => null)))
+check(
+  "reload keeps the thread open",
+  !!(await page.waitForSelector(`[data-thread="${convId}"]`, { timeout: 10000 }).catch(() => null)),
+)
 
 // ---- 3. no alert for the thread being viewed ----------------------------------
 const chimesBefore = await page.evaluate(() => window.__alerts.chimes)
 await visitorWrites("Size M please")
-await page.waitForFunction(() => document.body.innerText.includes("Size M please"), { timeout: 10000 })
+await page.waitForFunction(() => document.body.innerText.includes("Size M please"), {
+  timeout: 10000,
+})
 await sleep(600)
 check("viewing the thread: it updates live", true)
-check("viewing the thread: no popup and no chime", !(await page.$(".moharrik-alert")) && (await page.evaluate(() => window.__alerts.chimes)) === chimesBefore)
+check(
+  "viewing the thread: no popup and no chime",
+  !(await page.$(".moharrik-alert")) &&
+    (await page.evaluate(() => window.__alerts.chimes)) === chimesBefore,
+)
 
 // ---- 4. own reply alerts nobody ------------------------------------------------
 await page.goto(`${base}/en/w/${slug}/contacts`, { waitUntil: "load" })
 await sleep(800)
-await apiCall(page, "POST", `/api/w/conversations/${convId}/reply`, { body: "Yes — size M is in stock." })
+await apiCall(page, "POST", `/api/w/conversations/${convId}/reply`, {
+  body: "Yes — size M is in stock.",
+})
 await sleep(1200)
 check("own reply: no popup", !(await page.$(".moharrik-alert")))
 
@@ -229,10 +269,15 @@ check("own reply: no popup", !(await page.$(".moharrik-alert")))
 await page.goto(`${base}/en/w/${slug}/settings/delivery`, { waitUntil: "load" })
 await page.waitForSelector("[data-push-enable], [data-push-disable]", { timeout: 15000 })
 await page.click("[data-push-enable]")
-const enabled = await page.waitForSelector("[data-push-state=on]", { timeout: 30000 }).catch(() => null)
+const enabled = await page
+  .waitForSelector("[data-push-state=on]", { timeout: 30000 })
+  .catch(() => null)
 check("push enabled on this device", !!enabled)
 if (enabled) {
-  const endpoint = await page.evaluate(async () => (await (await navigator.serviceWorker.ready).pushManager.getSubscription())?.endpoint)
+  const endpoint = await page.evaluate(
+    async () =>
+      (await (await navigator.serviceWorker.ready).pushManager.getSubscription())?.endpoint,
+  )
   check("push endpoint host", endpoint ? new URL(endpoint).host : null)
   await page.screenshot({ path: path.join(shots, "mh378-delivery-en-light-1440.png") })
   out.shots.push("mh378-delivery-en-light-1440.png")
@@ -245,7 +290,12 @@ if (enabled) {
   const attempts = []
   for (let attempt = 1; attempt <= 3 && !toastOk; attempt++) {
     await page.click("[data-push-test]")
-    const t = await page.waitForSelector('[data-sonner-toast]:has-text("Test sent"), [data-sonner-toast]:has-text("removed as expired")', { timeout: 20000 }).catch(() => null)
+    const t = await page
+      .waitForSelector(
+        '[data-sonner-toast]:has-text("Test sent"), [data-sonner-toast]:has-text("removed as expired")',
+        { timeout: 20000 },
+      )
+      .catch(() => null)
     const text = t ? await t.innerText() : "no answer"
     attempts.push(text.replace(/\s+/g, " ").trim())
     if (/Test sent/.test(text)) toastOk = t
@@ -259,7 +309,9 @@ if (enabled) {
   check("test push attempts", attempts)
   check("test push accepted by the push service", !!toastOk)
   const got = await page
-    .waitForFunction(() => window.__alerts.pushes.some((p) => p?.payload?.kind === "test"), null, { timeout: 30000 })
+    .waitForFunction(() => window.__alerts.pushes.some((p) => p?.payload?.kind === "test"), null, {
+      timeout: 30000,
+    })
     .then(() => true)
     .catch(() => false)
   check("test push arrived through the service worker", got)
@@ -267,7 +319,9 @@ if (enabled) {
   const testShown = await page
     .waitForFunction(
       async () => {
-        const list = (await (await navigator.serviceWorker.ready).getNotifications({ tag: "moharrik-test" })).map((n) => n.title)
+        const list = (
+          await (await navigator.serviceWorker.ready).getNotifications({ tag: "moharrik-test" })
+        ).map((n) => n.title)
         return list.length ? list : null // [] is truthy: it would end the wait at once
       },
       null,
@@ -288,9 +342,18 @@ if (enabled) {
   await sleep(8000)
   const again = await member.newPage()
   await again.goto(`${base}/en/w/${slug}/settings/delivery`, { waitUntil: "load" })
-  const pushed = await again.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).map((n) => ({ title: n.title, body: n.body, tag: n.tag })))
+  const pushed = await again.evaluate(async () =>
+    (await (await navigator.serviceWorker.ready).getNotifications()).map((n) => ({
+      title: n.title,
+      body: n.body,
+      tag: n.tag,
+    })),
+  )
   check("real message pushed with no tab open (SW notifications)", pushed)
-  check("…including this message", pushed.some((n) => /Maadi/.test(n.body) && /Rana/.test(n.title)))
+  check(
+    "…including this message",
+    pushed.some((n) => /Maadi/.test(n.body) && /Rana/.test(n.title)),
+  )
   await blank.close()
   var live = again
 } else {
@@ -303,18 +366,29 @@ await live.evaluate(() => (window.__noReload = true))
 await sleep(800)
 const body = JSON.stringify({ title: "Deploy failed on main", severity: "error" })
 const ts = Math.floor(Date.now() / 1000).toString()
-const sig = createHmac("sha256", hookSecret).update(ts + "." + body).digest("hex")
+const sig = createHmac("sha256", hookSecret)
+  .update(ts + "." + body)
+  .digest("hex")
 const hres = await fetch(`${apiBase}/api/hooks/${hookID}`, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Webhook-Timestamp": ts, "X-Webhook-Signature": "sha256=" + sig },
+  headers: {
+    "Content-Type": "application/json",
+    "X-Webhook-Timestamp": ts,
+    "X-Webhook-Signature": "sha256=" + sig,
+  },
   body,
 })
 check("webhook accepted", hres.status)
 const appeared = await live
-  .waitForFunction(() => document.body.innerText.includes("Deploy failed on main"), null, { timeout: 10000 })
+  .waitForFunction(() => document.body.innerText.includes("Deploy failed on main"), null, {
+    timeout: 10000,
+  })
   .then(() => true)
   .catch(() => false)
-check("webhook item appears on the notifications page without reload", appeared && (await live.evaluate(() => window.__noReload === true)))
+check(
+  "webhook item appears on the notifications page without reload",
+  appeared && (await live.evaluate(() => window.__noReload === true)),
+)
 
 // ---- 9. screenshots: 1440 / 390 × light / dark × en / ar ---------------------
 for (const locale of ["en", "ar"]) {
@@ -328,13 +402,19 @@ for (const locale of ["en", "ar"]) {
       await live.reload({ waitUntil: "load" })
       await live.waitForSelector("[data-bell]")
       await sleep(900)
-      await visitorWrites(locale === "ar" ? "مرحبا، هل المقاس الكبير متوفر؟" : "Hello again — is size L available?")
+      await visitorWrites(
+        locale === "ar" ? "مرحبا، هل المقاس الكبير متوفر؟" : "Hello again — is size L available?",
+      )
       await live.waitForSelector(".moharrik-alert", { timeout: 10000 })
       await sleep(700)
       const a = `mh378-popup-${locale}-${theme}-${width}.png`
       await live.screenshot({ path: path.join(shots, a) })
       out.shots.push(a)
-      if (locale === "ar") check(`ar ${theme} ${width}: html dir`, await live.evaluate(() => document.documentElement.dir))
+      if (locale === "ar")
+        check(
+          `ar ${theme} ${width}: html dir`,
+          await live.evaluate(() => document.documentElement.dir),
+        )
       await live.click("[data-bell]")
       await live.waitForSelector("[data-bell-panel] [data-bell-item]", { timeout: 10000 })
       await sleep(500)
@@ -346,7 +426,10 @@ for (const locale of ["en", "ar"]) {
           const r = e.getBoundingClientRect()
           return { left: Math.round(r.left), right: Math.round(r.right) }
         })
-        check(`${locale} ${theme} 390: bell panel inside the viewport`, box.left >= 0 && box.right <= 390 ? box : false)
+        check(
+          `${locale} ${theme} 390: bell panel inside the viewport`,
+          box.left >= 0 && box.right <= 390 ? box : false,
+        )
       }
       await live.keyboard.press("Escape")
       await live.goto(`${base}/${locale}/w/${slug}/settings/delivery`, { waitUntil: "load" })

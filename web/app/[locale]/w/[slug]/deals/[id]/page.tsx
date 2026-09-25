@@ -31,18 +31,32 @@ export default function DealDetailPage() {
   const canWrite = ws.can("contacts:write")
   const detail = useDeal(ws.id, id)
   const pipeline = useDeals(ws.id)
-  useDocumentTitle(detail.data ? `${detail.data.deal.title} · ${ws.summary.name}` : t("deals.dealTitle"))
+  useDocumentTitle(
+    detail.data ? `${detail.data.deal.title} · ${ws.summary.name}` : t("deals.dealTitle"),
+  )
   const base = `/${locale}/w/${ws.slug}`
 
   if (detail.error) {
     const notFound = detail.error instanceof ApiError && detail.error.status === 404
-    if (notFound) return <NotFoundState title={t("deals.notFound")} body={t("deals.notFoundBody")} backHref={`${base}/deals`} backLabel={t("deals.backToList")} />
+    if (notFound)
+      return (
+        <NotFoundState
+          title={t("deals.notFound")}
+          body={t("deals.notFoundBody")}
+          backHref={`${base}/deals`}
+          backLabel={t("deals.backToList")}
+        />
+      )
     return <ErrorState error={detail.error} />
   }
   if (!detail.data || !pipeline.data) return <LoadingRows rows={6} />
 
   const { deal, activities } = detail.data
-  const closedTone: Record<StageKind, "default" | "secondary" | "outline"> = { open: "outline", won: "default", lost: "secondary" }
+  const closedTone: Record<StageKind, "default" | "secondary" | "outline"> = {
+    open: "outline",
+    won: "default",
+    lost: "secondary",
+  }
 
   return (
     <>
@@ -65,7 +79,10 @@ export default function DealDetailPage() {
               description={t("deals.deleteBody", { title: isolate(deal.title) })}
               confirmLabel={t("common.delete")}
               onConfirm={async () => {
-                await api(`/api/w/deals/${encodeURIComponent(deal.id)}`, { method: "DELETE", workspaceId: ws.id })
+                await api(`/api/w/deals/${encodeURIComponent(deal.id)}`, {
+                  method: "DELETE",
+                  workspaceId: ws.id,
+                })
                 window.location.href = `${base}/deals`
               }}
             />
@@ -75,21 +92,42 @@ export default function DealDetailPage() {
 
       {deal.closed_at ? (
         <p className="px-6 pb-4 -mt-2 text-sm text-grid-muted">
-          <Badge variant={closedTone[deal.stage_kind]}>{t(`deals.closed.${deal.stage_kind === "lost" ? "lost" : "won"}`)}</Badge>{" "}
+          <Badge variant={closedTone[deal.stage_kind]}>
+            {t(`deals.closed.${deal.stage_kind === "lost" ? "lost" : "won"}`)}
+          </Badge>{" "}
           {t("deals.closedOn", { date: dateFormat(locale).format(new Date(deal.closed_at)) })}
-          {canWrite ? <ClosedOnEdit dealId={deal.id} closedAt={deal.closed_at} onSaved={() => detail.mutate()} /> : null}
+          {canWrite ? (
+            <ClosedOnEdit
+              dealId={deal.id}
+              closedAt={deal.closed_at}
+              onSaved={() => detail.mutate()}
+            />
+          ) : null}
         </p>
       ) : null}
 
       {canWrite ? (
         <section className="px-6 pb-6">
-          <DealForm formId="edit-deal" stages={pipeline.data.stages} currency={pipeline.data.currency} deal={deal} onSaved={() => detail.mutate()} />
+          <DealForm
+            formId="edit-deal"
+            stages={pipeline.data.stages}
+            currency={pipeline.data.currency}
+            deal={deal}
+            onSaved={() => detail.mutate()}
+          />
         </section>
       ) : null}
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
-      <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} conversations={detail.data.conversations ?? []} target={{ deal_id: deal.id }} onChange={() => detail.mutate()} />
+      <Timeline
+        items={activities}
+        total={detail.data.activities_total}
+        nextCursor={detail.data.activities_next_cursor}
+        conversations={detail.data.conversations ?? []}
+        target={{ deal_id: deal.id }}
+        onChange={() => detail.mutate()}
+      />
       <div className="pb-8" />
     </>
   )
@@ -99,7 +137,15 @@ export default function DealDetailPage() {
  * The day a won or lost deal really closed (MH-394): a result logged after the fact gets its own
  * day, which is the day the Reports page counts it on. Never a future day (the API refuses one).
  */
-function ClosedOnEdit({ dealId, closedAt, onSaved }: { dealId: string; closedAt: string; onSaved: () => void }) {
+function ClosedOnEdit({
+  dealId,
+  closedAt,
+  onSaved,
+}: {
+  dealId: string
+  closedAt: string
+  onSaved: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [open, setOpen] = useState(false)
@@ -109,7 +155,9 @@ function ClosedOnEdit({ dealId, closedAt, onSaved }: { dealId: string; closedAt:
   const today = new Date().toISOString().slice(0, 10)
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="ghost" size="sm" className="ms-1 h-7" data-closed-on-edit />}>
+      <PopoverTrigger
+        render={<Button variant="ghost" size="sm" className="ms-1 h-7" data-closed-on-edit />}
+      >
         <CalendarIcon />
         {t("deals.changeClosedOn")}
       </PopoverTrigger>
@@ -121,7 +169,11 @@ function ClosedOnEdit({ dealId, closedAt, onSaved }: { dealId: string; closedAt:
             setBusy(true)
             setError("")
             try {
-              await api(`/api/w/deals/${encodeURIComponent(dealId)}`, { method: "PATCH", workspaceId: ws.id, json: { closed_on: day } })
+              await api(`/api/w/deals/${encodeURIComponent(dealId)}`, {
+                method: "PATCH",
+                workspaceId: ws.id,
+                json: { closed_on: day },
+              })
               setOpen(false)
               onSaved()
             } catch (err) {
@@ -133,7 +185,15 @@ function ClosedOnEdit({ dealId, closedAt, onSaved }: { dealId: string; closedAt:
         >
           <Field>
             <FieldLabel htmlFor="deal-closed-on">{t("deals.closedOnLabel")}</FieldLabel>
-            <Input id="deal-closed-on" type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} dir="ltr" required />
+            <Input
+              id="deal-closed-on"
+              type="date"
+              value={day}
+              max={today}
+              onChange={(e) => setDay(e.target.value)}
+              dir="ltr"
+              required
+            />
             <FieldDescription>{t("deals.closedOnHint")}</FieldDescription>
           </Field>
           {error ? <p className="text-sm text-grid-danger-text">{error}</p> : null}

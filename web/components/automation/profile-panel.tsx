@@ -42,7 +42,11 @@ export function ProfilePanel({
     e.preventDefault()
     setBusy(true)
     try {
-      await api("/api/w/automation/profile", { method: "PUT", json: { profile: values }, workspaceId: ws.id })
+      await api("/api/w/automation/profile", {
+        method: "PUT",
+        json: { profile: values },
+        workspaceId: ws.id,
+      })
       toast.success(t("presets.profileSaved"))
       setDraft(null)
       onSaved()

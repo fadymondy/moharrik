@@ -38,7 +38,10 @@ export default function RunPage() {
 
   async function cancel() {
     try {
-      await api(`/api/w/runs/${encodeURIComponent(id)}/cancel`, { method: "POST", workspaceId: ws.id })
+      await api(`/api/w/runs/${encodeURIComponent(id)}/cancel`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       toast.success(t("automation.cancelled"))
       detail.mutate()
     } catch (e) {
@@ -51,7 +54,14 @@ export default function RunPage() {
       <SectionHeader
         micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("automation.run")}
-        description={run ? t("automation.runOn", { name: isolate(run.agent_name) || t("automation.unnamedBrowser"), date: formatDate(run.created_at) }) : undefined}
+        description={
+          run
+            ? t("automation.runOn", {
+                name: isolate(run.agent_name) || t("automation.unnamedBrowser"),
+                date: formatDate(run.created_at),
+              })
+            : undefined
+        }
         action={
           <div className="flex flex-wrap items-center gap-2">
             {canRun && live ? (
@@ -60,7 +70,12 @@ export default function RunPage() {
                 {t("automation.cancelRun")}
               </Button>
             ) : null}
-            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/runs`} />}>
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${ws.slug}/automation/runs`} />}
+            >
               <ArrowLeftIcon className="rtl:rotate-180" />
               {t("automation.backToRuns")}
             </Button>
@@ -74,11 +89,24 @@ export default function RunPage() {
         <LoadingRows rows={4} />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-2 px-6 pb-4 text-sm" data-run-status={run.status}>
-            <Badge variant={run.status === "ok" ? "default" : run.status === "running" || run.status === "queued" ? "secondary" : "outline"}>
+          <div
+            className="flex flex-wrap items-center gap-2 px-6 pb-4 text-sm"
+            data-run-status={run.status}
+          >
+            <Badge
+              variant={
+                run.status === "ok"
+                  ? "default"
+                  : run.status === "running" || run.status === "queued"
+                    ? "secondary"
+                    : "outline"
+              }
+            >
               {t(`automation.status.${run.status}`)}
             </Badge>
-            <span className="text-grid-muted">{t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })}</span>
+            <span className="text-grid-muted">
+              {t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })}
+            </span>
             <span className="text-grid-muted">· {t(`automation.trigger.${run.trigger}`)}</span>
           </div>
           <RunNotes notes={run.notes} className="space-y-1 px-6 pb-4" />
@@ -104,7 +132,15 @@ export default function RunPage() {
  * A step's screenshot. Fetched with the workspace header and shown as a blob:
  * the route is in the workspace tier, which a plain <img src> cannot reach.
  */
-function StepShot({ runId, position, workspaceId }: { runId: string; position: number; workspaceId: string }) {
+function StepShot({
+  runId,
+  position,
+  workspaceId,
+}: {
+  runId: string
+  position: number
+  workspaceId: string
+}) {
   const { t } = useTranslations()
   const [src, setSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
@@ -130,14 +166,28 @@ function StepShot({ runId, position, workspaceId }: { runId: string; position: n
   if (failed) return <p className="mt-2 text-xs text-grid-muted">{t("automation.shotGone")}</p>
   if (!src) return null
   return (
-    <a href={src} target="_blank" rel="noreferrer" className="mt-2 block max-w-xl border border-line" data-step-shot={position}>
+    <a
+      href={src}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-2 block max-w-xl border border-line"
+      data-step-shot={position}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt={t("automation.shotAlt", { n: position + 1 })} className="block w-full" />
     </a>
   )
 }
 
-function StepRow({ step, runId, workspaceId }: { step: RunStep; runId: string; workspaceId: string }) {
+function StepRow({
+  step,
+  runId,
+  workspaceId,
+}: {
+  step: RunStep
+  runId: string
+  workspaceId: string
+}) {
   const { t } = useTranslations()
   return (
     <li className="px-6 py-4" data-step={step.position} data-step-status={step.status}>
@@ -146,13 +196,22 @@ function StepRow({ step, runId, workspaceId }: { step: RunStep; runId: string; w
         <span dir="ltr" className="font-mono">
           {step.command}
         </span>
-        <Badge variant={step.status === "ok" ? "default" : step.status === "pending" ? "secondary" : "outline"}>
+        <Badge
+          variant={
+            step.status === "ok" ? "default" : step.status === "pending" ? "secondary" : "outline"
+          }
+        >
           {t(`automation.step.${step.status}`)}
         </Badge>
-        {step.duration_ms > 0 ? <span className="text-xs text-grid-muted">{step.duration_ms} ms</span> : null}
+        {step.duration_ms > 0 ? (
+          <span className="text-xs text-grid-muted">{step.duration_ms} ms</span>
+        ) : null}
       </p>
       {step.args && step.args !== "{}" && step.args !== "null" ? (
-        <pre dir="ltr" className="mt-2 overflow-x-auto bg-grid-card px-3 py-2 font-mono text-xs text-grid-muted">
+        <pre
+          dir="ltr"
+          className="mt-2 overflow-x-auto bg-grid-card px-3 py-2 font-mono text-xs text-grid-muted"
+        >
           {step.args}
         </pre>
       ) : null}
@@ -161,12 +220,17 @@ function StepRow({ step, runId, workspaceId }: { step: RunStep; runId: string; w
           <Bdi>{step.error}</Bdi>
         </p>
       ) : null}
-      {step.has_screenshot ? <StepShot runId={runId} position={step.position} workspaceId={workspaceId} /> : null}
+      {step.has_screenshot ? (
+        <StepShot runId={runId} position={step.position} workspaceId={workspaceId} />
+      ) : null}
       {step.result ? (
         // Shown exactly as the browser sent it. Pretty-printing it here would
         // be a second representation of the thing whose whole point is that it
         // is byte-for-byte what came back.
-        <pre dir="ltr" className="mt-2 max-h-64 overflow-auto bg-grid-card px-3 py-2 font-mono text-xs">
+        <pre
+          dir="ltr"
+          className="mt-2 max-h-64 overflow-auto bg-grid-card px-3 py-2 font-mono text-xs"
+        >
           {step.result}
         </pre>
       ) : step.summary ? (

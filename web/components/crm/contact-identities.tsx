@@ -11,7 +11,13 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { PickSelect } from "@/components/crm/shared"
 import { Ltr } from "@/components/copy-field"
-import { api, ApiError, CONTACT_CHANNELS, type ContactChannel, type ContactIdentity } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  CONTACT_CHANNELS,
+  type ContactChannel,
+  type ContactIdentity,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 
@@ -22,7 +28,17 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
  * (email, WhatsApp today; see internal/inbox/crm_link.go) matches ANY row in
  * this list, not just the contact's single primary email/phone.
  */
-export function IdentitiesPanel({ contactId, identities, canWrite, onChanged }: { contactId: string; identities: ContactIdentity[]; canWrite: boolean; onChanged: () => void }) {
+export function IdentitiesPanel({
+  contactId,
+  identities,
+  canWrite,
+  onChanged,
+}: {
+  contactId: string
+  identities: ContactIdentity[]
+  canWrite: boolean
+  onChanged: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [channel, setChannel] = useState<ContactChannel>("whatsapp")
@@ -32,7 +48,9 @@ export function IdentitiesPanel({ contactId, identities, canWrite, onChanged }: 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const sorted = [...identities].sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || a.channel.localeCompare(b.channel))
+  const sorted = [...identities].sort(
+    (a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || a.channel.localeCompare(b.channel),
+  )
 
   async function link(e: FormEvent) {
     e.preventDefault()
@@ -52,7 +70,12 @@ export function IdentitiesPanel({ contactId, identities, canWrite, onChanged }: 
       setPrimary(false)
       onChanged()
     } catch (e) {
-      const msg = e instanceof ApiError && e.status === 409 ? t("contacts.identityDuplicate") : e instanceof ApiError ? e.message : t("common.networkError")
+      const msg =
+        e instanceof ApiError && e.status === 409
+          ? t("contacts.identityDuplicate")
+          : e instanceof ApiError
+            ? e.message
+            : t("common.networkError")
       setErr(msg)
       toast.error(t("contacts.identityLinkFailed"))
     } finally {
@@ -61,10 +84,13 @@ export function IdentitiesPanel({ contactId, identities, canWrite, onChanged }: 
   }
 
   async function unlink(identity: ContactIdentity) {
-    await api(`/api/w/contacts/${encodeURIComponent(contactId)}/identities/${encodeURIComponent(identity.id)}`, {
-      method: "DELETE",
-      workspaceId: ws.id,
-    })
+    await api(
+      `/api/w/contacts/${encodeURIComponent(contactId)}/identities/${encodeURIComponent(identity.id)}`,
+      {
+        method: "DELETE",
+        workspaceId: ws.id,
+      },
+    )
     toast.success(t("contacts.identityUnlinked"))
     onChanged()
   }
@@ -79,11 +105,17 @@ export function IdentitiesPanel({ contactId, identities, canWrite, onChanged }: 
       ) : (
         <ul className="divide-y divide-line py-2" data-identity-list>
           {sorted.map((i) => (
-            <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2" data-identity={`${i.channel}:${i.external_id}`}>
+            <li
+              key={i.id}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
+              data-identity={`${i.channel}:${i.external_id}`}
+            >
               <Badge variant="secondary">{t(`channel.${i.channel}`)}</Badge>
               <Ltr className="text-sm">{i.external_id}</Ltr>
               {i.label ? <span className="text-xs text-grid-muted">{i.label}</span> : null}
-              {i.is_primary ? <Badge variant="outline">{t("contacts.identityPrimary")}</Badge> : null}
+              {i.is_primary ? (
+                <Badge variant="outline">{t("contacts.identityPrimary")}</Badge>
+              ) : null}
               {canWrite ? (
                 <ConfirmButton
                   label={t("contacts.identityUnlink")}
@@ -99,24 +131,49 @@ export function IdentitiesPanel({ contactId, identities, canWrite, onChanged }: 
       )}
 
       {canWrite ? (
-        <form onSubmit={link} noValidate className="mt-3 border-t border-line pt-3" data-form="link-identity">
+        <form
+          onSubmit={link}
+          noValidate
+          className="mt-3 border-t border-line pt-3"
+          data-form="link-identity"
+        >
           <FieldGroup className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field>
               <FieldLabel htmlFor="identity-channel">{t("contacts.identityChannel")}</FieldLabel>
-              <PickSelect id="identity-channel" value={channel} onChange={(v) => setChannel(v as ContactChannel)} options={CONTACT_CHANNELS.map((c) => ({ value: c, label: t(`channel.${c}`) }))} />
+              <PickSelect
+                id="identity-channel"
+                value={channel}
+                onChange={(v) => setChannel(v as ContactChannel)}
+                options={CONTACT_CHANNELS.map((c) => ({ value: c, label: t(`channel.${c}`) }))}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="identity-value">{t("contacts.identityValue")}</FieldLabel>
-              <Input id="identity-value" dir="ltr" value={externalId} onChange={(e) => setExternalId(e.target.value)} maxLength={254} />
+              <Input
+                id="identity-value"
+                dir="ltr"
+                value={externalId}
+                onChange={(e) => setExternalId(e.target.value)}
+                maxLength={254}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="identity-label">{t("contacts.identityLabel")}</FieldLabel>
-              <Input id="identity-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={60} />
+              <Input
+                id="identity-label"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                maxLength={60}
+              />
             </Field>
             {/* Horizontal: the vertical default gives every child w-full, which
                 stretched the checkbox and pushed "Primary" off-screen at 390. */}
             <Field orientation="horizontal" className="self-end pb-2">
-              <Checkbox id="identity-primary" checked={primary} onCheckedChange={(v) => setPrimary(!!v)} />
+              <Checkbox
+                id="identity-primary"
+                checked={primary}
+                onCheckedChange={(v) => setPrimary(!!v)}
+              />
               <FieldLabel htmlFor="identity-primary" className="font-normal">
                 {t("contacts.identityPrimary")}
               </FieldLabel>
@@ -139,10 +196,22 @@ export function IdentitiesPanel({ contactId, identities, canWrite, onChanged }: 
  * of each contact." Free-form key/value pairs, edited as a whole map (the
  * REST PATCH replaces it wholesale, unlike Upsert's additive merge on import).
  */
-export function MetaPanel({ contactId, meta, canWrite, onChanged }: { contactId: string; meta: Record<string, string>; canWrite: boolean; onChanged: () => void }) {
+export function MetaPanel({
+  contactId,
+  meta,
+  canWrite,
+  onChanged,
+}: {
+  contactId: string
+  meta: Record<string, string>
+  canWrite: boolean
+  onChanged: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
-  const [rows, setRows] = useState<{ key: string; value: string }[]>(() => Object.entries(meta ?? {}).map(([key, value]) => ({ key, value })))
+  const [rows, setRows] = useState<{ key: string; value: string }[]>(() =>
+    Object.entries(meta ?? {}).map(([key, value]) => ({ key, value })),
+  )
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -166,7 +235,11 @@ export function MetaPanel({ contactId, meta, canWrite, onChanged }: { contactId:
         if (!k) continue
         clean[k] = r.value
       }
-      await api(`/api/w/contacts/${encodeURIComponent(contactId)}`, { method: "PATCH", json: { meta: clean }, workspaceId: ws.id })
+      await api(`/api/w/contacts/${encodeURIComponent(contactId)}`, {
+        method: "PATCH",
+        json: { meta: clean },
+        workspaceId: ws.id,
+      })
       toast.success(t("contacts.metaSaved"))
       onChanged()
     } catch (e) {
@@ -181,13 +254,29 @@ export function MetaPanel({ contactId, meta, canWrite, onChanged }: { contactId:
       <h2 className="text-base font-medium">{t("contacts.meta")}</h2>
       <p className="pt-1 text-xs text-grid-muted">{t("contacts.metaHint")}</p>
 
-      {rows.length === 0 ? <p className="py-4 text-sm text-grid-muted">{t("contacts.metaEmpty")}</p> : null}
+      {rows.length === 0 ? (
+        <p className="py-4 text-sm text-grid-muted">{t("contacts.metaEmpty")}</p>
+      ) : null}
 
       <div className="flex flex-col gap-2 py-2" data-meta-rows>
         {rows.map((r, i) => (
           <div key={i} className="flex flex-wrap items-center gap-2" data-meta-row>
-            <Input aria-label={t("contacts.metaKey")} value={r.key} onChange={(e) => setRow(i, { key: e.target.value })} maxLength={200} disabled={!canWrite} className="max-w-48" />
-            <Input aria-label={t("contacts.metaValue")} value={r.value} onChange={(e) => setRow(i, { value: e.target.value })} maxLength={200} disabled={!canWrite} className="max-w-64 flex-1" />
+            <Input
+              aria-label={t("contacts.metaKey")}
+              value={r.key}
+              onChange={(e) => setRow(i, { key: e.target.value })}
+              maxLength={200}
+              disabled={!canWrite}
+              className="max-w-48"
+            />
+            <Input
+              aria-label={t("contacts.metaValue")}
+              value={r.value}
+              onChange={(e) => setRow(i, { value: e.target.value })}
+              maxLength={200}
+              disabled={!canWrite}
+              className="max-w-64 flex-1"
+            />
             {canWrite ? (
               <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(i)}>
                 {t("contacts.metaRemove")}

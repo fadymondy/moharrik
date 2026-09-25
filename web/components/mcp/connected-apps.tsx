@@ -4,7 +4,14 @@ import { PlugZapIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { Bdi, isolate } from "@/components/bidi"
@@ -28,7 +35,10 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
 
   async function revoke(g: OAuthGrant) {
     try {
-      await api(`/api/w/oauth_grants/${encodeURIComponent(g.id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/oauth_grants/${encodeURIComponent(g.id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(t("oauth.apps.revoked", { name: isolate(g.client_name) }))
       await grants.mutate()
     } catch (err) {
@@ -68,13 +78,20 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
             </TableHeader>
             <TableBody>
               {list.map((g) => (
-                <TableRow key={g.id} className={g.revoked_at ? "opacity-60" : undefined} data-grant={g.id} data-grant-revoked={!!g.revoked_at}>
+                <TableRow
+                  key={g.id}
+                  className={g.revoked_at ? "opacity-60" : undefined}
+                  data-grant={g.id}
+                  data-grant-revoked={!!g.revoked_at}
+                >
                   <TableCell className="ps-6">
                     <span className="block font-medium">
                       <Bdi>{g.client_name || t("oauth.unnamed")}</Bdi>
                     </span>
                     {g.client_uri ? (
-                      <Ltr className="block max-w-56 truncate text-xs text-grid-muted">{g.client_uri}</Ltr>
+                      <Ltr className="block max-w-56 truncate text-xs text-grid-muted">
+                        {g.client_uri}
+                      </Ltr>
                     ) : null}
                   </TableCell>
                   {all ? (
@@ -97,7 +114,9 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
                   <TableCell className="text-grid-muted">
                     <Ltr>{formatDate(g.created_at)}</Ltr>
                   </TableCell>
-                  <TableCell className="text-grid-muted">{g.last_used_at ? <Ltr>{formatDate(g.last_used_at)}</Ltr> : t("mcp.never")}</TableCell>
+                  <TableCell className="text-grid-muted">
+                    {g.last_used_at ? <Ltr>{formatDate(g.last_used_at)}</Ltr> : t("mcp.never")}
+                  </TableCell>
                   <TableCell className="pe-6 text-end">
                     {g.revoked_at ? (
                       <Badge variant="secondary">{t("oauth.apps.disconnectedBadge")}</Badge>
@@ -105,7 +124,9 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
                       <ConfirmButton
                         label={t("oauth.apps.disconnect")}
                         title={t("oauth.apps.disconnectTitle")}
-                        description={t("oauth.apps.disconnectBody", { name: isolate(g.client_name || t("oauth.unnamed")) })}
+                        description={t("oauth.apps.disconnectBody", {
+                          name: isolate(g.client_name || t("oauth.unnamed")),
+                        })}
                         confirmLabel={t("oauth.apps.disconnect")}
                         onConfirm={() => revoke(g)}
                       />

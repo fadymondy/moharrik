@@ -28,11 +28,15 @@ import { execFileSync } from "node:child_process"
 
 const web = (process.argv[2] ?? "http://localhost:3506").replace(/\/$/, "")
 const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
-const CHROMIUM = process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
+const CHROMIUM =
+  process.env.EXT_CHROME ??
+  "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
 
 const out = { checks: {} }
 const check = (name, ok, detail) => {
-  out.checks[name] = ok ? "PASS" : `FAIL${detail !== undefined ? ": " + JSON.stringify(detail).slice(0, 400) : ""}`
+  out.checks[name] = ok
+    ? "PASS"
+    : `FAIL${detail !== undefined ? ": " + JSON.stringify(detail).slice(0, 400) : ""}`
 }
 process.on("exit", () => console.log(JSON.stringify(out, null, 1)))
 
@@ -89,7 +93,10 @@ let plain, ext
 try {
   // ---- 1. a signed-in owner and a new workspace, in a plain browser ----
   plain = await chromium.launch({ executablePath: CHROMIUM, headless: true })
-  const ctx = await plain.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true })
+  const ctx = await plain.newContext({
+    viewport: { width: 1440, height: 1000 },
+    acceptDownloads: true,
+  })
   const http = ctx.request
   const csrf = async () => (await (await http.get(`${web}/api/auth/csrf`)).json()).csrf_token
   const call = async (method, p, data, wsID) => {
@@ -100,7 +107,10 @@ try {
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text.slice(0, 300)}`)
     return text ? JSON.parse(text) : null
   }
-  await call("POST", "/api/auth/register", { email: `mh399-${Date.now()}@x.test`, password: "Passw0rd!long-enough" })
+  await call("POST", "/api/auth/register", {
+    email: `mh399-${Date.now()}@x.test`,
+    password: "Passw0rd!long-enough",
+  })
   const { workspace } = await call("POST", "/api/me/workspaces", { name: `MH-399 ${Date.now()}` })
   out.workspace = workspace.slug
 
@@ -110,7 +120,9 @@ try {
   check(
     "no paired browser: the schedules empty state says so and links to the install page",
     (await page.textContent("body")).includes("A schedule needs a paired browser") &&
-      (await page.getAttribute("[data-schedule-install]", "href"))?.endsWith("/automation/extension"),
+      (await page.getAttribute("[data-schedule-install]", "href"))?.endsWith(
+        "/automation/extension",
+      ),
   )
   await page.locator("[data-schedule-install]").scrollIntoViewIfNeeded()
   await page.screenshot({ path: `${SHOTS}/MH-403-empty-state-no-browser.png` })
@@ -122,22 +134,48 @@ try {
   const shownText = await page.locator("[data-download] code").first().textContent()
   const shownVersion = await page.getAttribute("[data-download] [data-version]", "data-version")
   out.page = { shownSum, shownVersion }
-  const [download] = await Promise.all([page.waitForEvent("download"), page.click("[data-download-link]")])
-  const zipPath = path.join(mkdtempSync(path.join(tmpdir(), "mh399-dl-")), download.suggestedFilename())
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.click("[data-download-link]"),
+  ])
+  const zipPath = path.join(
+    mkdtempSync(path.join(tmpdir(), "mh399-dl-")),
+    download.suggestedFilename(),
+  )
   await download.saveAs(zipPath)
   const zip = readFileSync(zipPath)
   const fileSum = createHash("sha256").update(zip).digest("hex")
   const head = await http.get(`${web}/api/automation/extension/download`)
-  out.download = { file: download.suggestedFilename(), bytes: zip.length, sha256: fileSum, header: head.headers()["x-checksum-sha256"] }
-  check("the downloaded file's sha256 is the one the page shows", fileSum === shownSum && shownText?.trim() === fileSum, out.download)
-  check("the download sends the same checksum in a header", head.headers()["x-checksum-sha256"] === fileSum)
-  check("the file is named for its version", download.suggestedFilename().startsWith(`moharrik-extension-${shownVersion}`))
+  out.download = {
+    file: download.suggestedFilename(),
+    bytes: zip.length,
+    sha256: fileSum,
+    header: head.headers()["x-checksum-sha256"],
+  }
+  check(
+    "the downloaded file's sha256 is the one the page shows",
+    fileSum === shownSum && shownText?.trim() === fileSum,
+    out.download,
+  )
+  check(
+    "the download sends the same checksum in a header",
+    head.headers()["x-checksum-sha256"] === fileSum,
+  )
+  check(
+    "the file is named for its version",
+    download.suggestedFilename().startsWith(`moharrik-extension-${shownVersion}`),
+  )
 
   // ---- 3. unzip and load it unpacked ----
   const dir = mkdtempSync(path.join(tmpdir(), "mh399-unpacked-"))
   const names = unzip(zip, dir)
   out.unzipped = names
-  check("the zip holds the extension and not its test harness", names.includes("manifest.json") && names.includes("driver.js") && !names.some((n) => /node_modules|^test\/|package\.json/.test(n)))
+  check(
+    "the zip holds the extension and not its test harness",
+    names.includes("manifest.json") &&
+      names.includes("driver.js") &&
+      !names.some((n) => /node_modules|^test\/|package\.json/.test(n)),
+  )
   // The same check someone following the page would make, with certutil.
   try {
     const cert = execFileSync("certutil", ["-hashfile", zipPath, "SHA256"], { encoding: "utf8" })
@@ -156,14 +194,20 @@ try {
   if (!worker) worker = await ext.waitForEvent("serviceworker", { timeout: 30000 })
   const extensionID = new URL(worker.url()).host
   const loaded = await worker.evaluate(() => chrome.runtime.getManifest())
-  check("Chromium loaded the unzipped extension", loaded.version === shownVersion, { manifest: loaded.version })
+  check("Chromium loaded the unzipped extension", loaded.version === shownVersion, {
+    manifest: loaded.version,
+  })
 
   // ---- 4. pair it ----
   const popup = await ext.newPage()
   await popup.goto(`chrome-extension://${extensionID}/popup.html`)
   const baked = { site: await popup.inputValue("#site"), api: await popup.inputValue("#api") }
   out.popup = baked
-  check("the popup already knows which site it belongs to (baked into the build)", baked.site === web && baked.api !== "", baked)
+  check(
+    "the popup already knows which site it belongs to (baked into the build)",
+    baked.site === web && baked.api !== "",
+    baked,
+  )
   await popup.fill("#workspace", workspace.slug)
   await popup.click("#start")
   await popup.waitForSelector("#codebox:not([hidden])", { timeout: 20000 })
@@ -182,9 +226,16 @@ try {
   }
   check("approved on the install page, the browser comes online by itself", !!agent)
   if (!agent) throw new Error("the extension never came online")
-  check("it reports the version it was installed at, and is not flagged outdated", agent.extension_version === shownVersion && agent.update_available === false, agent)
+  check(
+    "it reports the version it was installed at, and is not flagged outdated",
+    agent.extension_version === shownVersion && agent.update_available === false,
+    agent,
+  )
   await page.waitForSelector("[data-paired-count]", { timeout: 20000 })
-  await page.screenshot({ path: `${SHOTS}/MH-399-install-paired-en-light-1440.png`, fullPage: true })
+  await page.screenshot({
+    path: `${SHOTS}/MH-399-install-paired-en-light-1440.png`,
+    fullPage: true,
+  })
 
   // ---- 5. run a workflow in it ----
   const { workflow } = await call(
@@ -202,24 +253,50 @@ try {
     workspace.id,
   )
   reports = []
-  const { run_id } = await call("POST", `/api/w/workflows/${workflow.id}/run`, { agent_id: agent.id, values: { email: "a@b.test" } }, workspace.id)
+  const { run_id } = await call(
+    "POST",
+    `/api/w/workflows/${workflow.id}/run`,
+    { agent_id: agent.id, values: { email: "a@b.test" } },
+    workspace.id,
+  )
   let run
   for (let i = 0; i < 60; i++) {
     run = await call("GET", `/api/w/runs/${run_id}`, undefined, workspace.id)
     if (!["queued", "running"].includes(run.run.status)) break
     await new Promise((r) => setTimeout(r, 1000))
   }
-  out.run = { status: run.run.status, error: run.run.error, steps: run.steps.map((s) => `${s.command} ${s.status}`) }
+  out.run = {
+    status: run.run.status,
+    error: run.run.error,
+    steps: run.steps.map((s) => `${s.command} ${s.status}`),
+  }
   check("a workflow runs in the installed extension", run.run.status === "ok", out.run)
-  check("and the page it drove saw it happen", reports.some((r) => r.done === "joined as a@b.test"), reports)
+  check(
+    "and the page it drove saw it happen",
+    reports.some((r) => r.done === "joined as a@b.test"),
+    reports,
+  )
 
   // ---- the outdated flag, as the page shows it ----
   // The extension reports its version on connect; an older one is simulated
   // on the row, which is what the page reads.
-  execFileSync("docker", ["exec", "pg", "psql", "-U", "postgres", "-d", process.env.APP_DB ?? "moharrik_f", "-c", `UPDATE browser_agents SET extension_version = '0.1.2' WHERE id = '${agent.id}'`])
+  execFileSync("docker", [
+    "exec",
+    "pg",
+    "psql",
+    "-U",
+    "postgres",
+    "-d",
+    process.env.APP_DB ?? "moharrik_f",
+    "-c",
+    `UPDATE browser_agents SET extension_version = '0.1.2' WHERE id = '${agent.id}'`,
+  ])
   await page.goto(`${web}/en/w/${workspace.slug}/automation`)
   await page.waitForSelector("[data-update-available]", { timeout: 20000 })
-  check("a browser on an older extension is flagged, linking to the install page", (await page.getAttribute("[data-update-available]", "href"))?.endsWith("/automation/extension"))
+  check(
+    "a browser on an older extension is flagged, linking to the install page",
+    (await page.getAttribute("[data-update-available]", "href"))?.endsWith("/automation/extension"),
+  )
   await page.screenshot({ path: `${SHOTS}/MH-399-browser-outdated-en-light-1440.png` })
 } catch (err) {
   out.error = String(err?.stack || err)

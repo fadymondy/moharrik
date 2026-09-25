@@ -15,12 +15,18 @@ import { connectExtension } from "./connect-helper.mjs"
 const args = process.argv.slice(2)
 const base = (args[0] ?? "http://localhost:3508").replace(/\/$/, "")
 const apiBase = (args[1] ?? "http://localhost:8508").replace(/\/$/, "")
-const CHROME = process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
+const CHROME =
+  process.env.EXT_CHROME ??
+  "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 const SRC = path.resolve(here, "../../extension")
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-mcp-"))
-cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)) })
+cpSync(SRC, EXT, {
+  recursive: true,
+  filter: (p) =>
+    !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)),
+})
 {
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
   m.host_permissions = [`${base}/*`, `${apiBase}/*`, "http://*/*", "https://*/*"]
@@ -40,14 +46,23 @@ const site = createServer((req, res) => {
 await new Promise((r) => site.listen(PORT, "127.0.0.1", r))
 
 const out = {}
-const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "ext-mcp-profile-")), {
-  executablePath: CHROME,
-  headless: false,
-  viewport: { width: 1280, height: 900 },
-  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", "--host-resolver-rules=MAP *.test 127.0.0.1"],
-})
+const ctx = await chromium.launchPersistentContext(
+  mkdtempSync(path.join(tmpdir(), "ext-mcp-profile-")),
+  {
+    executablePath: CHROME,
+    headless: false,
+    viewport: { width: 1280, height: 900 },
+    args: [
+      `--disable-extensions-except=${EXT}`,
+      `--load-extension=${EXT}`,
+      "--no-first-run",
+      "--host-resolver-rules=MAP *.test 127.0.0.1",
+    ],
+  },
+)
 try {
-  const worker = ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker", { timeout: 30000 }))
+  const worker =
+    ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker", { timeout: 30000 }))
   const extensionID = new URL(worker.url()).host
   const page = ctx.pages()[0] ?? (await ctx.newPage())
   await page.goto(`${base}/en/register`, { waitUntil: "load" })
@@ -63,21 +78,44 @@ try {
   const slug = page.url().split("/w/")[1].split("/")[0]
   const call = async (method, p, data, wsID) => {
     const csrf = (await (await page.request.get(`${base}/api/auth/csrf`)).json()).csrf_token
-    const res = await page.request.fetch(`${base}${p}`, { method, headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) }, data })
+    const res = await page.request.fetch(`${base}${p}`, {
+      method,
+      headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) },
+      data,
+    })
     const text = await res.text()
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text}`)
     return text ? JSON.parse(text) : null
   }
   const wsID = (await call("GET", "/api/me/workspaces")).workspaces.find((w) => w.slug === slug).id
-  const { online } = await connectExtension({ ctx, extensionID, site: base, api: apiBase, call, workspaceID: wsID, name: "Office Chrome", hosts: ["roaster.test", "news.google.com"] })
+  const { online } = await connectExtension({
+    ctx,
+    extensionID,
+    site: base,
+    api: apiBase,
+    call,
+    workspaceID: wsID,
+    name: "Office Chrome",
+    hosts: ["roaster.test", "news.google.com"],
+  })
   out.connected = online
 
-  const tok = await call("POST", "/api/w/mcp_tokens", { name: "e2e", scopes: ["automation:read", "automation:run", "automation:manage"] }, wsID)
+  const tok = await call(
+    "POST",
+    "/api/w/mcp_tokens",
+    { name: "e2e", scopes: ["automation:read", "automation:run", "automation:manage"] },
+    wsID,
+  )
   const mcp = async (name, argsIn) => {
     const res = await fetch(`${apiBase}/api/mcp`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok.plaintext}` },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: argsIn } }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name, arguments: argsIn },
+      }),
     })
     const body = await res.json()
     return body.result?.content?.[0]?.text ?? JSON.stringify(body)
@@ -86,8 +124,15 @@ try {
   const agents = await mcp("browser_agents", {})
   out.agentsListsIt = /Office Chrome .* — online/.test(agents) && agents.includes("roaster.test")
 
-  const local = await mcp("browser_extract", { url: `http://roaster.test:${PORT}/`, list: "li", fields: { name: ".n", price: ".p" } })
-  out.extractLocal = local.includes("(2/2 steps ok)") && local.includes("Ethiopia Yirgacheffe") && local.includes("380")
+  const local = await mcp("browser_extract", {
+    url: `http://roaster.test:${PORT}/`,
+    list: "li",
+    fields: { name: ".n", price: ".p" },
+  })
+  out.extractLocal =
+    local.includes("(2/2 steps ok)") &&
+    local.includes("Ethiopia Yirgacheffe") &&
+    local.includes("380")
 
   const run = await mcp("browser_run", {
     steps: [
@@ -101,7 +146,8 @@ try {
   out.resultByKey = (await mcp("browser_result", { run: key })).includes("3. extract — ok")
 
   const refused = await mcp("browser_extract", { url: "https://example.org/", fields: { h: "h1" } })
-  out.offListRefusedAndNamed = refused.includes("example.org") && refused.includes("Nothing was run")
+  out.offListRefusedAndNamed =
+    refused.includes("example.org") && refused.includes("Nothing was run")
   const widened = await mcp("browser_set_allowed_sites", { add: ["example.org"] })
   const allowed = await mcp("browser_extract", { url: "https://example.org/", fields: { h: "h1" } })
   out.adminWidensTheList = widened.includes("Added: example.org")

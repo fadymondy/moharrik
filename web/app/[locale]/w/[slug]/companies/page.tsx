@@ -18,7 +18,14 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Company } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -42,13 +49,23 @@ export default function CompaniesPage() {
   const [sort, setSort] = useState<"" | "score">("")
   const [minScore, setMinScore] = useState(0)
   const pager = useCursorStack(`${q}|${sort}|${minScore}`)
-  const companies = useCompaniesPage(ws.id, { q, sort, minScore, cursor: pager.cursor, limit: PAGE_SIZE })
+  const companies = useCompaniesPage(ws.id, {
+    q,
+    sort,
+    minScore,
+    cursor: pager.cursor,
+    limit: PAGE_SIZE,
+  })
   const items = companies.data?.companies ?? []
   const total = companies.data?.total ?? 0
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.companies")} description={t("companies.hint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("nav.companies")}
+        description={t("companies.hint")}
+      />
 
       {/* What research found (MH-388): suggestions only, never added on their own. */}
       <SuggestionsPanel onAccepted={() => companies.mutate()} />
@@ -58,7 +75,10 @@ export default function CompaniesPage() {
       ) : !companies.data ? (
         <LoadingRows />
       ) : total === 0 && !q && !minScore ? (
-        <EmptyState title={t("companies.empty")} body={canWrite ? t("companies.emptyBody") : undefined} />
+        <EmptyState
+          title={t("companies.empty")}
+          body={canWrite ? t("companies.emptyBody") : undefined}
+        />
       ) : (
         <>
           <div className="px-6 pb-4">
@@ -109,12 +129,27 @@ export default function CompaniesPage() {
             </div>
           </div>
           {total === 0 ? (
-            <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">{t("companies.noMatch")}</p>
+            <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">
+              {t("companies.noMatch")}
+            </p>
           ) : (
             <>
-              <PageSummary index={pager.index} pageSize={PAGE_SIZE} shown={items.length} total={total} name="companies" />
-              <div className={companies.current ? undefined : "opacity-60 transition-opacity"} aria-busy={!companies.current}>
-                <CompaniesTable items={items} canWrite={canWrite} onChange={() => companies.mutate()} />
+              <PageSummary
+                index={pager.index}
+                pageSize={PAGE_SIZE}
+                shown={items.length}
+                total={total}
+                name="companies"
+              />
+              <div
+                className={companies.current ? undefined : "opacity-60 transition-opacity"}
+                aria-busy={!companies.current}
+              >
+                <CompaniesTable
+                  items={items}
+                  canWrite={canWrite}
+                  onChange={() => companies.mutate()}
+                />
               </div>
               <PageNav
                 index={pager.index}
@@ -156,7 +191,10 @@ function AddCompany({ onAdded }: { onAdded: () => void }) {
     setBusy(true)
     setErr(null)
     try {
-      await api("/api/w/companies", { json: { name: name.trim(), domain: domain.trim() }, workspaceId: ws.id })
+      await api("/api/w/companies", {
+        json: { name: name.trim(), domain: domain.trim() },
+        workspaceId: ws.id,
+      })
       toast.success(t("companies.created"))
       setName("")
       setDomain("")
@@ -175,13 +213,25 @@ function AddCompany({ onAdded }: { onAdded: () => void }) {
         <FieldGroup className="sm:flex-row sm:items-end">
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="company-name">{t("companies.name")}</FieldLabel>
-            <Input id="company-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
+            <Input
+              id="company-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={200}
+            />
           </Field>
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="company-domain">
-              {t("companies.domain")} <span className="text-grid-muted">({t("common.optional")})</span>
+              {t("companies.domain")}{" "}
+              <span className="text-grid-muted">({t("common.optional")})</span>
             </FieldLabel>
-            <Input id="company-domain" dir="ltr" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="company.com" />
+            <Input
+              id="company-domain"
+              dir="ltr"
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="company.com"
+            />
           </Field>
           <Button type="submit" disabled={busy || !name.trim()}>
             {busy ? t("common.working") : t("companies.create")}
@@ -193,7 +243,15 @@ function AddCompany({ onAdded }: { onAdded: () => void }) {
   )
 }
 
-function CompaniesTable({ items, canWrite, onChange }: { items: Company[]; canWrite: boolean; onChange: () => void }) {
+function CompaniesTable({
+  items,
+  canWrite,
+  onChange,
+}: {
+  items: Company[]
+  canWrite: boolean
+  onChange: () => void
+}) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
@@ -201,7 +259,10 @@ function CompaniesTable({ items, canWrite, onChange }: { items: Company[]; canWr
 
   async function remove(id: string) {
     try {
-      await api(`/api/w/companies/${encodeURIComponent(id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/companies/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(t("companies.deleted"))
       onChange()
     } catch (e) {
@@ -241,7 +302,9 @@ function CompaniesTable({ items, canWrite, onChange }: { items: Company[]; canWr
               <TableCell>
                 <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name)} />
               </TableCell>
-              <TableCell className="text-grid-muted">{c.domain ? <Ltr>{c.domain}</Ltr> : "—"}</TableCell>
+              <TableCell className="text-grid-muted">
+                {c.domain ? <Ltr>{c.domain}</Ltr> : "—"}
+              </TableCell>
               <TableCell>{c.contact_count}</TableCell>
               <TableCell>{c.open_deals}</TableCell>
               <TableCell className="text-grid-muted">
@@ -265,4 +328,3 @@ function CompaniesTable({ items, canWrite, onChange }: { items: Company[]; canWr
     </div>
   )
 }
-

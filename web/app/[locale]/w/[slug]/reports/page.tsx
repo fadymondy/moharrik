@@ -12,14 +12,26 @@
 
 import { Suspense, useMemo, useState, type ReactNode } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { CalendarRangeIcon, ChartColumnIcon, FilterIcon, HandshakeIcon, InboxIcon, SignpostIcon } from "lucide-react"
+import {
+  CalendarRangeIcon,
+  ChartColumnIcon,
+  FilterIcon,
+  HandshakeIcon,
+  InboxIcon,
+  SignpostIcon,
+} from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
 import { formatMoney } from "@/components/crm/shared"
 import { Panel } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
-import { DataTable, HorizontalBars, WonLostChart, type BarRow } from "@/components/reports/report-charts"
+import {
+  DataTable,
+  HorizontalBars,
+  WonLostChart,
+  type BarRow,
+} from "@/components/reports/report-charts"
 import { ErrorState } from "@/components/states"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -77,7 +89,8 @@ function useFmt(currency: string) {
       /** Minor units as a short axis tick: 12.5K. */
       moneyTick: (minor: number) => compact.format(minor / 100),
       day: (s: string) => day.format(ymd(s)),
-      bucket: (s: string, unitName: CrmReport["bucket"]) => (unitName === "month" ? month.format(ymd(s)) : dayShort.format(ymd(s))),
+      bucket: (s: string, unitName: CrmReport["bucket"]) =>
+        unitName === "month" ? month.format(ymd(s)) : dayShort.format(ymd(s)),
       duration: (s: number | null) => {
         if (s === null) return null
         if (s < 60) return sec.format(Math.round(s))
@@ -102,7 +115,9 @@ function Reports() {
   const from = params.get("from") ?? ""
   const to = params.get("to") ?? ""
   const custom = DAY.test(from) && DAY.test(to)
-  const days = PRESETS.includes(Number(params.get("days")) as (typeof PRESETS)[number]) ? Number(params.get("days")) : 90
+  const days = PRESETS.includes(Number(params.get("days")) as (typeof PRESETS)[number])
+    ? Number(params.get("days"))
+    : 90
   const query = custom ? `from=${from}&to=${to}` : `days=${days}`
   const report = useCrmReport(ws.id, query)
   const rep = report.data
@@ -161,7 +176,17 @@ function Reports() {
   )
 }
 
-function CustomRange({ from, to, active, onApply }: { from: string; to: string; active: boolean; onApply: (from: string, to: string) => void }) {
+function CustomRange({
+  from,
+  to,
+  active,
+  onApply,
+}: {
+  from: string
+  to: string
+  active: boolean
+  onApply: (from: string, to: string) => void
+}) {
   const { t } = useTranslations()
   const [open, setOpen] = useState(false)
   const [f, setF] = useState(from)
@@ -169,7 +194,16 @@ function CustomRange({ from, to, active, onApply }: { from: string; to: string; 
   const valid = DAY.test(f) && DAY.test(tt) && f <= tt
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant={active ? "secondary" : "outline"} size="sm" data-custom-range aria-pressed={active} />}>
+      <PopoverTrigger
+        render={
+          <Button
+            variant={active ? "secondary" : "outline"}
+            size="sm"
+            data-custom-range
+            aria-pressed={active}
+          />
+        }
+      >
         <CalendarRangeIcon />
         {t("reports.custom")}
       </PopoverTrigger>
@@ -185,11 +219,27 @@ function CustomRange({ from, to, active, onApply }: { from: string; to: string; 
         >
           <Field>
             <FieldLabel htmlFor="report-from">{t("reports.from")}</FieldLabel>
-            <Input id="report-from" type="date" value={f} max={tt || undefined} onChange={(e) => setF(e.target.value)} dir="ltr" required />
+            <Input
+              id="report-from"
+              type="date"
+              value={f}
+              max={tt || undefined}
+              onChange={(e) => setF(e.target.value)}
+              dir="ltr"
+              required
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="report-to">{t("reports.to")}</FieldLabel>
-            <Input id="report-to" type="date" value={tt} min={f || undefined} onChange={(e) => setT(e.target.value)} dir="ltr" required />
+            <Input
+              id="report-to"
+              type="date"
+              value={tt}
+              min={f || undefined}
+              onChange={(e) => setT(e.target.value)}
+              dir="ltr"
+              required
+            />
           </Field>
           <p className="text-xs text-grid-muted">{t("reports.customHint")}</p>
           <Button type="submit" size="sm" disabled={!valid}>
@@ -202,7 +252,15 @@ function CustomRange({ from, to, active, onApply }: { from: string; to: string; 
 }
 
 /** A panel's two views: the chart, and the same numbers as a table. */
-function ViewToggle({ value, onChange, id }: { value: "chart" | "table"; onChange: (v: "chart" | "table") => void; id: string }) {
+function ViewToggle({
+  value,
+  onChange,
+  id,
+}: {
+  value: "chart" | "table"
+  onChange: (v: "chart" | "table") => void
+  id: string
+}) {
   const { t } = useTranslations()
   return (
     <ToggleGroup
@@ -222,11 +280,23 @@ function ViewToggle({ value, onChange, id }: { value: "chart" | "table"; onChang
 }
 
 /** A stat tile; the figure steps down a size on a phone so a long amount never overflows. */
-function Stat({ label, value, sub, id }: { label: string; value: string; sub?: string; id: string }) {
+function Stat({
+  label,
+  value,
+  sub,
+  id,
+}: {
+  label: string
+  value: string
+  sub?: string
+  id: string
+}) {
   return (
     <div className="min-w-0 px-4 py-4 sm:px-5" data-stat={id}>
       <p className="grid-micro truncate">{label}</p>
-      <p className="mt-1.5 text-xl font-medium break-words text-grid-fg tabular-nums sm:text-2xl">{value}</p>
+      <p className="mt-1.5 text-xl font-medium break-words text-grid-fg tabular-nums sm:text-2xl">
+        {value}
+      </p>
       {sub ? <p className="mt-0.5 truncate text-xs text-grid-muted">{sub}</p> : null}
     </div>
   )
@@ -247,9 +317,16 @@ function Filled({ rep, busy }: { rep: CrmReport; busy: boolean }) {
   const closed = d.won + d.lost
 
   return (
-    <div className="space-y-4 px-4 pb-10 sm:space-y-6 sm:px-6" data-report data-from={rep.from} data-to={rep.to} aria-busy={busy}>
+    <div
+      className="space-y-4 px-4 pb-10 sm:space-y-6 sm:px-6"
+      data-report
+      data-from={rep.from}
+      data-to={rep.to}
+      aria-busy={busy}
+    >
       <p className="text-sm text-grid-muted" data-range>
-        <Ltr>{`${f.day(rep.from)} – ${f.day(rep.to)}`}</Ltr> · {t("reports.rangeNote", { n: f.n(rep.days), tz: rep.timezone, currency: rep.currency })}
+        <Ltr>{`${f.day(rep.from)} – ${f.day(rep.to)}`}</Ltr> ·{" "}
+        {t("reports.rangeNote", { n: f.n(rep.days), tz: rep.timezone, currency: rep.currency })}
       </p>
 
       <div className="grid-cells grid-cols-2 bg-grid-card lg:grid-cols-5" data-report-tiles>
@@ -259,20 +336,36 @@ function Filled({ rep, busy }: { rep: CrmReport; busy: boolean }) {
           value={ltr(f.money(rep.pipeline.open_value_minor))}
           sub={t("reports.openDeals", { n: f.n(rep.pipeline.open_deals) })}
         />
-        <Stat id="won" label={t("reports.won")} value={ltr(f.money(d.won_value_minor))} sub={t("reports.dealsN", { n: f.n(d.won) })} />
+        <Stat
+          id="won"
+          label={t("reports.won")}
+          value={ltr(f.money(d.won_value_minor))}
+          sub={t("reports.dealsN", { n: f.n(d.won) })}
+        />
         <Stat
           id="win-rate"
           label={t("reports.winRate")}
           value={d.win_rate === null ? t("reports.none") : f.pct(d.win_rate)}
-          sub={closed ? t("reports.wonOfClosed", { won: f.n(d.won), closed: f.n(closed) }) : t("reports.nothingClosed")}
+          sub={
+            closed
+              ? t("reports.wonOfClosed", { won: f.n(d.won), closed: f.n(closed) })
+              : t("reports.nothingClosed")
+          }
         />
         <Stat
           id="avg-deal"
           label={t("reports.avgDeal")}
-          value={d.avg_won_value_minor === null ? t("reports.none") : ltr(f.money(d.avg_won_value_minor))}
+          value={
+            d.avg_won_value_minor === null ? t("reports.none") : ltr(f.money(d.avg_won_value_minor))
+          }
           sub={t("reports.avgDealNote")}
         />
-        <Stat id="opened" label={t("reports.opened")} value={f.n(d.opened)} sub={t("reports.lostN", { n: f.n(d.lost), value: ltr(f.money(d.lost_value_minor)) })} />
+        <Stat
+          id="opened"
+          label={t("reports.opened")}
+          value={f.n(d.opened)}
+          sub={t("reports.lostN", { n: f.n(d.lost), value: ltr(f.money(d.lost_value_minor)) })}
+        />
       </div>
       {d.other_currency_won + d.other_currency_lost > 0 ? (
         <p className="-mt-2 text-xs text-grid-muted sm:-mt-4" data-other-currency-closed>
@@ -291,7 +384,9 @@ function Filled({ rep, busy }: { rep: CrmReport; busy: boolean }) {
         <TimelinePanel rep={rep} f={f} />
       </div>
       {rep.lead_sources || rep.inbox ? (
-        <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${rep.lead_sources && rep.inbox ? "lg:grid-cols-2" : ""}`}>
+        <div
+          className={`grid grid-cols-1 gap-4 sm:gap-6 ${rep.lead_sources && rep.inbox ? "lg:grid-cols-2" : ""}`}
+        >
           {rep.lead_sources ? <LeadSourcesPanel rep={rep} f={f} /> : null}
           {rep.inbox ? <InboxPanel inbox={rep.inbox} f={f} /> : null}
         </div>
@@ -324,14 +419,23 @@ function PipelinePanel({ rep, f }: { rep: CrmReport; f: Fmt }) {
       id="report-pipeline"
       title={t("reports.pipelineByStage")}
       icon={<HandshakeIcon />}
-      meta={rep.pipeline.open_deals ? <ViewToggle id="pipeline" value={view} onChange={setView} /> : null}
+      meta={
+        rep.pipeline.open_deals ? (
+          <ViewToggle id="pipeline" value={view} onChange={setView} />
+        ) : null
+      }
     >
       <p className="px-5 pt-3 pb-2 text-xs text-grid-muted">{t("reports.pipelineNow")}</p>
       {rep.pipeline.open_deals === 0 ? (
         <NoData id="pipeline">{t("reports.noOpenDeals")}</NoData>
       ) : view === "chart" ? (
         <div className="px-3 pb-4">
-          <HorizontalBars id="pipeline" rows={rows} series={t("reports.openValue")} format={f.money} />
+          <HorizontalBars
+            id="pipeline"
+            rows={rows}
+            series={t("reports.openValue")}
+            format={f.money}
+          />
         </div>
       ) : (
         <DataTable
@@ -357,7 +461,10 @@ function PipelinePanel({ rep, f }: { rep: CrmReport; f: Fmt }) {
         />
       )}
       {rep.pipeline.other_currency_deals > 0 ? (
-        <p className="border-t border-line px-5 py-2.5 text-xs text-grid-muted" data-other-currency-open>
+        <p
+          className="border-t border-line px-5 py-2.5 text-xs text-grid-muted"
+          data-other-currency-open
+        >
           {t("reports.otherCurrencyOpen", {
             n: f.n(rep.pipeline.other_currency_deals),
             currency: rep.currency,
@@ -377,13 +484,24 @@ function ConversionPanel({ rep, f }: { rep: CrmReport; f: Fmt }) {
     key: s.stage_id || `won-${i}`,
     name: s.name,
     value: s.reached,
-    label: i === 0 || s.from_previous === null ? f.n(s.reached) : `${f.n(s.reached)} · ${f.pct(s.from_previous)}`,
+    label:
+      i === 0 || s.from_previous === null
+        ? f.n(s.reached)
+        : `${f.n(s.reached)} · ${f.pct(s.from_previous)}`,
     tooltip: (
       <span className="flex flex-col gap-0.5">
         <Bdi className="font-medium text-grid-fg">{s.name}</Bdi>
         <span className="text-grid-muted">{t("reports.reachedN", { n: f.n(s.reached) })}</span>
-        {i > 0 && s.from_previous !== null ? <span className="text-grid-muted">{t("reports.fromPrevious", { pct: f.pct(s.from_previous) })}</span> : null}
-        {s.from_start !== null ? <span className="text-grid-muted">{t("reports.fromStart", { pct: f.pct(s.from_start) })}</span> : null}
+        {i > 0 && s.from_previous !== null ? (
+          <span className="text-grid-muted">
+            {t("reports.fromPrevious", { pct: f.pct(s.from_previous) })}
+          </span>
+        ) : null}
+        {s.from_start !== null ? (
+          <span className="text-grid-muted">
+            {t("reports.fromStart", { pct: f.pct(s.from_start) })}
+          </span>
+        ) : null}
       </span>
     ),
   }))
@@ -394,7 +512,9 @@ function ConversionPanel({ rep, f }: { rep: CrmReport; f: Fmt }) {
       icon={<FilterIcon />}
       meta={c.opened ? <ViewToggle id="conversion" value={view} onChange={setView} /> : null}
     >
-      <p className="px-5 pt-3 pb-2 text-xs text-grid-muted">{t("reports.conversionNote", { n: f.n(c.opened), lost: f.n(c.lost) })}</p>
+      <p className="px-5 pt-3 pb-2 text-xs text-grid-muted">
+        {t("reports.conversionNote", { n: f.n(c.opened), lost: f.n(c.lost) })}
+      </p>
       {c.opened === 0 ? (
         <NoData id="conversion">{t("reports.noOpened")}</NoData>
       ) : view === "chart" ? (
@@ -441,11 +561,16 @@ function TimelinePanel({ rep, f }: { rep: CrmReport; f: Fmt }) {
   const points = rep.timeline ?? []
   const any = points.some((p) => p.won + p.lost > 0)
   const data = points.map((p) =>
-    metric === "count" ? { start: p.start, won: p.won, lost: p.lost } : { start: p.start, won: p.won_value_minor, lost: p.lost_value_minor },
+    metric === "count"
+      ? { start: p.start, won: p.won, lost: p.lost }
+      : { start: p.start, won: p.won_value_minor, lost: p.lost_value_minor },
   )
   const fmt = metric === "count" ? f.n : f.money
   const tick = metric === "count" ? f.n : f.moneyTick
-  const bucketLabel = (s: string) => (rep.bucket === "week" ? t("reports.weekOf", { d: f.bucket(s, "week") }) : f.bucket(s, rep.bucket))
+  const bucketLabel = (s: string) =>
+    rep.bucket === "week"
+      ? t("reports.weekOf", { d: f.bucket(s, "week") })
+      : f.bucket(s, rep.bucket)
   return (
     <Panel
       id="report-timeline"
@@ -606,7 +731,12 @@ function InboxPanel({ inbox, f }: { inbox: NonNullable<CrmReport["inbox"]>; f: F
                 total: f.n(total.conversations),
               })}
             />
-            <Stat id="awaiting" label={t("reports.awaiting")} value={f.n(total.awaiting)} sub={t("reports.awaitingNote")} />
+            <Stat
+              id="awaiting"
+              label={t("reports.awaiting")}
+              value={f.n(total.awaiting)}
+              sub={t("reports.awaitingNote")}
+            />
           </div>
           <DataTable
             id="inbox"
@@ -617,7 +747,8 @@ function InboxPanel({ inbox, f }: { inbox: NonNullable<CrmReport["inbox"]>; f: F
               {
                 key: "channel",
                 head: t("reports.channel"),
-                cell: (c) => (c.channel === "all" ? t("reports.allChannels") : t(`inbox.channel.${c.channel}`)),
+                cell: (c) =>
+                  c.channel === "all" ? t("reports.allChannels") : t(`inbox.channel.${c.channel}`),
               },
               {
                 key: "conv",

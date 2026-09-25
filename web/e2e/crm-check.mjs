@@ -43,7 +43,9 @@ out.slugA = slugA
 
 // ---- companies ----
 await pageA.goto(`${base}/en/w/${slugA}/companies`, { waitUntil: "networkidle" })
-out.addCompanyFormPresent = await pageA.evaluate(() => document.querySelector("[data-form=add-company]") != null)
+out.addCompanyFormPresent = await pageA.evaluate(
+  () => document.querySelector("[data-form=add-company]") != null,
+)
 await pageA.fill("#company-name", "Acme Corp")
 await pageA.fill("#company-domain", "acme.test")
 await pageA.click("[data-form=add-company] button[type=submit]")
@@ -69,10 +71,14 @@ await pageA.fill("#activity-body", "Follow up next week")
 await pageA.click("[data-form=activity] button[type=submit]")
 await pageA.waitForSelector("li[data-activity=task]", { timeout: 10000 })
 out.timelineHasNoteAndTask = await pageA.evaluate(
-  () => !!document.querySelector("li[data-activity=note]") && !!document.querySelector("li[data-activity=task]"),
+  () =>
+    !!document.querySelector("li[data-activity=note]") &&
+    !!document.querySelector("li[data-activity=task]"),
 )
 await pageA.click("[data-open-tasks] input[type=checkbox]")
-await pageA.waitForFunction(() => !document.querySelector("[data-open-tasks]"), { timeout: 10000 }).catch(() => {})
+await pageA
+  .waitForFunction(() => !document.querySelector("[data-open-tasks]"), { timeout: 10000 })
+  .catch(() => {})
 out.taskMarkedDone = await pageA.evaluate(() => !document.querySelector("[data-open-tasks]"))
 
 // ---- contacts: add one, link to the company ----
@@ -87,13 +93,17 @@ await pageA.waitForSelector('[data-contact-row="jane@acme.test"]', { timeout: 10
 await pageA.click('[data-contact-row="jane@acme.test"] a')
 await pageA.waitForURL(/\/contacts\/[^/]+$/, { timeout: 10000 })
 await pageA.waitForSelector('[data-form="edit-contact"]', { timeout: 10000 })
-out.contactCompanySelectPresent = await pageA.evaluate(() => document.querySelector("#edit-contact-company") != null)
+out.contactCompanySelectPresent = await pageA.evaluate(
+  () => document.querySelector("#edit-contact-company") != null,
+)
 // A Base UI Select, not a native <select> — open it and click the option by text.
 await pageA.click("#edit-contact-company")
 await pageA.getByRole("option", { name: "Acme Corp" }).click({ timeout: 5000 })
 await pageA.click('[data-form="edit-contact"] button[type=submit]')
 await pageA.waitForTimeout(600)
-out.contactLinkedToCompany = await pageA.evaluate(() => document.querySelector("#edit-contact-company")?.textContent?.includes("Acme") ?? false)
+out.contactLinkedToCompany = await pageA.evaluate(
+  () => document.querySelector("#edit-contact-company")?.textContent?.includes("Acme") ?? false,
+)
 
 // ---- deals: create, verify on board, move via the "Move to" menu ----
 await pageA.goto(`${base}/en/w/${slugA}/deals`, { waitUntil: "networkidle" })
@@ -106,11 +116,18 @@ await pageA.getByRole("option", { name: "Acme Corp" }).click({ timeout: 5000 })
 await pageA.click("[data-form=new-deal] button[type=submit]")
 await pageA.waitForSelector('[data-deal-card="Acme renewal"]', { timeout: 10000 })
 out.dealCreatedOnBoard = true
-const stagesBefore = await pageA.evaluate(() => [...document.querySelectorAll("[data-stage-id]")].map((s) => s.getAttribute("data-stage-id")))
+const stagesBefore = await pageA.evaluate(() =>
+  [...document.querySelectorAll("[data-stage-id]")].map((s) => s.getAttribute("data-stage-id")),
+)
 const firstStage = stagesBefore[0]
 const secondStage = stagesBefore[1]
-const stageName = await pageA.evaluate((id) => document.querySelector(`[data-stage-id="${id}"] h3`)?.textContent, secondStage)
-await pageA.click(`[data-stage-id="${firstStage}"] [data-deal-card="Acme renewal"] [data-move-menu]`)
+const stageName = await pageA.evaluate(
+  (id) => document.querySelector(`[data-stage-id="${id}"] h3`)?.textContent,
+  secondStage,
+)
+await pageA.click(
+  `[data-stage-id="${firstStage}"] [data-deal-card="Acme renewal"] [data-move-menu]`,
+)
 await pageA
   .getByRole("menuitem", { name: stageName ?? "" })
   .click({ timeout: 5000 })
@@ -127,7 +144,9 @@ out.dealMoved = await pageA.evaluate(
 // pipeline manage dialog opens with the current stages
 await pageA.click('button:has-text("Edit pipeline")')
 await pageA.waitForSelector("[data-stage-row]", { timeout: 10000 })
-out.pipelineEditorStageRows = await pageA.evaluate(() => document.querySelectorAll("[data-stage-row]").length)
+out.pipelineEditorStageRows = await pageA.evaluate(
+  () => document.querySelectorAll("[data-stage-row]").length,
+)
 await pageA.keyboard.press("Escape")
 
 // company detail should now list the deal
@@ -143,7 +162,9 @@ const { slug: slugAr } = await signUpAndEnterWorkspace(pageAr, "AR Check " + Dat
 for (const p of ["companies", "contacts", "deals"]) {
   await pageAr.goto(`${base}/ar/w/${slugAr}/${p}`, { waitUntil: "networkidle" })
   await pageAr.waitForTimeout(500)
-  out[`ar390_${p}_overflow`] = await pageAr.evaluate(() => document.documentElement.scrollWidth > 390)
+  out[`ar390_${p}_overflow`] = await pageAr.evaluate(
+    () => document.documentElement.scrollWidth > 390,
+  )
 }
 await ctxAr.close()
 
@@ -152,7 +173,9 @@ const ctxB = await newCtx()
 const pageB = ctxB.pages()[0]
 const { slug: slugB } = await signUpAndEnterWorkspace(pageB, "CRM B " + Date.now())
 await pageB.goto(`${base}/en/w/${slugB}/companies`, { waitUntil: "networkidle" })
-out.workspaceBSeesNoCompanies = await pageB.evaluate(() => !document.body.innerText.includes("Acme Corp"))
+out.workspaceBSeesNoCompanies = await pageB.evaluate(
+  () => !document.body.innerText.includes("Acme Corp"),
+)
 const crossStatus = await pageB.evaluate(async (id) => {
   const r = await fetch(`/api/w/companies/${id}`, { headers: { "X-Workspace-Id": "" } })
   return r.status

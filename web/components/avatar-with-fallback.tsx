@@ -26,7 +26,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return "?"
-  const chars = parts.length > 1 ? (parts[0]![0] ?? "") + (parts[1]![0] ?? "") : (parts[0] ?? "").slice(0, 2)
+  const chars =
+    parts.length > 1 ? (parts[0]![0] ?? "") + (parts[1]![0] ?? "") : (parts[0] ?? "").slice(0, 2)
   return chars.toUpperCase()
 }
 
@@ -35,7 +36,15 @@ export function initials(name: string): string {
 // light/dark (globals.css / app/styles/grid-tokens.css), never a literal hex.
 // Mixed at low opacity over --card for the tile and used at full strength for
 // the initials so it reads in both themes without a contrast check per pair.
-const AVATAR_PALETTE = ["--primary", "--secondary", "--accent", "--destructive", "--grid-ok", "--grid-warn", "--grid-danger"] as const
+const AVATAR_PALETTE = [
+  "--primary",
+  "--secondary",
+  "--accent",
+  "--destructive",
+  "--grid-ok",
+  "--grid-warn",
+  "--grid-danger",
+] as const
 
 function hashString(id: string): number {
   let h = 0

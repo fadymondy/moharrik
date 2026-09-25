@@ -2,14 +2,28 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { BookmarkCheckIcon, BookmarkIcon, CheckIcon, EyeOffIcon, ExternalLinkIcon, RotateCcwIcon } from "lucide-react"
+import {
+  BookmarkCheckIcon,
+  BookmarkIcon,
+  CheckIcon,
+  EyeOffIcon,
+  ExternalLinkIcon,
+  RotateCcwIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type FeedSource, type NewsItem, type TrendReason, type TrendTopic } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  type FeedSource,
+  type NewsItem,
+  type TrendReason,
+  type TrendTopic,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat, relativeTimeFormat } from "@/lib/i18n-locale"
 
@@ -41,7 +55,12 @@ export function useWhen() {
 export function useDayLabel() {
   const { locale } = useTranslations()
   return useMemo(() => {
-    const f = dateFormat(locale, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
+    const f = dateFormat(locale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      timeZone: "UTC",
+    })
     return (day: string) => f.format(new Date(`${day}T00:00:00Z`))
   }, [locale])
 }
@@ -50,9 +69,12 @@ export function useDayLabel() {
 function reasonText(r: TrendReason, t: T) {
   switch (r.kind) {
     case "sources":
-      return (r.count ?? r.detail.length) === 1 ? t("trends.reason.sourcesOne") : t("trends.reason.sourcesMany", { n: r.count ?? r.detail.length })
+      return (r.count ?? r.detail.length) === 1
+        ? t("trends.reason.sourcesOne")
+        : t("trends.reason.sourcesMany", { n: r.count ?? r.detail.length })
     case "velocity":
-      if (r.signal === "hn") return t("trends.reason.hn", { position: r.position ?? 0, points: r.metric ?? 0 })
+      if (r.signal === "hn")
+        return t("trends.reason.hn", { position: r.position ?? 0, points: r.metric ?? 0 })
       if (r.signal === "devto") return t("trends.reason.devto", { points: r.metric ?? 0 })
       return t("trends.reason.burst", { n: r.count ?? 2 })
     case "relevance":
@@ -75,7 +97,13 @@ export function ReasonChips({ reasons }: { reasons: TrendReason[] }) {
             <TooltipTrigger
               render={
                 <Badge
-                  variant={r.kind === "relevance" ? "default" : r.kind === "velocity" ? "secondary" : "outline"}
+                  variant={
+                    r.kind === "relevance"
+                      ? "default"
+                      : r.kind === "velocity"
+                        ? "secondary"
+                        : "outline"
+                  }
                   className="h-auto max-w-full whitespace-normal py-0.5 text-start"
                   data-reason={r.kind}
                 />
@@ -115,7 +143,13 @@ export function Score({ value }: { value: number }) {
 }
 
 /** Save / review / dismiss, and their undo. `onChange` gets the updated topic. */
-export function TopicActions({ topic, onChange }: { topic: TrendTopic; onChange: (t: TrendTopic) => void }) {
+export function TopicActions({
+  topic,
+  onChange,
+}: {
+  topic: TrendTopic
+  onChange: (t: TrendTopic) => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [busy, setBusy] = useState(false)
@@ -126,7 +160,10 @@ export function TopicActions({ topic, onChange }: { topic: TrendTopic; onChange:
   async function patch(body: Record<string, boolean>, done: string) {
     setBusy(true)
     try {
-      const res = await api<{ topic: TrendTopic }>(`/api/w/trends/${encodeURIComponent(topic.id)}`, { method: "PATCH", json: body, workspaceId: ws.id })
+      const res = await api<{ topic: TrendTopic }>(
+        `/api/w/trends/${encodeURIComponent(topic.id)}`,
+        { method: "PATCH", json: body, workspaceId: ws.id },
+      )
       onChange(res.topic)
       toast.success(done)
     } catch (e) {
@@ -144,7 +181,9 @@ export function TopicActions({ topic, onChange }: { topic: TrendTopic; onChange:
         size={size}
         aria-pressed={saved}
         disabled={busy}
-        onClick={() => patch({ saved: !saved }, saved ? t("trends.done.unsaved") : t("trends.done.saved"))}
+        onClick={() =>
+          patch({ saved: !saved }, saved ? t("trends.done.unsaved") : t("trends.done.saved"))
+        }
         data-action="save"
       >
         {saved ? <BookmarkCheckIcon className="text-primary" /> : <BookmarkIcon />}
@@ -155,7 +194,12 @@ export function TopicActions({ topic, onChange }: { topic: TrendTopic; onChange:
         size={size}
         aria-pressed={reviewed}
         disabled={busy}
-        onClick={() => patch({ reviewed: !reviewed }, reviewed ? t("trends.done.unreviewed") : t("trends.done.reviewed"))}
+        onClick={() =>
+          patch(
+            { reviewed: !reviewed },
+            reviewed ? t("trends.done.unreviewed") : t("trends.done.reviewed"),
+          )
+        }
         data-action="review"
       >
         {reviewed ? <RotateCcwIcon /> : <CheckIcon />}
@@ -166,7 +210,12 @@ export function TopicActions({ topic, onChange }: { topic: TrendTopic; onChange:
         size={size}
         aria-pressed={dismissed}
         disabled={busy}
-        onClick={() => patch({ dismissed: !dismissed }, dismissed ? t("trends.done.restored") : t("trends.done.dismissed"))}
+        onClick={() =>
+          patch(
+            { dismissed: !dismissed },
+            dismissed ? t("trends.done.restored") : t("trends.done.dismissed"),
+          )
+        }
         data-action="dismiss"
       >
         {dismissed ? <RotateCcwIcon /> : <EyeOffIcon />}
@@ -177,36 +226,67 @@ export function TopicActions({ topic, onChange }: { topic: TrendTopic; onChange:
 }
 
 /** One item: its headline (a link out), its outlet, its API signal and its time. */
-export function ItemLine({ item, showSummary = false, titleless = false }: { item: NewsItem; showSummary?: boolean; titleless?: boolean }) {
+export function ItemLine({
+  item,
+  showSummary = false,
+  titleless = false,
+}: {
+  item: NewsItem
+  showSummary?: boolean
+  titleless?: boolean
+}) {
   const { t, formatNumber } = useTranslations()
   const when = useWhen()
   return (
     <div className="flex min-w-0 flex-col gap-0.5" data-item={item.id}>
       {titleless ? null : item.url ? (
-        <a href={item.url} target="_blank" rel="noopener noreferrer" className="min-w-0 break-words text-sm underline-offset-2 hover:underline">
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="min-w-0 break-words text-sm underline-offset-2 hover:underline"
+        >
           <bdi>{item.title}</bdi>
-          <ExternalLinkIcon className="ms-1 inline size-3 align-baseline text-muted-foreground" aria-hidden />
+          <ExternalLinkIcon
+            className="ms-1 inline size-3 align-baseline text-muted-foreground"
+            aria-hidden
+          />
         </a>
       ) : (
         <span className="min-w-0 break-words text-sm">
           <bdi>{item.title}</bdi>
         </span>
       )}
-      {showSummary && item.summary ? <p className="line-clamp-2 break-words text-sm text-muted-foreground">{item.summary}</p> : null}
+      {showSummary && item.summary ? (
+        <p className="line-clamp-2 break-words text-sm text-muted-foreground">{item.summary}</p>
+      ) : null}
       <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
         {titleless && item.url ? (
           // The topic's title is this item's headline already: the outlet is the link.
-          <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium underline-offset-2 hover:underline">
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium underline-offset-2 hover:underline"
+          >
             <bdi>{item.outlet || item.source_name || t("trends.unknownSource")}</bdi>
             <ExternalLinkIcon className="ms-1 inline size-3 align-baseline" aria-hidden />
           </a>
         ) : (
-          <bdi className="font-medium">{item.outlet || item.source_name || t("trends.unknownSource")}</bdi>
+          <bdi className="font-medium">
+            {item.outlet || item.source_name || t("trends.unknownSource")}
+          </bdi>
         )}
         {item.provider === "hn" && item.rank > 0 ? (
           <>
             <span aria-hidden>·</span>
-            <span>{t("trends.hnMeta", { rank: item.rank, points: formatNumber(item.points), comments: formatNumber(item.comments) })}</span>
+            <span>
+              {t("trends.hnMeta", {
+                rank: item.rank,
+                points: formatNumber(item.points),
+                comments: formatNumber(item.comments),
+              })}
+            </span>
           </>
         ) : null}
         {item.provider === "devto" && item.points > 0 ? (
@@ -225,23 +305,44 @@ export function ItemLine({ item, showSummary = false, titleless = false }: { ite
 }
 
 /** One trending topic in the list. */
-export function TopicCard({ topic, href, onChange }: { topic: TrendTopic; href: string; onChange: (t: TrendTopic) => void }) {
+export function TopicCard({
+  topic,
+  href,
+  onChange,
+}: {
+  topic: TrendTopic
+  href: string
+  onChange: (t: TrendTopic) => void
+}) {
   const { t } = useTranslations()
   const more = topic.item_count - topic.items.length
   return (
-    <li className="flex flex-col gap-3 px-6 py-5" data-trend-topic={topic.id} data-state={topic.state}>
+    <li
+      className="flex flex-col gap-3 px-6 py-5"
+      data-trend-topic={topic.id}
+      data-state={topic.state}
+    >
       <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex min-w-0 items-start gap-2.5">
             <Score value={topic.score} />
-            <h3 className={topic.state === "open" ? "min-w-0 break-words text-base font-medium" : "min-w-0 break-words text-base font-medium text-muted-foreground"}>
+            <h3
+              className={
+                topic.state === "open"
+                  ? "min-w-0 break-words text-base font-medium"
+                  : "min-w-0 break-words text-base font-medium text-muted-foreground"
+              }
+            >
               <Link href={href} className="underline-offset-2 hover:underline" data-topic-link>
                 <bdi>{topic.title}</bdi>
               </Link>
             </h3>
           </div>
           {topic.summary ? (
-            <p className="line-clamp-3 break-words text-sm text-muted-foreground" data-topic-summary={topic.summary_source}>
+            <p
+              className="line-clamp-3 break-words text-sm text-muted-foreground"
+              data-topic-summary={topic.summary_source}
+            >
               <bdi>{topic.summary}</bdi>
             </p>
           ) : null}
@@ -249,7 +350,10 @@ export function TopicCard({ topic, href, onChange }: { topic: TrendTopic; href: 
         </div>
         <TopicActions topic={topic} onChange={onChange} />
       </div>
-      <ul className="flex flex-col gap-2 border-s-2 border-border ps-3" aria-label={t("trends.coverage")}>
+      <ul
+        className="flex flex-col gap-2 border-s-2 border-border ps-3"
+        aria-label={t("trends.coverage")}
+      >
         {topic.items.map((item) => (
           <li key={item.id}>
             <ItemLine item={item} titleless={item.title === topic.title} />
@@ -257,7 +361,11 @@ export function TopicCard({ topic, href, onChange }: { topic: TrendTopic; href: 
         ))}
       </ul>
       {more > 0 ? (
-        <Link href={href} className="self-start text-xs text-muted-foreground underline-offset-2 hover:underline" data-topic-more>
+        <Link
+          href={href}
+          className="self-start text-xs text-muted-foreground underline-offset-2 hover:underline"
+          data-topic-more
+        >
           {t("trends.moreItems", { n: more })}
         </Link>
       ) : null}
@@ -278,7 +386,10 @@ export function SourceStatus({ source }: { source: FeedSource }) {
           ? (["default", "ok"] as const)
           : (["outline", "waiting"] as const)
   return (
-    <Badge variant={variant} data-source-status={source.enabled ? source.last_status || "waiting" : "off"}>
+    <Badge
+      variant={variant}
+      data-source-status={source.enabled ? source.last_status || "waiting" : "off"}
+    >
       {t(`trends.status.${key}`)}
     </Badge>
   )

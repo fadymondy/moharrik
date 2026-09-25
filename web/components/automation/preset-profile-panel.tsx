@@ -14,7 +14,15 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
-export function PresetProfilePanel({ canManage, data, onSaved }: { canManage: boolean; data?: { profile: Record<string, string>; fields: string[] }; onSaved: () => void }) {
+export function PresetProfilePanel({
+  canManage,
+  data,
+  onSaved,
+}: {
+  canManage: boolean
+  data?: { profile: Record<string, string>; fields: string[] }
+  onSaved: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [draft, setDraft] = useState<Record<string, string> | null>(null)
@@ -26,7 +34,11 @@ export function PresetProfilePanel({ canManage, data, onSaved }: { canManage: bo
     e.preventDefault()
     setBusy(true)
     try {
-      await api("/api/w/automation/profile", { method: "PUT", json: { profile: values }, workspaceId: ws.id })
+      await api("/api/w/automation/profile", {
+        method: "PUT",
+        json: { profile: values },
+        workspaceId: ws.id,
+      })
       toast.success(t("presets.profileSaved"))
       setDraft(null)
       onSaved()

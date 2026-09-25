@@ -44,7 +44,9 @@ function fakeBrowser(token, onStep) {
   return new Promise((resolve, reject) => {
     const sock = new WebSocket(`${wsBase}/api/agents/ws`)
     const timer = setTimeout(() => reject(new Error("no hello.ok")), 15000)
-    sock.on("open", () => sock.send(JSON.stringify({ id: "h1", type: "hello", payload: { token, platform: "e2e" } })))
+    sock.on("open", () =>
+      sock.send(JSON.stringify({ id: "h1", type: "hello", payload: { token, platform: "e2e" } })),
+    )
     sock.on("message", (raw) => {
       const env = JSON.parse(String(raw))
       if (env.type === "hello.ok") {
@@ -54,7 +56,13 @@ function fakeBrowser(token, onStep) {
       }
       if (env.type === "run.step") {
         const step = env.payload ?? {}
-        sock.send(JSON.stringify({ id: env.id, type: "run.step.result", payload: onStep ? onStep(step) : { summary: "ok" } }))
+        sock.send(
+          JSON.stringify({
+            id: env.id,
+            type: "run.step.result",
+            payload: onStep ? onStep(step) : { summary: "ok" },
+          }),
+        )
       }
     })
     sock.on("error", (e) => {
@@ -109,8 +117,12 @@ await page.fill("#sc-cron", "0 7 * * *")
 await page.fill("#sc-steps", '[{"command":"goto","args":{"url":"https://evil.test/"}}]')
 await page.click('form[data-form="schedule"] button[type=submit]')
 await page.waitForTimeout(1500)
-out.offAllowlistRefusedAtSaveTime = await page.evaluate(() => /allow-list/i.test(document.body.innerText))
-out.schedulesAfterRefusal = await page.evaluate(() => document.querySelectorAll("[data-schedule]").length)
+out.offAllowlistRefusedAtSaveTime = await page.evaluate(() =>
+  /allow-list/i.test(document.body.innerText),
+)
+out.schedulesAfterRefusal = await page.evaluate(
+  () => document.querySelectorAll("[data-schedule]").length,
+)
 
 // ---- a bad cron expression is refused too ----
 await page.fill("#sc-name", "Bad cron")
@@ -118,18 +130,25 @@ await page.fill("#sc-cron", "every morning")
 await page.fill("#sc-steps", '[{"command":"goto","args":{"url":"https://example.com/"}}]')
 await page.click('form[data-form="schedule"] button[type=submit]')
 await page.waitForTimeout(1500)
-out.badCronRefused = await page.evaluate(() => /not a cron expression/i.test(document.body.innerText))
+out.badCronRefused = await page.evaluate(() =>
+  /not a cron expression/i.test(document.body.innerText),
+)
 
 // ---- a real schedule, due in about a minute ----
 const cron = soonCron()
 await page.fill("#sc-name", "Morning check")
 await page.fill("#sc-cron", cron)
 await page.fill("#sc-zone", "UTC")
-await page.fill("#sc-steps", '[{"command":"goto","args":{"url":"https://example.com/"}},{"command":"extract","args":{"selector":"h1"}}]')
+await page.fill(
+  "#sc-steps",
+  '[{"command":"goto","args":{"url":"https://example.com/"}},{"command":"extract","args":{"selector":"h1"}}]',
+)
 await page.click('form[data-form="schedule"] button[type=submit]')
 await page.waitForSelector('[data-schedule="Morning check"]', { timeout: 15000 })
 out.saved = true
-out.showsNextRun = await page.evaluate(() => /next /i.test(document.querySelector('[data-schedule="Morning check"]')?.innerText ?? ""))
+out.showsNextRun = await page.evaluate(() =>
+  /next /i.test(document.querySelector('[data-schedule="Morning check"]')?.innerText ?? ""),
+)
 
 // ---- the clock fires it, and the run finishes ----
 const fired = await page
@@ -145,10 +164,16 @@ const fired = await page
   .catch(() => false)
 out.firedOnItsOwn = fired
 
-await page.waitForFunction(() => document.querySelector('[data-run-status="ok"]') !== null, null, { timeout: 60000, polling: 2000 })
+await page
+  .waitForFunction(() => document.querySelector('[data-run-status="ok"]') !== null, null, {
+    timeout: 60000,
+    polling: 2000,
+  })
   .then(() => (out.runFinished = true))
   .catch(() => (out.runFinished = false))
-out.runSaysScheduled = await page.evaluate(() => /Started here|schedule/i.test(document.querySelector("[data-run]")?.innerText ?? ""))
+out.runSaysScheduled = await page.evaluate(() =>
+  /Started here|schedule/i.test(document.querySelector("[data-run]")?.innerText ?? ""),
+)
 
 // ---- "run now" does not wait for the clock ----
 await page.click('[data-schedule="Morning check"] button:has-text("Run now")')
@@ -178,12 +203,16 @@ const missed = await page
   .then(() => true)
   .catch(() => false)
 out.missRecorded = missed
-out.missSaysWhy = await page.evaluate(() => /not connected/i.test(document.querySelector('[data-schedule="Offline check"]')?.innerText ?? ""))
+out.missSaysWhy = await page.evaluate(() =>
+  /not connected/i.test(document.querySelector('[data-schedule="Offline check"]')?.innerText ?? ""),
+)
 
 // ---- pausing a schedule stops it ----
 await page.click('[data-schedule="Offline check"] [role="switch"]')
 await page.waitForTimeout(2000)
-out.paused = await page.evaluate(() => /Paused/i.test(document.querySelector('[data-schedule="Offline check"]')?.innerText ?? ""))
+out.paused = await page.evaluate(() =>
+  /Paused/i.test(document.querySelector('[data-schedule="Offline check"]')?.innerText ?? ""),
+)
 
 await ctx.close()
 
@@ -199,7 +228,9 @@ const { slug: slugAr } = await signUpAndEnterWorkspace(pageAr, "SC AR " + Date.n
 await pageAr.goto(`${base}/ar/w/${slugAr}/automation`, { waitUntil: "domcontentloaded" })
 await pageAr.waitForTimeout(2000)
 out.ar390_overflow = await pageAr.evaluate(() => document.documentElement.scrollWidth > 390)
-out.ar390_rawKeys = await pageAr.evaluate(() => /automation\.[a-zA-Z]/.test(document.body.innerText))
+out.ar390_rawKeys = await pageAr.evaluate(() =>
+  /automation\.[a-zA-Z]/.test(document.body.innerText),
+)
 await ctxAr.close()
 
 out.pageErrors = errs

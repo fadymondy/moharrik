@@ -35,13 +35,17 @@ const check = (k, ok, d) => {
 function psql(sql) {
   // -t -A hides column headers, but psql still prints its own completion tag
   // on the line after a RETURNING result — take the first line.
-  return execFileSync("psql", [ownerURL, "-t", "-A", "-c", sql], { encoding: "utf8" }).trim().split(/\r?\n/)[0].trim()
+  return execFileSync("psql", [ownerURL, "-t", "-A", "-c", sql], { encoding: "utf8" })
+    .trim()
+    .split(/\r?\n/)[0]
+    .trim()
 }
 
 const RUN = Date.now()
 
 // A tiny real PNG (1x1), the same fixture internal/crm's own tests use.
-const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+const tinyPNGBase64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "mh588-")), {
   executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -56,10 +60,16 @@ const owner = `mh588-${RUN}@brand.test`
 const slug = await page.evaluate(async (email) => {
   const csrf = (await (await fetch("/api/auth/csrf")).json()).csrf_token
   const post = (u, b) =>
-    fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(b) })
+    fetch(u, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify(b),
+    })
   const r = await post("/api/auth/register", { email, password: "correct-horse-battery" })
   if (!r.ok) throw new Error(`register failed: ${r.status} ${await r.text()}`)
-  const ws = await (await post("/api/me/workspaces", { name: `MH588 ${email.split("@")[0]}` })).json()
+  const ws = await (
+    await post("/api/me/workspaces", { name: `MH588 ${email.split("@")[0]}` })
+  ).json()
   return ws.workspace.slug
 }, owner)
 check("registeredAndWorkspaceCreated", !!slug, slug)
@@ -79,7 +89,10 @@ const photoContactID = psql(`
 const noPhotoContactID = psql(`
   INSERT INTO contacts (workspace_id, name, phone, source)
   VALUES ('${wsID}', 'Youssef Adel', '201005552222', 'manual') RETURNING id`)
-check("seededContacts", !!(photoContactID && noPhotoContactID), { photoContactID, noPhotoContactID })
+check("seededContacts", !!(photoContactID && noPhotoContactID), {
+  photoContactID,
+  noPhotoContactID,
+})
 
 const photoConvID = psql(`
   INSERT INTO conversations (workspace_id, channel, customer_name, customer_phone, contact_id, subject, last_message_at)
@@ -91,7 +104,9 @@ for (const [convID, body] of [
   [photoConvID, "hi"],
   [noPhotoConvID, "hi"],
 ]) {
-  psql(`INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ('${wsID}', '${convID}', 'in', '${body}') RETURNING id`)
+  psql(
+    `INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ('${wsID}', '${convID}', 'in', '${body}') RETURNING id`,
+  )
 }
 check("seededConversations", !!(photoConvID && noPhotoConvID), { photoConvID, noPhotoConvID })
 
@@ -120,7 +135,9 @@ for (const scheme of ["light", "dark"]) {
         .getAttribute("data-avatar-kind")
         .catch(() => null)
       check(`${k}-contactsListNoPhotoRowIsInitials`, noPhotoRowKind === "initials", noPhotoRowKind)
-      let overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      let overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      )
       check(`${k}-contactsListNoOverflow`, overflow <= 1, overflow)
       if (width === 1440 && locale === "en" && scheme === "light") {
         await page.screenshot({ path: path.join(shots, "mh588-contacts-list-en-light-1440.png") })
@@ -128,7 +145,9 @@ for (const scheme of ["light", "dark"]) {
 
       // ---- inbox list: same split.
       await page.goto(`${W(locale)}/inbox`, { waitUntil: "load" })
-      await page.waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 20000 }).catch(() => {})
+      await page
+        .waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 20000 })
+        .catch(() => {})
       await page.waitForTimeout(500)
       const inboxPhotoKind = await page
         .locator(`[data-conversation="${photoConvID}"] [data-avatar]`)
@@ -150,7 +169,9 @@ for (const scheme of ["light", "dark"]) {
 
       // ---- thread header: open the photo contact's conversation.
       await page.locator(`[data-conversation="${photoConvID}"]`).click()
-      await page.waitForSelector(`[data-thread="${photoConvID}"]`, { timeout: 15000 }).catch(() => {})
+      await page
+        .waitForSelector(`[data-thread="${photoConvID}"]`, { timeout: 15000 })
+        .catch(() => {})
       const headerKind = await page
         .locator(`[data-thread="${photoConvID}"] header [data-avatar]`)
         .first()
@@ -169,7 +190,11 @@ for (const scheme of ["light", "dark"]) {
       // ---- contact page: the photo contact's own page shows an image avatar.
       await page.goto(`${W(locale)}/contacts/${photoContactID}`, { waitUntil: "load" })
       await page.waitForSelector("[data-avatar]", { timeout: 15000 }).catch(() => {})
-      const contactPageKind = await page.locator("[data-avatar]").first().getAttribute("data-avatar-kind").catch(() => null)
+      const contactPageKind = await page
+        .locator("[data-avatar]")
+        .first()
+        .getAttribute("data-avatar-kind")
+        .catch(() => null)
       check(`${k}-contactPagePhotoIsImage`, contactPageKind === "image", contactPageKind)
       overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       check(`${k}-contactPageNoOverflow`, overflow <= 1, overflow)
@@ -180,8 +205,16 @@ for (const scheme of ["light", "dark"]) {
       // ---- the no-photo contact's own page shows initials, not a broken image.
       await page.goto(`${W(locale)}/contacts/${noPhotoContactID}`, { waitUntil: "load" })
       await page.waitForSelector("[data-avatar]", { timeout: 15000 }).catch(() => {})
-      const noPhotoContactPageKind = await page.locator("[data-avatar]").first().getAttribute("data-avatar-kind").catch(() => null)
-      check(`${k}-contactPageNoPhotoIsInitials`, noPhotoContactPageKind === "initials", noPhotoContactPageKind)
+      const noPhotoContactPageKind = await page
+        .locator("[data-avatar]")
+        .first()
+        .getAttribute("data-avatar-kind")
+        .catch(() => null)
+      check(
+        `${k}-contactPageNoPhotoIsInitials`,
+        noPhotoContactPageKind === "initials",
+        noPhotoContactPageKind,
+      )
     }
   }
 }

@@ -101,13 +101,21 @@ export default function AutomationBrowsersPage() {
       ) : browsers.isLoading ? (
         <LoadingRows rows={3} />
       ) : setupDone && !managing ? (
-        <BrowsersStatus browsers={active} onManage={() => setManaging(true)} installHref={installHref} />
+        <BrowsersStatus
+          browsers={active}
+          onManage={() => setManaging(true)}
+          installHref={installHref}
+        />
       ) : (
         <section data-setup={setupDone ? "managing" : "open"}>
           <div className="flex flex-wrap items-end justify-between gap-3 px-6 pb-4">
             <div>
-              <h2 className="text-base font-medium">{setupDone ? t("automation.browsers") : t("automation.flow.title")}</h2>
-              <p className="text-sm text-grid-muted">{setupDone ? t("automation.browsersHint") : t("automation.flow.hint")}</p>
+              <h2 className="text-base font-medium">
+                {setupDone ? t("automation.browsers") : t("automation.flow.title")}
+              </h2>
+              <p className="text-sm text-grid-muted">
+                {setupDone ? t("automation.browsersHint") : t("automation.flow.hint")}
+              </p>
             </div>
             {setupDone ? (
               <Button variant="ghost" size="sm" onClick={() => setManaging(false)} data-manage-done>
@@ -117,7 +125,12 @@ export default function AutomationBrowsersPage() {
             ) : null}
           </div>
           <ol className="divide-y divide-line border-y border-line">
-            <FlowStep n={1} state={hasBrowser ? "done" : "current"} title={t("automation.flow.install.title")} data="install">
+            <FlowStep
+              n={1}
+              state={hasBrowser ? "done" : "current"}
+              title={t("automation.flow.install.title")}
+              data="install"
+            >
               {hasBrowser ? (
                 <p className="text-sm text-grid-muted">{t("automation.flow.install.done")}</p>
               ) : (
@@ -129,23 +142,40 @@ export default function AutomationBrowsersPage() {
                     size="sm"
                     variant={hasBrowser ? "outline" : "default"}
                     nativeButton={false}
-                    render={<a href={ext.data.download_url} download={ext.data.file} data-flow-download />}
+                    render={
+                      <a href={ext.data.download_url} download={ext.data.file} data-flow-download />
+                    }
                   >
                     <DownloadIcon />
                     {t("automation.flow.install.download", { version: ext.data.version ?? "" })}
                   </Button>
                 ) : null}
-                <Button size="sm" variant="ghost" nativeButton={false} render={<Link href={installHref} />} data-install-link>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  nativeButton={false}
+                  render={<Link href={installHref} />}
+                  data-install-link
+                >
                   <BookOpenIcon />
                   {t("automation.flow.install.steps")}
                 </Button>
               </div>
-              {ext.data && !ext.data.available ? <p className="text-xs text-grid-muted">{ext.data.reason}</p> : null}
+              {ext.data && !ext.data.available ? (
+                <p className="text-xs text-grid-muted">{ext.data.reason}</p>
+              ) : null}
             </FlowStep>
 
-            <FlowStep n={2} state={hasBrowser ? "done" : "current"} title={t("automation.flow.pair.title")} data="pair">
+            <FlowStep
+              n={2}
+              state={hasBrowser ? "done" : "current"}
+              title={t("automation.flow.pair.title")}
+              data="pair"
+            >
               <p className="text-sm text-grid-muted">
-                {hasBrowser ? t("automation.flow.pair.done", { n: active.length }) : t("automation.flow.pair.body")}
+                {hasBrowser
+                  ? t("automation.flow.pair.done", { n: active.length })
+                  : t("automation.flow.pair.body")}
               </p>
               {/* Connecting is done from the extension (MH-478): its button opens an
                   approval page on this site where the workspace is chosen. Nothing
@@ -157,16 +187,30 @@ export default function AutomationBrowsersPage() {
               ) : null}
             </FlowStep>
 
-            <FlowStep n={3} state={hasSites ? "done" : hasBrowser ? "current" : "waiting"} title={t("automation.flow.sites.title")} data="sites">
+            <FlowStep
+              n={3}
+              state={hasSites ? "done" : hasBrowser ? "current" : "waiting"}
+              title={t("automation.flow.sites.title")}
+              data="sites"
+            >
               <p className="text-sm text-grid-muted">
-                {!hasBrowser ? t("automation.flow.sites.waiting") : hasSites ? t("automation.flow.sites.done") : t("automation.flow.sites.body")}
+                {!hasBrowser
+                  ? t("automation.flow.sites.waiting")
+                  : hasSites
+                    ? t("automation.flow.sites.done")
+                    : t("automation.flow.sites.body")}
               </p>
             </FlowStep>
             {hasBrowser ? (
               <li className="list-none">
                 <ul className="divide-y divide-line border-t border-line" data-browser-list>
                   {list.map((b) => (
-                    <BrowserRow key={b.id} browser={b} canManage={canManage} onChange={() => browsers.mutate()} />
+                    <BrowserRow
+                      key={b.id}
+                      browser={b}
+                      canManage={canManage}
+                      onChange={() => browsers.mutate()}
+                    />
                   ))}
                 </ul>
               </li>

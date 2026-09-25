@@ -225,7 +225,10 @@ const TriggerNode = memo(function TriggerNode({ data }: NodeProps<Node<TriggerDa
         note={
           data.sites?.length
             ? t(data.autoAdd ? "canvas.sites.nodeAuto" : "canvas.sites.nodeManual", {
-                sites: data.sites.length > 2 ? `${data.sites.slice(0, 2).join(", ")} +${data.sites.length - 2}` : data.sites.join(", "),
+                sites:
+                  data.sites.length > 2
+                    ? `${data.sites.slice(0, 2).join(", ")} +${data.sites.length - 2}`
+                    : data.sites.join(", "),
               })
             : undefined
         }

@@ -21,7 +21,8 @@ const base = process.argv[2] ?? "http://localhost:3122"
 const STUB_PORT = Number(process.argv[3] ?? 8787)
 
 // A 1x1 PNG: the page only has to render whatever the server calls a QR.
-const FAKE_QR = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+const FAKE_QR =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 
 const stub = {
   created: [],
@@ -112,7 +113,11 @@ out.slug = slug
 // ---- the page, before anything is linked ----
 await page.goto(`${base}/en/w/${slug}/inbox/whatsapp`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector("[data-whatsapp-state]", { timeout: 20000 })
-out.startsUnlinked = await page.evaluate(() => document.querySelector("[data-whatsapp-state]")?.getAttribute("data-whatsapp-state") === "close")
+out.startsUnlinked = await page.evaluate(
+  () =>
+    document.querySelector("[data-whatsapp-state]")?.getAttribute("data-whatsapp-state") ===
+    "close",
+)
 
 // ---- link: the instance is created, the webhook registered, a QR shown ----
 await page.click('button:has-text("Link a number")')
@@ -123,19 +128,29 @@ out.instanceNamePerWorkspace = /^moh-[0-9a-f]{32}$/.test(stub.created[0] ?? "")
 const hook = stub.webhooks[0] ?? {}
 out.webhookRegistered = !!hook.url && hook.url.includes("/api/whatsapp/hook/")
 out.webhookHasToken = !!(hook.headers && hook.headers["X-Moharrik-Token"])
-out.webhookEventsNarrow = JSON.stringify(hook.events ?? []) === JSON.stringify(["MESSAGES_UPSERT", "CONNECTION_UPDATE"])
+out.webhookEventsNarrow =
+  JSON.stringify(hook.events ?? []) === JSON.stringify(["MESSAGES_UPSERT", "CONNECTION_UPDATE"])
 
 const hookURL = hook.url.replace(/^https?:\/\/[^/]+/, base)
 const token = hook.headers["X-Moharrik-Token"]
 
 // ---- the webhook refuses everything but the right token ----
 const post = (payload, headers = {}) =>
-  fetch(hookURL, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(payload) })
+  fetch(hookURL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify(payload),
+  })
 
 const msg = (over = {}) => ({
   event: "messages.upsert",
   data: {
-    key: { remoteJid: "201234567890@s.whatsapp.net", fromMe: false, id: "WA" + Date.now(), ...(over.key ?? {}) },
+    key: {
+      remoteJid: "201234567890@s.whatsapp.net",
+      fromMe: false,
+      id: "WA" + Date.now(),
+      ...(over.key ?? {}),
+    },
     pushName: "Dana",
     message: { conversation: over.text ?? "my order is late" },
   },
@@ -143,44 +158,98 @@ const msg = (over = {}) => ({
 
 out.noTokenStatus = (await post(msg())).status
 out.wrongTokenStatus = (await post(msg(), { "X-Moharrik-Token": "nope" })).status
-out.unknownHookStatus = (await post(msg(), { "X-Moharrik-Token": token })).status === 404 ? 404 : (await fetch(`${base}/api/whatsapp/hook/wh_nothing`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json", "X-Moharrik-Token": token },
-  body: "{}",
-})).status
+out.unknownHookStatus =
+  (await post(msg(), { "X-Moharrik-Token": token })).status === 404
+    ? 404
+    : (
+        await fetch(`${base}/api/whatsapp/hook/wh_nothing`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Moharrik-Token": token },
+          body: "{}",
+        })
+      ).status
 
 // ---- a customer message arrives ----
 const firstID = "WA-first-" + Date.now()
-out.deliveredStatus = (await post({ ...msg(), data: { ...msg().data, key: { remoteJid: "201234567890@s.whatsapp.net", fromMe: false, id: firstID } } }, { "X-Moharrik-Token": token })).status
+out.deliveredStatus = (
+  await post(
+    {
+      ...msg(),
+      data: {
+        ...msg().data,
+        key: { remoteJid: "201234567890@s.whatsapp.net", fromMe: false, id: firstID },
+      },
+    },
+    { "X-Moharrik-Token": token },
+  )
+).status
 
 await page.goto(`${base}/en/w/${slug}/inbox`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector("[data-conversation]", { timeout: 20000 })
 out.inInbox = await page.evaluate(() => document.body.innerText.includes("Dana"))
-out.showsWhatsAppChannel = await page.evaluate(() => /whatsapp/i.test(document.querySelector("[data-conversation]")?.innerText ?? ""))
+out.showsWhatsAppChannel = await page.evaluate(() =>
+  /whatsapp/i.test(document.querySelector("[data-conversation]")?.innerText ?? ""),
+)
 await page.click("[data-conversation]")
 await page.waitForSelector("[data-messages]", { timeout: 15000 })
 out.bodyShown = await page.evaluate(() => document.body.innerText.includes("my order is late"))
 
 // ---- a redelivery of the same id must not duplicate ----
-await post({ ...msg(), data: { ...msg().data, key: { remoteJid: "201234567890@s.whatsapp.net", fromMe: false, id: firstID } } }, { "X-Moharrik-Token": token })
+await post(
+  {
+    ...msg(),
+    data: {
+      ...msg().data,
+      key: { remoteJid: "201234567890@s.whatsapp.net", fromMe: false, id: firstID },
+    },
+  },
+  { "X-Moharrik-Token": token },
+)
 // ---- our own echo must not look like the customer ----
-await post({ ...msg(), data: { ...msg().data, key: { remoteJid: "201234567890@s.whatsapp.net", fromMe: true, id: "echo-1" }, message: { conversation: "this is us talking" } } }, { "X-Moharrik-Token": token })
+await post(
+  {
+    ...msg(),
+    data: {
+      ...msg().data,
+      key: { remoteJid: "201234567890@s.whatsapp.net", fromMe: true, id: "echo-1" },
+      message: { conversation: "this is us talking" },
+    },
+  },
+  { "X-Moharrik-Token": token },
+)
 // ---- a group message must not open a conversation ----
-await post({ ...msg(), data: { ...msg().data, key: { remoteJid: "999-888@g.us", fromMe: false, id: "grp-1" }, message: { conversation: "group noise" } } }, { "X-Moharrik-Token": token })
+await post(
+  {
+    ...msg(),
+    data: {
+      ...msg().data,
+      key: { remoteJid: "999-888@g.us", fromMe: false, id: "grp-1" },
+      message: { conversation: "group noise" },
+    },
+  },
+  { "X-Moharrik-Token": token },
+)
 
 await page.reload({ waitUntil: "domcontentloaded" })
 await page.waitForSelector("[data-conversation]", { timeout: 15000 })
-out.conversationCount = await page.evaluate(() => document.querySelectorAll("[data-conversation]").length)
+out.conversationCount = await page.evaluate(
+  () => document.querySelectorAll("[data-conversation]").length,
+)
 await page.click("[data-conversation]")
 await page.waitForSelector("[data-messages]", { timeout: 15000 })
 out.messagesInThread = await page.evaluate(() => document.querySelectorAll("[data-message]").length)
-out.echoNotFiled = await page.evaluate(() => !document.body.innerText.includes("this is us talking"))
+out.echoNotFiled = await page.evaluate(
+  () => !document.body.innerText.includes("this is us talking"),
+)
 out.groupNotFiled = await page.evaluate(() => !document.body.innerText.includes("group noise"))
 
 // ---- the team replies, and WhatsApp receives it ----
 await page.fill("#reply-body", "Sorry — it ships today.")
 await page.click('[data-form="reply"] button[type=submit]')
-await page.waitForFunction(() => document.querySelectorAll('[data-message="out"]').length > 0, { timeout: 20000 })
+await page
+  .waitForFunction(() => document.querySelectorAll('[data-message="out"]').length > 0, {
+    timeout: 20000,
+  })
   .then(() => (out.replySaved = true))
   .catch(() => (out.replySaved = false))
 const sent = stub.sent.at(-1) ?? {}
@@ -189,17 +258,29 @@ out.sentToTheRightNumber = sent.number === "201234567890"
 
 // ---- connection.update moves the state without anyone asking ----
 stub.state = "open"
-await post({ event: "connection.update", data: { state: "open", wuid: "201111111111@s.whatsapp.net" } }, { "X-Moharrik-Token": token })
+await post(
+  { event: "connection.update", data: { state: "open", wuid: "201111111111@s.whatsapp.net" } },
+  { "X-Moharrik-Token": token },
+)
 await page.goto(`${base}/en/w/${slug}/inbox/whatsapp`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector("[data-whatsapp-state]", { timeout: 15000 })
-out.stateOpenAfterUpdate = await page.evaluate(() => document.querySelector("[data-whatsapp-state]")?.getAttribute("data-whatsapp-state") === "open")
+out.stateOpenAfterUpdate = await page.evaluate(
+  () =>
+    document.querySelector("[data-whatsapp-state]")?.getAttribute("data-whatsapp-state") === "open",
+)
 out.showsLinkedNumber = await page.evaluate(() => document.body.innerText.includes("201111111111"))
 
 // ---- unlink ends the session on the server, not just here ----
 await page.click('button:has-text("Unlink")')
 await page.waitForSelector('[role="alertdialog"] button:has-text("Unlink")', { timeout: 10000 })
 await page.click('[role="alertdialog"] button:has-text("Unlink")')
-await page.waitForFunction(() => document.querySelector("[data-whatsapp-state]")?.getAttribute("data-whatsapp-state") === "close", { timeout: 15000 })
+await page
+  .waitForFunction(
+    () =>
+      document.querySelector("[data-whatsapp-state]")?.getAttribute("data-whatsapp-state") ===
+      "close",
+    { timeout: 15000 },
+  )
   .then(() => (out.unlinked = true))
   .catch(() => (out.unlinked = false))
 out.instanceDeletedOnServer = stub.deleted === stub.created[0]

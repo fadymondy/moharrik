@@ -11,7 +11,9 @@ for steps that are not saved yet.
 const NAV = new Set(["goto", "navigate", "open"])
 
 function normalise(value: string): string {
-  let v = String(value ?? "").trim().toLowerCase()
+  let v = String(value ?? "")
+    .trim()
+    .toLowerCase()
   if (!v) return ""
   const scheme = v.indexOf("://")
   if (scheme >= 0) v = v.slice(scheme + 3)
@@ -23,7 +25,10 @@ function normalise(value: string): string {
   return /\s/.test(v) ? "" : v
 }
 
-export function requiredSites(declared: string[] | undefined, steps: { command: string; args?: Record<string, unknown> }[]): string[] {
+export function requiredSites(
+  declared: string[] | undefined,
+  steps: { command: string; args?: Record<string, unknown> }[],
+): string[] {
   const set = new Set<string>()
   for (const h of declared ?? []) {
     const n = normalise(h)

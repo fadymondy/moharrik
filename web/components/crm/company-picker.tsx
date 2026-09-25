@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react"
 
-import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox"
 import { useDebounced } from "@/components/crm/contact-picker"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
@@ -36,7 +43,9 @@ export function CompanyPicker({
   const [query, setQuery] = useState("")
   const q = useDebounced(query)
   const res = useCompaniesPage(ws.id, { q, limit: PICK_LIMIT })
-  const [chosen, setChosen] = useState<Option | null>(selected ? { value: selected.id, label: selected.name } : null)
+  const [chosen, setChosen] = useState<Option | null>(
+    selected ? { value: selected.id, label: selected.name } : null,
+  )
   // A preset id with no name (a deal started from a company's page): look it up once.
   const preset = useCompany(ws.id, value && !chosen ? value : undefined)
   useEffect(() => {
@@ -68,9 +77,16 @@ export function CompanyPicker({
         if (details.reason === "input-change" || details.reason === "input-clear") setQuery(v)
       }}
     >
-      <ComboboxInput id={id} className="w-full" placeholder={t("companies.pickPlaceholder")} showClear={!!current} />
+      <ComboboxInput
+        id={id}
+        className="w-full"
+        placeholder={t("companies.pickPlaceholder")}
+        showClear={!!current}
+      />
       <ComboboxContent>
-        <ComboboxEmpty>{res.isLoading ? t("common.working") : t("companies.pickNone")}</ComboboxEmpty>
+        <ComboboxEmpty>
+          {res.isLoading ? t("common.working") : t("companies.pickNone")}
+        </ComboboxEmpty>
         <ComboboxList>
           {(o: Option) => (
             <ComboboxItem key={o.value} value={o}>

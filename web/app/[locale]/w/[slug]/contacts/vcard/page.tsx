@@ -31,7 +31,11 @@ import {
   type GoogleDisconnected,
 } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useGoogleConnections, useGoogleContactsConnections, useGoogleContactsSyncStatus } from "@/lib/queries"
+import {
+  useGoogleConnections,
+  useGoogleContactsConnections,
+  useGoogleContactsSyncStatus,
+} from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -414,7 +418,10 @@ function GoogleContactsPanel() {
 
       {canManage ? (
         admin.data && !admin.data.configured ? (
-          <p className="mt-3 text-sm text-grid-danger-text" data-testid="google-contacts-not-configured">
+          <p
+            className="mt-3 text-sm text-grid-danger-text"
+            data-testid="google-contacts-not-configured"
+          >
             {t("vcard.google.notConfigured")}
           </p>
         ) : (
@@ -432,7 +439,11 @@ function GoogleContactsPanel() {
       ) : null}
 
       {!contacts.data ? (
-        contacts.error ? <ErrorState error={contacts.error} /> : <LoadingRows rows={1} />
+        contacts.error ? (
+          <ErrorState error={contacts.error} />
+        ) : (
+          <LoadingRows rows={1} />
+        )
       ) : list.length === 0 ? (
         <p className="mt-3 text-sm text-grid-muted" data-testid="google-contacts-empty">
           {canManage ? t("vcard.google.none") : t("vcard.google.adminOnly")}
@@ -440,7 +451,12 @@ function GoogleContactsPanel() {
       ) : (
         <ul className="mt-4 divide-y divide-line border-y border-line">
           {list.map((c) => (
-            <GoogleContactsConnectionRow key={c.id} connection={c} canManage={canManage} onChange={() => contacts.mutate()} />
+            <GoogleContactsConnectionRow
+              key={c.id}
+              connection={c}
+              canManage={canManage}
+              onChange={() => contacts.mutate()}
+            />
           ))}
         </ul>
       )}
@@ -468,13 +484,22 @@ function GoogleContactsConnectionRow({
     setSyncing(true)
     setResult(null)
     try {
-      const res = await api<GoogleContactsSyncResult>(`/api/w/google/contacts/${encodeURIComponent(c.id)}/sync`, {
-        method: "POST",
-        workspaceId: ws.id,
-      })
+      const res = await api<GoogleContactsSyncResult>(
+        `/api/w/google/contacts/${encodeURIComponent(c.id)}/sync`,
+        {
+          method: "POST",
+          workspaceId: ws.id,
+        },
+      )
       setResult(res)
       status.mutate()
-      toast.success(t("vcard.google.syncResult", { added: res.added, updated: res.updated, deleted: res.flagged_deleted }))
+      toast.success(
+        t("vcard.google.syncResult", {
+          added: res.added,
+          updated: res.updated,
+          deleted: res.flagged_deleted,
+        }),
+      )
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -483,10 +508,13 @@ function GoogleContactsConnectionRow({
   }
 
   async function disconnect() {
-    const res = await api<GoogleDisconnected>(`/api/w/google/connections/${encodeURIComponent(c.id)}`, {
-      method: "DELETE",
-      workspaceId: ws.id,
-    })
+    const res = await api<GoogleDisconnected>(
+      `/api/w/google/connections/${encodeURIComponent(c.id)}`,
+      {
+        method: "DELETE",
+        workspaceId: ws.id,
+      },
+    )
     if (res.revoked) toast.success(t("integrations.disconnected"))
     else if (res.shared) toast.success(t("integrations.disconnectedShared"))
     else toast.warning(t("integrations.disconnectedNoRevoke"))
@@ -507,22 +535,37 @@ function GoogleContactsConnectionRow({
           {reauth ? (
             <Badge variant="destructive">{t("vcard.google.statusReauth")}</Badge>
           ) : status.data?.last_synced_at ? (
-            t("vcard.google.lastSynced", { when: new Date(status.data.last_synced_at).toLocaleString(locale) })
+            t("vcard.google.lastSynced", {
+              when: new Date(status.data.last_synced_at).toLocaleString(locale),
+            })
           ) : (
             t("vcard.google.neverSynced")
           )}
         </p>
         {status.data?.last_error ? (
-          <p className="mt-1 text-xs text-grid-danger-text">{t("vcard.google.lastError", { error: status.data.last_error })}</p>
+          <p className="mt-1 text-xs text-grid-danger-text">
+            {t("vcard.google.lastError", { error: status.data.last_error })}
+          </p>
         ) : null}
         {result ? (
           <p className="mt-1 text-xs text-grid-muted" data-testid="google-contacts-sync-result">
-            {t("vcard.google.syncResult", { added: result.added, updated: result.updated, deleted: result.flagged_deleted })}
+            {t("vcard.google.syncResult", {
+              added: result.added,
+              updated: result.updated,
+              deleted: result.flagged_deleted,
+            })}
           </p>
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={sync} disabled={syncing || reauth} data-action="sync-google-contacts">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={sync}
+          disabled={syncing || reauth}
+          data-action="sync-google-contacts"
+        >
           <RefreshCwIcon />
           {syncing ? t("vcard.google.syncing") : t("vcard.google.sync")}
         </Button>

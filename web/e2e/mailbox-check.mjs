@@ -36,7 +36,14 @@ const SUPPORT = `support-${RUN}@shop.test`
 function smtpSend({ from, to, raw }) {
   return new Promise((resolve, reject) => {
     const sock = createConnection(SMTP_PORT, mailHost)
-    const steps = [`EHLO check.test`, `MAIL FROM:<${from}>`, `RCPT TO:<${to}>`, `DATA`, `${raw}\r\n.`, `QUIT`]
+    const steps = [
+      `EHLO check.test`,
+      `MAIL FROM:<${from}>`,
+      `RCPT TO:<${to}>`,
+      `DATA`,
+      `${raw}\r\n.`,
+      `QUIT`,
+    ]
     let i = -1
     let buf = ""
     sock.setTimeout(20000, () => reject(new Error("smtp timeout")))
@@ -57,7 +64,12 @@ function smtpSend({ from, to, raw }) {
 function imapFetchAll(user, pass) {
   return new Promise((resolve, reject) => {
     const sock = createConnection(IMAP_PORT, mailHost)
-    const steps = [`a1 LOGIN ${user} ${pass}`, `a2 SELECT INBOX`, `a3 FETCH 1:* (BODY.PEEK[])`, `a4 LOGOUT`]
+    const steps = [
+      `a1 LOGIN ${user} ${pass}`,
+      `a2 SELECT INBOX`,
+      `a3 FETCH 1:* (BODY.PEEK[])`,
+      `a4 LOGOUT`,
+    ]
     let i = -1
     let all = ""
     sock.setTimeout(20000, () => reject(new Error("imap timeout")))
@@ -125,7 +137,11 @@ await smtpSend({
 // ---- point the workspace at that mailbox ----
 await page.goto(`${base}/en/w/${slug}/inbox/email`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-form="mailbox"]', { timeout: 20000 })
-out.startsUnconfigured = await page.evaluate(() => document.querySelector("[data-mailbox-configured]")?.getAttribute("data-mailbox-configured") === "false")
+out.startsUnconfigured = await page.evaluate(
+  () =>
+    document.querySelector("[data-mailbox-configured]")?.getAttribute("data-mailbox-configured") ===
+    "false",
+)
 
 await page.fill("#mb-host", mailHost)
 await page.fill("#mb-port", String(IMAP_PORT))
@@ -135,20 +151,33 @@ await page.fill("#mb-folder", "INBOX")
 await page.click("#mb-tls")
 await page.click('[role="option"]:has-text("No encryption")')
 await page.click('form[data-form="mailbox"] button[type=submit]')
-await page.waitForFunction(() => document.querySelector("[data-mailbox-configured]")?.getAttribute("data-mailbox-configured") === "true", { timeout: 15000 })
+await page.waitForFunction(
+  () =>
+    document.querySelector("[data-mailbox-configured]")?.getAttribute("data-mailbox-configured") ===
+    "true",
+  { timeout: 15000 },
+)
 out.saved = true
 
 // The password is write-only: reloading must not put it back in the field.
 await page.reload({ waitUntil: "domcontentloaded" })
 await page.waitForSelector("#mb-pass", { timeout: 15000 })
 out.passwordNotEchoed = await page.evaluate(() => document.querySelector("#mb-pass")?.value === "")
-out.saysPasswordStored = await page.evaluate(() => document.body.innerText.includes("A password is stored"))
+out.saysPasswordStored = await page.evaluate(() =>
+  document.body.innerText.includes("A password is stored"),
+)
 
 // ---- collect it ----
 await page.click('button:has-text("Check now")')
-await page.waitForFunction(() => /1 emails collected|collected/i.test(document.body.innerText), { timeout: 20000 }).catch(() => {})
+await page
+  .waitForFunction(() => /1 emails collected|collected/i.test(document.body.innerText), {
+    timeout: 20000,
+  })
+  .catch(() => {})
 await page.waitForTimeout(1500)
-out.mailboxError = await page.evaluate(() => document.querySelector("[data-mailbox-error]")?.innerText?.slice(0, 160) ?? "")
+out.mailboxError = await page.evaluate(
+  () => document.querySelector("[data-mailbox-error]")?.innerText?.slice(0, 160) ?? "",
+)
 
 // ---- it is in the inbox, as an email conversation ----
 await page.goto(`${base}/en/w/${slug}/inbox`, { waitUntil: "domcontentloaded" })
@@ -157,12 +186,21 @@ await page.waitForSelector("[data-conversation]", { timeout: 20000 })
 // subject is on the thread itself. Asserting the subject here was wrong about
 // the UI, not about the feature.
 out.inInbox = await page.evaluate(() => document.body.innerText.includes("Dana Customer"))
-out.showsEmailChannel = await page.evaluate(() => /email/i.test(document.querySelector("[data-conversation]")?.innerText ?? ""))
-out.unread = await page.evaluate(() => document.querySelector("[data-conversation]")?.getAttribute("data-conversation-unread") === "true")
+out.showsEmailChannel = await page.evaluate(() =>
+  /email/i.test(document.querySelector("[data-conversation]")?.innerText ?? ""),
+)
+out.unread = await page.evaluate(
+  () =>
+    document.querySelector("[data-conversation]")?.getAttribute("data-conversation-unread") ===
+    "true",
+)
 await page.click("[data-conversation]")
 await page.waitForSelector("[data-messages]", { timeout: 15000 })
 out.bodyShown = await page.evaluate(() => document.body.innerText.includes("You charged me 300"))
-out.subjectOnThread = await page.evaluate((st) => document.body.innerText.includes(`Invoice ${st} looks wrong`), stamp)
+out.subjectOnThread = await page.evaluate(
+  (st) => document.body.innerText.includes(`Invoice ${st} looks wrong`),
+  stamp,
+)
 
 // ---- a second email in the same thread must NOT open a second conversation ----
 await smtpSend({
@@ -184,13 +222,17 @@ await page.click('button:has-text("Check now")')
 await page.waitForTimeout(2500)
 await page.goto(`${base}/en/w/${slug}/inbox`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector("[data-conversation]", { timeout: 15000 })
-out.conversationCount = await page.evaluate(() => document.querySelectorAll("[data-conversation]").length)
+out.conversationCount = await page.evaluate(
+  () => document.querySelectorAll("[data-conversation]").length,
+)
 await page.click("[data-conversation]")
 await page.waitForSelector("[data-messages]", { timeout: 15000 })
 // Both messages in ONE thread is the assertion that matters; the count above
 // proves no second conversation was opened.
 out.threadedOntoSameConversation = await page.evaluate(
-  () => document.body.innerText.includes("Any update on this?") && document.body.innerText.includes("You charged me 300"),
+  () =>
+    document.body.innerText.includes("Any update on this?") &&
+    document.body.innerText.includes("You charged me 300"),
 )
 
 // ---- replying without SMTP configured must say so, not fail silently ----
@@ -198,7 +240,9 @@ await page.fill("#reply-body", "This should not be sendable yet.")
 await page.click('[data-form="reply"] button[type=submit]')
 await page.waitForTimeout(2000)
 out.replyWithoutSMTPExplains = await page.evaluate(() => /SMTP/i.test(document.body.innerText))
-out.messagesAfterFailedReply = await page.evaluate(() => document.querySelectorAll('[data-message="out"]').length)
+out.messagesAfterFailedReply = await page.evaluate(
+  () => document.querySelectorAll('[data-message="out"]').length,
+)
 
 // ---- configure SMTP, then reply for real ----
 await page.goto(`${base}/en/w/${slug}/settings/email`, { waitUntil: "networkidle" })
@@ -220,14 +264,19 @@ await page.click("[data-conversation]")
 await page.waitForSelector("#reply-body", { timeout: 15000 })
 await page.fill("#reply-body", `We refunded 100 — reference ${stamp}.`)
 await page.click('[data-form="reply"] button[type=submit]')
-await page.waitForFunction(() => document.querySelectorAll('[data-message="out"]').length > 0, { timeout: 20000 })
+await page
+  .waitForFunction(() => document.querySelectorAll('[data-message="out"]').length > 0, {
+    timeout: 20000,
+  })
   .then(() => (out.replySaved = true))
   .catch(() => (out.replySaved = false))
 
 // ---- the customer actually received it, threaded ----
 const mailbox = await imapFetchAll(CUSTOMER, "secret")
-out.customerGotTheReply = mailbox.includes(`We refunded 100 — reference ${stamp}`) || mailbox.includes(`reference ${stamp}`)
-out.replyIsThreaded = mailbox.includes(`In-Reply-To: <second-${stamp}@example.test>`) || mailbox.includes(firstID)
+out.customerGotTheReply =
+  mailbox.includes(`We refunded 100 — reference ${stamp}`) || mailbox.includes(`reference ${stamp}`)
+out.replyIsThreaded =
+  mailbox.includes(`In-Reply-To: <second-${stamp}@example.test>`) || mailbox.includes(firstID)
 out.replySubjectIsRe = /Subject: Re: Invoice/i.test(mailbox)
 
 await ctx.close()

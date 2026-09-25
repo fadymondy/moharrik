@@ -94,7 +94,8 @@ function ContactAvatarControl({
   function syncContactCache(nextAvatarUrl: string) {
     void mutate(
       [`/api/w/contacts/${encodeURIComponent(contactId)}`, ws.id],
-      (cur: { contact: { avatar_url?: string } } | undefined) => (cur ? { ...cur, contact: { ...cur.contact, avatar_url: nextAvatarUrl } } : cur),
+      (cur: { contact: { avatar_url?: string } } | undefined) =>
+        cur ? { ...cur, contact: { ...cur.contact, avatar_url: nextAvatarUrl } } : cur,
       { revalidate: false },
     )
   }
@@ -115,11 +116,14 @@ function ContactAvatarControl({
     setBusy(true)
     try {
       const data = await readAsBase64(file)
-      const res = await api<{ contact: { avatar_url?: string } }>(`/api/w/contacts/${encodeURIComponent(contactId)}/avatar`, {
-        method: "POST",
-        json: { data, content_type: file.type, filename: file.name },
-        workspaceId: ws.id,
-      })
+      const res = await api<{ contact: { avatar_url?: string } }>(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/avatar`,
+        {
+          method: "POST",
+          json: { data, content_type: file.type, filename: file.name },
+          workspaceId: ws.id,
+        },
+      )
       onChanged(res.contact.avatar_url ?? "")
       syncContactCache(res.contact.avatar_url ?? "")
       toast.success(t("contacts.avatar.uploaded"))
@@ -134,10 +138,13 @@ function ContactAvatarControl({
     setBusy(true)
     setErr(null)
     try {
-      const res = await api<{ contact: { avatar_url?: string } }>(`/api/w/contacts/${encodeURIComponent(contactId)}/avatar`, {
-        method: "DELETE",
-        workspaceId: ws.id,
-      })
+      const res = await api<{ contact: { avatar_url?: string } }>(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/avatar`,
+        {
+          method: "DELETE",
+          workspaceId: ws.id,
+        },
+      )
       onChanged(res.contact.avatar_url ?? "")
       syncContactCache(res.contact.avatar_url ?? "")
       toast.success(t("contacts.avatar.removed"))
@@ -162,16 +169,38 @@ function ContactAvatarControl({
             onChange={onPick}
             data-avatar-input
           />
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => fileRef.current?.click()} data-avatar-upload>
-            {busy ? t("common.working") : avatarUrl ? t("contacts.avatar.replace") : t("contacts.avatar.upload")}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+            data-avatar-upload
+          >
+            {busy
+              ? t("common.working")
+              : avatarUrl
+                ? t("contacts.avatar.replace")
+                : t("contacts.avatar.upload")}
           </Button>
           {avatarUrl ? (
-            <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={remove} data-avatar-remove>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={remove}
+              data-avatar-remove
+            >
               {t("contacts.avatar.remove")}
             </Button>
           ) : null}
         </div>
-        {err ? <FieldError>{err}</FieldError> : <p className="text-xs text-grid-muted">{t("contacts.avatar.hint")}</p>}
+        {err ? (
+          <FieldError>{err}</FieldError>
+        ) : (
+          <p className="text-xs text-grid-muted">{t("contacts.avatar.hint")}</p>
+        )}
       </div>
     </div>
   )
@@ -184,7 +213,15 @@ function ContactAvatarControl({
  * keeps element ids unique when more than one instance can exist on the page
  * at once (a dialog opened from a list row, for example).
  */
-export function ContactEditForm({ contact, onSaved, idPrefix = "edit-contact" }: { contact: ContactEditable; onSaved: () => void; idPrefix?: string }) {
+export function ContactEditForm({
+  contact,
+  onSaved,
+  idPrefix = "edit-contact",
+}: {
+  contact: ContactEditable
+  onSaved: () => void
+  idPrefix?: string
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
@@ -251,85 +288,191 @@ export function ContactEditForm({ contact, onSaved, idPrefix = "edit-contact" }:
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4" data-form="edit-contact">
-      <ContactAvatarControl contactId={contact.id} name={name || contact.name} avatarUrl={avatarUrl} onChanged={setAvatarUrl} idPrefix={idPrefix} />
+      <ContactAvatarControl
+        contactId={contact.id}
+        name={name || contact.name}
+        avatarUrl={avatarUrl}
+        onChanged={setAvatarUrl}
+        idPrefix={idPrefix}
+      />
       <FieldGroup className="grid gap-4 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-name`}>{t("contacts.name")}</FieldLabel>
-          <Input id={`${idPrefix}-name`} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
+          <Input
+            id={`${idPrefix}-name`}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-email`}>{t("contacts.email")}</FieldLabel>
-          <Input id={`${idPrefix}-email`} type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} />
+          <Input
+            id={`${idPrefix}-email`}
+            type="email"
+            dir="ltr"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={254}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-phone`}>{t("contacts.phone")}</FieldLabel>
-          <Input id={`${idPrefix}-phone`} dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
+          <Input
+            id={`${idPrefix}-phone`}
+            dir="ltr"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            maxLength={40}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-handle`}>{t("contacts.handle")}</FieldLabel>
-          <Input id={`${idPrefix}-handle`} dir="ltr" value={handle} onChange={(e) => setHandle(e.target.value)} maxLength={120} />
+          <Input
+            id={`${idPrefix}-handle`}
+            dir="ltr"
+            value={handle}
+            onChange={(e) => setHandle(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-title`}>{t("contacts.jobTitle")}</FieldLabel>
-          <Input id={`${idPrefix}-title`} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+          <Input
+            id={`${idPrefix}-title`}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-company`}>{t("companies.title")}</FieldLabel>
-          <CompanyPicker id={`${idPrefix}-company`} value={companyId} selected={contact.company} onChange={setCompanyId} />
+          <CompanyPicker
+            id={`${idPrefix}-company`}
+            value={companyId}
+            selected={contact.company}
+            onChange={setCompanyId}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-owner`}>{t("crm.owner")}</FieldLabel>
-          <PickSelect id={`${idPrefix}-owner`} value={ownerId} onChange={setOwnerId} options={members.options} noneLabel={t("crm.unassigned")} />
+          <PickSelect
+            id={`${idPrefix}-owner`}
+            value={ownerId}
+            onChange={setOwnerId}
+            options={members.options}
+            noneLabel={t("crm.unassigned")}
+          />
         </Field>
       </FieldGroup>
       <h3 className="text-sm font-medium text-grid-muted">{t("contacts.personDetails")}</h3>
       <FieldGroup className="grid gap-4 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-name-prefix`}>{t("contacts.namePrefix")}</FieldLabel>
-          <Input id={`${idPrefix}-name-prefix`} value={namePrefix} onChange={(e) => setNamePrefix(e.target.value)} maxLength={40} />
+          <Input
+            id={`${idPrefix}-name-prefix`}
+            value={namePrefix}
+            onChange={(e) => setNamePrefix(e.target.value)}
+            maxLength={40}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-given-name`}>{t("contacts.givenName")}</FieldLabel>
-          <Input id={`${idPrefix}-given-name`} value={givenName} onChange={(e) => setGivenName(e.target.value)} maxLength={120} />
+          <Input
+            id={`${idPrefix}-given-name`}
+            value={givenName}
+            onChange={(e) => setGivenName(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-middle-name`}>{t("contacts.middleName")}</FieldLabel>
-          <Input id={`${idPrefix}-middle-name`} value={middleName} onChange={(e) => setMiddleName(e.target.value)} maxLength={120} />
+          <Input
+            id={`${idPrefix}-middle-name`}
+            value={middleName}
+            onChange={(e) => setMiddleName(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-family-name`}>{t("contacts.familyName")}</FieldLabel>
-          <Input id={`${idPrefix}-family-name`} value={familyName} onChange={(e) => setFamilyName(e.target.value)} maxLength={120} />
+          <Input
+            id={`${idPrefix}-family-name`}
+            value={familyName}
+            onChange={(e) => setFamilyName(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-name-suffix`}>{t("contacts.nameSuffix")}</FieldLabel>
-          <Input id={`${idPrefix}-name-suffix`} value={nameSuffix} onChange={(e) => setNameSuffix(e.target.value)} maxLength={40} />
+          <Input
+            id={`${idPrefix}-name-suffix`}
+            value={nameSuffix}
+            onChange={(e) => setNameSuffix(e.target.value)}
+            maxLength={40}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-nickname`}>{t("contacts.nickname")}</FieldLabel>
-          <Input id={`${idPrefix}-nickname`} value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={120} />
+          <Input
+            id={`${idPrefix}-nickname`}
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
-          <FieldLabel htmlFor={`${idPrefix}-phonetic-given`}>{t("contacts.phoneticGivenName")}</FieldLabel>
-          <Input id={`${idPrefix}-phonetic-given`} value={phoneticGivenName} onChange={(e) => setPhoneticGivenName(e.target.value)} maxLength={120} />
+          <FieldLabel htmlFor={`${idPrefix}-phonetic-given`}>
+            {t("contacts.phoneticGivenName")}
+          </FieldLabel>
+          <Input
+            id={`${idPrefix}-phonetic-given`}
+            value={phoneticGivenName}
+            onChange={(e) => setPhoneticGivenName(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
-          <FieldLabel htmlFor={`${idPrefix}-phonetic-family`}>{t("contacts.phoneticFamilyName")}</FieldLabel>
-          <Input id={`${idPrefix}-phonetic-family`} value={phoneticFamilyName} onChange={(e) => setPhoneticFamilyName(e.target.value)} maxLength={120} />
+          <FieldLabel htmlFor={`${idPrefix}-phonetic-family`}>
+            {t("contacts.phoneticFamilyName")}
+          </FieldLabel>
+          <Input
+            id={`${idPrefix}-phonetic-family`}
+            value={phoneticFamilyName}
+            onChange={(e) => setPhoneticFamilyName(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-birthday`}>{t("contacts.birthday")}</FieldLabel>
-          <DatePicker id={`${idPrefix}-birthday`} value={birthday} onValueChange={setBirthday} clearable max={new Date().toISOString().slice(0, 10)} />
+          <DatePicker
+            id={`${idPrefix}-birthday`}
+            value={birthday}
+            onValueChange={setBirthday}
+            clearable
+            max={new Date().toISOString().slice(0, 10)}
+          />
         </Field>
         <Field className="sm:col-span-2">
           <FieldLabel htmlFor={`${idPrefix}-biography`}>{t("contacts.biography")}</FieldLabel>
-          <Textarea id={`${idPrefix}-biography`} value={biography} onChange={(e) => setBiography(e.target.value)} maxLength={5000} rows={3} />
+          <Textarea
+            id={`${idPrefix}-biography`}
+            value={biography}
+            onChange={(e) => setBiography(e.target.value)}
+            maxLength={5000}
+            rows={3}
+          />
         </Field>
       </FieldGroup>
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={busy || !hasIdentity}>
           {busy ? t("common.working") : t("common.save")}
         </Button>
-        {!hasIdentity ? <FieldError>{t("contacts.needsIdentity")}</FieldError> : err ? <FieldError>{err}</FieldError> : null}
+        {!hasIdentity ? (
+          <FieldError>{t("contacts.needsIdentity")}</FieldError>
+        ) : err ? (
+          <FieldError>{err}</FieldError>
+        ) : null}
       </div>
     </form>
   )

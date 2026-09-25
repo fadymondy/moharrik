@@ -94,7 +94,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     } catch (err) {
       if (err instanceof ApiError) {
         if (mode === "login" && err.status === 401) setError(t("auth.invalidCredentials"))
-        else if (mode === "register" && /registration failed/i.test(err.message)) setError(t("auth.registrationFailed"))
+        else if (mode === "register" && /registration failed/i.test(err.message))
+          setError(t("auth.registrationFailed"))
         else setError(err.message)
       } else {
         setError(t("common.networkError"))
@@ -114,70 +115,84 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       description={mode === "login" ? t("auth.signInHint") : t("auth.registerHint")}
     >
       <PublicPanel className="flex justify-center py-10">
-      <div className="w-full max-w-sm" data-auth-form>
-        <form onSubmit={onSubmit} noValidate>
-          <FieldGroup>
-            <Field data-invalid={!!error || undefined}>
-              <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
-              <Input
-                id="email"
-                type="email"
-                dir="ltr"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-              />
-            </Field>
-            <Field data-invalid={!!error || undefined}>
-              <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
-              <Input
-                id="password"
-                type="password"
-                dir="ltr"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                required
-                minLength={mode === "register" ? 8 : undefined}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              {mode === "register" ? <FieldDescription>{t("auth.passwordHint")}</FieldDescription> : null}
-            </Field>
-            {error ? <FieldError>{error}</FieldError> : null}
-            <Button type="submit" size="lg" disabled={busy || !email || !password}>
-              {busy ? t("common.working") : mode === "login" ? t("auth.signIn") : t("auth.createAccount")}
-            </Button>
-          </FieldGroup>
-        </form>
-
-        {providers.length > 0 ? (
-          <div className="mt-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <Separator className="flex-1" />
-              <span className="grid-micro">{t("auth.or")}</span>
-              <Separator className="flex-1" />
-            </div>
-            {providers.map((p) => (
-              <Button
-                key={p.id}
-                variant="outline"
-                size="lg"
-                className="w-full"
-                nativeButton={false} render={<a href={`${p.href}${p.href.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`} />}
-              >
-                {t("auth.continueWith", { provider: p.label })}
+        <div className="w-full max-w-sm" data-auth-form>
+          <form onSubmit={onSubmit} noValidate>
+            <FieldGroup>
+              <Field data-invalid={!!error || undefined}>
+                <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
+                <Input
+                  id="email"
+                  type="email"
+                  dir="ltr"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                />
+              </Field>
+              <Field data-invalid={!!error || undefined}>
+                <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
+                <Input
+                  id="password"
+                  type="password"
+                  dir="ltr"
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  required
+                  minLength={mode === "register" ? 8 : undefined}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                {mode === "register" ? (
+                  <FieldDescription>{t("auth.passwordHint")}</FieldDescription>
+                ) : null}
+              </Field>
+              {error ? <FieldError>{error}</FieldError> : null}
+              <Button type="submit" size="lg" disabled={busy || !email || !password}>
+                {busy
+                  ? t("common.working")
+                  : mode === "login"
+                    ? t("auth.signIn")
+                    : t("auth.createAccount")}
               </Button>
-            ))}
-          </div>
-        ) : null}
-        <p className="mt-6 text-center text-sm text-grid-muted">
-          {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
-          <Link href={otherHref} className="font-medium text-grid-fg underline underline-offset-4">
-            {mode === "login" ? t("auth.createAccount") : t("auth.signIn")}
-          </Link>
-        </p>
-      </div>
+            </FieldGroup>
+          </form>
+
+          {providers.length > 0 ? (
+            <div className="mt-6 space-y-3">
+              <div className="flex items-center gap-3">
+                <Separator className="flex-1" />
+                <span className="grid-micro">{t("auth.or")}</span>
+                <Separator className="flex-1" />
+              </div>
+              {providers.map((p) => (
+                <Button
+                  key={p.id}
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  nativeButton={false}
+                  render={
+                    <a
+                      href={`${p.href}${p.href.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`}
+                    />
+                  }
+                >
+                  {t("auth.continueWith", { provider: p.label })}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          <p className="mt-6 text-center text-sm text-grid-muted">
+            {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
+            <Link
+              href={otherHref}
+              className="font-medium text-grid-fg underline underline-offset-4"
+            >
+              {mode === "login" ? t("auth.createAccount") : t("auth.signIn")}
+            </Link>
+          </p>
+        </div>
       </PublicPanel>
     </PublicFrame>
   )

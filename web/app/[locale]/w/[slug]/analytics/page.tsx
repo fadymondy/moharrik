@@ -13,7 +13,15 @@ import { ChartLineIcon, FileTextIcon, SignpostIcon } from "lucide-react"
 
 import { BarList, TrendChart } from "@/components/charts/trend-chart"
 import { Ltr } from "@/components/copy-field"
-import { DataError, Freshness, NoResource, ResourceSwitcher, Stat, useEnabled, WindowToggle } from "@/components/google/data-page"
+import {
+  DataError,
+  Freshness,
+  NoResource,
+  ResourceSwitcher,
+  Stat,
+  useEnabled,
+  WindowToggle,
+} from "@/components/google/data-page"
 import { Panel, useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState } from "@/components/states"
@@ -46,7 +54,9 @@ function Analytics() {
   const enabled = useEnabled("ga4_property")
   const days = [7, 28, 90].includes(Number(params.get("days"))) ? Number(params.get("days")) : 28
   const chosen = params.get("property") ?? ""
-  const resourceId = enabled.list.some((r) => r.id === chosen) ? chosen : (enabled.list[0]?.id ?? "")
+  const resourceId = enabled.list.some((r) => r.id === chosen)
+    ? chosen
+    : (enabled.list[0]?.id ?? "")
   const report = useGaReport(ws.id, resourceId, days, !!resourceId)
   const [refreshing, setRefreshing] = useState(false)
   const f = useFormat()
@@ -81,7 +91,12 @@ function Analytics() {
         action={
           resourceId ? (
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              <ResourceSwitcher kind="ga4_property" list={enabled.list} value={resourceId} onChange={(id) => set("property", id)} />
+              <ResourceSwitcher
+                kind="ga4_property"
+                list={enabled.list}
+                value={resourceId}
+                onChange={(id) => set("property", id)}
+              />
               <WindowToggle value={days} onChange={(d) => set("days", String(d))} />
             </div>
           ) : null
@@ -105,11 +120,23 @@ function Analytics() {
       ) : (
         <div className="pb-10" data-analytics data-days={rep.days} aria-busy={report.isValidating}>
           <div className="px-6 pb-4">
-            <Freshness fetchedAt={rep.fetched_at} stale={rep.stale} note={rep.note} onRefresh={refresh} refreshing={refreshing} />
+            <Freshness
+              fetchedAt={rep.fetched_at}
+              stale={rep.stale}
+              note={rep.note}
+              onRefresh={refresh}
+              refreshing={refreshing}
+            />
           </div>
           {rep.empty ? (
             <div data-ga-empty>
-              <EmptyState title={t("analytics.emptyTitle")} body={t("analytics.emptyBody", { from: f.date(rep.start_date), to: f.date(rep.end_date) })} />
+              <EmptyState
+                title={t("analytics.emptyTitle")}
+                body={t("analytics.emptyBody", {
+                  from: f.date(rep.start_date),
+                  to: f.date(rep.end_date),
+                })}
+              />
             </div>
           ) : (
             <Filled rep={rep} />
@@ -134,14 +161,30 @@ function Filled({ rep }: { rep: GaReport }) {
   return (
     <>
       <div className="grid-cells grid-cells-flush-x grid-cols-2 lg:grid-cols-4" data-ga-totals>
-        <Stat id="users" label={t("analytics.users")} value={f.n(tot.users)} sub={t("analytics.newUsers", { n: f.n(tot.new_users) })} />
+        <Stat
+          id="users"
+          label={t("analytics.users")}
+          value={f.n(tot.users)}
+          sub={t("analytics.newUsers", { n: f.n(tot.new_users) })}
+        />
         <Stat id="sessions" label={t("analytics.sessions")} value={f.n(tot.sessions)} sub={range} />
-        <Stat id="views" label={t("analytics.views")} value={f.n(tot.views)} sub={tot.sessions ? t("analytics.perSession", { n: (tot.views / tot.sessions).toFixed(1) }) : undefined} />
+        <Stat
+          id="views"
+          label={t("analytics.views")}
+          value={f.n(tot.views)}
+          sub={
+            tot.sessions
+              ? t("analytics.perSession", { n: (tot.views / tot.sessions).toFixed(1) })
+              : undefined
+          }
+        />
         <Stat
           id="engagement"
           label={t("analytics.engagementRate")}
           value={pct.format(tot.engagement_rate)}
-          sub={t("analytics.engagementTime", { time: duration(tot.avg_engagement_seconds_per_user, t, f.n) })}
+          sub={t("analytics.engagementTime", {
+            time: duration(tot.avg_engagement_seconds_per_user, t, f.n),
+          })}
         />
       </div>
 
@@ -172,35 +215,64 @@ function Filled({ rep }: { rep: GaReport }) {
             <TrendChart
               title={`${t(`analytics.${metric}`)} · ${range}`}
               dates={daily.map((d) => d.date)}
-              series={[{ key: metric, label: t(`analytics.${metric}`), values: daily.map((d) => d[metric]), slot: 1 }]}
+              series={[
+                {
+                  key: metric,
+                  label: t(`analytics.${metric}`),
+                  values: daily.map((d) => d[metric]),
+                  slot: 1,
+                },
+              ]}
               format={f.n}
               formatDate={f.date}
             />
-            <p className="mt-2 text-xs text-grid-muted">{t("analytics.trendNote", { tz: rep.time_zone })}</p>
+            <p className="mt-2 text-xs text-grid-muted">
+              {t("analytics.trendNote", { tz: rep.time_zone })}
+            </p>
           </div>
         </Panel>
       </div>
 
       <div className="grid-cells grid-cells-flush-x mt-6 grid-cols-1 lg:grid-cols-2">
-        <Panel id="pages" title={t("analytics.topPages")} icon={<FileTextIcon />} meta={<span className="ms-auto text-xs text-grid-muted">{t("analytics.views")}</span>}>
+        <Panel
+          id="pages"
+          title={t("analytics.topPages")}
+          icon={<FileTextIcon />}
+          meta={<span className="ms-auto text-xs text-grid-muted">{t("analytics.views")}</span>}
+        >
           {pages.length === 0 ? (
             <p className="px-5 py-6 text-sm text-grid-muted">{t("analytics.noPages")}</p>
           ) : (
             <BarList
               label={t("analytics.topPages")}
               format={f.n}
-              rows={pages.map((p) => ({ key: p.path, label: <Ltr mono>{p.path || "(not set)"}</Ltr>, value: p.views, sub: t("analytics.usersShort", { n: f.n(p.users) }) }))}
+              rows={pages.map((p) => ({
+                key: p.path,
+                label: <Ltr mono>{p.path || "(not set)"}</Ltr>,
+                value: p.views,
+                sub: t("analytics.usersShort", { n: f.n(p.users) }),
+              }))}
             />
           )}
         </Panel>
-        <Panel id="sources" title={t("analytics.sources")} icon={<SignpostIcon />} meta={<span className="ms-auto text-xs text-grid-muted">{t("analytics.sessions")}</span>}>
+        <Panel
+          id="sources"
+          title={t("analytics.sources")}
+          icon={<SignpostIcon />}
+          meta={<span className="ms-auto text-xs text-grid-muted">{t("analytics.sessions")}</span>}
+        >
           {sources.length === 0 ? (
             <p className="px-5 py-6 text-sm text-grid-muted">{t("analytics.noSources")}</p>
           ) : (
             <BarList
               label={t("analytics.sources")}
               format={f.n}
-              rows={sources.map((s) => ({ key: `${s.source}/${s.medium}`, label: <Ltr>{`${s.source} / ${s.medium}`}</Ltr>, value: s.sessions, sub: t("analytics.usersShort", { n: f.n(s.users) }) }))}
+              rows={sources.map((s) => ({
+                key: `${s.source}/${s.medium}`,
+                label: <Ltr>{`${s.source} / ${s.medium}`}</Ltr>,
+                value: s.sessions,
+                sub: t("analytics.usersShort", { n: f.n(s.users) }),
+              }))}
             />
           )}
         </Panel>
@@ -210,7 +282,11 @@ function Filled({ rep }: { rep: GaReport }) {
 }
 
 /** 95 → "1m 35s", in the page's language. */
-export function duration(sec: number, t: (k: string, v?: Record<string, string | number>) => string, n: (v: number) => string) {
+export function duration(
+  sec: number,
+  t: (k: string, v?: Record<string, string | number>) => string,
+  n: (v: number) => string,
+) {
   const s = Math.round(sec)
   const m = Math.floor(s / 60)
   return m ? t("gdata.minSec", { m: n(m), s: n(s % 60) }) : t("gdata.sec", { s: n(s) })

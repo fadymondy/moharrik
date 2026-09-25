@@ -10,9 +10,22 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { currentSubscription, pushSupported, subscribePush, useChimeMuted, useNotificationPermission } from "@/lib/alerts"
+import {
+  currentSubscription,
+  pushSupported,
+  subscribePush,
+  useChimeMuted,
+  useNotificationPermission,
+} from "@/lib/alerts"
 import { api, ApiError, type PushDevice, type PushResult } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { usePushStatus } from "@/lib/queries"
@@ -62,7 +75,17 @@ function uaLabel(ua: string, t: (k: string, v?: Record<string, string | number>)
   return t("delivery.uaOn", { browser, os })
 }
 
-function Row({ icon, title, hint, children }: { icon: ReactNode; title: string; hint: ReactNode; children: ReactNode }) {
+function Row({
+  icon,
+  title,
+  hint,
+  children,
+}: {
+  icon: ReactNode
+  title: string
+  hint: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-6 py-4 [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-grid-muted">
       {icon}
@@ -114,7 +137,13 @@ export default function DeliveryPage() {
       toast.success(t("delivery.enabled"))
       await status.mutate()
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : e instanceof Error && e.name === "NotAllowedError" ? t("delivery.blocked") : t("common.networkError"))
+      toast.error(
+        e instanceof ApiError
+          ? e.message
+          : e instanceof Error && e.name === "NotAllowedError"
+            ? t("delivery.blocked")
+            : t("common.networkError"),
+      )
     } finally {
       setBusy("")
     }
@@ -125,7 +154,10 @@ export default function DeliveryPage() {
     try {
       // The browser's own subscription is left alone: another workspace on
       // this browser may be using it. This workspace just stops sending to it.
-      await api(`/api/w/push/subscriptions/${encodeURIComponent(d.id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/push/subscriptions/${encodeURIComponent(d.id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(self ? t("delivery.disabled") : t("delivery.removed"))
       await status.mutate()
     } catch (e) {
@@ -139,7 +171,10 @@ export default function DeliveryPage() {
     setBusy("test")
     try {
       const r = await api<PushResult>("/api/w/push/test", { method: "POST", workspaceId: ws.id })
-      if (r.removed || r.failed) toast.warning(t("delivery.testPartial", { sent: r.sent, removed: r.removed, failed: r.failed }))
+      if (r.removed || r.failed)
+        toast.warning(
+          t("delivery.testPartial", { sent: r.sent, removed: r.removed, failed: r.failed }),
+        )
       else toast.success(t("delivery.testSent", { n: r.sent }))
       await status.mutate()
     } catch (e) {
@@ -160,7 +195,13 @@ export default function DeliveryPage() {
         <Badge variant="secondary" data-push-state="on">
           {t("delivery.pushOn")}
         </Badge>
-        <Button variant="outline" size="sm" disabled={!!busy} onClick={() => mine && void remove(mine, true)} data-push-disable>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!!busy}
+          onClick={() => mine && void remove(mine, true)}
+          data-push-disable
+        >
           {busy === "disable" ? t("common.working") : t("delivery.disable")}
         </Button>
       </>
@@ -179,7 +220,11 @@ export default function DeliveryPage() {
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.delivery")} description={t("delivery.hint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("nav.delivery")}
+        description={t("delivery.hint")}
+      />
       {!ws.current ? (
         <LoadingRows rows={3} />
       ) : !allowed ? (
@@ -201,20 +246,40 @@ export default function DeliveryPage() {
               <Row
                 icon={<BellRingIcon />}
                 title={t("delivery.desktop")}
-                hint={perm === "denied" ? t("delivery.blocked") : perm === "unsupported" ? t("delivery.unsupported") : t("delivery.desktopHint")}
+                hint={
+                  perm === "denied"
+                    ? t("delivery.blocked")
+                    : perm === "unsupported"
+                      ? t("delivery.unsupported")
+                      : t("delivery.desktopHint")
+                }
               >
                 {perm === "granted" ? (
                   <Badge variant="secondary" data-desktop-state="granted">
                     {t("delivery.desktopAllowed")}
                   </Badge>
                 ) : perm === "default" ? (
-                  <Button variant="outline" size="sm" onClick={() => void requestPerm()} data-allow-desktop>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void requestPerm()}
+                    data-allow-desktop
+                  >
                     {t("alerts.enableDesktop")}
                   </Button>
                 ) : null}
               </Row>
-              <Row icon={<Volume2Icon />} title={t("delivery.chime")} hint={t("delivery.chimeHint")}>
-                <Switch checked={!muted} onCheckedChange={(v) => setMuted(!v)} aria-label={t("delivery.chime")} data-chime-toggle />
+              <Row
+                icon={<Volume2Icon />}
+                title={t("delivery.chime")}
+                hint={t("delivery.chimeHint")}
+              >
+                <Switch
+                  checked={!muted}
+                  onCheckedChange={(v) => setMuted(!v)}
+                  aria-label={t("delivery.chime")}
+                  data-chime-toggle
+                />
               </Row>
             </div>
           </section>
@@ -229,8 +294,16 @@ export default function DeliveryPage() {
               </div>
               {status.data.configured && devices.length ? (
                 <div className="flex items-center gap-2">
-                  <span className="hidden text-xs text-grid-muted sm:inline">{t("delivery.testHint")}</span>
-                  <Button variant="outline" size="sm" disabled={!!busy} onClick={() => void test()} data-push-test>
+                  <span className="hidden text-xs text-grid-muted sm:inline">
+                    {t("delivery.testHint")}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!!busy}
+                    onClick={() => void test()}
+                    data-push-test
+                  >
                     <SendIcon />
                     {busy === "test" ? t("common.working") : t("delivery.test")}
                   </Button>
@@ -247,7 +320,9 @@ export default function DeliveryPage() {
                       <TableHead className="ps-6">{t("delivery.device")}</TableHead>
                       <TableHead className="hidden sm:table-cell">{t("delivery.added")}</TableHead>
                       <TableHead>{t("delivery.lastDelivered")}</TableHead>
-                      <TableHead className="hidden md:table-cell">{t("delivery.lastError")}</TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        {t("delivery.lastError")}
+                      </TableHead>
                       <TableHead className="pe-6 text-end">
                         <span className="sr-only">{t("common.actions")}</span>
                       </TableHead>
@@ -257,22 +332,41 @@ export default function DeliveryPage() {
                     {devices.map((d) => {
                       const self = d.endpoint === endpoint
                       return (
-                        <TableRow key={d.id} data-device={d.id} data-device-self={self ? "true" : "false"}>
+                        <TableRow
+                          key={d.id}
+                          data-device={d.id}
+                          data-device-self={self ? "true" : "false"}
+                        >
                           <TableCell className="ps-6">
                             <span className="flex items-center gap-2">
                               <span className="font-medium" title={d.user_agent}>
                                 {uaLabel(d.user_agent, t)}
                               </span>
-                              {self ? <Badge variant="outline">{t("delivery.thisDeviceBadge")}</Badge> : null}
+                              {self ? (
+                                <Badge variant="outline">{t("delivery.thisDeviceBadge")}</Badge>
+                              ) : null}
                             </span>
                             {/* Below md the column is hidden; the problem still shows. */}
-                            {d.last_error ? <span className="mt-0.5 block text-xs text-grid-danger-text md:hidden">{d.last_error}</span> : null}
+                            {d.last_error ? (
+                              <span className="mt-0.5 block text-xs text-grid-danger-text md:hidden">
+                                {d.last_error}
+                              </span>
+                            ) : null}
                           </TableCell>
                           <TableCell className="hidden text-grid-muted sm:table-cell">
                             <Ltr>{formatDate(d.created_at)}</Ltr>
                           </TableCell>
-                          <TableCell className="text-grid-muted">{d.last_ok_at ? <Ltr>{formatDate(d.last_ok_at)}</Ltr> : t("delivery.never")}</TableCell>
-                          <TableCell className="hidden max-w-64 truncate text-grid-muted md:table-cell" title={d.last_error}>
+                          <TableCell className="text-grid-muted">
+                            {d.last_ok_at ? (
+                              <Ltr>{formatDate(d.last_ok_at)}</Ltr>
+                            ) : (
+                              t("delivery.never")
+                            )}
+                          </TableCell>
+                          <TableCell
+                            className="hidden max-w-64 truncate text-grid-muted md:table-cell"
+                            title={d.last_error}
+                          >
                             {d.last_error || "—"}
                           </TableCell>
                           <TableCell className="pe-6 text-end">

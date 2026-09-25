@@ -37,19 +37,32 @@ export function useFormatDateTime() {
  * What this deployment cannot do, said plainly. Production has search and a
  * reader but no model, and a page that promised answers there would be lying.
  */
-export function CapabilityNotes({ caps }: { caps: Pick<ResearchList, "can_search" | "can_read" | "can_summarise"> }) {
+export function CapabilityNotes({
+  caps,
+}: {
+  caps: Pick<ResearchList, "can_search" | "can_read" | "can_summarise">
+}) {
   const { t } = useTranslations()
   const notes: { key: string; text: string }[] = []
   if (!caps.can_search) notes.push({ key: "search", text: t("research.capNoSearch") })
-  if (!caps.can_read) notes.push({ key: "read", text: caps.can_search ? t("research.capNoRead") : t("research.capNoReadNoUrls") })
+  if (!caps.can_read)
+    notes.push({
+      key: "read",
+      text: caps.can_search ? t("research.capNoRead") : t("research.capNoReadNoUrls"),
+    })
   // Evidence is still extracted without a model, word for word — said, so a
   // reader knows every quote is the page's own sentence.
-  if (!caps.can_summarise && (caps.can_search || caps.can_read)) notes.push({ key: "summarise", text: t("research.capNoModel") })
+  if (!caps.can_summarise && (caps.can_search || caps.can_read))
+    notes.push({ key: "summarise", text: t("research.capNoModel") })
   if (notes.length === 0) return null
   return (
     <div className="space-y-2 px-6 pb-4" role="status">
       {notes.map((n) => (
-        <p key={n.key} className="flex items-start gap-2 text-sm text-grid-muted" data-capability={n.key}>
+        <p
+          key={n.key}
+          className="flex items-start gap-2 text-sm text-grid-muted"
+          data-capability={n.key}
+        >
           <InfoIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
           <span>{n.text}</span>
         </p>

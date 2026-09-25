@@ -47,7 +47,9 @@ page.on("pageerror", (e) => errs.push(String(e).slice(0, 200)))
 // rate-limited per IP, so repeated runs otherwise start failing with a 429).
 const email = process.env.WH_EMAIL ?? `wh${Date.now()}@x.test`
 const password = process.env.WH_PASSWORD ?? "Passw0rd!long-enough"
-await page.goto(`${base}/en/${process.env.WH_EMAIL ? "login" : "register"}`, { waitUntil: "networkidle" })
+await page.goto(`${base}/en/${process.env.WH_EMAIL ? "login" : "register"}`, {
+  waitUntil: "networkidle",
+})
 await page.fill("#email", email)
 await page.fill("#password", password)
 await page.click("button[type=submit]")
@@ -71,12 +73,13 @@ async function createSource(name, kindLabel) {
   await page.fill("#source-name", name)
   await pickKind(kindLabel)
   const hint = await page.textContent("[data-kind-hint]")
-  await page.click('form:has(#source-name) button[type=submit]')
+  await page.click("form:has(#source-name) button[type=submit]")
   await page.waitForSelector("[data-secret-dialog]", { timeout: 10000 })
   return hint
 }
 
-const codes = () => page.$$eval("[data-secret-dialog] code", (els) => els.map((e) => e.textContent ?? ""))
+const codes = () =>
+  page.$$eval("[data-secret-dialog] code", (els) => els.map((e) => e.textContent ?? ""))
 
 await page.goto(sourcesURL("en"), { waitUntil: "networkidle" })
 
@@ -85,11 +88,16 @@ out.genericHint = await createSource("UI generic", "Generic (JSON)")
 check(/5 minutes/.test(out.genericHint), "generic kind hint does not mention the 5-minute window")
 out.genericHowTo = await page.textContent('[data-how-to="generic"]')
 let [url, secret, curl] = await codes()
-check(/X-Webhook-Timestamp/.test(curl) && /\$TS\.|%s\.%s/.test(curl), "generic curl example is not the timestamped scheme")
+check(
+  /X-Webhook-Timestamp/.test(curl) && /\$TS\.|%s\.%s/.test(curl),
+  "generic curl example is not the timestamped scheme",
+)
 check(curl.includes(secret) && curl.includes(url), "curl example does not carry the URL and secret")
 await page.screenshot({ path: path.join(shots, "wh-generic-dialog-en-light.png") })
 // Run the example exactly as a user would paste it.
-const curlOut = execFileSync("bash", ["-c", curl + ' -w " HTTP=%{http_code}"'], { encoding: "utf8" })
+const curlOut = execFileSync("bash", ["-c", curl + ' -w " HTTP=%{http_code}"'], {
+  encoding: "utf8",
+})
 out.curlExample = curlOut.trim()
 check(/HTTP=202/.test(curlOut), "the dialog's curl example did not deliver (" + curlOut + ")")
 await page.click('button:has-text("I\'ve saved it")')
@@ -99,7 +107,10 @@ const genericSecret = secret
 // ---- github: GitHub instructions, no curl ----
 out.githubHint = await createSource("UI github", "GitHub")
 out.githubHowTo = await page.textContent('[data-how-to="github"]')
-check(/X-Hub-Signature-256/.test(out.githubHowTo), "github instructions do not name X-Hub-Signature-256")
+check(
+  /X-Hub-Signature-256/.test(out.githubHowTo),
+  "github instructions do not name X-Hub-Signature-256",
+)
 check((await codes()).length === 2, "github dialog should show URL + secret only, no curl")
 await page.click('button:has-text("I\'ve saved it")')
 
@@ -107,8 +118,14 @@ await page.click('button:has-text("I\'ve saved it")')
 out.sentryHint = await createSource("UI sentry", "Sentry")
 check(/paste/i.test(out.sentryHint), "sentry kind hint does not say the secret is pasted")
 out.sentryHowTo = await page.textContent('[data-how-to="sentry"]')
-check((await codes()).length === 1, "sentry dialog should show only the URL (Sentry makes the secret)")
-check(!(await page.isVisible('[data-secret-dialog] [role="alert"]')), "sentry dialog shows a 'secret shown once' warning for a secret it never made")
+check(
+  (await codes()).length === 1,
+  "sentry dialog should show only the URL (Sentry makes the secret)",
+)
+check(
+  !(await page.isVisible('[data-secret-dialog] [role="alert"]')),
+  "sentry dialog shows a 'secret shown once' warning for a secret it never made",
+)
 await page.screenshot({ path: path.join(shots, "wh-sentry-dialog-en-light.png") })
 await page.click('button:has-text("Later")')
 await page.waitForSelector('[data-source-row="UI sentry"] [data-no-secret]', { timeout: 10000 })
@@ -117,17 +134,28 @@ await page.click('[data-source-row="UI sentry"] button:has-text("Set client secr
 const clientSecret = "sentry-client-secret-" + Date.now().toString(16) + "abcdef0123456789"
 await page.fill('input[id^="client-secret-"]', clientSecret)
 await page.click('button:has-text("Save secret")')
-await page.waitForSelector('[data-source-row="UI sentry"] [data-no-secret]', { state: "detached", timeout: 10000 })
+await page.waitForSelector('[data-source-row="UI sentry"] [data-no-secret]', {
+  state: "detached",
+  timeout: 10000,
+})
 out.sentrySecretSaved = true
 
 // ---- legacy: mark the generic source as a pre-MH-381 one, then switch it ----
 const genericID = genericURL.split("/api/hooks/")[1]
 if (dbURL) {
-  execFileSync("psql", [dbURL, "-Atc", `UPDATE webhook_sources SET legacy_signing = true WHERE id = '${genericID}'`])
+  execFileSync("psql", [
+    dbURL,
+    "-Atc",
+    `UPDATE webhook_sources SET legacy_signing = true WHERE id = '${genericID}'`,
+  ])
   // A body-only delivery, as its old sender would send: accepted, and stamped.
   const body = JSON.stringify({ title: "legacy sender" })
   const sig = createHmac("sha256", genericSecret).update(body).digest("hex")
-  const r = await fetch(`${base}/api/hooks/${genericID}`, { method: "POST", headers: { "X-Webhook-Signature": "sha256=" + sig }, body })
+  const r = await fetch(`${base}/api/hooks/${genericID}`, {
+    method: "POST",
+    headers: { "X-Webhook-Signature": "sha256=" + sig },
+    body,
+  })
   out.legacyBodyOnlyStatus = r.status
   check(r.status === 202, "legacy source refused its old body-only signature")
 
@@ -138,16 +166,22 @@ if (dbURL) {
   check(/Legacy signing, replayable/.test(out.legacyText), "legacy badge text missing")
   check(/Last legacy-signed delivery/.test(out.legacyText), "last legacy delivery line missing")
   // Colour comes from the warn token, in this theme, not a hard-coded value.
-  out.legacyBadgeColour = await page.$eval(`${legacy} [data-slot="badge"], ${legacy} span`, (el) => {
-    const cs = getComputedStyle(el)
-    const probe = document.createElement("span")
-    probe.style.color = "var(--grid-warn-text)"
-    document.body.appendChild(probe)
-    const want = getComputedStyle(probe).color
-    probe.remove()
-    return { color: cs.color, token: want, borderColor: cs.borderTopColor }
-  })
-  check(out.legacyBadgeColour.color === out.legacyBadgeColour.token, "legacy badge text is not --grid-warn-text in light")
+  out.legacyBadgeColour = await page.$eval(
+    `${legacy} [data-slot="badge"], ${legacy} span`,
+    (el) => {
+      const cs = getComputedStyle(el)
+      const probe = document.createElement("span")
+      probe.style.color = "var(--grid-warn-text)"
+      document.body.appendChild(probe)
+      const want = getComputedStyle(probe).color
+      probe.remove()
+      return { color: cs.color, token: want, borderColor: cs.borderTopColor }
+    },
+  )
+  check(
+    out.legacyBadgeColour.color === out.legacyBadgeColour.token,
+    "legacy badge text is not --grid-warn-text in light",
+  )
   await page.screenshot({ path: path.join(shots, "wh-legacy-row-en-light.png") })
 
   await page.click(`${legacy} button:has-text("Switch to timestamped signing")`)
@@ -156,11 +190,19 @@ if (dbURL) {
   await page.click('[role="alertdialog"] button:has-text("Switch")')
   await page.waitForSelector(legacy, { state: "detached", timeout: 10000 })
   out.legacySwitchedOff = true
-  const r2 = await fetch(`${base}/api/hooks/${genericID}`, { method: "POST", headers: { "X-Webhook-Signature": "sha256=" + sig }, body })
+  const r2 = await fetch(`${base}/api/hooks/${genericID}`, {
+    method: "POST",
+    headers: { "X-Webhook-Signature": "sha256=" + sig },
+    body,
+  })
   out.bodyOnlyAfterSwitch = r2.status
   check(r2.status === 401, "body-only signature still accepted after switching off")
   // Re-mark it for the dark / Arabic passes below.
-  execFileSync("psql", [dbURL, "-Atc", `UPDATE webhook_sources SET legacy_signing = true WHERE id = '${genericID}'`])
+  execFileSync("psql", [
+    dbURL,
+    "-Atc",
+    `UPDATE webhook_sources SET legacy_signing = true WHERE id = '${genericID}'`,
+  ])
 }
 out.pageErrorsLight = errs.slice()
 await ctx.close()
@@ -198,7 +240,8 @@ for (const [locale, width, scheme] of [
       overflowX: document.documentElement.scrollWidth > window.innerWidth,
     }
   })
-  if (scheme && dbURL) check(out[key].badgeColour === out[key].token, `legacy badge is not the warn token in ${key}`)
+  if (scheme && dbURL)
+    check(out[key].badgeColour === out[key].token, `legacy badge is not the warn token in ${key}`)
   if (locale === "ar") check(out[key].dir === "rtl", `${key} is not RTL`)
   await p.screenshot({ path: path.join(shots, `wh-sources-${key}.png`), fullPage: true })
   // The create dialog in this locale: kind hint follows the selection.

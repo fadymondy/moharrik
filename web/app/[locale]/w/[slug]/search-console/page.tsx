@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 /*
   Search Console (MH-445): clicks, impressions, CTR and average position for an enabled site over
@@ -10,12 +10,12 @@
   queries out, and the page says that too; a day never imported is a gap, never a zero.
 */
 
-import { Suspense, useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChartLineIcon, FileTextIcon, InfoIcon, LoaderIcon, SearchIcon } from "lucide-react";
+import { Suspense, useEffect, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { ChartLineIcon, FileTextIcon, InfoIcon, LoaderIcon, SearchIcon } from "lucide-react"
 
-import { TrendChart, type TrendSeries } from "@/components/charts/trend-chart";
-import { Ltr } from "@/components/copy-field";
+import { TrendChart, type TrendSeries } from "@/components/charts/trend-chart"
+import { Ltr } from "@/components/copy-field"
 import {
   DataError,
   Delta,
@@ -24,23 +24,23 @@ import {
   Stat,
   useEnabled,
   WindowToggle,
-} from "@/components/google/data-page";
-import { InspectTab, SitemapsTab } from "@/components/google/gsc-tools";
-import { SyncStatus } from "@/components/google/resource-picker";
-import { Panel, useFormat } from "@/components/overview/overview-cards";
-import { SectionHeader } from "@/components/public-frame";
-import { EmptyState, ErrorState } from "@/components/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/google/data-page"
+import { InspectTab, SitemapsTab } from "@/components/google/gsc-tools"
+import { SyncStatus } from "@/components/google/resource-picker"
+import { Panel, useFormat } from "@/components/overview/overview-cards"
+import { SectionHeader } from "@/components/public-frame"
+import { EmptyState, ErrorState } from "@/components/states"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -48,18 +48,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useWorkspace } from "@/components/workspace/workspace-context";
-import type { GoogleResource, GscPerformance, GscPoint, GscRow } from "@/lib/api";
-import { useTranslations } from "@/lib/i18n";
-import { intlTag } from "@/lib/i18n-locale";
-import { useGscPerformance } from "@/lib/queries";
-import { useDocumentTitle } from "@/lib/title";
+} from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useWorkspace } from "@/components/workspace/workspace-context"
+import type { GoogleResource, GscPerformance, GscPoint, GscRow } from "@/lib/api"
+import { useTranslations } from "@/lib/i18n"
+import { intlTag } from "@/lib/i18n-locale"
+import { useGscPerformance } from "@/lib/queries"
+import { useDocumentTitle } from "@/lib/title"
 
-type Metric = "clicks" | "impressions" | "ctr" | "position";
-const ALL = "__all";
+type Metric = "clicks" | "impressions" | "ctr" | "position"
+const ALL = "__all"
 
 // Search Console writes countries as ISO 3166-1 alpha-3; Intl.DisplayNames wants alpha-2.
 const A3: Record<string, string> = {
@@ -118,63 +118,63 @@ const A3: Record<string, string> = {
   nzl: "NZ",
   arg: "AR",
   col: "CO",
-};
+}
 
 export default function SearchConsolePage() {
   return (
     <Suspense>
       <SearchConsole />
     </Suspense>
-  );
+  )
 }
 
 function SearchConsole() {
-  const { t } = useTranslations();
-  const ws = useWorkspace();
-  useDocumentTitle(`${t("nav.searchConsole")} · ${ws.summary.name}`);
-  const params = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-  const enabled = useEnabled("gsc_site");
-  const days = [7, 28, 90].includes(Number(params.get("days"))) ? Number(params.get("days")) : 28;
-  const compare = params.get("compare") !== "false";
-  const chosen = params.get("site") ?? "";
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  useDocumentTitle(`${t("nav.searchConsole")} · ${ws.summary.name}`)
+  const params = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const enabled = useEnabled("gsc_site")
+  const days = [7, 28, 90].includes(Number(params.get("days"))) ? Number(params.get("days")) : 28
+  const compare = params.get("compare") !== "false"
+  const chosen = params.get("site") ?? ""
   const resourceId = enabled.list.some((r) => r.id === chosen)
     ? chosen
-    : (enabled.list[0]?.id ?? "");
+    : (enabled.list[0]?.id ?? "")
   const filters = {
     query: params.get("query") ?? "",
     page: params.get("page") ?? "",
     country: params.get("country") ?? "",
     device: params.get("device") ?? "",
-  };
+  }
 
-  const q = new URLSearchParams({ days: String(days), compare: String(compare) });
-  if (resourceId) q.set("resource", resourceId);
-  for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
+  const q = new URLSearchParams({ days: String(days), compare: String(compare) })
+  if (resourceId) q.set("resource", resourceId)
+  for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v)
   const perf = useGscPerformance(
     ws.id,
     q.toString(),
     !!resourceId && !["inspect", "sitemaps"].includes(params.get("tab") ?? ""),
-  );
+  )
 
   function set(next: Record<string, string>) {
-    const u = new URLSearchParams(params.toString());
+    const u = new URLSearchParams(params.toString())
     for (const [k, v] of Object.entries(next)) {
-      if (v) u.set(k, v);
-      else u.delete(k);
+      if (v) u.set(k, v)
+      else u.delete(k)
     }
-    router.replace(`${pathname}?${u}`, { scroll: false });
+    router.replace(`${pathname}?${u}`, { scroll: false })
   }
 
-  const out = perf.data;
-  const p = out?.performance ?? null;
+  const out = perf.data
+  const p = out?.performance ?? null
   const tab = ["inspect", "sitemaps"].includes(params.get("tab") ?? "")
     ? (params.get("tab") as string)
-    : "performance";
-  const current = enabled.list.find((r) => r.id === resourceId);
-  const siteName = current?.display_name ?? "";
-  const siteID = current?.external_id ?? "";
+    : "performance"
+  const current = enabled.list.find((r) => r.id === resourceId)
+  const siteName = current?.display_name ?? ""
+  const siteID = current?.external_id ?? ""
 
   return (
     <>
@@ -284,7 +284,7 @@ function SearchConsole() {
         </Tabs>
       )}
     </>
-  );
+  )
 }
 
 function Filters({
@@ -292,32 +292,32 @@ function Filters({
   p,
   onChange,
 }: {
-  filters: Record<string, string>;
-  p: GscPerformance;
-  onChange: (n: Record<string, string>) => void;
+  filters: Record<string, string>
+  p: GscPerformance
+  onChange: (n: Record<string, string>) => void
 }) {
-  const { t, locale } = useTranslations();
-  const [query, setQuery] = useState(filters.query);
-  const [page, setPage] = useState(filters.page);
+  const { t, locale } = useTranslations()
+  const [query, setQuery] = useState(filters.query)
+  const [page, setPage] = useState(filters.page)
   // Typing waits for a pause before it asks the server.
   useEffect(() => {
     const id = setTimeout(() => {
-      if (query !== filters.query || page !== filters.page) onChange({ query, page });
-    }, 400);
-    return () => clearTimeout(id);
+      if (query !== filters.query || page !== filters.page) onChange({ query, page })
+    }, 400)
+    return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, page]);
-  const names = new Intl.DisplayNames([intlTag(locale)], { type: "region" });
+  }, [query, page])
+  const names = new Intl.DisplayNames([intlTag(locale)], { type: "region" })
   const countryItems = [
     { value: ALL, label: t("gsc.allCountries") },
     ...(p.countries ?? []).map((c) => ({ value: c, label: countryName(names, c) })),
-  ];
+  ]
   if (filters.country && !countryItems.some((i) => i.value === filters.country))
-    countryItems.push({ value: filters.country, label: countryName(names, filters.country) });
+    countryItems.push({ value: filters.country, label: countryName(names, filters.country) })
   const deviceItems = [
     { value: ALL, label: t("gsc.allDevices") },
     ...["DESKTOP", "MOBILE", "TABLET"].map((d) => ({ value: d, label: t(`gsc.device.${d}`) })),
-  ];
+  ]
   return (
     <div className="flex flex-wrap items-end gap-3 px-6 pb-4" data-gsc-filters>
       <div className="w-full space-y-1 sm:w-56">
@@ -384,21 +384,21 @@ function Filters({
         </Select>
       </div>
     </div>
-  );
+  )
 }
 
 function countryName(names: Intl.DisplayNames, a3: string) {
-  const a2 = A3[a3.toLowerCase()];
+  const a2 = A3[a3.toLowerCase()]
   try {
-    return (a2 && names.of(a2)) || a3.toUpperCase();
+    return (a2 && names.of(a2)) || a3.toUpperCase()
   } catch {
-    return a3.toUpperCase();
+    return a3.toUpperCase()
   }
 }
 
 function Coverage({ p, resource }: { p: GscPerformance; resource: GoogleResource | null }) {
-  const { t } = useTranslations();
-  const f = useFormat();
+  const { t } = useTranslations()
+  const f = useFormat()
   return (
     <div className="space-y-2 px-6 pb-4 text-xs text-grid-muted">
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1" data-gsc-coverage>
@@ -441,32 +441,32 @@ function Coverage({ p, resource }: { p: GscPerformance; resource: GoogleResource
         <p data-prev-missing>{t("gsc.prevMissing", { n: f.n(p.previous_missing_days) })}</p>
       ) : null}
     </div>
-  );
+  )
 }
 
 function Filled({ p }: { p: GscPerformance }) {
-  const { t, locale } = useTranslations();
-  const f = useFormat();
-  const [metric, setMetric] = useState<Metric>("clicks");
+  const { t, locale } = useTranslations()
+  const f = useFormat()
+  const [metric, setMetric] = useState<Metric>("clicks")
   const pct = new Intl.NumberFormat(intlTag(locale), {
     style: "percent",
     maximumFractionDigits: 1,
-  });
+  })
   const dec = new Intl.NumberFormat(intlTag(locale), {
     maximumFractionDigits: 1,
     minimumFractionDigits: 1,
-  });
+  })
   const fmt: Record<Metric, (n: number) => string> = {
     clicks: f.n,
     impressions: f.n,
     ctr: (n) => pct.format(n),
     position: (n) => dec.format(n),
-  };
-  const tot = p.totals;
+  }
+  const tot = p.totals
   // A previous period still being imported is not compared against: its totals are partial.
-  const prev = p.previous_missing_days > 0 ? null : p.previous;
-  const daily = p.daily ?? [];
-  const pick = (d: GscPoint) => d[metric];
+  const prev = p.previous_missing_days > 0 ? null : p.previous
+  const daily = p.daily ?? []
+  const pick = (d: GscPoint) => d[metric]
   const series: TrendSeries[] = [
     {
       key: "now",
@@ -474,7 +474,7 @@ function Filled({ p }: { p: GscPerformance }) {
       values: daily.map(pick),
       slot: 1,
     },
-  ];
+  ]
   if (prev && p.previous_daily) {
     series.push({
       key: "before",
@@ -486,7 +486,7 @@ function Filled({ p }: { p: GscPerformance }) {
       slot: 2,
       dashed: true,
       dates: p.previous_daily.map((d) => d.date),
-    });
+    })
   }
   return (
     <>
@@ -569,7 +569,7 @@ function Filled({ p }: { p: GscPerformance }) {
         </Panel>
       </div>
     </>
-  );
+  )
 }
 
 function Ranked({
@@ -578,15 +578,15 @@ function Ranked({
   pct,
   dec,
 }: {
-  rows: GscRow[];
-  kind: "query" | "page";
-  pct: Intl.NumberFormat;
-  dec: Intl.NumberFormat;
+  rows: GscRow[]
+  kind: "query" | "page"
+  pct: Intl.NumberFormat
+  dec: Intl.NumberFormat
 }) {
-  const { t } = useTranslations();
-  const f = useFormat();
+  const { t } = useTranslations()
+  const f = useFormat()
   if (rows.length === 0)
-    return <p className="px-5 py-6 text-sm text-grid-muted">{t("gsc.noRows")}</p>;
+    return <p className="px-5 py-6 text-sm text-grid-muted">{t("gsc.noRows")}</p>
   return (
     <Table data-gsc-rows={kind} className="table-fixed">
       <TableHeader>
@@ -629,15 +629,15 @@ function Ranked({
         ))}
       </TableBody>
     </Table>
-  );
+  )
 }
 
 function pathOf(u: string) {
   try {
-    const x = new URL(u);
-    return x.pathname + x.search;
+    const x = new URL(u)
+    return x.pathname + x.search
   } catch {
-    return u;
+    return u
   }
 }
 
@@ -656,5 +656,5 @@ function PageSkeleton() {
         <Skeleton className="h-60 w-full" />
       </div>
     </div>
-  );
+  )
 }

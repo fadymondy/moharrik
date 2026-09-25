@@ -26,7 +26,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { LiveAlerts } from "@/components/alerts/live-alerts"
@@ -34,7 +40,11 @@ import { NotificationBell } from "@/components/alerts/notification-bell"
 import { CubeMark } from "@/components/brand/cube-mark"
 import { FloatingChat } from "@/components/inbox/floating-chat"
 import { LanguageSwitcher, ThemeToggle } from "@/components/header-controls"
-import { MahaamFeedbackWidget, openFeedback, useFeedbackReady } from "@/components/feedback/mahaam-widget"
+import {
+  MahaamFeedbackWidget,
+  openFeedback,
+  useFeedbackReady,
+} from "@/components/feedback/mahaam-widget"
 import { NotFoundState } from "@/components/not-found-state"
 import { ErrorState } from "@/components/states"
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form"
@@ -43,7 +53,14 @@ import { WorkspaceContext } from "@/components/workspace/workspace-context"
 import { MOHARRIK_MARK } from "@/lib/brand/mark"
 import type { WorkspaceSummary } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { groupForPath, itemActive, visibleEntries, visibleItems, type NavGroup, type NavItem } from "@/lib/nav-config"
+import {
+  groupForPath,
+  itemActive,
+  visibleEntries,
+  visibleItems,
+  type NavGroup,
+  type NavItem,
+} from "@/lib/nav-config"
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { cn } from "@/lib/utils"
@@ -80,7 +97,11 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
           render={
             // min-w-0 + shrink: the Button base is shrink-0, so at phone width a
             // long workspace name slid UNDER the header's right-hand controls.
-            <Button variant="ghost" className="h-9 max-w-[16rem] min-w-0 shrink justify-between gap-2 px-2.5" aria-label={t("shell.switchWorkspace")} />
+            <Button
+              variant="ghost"
+              className="h-9 max-w-[16rem] min-w-0 shrink justify-between gap-2 px-2.5"
+              aria-label={t("shell.switchWorkspace")}
+            />
           }
         >
           <span className="flex size-6 shrink-0 items-center justify-center border border-line bg-grid-card text-xs font-medium text-grid-brand">
@@ -121,7 +142,23 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
 }
 
 /** One navigable row: a real page, whether a top-level link or a page inside a drilled-down group. */
-function NavLink({ href, icon, children, active, onNavigate, mini = false, dataNav }: { href: string; icon: ReactNode; children: ReactNode; active: boolean; onNavigate?: () => void; mini?: boolean; dataNav?: string }) {
+function NavLink({
+  href,
+  icon,
+  children,
+  active,
+  onNavigate,
+  mini = false,
+  dataNav,
+}: {
+  href: string
+  icon: ReactNode
+  children: ReactNode
+  active: boolean
+  onNavigate?: () => void
+  mini?: boolean
+  dataNav?: string
+}) {
   return (
     <Link
       href={href}
@@ -144,7 +181,17 @@ function NavLink({ href, icon, children, active, onNavigate, mini = false, dataN
 }
 
 /** A group row on the root screen: not a link — pressing it drills the sidebar into that group. */
-function NavGroupButton({ group, active, onOpen, mini = false }: { group: NavGroup; active: boolean; onOpen: () => void; mini?: boolean }) {
+function NavGroupButton({
+  group,
+  active,
+  onOpen,
+  mini = false,
+}: {
+  group: NavGroup
+  active: boolean
+  onOpen: () => void
+  mini?: boolean
+}) {
   const { t } = useTranslations()
   const Icon = group.icon
   const label = t(group.labelKey)
@@ -158,7 +205,9 @@ function NavGroupButton({ group, active, onOpen, mini = false }: { group: NavGro
       className={cn(
         "flex w-full items-center gap-2.5 border-s-2 px-3 py-2 text-sm transition-colors [&_svg]:size-4 [&_svg]:shrink-0",
         mini && "justify-center px-0 py-2.5",
-        active ? "border-grid-action bg-grid-soft font-medium text-grid-fg" : "border-transparent text-grid-body hover:bg-grid-soft hover:text-grid-fg",
+        active
+          ? "border-grid-action bg-grid-soft font-medium text-grid-fg"
+          : "border-transparent text-grid-body hover:bg-grid-soft hover:text-grid-fg",
       )}
     >
       <Icon />
@@ -243,7 +292,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           screen down and the page background showed below it on a long page. */}
       <div className="grid-shell-nav hidden md:block">
         <aside className="sticky top-0 flex h-dvh flex-col overflow-y-auto">
-          <div className={cn("flex h-14 shrink-0 items-center border-b border-line px-4", mini && "justify-center px-0")}>
+          <div
+            className={cn(
+              "flex h-14 shrink-0 items-center border-b border-line px-4",
+              mini && "justify-center px-0",
+            )}
+          >
             <Brand mini={mini} />
           </div>
           {summary ? <ShellNav base={base} mini={mini} can={current.data?.can} /> : null}
@@ -254,18 +308,47 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         <header className="flex h-14 items-center justify-between gap-2 border-b border-line px-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-1">
             {summary ? (
-              <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label={t("shell.navigation")} onClick={() => setNavOpen(true)} data-mobile-nav-toggle>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="md:hidden"
+                aria-label={t("shell.navigation")}
+                onClick={() => setNavOpen(true)}
+                data-mobile-nav-toggle
+              >
                 <MenuIcon />
               </Button>
             ) : null}
-            <Button variant="ghost" size="icon-sm" className="hidden md:inline-flex" aria-label={t("shell.toggleSidebar")} aria-pressed={mini} title={t("shell.toggleSidebar")} onClick={toggleMini} data-nav-toggle>
-              {mini ? <PanelLeftOpenIcon className="rtl:-scale-x-100" /> : <PanelLeftCloseIcon className="rtl:-scale-x-100" />}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hidden md:inline-flex"
+              aria-label={t("shell.toggleSidebar")}
+              aria-pressed={mini}
+              title={t("shell.toggleSidebar")}
+              onClick={toggleMini}
+              data-nav-toggle
+            >
+              {mini ? (
+                <PanelLeftOpenIcon className="rtl:-scale-x-100" />
+              ) : (
+                <PanelLeftCloseIcon className="rtl:-scale-x-100" />
+              )}
             </Button>
-            {summary && list.data ? <WorkspaceSwitcher active={summary} all={list.data} /> : <Skeleton className="h-6 w-40" />}
+            {summary && list.data ? (
+              <WorkspaceSwitcher active={summary} all={list.data} />
+            ) : (
+              <Skeleton className="h-6 w-40" />
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {me.data && canReport ? (
-              <Button variant="outline" size="sm" onClick={() => openFeedback()} aria-label={t("feedback.report")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openFeedback()}
+                aria-label={t("feedback.report")}
+              >
                 <MessageSquarePlusIcon />
                 <span className="hidden sm:inline">{t("feedback.report")}</span>
               </Button>
@@ -286,7 +369,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             ) : null}
             <LanguageSwitcher />
             <ThemeToggle />
-            {me.data ? <UserMenu email={me.data.email} onReport={canReport ? () => openFeedback() : undefined} /> : null}
+            {me.data ? (
+              <UserMenu
+                email={me.data.email}
+                onReport={canReport ? () => openFeedback() : undefined}
+              />
+            ) : null}
           </div>
         </header>
         <main className="min-w-0 flex-1">{body}</main>
@@ -297,7 +385,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           <SheetTitle className="flex h-14 items-center border-b border-line px-4">
             <Brand />
           </SheetTitle>
-          {summary ? <ShellNav base={base} can={current.data?.can} onNavigate={() => setNavOpen(false)} /> : null}
+          {summary ? (
+            <ShellNav base={base} can={current.data?.can} onNavigate={() => setNavOpen(false)} />
+          ) : null}
         </SheetContent>
       </Sheet>
 
@@ -319,7 +409,11 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             can: (p) => !!current.data?.can?.includes(p),
           }}
         >
-          <FloatingChat workspaceId={summary.id} slug={summary.slug} can={(p) => !!current.data?.can?.includes(p)} />
+          <FloatingChat
+            workspaceId={summary.id}
+            slug={summary.slug}
+            can={(p) => !!current.data?.can?.includes(p)}
+          />
         </WorkspaceContext.Provider>
       ) : null}
     </div>
@@ -351,7 +445,17 @@ function ShellSkeleton() {
  * change what the sidebar shows. `manual` is cleared on every real navigation,
  * so once a page is picked, the URL is back in charge.
  */
-function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNavigate?: () => void; mini?: boolean; can?: string[] }) {
+function ShellNav({
+  base,
+  onNavigate,
+  mini = false,
+  can,
+}: {
+  base: string
+  onNavigate?: () => void
+  mini?: boolean
+  can?: string[]
+}) {
   const { t, locale } = useTranslations()
   const pathname = usePathname()
   const rest = pathname.startsWith(base) ? pathname.slice(base.length).replace(/^\//, "") : ""
@@ -365,12 +469,19 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
       ? derivedGroup
       : manual === ""
         ? null
-        : ((entries.find((e) => e.type === "group" && e.group.key === manual) as { type: "group"; group: NavGroup } | undefined)?.group ?? null)
+        : ((
+            entries.find((e) => e.type === "group" && e.group.key === manual) as
+              { type: "group"; group: NavGroup } | undefined
+          )?.group ?? null)
 
   if (openGroup) {
     const items = visibleItems(openGroup.items, can)
     return (
-      <nav className="flex flex-col py-3" aria-label={t("shell.navigation")} data-nav-drilled={openGroup.key}>
+      <nav
+        className="flex flex-col py-3"
+        aria-label={t("shell.navigation")}
+        data-nav-drilled={openGroup.key}
+      >
         <button
           type="button"
           onClick={() => setManual("")}
@@ -384,7 +495,9 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
           <ArrowLeftIcon className="rtl:rotate-180" />
           {mini ? <span className="sr-only">{t("nav.back")}</span> : t("nav.back")}
         </button>
-        {mini ? null : <p className="grid-micro px-4 pt-2 pb-1 text-grid-fg">{t(openGroup.labelKey)}</p>}
+        {mini ? null : (
+          <p className="grid-micro px-4 pt-2 pb-1 text-grid-fg">{t(openGroup.labelKey)}</p>
+        )}
         {items.map((item) => {
           const Icon = item.icon
           return (
@@ -427,11 +540,22 @@ function ShellNav({ base, onNavigate, mini = false, can }: { base: string; onNav
         // Settings sits below a divider, apart from the workspace-level groups above it.
         // Its own row already reads "Settings" with the drill-down chevron, so the rule
         // needs no label of its own.
-        const divider = e.group.key === "settings" ? <div key="div" className={cn("border-t border-line", mini ? "mt-3 pt-3" : "mt-4 pt-2")} /> : null
+        const divider =
+          e.group.key === "settings" ? (
+            <div
+              key="div"
+              className={cn("border-t border-line", mini ? "mt-3 pt-3" : "mt-4 pt-2")}
+            />
+          ) : null
         return (
           <span key={e.group.key} className="contents">
             {divider}
-            <NavGroupButton group={e.group} active={derivedGroup?.key === e.group.key} onOpen={() => setManual(e.group.key)} mini={mini} />
+            <NavGroupButton
+              group={e.group}
+              active={derivedGroup?.key === e.group.key}
+              onOpen={() => setManual(e.group.key)}
+              mini={mini}
+            />
           </span>
         )
       })}

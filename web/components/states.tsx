@@ -21,7 +21,15 @@ export function LoadingRows({ rows = 3 }: { rows?: number }) {
   )
 }
 
-export function EmptyState({ title, body, action }: { title: string; body?: string; action?: ReactNode }) {
+export function EmptyState({
+  title,
+  body,
+  action,
+}: {
+  title: string
+  body?: string
+  action?: ReactNode
+}) {
   return (
     <div className="flex flex-col items-center gap-2 border-y border-line bg-grid-card px-6 py-12 text-center">
       <p className="text-sm font-medium text-grid-fg">{title}</p>

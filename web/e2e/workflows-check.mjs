@@ -42,7 +42,9 @@ function fakeBrowser(token) {
   return new Promise((resolve, reject) => {
     const sock = new WebSocket(`${wsBase}/api/agents/ws`)
     const timer = setTimeout(() => reject(new Error("no hello.ok")), 15000)
-    sock.on("open", () => sock.send(JSON.stringify({ id: "h1", type: "hello", payload: { token, platform: "e2e" } })))
+    sock.on("open", () =>
+      sock.send(JSON.stringify({ id: "h1", type: "hello", payload: { token, platform: "e2e" } })),
+    )
     sock.on("message", (raw) => {
       const env = JSON.parse(String(raw))
       if (env.type === "hello.ok") {
@@ -54,7 +56,9 @@ function fakeBrowser(token) {
         // What the BROWSER actually received, which is where the real secret
         // has to arrive.
         seen.push(env.payload ?? {})
-        sock.send(JSON.stringify({ id: env.id, type: "run.step.result", payload: { summary: "ok" } }))
+        sock.send(
+          JSON.stringify({ id: env.id, type: "run.step.result", payload: { summary: "ok" } }),
+        )
       }
     })
     sock.on("error", (e) => {
@@ -125,7 +129,8 @@ out.secretFieldIsHidden = secretFieldIsHidden
 await page.fill('[data-form="run-workflow"] input[id$="-page"]', "reports")
 await page.fill('[data-form="run-workflow"] input[id$="-password"]', "hunter2-secret")
 await page.click('[data-form="run-workflow"] button[type=submit]')
-await page.waitForSelector('[data-run-status="ok"]', { timeout: 25000 })
+await page
+  .waitForSelector('[data-run-status="ok"]', { timeout: 25000 })
   .then(() => (out.runFinished = true))
   .catch(() => (out.runFinished = false))
 
@@ -153,7 +158,8 @@ await page.fill('[data-form="run-workflow"] input[id$="-password"]', "")
 await page.click('[data-form="run-workflow"] button[type=submit]')
 await page.waitForTimeout(2000)
 out.missingValueRefused = await page.evaluate(() => /needs a value/i.test(document.body.innerText))
-out.noRunCreatedOnRefusal = (await page.evaluate(() => document.querySelectorAll("[data-run]").length)) === runsBefore
+out.noRunCreatedOnRefusal =
+  (await page.evaluate(() => document.querySelectorAll("[data-run]").length)) === runsBefore
 
 await ctx.close()
 
@@ -164,7 +170,9 @@ const { slug: slugAr } = await signUpAndEnterWorkspace(pageAr, "WF AR " + Date.n
 await pageAr.goto(`${base}/ar/w/${slugAr}/automation`, { waitUntil: "domcontentloaded" })
 await pageAr.waitForTimeout(2000)
 out.ar390_overflow = await pageAr.evaluate(() => document.documentElement.scrollWidth > 390)
-out.ar390_rawKeys = await pageAr.evaluate(() => /automation\.[a-zA-Z]/.test(document.body.innerText))
+out.ar390_rawKeys = await pageAr.evaluate(() =>
+  /automation\.[a-zA-Z]/.test(document.body.innerText),
+)
 await ctxAr.close()
 
 out.pageErrors = errs

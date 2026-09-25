@@ -49,7 +49,9 @@ const out = {}
 process.on("exit", () => console.log(JSON.stringify(out, null, 1)))
 const userDir = mkdtempSync(path.join(tmpdir(), "ext-"))
 const ctx = await chromium.launchPersistentContext(userDir, {
-  executablePath: process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
+  executablePath:
+    process.env.EXT_CHROME ??
+    "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
   headless: false,
   viewport: { width: 1280, height: 860 },
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
@@ -112,10 +114,15 @@ const extState = async () =>
 
 // The extension polls for approval, collects its token and connects on its own.
 const online = await page
-  .waitForFunction(() => document.querySelector("[data-browser]")?.getAttribute("data-browser-status") === "online", null, {
-    timeout: 60000,
-    polling: 2000,
-  })
+  .waitForFunction(
+    () =>
+      document.querySelector("[data-browser]")?.getAttribute("data-browser-status") === "online",
+    null,
+    {
+      timeout: 60000,
+      polling: 2000,
+    },
+  )
   .then(() => true)
   .catch(() => false)
 out.extensionConnectedByItself = online
@@ -135,7 +142,10 @@ await page.fill(
 )
 await page.click('form[data-form="run"] button[type=submit]')
 await page
-  .waitForFunction(() => document.querySelector('[data-run-status="ok"]') !== null, null, { timeout: 90000, polling: 2000 })
+  .waitForFunction(() => document.querySelector('[data-run-status="ok"]') !== null, null, {
+    timeout: 90000,
+    polling: 2000,
+  })
   .then(() => (out.runFinished = true))
   .catch(() => (out.runFinished = false))
 
@@ -165,12 +175,18 @@ await page.fill(
 )
 await page.click('form[data-form="run"] button[type=submit]')
 await page
-  .waitForFunction(() => document.querySelector('[data-run][data-run-status="failed"]') !== null, null, { timeout: 90000, polling: 2000 })
+  .waitForFunction(
+    () => document.querySelector('[data-run][data-run-status="failed"]') !== null,
+    null,
+    { timeout: 90000, polling: 2000 },
+  )
   .then(() => (out.failingStepFailedTheRun = true))
   .catch(() => (out.failingStepFailedTheRun = false))
 await page.click('[data-run][data-run-status="failed"] a')
 await page.waitForSelector("[data-step]", { timeout: 20000 })
-out.saysWhatWasWrong = await page.evaluate(() => /nothing on the page matches/i.test(document.body.innerText))
+out.saysWhatWasWrong = await page.evaluate(() =>
+  /nothing on the page matches/i.test(document.body.innerText),
+)
 
 // ---- the popup reflects the connection ----
 await popup.reload()
@@ -178,7 +194,9 @@ await popup.waitForTimeout(1000)
 out.popupState = await popup.evaluate(() => document.getElementById("state")?.textContent ?? "")
 out.popupSaysConnected = out.popupState === "Connected"
 out.extensionErrors = workerErrors
-out.popupShowsTheAllowList = await popup.evaluate(() => /127\.0\.0\.1/.test(document.getElementById("hosts")?.textContent ?? ""))
+out.popupShowsTheAllowList = await popup.evaluate(() =>
+  /127\.0\.0\.1/.test(document.getElementById("hosts")?.textContent ?? ""),
+)
 
 await ctx.close()
 site.close()

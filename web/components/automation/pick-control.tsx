@@ -21,7 +21,13 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type ElementPick } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -60,10 +66,13 @@ export function PickControl({
     setWaiting(true)
     stop.current = false
     try {
-      const { pick } = await api<{ pick: ElementPick }>(`/api/w/browsers/${encodeURIComponent(agentId)}/pick`, {
-        json: { url: url.trim() },
-        workspaceId: ws.id,
-      })
+      const { pick } = await api<{ pick: ElementPick }>(
+        `/api/w/browsers/${encodeURIComponent(agentId)}/pick`,
+        {
+          json: { url: url.trim() },
+          workspaceId: ws.id,
+        },
+      )
       setOpen(false)
       const deadline = Date.now() + 120_000
       while (!stop.current && Date.now() < deadline) {
@@ -75,7 +84,9 @@ export function PickControl({
         if (now.status === "picked" && now.result) {
           onPicked(now.result.selector, now.result)
           toast.success(
-            now.result.fragile ? t("automation.pick.pickedFragile", { selector: now.result.selector }) : t("automation.pick.picked", { selector: now.result.selector }),
+            now.result.fragile
+              ? t("automation.pick.pickedFragile", { selector: now.result.selector })
+              : t("automation.pick.picked", { selector: now.result.selector }),
           )
           return
         }
@@ -97,9 +108,19 @@ export function PickControl({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button type="button" variant="outline" size="sm" className="shrink-0" data-pick={id} disabled={waiting} aria-label={t("automation.pick.button")}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            data-pick={id}
+            disabled={waiting}
+            aria-label={t("automation.pick.button")}
+          >
             {waiting ? <LoaderCircleIcon className="animate-spin" /> : <CrosshairIcon />}
-            <span className="hidden sm:inline">{waiting ? t("automation.pick.waiting") : t("automation.pick.button")}</span>
+            <span className="hidden sm:inline">
+              {waiting ? t("automation.pick.waiting") : t("automation.pick.button")}
+            </span>
           </Button>
         }
       />
@@ -114,10 +135,24 @@ export function PickControl({
               <Label htmlFor={`${id}-url`} className="text-xs">
                 {t("automation.pick.page")}
               </Label>
-              <Input id={`${id}-url`} dir="ltr" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/login" />
-              {!usable(url) ? <p className="text-xs text-grid-muted">{t("automation.pick.needUrl")}</p> : null}
+              <Input
+                id={`${id}-url`}
+                dir="ltr"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://example.com/login"
+              />
+              {!usable(url) ? (
+                <p className="text-xs text-grid-muted">{t("automation.pick.needUrl")}</p>
+              ) : null}
             </div>
-            <Button type="button" size="sm" disabled={!usable(url) || waiting} onClick={start} data-pick-start>
+            <Button
+              type="button"
+              size="sm"
+              disabled={!usable(url) || waiting}
+              onClick={start}
+              data-pick-start
+            >
               <CrosshairIcon />
               {t("automation.pick.start")}
             </Button>

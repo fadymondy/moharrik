@@ -28,7 +28,13 @@ import Link from "next/link"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { useParams } from "next/navigation"
 import useSWR from "swr"
-import { CheckCircle2Icon, MonitorSmartphoneIcon, ShieldAlertIcon, ShieldCheckIcon, XCircleIcon } from "lucide-react"
+import {
+  CheckCircle2Icon,
+  MonitorSmartphoneIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
+  XCircleIcon,
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,12 +45,20 @@ import { PickSelect } from "@/components/crm/shared"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { Bdi, isolate } from "@/components/bidi"
-import { api, ApiError, type BrowserAgent, type ConnectRequest, type ConnectWorkspace } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  type BrowserAgent,
+  type ConnectRequest,
+  type ConnectWorkspace,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMe } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
-type Done = { kind: "approved"; workspace: ConnectWorkspace; browser: BrowserAgent; replaced: boolean } | { kind: "denied" }
+type Done =
+  | { kind: "approved"; workspace: ConnectWorkspace; browser: BrowserAgent; replaced: boolean }
+  | { kind: "denied" }
 
 export default function ConnectBrowserPage() {
   const { code } = useParams<{ code: string }>()
@@ -63,12 +77,18 @@ export default function ConnectBrowserPage() {
   }, [])
 
   const req = useSWR(
-    me.data && key !== null && code ? [`/api/agents/connect/${encodeURIComponent(code)}`, key] : null,
-    ([p, k]: [string, string]) => api<ConnectRequest>(p, { headers: k ? { "X-Connect-Key": k } : {} }),
+    me.data && key !== null && code
+      ? [`/api/agents/connect/${encodeURIComponent(code)}`, key]
+      : null,
+    ([p, k]: [string, string]) =>
+      api<ConnectRequest>(p, { headers: k ? { "X-Connect-Key": k } : {} }),
     { revalidateOnFocus: false, shouldRetryOnError: false },
   )
 
-  const approvable = useMemo(() => (req.data?.workspaces ?? []).filter((w) => w.can_approve), [req.data])
+  const approvable = useMemo(
+    () => (req.data?.workspaces ?? []).filter((w) => w.can_approve),
+    [req.data],
+  )
   const [workspace, setWorkspace] = useState("")
   const [name, setName] = useState("")
   const [hosts, setHosts] = useState("")
@@ -89,7 +109,11 @@ export default function ConnectBrowserPage() {
     setError(null)
     try {
       if (approve) {
-        const res = await api<{ browser: BrowserAgent; workspace: ConnectWorkspace; replaced: boolean }>("/api/agents/connect/approve", {
+        const res = await api<{
+          browser: BrowserAgent
+          workspace: ConnectWorkspace
+          replaced: boolean
+        }>("/api/agents/connect/approve", {
           json: {
             code,
             key,
@@ -101,7 +125,12 @@ export default function ConnectBrowserPage() {
               .filter(Boolean),
           },
         })
-        setDone({ kind: "approved", workspace: res.workspace, browser: res.browser, replaced: res.replaced })
+        setDone({
+          kind: "approved",
+          workspace: res.workspace,
+          browser: res.browser,
+          replaced: res.replaced,
+        })
       } else {
         await api("/api/agents/connect/deny", { json: { code, key } })
         setDone({ kind: "denied" })
@@ -118,11 +147,21 @@ export default function ConnectBrowserPage() {
   return (
     <PublicFrame
       eyebrow={t("automation.connect.micro")}
-      title={done?.kind === "approved" ? t("automation.connect.doneTitle") : done?.kind === "denied" ? t("automation.connect.refusedTitle") : t("automation.connect.title")}
+      title={
+        done?.kind === "approved"
+          ? t("automation.connect.doneTitle")
+          : done?.kind === "denied"
+            ? t("automation.connect.refusedTitle")
+            : t("automation.connect.title")
+      }
       description={done ? undefined : t("automation.connect.hint")}
     >
       <PublicPanel className="flex justify-center py-10">
-        <div className="w-full max-w-md" data-connect-page data-connect-state={done?.kind ?? r?.status ?? "loading"}>
+        <div
+          className="w-full max-w-md"
+          data-connect-page
+          data-connect-state={done?.kind ?? r?.status ?? "loading"}
+        >
           {me.isLoading || (me.data && key === null) ? (
             <Loading />
           ) : !me.data ? (
@@ -131,10 +170,17 @@ export default function ConnectBrowserPage() {
             <div className="space-y-4" data-connect-signin>
               <p className="text-sm text-grid-body">{t("automation.connect.signInFirst")}</p>
               <div className="flex flex-wrap gap-2">
-                <Button nativeButton={false} render={<Link href={`/${locale}/login?next=${encodeURIComponent(here)}`} />}>
+                <Button
+                  nativeButton={false}
+                  render={<Link href={`/${locale}/login?next=${encodeURIComponent(here)}`} />}
+                >
                   {t("auth.signIn")}
                 </Button>
-                <Button variant="outline" nativeButton={false} render={<Link href={`/${locale}/register?next=${encodeURIComponent(here)}`} />}>
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href={`/${locale}/register?next=${encodeURIComponent(here)}`} />}
+                >
                   {t("auth.createAccount")}
                 </Button>
               </div>
@@ -144,12 +190,23 @@ export default function ConnectBrowserPage() {
               <p className="flex items-start gap-2 text-sm">
                 <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" />
                 <span>
-                  {t(done.replaced ? "automation.connect.doneReplaced" : "automation.connect.doneBody", { name: isolate(done.browser.name), workspace: isolate(done.workspace.name) })}
+                  {t(
+                    done.replaced
+                      ? "automation.connect.doneReplaced"
+                      : "automation.connect.doneBody",
+                    { name: isolate(done.browser.name), workspace: isolate(done.workspace.name) },
+                  )}
                 </span>
               </p>
               <p className="text-sm text-grid-muted">{t("automation.connect.closeTab")}</p>
-              {done.browser.allowed_hosts.length === 0 ? <p className="text-sm text-grid-warn-text">{t("automation.connect.noSitesYet")}</p> : null}
-              <Button nativeButton={false} render={<Link href={`/${locale}/w/${done.workspace.slug}/automation/browsers`} />} data-open-automation>
+              {done.browser.allowed_hosts.length === 0 ? (
+                <p className="text-sm text-grid-warn-text">{t("automation.connect.noSitesYet")}</p>
+              ) : null}
+              <Button
+                nativeButton={false}
+                render={<Link href={`/${locale}/w/${done.workspace.slug}/automation/browsers`} />}
+                data-open-automation
+              >
                 {t("automation.connect.openAutomation")}
               </Button>
             </div>
@@ -163,19 +220,34 @@ export default function ConnectBrowserPage() {
           ) : req.error ? (
             <Problem
               title={t("automation.connect.notFoundTitle")}
-              body={req.error instanceof ApiError && req.error.status === 404 ? t("automation.connect.notFoundBody") : req.error.message}
+              body={
+                req.error instanceof ApiError && req.error.status === 404
+                  ? t("automation.connect.notFoundBody")
+                  : req.error.message
+              }
             />
           ) : !r ? (
             <Loading />
           ) : r.status === "expired" ? (
-            <Problem title={t("automation.connect.expiredTitle")} body={t("automation.connect.expiredBody")} />
+            <Problem
+              title={t("automation.connect.expiredTitle")}
+              body={t("automation.connect.expiredBody")}
+            />
           ) : r.status !== "pending" ? (
             <Problem
               title={t("automation.connect.decidedTitle")}
-              body={r.workspace ? t("automation.connect.decidedBody", { workspace: isolate(r.workspace.name) }) : t(`automation.connect.status.${r.status}`)}
+              body={
+                r.workspace
+                  ? t("automation.connect.decidedBody", { workspace: isolate(r.workspace.name) })
+                  : t(`automation.connect.status.${r.status}`)
+              }
               action={
                 r.workspace ? (
-                  <Button variant="outline" nativeButton={false} render={<Link href={`/${locale}/w/${r.workspace.slug}/automation/browsers`} />}>
+                  <Button
+                    variant="outline"
+                    nativeButton={false}
+                    render={<Link href={`/${locale}/w/${r.workspace.slug}/automation/browsers`} />}
+                  >
                     {t("automation.connect.openAutomation")}
                   </Button>
                 ) : undefined
@@ -183,16 +255,29 @@ export default function ConnectBrowserPage() {
             />
           ) : !r.key_ok ? (
             // The code alone: show that it exists and nothing to act on.
-            <Problem title={t("automation.connect.noKeyTitle")} body={t("automation.connect.noKeyBody")} />
+            <Problem
+              title={t("automation.connect.noKeyTitle")}
+              body={t("automation.connect.noKeyBody")}
+            />
           ) : (
-            <form onSubmit={(e) => decide(true, e)} noValidate className="space-y-6" data-connect-form>
+            <form
+              onSubmit={(e) => decide(true, e)}
+              noValidate
+              className="space-y-6"
+              data-connect-form
+            >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <MonitorSmartphoneIcon className="size-4 text-grid-muted" />
                   {t("automation.connect.checkCode")}
                 </p>
                 {/* Latin, read character by character: LTR in an Arabic page too. */}
-                <Badge variant="secondary" className="font-mono text-sm tracking-widest" dir="ltr" data-connect-code>
+                <Badge
+                  variant="secondary"
+                  className="font-mono text-sm tracking-widest"
+                  dir="ltr"
+                  data-connect-code
+                >
                   {r.code}
                 </Badge>
               </div>
@@ -201,23 +286,42 @@ export default function ConnectBrowserPage() {
                 <dl className="divide-y divide-line border border-line text-sm" data-connect-claims>
                   <Claim label={t("automation.connect.claimName")} value={r.requested_name} />
                   <Claim label={t("automation.connect.claimPlatform")} value={r.platform} ltr />
-                  <Claim label={t("automation.connect.claimBrowser")} value={r.browser_version} ltr />
-                  <Claim label={t("automation.connect.claimExtension")} value={r.extension_version} ltr />
+                  <Claim
+                    label={t("automation.connect.claimBrowser")}
+                    value={r.browser_version}
+                    ltr
+                  />
+                  <Claim
+                    label={t("automation.connect.claimExtension")}
+                    value={r.extension_version}
+                    ltr
+                  />
                   <Claim label={t("automation.connect.claimIp")} value={r.ip} ltr />
                 </dl>
-                <p className="mt-2 text-xs text-grid-muted">{t("automation.connect.claimsHint", { date: formatDate(r.expires_at) })}</p>
+                <p className="mt-2 text-xs text-grid-muted">
+                  {t("automation.connect.claimsHint", { date: formatDate(r.expires_at) })}
+                </p>
               </div>
 
               <p className="text-sm text-grid-body">
-                {t("automation.connect.signedInAs")} <Ltr className="font-medium text-grid-fg">{me.data.email}</Ltr>
+                {t("automation.connect.signedInAs")}{" "}
+                <Ltr className="font-medium text-grid-fg">{me.data.email}</Ltr>
               </p>
 
               {approvable.length === 0 ? (
                 <Problem
                   title={t("automation.connect.noWorkspaceTitle")}
-                  body={t(r.workspaces.length > 0 ? "automation.connect.notAdminBody" : "automation.connect.noWorkspaceBody")}
+                  body={t(
+                    r.workspaces.length > 0
+                      ? "automation.connect.notAdminBody"
+                      : "automation.connect.noWorkspaceBody",
+                  )}
                   action={
-                    <Button variant="outline" nativeButton={false} render={<Link href={`/${locale}/workspaces`} />}>
+                    <Button
+                      variant="outline"
+                      nativeButton={false}
+                      render={<Link href={`/${locale}/workspaces`} />}
+                    >
                       {t("automation.connect.toWorkspaces")}
                     </Button>
                   }
@@ -225,19 +329,40 @@ export default function ConnectBrowserPage() {
               ) : (
                 <FieldGroup>
                   <Field>
-                    <FieldLabel htmlFor="connect-workspace">{t("automation.connect.workspace")}</FieldLabel>
-                    <PickSelect id="connect-workspace" value={workspace} onChange={setWorkspace} options={approvable.map((w) => ({ value: w.id, label: w.name }))} />
+                    <FieldLabel htmlFor="connect-workspace">
+                      {t("automation.connect.workspace")}
+                    </FieldLabel>
+                    <PickSelect
+                      id="connect-workspace"
+                      value={workspace}
+                      onChange={setWorkspace}
+                      options={approvable.map((w) => ({ value: w.id, label: w.name }))}
+                    />
                     <FieldDescription>
-                      {r.workspaces.length > approvable.length ? t("automation.connect.workspaceHintSome") : t("automation.connect.workspaceHint")}
+                      {r.workspaces.length > approvable.length
+                        ? t("automation.connect.workspaceHintSome")
+                        : t("automation.connect.workspaceHint")}
                     </FieldDescription>
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="connect-name">{t("automation.connect.name")}</FieldLabel>
-                    <Input id="connect-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder={t("automation.connect.namePlaceholder")} />
+                    <Input
+                      id="connect-name"
+                      value={name}
+                      maxLength={80}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder={t("automation.connect.namePlaceholder")}
+                    />
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="connect-hosts">{t("automation.allowedHosts")}</FieldLabel>
-                    <Input id="connect-hosts" dir="ltr" value={hosts} onChange={(e) => setHosts(e.target.value)} placeholder="example.com, mail.google.com" />
+                    <Input
+                      id="connect-hosts"
+                      dir="ltr"
+                      value={hosts}
+                      onChange={(e) => setHosts(e.target.value)}
+                      placeholder="example.com, mail.google.com"
+                    />
                     <FieldDescription className="flex items-start gap-1">
                       <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
                       <span>{t("automation.connect.hostsHint")}</span>
@@ -250,11 +375,21 @@ export default function ConnectBrowserPage() {
 
               <div className="flex flex-wrap gap-2">
                 {approvable.length > 0 ? (
-                  <Button type="submit" disabled={busy !== null || !workspace || !name.trim()} data-approve>
+                  <Button
+                    type="submit"
+                    disabled={busy !== null || !workspace || !name.trim()}
+                    data-approve
+                  >
                     {busy === "approve" ? t("common.working") : t("automation.connect.approve")}
                   </Button>
                 ) : null}
-                <Button type="button" variant="outline" disabled={busy !== null} onClick={() => decide(false)} data-deny>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy !== null}
+                  onClick={() => decide(false)}
+                  data-deny
+                >
                   {busy === "deny" ? t("common.working") : t("automation.connect.deny")}
                 </Button>
               </div>
@@ -280,12 +415,22 @@ function Claim({ label, value, ltr }: { label: string; value: string; ltr?: bool
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-2.5">
       <dt className="shrink-0 text-grid-muted">{label}</dt>
-      <dd className="min-w-0 truncate text-end">{value ? ltr ? <Ltr>{value}</Ltr> : <Bdi>{value}</Bdi> : "—"}</dd>
+      <dd className="min-w-0 truncate text-end">
+        {value ? ltr ? <Ltr>{value}</Ltr> : <Bdi>{value}</Bdi> : "—"}
+      </dd>
     </div>
   )
 }
 
-function Problem({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
+function Problem({
+  title,
+  body,
+  action,
+}: {
+  title: string
+  body: string
+  action?: React.ReactNode
+}) {
   return (
     <div className="space-y-3" data-connect-problem>
       <p className="flex items-center gap-2 text-sm font-medium">

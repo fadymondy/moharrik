@@ -24,10 +24,7 @@ function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
   return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
 }
 
-function ContextMenuContent({
-  className,
-  ...props
-}: ContextMenuPrimitive.Popup.Props) {
+function ContextMenuContent({ className, ...props }: ContextMenuPrimitive.Popup.Props) {
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Positioner className="isolate z-50 outline-none">
@@ -61,7 +58,10 @@ function ContextMenuLabel({
     <ContextMenuPrimitive.GroupLabel
       data-slot="context-menu-label"
       data-inset={inset}
-      className={cn("px-1.5 py-1 text-xs font-medium text-muted-foreground data-inset:ps-7", className)}
+      className={cn(
+        "px-1.5 py-1 text-xs font-medium text-muted-foreground data-inset:ps-7",
+        className,
+      )}
       {...props}
     />
   )
@@ -108,7 +108,10 @@ function ContextMenuCheckboxItem({
       checked={checked}
       {...props}
     >
-      <span className="pointer-events-none absolute end-2 flex items-center justify-center" data-slot="context-menu-checkbox-item-indicator">
+      <span
+        className="pointer-events-none absolute end-2 flex items-center justify-center"
+        data-slot="context-menu-checkbox-item-indicator"
+      >
         <ContextMenuPrimitive.CheckboxItemIndicator>
           <CheckIcon />
         </ContextMenuPrimitive.CheckboxItemIndicator>
@@ -119,14 +122,23 @@ function ContextMenuCheckboxItem({
 }
 
 function ContextMenuSeparator({ className, ...props }: ContextMenuPrimitive.Separator.Props) {
-  return <ContextMenuPrimitive.Separator data-slot="context-menu-separator" className={cn("-mx-1.5 my-1.5 h-px bg-border/70", className)} {...props} />
+  return (
+    <ContextMenuPrimitive.Separator
+      data-slot="context-menu-separator"
+      className={cn("-mx-1.5 my-1.5 h-px bg-border/70", className)}
+      {...props}
+    />
+  )
 }
 
 function ContextMenuShortcut({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="context-menu-shortcut"
-      className={cn("ms-auto text-xs tracking-widest text-muted-foreground group-focus/context-menu-item:text-accent-foreground", className)}
+      className={cn(
+        "ms-auto text-xs tracking-widest text-muted-foreground group-focus/context-menu-item:text-accent-foreground",
+        className,
+      )}
       {...props}
     />
   )

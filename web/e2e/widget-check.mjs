@@ -60,9 +60,14 @@ await agent.click('button:has-text("Add widget")')
 await agent.waitForSelector("#widget-name", { timeout: 10000 })
 await agent.fill("#widget-name", "Customer site")
 await agent.fill("#widget-origins", `http://127.0.0.1:${SITE_PORT}`)
-await agent.click('form:has(#widget-name) button[type=submit]')
+await agent.click("form:has(#widget-name) button[type=submit]")
 await agent.waitForSelector('[data-widget-row="Customer site"]', { timeout: 10000 })
-const embed = await agent.evaluate(() => [...document.querySelectorAll("code")].map((c) => c.textContent ?? "").find((v) => v.includes("data-key=")) ?? "")
+const embed = await agent.evaluate(
+  () =>
+    [...document.querySelectorAll("code")]
+      .map((c) => c.textContent ?? "")
+      .find((v) => v.includes("data-key=")) ?? "",
+)
 const key = (embed.match(/data-key="([^"]+)"/) || [])[1]
 out.widgetKey = !!key
 out.embedPointsAtScript = /\/chat\/v1\.js/.test(embed)
@@ -75,15 +80,32 @@ const visitor = await ctx.newPage()
 const visitorErrs = []
 visitor.on("pageerror", (e) => visitorErrs.push(String(e).slice(0, 200)))
 await visitor.goto(`http://127.0.0.1:${SITE_PORT}/`, { waitUntil: "networkidle" })
-await visitor.waitForFunction(() => !!document.querySelector("[data-moharrik-chat]"), { timeout: 10000 })
+await visitor.waitForFunction(() => !!document.querySelector("[data-moharrik-chat]"), {
+  timeout: 10000,
+})
 out.widgetMounted = true
-out.usesShadowRoot = await visitor.evaluate(() => !!document.querySelector("[data-moharrik-chat]")?.shadowRoot)
+out.usesShadowRoot = await visitor.evaluate(
+  () => !!document.querySelector("[data-moharrik-chat]")?.shadowRoot,
+)
 
-const launcher = () => visitor.evaluate(() => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".btn")?.textContent?.trim())
+const launcher = () =>
+  visitor.evaluate(() =>
+    document
+      .querySelector("[data-moharrik-chat]")
+      .shadowRoot.querySelector(".btn")
+      ?.textContent?.trim(),
+  )
 out.launcherLabel = await launcher()
-await visitor.evaluate(() => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".btn").click())
+await visitor.evaluate(() =>
+  document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".btn").click(),
+)
 await visitor.waitForTimeout(300)
-out.panelOpened = await visitor.evaluate(() => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".panel").classList.contains("open"))
+out.panelOpened = await visitor.evaluate(() =>
+  document
+    .querySelector("[data-moharrik-chat]")
+    .shadowRoot.querySelector(".panel")
+    .classList.contains("open"),
+)
 
 await visitor.evaluate(() => {
   const sr = document.querySelector("[data-moharrik-chat]").shadowRoot
@@ -91,36 +113,50 @@ await visitor.evaluate(() => {
   sr.querySelector(".form").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
 })
 await visitor.waitForFunction(
-  () => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg").length > 0,
+  () =>
+    document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg").length > 0,
   { timeout: 15000 },
 )
 out.visitorMessageShown = await visitor.evaluate(
-  () => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".msg")?.textContent,
+  () =>
+    document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".msg")?.textContent,
 )
-out.visitorTokenStored = await visitor.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("moharrik.chat.")))
+out.visitorTokenStored = await visitor.evaluate(() =>
+  Object.keys(localStorage).some((k) => k.startsWith("moharrik.chat.")),
+)
 
 // ---- the agent sees it and replies ----
 await agent.goto(`${base}/en/w/${slug}/inbox`, { waitUntil: "networkidle" })
 await agent.waitForSelector("[data-conversation]", { timeout: 15000 })
 await agent.click("[data-conversation]")
 await agent.waitForSelector("[data-messages]", { timeout: 10000 })
-out.agentSeesVisitorMessage = await agent.evaluate(() => document.body.innerText.includes("my order is late"))
+out.agentSeesVisitorMessage = await agent.evaluate(() =>
+  document.body.innerText.includes("my order is late"),
+)
 await agent.fill("#reply-body", "It ships today — sorry about the wait.")
 await agent.click('[data-form="reply"] button[type=submit]')
-await agent.waitForFunction(() => document.querySelectorAll('[data-message="out"]').length > 0, { timeout: 10000 })
+await agent.waitForFunction(() => document.querySelectorAll('[data-message="out"]').length > 0, {
+  timeout: 10000,
+})
 
 // ---- the widget polls and shows the reply ----
 await visitor.waitForFunction(
-  () => [...document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg")].some((m) => m.textContent.includes("ships today")),
+  () =>
+    [...document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg")].some(
+      (m) => m.textContent.includes("ships today"),
+    ),
   { timeout: 20000 },
 )
 out.visitorSeesReply = true
 
 // ---- a reload resumes the same thread from localStorage ----
 await visitor.reload({ waitUntil: "networkidle" })
-await visitor.evaluate(() => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".btn").click())
+await visitor.evaluate(() =>
+  document.querySelector("[data-moharrik-chat]").shadowRoot.querySelector(".btn").click(),
+)
 await visitor.waitForFunction(
-  () => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg").length >= 2,
+  () =>
+    document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg").length >= 2,
   { timeout: 20000 },
 )
 out.resumedAfterReload = await visitor.evaluate(
@@ -130,7 +166,9 @@ out.resumedAfterReload = await visitor.evaluate(
 // ---- the same widget on a NON-allowed origin is refused, visibly ----
 const intruder = await ctx.newPage()
 await intruder.goto(`http://127.0.0.1:${EVIL_PORT}/`, { waitUntil: "networkidle" })
-await intruder.waitForFunction(() => !!document.querySelector("[data-moharrik-chat]"), { timeout: 10000 })
+await intruder.waitForFunction(() => !!document.querySelector("[data-moharrik-chat]"), {
+  timeout: 10000,
+})
 await intruder.evaluate(() => {
   const sr = document.querySelector("[data-moharrik-chat]").shadowRoot
   sr.querySelector(".btn").click()
@@ -143,7 +181,8 @@ out.wrongOriginShowsError = await intruder.evaluate(() => {
   return e && !e.hidden ? e.textContent : ""
 })
 out.wrongOriginPostedNothing = await intruder.evaluate(
-  () => document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg").length === 0,
+  () =>
+    document.querySelector("[data-moharrik-chat]").shadowRoot.querySelectorAll(".msg").length === 0,
 )
 
 out.visitorPageErrors = visitorErrs

@@ -71,7 +71,10 @@ export function CampaignPreview({
   const wa = channel === "whatsapp"
 
   return (
-    <div className="flex flex-col gap-3" data-campaign-preview={data ? `${data.channel}:${data.locale}` : ""}>
+    <div
+      className="flex flex-col gap-3"
+      data-campaign-preview={data ? `${data.channel}:${data.locale}` : ""}
+    >
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-grid-muted">{t("campaigns.previewLanguage")}</span>
         <ToggleGroup
@@ -92,7 +95,9 @@ export function CampaignPreview({
             {t("lang.ar")}
           </ToggleGroupItem>
         </ToggleGroup>
-        <span className="text-xs text-grid-muted">{wa ? t("campaigns.previewWhatsAppHint") : t("campaigns.previewEmailHint")}</span>
+        <span className="text-xs text-grid-muted">
+          {wa ? t("campaigns.previewWhatsAppHint") : t("campaigns.previewEmailHint")}
+        </span>
       </div>
 
       {err ? (
@@ -100,7 +105,9 @@ export function CampaignPreview({
           {err}
         </p>
       ) : !body.trim() ? (
-        <p className="border border-dashed border-line px-4 py-8 text-center text-sm text-grid-muted">{t("campaigns.previewEmpty")}</p>
+        <p className="border border-dashed border-line px-4 py-8 text-center text-sm text-grid-muted">
+          {t("campaigns.previewEmpty")}
+        </p>
       ) : !data ? (
         <p className="px-4 py-8 text-center text-sm text-grid-muted">{t("common.working")}</p>
       ) : data.channel === "whatsapp" ? (

@@ -24,7 +24,12 @@ literal punctuation.
 type Action = "heading" | "bold" | "italic" | "link" | "list"
 
 /** Applies one toolbar action to the selection; returns the new text and selection. */
-function apply(action: Action, text: string, start: number, end: number): { text: string; start: number; end: number } {
+function apply(
+  action: Action,
+  text: string,
+  start: number,
+  end: number,
+): { text: string; start: number; end: number } {
   const sel = text.slice(start, end)
   const wrap = (open: string, close: string, placeholder: string) => {
     const inner = sel || placeholder
@@ -42,7 +47,11 @@ function apply(action: Action, text: string, start: number, end: number): { text
       .split("\n")
       .map((l) => (l.startsWith(prefix) ? l : prefix + l.replace(/^#{1,3} |^[-*] /, "")))
       .join("\n")
-    return { text: text.slice(0, lineStart) + next + text.slice(end), start: lineStart, end: lineStart + next.length }
+    return {
+      text: text.slice(0, lineStart) + next + text.slice(end),
+      start: lineStart,
+      end: lineStart + next.length,
+    }
   }
   switch (action) {
     case "bold":
@@ -88,7 +97,12 @@ export function MarkdownEditor({
   function run(action: Action) {
     const el = ref.current
     if (!el) return
-    const next = apply(action, value, el.selectionStart ?? value.length, el.selectionEnd ?? value.length)
+    const next = apply(
+      action,
+      value,
+      el.selectionStart ?? value.length,
+      el.selectionEnd ?? value.length,
+    )
     onValueChange(next.text)
     requestAnimationFrame(() => {
       el.focus()
@@ -99,7 +113,8 @@ export function MarkdownEditor({
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (!toolbar || !(e.ctrlKey || e.metaKey)) return
     const key = e.key.toLowerCase()
-    const action: Action | null = key === "b" ? "bold" : key === "i" ? "italic" : key === "k" ? "link" : null
+    const action: Action | null =
+      key === "b" ? "bold" : key === "i" ? "italic" : key === "k" ? "link" : null
     if (action) {
       e.preventDefault()
       run(action)
@@ -115,7 +130,10 @@ export function MarkdownEditor({
   ]
 
   return (
-    <div className={cn("flex flex-col border border-line bg-grid-card", className)} data-markdown-editor>
+    <div
+      className={cn("flex flex-col border border-line bg-grid-card", className)}
+      data-markdown-editor
+    >
       {toolbar ? (
         <div className="flex items-center gap-2 border-b border-line px-2 py-1.5">
           <ButtonGroup aria-label={t("editor.toolbar")}>
@@ -136,7 +154,9 @@ export function MarkdownEditor({
               </Button>
             ))}
           </ButtonGroup>
-          <span className="ms-auto hidden text-xs text-grid-muted sm:inline">{t("editor.markdown")}</span>
+          <span className="ms-auto hidden text-xs text-grid-muted sm:inline">
+            {t("editor.markdown")}
+          </span>
         </div>
       ) : null}
       <Textarea

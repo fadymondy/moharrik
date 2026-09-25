@@ -26,7 +26,8 @@ const ok = (cond, msg) => {
   console.log(`${cond ? "PASS" : "FAIL"} ${msg}`)
   if (!cond) failures++
 }
-const revokes = () => (fakeLog ? (readFileSync(fakeLog, "utf8").match(/REVOKED/g) ?? []).length : -1)
+const revokes = () =>
+  fakeLog ? (readFileSync(fakeLog, "utf8").match(/REVOKED/g) ?? []).length : -1
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "g-")), {
   executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -47,7 +48,9 @@ const slug = await page.evaluate(async (email) => {
       body: JSON.stringify(b),
     })
   await post("/api/auth/register", { email, password: "correct-horse-battery" })
-  const ws = await (await post("/api/me/workspaces", { name: `Brand Co ${email.split("@")[0].slice(-6)}` })).json()
+  const ws = await (
+    await post("/api/me/workspaces", { name: `Brand Co ${email.split("@")[0].slice(-6)}` })
+  ).json()
   return ws.workspace.slug
 }, owner)
 const url = (locale) => `${base}/${locale}/w/${slug}/settings/integrations`
@@ -71,7 +74,12 @@ await page.screenshot({ path: `${shots}/mh439-empty-en-light-1440.png`, fullPage
 await page.click('[data-connect="analytics"]')
 await consent({ email: "marketing@brand.test" })
 await page.waitForSelector('[data-google-result="connected"]')
-ok((await page.locator('[data-google-result="connected"]').innerText()).includes("Google Analytics is connected"), "banner: Analytics connected")
+ok(
+  (await page.locator('[data-google-result="connected"]').innerText()).includes(
+    "Google Analytics is connected",
+  ),
+  "banner: Analytics connected",
+)
 ok(
   await page
     .waitForURL((u) => !u.search.includes("google="), { timeout: 5000 })
@@ -82,11 +90,19 @@ ok(
   "the result is cleared from the address bar",
 )
 await page.waitForSelector('[data-google-connection="marketing@brand.test"]')
-ok((await page.locator('[data-google-connection="marketing@brand.test"]').innerText()).includes("Google Analytics"), "listed with its product")
+ok(
+  (await page.locator('[data-google-connection="marketing@brand.test"]').innerText()).includes(
+    "Google Analytics",
+  ),
+  "listed with its product",
+)
 
 // ---- connect YouTube with revenue, another account ---------------------------------
 await page.getByRole("checkbox", { name: /revenue/i }).click()
-ok((await page.getByRole("checkbox", { name: /revenue/i }).getAttribute("aria-checked")) === "true", "revenue checkbox ticks")
+ok(
+  (await page.getByRole("checkbox", { name: /revenue/i }).getAttribute("aria-checked")) === "true",
+  "revenue checkbox ticks",
+)
 await page.click('[data-connect="youtube"]')
 await consent({ email: "channel@brand.test" })
 await page.waitForSelector('[data-google-connection="channel@brand.test"]')
@@ -101,7 +117,10 @@ await consent({ email: "seo@brand.test", untick: ["https://www.googleapis.com/au
 await page.waitForSelector('[data-google-result="scope"]')
 const scopeMsg = await page.locator('[data-google-result="scope"]').innerText()
 ok(scopeMsg.includes("Search Console needs every box"), `readable error: "${scopeMsg.trim()}"`)
-ok((await page.locator('[data-google-connection="seo@brand.test"]').count()) === 0, "the refused account is not listed")
+ok(
+  (await page.locator('[data-google-connection="seo@brand.test"]').count()) === 0,
+  "the refused account is not listed",
+)
 await page.waitForTimeout(800)
 ok(fakeLog === "" || revokes() === before + 1, "the refused grant was revoked at the fake Google")
 await page.screenshot({ path: `${shots}/mh439-error-scope-en-light-1440.png`, fullPage: true })
@@ -134,10 +153,18 @@ if (process.argv[5]) {
   await page.screenshot({ path: `${shots}/mh439-reauth-en-light-1440.png`, fullPage: true })
   await row.getByRole("button", { name: "Reconnect" }).click()
   await page.waitForURL((u) => u.host === FAKE)
-  ok(new URL(page.url()).searchParams.get("login_hint") === "marketing@brand.test", "reconnect pre-selects the account")
+  ok(
+    new URL(page.url()).searchParams.get("login_hint") === "marketing@brand.test",
+    "reconnect pre-selects the account",
+  )
   await consent({ email: "marketing@brand.test" })
   await page.waitForSelector('[data-google-result="connected"]')
-  ok((await page.locator('[data-google-connection="marketing@brand.test"]').getAttribute("data-status")) === "ok", "reconnect clears reauth")
+  ok(
+    (await page
+      .locator('[data-google-connection="marketing@brand.test"]')
+      .getAttribute("data-status")) === "ok",
+    "reconnect clears reauth",
+  )
 }
 
 // ---- the screenshot matrix -------------------------------------------------------------------
@@ -157,12 +184,22 @@ for (const locale of ["en", "ar"]) {
         html.dark === (scheme === "dark") && html.dir === (locale === "ar" ? "rtl" : "ltr"),
         `${locale}/${scheme}/${width}: theme and direction applied`,
       )
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
       ok(overflow <= 0, `${locale}/${scheme}/${width}: no horizontal page overflow (${overflow}px)`)
       // The table can scroll inside its own box without the page overflowing, so check the
       // row's action itself is on screen: a Disconnect you have to find by scrolling is a bug.
-      const action = await page.locator("[data-google-connection]").first().locator("button").last().boundingBox()
-      ok(action && action.x >= 0 && action.x + action.width <= width, `${locale}/${scheme}/${width}: the row's Disconnect is on screen`)
+      const action = await page
+        .locator("[data-google-connection]")
+        .first()
+        .locator("button")
+        .last()
+        .boundingBox()
+      ok(
+        action && action.x >= 0 && action.x + action.width <= width,
+        `${locale}/${scheme}/${width}: the row's Disconnect is on screen`,
+      )
       await page.screenshot({
         path: `${shots}/mh439-${locale}-${scheme}-${width}.png`,
         fullPage: true,
@@ -180,7 +217,10 @@ await row.waitFor()
 before = revokes()
 await row.getByRole("button", { name: "Disconnect" }).click()
 const dialog = page.getByRole("alertdialog")
-ok((await dialog.innerText()).includes("Disconnect channel@brand.test?"), "disconnect asks for confirmation")
+ok(
+  (await dialog.innerText()).includes("Disconnect channel@brand.test?"),
+  "disconnect asks for confirmation",
+)
 // The dialog animates in: wait until it has finished before the picture, or it is half transparent.
 await page.waitForFunction(() => {
   const d = document.querySelector('[role="alertdialog"]')
@@ -192,7 +232,10 @@ await page.getByText("Disconnected, and access revoked at Google.").waitFor()
 await row.waitFor({ state: "detached" })
 ok(true, "disconnected: toast shown and the row is gone")
 await page.waitForTimeout(800)
-ok(fakeLog === "" || revokes() === before + 1, `the fake Google saw the revoke (${before} → ${revokes()})`)
+ok(
+  fakeLog === "" || revokes() === before + 1,
+  `the fake Google saw the revoke (${before} → ${revokes()})`,
+)
 await page.screenshot({
   path: `${shots}/mh439-after-disconnect-en-light-1440.png`,
   fullPage: true,

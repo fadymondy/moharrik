@@ -29,7 +29,11 @@ function ResearchEvidence() {
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("research.tabEvidence")} description={t("research.hint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("research.tabEvidence")}
+        description={t("research.hint")}
+      />
       {list.data ? <CapabilityNotes caps={list.data} /> : null}
       <EvidenceTab />
       <div className="pb-8" />

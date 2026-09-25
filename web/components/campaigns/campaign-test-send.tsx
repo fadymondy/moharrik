@@ -58,10 +58,13 @@ export function CampaignTestSend({
     setErr(null)
     setDone(null)
     try {
-      const res = await api<TestResult>(`/api/w/campaigns/${encodeURIComponent(campaign.id)}/test`, {
-        json: wa ? {} : { to: to.trim() },
-        workspaceId: ws.id,
-      })
+      const res = await api<TestResult>(
+        `/api/w/campaigns/${encodeURIComponent(campaign.id)}/test`,
+        {
+          json: wa ? {} : { to: to.trim() },
+          workspaceId: ws.id,
+        },
+      )
       setDone(res)
       toast.success(t("campaigns.testSent", { to: res.to }))
     } catch (e) {
@@ -81,12 +84,19 @@ export function CampaignTestSend({
   }
   if (!wa && !smtpReady) {
     return (
-      <p className="flex items-start gap-2 text-sm text-grid-muted" role="status" data-test-blocked="smtp">
+      <p
+        className="flex items-start gap-2 text-sm text-grid-muted"
+        role="status"
+        data-test-blocked="smtp"
+      >
         <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
         {ws.can("mail:settings") ? (
           <span>
             {t("campaigns.testNeedsSmtp")}{" "}
-            <Link className="underline underline-offset-4" href={`/${locale}/w/${ws.slug}/settings/email`}>
+            <Link
+              className="underline underline-offset-4"
+              href={`/${locale}/w/${ws.slug}/settings/email`}
+            >
               {t("contacts.smtpLink")}
             </Link>
           </span>
@@ -133,8 +143,7 @@ export function CampaignTestSend({
         </Button>
         {done ? (
           <span className="text-sm text-grid-ok-text" data-test-result={done.to}>
-            {t("campaigns.testSentTo")}{" "}
-            <Ltr>{done.to}</Ltr>
+            {t("campaigns.testSentTo")} <Ltr>{done.to}</Ltr>
           </span>
         ) : null}
       </div>

@@ -52,12 +52,18 @@ export function PublicFrame({
           <div className="h-10 border-x border-line" />
           {title ? (
             <div className="border-x border-line" data-slot="page-heading">
-              {eyebrow ? <div className="grid-mono px-4 pb-2 text-sm/none tracking-wider text-grid-muted">{eyebrow}</div> : null}
+              {eyebrow ? (
+                <div className="grid-mono px-4 pb-2 text-sm/none tracking-wider text-grid-muted">
+                  {eyebrow}
+                </div>
+              ) : null}
               <h1 className="grid-screen-line-top grid-screen-line-bottom px-4 text-3xl font-medium tracking-tight text-balance">
                 {title}
               </h1>
               {description ? (
-                <p className="grid-screen-line-bottom p-4 text-base text-pretty text-grid-muted">{description}</p>
+                <p className="grid-screen-line-bottom p-4 text-base text-pretty text-grid-muted">
+                  {description}
+                </p>
               ) : null}
             </div>
           ) : null}
@@ -78,7 +84,11 @@ export function PublicFrame({
           <dl className="grid grid-cols-2 md:grid-cols-4">
             <FooterCell label={t("footer.product")}>{t("footer.productValue")}</FooterCell>
             <FooterCell label={t("footer.craftedBy")}>
-              <a className="underline-offset-4 hover:underline" href="https://fadymondy.com" dir="ltr">
+              <a
+                className="underline-offset-4 hover:underline"
+                href="https://fadymondy.com"
+                dir="ltr"
+              >
                 fadymondy.com
               </a>
             </FooterCell>

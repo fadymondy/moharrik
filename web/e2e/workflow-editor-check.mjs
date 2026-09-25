@@ -47,7 +47,10 @@ const APP_DB = process.env.APP_DB ?? "moharrik_f"
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-400-"))
 cpSync(SRC, EXT, {
   recursive: true,
-  filter: (p) => !/[\\/](node_modules|test|dist)([\\/]|$)/.test(path.relative(SRC, p) ? "/" + path.relative(SRC, p) : ""),
+  filter: (p) =>
+    !/[\\/](node_modules|test|dist)([\\/]|$)/.test(
+      path.relative(SRC, p) ? "/" + path.relative(SRC, p) : "",
+    ),
 })
 {
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
@@ -104,19 +107,26 @@ await new Promise((r) => site.listen(PAGE_PORT, "127.0.0.1", r))
 
 const out = { checks: {} }
 const check = (name, ok, detail) => {
-  out.checks[name] = ok ? "PASS" : `FAIL${detail !== undefined ? ": " + JSON.stringify(detail).slice(0, 500) : ""}`
+  out.checks[name] = ok
+    ? "PASS"
+    : `FAIL${detail !== undefined ? ": " + JSON.stringify(detail).slice(0, 500) : ""}`
 }
 process.on("exit", () => console.log(JSON.stringify(out, null, 1)))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let ctx
 try {
-  ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "ext-400-profile-")), {
-    executablePath: process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
-    headless: false,
-    viewport: { width: 1440, height: 1000 },
-    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
-  })
+  ctx = await chromium.launchPersistentContext(
+    mkdtempSync(path.join(tmpdir(), "ext-400-profile-")),
+    {
+      executablePath:
+        process.env.EXT_CHROME ??
+        "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
+      headless: false,
+      viewport: { width: 1440, height: 1000 },
+      args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
+    },
+  )
   let worker = ctx.serviceWorkers()[0]
   if (!worker) worker = await ctx.waitForEvent("serviceworker", { timeout: 30000 })
   const extensionID = new URL(worker.url()).host
@@ -134,16 +144,39 @@ try {
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text.slice(0, 300)}`)
     return text ? JSON.parse(text) : null
   }
-  await call("POST", "/api/auth/register", { email: `mh400-${Date.now()}@x.test`, password: "Passw0rd!long-enough" })
+  await call("POST", "/api/auth/register", {
+    email: `mh400-${Date.now()}@x.test`,
+    password: "Passw0rd!long-enough",
+  })
   const { workspace } = await call("POST", "/api/me/workspaces", { name: `MH-400 ${Date.now()}` })
   out.workspace = workspace.slug
   // The workspace's own zone, which the schedule form must use by default.
-  execFileSync("docker", ["exec", "pg", "psql", "-U", "postgres", "-d", APP_DB, "-c", `UPDATE workspaces SET timezone = 'Africa/Cairo' WHERE id = '${workspace.id}'`])
+  execFileSync("docker", [
+    "exec",
+    "pg",
+    "psql",
+    "-U",
+    "postgres",
+    "-d",
+    APP_DB,
+    "-c",
+    `UPDATE workspaces SET timezone = 'Africa/Cairo' WHERE id = '${workspace.id}'`,
+  ])
 
   // ---- connect through the extension's own popup (MH-478) ----
-  const { browser: connected, online, popup } = await connectExtension({
-    ctx, extensionID, site: web, api: apiBase, call, workspaceID: workspace.id,
-    name: "MH-400 Chromium", hosts: ["127.0.0.1"],
+  const {
+    browser: connected,
+    online,
+    popup,
+  } = await connectExtension({
+    ctx,
+    extensionID,
+    site: web,
+    api: apiBase,
+    call,
+    workspaceID: workspace.id,
+    name: "MH-400 Chromium",
+    hosts: ["127.0.0.1"],
   })
   const browser = connected
   check("extension paired and online", online)
@@ -179,8 +212,14 @@ try {
   await page.goto(`${web}/en/w/${workspace.slug}/automation`)
   await page.click(`[data-workflow] [data-edit-workflow]`)
   await page.waitForSelector('[data-form="workflow-editor"][data-version="1"]', { timeout: 60000 })
-  check("the recorded workflow opens in the visual editor, one form per step", (await page.locator("[data-step-row]").count()) === v1.steps.length)
-  check("no JSON textarea in the editor", (await page.locator('[data-form="workflow-editor"] textarea').count()) === 0)
+  check(
+    "the recorded workflow opens in the visual editor, one form per step",
+    (await page.locator("[data-step-row]").count()) === v1.steps.length,
+  )
+  check(
+    "no JSON textarea in the editor",
+    (await page.locator('[data-form="workflow-editor"] textarea').count()) === 0,
+  )
   await page.screenshot({ path: `${SHOTS}/MH-400-editor-opened-en-light-1440.png`, fullPage: true })
 
   const rows = async () =>
@@ -194,20 +233,32 @@ try {
 
   // ---- 3. re-pick the Send step's selector on the live page ----
   const before = await rows()
-  const sendIndex = before.findIndex((r) => r.command === "click" && r.inputs.some((v) => v.includes("send-button")))
+  const sendIndex = before.findIndex(
+    (r) => r.command === "click" && r.inputs.some((v) => v.includes("send-button")),
+  )
   check("the recorded Send step used the old selector", sendIndex > 0, before)
   await page.locator(`[data-step-row="${sendIndex}"] [data-pick]`).click()
   await page.waitForSelector("[data-pick-popover]")
   const prefilled = await page.inputValue("[data-pick-popover] input")
   check("the picker offers the step's page", prefilled.startsWith(`${PAGE}/compose`), prefilled)
-  const [pickTab] = await Promise.all([ctx.waitForEvent("page", { timeout: 20000 }), page.click("[data-pick-start]")])
+  const [pickTab] = await Promise.all([
+    ctx.waitForEvent("page", { timeout: 20000 }),
+    page.click("[data-pick-start]"),
+  ])
   await pickTab.waitForLoadState("domcontentloaded")
-  await pickTab.waitForFunction(() => !!document.getElementById("__moh_pick_overlay__"), undefined, { timeout: 20000 })
+  await pickTab.waitForFunction(
+    () => !!document.getElementById("__moh_pick_overlay__"),
+    undefined,
+    { timeout: 20000 },
+  )
   reports = []
   await pickTab.click('[data-testid="compose-send"]') // a trusted click, as a person's
   await page.bringToFront()
   await page.waitForFunction(
-    (i) => [...document.querySelectorAll(`[data-step-row="${i}"] input`)].some((x) => x.value.includes("compose-send")),
+    (i) =>
+      [...document.querySelectorAll(`[data-step-row="${i}"] input`)].some((x) =>
+        x.value.includes("compose-send"),
+      ),
     sendIndex,
     { timeout: 30000 },
   )
@@ -219,7 +270,9 @@ try {
   check("the picking tab was closed afterwards", pickTab.isClosed())
 
   // ---- 4. reorder by dragging, and add a step with the form ----
-  const agreeIndex = before.findIndex((r) => r.command === "click" && r.inputs.some((v) => v.includes("agree")))
+  const agreeIndex = before.findIndex(
+    (r) => r.command === "click" && r.inputs.some((v) => v.includes("agree")),
+  )
   const typeIndex = before.findIndex((r) => r.command === "type")
   const handle = page.locator(`[data-step-row="${typeIndex}"] [data-drag-handle]`)
   const target = page.locator(`[data-step-row="${agreeIndex}"]`)
@@ -232,26 +285,47 @@ try {
   await page.mouse.up()
   await sleep(400)
   const reordered = await rows()
-  check("dragging the type step above the checkbox step reordered them", reordered[agreeIndex].command === "type" && reordered[agreeIndex + 1].inputs.some((v) => v.includes("agree")), reordered)
+  check(
+    "dragging the type step above the checkbox step reordered them",
+    reordered[agreeIndex].command === "type" &&
+      reordered[agreeIndex + 1].inputs.some((v) => v.includes("agree")),
+    reordered,
+  )
 
   // A wait before Send, written with the form, so the live progress has a step
   // slow enough to be seen running.
   await page.click("[data-add-step]")
   const last = (await rows()).length - 1
-  await page.locator(`[data-step-row="${last}"] button[role="combobox"], [data-step-row="${last}"] [data-slot="select-trigger"]`).first().click()
+  await page
+    .locator(
+      `[data-step-row="${last}"] button[role="combobox"], [data-step-row="${last}"] [data-slot="select-trigger"]`,
+    )
+    .first()
+    .click()
   await page.getByRole("option", { name: "Wait", exact: true }).click()
   await page.fill(`[data-step-row="${last}"] [data-field="ms"] input`, "2500")
   // Move it up above Send with the arrow buttons (the keyboard path).
   await page.locator(`[data-step-row="${last}"] button[aria-label="Move up"]`).click()
   const edited = await rows()
   out.editedOrder = edited.map((r) => r.command)
-  check("the wait step was added and moved before Send", edited[edited.length - 2].command === "wait" && edited[edited.length - 1].inputs.some((v) => v.includes("compose-send")), edited)
+  check(
+    "the wait step was added and moved before Send",
+    edited[edited.length - 2].command === "wait" &&
+      edited[edited.length - 1].inputs.some((v) => v.includes("compose-send")),
+    edited,
+  )
 
   // ---- 5. save as v2, then test-run ----
   await page.click("[data-save]")
   await page.waitForSelector('[data-form="workflow-editor"][data-version="2"]', { timeout: 20000 })
   const v2 = (await call("GET", `/api/w/workflows/${workflowID}`, undefined, workspace.id)).workflow
-  check("saved as v2", v2.version === 2 && v2.steps.some((s) => s.command === "wait") && JSON.stringify(v2.steps).includes("compose-send"), v2.steps)
+  check(
+    "saved as v2",
+    v2.version === 2 &&
+      v2.steps.some((s) => s.command === "wait") &&
+      JSON.stringify(v2.steps).includes("compose-send"),
+    v2.steps,
+  )
 
   reports = []
   await page.click("[data-test-run]")
@@ -259,16 +333,31 @@ try {
   for (let i = 0; i < 120; i++) {
     const r = await rows()
     r.forEach((x, n) => x.status && seen.add(`${n}:${x.status}`))
-    const status = await page.getAttribute("[data-test-status]", "data-test-status").catch(() => null)
+    const status = await page
+      .getAttribute("[data-test-status]", "data-test-status")
+      .catch(() => null)
     if (status && !["queued", "running"].includes(status)) break
     await sleep(250)
   }
   const afterTest = await rows()
   out.progressSeen = [...seen]
-  check("live progress: a step was shown running while the run went", [...seen].some((s) => s.endsWith(":running")), out.progressSeen)
-  check("the test run finished ok, every row ok", (await page.getAttribute("[data-test-status]", "data-test-status")) === "ok" && afterTest.every((r) => r.status === "ok"), afterTest)
+  check(
+    "live progress: a step was shown running while the run went",
+    [...seen].some((s) => s.endsWith(":running")),
+    out.progressSeen,
+  )
+  check(
+    "the test run finished ok, every row ok",
+    (await page.getAttribute("[data-test-status]", "data-test-status")) === "ok" &&
+      afterTest.every((r) => r.status === "ok"),
+    afterTest,
+  )
   await sleep(500)
-  check("the page saw the task done, in the new order", reports.some((r) => r.out === "sent: hello from the recorder (agreed)"), reports)
+  check(
+    "the page saw the task done, in the new order",
+    reports.some((r) => r.out === "sent: hello from the recorder (agreed)"),
+    reports,
+  )
   await page.screenshot({ path: `${SHOTS}/MH-400-editor-tested-en-light-1440.png`, fullPage: true })
 
   // ---- 6. restore v1 ----
@@ -276,11 +365,30 @@ try {
   await page.click("[data-restore-confirm]")
   await page.waitForSelector('[data-form="workflow-editor"][data-version="3"]', { timeout: 20000 })
   const v3 = (await call("GET", `/api/w/workflows/${workflowID}`, undefined, workspace.id)).workflow
-  const { versions } = await call("GET", `/api/w/workflows/${workflowID}/versions`, undefined, workspace.id)
-  check("restoring v1 made v3 with v1's steps exactly", v3.version === 3 && JSON.stringify(v3.steps) === JSON.stringify(v1.steps), { v1: v1.steps, v3: v3.steps })
-  check("history kept all three: restored, edited, recorded", versions.map((v) => `${v.version}:${v.note}`).join(",") === "3:restored,2:edited,1:recorded", versions.map((v) => `${v.version}:${v.note}`))
-  check("the editor shows v1's steps again", (await page.locator("[data-step-row]").count()) === v1.steps.length)
-  await page.screenshot({ path: `${SHOTS}/MH-400-editor-restored-en-light-1440.png`, fullPage: true })
+  const { versions } = await call(
+    "GET",
+    `/api/w/workflows/${workflowID}/versions`,
+    undefined,
+    workspace.id,
+  )
+  check(
+    "restoring v1 made v3 with v1's steps exactly",
+    v3.version === 3 && JSON.stringify(v3.steps) === JSON.stringify(v1.steps),
+    { v1: v1.steps, v3: v3.steps },
+  )
+  check(
+    "history kept all three: restored, edited, recorded",
+    versions.map((v) => `${v.version}:${v.note}`).join(",") === "3:restored,2:edited,1:recorded",
+    versions.map((v) => `${v.version}:${v.note}`),
+  )
+  check(
+    "the editor shows v1's steps again",
+    (await page.locator("[data-step-row]").count()) === v1.steps.length,
+  )
+  await page.screenshot({
+    path: `${SHOTS}/MH-400-editor-restored-en-light-1440.png`,
+    fullPage: true,
+  })
 
   // ---- 7-9. the schedule form ----
   const password = `pw-${Date.now()}`
@@ -306,25 +414,39 @@ try {
   // The guided flow: setup folds into a status row once a browser is paired
   // and may go somewhere, and a schedule is added from its section.
   await page.waitForSelector("[data-browser-status]", { timeout: 60000 })
-  check("with a browser paired and allowed somewhere, setup folds into one status row", (await page.locator('[data-flow-step="install"]').count()) === 0)
+  check(
+    "with a browser paired and allowed somewhere, setup folds into one status row",
+    (await page.locator('[data-flow-step="install"]').count()) === 0,
+  )
   await page.locator("[data-new-schedule]").first().click()
   await page.waitForSelector('form[data-form="schedule"]', { timeout: 60000 })
   const form = page.locator('form[data-form="schedule"]')
   await form.scrollIntoViewIfNeeded()
   // The newest workflow is first: Morning login.
-  check("the form offers saved workflows by name", (await page.textContent("#sc-workflow")).includes("Morning login"))
-  check("it asks for the workflow's values; the secret is a password field", (await page.getAttribute("#sc-val-password", "type")) === "password" && (await page.locator("#sc-val-user").count()) === 1)
+  check(
+    "the form offers saved workflows by name",
+    (await page.textContent("#sc-workflow")).includes("Morning login"),
+  )
+  check(
+    "it asks for the workflow's values; the secret is a password field",
+    (await page.getAttribute("#sc-val-password", "type")) === "password" &&
+      (await page.locator("#sc-val-user").count()) === 1,
+  )
   await page.fill("#sc-name", "Weekday login")
   await page.fill("#sc-val-user", "fady")
   await page.fill("#sc-val-password", password)
   // Weekdays at 07:00 is the default preset; the preview is in Cairo time.
-  await page.waitForSelector('[data-preview="valid"] [data-next-runs] li:nth-child(5)', { timeout: 20000 })
+  await page.waitForSelector('[data-preview="valid"] [data-next-runs] li:nth-child(5)', {
+    timeout: 20000,
+  })
   const preview = await page.$$eval("[data-next-runs] li", (els) => els.map((e) => e.textContent))
   out.preview = preview
   const previewZone = await page.textContent('[data-preview="valid"]')
   check(
     "the next five runs are shown before saving, weekdays at 07:00 in the workspace's zone",
-    preview.length === 5 && preview.every((p) => /07:00/.test(p) && !/Saturday|Sunday/.test(p)) && previewZone.includes("Africa/Cairo"),
+    preview.length === 5 &&
+      preview.every((p) => /07:00/.test(p) && !/Saturday|Sunday/.test(p)) &&
+      previewZone.includes("Africa/Cairo"),
     { preview, previewZone },
   )
   // A custom expression that is not one yet says so, and blocks saving.
@@ -332,16 +454,37 @@ try {
   await page.getByRole("option", { name: "Custom (cron)" }).click()
   await page.fill("#sc-cron", "0 7 *")
   await page.waitForSelector('[data-preview="invalid"]', { timeout: 10000 })
-  check("a half-typed cron is explained, and Add is off", await form.locator('button[type="submit"]').isDisabled())
+  check(
+    "a half-typed cron is explained, and Add is off",
+    await form.locator('button[type="submit"]').isDisabled(),
+  )
   await page.fill("#sc-cron", "30 6 * * 1-5")
-  await page.waitForSelector('[data-preview="valid"] [data-next-runs] li:nth-child(5)', { timeout: 10000 })
-  check("custom cron previewed too", (await page.$$eval("[data-next-runs] li", (els) => els.map((e) => e.textContent))).every((p) => /06:30/.test(p)))
+  await page.waitForSelector('[data-preview="valid"] [data-next-runs] li:nth-child(5)', {
+    timeout: 10000,
+  })
+  check(
+    "custom cron previewed too",
+    (await page.$$eval("[data-next-runs] li", (els) => els.map((e) => e.textContent))).every((p) =>
+      /06:30/.test(p),
+    ),
+  )
   await page.screenshot({ path: `${SHOTS}/MH-403-schedule-form-en-light-1440.png`, fullPage: true })
   await form.locator('button[type="submit"]').click()
-  await page.waitForSelector('[data-schedule="Weekday login"] [data-schedule-workflow]', { timeout: 20000 })
+  await page.waitForSelector('[data-schedule="Weekday login"] [data-schedule-workflow]', {
+    timeout: 20000,
+  })
   const rowText = await page.textContent('[data-schedule="Weekday login"]')
-  check("the saved schedule names its workflow and shows the plain value, and the secret only as set", rowText.includes("Morning login") && rowText.includes("user: fady") && rowText.includes("password: set") && !rowText.includes(password), rowText)
-  const listRaw = await (await http.get(`${web}/api/w/schedules`, { headers: { "X-Workspace-ID": workspace.id } })).text()
+  check(
+    "the saved schedule names its workflow and shows the plain value, and the secret only as set",
+    rowText.includes("Morning login") &&
+      rowText.includes("user: fady") &&
+      rowText.includes("password: set") &&
+      !rowText.includes(password),
+    rowText,
+  )
+  const listRaw = await (
+    await http.get(`${web}/api/w/schedules`, { headers: { "X-Workspace-ID": workspace.id } })
+  ).text()
   check("the secret is never sent back by the API", !listRaw.includes(password))
 
   reports = []
@@ -357,7 +500,11 @@ try {
     await sleep(1000)
   }
   await sleep(500)
-  check("Run now runs the workflow with the secret filled in for the browser", run?.run.status === "ok" && reports.some((r) => r.user === "fady" && r.pw === password), { run: run?.run, reports })
+  check(
+    "Run now runs the workflow with the secret filled in for the browser",
+    run?.run.status === "ok" && reports.some((r) => r.user === "fady" && r.pw === password),
+    { run: run?.run, reports },
+  )
   check("the run record keeps the secret redacted", !JSON.stringify(run).includes(password))
 } catch (err) {
   out.error = String(err?.stack || err)

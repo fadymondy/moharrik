@@ -38,7 +38,10 @@ for (const theme of themes) {
         // Not networkidle: the workspace event stream stays open by design.
         await page.waitForTimeout(3000)
         const name = `${prefix}-${p.replaceAll("/", "-")}-${locale}-${theme}-${width}.png`
-        await page.screenshot({ path: path.join(out, name), fullPage: process.env.SHOT_FULL !== "0" })
+        await page.screenshot({
+          path: path.join(out, name),
+          fullPage: process.env.SHOT_FULL !== "0",
+        })
         console.log(name)
       }
     }

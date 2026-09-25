@@ -9,9 +9,16 @@ export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
   if (!process.env.MAHAAM_FEEDBACK_KEY) {
-    return Response.json({ detail: "Feedback is not configured." }, { status: 503, headers: { "cache-control": "no-store" } })
+    return Response.json(
+      { detail: "Feedback is not configured." },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    )
   }
   const me = await sessionReporter(req.headers.get("cookie"))
-  if (!me) return Response.json({ detail: "Sign in to report a problem." }, { status: 401, headers: { "cache-control": "no-store" } })
+  if (!me)
+    return Response.json(
+      { detail: "Sign in to report a problem." },
+      { status: 401, headers: { "cache-control": "no-store" } },
+    )
   return Response.json({ key: issueWidgetKey(me) }, { headers: { "cache-control": "no-store" } })
 }
