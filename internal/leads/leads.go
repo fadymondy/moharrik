@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fadymondy/moharrik/internal/paging"
 )
 
 // Statuses. converted is reached only by Convert, never set directly.
@@ -150,67 +152,103 @@ func scanLead(r scanner) (Lead, error) {
 type Filter struct {
 	Status string
 	Q      string
+	Cursor string
 	Limit  int
 }
 
 // LeadCounts is how many leads the workspace has in each status, for the filter.
 type LeadCounts map[string]int
 
-// List returns the workspace's leads, newest first, and the per-status counts
-// (of the whole workspace, not of the filtered page — the filter shows them).
-func List(ctx context.Context, db *sql.DB, wsID string, f Filter) ([]Lead, LeadCounts, error) {
-	q := leadSelect
+// LeadPage is one page of List, newest first, keyset-paged like the rest of
+// the workspace's lists (internal/paging, MH-467; MH-603 for leads).
+type LeadPage struct {
+	Leads      []Lead
+	Counts     LeadCounts // per-status counts of the whole workspace, not of the filtered page
+	Total      int        // every lead matching the filter (across pages)
+	NextCursor string
+}
+
+// List returns one page of the workspace's leads, newest first, and the
+// per-status counts (of the whole workspace, not of the filtered page — the
+// filter shows them).
+func List(ctx context.Context, db *sql.DB, wsID string, f Filter) (*LeadPage, error) {
+	limit, err := paging.Limit(f.Limit, 50, 500)
+	if err != nil {
+		return nil, err
+	}
+	cur, err := paging.Decode(f.Cursor, 2)
+	if err != nil {
+		return nil, err
+	}
+	where := `WHERE l.workspace_id = $1`
 	args := []any{wsID}
 	if f.Status != "" {
 		args = append(args, f.Status)
-		q += ` AND l.status = $2`
+		where += ` AND l.status = $` + strconv.Itoa(len(args))
 	}
 	if s := strings.TrimSpace(f.Q); s != "" {
 		args = append(args, "%"+escapeLike(strings.ToLower(s))+"%")
 		n := "$" + strconv.Itoa(len(args))
-		q += ` AND (lower(l.name) LIKE ` + n + ` OR lower(l.email) LIKE ` + n + ` OR lower(l.company) LIKE ` + n + ` OR lower(l.message) LIKE ` + n + `)`
+		where += ` AND (lower(l.name) LIKE ` + n + ` OR lower(l.email) LIKE ` + n + ` OR lower(l.company) LIKE ` + n + ` OR lower(l.message) LIKE ` + n + `)`
 	}
-	limit := f.Limit
-	if limit <= 0 || limit > 500 {
-		limit = 500
+
+	page := &LeadPage{Leads: []Lead{}}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM leads l `+where, args...).Scan(&page.Total); err != nil {
+		return nil, err
 	}
-	q += ` ORDER BY l.created_at DESC LIMIT ` + strconv.Itoa(limit)
+
+	if cur != nil {
+		ts, err := time.Parse(time.RFC3339Nano, cur[0])
+		if err != nil {
+			return nil, paging.ErrBadCursor
+		}
+		args = append(args, ts, cur[1])
+		n := len(args)
+		where += ` AND (l.created_at, l.id) < ($` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
+	}
+	args = append(args, limit+1)
+	q := strings.TrimSuffix(leadSelect, `WHERE l.workspace_id = $1`) + where +
+		` ORDER BY l.created_at DESC, l.id DESC LIMIT $` + strconv.Itoa(len(args))
 
 	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer rows.Close()
-	list := []Lead{}
 	for rows.Next() {
 		l, err := scanLead(rows)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		list = append(list, l)
+		page.Leads = append(page.Leads, l)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+	if len(page.Leads) > limit {
+		page.Leads = page.Leads[:limit]
+		last := page.Leads[limit-1]
+		page.NextCursor = paging.Encode(last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ID)
 	}
 
-	counts := LeadCounts{}
+	page.Counts = LeadCounts{}
 	for _, s := range Statuses {
-		counts[s] = 0
+		page.Counts[s] = 0
 	}
 	crow, err := db.QueryContext(ctx, `SELECT status, count(*) FROM leads WHERE workspace_id = $1 GROUP BY status`, wsID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer crow.Close()
 	for crow.Next() {
 		var s string
 		var n int
 		if err := crow.Scan(&s, &n); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		counts[s] = n
+		page.Counts[s] = n
 	}
-	return list, counts, crow.Err()
+	return page, crow.Err()
 }
 
 // Get returns one lead with what it converted into.

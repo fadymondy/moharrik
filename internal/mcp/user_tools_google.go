@@ -61,8 +61,6 @@ func GoogleTools() []Tool {
 		}
 		return s, r, nil
 	}
-	n := func(v int64) string { return commas(v) }
-
 	return []Tool{
 		{
 			Name:        "google_resources",
@@ -78,26 +76,14 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				if len(list) == 0 {
-					return "Nothing is enabled. An admin connects Google and switches on properties, sites or channels in Settings → Integrations.", nil
-				}
-				var b strings.Builder
+				items := make([]map[string]any, 0, len(list))
 				for _, r := range list {
-					fmt.Fprintf(&b, "- %s: %s (%s) id=%s", kindName(r.Kind), r.DisplayName, r.ExternalID, r.ID)
-					if r.LastSyncedAt != nil {
-						fmt.Fprintf(&b, " · synced %s", r.LastSyncedAt.UTC().Format("2006-01-02 15:04 UTC"))
-					} else {
-						b.WriteString(" · not synced yet")
-					}
-					if r.Reauth {
-						b.WriteString(" · NEEDS RECONNECTING")
-					}
-					if r.LastError != "" {
-						fmt.Fprintf(&b, "\n  last error: %s", r.LastError)
-					}
-					b.WriteString("\n")
+					items = append(items, map[string]any{
+						"id": r.ID, "kind": kindName(r.Kind), "name": r.DisplayName, "external_id": r.ExternalID,
+						"last_synced_at": r.LastSyncedAt, "needs_reconnecting": r.Reauth, "last_error": r.LastError,
+					})
 				}
-				return b.String(), nil
+				return jsonResult(map[string]any{"count": len(items), "items": items})
 			},
 		},
 		{
@@ -119,29 +105,22 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", fmt.Errorf("GA4 could not be read: %s", google.Describe(err))
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "GA4 · %s (%s) · %s to %s (%s)\n", r.DisplayName, r.ExternalID, rep.StartDate, rep.EndDate, rep.TimeZone)
-				stale(&b, rep.Stale, rep.Note, rep.FetchedAt.UTC().Format("2006-01-02 15:04 UTC"))
-				if rep.Empty {
-					b.WriteString("GA4 has no data for this property in this window.\n")
-					return b.String(), nil
+				out := map[string]any{
+					"resource": map[string]any{"id": r.ID, "name": r.DisplayName, "external_id": r.ExternalID},
+					"start_date": rep.StartDate, "end_date": rep.EndDate, "timezone": rep.TimeZone,
+					"stale": rep.Stale, "note": rep.Note, "fetched_at": rep.FetchedAt, "empty": rep.Empty,
 				}
-				t := rep.Totals
-				fmt.Fprintf(&b, "users %s (new %s) · sessions %s · views %s · engagement rate %.1f%% · %.0fs engaged per user\n",
-					n(t.Users), n(t.NewUsers), n(t.Sessions), n(t.Views), t.EngagementRate*100, t.AvgEngagementPerUse)
-				b.WriteString("daily (date users/sessions/views):")
-				for _, day := range rep.Daily {
-					fmt.Fprintf(&b, " %s %d/%d/%d;", day.Date[5:], day.Users, day.Sessions, day.Views)
+				if !rep.Empty {
+					t := rep.Totals
+					out["totals"] = map[string]any{
+						"users": t.Users, "new_users": t.NewUsers, "sessions": t.Sessions, "views": t.Views,
+						"engagement_rate": t.EngagementRate, "avg_engagement_per_user_sec": t.AvgEngagementPerUse,
+					}
+					out["daily"] = rep.Daily
+					out["top_pages"] = rep.TopPages
+					out["sources"] = rep.Sources
 				}
-				b.WriteString("\ntop pages (views, users):\n")
-				for _, p := range rep.TopPages {
-					fmt.Fprintf(&b, "  %s  %s, %s\n", p.Path, n(p.Views), n(p.Users))
-				}
-				b.WriteString("source / medium (sessions, users):\n")
-				for _, x := range rep.Sources {
-					fmt.Fprintf(&b, "  %s / %s  %s, %s\n", x.Source, x.Medium, n(x.Sessions), n(x.Users))
-				}
-				return b.String(), nil
+				return jsonResult(out)
 			},
 		},
 		{
@@ -174,57 +153,32 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "Search Console · %s\n", r.ExternalID)
+				out := map[string]any{"site": r.ExternalID, "nothing_yet": p.NothingYet}
 				if p.NothingYet {
-					if r.LastError != "" {
-						return b.String() + "Nothing imported yet. The last import failed: " + r.LastError + "\n", nil
-					}
-					return b.String() + "Nothing imported yet: the first import is running or has not started.\n", nil
+					out["last_error"] = r.LastError
+					return jsonResult(out)
 				}
-				fmt.Fprintf(&b, "%s to %s (newest day with data) · %d days imported\n", p.StartDate, p.EndDate, p.Coverage.ImportedDays)
-				if p.Basis == "queries" {
-					b.WriteString("Filtered by query or page: these totals are sums of named queries and leave anonymised ones out.\n")
-				}
-				if p.Missing > 0 {
-					fmt.Fprintf(&b, "%d days of this window are not imported yet: the totals are partial.\n", p.Missing)
-				}
-				pos := func(v *float64) string {
-					if v == nil {
-						return "—"
-					}
-					return fmt.Sprintf("%.1f", *v)
-				}
-				t := p.Totals
-				fmt.Fprintf(&b, "clicks %s · impressions %s · CTR %.2f%% · average position %s\n", n(t.Clicks), n(t.Impressions), t.CTR*100, pos(t.Position))
+				out["start_date"], out["end_date"], out["imported_days"] = p.StartDate, p.EndDate, p.Coverage.ImportedDays
+				out["basis"], out["missing_days"], out["empty"] = p.Basis, p.Missing, p.Empty
+				out["totals"] = map[string]any{"clicks": p.Totals.Clicks, "impressions": p.Totals.Impressions, "ctr": p.Totals.CTR, "position": p.Totals.Position}
 				if p.Previous != nil {
-					if p.PreviousMissing > 0 {
-						fmt.Fprintf(&b, "before (%s to %s): still importing (%d days to go), not compared\n", p.PrevStartDate, p.PrevEndDate, p.PreviousMissing)
-					} else {
-						q := p.Previous
-						fmt.Fprintf(&b, "before (%s to %s): clicks %s · impressions %s · CTR %.2f%% · average position %s\n",
-							p.PrevStartDate, p.PrevEndDate, n(q.Clicks), n(q.Impressions), q.CTR*100, pos(q.Position))
+					prev := map[string]any{"start_date": p.PrevStartDate, "end_date": p.PrevEndDate, "missing_days": p.PreviousMissing}
+					if p.PreviousMissing == 0 {
+						prev["clicks"], prev["impressions"], prev["ctr"], prev["position"] = p.Previous.Clicks, p.Previous.Impressions, p.Previous.CTR, p.Previous.Position
 					}
+					out["previous"] = prev
 				}
-				if p.Empty {
-					b.WriteString("No clicks or impressions in this window.\n")
-					return b.String(), nil
-				}
-				b.WriteString("top queries (clicks, impressions, position):\n")
-				for i, x := range p.TopQueries {
-					if i == 15 {
-						break
+				if !p.Empty {
+					top := func(list []searchconsole.SearchRow) []searchconsole.SearchRow {
+						if len(list) > 15 {
+							return list[:15]
+						}
+						return list
 					}
-					fmt.Fprintf(&b, "  %s  %s, %s, %s\n", x.Key, n(x.Clicks), n(x.Impressions), pos(x.Position))
+					out["top_queries"] = top(p.TopQueries)
+					out["top_pages"] = top(p.TopPages)
 				}
-				b.WriteString("top pages (clicks, impressions, position):\n")
-				for i, x := range p.TopPages {
-					if i == 15 {
-						break
-					}
-					fmt.Fprintf(&b, "  %s  %s, %s, %s\n", x.Key, n(x.Clicks), n(x.Impressions), pos(x.Position))
-				}
-				return b.String(), nil
+				return jsonResult(out)
 			},
 		},
 		{
@@ -245,15 +199,10 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "%s · inspections today %d of %d\n", r.ExternalID, q.Used, q.Limit)
-				if len(list) == 0 {
-					b.WriteString("No pages inspected yet.\n")
-				}
-				for _, in := range list {
-					fmt.Fprintf(&b, "- %s: %s — %s (inspected %s)\n", in.URL, in.Verdict, in.CoverageState, in.InspectedAt.UTC().Format("2006-01-02 15:04 UTC"))
-				}
-				return b.String(), nil
+				return jsonResult(map[string]any{
+					"site": r.ExternalID, "quota_used_today": q.Used, "quota_limit": q.Limit,
+					"count": len(list), "items": list,
+				})
 			},
 		},
 		{
@@ -271,20 +220,7 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", errors.New(google.Describe(err))
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "%s\nverdict %s — %s\n", in.URL, in.Verdict, in.CoverageState)
-				if in.LastCrawlTime != nil {
-					fmt.Fprintf(&b, "last crawled %s · fetch %s · robots.txt %s\n", in.LastCrawlTime.UTC().Format("2006-01-02 15:04 UTC"), in.PageFetchState, in.RobotsTxtState)
-				} else {
-					b.WriteString("not crawled\n")
-				}
-				if in.GoogleCanonical != "" || in.UserCanonical != "" {
-					fmt.Fprintf(&b, "Google's canonical %s · declared %s\n", firstNonEmpty(in.GoogleCanonical, "—"), firstNonEmpty(in.UserCanonical, "—"))
-				}
-				if in.ResultLink != "" {
-					fmt.Fprintf(&b, "in Search Console: %s\n", in.ResultLink)
-				}
-				return b.String(), nil
+				return jsonResult(map[string]any{"inspection": in})
 			},
 		},
 		{
@@ -301,12 +237,12 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", errors.New(google.Describe(err))
 				}
-				return sitemapText(r.ExternalID, list), nil
+				return jsonResult(map[string]any{"site": r.ExternalID, "count": len(list), "items": list})
 			},
 		},
 		{
 			Name:        "gsc_submit_sitemap",
-			Description: "Submit a sitemap of an enabled site to Google, or ask Google to read it again.",
+			Description: "Submit a sitemap of an enabled site to Google, or ask Google to read it again. Returns the site's sitemap list read back.",
 			Scope:       "search_console:write",
 			InputSchema: schema([]string{"url"}, map[string]any{"resource": resourceProp, "url": prop("string", "The sitemap's absolute URL, under the site")}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
@@ -320,9 +256,9 @@ func GoogleTools() []Tool {
 				}
 				list, err := searchconsole.Sitemaps(ctx, a, s.WorkspaceID, *r)
 				if err != nil {
-					return "Submitted. The list could not be read back: " + google.Describe(err), nil
+					return jsonResult(map[string]any{"ok": true, "site": r.ExternalID, "read_back_error": google.Describe(err)})
 				}
-				return "Submitted.\n" + sitemapText(r.ExternalID, list), nil
+				return jsonResult(map[string]any{"ok": true, "site": r.ExternalID, "count": len(list), "items": list})
 			},
 		},
 		{
@@ -343,29 +279,20 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", err
 				}
+				quota := map[string]any{
+					"day": q.Day, "workspace_used": q.WorkspaceUsed, "workspace_limit": q.WorkspaceLimit,
+					"global_used": q.GlobalUsed, "global_limit": q.GlobalLimit,
+				}
 				if c == nil {
+					out := map[string]any{"synced": false, "quota": quota}
 					if r.LastError != "" {
-						return "The channel has not been read yet. The last sync failed: " + r.LastError, nil
+						out["last_error"] = r.LastError
 					}
-					return "The channel has not been read yet: its first sync is running or has not started.", nil
+					return jsonResult(out)
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "%s %s (%s) · %s\n", c.Title, c.Handle, c.ChannelID, c.URL)
-				if c.SubscribersHidden {
-					b.WriteString("subscribers hidden")
-				} else {
-					fmt.Fprintf(&b, "subscribers %s", n(c.Subscribers))
-				}
-				fmt.Fprintf(&b, " · lifetime views %s · uploads read %d (%d public; YouTube's own counter says %d)\n", n(c.Views), c.Uploads, c.PublicUploads, c.Videos)
-				fmt.Fprintf(&b, "synced %s\n", c.UpdatedAt.UTC().Format("2006-01-02 15:04 UTC"))
-				for _, st := range c.Steps {
-					if st.State != "ok" {
-						fmt.Fprintf(&b, "step %s: %s — %s\n", st.Name, st.State, st.Error)
-					}
-				}
-				fmt.Fprintf(&b, "YouTube quota today (%s, Pacific): %d of %d units for this workspace, %d of %d for all of Moharrik\n",
-					q.Day, q.WorkspaceUsed, q.WorkspaceLimit, q.GlobalUsed, q.GlobalLimit)
-				return b.String(), nil
+				return jsonResult(map[string]any{
+					"synced": true, "channel": c, "quota": quota,
+				})
 			},
 		},
 		{
@@ -390,27 +317,9 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "%d uploads match (public %d, unlisted %d, private %d, scheduled %d)\n", page.Total,
-					page.Counts["public"], page.Counts["unlisted"], page.Counts["private"], page.Counts["scheduled"])
-				for _, v := range page.Videos {
-					likes, comments := "hidden", "off"
-					if v.Likes != nil {
-						likes = n(*v.Likes)
-					}
-					if v.Comments != nil {
-						comments = n(*v.Comments)
-					}
-					when := "—"
-					if v.PublishedAt != nil {
-						when = v.PublishedAt.UTC().Format("2006-01-02")
-					}
-					fmt.Fprintf(&b, "- %s [%s] %s · %s views · %s likes · %s comments · id=%s\n", when, v.PrivacyStatus, v.Title, n(v.Views), likes, comments, v.ID)
-				}
-				if page.HasMore {
-					fmt.Fprintf(&b, "more: cursor=%s\n", page.NextCursor)
-				}
-				return b.String(), nil
+				return jsonResult(map[string]any{
+					"total": page.Total, "counts": page.Counts, "count": len(page.Videos), "items": page.Videos, "next_cursor": page.NextCursor,
+				})
 			},
 		},
 		{
@@ -431,27 +340,7 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "%s [%s] · %s views · %s\n", d.Title, d.PrivacyStatus, n(d.Views), d.URL)
-				switch d.CommentNote {
-				case "":
-				case "comments_disabled":
-					b.WriteString("Comments are turned off for this video.\n")
-				case "comments_unavailable":
-					b.WriteString("Comments cannot be read on this server: it has no YouTube API key (YOUTUBE_API_KEY).\n")
-				case "comments_not_public":
-					b.WriteString("This video is not public, so its comments cannot be read with read-only access.\n")
-				default:
-					fmt.Fprintf(&b, "Comments may be old: %s\n", d.CommentNote)
-				}
-				for _, c := range d.TopComments {
-					ans := ""
-					if c.Answered {
-						ans = " (answered)"
-					}
-					fmt.Fprintf(&b, "- %s%s · %d likes · %d replies: %s\n  reply: %s\n", c.Author, ans, c.Likes, c.Replies, firstLine(c.Text), c.ReplyURL)
-				}
-				return b.String(), nil
+				return jsonResult(map[string]any{"video": d})
 			},
 		},
 		{
@@ -469,32 +358,9 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				var b strings.Builder
-				if out.CheckedAt == nil {
-					b.WriteString("Not checked with YouTube Reporting yet (it runs with the channel's next sync).\n")
-				}
-				if len(out.Jobs) == 0 {
-					b.WriteString("No report jobs yet.\n")
-				}
-				for _, j := range out.Jobs {
-					if j.Reports == 0 {
-						created := "—"
-						if j.CreatedAt != nil {
-							created = j.CreatedAt.UTC().Format("2006-01-02")
-						}
-						fmt.Fprintf(&b, "job %s: no reports yet (created %s; YouTube publishes the first about two days later)\n", j.ReportTypeID, created)
-						continue
-					}
-					fmt.Fprintf(&b, "job %s: %d reports, newest %s\n", j.ReportTypeID, j.Reports, j.LatestDay.UTC().Format("2006-01-02"))
-				}
-				for _, rep := range out.Reports {
-					day := "—"
-					if rep.StartTime != nil {
-						day = rep.StartTime.UTC().Format("2006-01-02")
-					}
-					fmt.Fprintf(&b, "- %s %s · %d rows · report_id=%s\n", day, rep.ReportTypeID, rep.RowCount, rep.ReportID)
-				}
-				return b.String(), nil
+				return jsonResult(map[string]any{
+					"checked_at": out.CheckedAt, "jobs": out.Jobs, "count": len(out.Reports), "items": out.Reports,
+				})
 			},
 		},
 		{
@@ -519,36 +385,21 @@ func GoogleTools() []Tool {
 				if err != nil {
 					return "", fmt.Errorf("YouTube Analytics could not be read: %s", google.Describe(err))
 				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "YouTube Analytics · %s · %s to %s\n", an.Scope, an.StartDate, an.EndDate)
-				stale(&b, an.Stale, an.Note, an.FetchedAt.UTC().Format("2006-01-02 15:04 UTC"))
-				if an.Empty {
-					b.WriteString("YouTube Analytics has nothing for this window.\n")
-					return b.String(), nil
+				out := map[string]any{
+					"scope": an.Scope, "start_date": an.StartDate, "end_date": an.EndDate,
+					"stale": an.Stale, "note": an.Note, "fetched_at": an.FetchedAt, "empty": an.Empty,
 				}
-				t := an.Totals
-				fmt.Fprintf(&b, "views %.0f · watch time %.1f h · average view %.0fs · subscribers +%.0f −%.0f · likes %.0f · comments %.0f\n",
-					t.Views, t.WatchMinutes/60, t.AvgViewDurationSec, t.SubscribersGained, t.SubscribersLost, t.Likes, t.Comments)
-				pending := 0
-				b.WriteString("daily views:")
-				for _, day := range an.Daily {
-					if day.Views == nil {
-						pending++
-						continue
+				if !an.Empty {
+					t := an.Totals
+					out["totals"] = map[string]any{
+						"views": t.Views, "watch_minutes": t.WatchMinutes, "avg_view_duration_sec": t.AvgViewDurationSec,
+						"subscribers_gained": t.SubscribersGained, "subscribers_lost": t.SubscribersLost, "likes": t.Likes, "comments": t.Comments,
 					}
-					fmt.Fprintf(&b, " %s %.0f;", day.Day[5:], *day.Views)
+					out["daily"] = an.Daily
+					out["top_videos"] = an.TopVideos
+					out["traffic"] = an.Traffic
 				}
-				b.WriteString("\n")
-				if pending > 0 {
-					fmt.Fprintf(&b, "(the last %d days are not published by YouTube yet)\n", pending)
-				}
-				for _, v := range an.TopVideos {
-					fmt.Fprintf(&b, "top: %s — %.0f views · id=%s\n", firstNonEmpty(v.Title, v.VideoID), v.Views, v.VideoID)
-				}
-				for _, x := range an.Traffic {
-					fmt.Fprintf(&b, "traffic: %s %.0f\n", x.Source, x.Views)
-				}
-				return b.String(), nil
+				return jsonResult(out)
 			},
 		},
 	}
@@ -562,47 +413,4 @@ func kindName(k google.Kind) string {
 		return "Search Console site"
 	}
 	return "YouTube channel"
-}
-
-func stale(b *strings.Builder, isStale bool, note, fetched string) {
-	if isStale {
-		fmt.Fprintf(b, "STALE: Google could not be asked just now (%s); these are the numbers fetched %s.\n", note, fetched)
-	} else {
-		fmt.Fprintf(b, "fetched %s\n", fetched)
-	}
-}
-
-func sitemapText(site string, list []searchconsole.Sitemap) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s · %d sitemap(s)\n", site, len(list))
-	for _, m := range list {
-		state := "read"
-		if m.IsPending {
-			state = "pending"
-		}
-		urls := "—"
-		if m.Submitted != nil {
-			urls = commas(*m.Submitted)
-		}
-		fmt.Fprintf(&b, "- %s · %s · %s URLs", m.Path, state, urls)
-		if m.Errors != nil && *m.Errors > 0 {
-			fmt.Fprintf(&b, " · %d errors", *m.Errors)
-		}
-		b.WriteString("\n")
-	}
-	return b.String()
-}
-
-// commas formats 12345 as 12,345.
-func commas(v int64) string {
-	s := fmt.Sprint(v)
-	neg := strings.HasPrefix(s, "-")
-	s = strings.TrimPrefix(s, "-")
-	for i := len(s) - 3; i > 0; i -= 3 {
-		s = s[:i] + "," + s[i:]
-	}
-	if neg {
-		return "-" + s
-	}
-	return s
 }

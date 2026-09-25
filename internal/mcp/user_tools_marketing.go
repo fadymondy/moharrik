@@ -24,7 +24,7 @@ func MarketingTools() []Tool {
 	return []Tool{
 		{
 			Name:        "list_mail_lists",
-			Description: "Mailing lists, with subscriber and pending counts.",
+			Description: "Mailing lists, with subscriber and pending counts, and whether each is double opt-in.",
 			Scope:       "contacts:read",
 			InputSchema: schema(nil, map[string]any{}),
 			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
@@ -42,8 +42,7 @@ func MarketingTools() []Tool {
 					return "", fmt.Errorf("could not list mailing lists: %w", err)
 				}
 				defer rows.Close()
-				var b strings.Builder
-				n := 0
+				items := []map[string]any{}
 				for rows.Next() {
 					var name string
 					var doi bool
@@ -51,17 +50,14 @@ func MarketingTools() []Tool {
 					if err := rows.Scan(&name, &doi, &subscribed, &pending); err != nil {
 						return "", fmt.Errorf("could not list mailing lists: %w", err)
 					}
-					n++
-					fmt.Fprintf(&b, "%s — %d subscribed, %d pending", name, subscribed, pending)
-					if doi {
-						b.WriteString(" (double opt-in)")
-					}
-					b.WriteByte('\n')
+					items = append(items, map[string]any{
+						"name": name, "double_opt_in": doi, "subscribed": subscribed, "pending": pending,
+					})
 				}
-				if n == 0 {
-					return "No mailing lists yet.", nil
+				if err := rows.Err(); err != nil {
+					return "", fmt.Errorf("could not list mailing lists: %w", err)
 				}
-				return fmt.Sprintf("%d list(s):\n%s", n, b.String()), nil
+				return jsonResult(map[string]any{"count": len(items), "items": items})
 			},
 		},
 		{
@@ -69,8 +65,8 @@ func MarketingTools() []Tool {
 			// reads through marketing.ListCampaignsPage, the page the campaigns
 			// screen uses, and says how many there are and how to get more.
 			Name: "list_campaigns",
-			Description: "Campaigns and their delivery progress, newest first, one page at a time. " +
-				"The reply says how many there are in total; pass its cursor to get the next page.",
+			Description: "Campaigns and their delivery progress, newest first, one page at a time: subject, list, channel, status " +
+				"and sent/recipient/failed counts. total is how many there are; pass next_cursor back as cursor for the next page.",
 			Scope: "campaigns:read",
 			InputSchema: schema(nil, map[string]any{
 				"cursor": prop("string", "The cursor from the previous reply, for the next page"),
@@ -90,22 +86,9 @@ func MarketingTools() []Tool {
 				if err != nil {
 					return "", fmt.Errorf("could not list campaigns: %w", err)
 				}
-				if page.Total == 0 {
-					return "No campaigns yet.", nil
-				}
-				var b strings.Builder
-				for _, c := range page.Campaigns {
-					fmt.Fprintf(&b, "%s -> %s [%s, %s] %d/%d sent", c.Subject, c.ListName, c.Channel, c.Status, c.SentCount, c.RecipientCount)
-					if c.FailedCount > 0 {
-						fmt.Fprintf(&b, ", %d failed", c.FailedCount)
-					}
-					b.WriteByte('\n')
-				}
-				head := fmt.Sprintf("Showing %d of %d campaign(s):\n", len(page.Campaigns), page.Total)
-				if page.NextCursor != "" {
-					return head + b.String() + "More: call list_campaigns again with cursor=" + page.NextCursor, nil
-				}
-				return head + b.String(), nil
+				return jsonResult(map[string]any{
+					"total": page.Total, "count": len(page.Campaigns), "items": page.Campaigns, "next_cursor": page.NextCursor,
+				})
 			},
 		},
 		{
@@ -167,11 +150,10 @@ func MarketingTools() []Tool {
 				}
 				recipients, _ := marketing.CountEmailAudienceFor(ctx, a.SQLDB, s.WorkspaceID, listID, in.AudienceLocale)
 				skipped, _ := marketing.CountSkippedEmailAudienceFor(ctx, a.SQLDB, s.WorkspaceID, listID, in.AudienceLocale)
-				msg := fmt.Sprintf("Drafted %q for %s (%d confirmed subscriber(s)).", subject, listName, recipients)
-				if skipped > 0 {
-					msg += fmt.Sprintf(" %d subscriber(s) will be skipped — they have no email.", skipped)
-				}
-				return msg + " Call send_campaign to send it.", nil
+				return jsonResult(map[string]any{
+					"ok": true, "id": id, "subject": subject, "list": listName, "list_id": listID,
+					"recipients": recipients, "skipped_no_email": skipped,
+				})
 			},
 		},
 		{
@@ -264,7 +246,7 @@ func MarketingTools() []Tool {
 				if err := marketing.UpdateCampaign(ctx, a.SQLDB, s.WorkspaceID, id, cur); err != nil {
 					return "", err
 				}
-				return fmt.Sprintf("Saved %q. Call preview_campaign to see it as recipients will.", strings.TrimSpace(cur.Subject)), nil
+				return jsonResult(map[string]any{"ok": true, "id": id, "subject": strings.TrimSpace(cur.Subject)})
 			},
 		},
 		{
@@ -297,15 +279,13 @@ func MarketingTools() []Tool {
 					return "", fmt.Errorf("could not resolve the campaign: %w", err)
 				}
 				p := marketing.RenderPreview(channel, locale, subject, body)
-				var b strings.Builder
-				fmt.Fprintf(&b, "%s campaign, %s (%s), %s.\n\n", p.Channel, p.Locale, p.Dir, status)
-				if p.Channel == "whatsapp" {
-					b.WriteString("The WhatsApp message, as delivered:\n\n")
-					b.WriteString(p.Text)
-					return b.String(), nil
+				out := map[string]any{
+					"channel": p.Channel, "locale": p.Locale, "dir": p.Dir, "status": status, "text": p.Text,
 				}
-				fmt.Fprintf(&b, "Subject: %s\n\nPlain-text part:\n\n%s\n\nHTML part:\n\n%s", p.Subject, p.Text, p.HTML)
-				return b.String(), nil
+				if p.Channel != "whatsapp" {
+					out["subject"], out["html"] = p.Subject, p.HTML
+				}
+				return jsonResult(out)
 			},
 		},
 		{
@@ -326,32 +306,14 @@ func MarketingTools() []Tool {
 				if err != nil {
 					return "", fmt.Errorf("could not list SMTP services")
 				}
-				if len(list) == 0 {
-					return "No SMTP services yet. A member with the mail settings permission adds one under Settings → Email.", nil
-				}
-				var b strings.Builder
-				fmt.Fprintf(&b, "%d SMTP service(s):\n", len(list))
+				items := make([]map[string]any, 0, len(list))
 				for _, o := range list {
-					var roles []string
-					if o.IsDefault {
-						roles = append(roles, "default for confirmations and replies")
-					}
-					if o.IsCampaignDefault {
-						roles = append(roles, "campaign default")
-					}
-					test := "never tested"
-					if o.LastTestOK != nil && *o.LastTestOK {
-						test = "last test worked"
-					} else if o.LastTestOK != nil {
-						test = "last test failed"
-					}
-					fmt.Fprintf(&b, "- %s", o.Name)
-					if len(roles) > 0 {
-						fmt.Fprintf(&b, " (%s)", strings.Join(roles, ", "))
-					}
-					fmt.Fprintf(&b, ": %s; %d campaign(s) name it\n", test, o.Campaigns)
+					items = append(items, map[string]any{
+						"name": o.Name, "is_default": o.IsDefault, "is_campaign_default": o.IsCampaignDefault,
+						"last_test_ok": o.LastTestOK, "campaigns": o.Campaigns,
+					})
 				}
-				return b.String(), nil
+				return jsonResult(map[string]any{"count": len(items), "items": items})
 			},
 		},
 		{
@@ -392,7 +354,7 @@ func MarketingTools() []Tool {
 						}
 						return "", err
 					}
-					return fmt.Sprintf("Sending %q on WhatsApp to the list's WhatsApp opt-ins. Poll list_campaigns for progress.", strings.TrimSpace(in.Subject)), nil
+					return jsonResult(map[string]any{"ok": true, "id": id, "channel": "whatsapp", "subject": strings.TrimSpace(in.Subject)})
 				}
 				// Resolve the service first, so a misconfiguration is reported here
 				// rather than discovered halfway through the list: the campaign's
@@ -407,7 +369,9 @@ func MarketingTools() []Tool {
 				if err := marketing.StartSend(ctx, a, s.WorkspaceID, id, svc); err != nil {
 					return "", err
 				}
-				return fmt.Sprintf("Sending %q through the SMTP service %q. Poll list_campaigns for progress.", strings.TrimSpace(in.Subject), svc.ServiceName), nil
+				return jsonResult(map[string]any{
+					"ok": true, "id": id, "channel": "email", "subject": strings.TrimSpace(in.Subject), "smtp_service": svc.ServiceName,
+				})
 			},
 		},
 	}

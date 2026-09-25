@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/automation"
@@ -33,7 +31,7 @@ func AutomationTools() []Tool {
 	return []Tool{
 		{
 			Name:        "list_browsers",
-			Description: "The browsers paired with this workspace, whether each is connected right now, and where it may be driven.",
+			Description: "The browsers paired with this workspace: id, name, platform, whether each is connected right now (online), the hosts it may visit, when it was last seen.",
 			Scope:       "automation:read",
 			InputSchema: schema(nil, nil),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
@@ -51,8 +49,7 @@ func AutomationTools() []Tool {
 				defer rows.Close()
 
 				hub := automation.Default()
-				var b strings.Builder
-				n := 0
+				items := []map[string]any{}
 				for rows.Next() {
 					var id, name, platform string
 					var hosts pgtext.Array
@@ -61,28 +58,27 @@ func AutomationTools() []Tool {
 					if err := rows.Scan(&id, &name, &platform, &hosts, &lastSeen, &revoked); err != nil {
 						return "", err
 					}
-					status := "offline"
-					if hub != nil && hub.Online(id) {
-						status = "online"
+					online := hub != nil && hub.Online(id)
+					var lastSeenAt any
+					if lastSeen.Valid {
+						lastSeenAt = lastSeen.Time
 					}
-					where := "nothing allowed yet"
-					if len(hosts) > 0 {
-						where = strings.Join(hosts, ", ")
-					}
-					fmt.Fprintf(&b, "%s  [%s]  %s  may visit: %s\n", id, status, name, where)
-					n++
+					items = append(items, map[string]any{
+						"id": id, "name": name, "platform": platform, "online": online,
+						"allowed_hosts": []string(hosts), "last_seen_at": lastSeenAt,
+					})
 				}
-				if n == 0 {
-					return "No browser is paired with this workspace yet. Pairing one is done by an admin on the Automation page.", nil
+				if err := rows.Err(); err != nil {
+					return "", err
 				}
-				return b.String(), nil
+				return jsonResult(map[string]any{"count": len(items), "items": items})
 			},
 		},
 		{
 			Name: "start_browser_run",
 			Description: "Drive a paired browser through a sequence of steps. Each step is {command, args}. " +
 				"A step that navigates is refused unless its host is on that browser's allow-list. " +
-				"Returns the run id; read it back with get_browser_run.",
+				"Returns run_id; read it back with get_browser_run.",
 			Scope: "automation:run",
 			InputSchema: schema([]string{"browser_id", "steps"}, map[string]any{
 				"browser_id": map[string]any{"type": "string", "description": "From list_browsers"},
@@ -122,12 +118,13 @@ func AutomationTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				return "Run " + runID + " started. Read it with get_browser_run.", nil
+				return jsonResult(map[string]any{"ok": true, "run_id": runID})
 			},
 		},
 		{
 			Name:        "get_browser_run",
-			Description: "One run: its status and every step, with what each step returned.",
+			Description: "One run: its status, error, step_count, ok_count, notes filed before its first step, and every step " +
+				"(position, command, status, summary, result as the browser sent it, error).",
 			Scope:       "automation:read",
 			InputSchema: schema([]string{"run_id"}, map[string]any{
 				"run_id": map[string]any{"type": "string"},
@@ -157,16 +154,6 @@ func AutomationTools() []Tool {
 					return "", err
 				}
 
-				var b strings.Builder
-				fmt.Fprintf(&b, "run %s: %s (%d/%d steps ok)\n", in.RunID, status, okCount, stepCount)
-				// What the run did before its first step, e.g. the sites it
-				// added to its browser (MH-517).
-				for _, n := range notes {
-					fmt.Fprintf(&b, "note: %s\n", n)
-				}
-				if runErr != "" {
-					fmt.Fprintf(&b, "error: %s\n", runErr)
-				}
 				rows, err := a.SQLDB.QueryContext(ctx, `
 					SELECT position, command, status, summary, result, error
 					FROM automation_run_steps WHERE workspace_id = $1 AND run_id = $2 ORDER BY position`,
@@ -175,26 +162,32 @@ func AutomationTools() []Tool {
 					return "", err
 				}
 				defer rows.Close()
+				steps := []map[string]any{}
 				for rows.Next() {
 					var pos int
 					var command, st, summary, result, stepErr string
 					if err := rows.Scan(&pos, &command, &st, &summary, &result, &stepErr); err != nil {
 						return "", err
 					}
-					fmt.Fprintf(&b, "\n%d. %s — %s\n", pos+1, command, st)
-					if stepErr != "" {
-						fmt.Fprintf(&b, "   error: %s\n", stepErr)
-					}
+					step := map[string]any{"position": pos, "command": command, "status": st, "summary": summary, "error": stepErr}
 					// The payload as the browser sent it, not a re-encoding of it:
-					// a JSON round trip reorders keys and renders numbers
-					// differently, which is what makes an answer unreproducible.
+					// a JSON round trip through a Go map reorders keys and renders
+					// numbers differently, which is what makes an answer
+					// unreproducible — so it is carried as the exact stored text,
+					// not decoded and re-marshaled (it may also be truncated, which
+					// would make it invalid JSON on its own).
 					if result != "" {
-						fmt.Fprintf(&b, "   result: %s\n", result)
-					} else if summary != "" {
-						fmt.Fprintf(&b, "   %s\n", summary)
+						step["result"] = result
 					}
+					steps = append(steps, step)
 				}
-				return b.String(), nil
+				if err := rows.Err(); err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{
+					"run_id": in.RunID, "status": status, "error": runErr, "step_count": stepCount, "ok_count": okCount,
+					"notes": []string(notes), "steps": steps,
+				})
 			},
 		},
 	}
@@ -208,7 +201,7 @@ func WorkflowTools() []Tool {
 	return []Tool{
 		{
 			Name:        "list_workflows",
-			Description: "Saved workflows: what each one does, and the values it asks for.",
+			Description: "Saved workflows: id, name, description, run count, and the values each one asks for (name, required, secret).",
 			Scope:       "automation:read",
 			InputSchema: schema(nil, nil),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
@@ -224,8 +217,7 @@ func WorkflowTools() []Tool {
 				}
 				defer rows.Close()
 
-				var b strings.Builder
-				n := 0
+				items := []map[string]any{}
 				for rows.Next() {
 					var id, name, desc, params string
 					var runs int
@@ -234,36 +226,20 @@ func WorkflowTools() []Tool {
 					}
 					var ps []automation.Param
 					_ = json.Unmarshal([]byte(params), &ps)
-					var names []string
-					for _, p := range ps {
-						label := p.Name
-						if p.Required {
-							label += " (required)"
-						}
-						if p.Secret {
-							label += " (secret)"
-						}
-						names = append(names, label)
-					}
-					fmt.Fprintf(&b, "%s  %s\n", id, name)
-					if desc != "" {
-						fmt.Fprintf(&b, "    %s\n", desc)
-					}
-					if len(names) > 0 {
-						fmt.Fprintf(&b, "    values: %s\n", strings.Join(names, ", "))
-					}
-					n++
+					items = append(items, map[string]any{
+						"id": id, "name": name, "description": desc, "run_count": runs, "params": ps,
+					})
 				}
-				if n == 0 {
-					return "This workspace has no saved workflows yet.", nil
+				if err := rows.Err(); err != nil {
+					return "", err
 				}
-				return b.String(), nil
+				return jsonResult(map[string]any{"count": len(items), "items": items})
 			},
 		},
 		{
 			Name: "start_workflow",
 			Description: "Run a saved workflow on a paired browser, supplying values for its placeholders. " +
-				"A workflow that publishes, sends or submits needs confirm: true.",
+				"A workflow that publishes, sends or submits needs confirm: true — without it, returns needs_confirm: true and runs nothing.",
 			Scope: "automation:run",
 			InputSchema: schema([]string{"workflow_id", "browser_id"}, map[string]any{
 				"workflow_id": map[string]any{"type": "string", "description": "From list_workflows"},
@@ -290,8 +266,9 @@ func WorkflowTools() []Tool {
 					return "", err
 				}
 				if w.Writes && !in.Confirm {
-					return fmt.Sprintf("%s publishes as the signed-in account on %s. Nothing was run. Check the inputs "+
-						"with the person you act for, then call again with confirm: true.", w.Name, strings.Join(w.Hosts, ", ")), nil
+					return jsonResult(map[string]any{
+						"ok": false, "needs_confirm": true, "workflow": w.Name, "hosts": w.Hosts,
+					})
 				}
 				hub := automation.Default()
 				if hub == nil {
@@ -301,7 +278,7 @@ func WorkflowTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				return "Run " + runID + " started. Read it with get_browser_run.", nil
+				return jsonResult(map[string]any{"ok": true, "run_id": runID})
 			},
 		},
 	}

@@ -6,15 +6,18 @@ package mcp
 
 var docsAutomation = map[string]ToolDoc{
 	"list_browsers": {
-		AR:      "المتصفّحات المقترنة بمساحة العمل هذه، وهل كلٌّ منها متصل الآن، والمواقع المسموح بقيادته إليها.",
+		AR: "المتصفّحات المقترنة بمساحة العمل هذه: id واسم ونظام التشغيل وهل هو متصل الآن (online) والمواقع المسموح بقيادته " +
+			"إليها وآخر ظهور له.",
 		Example: map[string]any{},
-		Result: "3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14  [online]  Sara's Chrome  may visit: acme.example, crm.acme.example\n" +
-			"b81f0d26-9e3a-4c75-a2d8-4f6e1c0b93a7  [offline]  Office laptop  may visit: nothing allowed yet\n",
+		Result: `{"count":2,"items":[{"id":"3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14","name":"Sara's Chrome","platform":"chrome-extension",` +
+			`"online":true,"allowed_hosts":["acme.example","crm.acme.example"],"last_seen_at":"2026-09-24T08:00:00Z"},` +
+			`{"id":"b81f0d26-9e3a-4c75-a2d8-4f6e1c0b93a7","name":"Office laptop","platform":"chrome-extension","online":false,` +
+			`"allowed_hosts":[],"last_seen_at":null}]}`,
 	},
 	"start_browser_run": {
 		AR: "يقود متصفّحًا مقترنًا عبر سلسلة من الخطوات، كل خطوة منها على الشكل {command, args}. " +
 			"تُرفض أي خطوة تنقُّل ما لم يكن مضيفها ضمن قائمة المواقع المسموح بها (allow-list) لذلك المتصفّح. " +
-			"تُعيد معرّف التشغيل، ويمكنك قراءة نتيجته لاحقًا عبر get_browser_run.",
+			"تُعيد run_id؛ اقرأ نتيجته لاحقًا عبر get_browser_run.",
 		Example: map[string]any{
 			"browser_id": "3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14",
 			"steps": []any{
@@ -22,36 +25,37 @@ var docsAutomation = map[string]ToolDoc{
 				map[string]any{"command": "extract", "args": map[string]any{"selector": "h1"}},
 			},
 		},
-		Result: "Run 6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680 started. Read it with get_browser_run.",
+		Result: `{"ok":true,"run_id":"6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680"}`,
 	},
 	"get_browser_run": {
-		AR: "تشغيل واحد: حالته وكل خطوة فيه، مع ما أعادته كل خطوة. الملاحظات، إن وُجدت، تصف ما جرى قبل الخطوة الأولى — " +
-			"كالمواقع المضافة تلقائيًا إلى قائمة المتصفّح المسموحة.",
+		AR: "تشغيل واحد: حالته، وخطؤه إن وُجد، وstep_count وok_count، والملاحظات المسجَّلة قبل أول خطوة، وكل خطوة " +
+			"(position وcommand وstatus وsummary وresult كما أرسلها المتصفّح وerror).",
 		Example: map[string]any{"run_id": "6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680"},
-		Result: "run 6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680: ok (2/2 steps ok)\n" +
-			"note: Added acme.example to Sara's Chrome's allowed sites\n" +
-			"\n1. goto — ok\n" +
-			`   result: {"ok":true,"command":"goto","ms":1240,"url":"https://acme.example/pricing","title":"Pricing — Acme","summary":"Pricing — Acme"}` + "\n" +
-			"\n2. extract — ok\n" +
-			`   result: {"ok":true,"command":"extract","ms":85,"value":"Plans for every team","summary":"Plans for every team"}` + "\n",
+		Result: `{"run_id":"6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680","status":"ok","error":"","step_count":2,"ok_count":2,` +
+			`"notes":["Added acme.example to Sara's Chrome's allowed sites"],"steps":[` +
+			`{"position":1,"command":"goto","status":"ok","summary":"Pricing — Acme","error":"",` +
+			`"result":"{\"ok\":true,\"command\":\"goto\",\"ms\":1240,\"url\":\"https://acme.example/pricing\",\"title\":\"Pricing — Acme\",\"summary\":\"Pricing — Acme\"}"},` +
+			`{"position":2,"command":"extract","status":"ok","summary":"Plans for every team","error":"",` +
+			`"result":"{\"ok\":true,\"command\":\"extract\",\"ms\":85,\"value\":\"Plans for every team\",\"summary\":\"Plans for every team\"}"}]}`,
 	},
 	"list_workflows": {
-		AR:      "سير العمل المحفوظة: ما يؤديه كلٌّ منها، والقيم التي يطلبها.",
+		AR:      "سير العمل المحفوظة: id واسمها ووصفها وعدد مرّات تشغيلها، والقيم التي يطلبها كلٌّ منها (name وrequired وsecret).",
 		Example: map[string]any{},
-		Result: "f4a7c2e9-1d38-4b6a-9c50-2e8b7d1f4a63  Look up a company on the directory\n" +
-			"    Searches the trade directory for a company and reads its listing.\n" +
-			"    values: company (required)\n" +
-			"0c5b9e14-6f27-4a83-b1d9-8e3a2c7f5d40  Download the monthly invoice\n" +
-			"    values: month (required), password (secret)\n",
+		Result: `{"count":2,"items":[{"id":"f4a7c2e9-1d38-4b6a-9c50-2e8b7d1f4a63","name":"Look up a company on the directory",` +
+			`"description":"Searches the trade directory for a company and reads its listing.","run_count":14,` +
+			`"params":[{"name":"company","required":true,"secret":false}]},` +
+			`{"id":"0c5b9e14-6f27-4a83-b1d9-8e3a2c7f5d40","name":"Download the monthly invoice","description":"","run_count":3,` +
+			`"params":[{"name":"month","required":true,"secret":false},{"name":"password","required":false,"secret":true}]}]}`,
 	},
 	"start_workflow": {
-		AR: "يشغّل سير عمل محفوظًا على متصفّح مقترن، مع تزويده بقيم العناصر النائبة فيه. تبقى قائمة المواقع المسموح بها للمتصفّح سارية، وتُفحص بعد التعويض بالقيم.",
+		AR: "يشغّل سير عمل محفوظًا على متصفّح مقترن، مع تزويده بقيم العناصر النائبة فيه. سير العمل الذي ينشر أو يرسل أو يقدّم " +
+			"يحتاج confirm: true — بدونه يعيد needs_confirm: true ولا يشغّل شيئًا.",
 		Example: map[string]any{
 			"workflow_id": "f4a7c2e9-1d38-4b6a-9c50-2e8b7d1f4a63",
 			"browser_id":  "3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14",
 			"values":      map[string]any{"company": "Acme Trading"},
 		},
-		Result: "Run 9b3f6a20-4e81-4d7c-a5f2-3c0e9d8b1a76 started. Read it with get_browser_run.",
+		Result: `{"ok":true,"run_id":"9b3f6a20-4e81-4d7c-a5f2-3c0e9d8b1a76"}`,
 	},
 	"browser_allowed_sites": {
 		AR: "يعرض المواقع التي يحق لمتصفّح مقترن قيادتها (قائمته المسموحة). تُحتسب النطاقات الفرعية تلقائيًا: " +
@@ -146,122 +150,115 @@ var docsGoogle = map[string]ToolDoc{
 	"google_resources": {
 		AR:      "خصائص GA4 ومواقع Search Console وقنوات يوتيوب التي تقرأها مساحة العمل هذه (المفعَّلة منها)، مع معرّفاتها وآخر مزامنة وأي خطأ.",
 		Example: map[string]any{},
-		Result: "- GA4 property: Acme website (properties/412345678) id=5e1c8a37-9b24-4f06-8d3a-2c7f1e9b4a60 · synced 2026-09-24 06:00 UTC\n" +
-			"- Search Console site: acme.example (sc-domain:acme.example) id=a3f90d12-6c4e-4b87-9e15-7d2b8c0f3e41 · synced 2026-09-24 05:30 UTC\n" +
-			"- YouTube channel: Acme Trading (UCx7Qe2Lm9Rt4Vb1Nk8Ps3Hz) id=c7d24e89-1a5f-4e30-b6c9-0f8e3d2a7b15 · synced 2026-09-23 22:10 UTC\n",
+		Result: `{"count":2,"items":[{"id":"5e1c8a37-9b24-4f06-8d3a-2c7f1e9b4a60","kind":"GA4 property","name":"Acme website",` +
+			`"external_id":"properties/412345678","last_synced_at":"2026-09-24T06:00:00Z","needs_reconnecting":false,"last_error":""},` +
+			`{"id":"a3f90d12-6c4e-4b87-9e15-7d2b8c0f3e41","kind":"Search Console site","name":"acme.example",` +
+			`"external_id":"sc-domain:acme.example","last_synced_at":"2026-09-24T05:30:00Z","needs_reconnecting":false,"last_error":""}]}`,
 	},
 	"ga4_report": {
 		AR: "بيانات GA4 لخاصية مفعَّلة على مدى 7 أو 28 أو 90 يومًا (تنتهي أمس، بتوقيت الخاصية): المستخدمون والجلسات والمشاهدات والتفاعل، " +
 			"والاتجاه اليومي، وأبرز الصفحات، والمصدر / الوسيط. تُخزَّن النتيجة مؤقتًا لمدة ساعة.",
 		Example: map[string]any{"resource": "5e1c8a37-9b24-4f06-8d3a-2c7f1e9b4a60", "days": 7},
-		Result: "GA4 · Acme website (properties/412345678) · 2026-09-17 to 2026-09-23 (Africa/Cairo)\n" +
-			"fetched 2026-09-24 08:12 UTC\n" +
-			"users 3,184 (new 2,410) · sessions 4,352 · views 11,906 · engagement rate 61.4% · 74s engaged per user\n" +
-			"daily (date users/sessions/views): 09-17 452/610/1702; 09-18 471/634/1766;\n" +
-			"top pages (views, users):\n" +
-			"  /  3,412, 1,980\n" +
-			"  /pricing  1,207, 846\n" +
-			"source / medium (sessions, users):\n" +
-			"  google / organic  2,118, 1,562\n" +
-			"  (direct) / (none)  1,034, 812\n",
+		Result: `{"resource":{"id":"5e1c8a37-9b24-4f06-8d3a-2c7f1e9b4a60","name":"Acme website","external_id":"properties/412345678"},` +
+			`"start_date":"2026-09-17","end_date":"2026-09-23","timezone":"Africa/Cairo","stale":false,"note":"",` +
+			`"fetched_at":"2026-09-24T08:12:00Z","empty":false,"totals":{"users":3184,"new_users":2410,"sessions":4352,` +
+			`"views":11906,"engagement_rate":0.614,"avg_engagement_per_user_sec":74},` +
+			`"daily":[{"date":"2026-09-17","users":452,"sessions":610,"views":1702}],` +
+			`"top_pages":[{"page":"/","views":3412,"users":1980},{"page":"/pricing","views":1207,"users":846}],` +
+			`"sources":[{"source":"google","medium":"organic","sessions":2118,"users":1562}]}`,
 	},
 	"gsc_performance": {
 		AR: "بيانات Search Console لموقع مفعَّل على مدى 7 أو 28 أو 90 يومًا تنتهي بأحدث يوم تتوفر له بيانات (تتأخر يومين إلى ثلاثة): " +
 			"النقرات ومرات الظهور ونسبة النقر (CTR) ومتوسط الترتيب، مع مقارنة اختيارية بالفترة السابقة، وأبرز طلبات البحث والصفحات. " +
 			"عوامل التصفية: query وpage (تحتوي على)، وcountry (رمز alpha-3، مثل egy)، وdevice (DESKTOP أو MOBILE أو TABLET).",
 		Example: map[string]any{"resource": "a3f90d12-6c4e-4b87-9e15-7d2b8c0f3e41", "days": 28, "compare": true, "country": "egy", "device": "MOBILE"},
-		Result: "Search Console · sc-domain:acme.example\n" +
-			"2026-08-24 to 2026-09-20 (newest day with data) · 28 days imported\n" +
-			"clicks 1,846 · impressions 72,310 · CTR 2.55% · average position 14.2\n" +
-			"before (2026-07-27 to 2026-08-23): clicks 1,512 · impressions 64,980 · CTR 2.33% · average position 15.8\n" +
-			"top queries (clicks, impressions, position):\n" +
-			"  acme trading  412, 1,930, 1.3\n" +
-			"  industrial supplies cairo  96, 4,210, 8.7\n" +
-			"top pages (clicks, impressions, position):\n" +
-			"  https://acme.example/  688, 9,840, 4.1\n" +
-			"  https://acme.example/pricing  231, 6,105, 9.6\n",
+		Result: `{"site":"sc-domain:acme.example","nothing_yet":false,"start_date":"2026-08-24","end_date":"2026-09-20",` +
+			`"imported_days":28,"basis":"position","missing_days":0,"empty":false,` +
+			`"totals":{"clicks":1846,"impressions":72310,"ctr":0.0255,"position":14.2},` +
+			`"previous":{"start_date":"2026-07-27","end_date":"2026-08-23","missing_days":0,"clicks":1512,"impressions":64980,"ctr":0.0233,"position":15.8},` +
+			`"top_queries":[{"query":"acme trading","clicks":412,"impressions":1930,"position":1.3}],` +
+			`"top_pages":[{"page":"https://acme.example/","clicks":688,"impressions":9840,"position":4.1}]}`,
 	},
 	"gsc_inspections": {
 		AR: "أحدث عمليات فحص عناوين URL لموقع مفعَّل، وميزانية الفحص لليوم " +
 			"(2,000 فحص يوميًا لكل موقع، تتقاسمها كل مساحات العمل التي تقرأه).",
 		Example: map[string]any{"resource": "a3f90d12-6c4e-4b87-9e15-7d2b8c0f3e41"},
-		Result: "sc-domain:acme.example · inspections today 14 of 2000\n" +
-			"- https://acme.example/pricing: PASS — Submitted and indexed (inspected 2026-09-24 07:41 UTC)\n" +
-			"- https://acme.example/blog/new-warehouse: NEUTRAL — Discovered - currently not indexed (inspected 2026-09-23 16:05 UTC)\n",
+		Result: `{"site":"sc-domain:acme.example","quota_used_today":14,"quota_limit":2000,"count":2,"items":[` +
+			`{"url":"https://acme.example/pricing","verdict":"PASS","coverage":"Submitted and indexed","inspected_at":"2026-09-24T07:41:00Z"},` +
+			`{"url":"https://acme.example/blog/new-warehouse","verdict":"NEUTRAL","coverage":"Discovered - currently not indexed","inspected_at":"2026-09-23T16:05:00Z"}]}`,
 	},
 	"gsc_inspect_url": {
 		AR: "يسأل أداة فحص عنوان URL من Google عن رؤيتها لصفحة واحدة من موقع مفعَّل: هل هي مفهرسة أم لا، والتغطية، وآخر زحف، والعنوان الأساسي (canonical). " +
 			"يستهلك فحصًا واحدًا من الفحوص اليومية للموقع البالغة 2,000.",
 		Example: map[string]any{"resource": "a3f90d12-6c4e-4b87-9e15-7d2b8c0f3e41", "url": "https://acme.example/pricing"},
-		Result: "https://acme.example/pricing\n" +
-			"verdict PASS — Submitted and indexed\n" +
-			"last crawled 2026-09-22 03:18 UTC · fetch SUCCESSFUL · robots.txt ALLOWED\n" +
-			"Google's canonical https://acme.example/pricing · declared https://acme.example/pricing\n" +
-			"in Search Console: https://search.google.com/search-console/inspect?resource_id=sc-domain:acme.example&id=Qm9vZ2xl\n",
+		Result: `{"inspection":{"url":"https://acme.example/pricing","verdict":"PASS","coverage":"Submitted and indexed",` +
+			`"last_crawled_at":"2026-09-22T03:18:00Z","fetch":"SUCCESSFUL","robots_txt":"ALLOWED",` +
+			`"google_canonical":"https://acme.example/pricing","declared_canonical":"https://acme.example/pricing",` +
+			`"inspect_url":"https://search.google.com/search-console/inspect?resource_id=sc-domain:acme.example&id=Qm9vZ2xl"}}`,
 	},
 	"gsc_sitemaps": {
 		AR:      "خرائط الموقع الخاصة بموقع مفعَّل كما تعرضها Google الآن.",
 		Example: map[string]any{"resource": "a3f90d12-6c4e-4b87-9e15-7d2b8c0f3e41"},
-		Result: "sc-domain:acme.example · 2 sitemap(s)\n" +
-			"- https://acme.example/sitemap.xml · read · 214 URLs\n" +
-			"- https://acme.example/blog/sitemap.xml · read · 58 URLs · 2 errors\n",
+		Result: `{"site":"sc-domain:acme.example","count":2,"items":[` +
+			`{"path":"https://acme.example/sitemap.xml","status":"read","urls":214,"errors":0},` +
+			`{"path":"https://acme.example/blog/sitemap.xml","status":"read","urls":58,"errors":2}]}`,
 	},
 	"gsc_submit_sitemap": {
 		AR:      "يرسل خريطة موقع لموقع مفعَّل إلى Google، أو يطلب من Google قراءتها من جديد، ثم يعرض قائمة خرائط الموقع بعد الإرسال.",
 		Example: map[string]any{"resource": "a3f90d12-6c4e-4b87-9e15-7d2b8c0f3e41", "url": "https://acme.example/sitemap.xml"},
-		Result: "Submitted.\n" +
-			"sc-domain:acme.example · 1 sitemap(s)\n" +
-			"- https://acme.example/sitemap.xml · pending · 214 URLs\n",
+		Result: `{"ok":true,"site":"sc-domain:acme.example","count":1,"items":[` +
+			`{"path":"https://acme.example/sitemap.xml","status":"pending","urls":214,"errors":0}]}`,
 	},
 	"youtube_channel": {
 		AR: "قناة يوتيوب مفعَّلة كما كانت في آخر مزامنة: المشتركون، وإجمالي المشاهدات، والفيديوهات المقروءة، وحالة كل خطوة من خطوات المزامنة، " +
 			"وحصة YouTube المستهلكة اليوم.",
 		Example: map[string]any{"resource": "c7d24e89-1a5f-4e30-b6c9-0f8e3d2a7b15"},
-		Result: "Acme Trading @acmetrading (UCx7Qe2Lm9Rt4Vb1Nk8Ps3Hz) · https://www.youtube.com/@acmetrading\n" +
-			"subscribers 12,480 · lifetime views 1,906,332 · uploads read 142 (131 public; YouTube's own counter says 131)\n" +
-			"synced 2026-09-23 22:10 UTC\n" +
-			"YouTube quota today (2026-09-23, Pacific): 318 of 2000 units for this workspace, 1204 of 9000 for all of Moharrik\n",
+		Result: `{"synced":true,"channel":{"title":"Acme Trading","handle":"@acmetrading","external_id":"UCx7Qe2Lm9Rt4Vb1Nk8Ps3Hz",` +
+			`"url":"https://www.youtube.com/@acmetrading","subscribers":12480,"lifetime_views":1906332,"uploads_read":142,` +
+			`"uploads_public":131,"synced_at":"2026-09-23T22:10:00Z"},` +
+			`"quota":{"day":"2026-09-23","workspace_used":318,"workspace_limit":2000,"global_used":1204,"global_limit":9000}}`,
 	},
 	"youtube_videos": {
-		AR: "الفيديوهات المرفوعة على قناة مفعَّلة، من الأحدث إلى الأقدم. " +
-			"اختياريًا: q (في العنوان والوصف والوسوم)، وprivacy (public أو unlisted أو private أو scheduled)، وlimit (بحد أقصى 50)، وcursor (من الصفحة السابقة).",
+		AR: "الفيديوهات المرفوعة على قناة مفعَّلة، من الأحدث إلى الأقدم، صفحة تلو الأخرى: total وcounts (لكل حالة خصوصية). " +
+			"اختياريًا: q (في العنوان والوصف والوسوم)، وprivacy (public أو unlisted أو private أو scheduled)، وlimit (بحد أقصى 50)، " +
+			"وcursor (من الصفحة السابقة).",
 		Example: map[string]any{"resource": "c7d24e89-1a5f-4e30-b6c9-0f8e3d2a7b15", "q": "warehouse", "privacy": "public", "limit": 2},
-		Result: "7 uploads match (public 7, unlisted 0, private 0, scheduled 0)\n" +
-			"- 2026-09-18 [public] Inside our new Cairo warehouse · 4,812 views · 236 likes · 41 comments · id=dQ3kP9xLm2A\n" +
-			"- 2026-08-30 [public] Warehouse safety in 90 seconds · 2,105 views · hidden likes · off comments · id=Vt7nR2cYb8E\n" +
-			"more: cursor=eyJwIjoiMjAyNi0wOC0zMCJ9\n",
+		Result: `{"total":7,"counts":{"public":7,"unlisted":0,"private":0,"scheduled":0},"count":2,"items":[` +
+			`{"id":"dQ3kP9xLm2A","title":"Inside our new Cairo warehouse","privacy":"public","published_at":"2026-09-18T00:00:00Z",` +
+			`"views":4812,"likes":236,"comments":41},` +
+			`{"id":"Vt7nR2cYb8E","title":"Warehouse safety in 90 seconds","privacy":"public","published_at":"2026-08-30T00:00:00Z",` +
+			`"views":2105,"likes":null,"comments":null}],"next_cursor":"eyJwIjoiMjAyNi0wOC0zMCJ9"}`,
 	},
 	"youtube_video": {
 		AR:      "فيديو واحد مرفوع على قناة مفعَّلة مع أبرز تعليقاته (يُعاد جلبها من يوتيوب إذا مضى عليها أكثر من ساعة وسمحت الحصة بذلك).",
 		Example: map[string]any{"resource": "c7d24e89-1a5f-4e30-b6c9-0f8e3d2a7b15", "id": "dQ3kP9xLm2A"},
-		Result: "Inside our new Cairo warehouse [public] · 4,812 views · https://www.youtube.com/watch?v=dQ3kP9xLm2A\n" +
-			"- Omar Hassan (answered) · 18 likes · 2 replies: Do you deliver to Alexandria?\n" +
-			"  reply: https://www.youtube.com/watch?v=dQ3kP9xLm2A&lc=UgzK4r8Tn2Qm\n" +
-			"- Layla N. · 9 likes · 0 replies: Great tour, thanks!\n" +
-			"  reply: https://www.youtube.com/watch?v=dQ3kP9xLm2A&lc=UgwP7s1Vx9Bd\n",
+		Result: `{"video":{"id":"dQ3kP9xLm2A","title":"Inside our new Cairo warehouse","privacy":"public","views":4812,` +
+			`"url":"https://www.youtube.com/watch?v=dQ3kP9xLm2A","comments":[` +
+			`{"author":"Omar Hassan","answered":true,"likes":18,"reply_count":2,"text":"Do you deliver to Alexandria?",` +
+			`"url":"https://www.youtube.com/watch?v=dQ3kP9xLm2A&lc=UgzK4r8Tn2Qm"},` +
+			`{"author":"Layla N.","answered":false,"likes":9,"reply_count":0,"text":"Great tour, thanks!",` +
+			`"url":"https://www.youtube.com/watch?v=dQ3kP9xLm2A&lc=UgwP7s1Vx9Bd"}]}}`,
 	},
 	"youtube_reports": {
 		AR: "تقارير YouTube Reporting لقناة مفعَّلة: مهام التقارير اليومية والتقارير التي نُسخت حتى الآن (من الأحدث إلى الأقدم). " +
 			"يتوفر ملف CSV لأي تقرير على GET /api/w/youtube/reports/{report_id}/csv.",
 		Example: map[string]any{"resource": "c7d24e89-1a5f-4e30-b6c9-0f8e3d2a7b15", "limit": 2},
-		Result: "job channel_basic_a2: 21 reports, newest 2026-09-22\n" +
-			"job channel_traffic_source_a2: 21 reports, newest 2026-09-22\n" +
-			"job channel_device_os_a2: no reports yet (created 2026-09-23; YouTube publishes the first about two days later)\n" +
-			"- 2026-09-22 channel_basic_a2 · 142 rows · report_id=8812345670123\n" +
-			"- 2026-09-22 channel_traffic_source_a2 · 37 rows · report_id=8812345670456\n",
+		Result: `{"checked_at":"2026-09-24T07:00:00Z","jobs":[` +
+			`{"job":"channel_basic_a2","reports":21,"newest":"2026-09-22"},` +
+			`{"job":"channel_device_os_a2","reports":0,"newest":null}],"count":2,"items":[` +
+			`{"report_id":"8812345670123","job":"channel_basic_a2","date":"2026-09-22","rows":142},` +
+			`{"report_id":"8812345670456","job":"channel_traffic_source_a2","date":"2026-09-22","rows":37}]}`,
 	},
 	"youtube_analytics": {
 		AR: "بيانات YouTube Analytics لقناة مفعَّلة أو لأحد فيديوهاتها (video)، على مدى 7 أو 28 أو 90 يومًا تنتهي أمس (بتوقيت المحيط الهادئ): " +
 			"المشاهدات، ووقت المشاهدة، والمشتركون، والإعجابات، والتعليقات، وأبرز الفيديوهات، ومصادر الزيارات. تُخزَّن النتيجة مؤقتًا لست ساعات.",
 		Example: map[string]any{"resource": "c7d24e89-1a5f-4e30-b6c9-0f8e3d2a7b15", "days": 7},
-		Result: "YouTube Analytics · channel · 2026-09-17 to 2026-09-23\n" +
-			"fetched 2026-09-24 07:55 UTC\n" +
-			"views 9420 · watch time 612.4 h · average view 234s · subscribers +188 −21 · likes 704 · comments 96\n" +
-			"daily views: 09-17 1302; 09-18 1476; 09-19 1411; 09-20 1288; 09-21 1350;\n" +
-			"(the last 2 days are not published by YouTube yet)\n" +
-			"top: Inside our new Cairo warehouse — 3120 views · id=dQ3kP9xLm2A\n" +
-			"traffic: YT_SEARCH 3904\n" +
-			"traffic: SUBSCRIBER 2210\n",
+		Result: `{"scope":"channel","start_date":"2026-09-17","end_date":"2026-09-23","stale":false,"note":"",` +
+			`"fetched_at":"2026-09-24T07:55:00Z","empty":false,"totals":{"views":9420,"watch_minutes":36744,` +
+			`"avg_view_duration_sec":234,"subscribers_gained":188,"subscribers_lost":21,"likes":704,"comments":96},` +
+			`"daily":[{"date":"2026-09-17","views":1302}],` +
+			`"top_videos":[{"id":"dQ3kP9xLm2A","title":"Inside our new Cairo warehouse","views":3120}],` +
+			`"traffic":[{"source":"YT_SEARCH","views":3904},{"source":"SUBSCRIBER","views":2210}]}`,
 	},
 }
 

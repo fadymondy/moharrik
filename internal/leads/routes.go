@@ -76,11 +76,11 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		list, counts, err := List(ctx, a.SQLDB, s.WorkspaceID, Filter{Status: in.Status, Q: in.Q})
+		page, err := List(ctx, a.SQLDB, s.WorkspaceID, Filter{Status: in.Status, Q: in.Q})
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not list leads")
 		}
-		return out(LeadList{list, counts}), nil
+		return out(LeadList{page.Leads, page.Counts}), nil
 	})
 
 	huma.Register(api, huma.Operation{

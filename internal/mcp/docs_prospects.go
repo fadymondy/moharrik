@@ -8,23 +8,23 @@ var docsProspects = map[string]ToolDoc{
 		Group: "research",
 		AR: "البحث في كل الأدلة التي جمعتها عمليات البحث في مساحة العمل، عبر عمليات البحث كلها معًا: اقتباسات حرفية (وادعاءات من " +
 			"سطر واحد حين يستخرجها نموذج) مع رابط مصدرها، والشركة المذكورة، والإشارة المُبلَّغ عنها، وتاريخها. يمكن التصفية بالنص q، " +
-			"وبالشركة company (اسمًا أو نطاقًا)، وsignal_type، وdomain المصدر، وrun_id، وبمدى زمني عبر since وuntil. تُعاد النتيجة بصيغة JSON.",
+			"وبالشركة company (اسمًا أو نطاقًا)، وsignal_type، وdomain المصدر، وrun_id، وبمدى زمني عبر since وuntil. الأحدث أولًا، صفحة تلو الأخرى: مرّر next_cursor من الرد كـcursor للصفحة التالية.",
 		Example: map[string]any{"company": "acme.example", "signal_type": "funding", "limit": 2},
-		Result: `{"count":1,"evidence":[{"id":"a4c8e0f2-1b3d-4e6a-9f7c-5d0e2a4c8e60","run_id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75",` +
+		Result: `{"total":1,"count":1,"items":[{"id":"a4c8e0f2-1b3d-4e6a-9f7c-5d0e2a4c8e60","run_id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75",` +
 			`"run_topic":"logistics companies raises funding Egypt","source_id":"b7e0f2c4-3d5f-4a80-9c1e-7b3d5f7a9c10","kind":"claim",` +
 			`"quote":"Acme Freight raised a $4M seed round led by Delta Ventures to expand its Cairo warehouse network.",` +
 			`"claim":"Acme Freight raised $4M in seed funding.","source_url":"https://techcrunch.example/acme-freight-seed",` +
 			`"source_title":"Acme Freight raises $4M seed round","source_domain":"techcrunch.example","company_name":"Acme Freight",` +
 			`"company_domain":"acme.example","company_key":"acme freight|acme.example","signal_type":"funding","confidence":0.9,` +
 			`"published_at":"2026-09-10T00:00:00Z","captured_at":"2026-09-20T11:05:00Z","extractor":"model:anthropic"}],` +
-			`"limit":2,"offset":0,"total":1}`,
+			`"next_cursor":""}`,
 	},
 	"list_company_suggestions": {
 		Group: "research",
 		AR: "الشركات التي عثر عليها البحث في أدلته، بانتظار مراجعة شخص لها — لا تُضاف إلى إدارة العملاء من تلقاء نفسها أبدًا. " +
-			"تحمل كل شركة أقوى أدلتها. الحالات status: suggested (الافتراضي) وaccepted وdismissed وlinked (موجودة في إدارة العملاء أصلًا).",
+			"تحمل كل شركة أقوى أدلتها. الحالات status: suggested (الافتراضي) وaccepted وdismissed وlinked (موجودة في إدارة العملاء أصلًا). الأقوى أولًا، صفحة تلو الأخرى: مرّر next_cursor من الرد كـcursor للصفحة التالية.",
 		Example: map[string]any{"status": "suggested", "limit": 2},
-		Result: `{"suggestions":[{"id":"c1d3e5f7-9b1d-4a3c-8e5f-7b9d1c3e5f70","company_key":"acme freight|acme.example",` +
+		Result: `{"total":1,"count":1,"items":[{"id":"c1d3e5f7-9b1d-4a3c-8e5f-7b9d1c3e5f70","company_key":"acme freight|acme.example",` +
 			`"name":"Acme Freight","domain":"acme.example","status":"suggested","crm_company_id":"","evidence_count":3,"strongest":0.9,` +
 			`"signal_types":["expansion","funding"],"first_run_id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75",` +
 			`"last_run_id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75","first_seen_at":"2026-09-18T09:00:00Z","last_seen_at":"2026-09-20T11:05:00Z",` +
@@ -34,7 +34,7 @@ var docsProspects = map[string]ToolDoc{
 			`"source_url":"https://techcrunch.example/acme-freight-seed","source_title":"Acme Freight raises $4M seed round",` +
 			`"source_domain":"techcrunch.example","company_name":"Acme Freight","company_domain":"acme.example",` +
 			`"company_key":"acme freight|acme.example","signal_type":"funding","confidence":0.9,"published_at":"2026-09-10T00:00:00Z",` +
-			`"captured_at":"2026-09-20T11:05:00Z","extractor":"model:anthropic"}]}],"total":1}`,
+			`"captured_at":"2026-09-20T11:05:00Z","extractor":"model:anthropic"}]}],"next_cursor":""}`,
 	},
 	"accept_company_suggestion": {
 		Group: "research",
@@ -216,6 +216,7 @@ var argsARProspects = map[string]string{
 	"YYYY-MM-DD — captured on or before.":                    "بصيغة YYYY-MM-DD — جُمع في هذا التاريخ أو قبله.",
 	"Default 25, at most 100.":                               "الافتراضي 25، وبحد أقصى 100.",
 	"For the next page.":                                     "للصفحة التالية.",
+	"Page size, default 25, at most 100.":                    "حجم الصفحة، الافتراضي 25، وبحد أقصى 100.",
 
 	// list_company_suggestions / find_opportunities
 	"Default 25.":                           "الافتراضي 25.",
