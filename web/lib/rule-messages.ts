@@ -20,6 +20,19 @@ import type { RuleActionResult, RuleRun } from "@/lib/rules"
 
 type T = (key: string, vars?: Record<string, string | number>) => string
 
+// A dry run has no id yet for the deal or contact an earlier step would open,
+// so internal/rules puts these English placeholders where the id goes.
+const NEW_REF: Record<string, string> = {
+  "(the new deal)": "rules.msg.newDeal",
+  "(the new contact)": "rules.msg.newContact",
+}
+
+/** An id value, or the translated "the new deal/contact" for a dry run's placeholder. */
+function ref(t: T, id: string | undefined): string {
+  if (!id) return ""
+  return NEW_REF[id] ? t(NEW_REF[id]) : id
+}
+
 function composeCreateDeal(t: T, args: Record<string, string>): string {
   let s = t("rules.msg.create_deal.base", { title: args.title ?? "" })
   if (args.stage) s += t("rules.msg.create_deal.stage", { stage: args.stage })
@@ -32,7 +45,7 @@ function composeUpdateDeal(t: T, args: Record<string, string>): string {
   if (args.stage) parts.push(t("rules.msg.update_deal.stage", { stage: args.stage }))
   if (args.value) parts.push(t("rules.msg.update_deal.value", { value: args.value }))
   if (args.owner) parts.push(t("rules.msg.update_deal.owner", { owner: args.owner }))
-  return t("rules.msg.update_deal.base", { id: args.id ?? "" }) + parts.join(t("rules.join"))
+  return t("rules.msg.update_deal.base", { id: ref(t, args.id) }) + parts.join(t("rules.join"))
 }
 
 function composeUpdateContact(t: T, args: Record<string, string>): string {
@@ -40,14 +53,24 @@ function composeUpdateContact(t: T, args: Record<string, string>): string {
   if (args.lifecycle) parts.push(t("rules.msg.update_contact.lifecycle", { lifecycle: args.lifecycle }))
   if (args.owner) parts.push(t("rules.msg.update_contact.owner", { owner: args.owner }))
   if (args.tags) parts.push(t("rules.msg.update_contact.tags", { tags: args.tags }))
-  return t("rules.msg.update_contact.base", { id: args.id ?? "" }) + parts.join(t("rules.join"))
+  return t("rules.msg.update_contact.base", { id: ref(t, args.id) }) + parts.join(t("rules.join"))
 }
 
 function composeActivity(t: T, kind: "create_task" | "add_note", args: Record<string, string>): string {
   let s = t(`rules.msg.${kind}.base`, { body: args.body ?? "" })
   const on: string[] = []
-  if (args.contact_id) on.push(t("rules.msg.activity.onContact", { contact_id: args.contact_id }))
-  if (args.deal_id) on.push(t("rules.msg.activity.onDeal", { deal_id: args.deal_id }))
+  if (args.contact_id)
+    on.push(
+      NEW_REF[args.contact_id]
+        ? t("rules.msg.activity.onNewContact")
+        : t("rules.msg.activity.onContact", { contact_id: args.contact_id }),
+    )
+  if (args.deal_id)
+    on.push(
+      NEW_REF[args.deal_id]
+        ? t("rules.msg.activity.onNewDeal")
+        : t("rules.msg.activity.onDeal", { deal_id: args.deal_id }),
+    )
   if (on.length > 0) s += " " + on.join(` ${t("rules.and")} `)
   if (args.due_days) s += t("rules.msg.activity.dueDays", { due_days: args.due_days })
   return s
