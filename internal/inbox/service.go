@@ -13,6 +13,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/channels"
+	"github.com/fadymondy/moharrik/internal/contacts"
 	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/paging"
@@ -522,6 +523,20 @@ func CreateContactFromConversation(ctx context.Context, a *app.App, id string, i
 	if in.Locale == "ar" {
 		locale = "ar"
 	}
+	// The contact resolves through the shared internal/contacts.Upsert
+	// (MH-583) — matching ANY of the workspace's existing identities, not
+	// just the one priority key this used to check, and merging if the
+	// conversation's email and phone happen to belong to two different
+	// contacts already. It runs its own transaction, so it happens before the
+	// conversation-locking one below.
+	cres, err := contacts.Upsert(ctx, db, wsID, contacts.Candidate{
+		Email: email, Phone: phone, Name: strings.TrimSpace(in.Name), Locale: locale, Source: "inbox",
+	})
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not create the contact")
+	}
+	res := &contactResult{ContactID: cres.ContactID, ContactCreated: cres.Created}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not create the contact")
@@ -533,23 +548,6 @@ func CreateContactFromConversation(ctx context.Context, a *app.App, id string, i
 			return nil, huma.Error404NotFound("conversation not found")
 		}
 		return nil, huma.Error500InternalServerError("could not read the conversation")
-	}
-	res := &contactResult{}
-	target := "(workspace_id, email) WHERE email <> ''"
-	if email == "" {
-		target = "(workspace_id, phone) WHERE phone <> ''"
-	}
-	// xmax = 0 is true only for a row this statement inserted.
-	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO contacts (workspace_id, email, name, phone, locale, source) VALUES ($1, $2, $3, $4, $5, 'inbox')
-		ON CONFLICT `+target+` DO UPDATE SET
-		  name = CASE WHEN contacts.name = '' THEN EXCLUDED.name ELSE contacts.name END,
-		  phone = CASE WHEN contacts.phone = '' THEN EXCLUDED.phone ELSE contacts.phone END,
-		  updated_at = now()
-		RETURNING id, (xmax = 0)`,
-		wsID, email, strings.TrimSpace(in.Name), phone, locale,
-	).Scan(&res.ContactID, &res.ContactCreated); err != nil {
-		return nil, huma.Error500InternalServerError("could not create the contact")
 	}
 	// A company the workspace already keeps under this domain; never a new one.
 	if at := strings.LastIndex(email, "@"); at > 0 {

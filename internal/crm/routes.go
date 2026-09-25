@@ -389,6 +389,47 @@ func Register(api huma.API, a *app.App) {
 		}{*c}), nil
 	})
 
+	huma.Register(api, huma.Operation{
+		OperationID: "w-link-contact-identity", Method: http.MethodPost, Path: "/api/w/contacts/{id}/identities",
+		DefaultStatus: http.StatusCreated,
+		Summary:       "Link one more account to a contact: a second WhatsApp number, a Telegram/Slack/Discord/Messenger/Instagram/LinkedIn/X handle, the chat widget's visitor id, or another email or phone",
+		Description:   "Refused with 409 if that exact account is already linked to a different contact in this workspace (MH-583).",
+		Tags:          tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body LinkIdentityInput
+	}) (*body[struct {
+		Contact ContactDetail `json:"contact"`
+	}], error) {
+		c, err := LinkContactIdentity(ctx, db(), in.ID, in.Body)
+		if err != nil {
+			return nil, err
+		}
+		return out(struct {
+			Contact ContactDetail `json:"contact"`
+		}{*c}), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-unlink-contact-identity", Method: http.MethodDelete, Path: "/api/w/contacts/{id}/identities/{identity_id}",
+		Summary: "Detach one linked account from a contact", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID         string `path:"id"`
+		IdentityID string `path:"identity_id"`
+	}) (*body[struct {
+		Contact ContactDetail `json:"contact"`
+	}], error) {
+		c, err := UnlinkContactIdentity(ctx, db(), in.ID, in.IdentityID)
+		if err != nil {
+			return nil, err
+		}
+		return out(struct {
+			Contact ContactDetail `json:"contact"`
+		}{*c}), nil
+	})
+
 	// ---- activities ----------------------------------------------------------
 
 	huma.Register(api, huma.Operation{

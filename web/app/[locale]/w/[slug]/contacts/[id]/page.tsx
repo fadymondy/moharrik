@@ -27,6 +27,7 @@ import { useContact } from "@/lib/queries"
 import { dateFormat } from "@/lib/i18n-locale"
 import { CompanyPicker } from "@/components/crm/company-picker"
 import { ContactWhatsAppPanel } from "@/components/crm/contact-whatsapp"
+import { IdentitiesPanel, MetaPanel } from "@/components/crm/contact-identities"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -108,6 +109,14 @@ export default function ContactDetailPage() {
       <ContactWhatsAppPanel key={contact.phone} contact={contact} />
 
       {canWrite ? <EditContact contact={contact} onSaved={() => detail.mutate()} /> : null}
+
+      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
+        <IdentitiesPanel contactId={contact.id} identities={contact.identities ?? []} canWrite={canWrite} onChanged={() => detail.mutate()} />
+        {/* keyed on the map's contents: MetaPanel seeds its row state from `meta` only on
+            mount, so a re-fetch after save (or another editor's change) needs a remount
+            to actually show the new server truth instead of stale local rows. */}
+        <MetaPanel key={JSON.stringify(contact.meta ?? {})} contactId={contact.id} meta={contact.meta ?? {}} canWrite={canWrite} onChanged={() => detail.mutate()} />
+      </div>
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 

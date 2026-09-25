@@ -155,6 +155,34 @@ type ContactDetail struct {
 	LifecycleHistoryTotal int64                `json:"lifecycle_history_total"`
 	Score                 *int                 `json:"score"`
 	ScoreReasons          []icp.Reason         `json:"score_reasons"`
+	// MH-583: Google-People-parity fields. Meta is the free key/value list
+	// Fady asked for by name ("add a meta value that i can add key and value
+	// of each contact"); Identities is every linked account on every channel
+	// (email, phone, whatsapp, telegram, ...), including the ones already
+	// denormalised onto Email/Phone/Handle above.
+	GivenName          string            `json:"given_name"`
+	FamilyName         string            `json:"family_name"`
+	MiddleName         string            `json:"middle_name"`
+	NamePrefix         string            `json:"name_prefix"`
+	NameSuffix         string            `json:"name_suffix"`
+	PhoneticGivenName  string            `json:"phonetic_given_name"`
+	PhoneticFamilyName string            `json:"phonetic_family_name"`
+	Nickname           string            `json:"nickname"`
+	Birthday           *string           `json:"birthday" doc:"YYYY-MM-DD"`
+	Biography          string            `json:"biography"`
+	PhotoURL           string            `json:"photo_url"`
+	Meta               map[string]string `json:"meta" doc:"Free-form key/value pairs on this contact."`
+	Identities         []ContactIdentity `json:"identities" doc:"Every linked account: email, phone, whatsapp, telegram, slack, discord, messenger, instagram, linkedin, x, widget, sip, other."`
+}
+
+// ContactIdentity is one linked account (internal/contacts.Identity on the wire).
+type ContactIdentity struct {
+	ID         string `json:"id"`
+	Channel    string `json:"channel" enum:"email,phone,whatsapp,handle,telegram,slack,discord,messenger,instagram,linkedin,x,widget,sip,other"`
+	ExternalID string `json:"external_id"`
+	Label      string `json:"label"`
+	IsPrimary  bool   `json:"is_primary"`
+	Position   int    `json:"position"`
 }
 
 type wsHeader struct {

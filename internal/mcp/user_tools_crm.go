@@ -128,7 +128,7 @@ func CrmTools() []Tool {
 				"— at least one of the three is required. Optional: name, locale (en/ar), title, company_id, and list (a mailing list's " +
 				"exact name) to subscribe them — with the double opt-in email when the list asks for one; subscribing needs an email. " +
 				"Returns the contact with its id.",
-			Scope:       "contacts:write",
+			Scope: "contacts:write",
 			InputSchema: schema(nil, map[string]any{
 				"email":      prop("string", ""),
 				"phone":      prop("string", "With country code, e.g. +20 101 234 5678"),
@@ -198,32 +198,56 @@ func CrmTools() []Tool {
 			Description: "Change a contact's CRM fields. Give only what changes: email, phone, handle (empty string clears one of the " +
 				"three, as long as another stays — a contact always needs at least one), name, title, company_id (empty string unlinks), " +
 				"owner (a member's user id or email; empty unassigns), tags (replaces them all), lifecycle (subscriber, lead, qualified, " +
-				"customer, or empty — set by hand and recorded as yours; events move it forward on their own).",
+				"customer, or empty — set by hand and recorded as yours; events move it forward on their own). Also the Google-People-parity " +
+				"fields (given_name, family_name, middle_name, name_prefix, name_suffix, phonetic_given_name, phonetic_family_name, " +
+				"nickname, birthday YYYY-MM-DD, biography) and meta (a free key/value object — replaces the whole map, at most 50 keys).",
 			Scope: "contacts:write",
 			InputSchema: schema([]string{"id"}, map[string]any{
-				"id":         prop("string", "Contact id"),
-				"email":      prop("string", "Empty string clears it, if a phone or handle remains"),
-				"name":       prop("string", ""),
-				"phone":      prop("string", "Empty string clears it, if an email or handle remains"),
-				"handle":     prop("string", "A messaging handle/username. Empty string clears it, if an email or phone remains"),
-				"title":      prop("string", ""),
-				"company_id": prop("string", "A company id; empty string unlinks"),
-				"owner":      prop("string", "A member's user id or email; empty string unassigns"),
-				"tags":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Replaces the tags (at most 20)"},
-				"lifecycle":  map[string]any{"type": "string", "enum": []string{"", "subscriber", "lead", "qualified", "customer"}, "description": "Set the lifecycle stage by hand (recorded as yours)"},
+				"id":                   prop("string", "Contact id"),
+				"email":                prop("string", "Empty string clears it, if a phone or handle remains"),
+				"name":                 prop("string", ""),
+				"phone":                prop("string", "Empty string clears it, if an email or handle remains"),
+				"handle":               prop("string", "A messaging handle/username. Empty string clears it, if an email or phone remains"),
+				"title":                prop("string", ""),
+				"company_id":           prop("string", "A company id; empty string unlinks"),
+				"owner":                prop("string", "A member's user id or email; empty string unassigns"),
+				"tags":                 map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Replaces the tags (at most 20)"},
+				"lifecycle":            map[string]any{"type": "string", "enum": []string{"", "subscriber", "lead", "qualified", "customer"}, "description": "Set the lifecycle stage by hand (recorded as yours)"},
+				"given_name":           prop("string", ""),
+				"family_name":          prop("string", ""),
+				"middle_name":          prop("string", ""),
+				"name_prefix":          prop("string", ""),
+				"name_suffix":          prop("string", ""),
+				"phonetic_given_name":  prop("string", ""),
+				"phonetic_family_name": prop("string", ""),
+				"nickname":             prop("string", ""),
+				"birthday":             prop("string", "YYYY-MM-DD. Empty string clears it."),
+				"biography":            prop("string", ""),
+				"meta":                 map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}, "description": "Replaces the whole key/value map"},
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				var in struct {
-					ID        string    `json:"id"`
-					Email     *string   `json:"email"`
-					Name      *string   `json:"name"`
-					Phone     *string   `json:"phone"`
-					Handle    *string   `json:"handle"`
-					Title     *string   `json:"title"`
-					CompanyID *string   `json:"company_id"`
-					Owner     *string   `json:"owner"`
-					Tags      *[]string `json:"tags"`
-					Lifecycle *string   `json:"lifecycle"`
+					ID                 string             `json:"id"`
+					Email              *string            `json:"email"`
+					Name               *string            `json:"name"`
+					Phone              *string            `json:"phone"`
+					Handle             *string            `json:"handle"`
+					Title              *string            `json:"title"`
+					CompanyID          *string            `json:"company_id"`
+					Owner              *string            `json:"owner"`
+					Tags               *[]string          `json:"tags"`
+					Lifecycle          *string            `json:"lifecycle"`
+					GivenName          *string            `json:"given_name"`
+					FamilyName         *string            `json:"family_name"`
+					MiddleName         *string            `json:"middle_name"`
+					NamePrefix         *string            `json:"name_prefix"`
+					NameSuffix         *string            `json:"name_suffix"`
+					PhoneticGivenName  *string            `json:"phonetic_given_name"`
+					PhoneticFamilyName *string            `json:"phonetic_family_name"`
+					Nickname           *string            `json:"nickname"`
+					Birthday           *string            `json:"birthday"`
+					Biography          *string            `json:"biography"`
+					Meta               *map[string]string `json:"meta"`
 				}
 				if err := bind(raw, &in); err != nil {
 					return "", err
@@ -232,7 +256,14 @@ func CrmTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				f := crm.ContactFields{Email: in.Email, Name: in.Name, Phone: in.Phone, Handle: in.Handle, Title: in.Title, CompanyID: in.CompanyID, Tags: in.Tags, Lifecycle: in.Lifecycle}
+				f := crm.ContactFields{
+					Email: in.Email, Name: in.Name, Phone: in.Phone, Handle: in.Handle, Title: in.Title, CompanyID: in.CompanyID,
+					Tags: in.Tags, Lifecycle: in.Lifecycle,
+					GivenName: in.GivenName, FamilyName: in.FamilyName, MiddleName: in.MiddleName,
+					NamePrefix: in.NamePrefix, NameSuffix: in.NameSuffix,
+					PhoneticGivenName: in.PhoneticGivenName, PhoneticFamilyName: in.PhoneticFamilyName,
+					Nickname: in.Nickname, Birthday: in.Birthday, Biography: in.Biography, Meta: in.Meta,
+				}
 				if in.Owner != nil {
 					owner, err := memberID(ctx, a, *in.Owner)
 					if err != nil {
@@ -241,6 +272,74 @@ func CrmTools() []Tool {
 					f.OwnerUserID = &owner
 				}
 				c, err := crm.UpdateContact(ctx, a.SQLDB, id, f)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"contact": c})
+			},
+		},
+		{
+			Name: "link_contact_identity",
+			Description: "Link one more account to a contact: a second WhatsApp number, an additional email, or a handle on Telegram, " +
+				"Slack, Discord, Messenger, Instagram, LinkedIn, X, sip, the chat widget, or another channel. Refused with a conflict if " +
+				"that exact account is already linked to a different contact in this workspace.",
+			Scope: "contacts:write",
+			InputSchema: schema([]string{"id", "channel", "external_id"}, map[string]any{
+				"id":          prop("string", "Contact id"),
+				"channel":     map[string]any{"type": "string", "enum": []string{"email", "phone", "whatsapp", "handle", "telegram", "slack", "discord", "messenger", "instagram", "linkedin", "x", "widget", "sip", "other"}},
+				"external_id": prop("string", "The address/number/handle/id on that channel"),
+				"label":       prop("string", "A short label, e.g. \"work\" or \"personal\""),
+				"is_primary":  map[string]any{"type": "boolean", "description": "Make this the primary account on that channel"},
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					ID         string `json:"id"`
+					Channel    string `json:"channel"`
+					ExternalID string `json:"external_id"`
+					Label      string `json:"label"`
+					IsPrimary  bool   `json:"is_primary"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("id", in.ID)
+				if err != nil {
+					return "", err
+				}
+				if _, err := required("channel", in.Channel); err != nil {
+					return "", err
+				}
+				if _, err := required("external_id", in.ExternalID); err != nil {
+					return "", err
+				}
+				c, err := crm.LinkContactIdentity(ctx, a.SQLDB, id, crm.LinkIdentityInput{
+					Channel: in.Channel, ExternalID: in.ExternalID, Label: in.Label, IsPrimary: in.IsPrimary,
+				})
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"contact": c})
+			},
+		},
+		{
+			Name:        "unlink_contact_identity",
+			Description: "Detach one linked account from a contact (its id is in the contact's identities list, from get_contact).",
+			Scope:       "contacts:write",
+			InputSchema: schema([]string{"id", "identity_id"}, map[string]any{
+				"id":          prop("string", "Contact id"),
+				"identity_id": prop("string", "The identity's id (from get_contact's identities list)"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				args := decodeArgs(raw)
+				id, err := required("id", str(args, "id"))
+				if err != nil {
+					return "", err
+				}
+				identityID, err := required("identity_id", str(args, "identity_id"))
+				if err != nil {
+					return "", err
+				}
+				c, err := crm.UnlinkContactIdentity(ctx, a.SQLDB, id, identityID)
 				if err != nil {
 					return "", err
 				}

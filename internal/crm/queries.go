@@ -202,28 +202,37 @@ func getCompany(ctx context.Context, db *sql.DB, wsID, id string) (*CompanyOut, 
 func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetail, error) {
 	var c ContactDetail
 	var companyID, coName, owner sql.NullString
-	var tags, reasons string
+	var tags, reasons, metaJSON string
 	var score sql.NullInt64
-	var lifecycleAt sql.NullTime
+	var lifecycleAt, birthday sql.NullTime
 	err := db.QueryRowContext(ctx, `
 		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.handle, c.title, array_to_json(c.tags)::text,
-		       c.company_id, co.name, c.owner_user_id, c.created_at, c.lifecycle, c.lifecycle_at, sc.score, coalesce(sc.reasons, '[]')::text
+		       c.company_id, co.name, c.owner_user_id, c.created_at, c.lifecycle, c.lifecycle_at, sc.score, coalesce(sc.reasons, '[]')::text,
+		       c.given_name, c.family_name, c.middle_name, c.name_prefix, c.name_suffix,
+		       c.phonetic_given_name, c.phonetic_family_name, c.nickname, c.birthday, c.biography, c.photo_url,
+		       coalesce(c.meta, '{}'::jsonb)::text
 		FROM contacts c
 		LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
 		LEFT JOIN icp_scores sc ON sc.workspace_id = c.workspace_id AND sc.contact_id = c.id
 		WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
 	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Handle, &c.Title, &tags, &companyID, &coName, &owner, &c.CreatedAt,
-		&c.Lifecycle, &lifecycleAt, &score, &reasons)
+		&c.Lifecycle, &lifecycleAt, &score, &reasons,
+		&c.GivenName, &c.FamilyName, &c.MiddleName, &c.NamePrefix, &c.NameSuffix,
+		&c.PhoneticGivenName, &c.PhoneticFamilyName, &c.Nickname, &birthday, &c.Biography, &c.PhotoURL,
+		&metaJSON)
 	if err != nil {
 		return nil, err
 	}
 	c.LifecycleAt = timep(lifecycleAt)
+	c.Birthday = datep(birthday)
 	c.Score, c.ScoreReasons = scoreOf(score, reasons)
 	if c.LifecycleHistory, c.LifecycleHistoryTotal, err = icp.LifecycleHistory(ctx, db, wsID, id); err != nil {
 		return nil, err
 	}
 	c.Tags = []string{}
 	_ = json.Unmarshal([]byte(tags), &c.Tags)
+	c.Meta = map[string]string{}
+	_ = json.Unmarshal([]byte(metaJSON), &c.Meta)
 	if companyID.Valid {
 		c.Company = &Ref{ID: companyID.String, Name: coName.String}
 	}
@@ -236,15 +245,36 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	for rows.Next() {
 		var s ListSubscription
 		if err := rows.Scan(&s.ID, &s.ListID, &s.ListName, &s.Status, &s.ConfirmedAt, &s.UnsubscribedAt, &s.ByWorkspace); err != nil {
+			rows.Close()
 			return nil, err
 		}
 		c.Subscriptions = append(c.Subscriptions, s)
 	}
-	return &c, rows.Err()
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	c.Identities = []ContactIdentity{}
+	idRows, err := db.QueryContext(ctx, `
+		SELECT id, channel, external_id, label, is_primary, position FROM contact_identities
+		WHERE workspace_id = $1 AND contact_id = $2 ORDER BY channel, position, created_at`, wsID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer idRows.Close()
+	for idRows.Next() {
+		var ci ContactIdentity
+		if err := idRows.Scan(&ci.ID, &ci.Channel, &ci.ExternalID, &ci.Label, &ci.IsPrimary, &ci.Position); err != nil {
+			return nil, err
+		}
+		c.Identities = append(c.Identities, ci)
+	}
+	return &c, idRows.Err()
 }
 
 func companyContacts(ctx context.Context, db *sql.DB, wsID, companyID string) ([]ContactRef, error) {

@@ -60,6 +60,10 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"workflow_channels", "workflow_channel_pushes",
 	// importing chats/threads from a connection into contacts + inbox (MH-562)
 	"conversation_participants", "import_jobs",
+	// a contact's linked accounts on every channel — several phones/emails,
+	// Telegram, Slack, Discord, Messenger, Instagram, LinkedIn, X, the widget
+	// (MH-583)
+	"contact_identities",
 }
 
 /*

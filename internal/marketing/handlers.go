@@ -20,6 +20,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/contacts"
 	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/tenant"
@@ -982,59 +983,27 @@ type AddContactInput struct {
 	ListID string `json:"list_id,omitempty" doc:"Omit to add the contact to the CRM without subscribing it anywhere. Requires an email — a list is an email audience."`
 }
 
-// queryRower is the common surface of *sql.DB and *sql.Tx that upsertContact
-// needs, so the same helper serves a plain add and one inside a transaction.
-type queryRower interface {
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-// upsertContact adds a contact, or finds the one this workspace already has
-// by whichever identity was given, in priority order email > phone > handle
-// (MH-561: a contact carries at least one of the three, and each is unique
-// per workspace only when present — see internal/db/post/155_contact_identity.sql).
-// A blank incoming field never overwrites an existing value.
-func upsertContact(ctx context.Context, q queryRower, wsID, email, phone, handle, name, locale, source string) (string, bool, error) {
-	var target string
-	switch {
-	case email != "":
-		target = "(workspace_id, email) WHERE email <> ''"
-	case phone != "":
-		target = "(workspace_id, phone) WHERE phone <> ''"
-	default:
-		target = "(workspace_id, handle) WHERE handle <> ''"
-	}
-	var id string
-	var created bool
-	// xmax = 0 is true only for a row this statement inserted.
-	err := q.QueryRowContext(ctx, `
-		INSERT INTO contacts (workspace_id, email, phone, handle, name, locale, source)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT `+target+` DO UPDATE SET
-		  name = CASE WHEN EXCLUDED.name = '' THEN contacts.name ELSE EXCLUDED.name END,
-		  phone = CASE WHEN contacts.phone = '' THEN EXCLUDED.phone ELSE contacts.phone END,
-		  handle = CASE WHEN contacts.handle = '' THEN EXCLUDED.handle ELSE contacts.handle END,
-		  updated_at = now()
-		RETURNING id, (xmax = 0)`, wsID, email, phone, handle, name, locale, source,
-	).Scan(&id, &created)
-	if err != nil {
-		return "", false, huma.Error500InternalServerError("could not add the contact")
-	}
-	return id, created, nil
-}
-
 // UpsertContactIdentity finds or creates a contact by whichever identity is
-// given, in priority order email > phone > handle (MH-561's dedup rule,
-// AddContact's without the list-subscription side effects). Blank fields
-// never overwrite an existing value. Used by internal/imports (MH-562) to
-// turn an imported chat/sender into a contact the same way every other path
-// in does. email/phone/handle are taken as already normalised — callers
-// outside this package should run them through mail.ParseAddress /
-// NormalizePhone first, the way AddContact itself does.
+// given (MH-583: ANY of email, phone or handle that already belongs to a
+// contact counts as a match, not just the first given in priority order —
+// this is thinner than it looks because internal/contacts.Upsert now does the
+// matching, merging and identity bookkeeping). Blank fields never overwrite
+// an existing value. Used by internal/imports (MH-562) to turn an imported
+// chat/sender into a contact the same way every other path in does.
+// email/phone/handle are taken as already normalised — callers outside this
+// package should run them through mail.ParseAddress / NormalizePhone first,
+// the way AddContact itself does.
 func UpsertContactIdentity(ctx context.Context, db *sql.DB, wsID, email, phone, handle, name, locale, source string) (id string, created bool, err error) {
 	if email == "" && phone == "" && handle == "" {
 		return "", false, huma.Error422UnprocessableEntity("a contact needs an email, a phone number or a handle")
 	}
-	return upsertContact(ctx, db, wsID, email, phone, handle, name, locale, source)
+	res, err := contacts.Upsert(ctx, db, wsID, contacts.Candidate{
+		Email: email, Phone: phone, Handle: handle, Name: name, Locale: locale, Source: source,
+	})
+	if err != nil {
+		return "", false, huma.Error500InternalServerError("could not add the contact")
+	}
+	return res.ContactID, res.Created, nil
 }
 
 type AddContactResult struct {
@@ -1075,10 +1044,13 @@ func AddContact(ctx context.Context, a *app.App, in AddContactInput) (*AddContac
 
 	// A CRM contact with no list: no subscription, no consent email.
 	if in.ListID == "" {
-		contactID, _, err := upsertContact(ctx, a.SQLDB, s.WorkspaceID, email, phone, handle, strings.TrimSpace(in.Name), locale, "crm")
+		cres, err := contacts.Upsert(ctx, a.SQLDB, s.WorkspaceID, contacts.Candidate{
+			Email: email, Phone: phone, Handle: handle, Name: strings.TrimSpace(in.Name), Locale: locale, Source: "crm",
+		})
 		if err != nil {
-			return nil, err
+			return nil, huma.Error500InternalServerError("could not add the contact")
 		}
+		contactID := cres.ContactID
 		res := AddContactResult{Status: "crm", Confirmation: "not_needed"}
 		if c, err := getContactOut(ctx, a.SQLDB, s.WorkspaceID, contactID); err == nil {
 			res.Contact = *c
@@ -1098,16 +1070,24 @@ func AddContact(ctx context.Context, a *app.App, in AddContactInput) (*AddContac
 		return nil, huma.Error500InternalServerError("could not read the list")
 	}
 
+	// The contact resolves through the shared internal/contacts.Upsert (MH-583)
+	// before the list-subscription transaction opens: it runs its own
+	// transaction (with the workspace's advisory lock), so it cannot be nested
+	// inside this one.
+	cres, err := contacts.Upsert(ctx, a.SQLDB, s.WorkspaceID, contacts.Candidate{
+		Email: email, Phone: phone, Handle: handle, Name: strings.TrimSpace(in.Name), Locale: locale, Source: "manual",
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "upsert contact", "err", err)
+		return nil, huma.Error500InternalServerError("could not add the contact")
+	}
+	contactID := cres.ContactID
+
 	tx, err := a.SQLDB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not add the contact")
 	}
 	defer tx.Rollback() //nolint:errcheck
-	contactID, _, err := upsertContact(ctx, tx, s.WorkspaceID, email, phone, handle, strings.TrimSpace(in.Name), locale, "manual")
-	if err != nil {
-		slog.ErrorContext(ctx, "upsert contact", "err", err)
-		return nil, err
-	}
 
 	var subID, status, token string
 	err = tx.QueryRowContext(ctx, `

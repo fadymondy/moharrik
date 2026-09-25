@@ -952,6 +952,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		{"PATCH", "/api/w/conversations/" + convID, map[string]any{"snoozed_until": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}},
 		{"POST", "/api/w/conversations/" + convID + "/contact", map[string]any{"email": "bob-steals-" + rnd() + "@example.test"}},
 		{"POST", "/api/w/conversations/" + convID + "/deal", map[string]any{"title": "steal"}},
+		// MH-583: B cannot link a new identity onto A's contact either.
+		{"POST", "/api/w/contacts/" + ctID + "/identities", map[string]any{"channel": "telegram", "external_id": "@bob-steals-" + rnd()}},
 		{"PATCH", "/api/w/canned_replies/" + cannedID, map[string]any{"title": "bob owns this"}},
 		{"DELETE", "/api/w/canned_replies/" + cannedID, nil},
 		// Editing a schedule (MH-471): B can neither re-time A's schedule nor
@@ -962,6 +964,22 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		if code, b := bob.do(w.method, w.path, w.body); code != http.StatusNotFound || leaks(b) != "" {
 			t.Errorf("B %s %s: got %d, want 404: %s", w.method, w.path, code, b)
 		}
+	}
+	// MH-583: B cannot unlink an identity off A's contact either — not even
+	// A's own primary email identity, fetched from A's side just for its id.
+	alice.ws = aID
+	ctIdentities := alice.must("GET", "/api/w/contacts/"+ctID, nil, 200)["contact"].(map[string]any)["identities"].([]any)
+	if len(ctIdentities) == 0 {
+		t.Fatalf("A's contact should have at least its primary email identity: %v", ctIdentities)
+	}
+	ctIdentityID := ctIdentities[0].(map[string]any)["id"].(string)
+	bob.ws = bID
+	if code, b := bob.do("DELETE", "/api/w/contacts/"+ctID+"/identities/"+ctIdentityID, nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B unlinking A's contact identity: got %d, want 404: %s", code, b)
+	}
+	alice.ws = aID
+	if ct := alice.must("GET", "/api/w/contacts/"+ctID, nil, 200)["contact"].(map[string]any); len(ct["identities"].([]any)) != len(ctIdentities) {
+		t.Errorf("A's contact identity was removed from B: %+v", ct["identities"])
 	}
 	// And A's own side of it cannot point outside A: linking B's contact fails.
 	alice.ws = aID

@@ -493,6 +493,49 @@ export type Activity = {
   created_at: string
 }
 
+/** One linked account on one channel (MH-583) — internal/contacts.Identity on the wire. */
+export type ContactChannel =
+  | "email"
+  | "phone"
+  | "whatsapp"
+  | "handle"
+  | "telegram"
+  | "slack"
+  | "discord"
+  | "messenger"
+  | "instagram"
+  | "linkedin"
+  | "x"
+  | "widget"
+  | "sip"
+  | "other"
+
+export const CONTACT_CHANNELS: ContactChannel[] = [
+  "email",
+  "phone",
+  "whatsapp",
+  "handle",
+  "telegram",
+  "slack",
+  "discord",
+  "messenger",
+  "instagram",
+  "linkedin",
+  "x",
+  "widget",
+  "sip",
+  "other",
+]
+
+export type ContactIdentity = {
+  id: string
+  channel: ContactChannel
+  external_id: string
+  label: string
+  is_primary: boolean
+  position: number
+}
+
 export type ContactDetail = {
   id: string
   email: string
@@ -514,6 +557,22 @@ export type ContactDetail = {
   lifecycle_history_total: number
   score: number | null
   score_reasons: ScoreReason[] | null
+  /** MH-583: Google-People-parity scalar fields. All empty-string-means-absent. */
+  given_name?: string
+  family_name?: string
+  middle_name?: string
+  name_prefix?: string
+  name_suffix?: string
+  phonetic_given_name?: string
+  phonetic_family_name?: string
+  nickname?: string
+  birthday?: string | null
+  biography?: string
+  photo_url?: string
+  /** Free-form key/value pairs Fady asked for by name. */
+  meta: Record<string, string>
+  /** Every linked account on every channel, including the ones denormalised above. */
+  identities: ContactIdentity[]
 }
 
 // ── Notification center ─────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/fadymondy/moharrik/internal/contacts"
 	"github.com/fadymondy/moharrik/internal/crm"
 )
 
@@ -49,6 +50,33 @@ func Convert(ctx context.Context, db *sql.DB, wsID, leadID, userID string) (*Con
 		return nil, err
 	}
 
+	// The contact resolves through the shared internal/contacts.Upsert
+	// (MH-583) before the lead-locking transaction below: it runs its own
+	// transaction, so it cannot be nested inside this one. A quick unlocked
+	// read supplies the candidate fields; the authoritative status check
+	// (already converted? spam?) still happens on the FOR UPDATE read that
+	// follows, so a race here only means an extra no-op upsert, never a wrong
+	// conversion.
+	var preEmail, prePhone, preName, preLocale string
+	if err := db.QueryRowContext(ctx, `SELECT email, phone, name, locale FROM leads WHERE workspace_id = $1 AND id = $2`, wsID, leadID).
+		Scan(&preEmail, &prePhone, &preName, &preLocale); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	preContactLocale := preLocale
+	if preContactLocale != "ar" {
+		preContactLocale = "en"
+	}
+	cres, err := contacts.Upsert(ctx, db, wsID, contacts.Candidate{
+		Email: strings.ToLower(strings.TrimSpace(preEmail)), Phone: strings.TrimSpace(prePhone),
+		Name: strings.TrimSpace(preName), Locale: preContactLocale, Source: "lead",
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -89,17 +117,11 @@ func Convert(ctx context.Context, db *sql.DB, wsID, leadID, userID string) (*Con
 		contactLocale = "en"
 	}
 
-	// 1. The contact. xmax = 0 is true only for a row this statement inserted.
+	// 1. The contact, already resolved above through internal/contacts.Upsert.
+	res.ContactID, res.ContactCreated = cres.ContactID, cres.Created
 	var existingCompany sql.NullString
-	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO contacts (workspace_id, email, name, phone, locale, source) VALUES ($1, $2, $3, $4, $5, 'lead')
-		ON CONFLICT (workspace_id, email) WHERE email <> '' DO UPDATE SET
-		  name = CASE WHEN contacts.name = '' THEN EXCLUDED.name ELSE contacts.name END,
-		  phone = CASE WHEN contacts.phone = '' THEN EXCLUDED.phone ELSE contacts.phone END,
-		  updated_at = now()
-		RETURNING id, (xmax = 0), company_id`,
-		wsID, email, strings.TrimSpace(l.name), strings.TrimSpace(l.phone), contactLocale,
-	).Scan(&res.ContactID, &res.ContactCreated, &existingCompany); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT company_id FROM contacts WHERE workspace_id = $1 AND id = $2`,
+		wsID, res.ContactID).Scan(&existingCompany); err != nil {
 		return nil, err
 	}
 

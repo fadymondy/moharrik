@@ -85,6 +85,10 @@ func autoLink(ctx context.Context, db *sql.DB, wsID, convID string) error {
 	if contactID.Valid || link == "manual" {
 		return nil
 	}
+	// Matches ANY of the contact's values (MH-583): the denormalised primary
+	// column on contacts, OR a secondary row in contact_identities (a second
+	// linked WhatsApp number, an additional email, ...). UNION rather than OR
+	// so both sides can use their own index.
 	var rows *sql.Rows
 	switch channel {
 	case "email":
@@ -92,7 +96,12 @@ func autoLink(ctx context.Context, db *sql.DB, wsID, convID string) error {
 		if email == "" {
 			return nil
 		}
-		rows, err = db.QueryContext(ctx, `SELECT id FROM contacts WHERE workspace_id = $1 AND lower(email) = $2 LIMIT 2`, wsID, email)
+		rows, err = db.QueryContext(ctx, `
+			SELECT id FROM contacts WHERE workspace_id = $1 AND lower(email) = $2
+			UNION
+			SELECT contact_id FROM contact_identities
+			WHERE workspace_id = $1 AND channel = 'email' AND lower(external_id) = $2
+			LIMIT 2`, wsID, email)
 	case "whatsapp":
 		digits := marketing.OnlyDigits(phone)
 		// A handful of digits is an extension, not a number worth matching on.
@@ -101,7 +110,12 @@ func autoLink(ctx context.Context, db *sql.DB, wsID, convID string) error {
 		}
 		rows, err = db.QueryContext(ctx, `
 			SELECT id FROM contacts
-			WHERE workspace_id = $1 AND phone <> '' AND regexp_replace(phone, '[^0-9]', '', 'g') = $2 LIMIT 2`, wsID, digits)
+			WHERE workspace_id = $1 AND phone <> '' AND regexp_replace(phone, '[^0-9]', '', 'g') = $2
+			UNION
+			SELECT contact_id FROM contact_identities
+			WHERE workspace_id = $1 AND channel IN ('phone', 'whatsapp')
+			  AND regexp_replace(external_id, '[^0-9]', '', 'g') = $2
+			LIMIT 2`, wsID, digits)
 	default:
 		return nil
 	}

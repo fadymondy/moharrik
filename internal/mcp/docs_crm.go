@@ -75,7 +75,9 @@ var docsCRM = map[string]ToolDoc{
 	"update_contact": {
 		AR: "تعديل حقول جهة اتصال في إدارة العملاء، مع إرسال ما يتغيّر فقط: name وphone وtitle وcompany_id (النص الفارغ يفكّ الربط بالشركة)، " +
 			"وowner (معرّف مستخدم العضو أو بريده؛ الفارغ يلغي الإسناد)، وtags (تحلّ محل الوسوم كلها)، وlifecycle (subscriber أو lead أو " +
-			"qualified أو customer أو فارغ). تُسجَّل المرحلة المضبوطة يدويًا باسمك، بينما تدفعها الأحداث إلى الأمام تلقائيًا.",
+			"qualified أو customer أو فارغ). تُسجَّل المرحلة المضبوطة يدويًا باسمك، بينما تدفعها الأحداث إلى الأمام تلقائيًا. كذلك حقول " +
+			"مطابقة Google People (given_name وfamily_name وmiddle_name وname_prefix وname_suffix وphonetic_given_name وphonetic_family_name " +
+			"وnickname وbirthday بصيغة YYYY-MM-DD وbiography)، وmeta (كائن مفاتيح وقيم حرة — يستبدل الخريطة كاملة، بحد أقصى 50 مفتاحًا).",
 		Example: map[string]any{
 			"id":    "3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23",
 			"title": "Head of Operations",
@@ -92,6 +94,21 @@ var docsCRM = map[string]ToolDoc{
 			`"from":"lead","to":"qualified","source":"manual","actor_user_id":"c21d4b8e-0a9f-4e3c-b7d6-5f8a2e1c9b30","at":"2026-09-02T11:30:00Z"}],` +
 			`"lifecycle_history_total":2,"score":90,"score_reasons":[{"dimension":"keywords","weight":2,"value":0.5,"contribution":1,` +
 			`"matched":["operations"],"detail":"","text":"Profile keywords found: operations (in title)."}]}}`,
+	},
+	"link_contact_identity": {
+		AR: "ربط حساب إضافي بجهة اتصال: رقم واتساب ثانٍ، أو بريد إضافي، أو معرّف على تيليجرام أو سلاك أو ديسكورد أو ماسنجر أو إنستغرام " +
+			"أو لينكدإن أو إكس، أو زائر ودجة الدردشة، أو أي قناة أخرى. يُرفض بتعارض (409) إذا كان هذا الحساب بالضبط مرتبطًا بالفعل بجهة " +
+			"اتصال أخرى في مساحة العمل نفسها.",
+		Example: map[string]any{"id": "3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23", "channel": "telegram", "external_id": "@layla_ops", "label": "work"},
+		Result: `{"contact":{"id":"3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23","email":"layla.nasser@mail.example","name":"Layla Nasser",` +
+			`"identities":[{"id":"9a1c3e5f-7b0d-4f2a-8c4e-0d1f3a5b7c9e","channel":"telegram","external_id":"@layla_ops","label":"work",` +
+			`"is_primary":false,"position":0}],"meta":{}}}`,
+	},
+	"unlink_contact_identity": {
+		AR:      "فكّ ربط حساب واحد من جهة اتصال (معرّفه موجود في قائمة identities التي تُعيدها get_contact).",
+		Example: map[string]any{"id": "3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23", "identity_id": "9a1c3e5f-7b0d-4f2a-8c4e-0d1f3a5b7c9e"},
+		Result: `{"contact":{"id":"3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23","email":"layla.nasser@mail.example","name":"Layla Nasser",` +
+			`"identities":[],"meta":{}}}`,
 	},
 
 	// ---- companies ----------------------------------------------------------

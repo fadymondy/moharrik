@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/mail"
@@ -14,6 +15,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/contacts"
 	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/paging"
@@ -75,6 +77,21 @@ type ContactFields struct {
 	// Lifecycle is set by hand, in any direction, and recorded with who set it
 	// (MH-395). Events move it forward on their own.
 	Lifecycle *string `json:"lifecycle,omitempty" enum:",subscriber,lead,qualified,customer" doc:"subscriber, lead, qualified, customer, or empty."`
+
+	// MH-583: Google-People-parity scalar fields and free key/value meta.
+	GivenName          *string `json:"given_name,omitempty" maxLength:"120"`
+	FamilyName         *string `json:"family_name,omitempty" maxLength:"120"`
+	MiddleName         *string `json:"middle_name,omitempty" maxLength:"120"`
+	NamePrefix         *string `json:"name_prefix,omitempty" maxLength:"40"`
+	NameSuffix         *string `json:"name_suffix,omitempty" maxLength:"40"`
+	PhoneticGivenName  *string `json:"phonetic_given_name,omitempty" maxLength:"120"`
+	PhoneticFamilyName *string `json:"phonetic_family_name,omitempty" maxLength:"120"`
+	Nickname           *string `json:"nickname,omitempty" maxLength:"120"`
+	Birthday           *string `json:"birthday,omitempty" doc:"YYYY-MM-DD. Empty string clears it."`
+	Biography          *string `json:"biography,omitempty" maxLength:"5000"`
+	// Meta replaces the whole key/value map when set (the page sends the map
+	// it just edited back whole, the same way Tags does).
+	Meta *map[string]string `json:"meta,omitempty" doc:"Replaces the whole key/value map. At most 50 keys, each key and value at most 200 characters."`
 }
 
 // ActivityInput is a new timeline entry.
@@ -459,6 +476,56 @@ func UpdateContact(ctx context.Context, db *sql.DB, id string, b ContactFields) 
 	if b.Lifecycle != nil && !icp.ValidStage(strings.TrimSpace(*b.Lifecycle)) {
 		return nil, huma.Error422UnprocessableEntity(icp.ErrBadStage.Error())
 	}
+	if b.GivenName != nil {
+		u.set("given_name", strings.TrimSpace(*b.GivenName))
+	}
+	if b.FamilyName != nil {
+		u.set("family_name", strings.TrimSpace(*b.FamilyName))
+	}
+	if b.MiddleName != nil {
+		u.set("middle_name", strings.TrimSpace(*b.MiddleName))
+	}
+	if b.NamePrefix != nil {
+		u.set("name_prefix", strings.TrimSpace(*b.NamePrefix))
+	}
+	if b.NameSuffix != nil {
+		u.set("name_suffix", strings.TrimSpace(*b.NameSuffix))
+	}
+	if b.PhoneticGivenName != nil {
+		u.set("phonetic_given_name", strings.TrimSpace(*b.PhoneticGivenName))
+	}
+	if b.PhoneticFamilyName != nil {
+		u.set("phonetic_family_name", strings.TrimSpace(*b.PhoneticFamilyName))
+	}
+	if b.Nickname != nil {
+		u.set("nickname", strings.TrimSpace(*b.Nickname))
+	}
+	if b.Birthday != nil {
+		bday, err := parseDate(*b.Birthday)
+		if err != nil {
+			return nil, err
+		}
+		u.set("birthday", bday)
+	}
+	if b.Biography != nil {
+		u.set("biography", strings.TrimSpace(*b.Biography))
+	}
+	if b.Meta != nil {
+		if len(*b.Meta) > 50 {
+			return nil, huma.Error422UnprocessableEntity("at most 50 meta keys")
+		}
+		clean := map[string]string{}
+		for k, v := range *b.Meta {
+			k = strings.TrimSpace(k)
+			if k == "" || len([]rune(k)) > 200 || len([]rune(v)) > 200 {
+				return nil, huma.Error422UnprocessableEntity("each meta key and value is at most 200 characters, and a key cannot be blank")
+			}
+			clean[k] = v
+		}
+		metaJSON, _ := json.Marshal(clean)
+		u.set("meta", string(metaJSON))
+		u.sets[len(u.sets)-1] += "::jsonb"
+	}
 	if len(u.sets) > 0 {
 		res, err := db.ExecContext(ctx, `UPDATE contacts SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
 			append([]any{s.WorkspaceID, id}, u.args...)...)
@@ -479,6 +546,68 @@ func UpdateContact(ctx context.Context, db *sql.DB, id string, b ContactFields) 
 	}
 	rescore(ctx, db, s.WorkspaceID)
 	c, err := getContact(ctx, db, s.WorkspaceID, id)
+	if notFound(err) {
+		return nil, huma.Error404NotFound("contact not found")
+	} else if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the contact")
+	}
+	return c, nil
+}
+
+// ---- identities (MH-583) --------------------------------------------------------
+
+// LinkIdentityInput is one account to attach to a contact.
+type LinkIdentityInput struct {
+	Channel    string `json:"channel" enum:"email,phone,whatsapp,handle,telegram,slack,discord,messenger,instagram,linkedin,x,widget,sip,other"`
+	ExternalID string `json:"external_id" minLength:"1" maxLength:"254" doc:"The address/number/handle/id on that channel."`
+	Label      string `json:"label,omitempty" maxLength:"60"`
+	IsPrimary  bool   `json:"is_primary,omitempty"`
+}
+
+// LinkContactIdentity attaches one more account to a contact — a second
+// WhatsApp number, a Telegram handle, the chat widget's visitor id, and so
+// on. It refuses to steal an account already linked to a different contact.
+func LinkContactIdentity(ctx context.Context, db *sql.DB, contactID string, in LinkIdentityInput) (*ContactDetail, error) {
+	s, err := scope(ctx, authz.ContactsWrite)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := contacts.LinkIdentity(ctx, db, s.WorkspaceID, contactID, in.Channel, in.ExternalID, in.Label, in.IsPrimary); err != nil {
+		switch {
+		case errors.Is(err, contacts.ErrDuplicateIdentity):
+			return nil, huma.Error409Conflict(err.Error())
+		case errors.Is(err, contacts.ErrNoIdentity):
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		default:
+			return nil, huma.Error500InternalServerError("could not link that account")
+		}
+	}
+	c, err := getContact(ctx, db, s.WorkspaceID, contactID)
+	if notFound(err) {
+		return nil, huma.Error404NotFound("contact not found")
+	} else if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the contact")
+	}
+	return c, nil
+}
+
+// UnlinkContactIdentity detaches one linked account. Unlinking the last
+// identity of the channel behind contacts.email/phone/handle just removes
+// the extra row; the denormalised primary column is left as-is (MH-561 still
+// requires at least one of email/phone/handle to remain non-empty, enforced
+// by contacts_identity_chk — this only ever touches contact_identities).
+func UnlinkContactIdentity(ctx context.Context, db *sql.DB, contactID, identityID string) (*ContactDetail, error) {
+	s, err := scope(ctx, authz.ContactsWrite)
+	if err != nil {
+		return nil, err
+	}
+	if err := contacts.UnlinkIdentity(ctx, db, s.WorkspaceID, contactID, identityID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("that identity was not found on this contact")
+		}
+		return nil, huma.Error500InternalServerError("could not unlink that account")
+	}
+	c, err := getContact(ctx, db, s.WorkspaceID, contactID)
 	if notFound(err) {
 		return nil, huma.Error404NotFound("contact not found")
 	} else if err != nil {
