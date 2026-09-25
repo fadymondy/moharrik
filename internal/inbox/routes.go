@@ -108,10 +108,11 @@ func Register(api huma.API, a *app.App) {
 		Q         string `query:"q" maxLength:"200" doc:"Full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in the thread."`
 		Cursor    string `query:"cursor" doc:"next_cursor from the page before this one; empty for the newest page."`
 		Limit     int    `query:"limit" minimum:"0" maximum:"200"`
+		Order     string `query:"order" enum:",recent,unread_first" doc:"recent (the default): newest first. unread_first (MH-592): every unread conversation, newest first, then the read ones."`
 	}) (*body[ConversationList], error) {
 		res, err := ListConversations(ctx, a, ConversationFilter{
 			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, MailboxID: in.MailboxID,
-			Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
+			Q: in.Q, Cursor: in.Cursor, Limit: in.Limit, Order: in.Order,
 		})
 		if err != nil {
 			return nil, err

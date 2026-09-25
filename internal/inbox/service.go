@@ -52,6 +52,11 @@ type ConversationFilter struct {
 	// thread.go's threadPage already uses for a thread's own messages).
 	Cursor string
 	Limit  int
+	// Order "unread_first" (MH-592) puts every unread conversation before the
+	// read ones, each group newest first; the default is newest first only.
+	// The cursor carries the unread flag too, so a page boundary that falls
+	// between the two groups still walks on correctly.
+	Order string
 }
 
 // ConversationList is a page of the inbox, most recent first.
@@ -137,24 +142,40 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 		      OR EXISTS (SELECT 1 FROM messages sm WHERE sm.workspace_id = c.workspace_id AND sm.conversation_id = c.id
 		                 AND sm.search @@ websearch_to_tsquery('simple', $` + n2 + `)))`
 	}
-	cur, err := paging.Decode(f.Cursor, 2)
+	unreadFirst := f.Order == "unread_first"
+	parts := 2
+	if unreadFirst {
+		parts = 3
+	}
+	cur, err := paging.Decode(f.Cursor, parts)
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
 	if cur != nil {
-		at, perr := time.Parse(time.RFC3339Nano, cur[0])
+		at, perr := time.Parse(time.RFC3339Nano, cur[parts-2])
 		if perr != nil {
 			return nil, huma.Error422UnprocessableEntity(paging.ErrBadCursor.Error())
 		}
-		args = append(args, at, cur[1])
-		n1, n2 := strconv.Itoa(len(args)-1), strconv.Itoa(len(args))
-		q += ` AND (c.last_message_at, c.id) < ($` + n1 + `, $` + n2 + `)`
+		if unreadFirst {
+			// Every column descends, so "after the cursor" is one row compare.
+			args = append(args, cur[0] == "1", at, cur[2])
+			n := len(args)
+			q += ` AND (c.unread::int, c.last_message_at, c.id) < ($` + strconv.Itoa(n-2) + `::boolean::int, $` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
+		} else {
+			args = append(args, at, cur[1])
+			n1, n2 := strconv.Itoa(len(args)-1), strconv.Itoa(len(args))
+			q += ` AND (c.last_message_at, c.id) < ($` + n1 + `, $` + n2 + `)`
+		}
 	}
 	limit, lerr := paging.Limit(f.Limit, 50, 200)
 	if lerr != nil {
 		return nil, huma.Error422UnprocessableEntity(lerr.Error())
 	}
-	q += ` ORDER BY c.last_message_at DESC, c.id DESC LIMIT ` + strconv.Itoa(limit+1)
+	if unreadFirst {
+		q += ` ORDER BY c.unread DESC, c.last_message_at DESC, c.id DESC LIMIT ` + strconv.Itoa(limit+1)
+	} else {
+		q += ` ORDER BY c.last_message_at DESC, c.id DESC LIMIT ` + strconv.Itoa(limit+1)
+	}
 	rows, err := a.SQLDB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not list conversations")
@@ -171,7 +192,16 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	res := &ConversationList{Conversations: list}
 	if len(list) > limit {
 		last := list[limit-1]
-		res.NextCursor = paging.Encode(last.LastMessageAt.UTC().Format(time.RFC3339Nano), last.ID)
+		at := last.LastMessageAt.UTC().Format(time.RFC3339Nano)
+		if unreadFirst {
+			flag := "0"
+			if last.Unread {
+				flag = "1"
+			}
+			res.NextCursor = paging.Encode(flag, at, last.ID)
+		} else {
+			res.NextCursor = paging.Encode(at, last.ID)
+		}
 		res.Conversations = list[:limit]
 	}
 	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM conversations WHERE workspace_id = $1 AND unread`, s.WorkspaceID).Scan(&res.UnreadCount); err != nil {

@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { DownloadIcon, ImageIcon, PaperclipIcon } from "lucide-react"
+import { DownloadIcon, PaperclipIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { type InboxAttachment } from "@/lib/api"
 import { renderEmailHtml } from "@/lib/inbox-html"
 import { useTranslations } from "@/lib/i18n"
@@ -41,11 +40,12 @@ const IFRAME_STYLE = `
 `
 
 function HtmlMessage({ html, attachments }: { html: string; attachments?: InboxAttachment[] }) {
-  const { t } = useTranslations()
-  const [blockImages, setBlockImages] = useState(true)
   const ref = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(40)
-  const rendered = renderEmailHtml(html, { blockImages }, attachments)
+  // Images load straight away (MH-592): an email read without its images was
+  // not readable, and a "Show images" step on every message was friction.
+  // The iframe still sends no referrer and runs no script.
+  const rendered = renderEmailHtml(html, { blockImages: false }, attachments)
 
   useEffect(() => {
     const el = ref.current
@@ -71,15 +71,6 @@ function HtmlMessage({ html, attachments }: { html: string; attachments?: InboxA
 
   return (
     <div data-email-body>
-      {rendered.hadRemoteImages ? (
-        <div className="mb-2 flex items-center gap-2 border border-dashed border-grid-border bg-grid-soft px-2 py-1 text-xs text-grid-muted" data-images-blocked>
-          <ImageIcon className="size-3.5" />
-          <span className="flex-1">{t("inbox.imagesBlocked")}</span>
-          <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setBlockImages(false)} data-show-images>
-            {t("inbox.showImages")}
-          </Button>
-        </div>
-      ) : null}
       <iframe
         ref={ref}
         title="email"

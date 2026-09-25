@@ -121,6 +121,45 @@ function MessageGroup({
   const Icon = channelIcon(conversation.channel)
   const who = out ? (group[0].author_user_id ? memberName(group[0].author_user_id) : t("inbox.team")) : conversation.customer_name || t("inbox.customer")
 
+  // An email is a document, not a chat line (MH-592): each one is a
+  // full-width card with its own sender and time, so a newsletter's layout,
+  // tables and images get the whole pane instead of a 36rem bubble.
+  if (conversation.channel === "email") {
+    return (
+      <div className="flex flex-col gap-2 py-1.5" data-message-group={out ? "out" : "in"}>
+        {group.map((m) => (
+          <article
+            key={m.id}
+            data-message={m.direction}
+            data-message-layout="email"
+            className={`w-full min-w-0 border border-line bg-grid-card text-sm ${out ? "border-s-2 border-s-primary" : ""}`}
+          >
+            <header className="flex min-w-0 items-center gap-2 border-b border-line px-4 py-2 text-xs text-grid-muted">
+              <Icon className="size-3 shrink-0" />
+              <span className="min-w-0 truncate font-medium text-grid-fg">
+                <Bdi>{out ? (m.author_user_id ? memberName(m.author_user_id) : t("inbox.team")) : who}</Bdi>
+              </span>
+              {conversation.subject ? (
+                <span className="min-w-0 flex-1 truncate" data-message-subject>
+                  <Bdi>{conversation.subject}</Bdi>
+                </span>
+              ) : (
+                <span className="flex-1" />
+              )}
+              <span className="shrink-0">
+                <Ltr>{timeOf(m.created_at, locale)}</Ltr>
+              </span>
+            </header>
+            <div className="px-4 py-3">
+              <MessageBody body={m.body} bodyHtml={m.body_html} attachments={m.attachments} />
+              <AttachmentList attachments={m.attachments} />
+            </div>
+          </article>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className={`flex flex-col gap-1 py-1.5 ${out ? "items-end" : "items-start"}`} data-message-group={out ? "out" : "in"}>
       <p className={`flex items-center gap-1 px-1 text-xs text-grid-muted ${out ? "flex-row-reverse" : ""}`}>

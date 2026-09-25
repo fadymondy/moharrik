@@ -105,6 +105,10 @@ export default function InboxPage() {
     // Only meaningful under Email (MH-555); dropped everywhere else so a
     // leftover value can never silently narrow another channel's list.
     mailbox_id: channel === "email" ? mailboxFilter || undefined : undefined,
+    // Ten at a time, unread on top (MH-592): what needs an answer is what
+    // opens first, and the rest arrives as the list is scrolled or searched.
+    limit: 10,
+    order: "unread_first",
   })
   const list = { error: pages.error, data: pages.data?.[0], mutate: pages.mutate }
   const items = (pages.data ?? []).flatMap((p) => p.conversations)
@@ -158,12 +162,14 @@ export default function InboxPage() {
       (entries) => {
         if (entries[0]?.isIntersecting && hasMore && !loadingMore) void pages.setSize(pages.size + 1)
       },
-      { rootMargin: "400px" },
+      // The list scrolls inside its own <ul>, so that is the root: against the
+      // viewport the margin would be clipped by the list and never reach ahead.
+      { root: listParentRef.current, rootMargin: "400px" },
     )
     obs.observe(el)
     return () => obs.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore, loadingMore, pages.size])
+  }, [hasMore, loadingMore, pages.size, items.length])
 
   // Keyboard navigation (MH-556): j/k or the arrows move the highlighted
   // conversation, Enter/n open it, Esc clears the search, / focuses it. Typing
@@ -275,77 +281,81 @@ export default function InboxPage() {
           {t("inbox.filterUnread")}
           {list.data?.unread_count ? ` (${list.data.unread_count})` : ""}
         </Button>
-        <input
-          id="inbox-search"
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("inbox.searchPlaceholder")}
-          dir="auto"
-          data-search="conversations"
-          className="h-8 min-w-40 flex-1 border border-line bg-grid-card px-3 text-sm placeholder:text-grid-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grid-brand"
-        />
       </div>
 
-      {list.error ? (
-        <ErrorState error={list.error} />
-      ) : !list.data ? (
-        <LoadingRows rows={5} />
-      ) : items.length === 0 ? (
-        <EmptyState title={t("inbox.empty")} body={canManage ? t("inbox.emptyBody") : undefined} />
-      ) : (
-        <div className="grid grid-cols-1 border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
-          {/* Virtualised (MH-556): position:relative + overflow-y-auto on this
-              same element, with every row (and the sentinel) absolutely
-              positioned directly inside it — see the virtualizer setup above
-              for why there is no separate inner sizer wrapper. */}
-          <ul
-            ref={listParentRef}
-            className="relative min-w-0 divide-y divide-line overflow-y-auto lg:border-e lg:border-line"
-            style={{ height: "min(70vh, 44rem)" }}
-            data-conversation-list
-          >
-            {virtualItems.map((vi) => {
-              const c = items[vi.index]!
-              return (
-                <ConversationRow
-                  key={c.id}
-                  c={c}
-                  active={c.id === selected}
-                  highlighted={vi.index === cursorIdx}
-                  onSelect={() => {
-                    setCursorIdx(vi.index)
-                    select(c.id)
-                  }}
-                  buttonRef={(el) => {
-                    rowRefs.current[c.id] = el
-                  }}
-                  onChanged={() => void pages.mutate()}
-                  measureRef={virtualizer.measureElement}
-                  dataIndex={vi.index}
-                  style={{ position: "absolute", top: 0, insetInlineStart: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
-                />
-              )
-            })}
-            <li ref={sentinelRef} aria-hidden className="h-1" data-scroll-sentinel style={{ position: "absolute", top: listBottom, insetInlineStart: 0, width: "100%" }} />
-            {loadingMore ? (
-              <li
-                className="px-6 py-3 text-center text-xs text-grid-muted"
-                style={{ position: "absolute", top: listBottom + 4, insetInlineStart: 0, width: "100%" }}
-              >
-                {t("common.working")}
-              </li>
-            ) : null}
-          </ul>
-          <div className="min-w-0">
-            {selected ? (
-              <Thread key={selected} id={selected} onChanged={() => list.mutate()} />
-            ) : (
-              <p className="px-6 py-10 text-center text-sm text-grid-muted">{t("inbox.pickOne")}</p>
-            )}
+      <div className="grid grid-cols-1 border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
+        {/* The chat list column (MH-592): its own search on top, so what you
+            search is right above what it finds, and the list below it. The
+            search stays put while the list loads, errors or comes back empty,
+            so a search with no hits can be changed where it was typed. */}
+        <div className="flex min-w-0 flex-col lg:border-e lg:border-line" style={{ height: "min(70vh, 44rem)" }} data-conversation-column>
+          <div className="shrink-0 border-b border-line p-2">
+            <input
+              id="inbox-search"
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t("inbox.searchPlaceholder")}
+              aria-label={t("inbox.searchPlaceholder")}
+              dir="auto"
+              data-search="conversations"
+              className="h-8 w-full border border-line bg-grid-card px-3 text-sm placeholder:text-grid-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grid-brand"
+            />
           </div>
+          {list.error ? (
+            <ErrorState error={list.error} />
+          ) : !list.data ? (
+            <LoadingRows rows={5} />
+          ) : items.length === 0 ? (
+            <EmptyState title={t("inbox.empty")} body={canManage && !q.trim() ? t("inbox.emptyBody") : undefined} />
+          ) : (
+            // Virtualised (MH-556): position:relative + overflow-y-auto on this
+            // same element, with every row (and the sentinel) absolutely
+            // positioned directly inside it — see the virtualizer setup above
+            // for why there is no separate inner sizer wrapper.
+            <ul ref={listParentRef} className="relative min-h-0 min-w-0 flex-1 divide-y divide-line overflow-y-auto" data-conversation-list>
+              {virtualItems.map((vi) => {
+                const c = items[vi.index]!
+                return (
+                  <ConversationRow
+                    key={c.id}
+                    c={c}
+                    active={c.id === selected}
+                    highlighted={vi.index === cursorIdx}
+                    onSelect={() => {
+                      setCursorIdx(vi.index)
+                      select(c.id)
+                    }}
+                    buttonRef={(el) => {
+                      rowRefs.current[c.id] = el
+                    }}
+                    onChanged={() => void pages.mutate()}
+                    measureRef={virtualizer.measureElement}
+                    dataIndex={vi.index}
+                    style={{ position: "absolute", top: 0, insetInlineStart: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
+                  />
+                )
+              })}
+              <li ref={sentinelRef} aria-hidden className="h-1" data-scroll-sentinel style={{ position: "absolute", top: listBottom, insetInlineStart: 0, width: "100%" }} />
+              {loadingMore ? (
+                <li
+                  className="px-6 py-3 text-center text-xs text-grid-muted"
+                  style={{ position: "absolute", top: listBottom + 4, insetInlineStart: 0, width: "100%" }}
+                >
+                  {t("common.working")}
+                </li>
+              ) : null}
+            </ul>
+          )}
         </div>
-      )}
+        <div className="min-w-0">
+          {selected ? (
+            <Thread key={selected} id={selected} onChanged={() => list.mutate()} />
+          ) : (
+            <p className="px-6 py-10 text-center text-sm text-grid-muted">{t("inbox.pickOne")}</p>
+          )}
+        </div>
+      </div>
       <div className="pb-8" />
     </>
   )

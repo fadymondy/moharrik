@@ -386,6 +386,10 @@ export type ConversationFilter = {
   mailbox_id?: string
   /** Full-text search (MH-556), kept in the URL by the page, not by this hook. */
   q?: string
+  /** Page size; 50 when unset. The inbox page asks for 10 (MH-592). */
+  limit?: number
+  /** "unread_first" (MH-592): unread conversations, newest first, then the read ones. */
+  order?: "recent" | "unread_first"
 }
 
 type ConversationPage = {
@@ -403,7 +407,8 @@ function conversationsBase(filter: ConversationFilter) {
   if (filter.channel) qs.set("channel", filter.channel)
   if (filter.mailbox_id) qs.set("mailbox_id", filter.mailbox_id)
   if (filter.q) qs.set("q", filter.q)
-  qs.set("limit", "50")
+  if (filter.order) qs.set("order", filter.order)
+  qs.set("limit", String(filter.limit ?? 50))
   return "/api/w/conversations?" + qs.toString()
 }
 
