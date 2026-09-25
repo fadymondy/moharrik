@@ -304,6 +304,29 @@ func TestMCPSurface(t *testing.T) {
 	if upd["title"] != "CEO" || len(arr(upd["tags"])) != 2 {
 		t.Fatalf("update_contact: %v", upd)
 	}
+	// MH-583: every Google-People-parity field and the meta map round-trip
+	// through update_contact → get_contact, not just the legacy CRM fields.
+	parity := map[string]any{
+		"given_name": "Nour", "family_name": "Haddad", "middle_name": "S", "name_prefix": "Dr.", "name_suffix": "Jr.",
+		"phonetic_given_name": "noor", "phonetic_family_name": "haddaad", "nickname": "Nono", "biography": "Met at the Cairo expo",
+	}
+	args := map[string]any{"id": ctID, "birthday": "1990-05-15", "meta": map[string]any{"source": "expo", "شركة": "النيل"}}
+	for k, v := range parity {
+		args[k] = v
+	}
+	mcpJSON(t, agent, "update_contact", args)
+	back := obj(mcpJSON(t, agent, "get_contact", map[string]any{"id": ctID})["contact"])
+	for k, v := range parity {
+		if back[k] != v {
+			t.Errorf("get_contact %s = %v, want %v", k, back[k], v)
+		}
+	}
+	if b, _ := back["birthday"].(string); !strings.HasPrefix(b, "1990-05-15") {
+		t.Errorf("get_contact birthday = %v", back["birthday"])
+	}
+	if m := obj(back["meta"]); m["source"] != "expo" || m["شركة"] != "النيل" {
+		t.Errorf("get_contact meta = %v", back["meta"])
+	}
 	listed := mcpJSON(t, agent, "list_contacts", map[string]any{"limit": 1})
 	if first := obj(arr(listed["contacts"])[0]); first["id"] == nil || first["id"] == "" {
 		t.Fatalf("list_contacts returns no ids: %v", listed)
