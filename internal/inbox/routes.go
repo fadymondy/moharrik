@@ -109,10 +109,11 @@ func Register(api huma.API, a *app.App) {
 		Cursor    string `query:"cursor" doc:"next_cursor from the page before this one; empty for the newest page."`
 		Limit     int    `query:"limit" minimum:"0" maximum:"200"`
 		Order     string `query:"order" enum:",recent,unread_first" doc:"recent (the default): newest first. unread_first (MH-592): every unread conversation, newest first, then the read ones."`
+		Keep      string `query:"keep" maxLength:"4000" doc:"unread_first only (MH-599): comma-separated conversation ids to keep sorted among the unread ones (the ones this tab opened while unread), so opening a thread does not move it."`
 	}) (*body[ConversationList], error) {
 		res, err := ListConversations(ctx, a, ConversationFilter{
 			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, MailboxID: in.MailboxID,
-			Q: in.Q, Cursor: in.Cursor, Limit: in.Limit, Order: in.Order,
+			Q: in.Q, Cursor: in.Cursor, Limit: in.Limit, Order: in.Order, Keep: strings.Split(in.Keep, ","),
 		})
 		if err != nil {
 			return nil, err

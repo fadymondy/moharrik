@@ -40,6 +40,10 @@ func (f mbFixture) conversation(t *testing.T, channel, status string, unread boo
 	).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
+	// A conversation with no messages is neither listed nor counted (MH-599).
+	if _, err := f.a.SQLDB.ExecContext(f.ctx, `INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ($1, $2, 'in', 'hi')`, f.wsID, id); err != nil {
+		t.Fatal(err)
+	}
 	return id
 }
 

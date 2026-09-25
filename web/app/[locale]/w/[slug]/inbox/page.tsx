@@ -98,6 +98,11 @@ export default function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
 
+  // Threads opened while unread (MH-599). Opening one reads it, and under
+  // unread_first a read row would drop below every unread one — the row a
+  // person just left would move, and coming back to its slot opened a
+  // different conversation. The API keeps these among the unread until reload.
+  const keepRef = useRef<string[]>([])
   const pages = useConversationPages(ws.id, {
     status: status || undefined,
     unread,
@@ -110,10 +115,13 @@ export default function InboxPage() {
     // opens first, and the rest arrives as the list is scrolled or searched.
     limit: 10,
     order: "unread_first",
-  })
+  }, () => keepRef.current)
   const list = { error: pages.error, data: pages.data?.[0], mutate: pages.mutate }
   const items = (pages.data ?? []).flatMap((p) => p.conversations)
   const hasMore = !!pages.data?.[pages.data.length - 1]?.next_cursor
+  if (selected && !keepRef.current.includes(selected) && items.some((c) => c.id === selected && c.unread)) {
+    keepRef.current = [...keepRef.current, selected].slice(-100)
+  }
   const loadingMore = pages.isValidating && pages.size > 1
   const channelCounts: ChannelCount[] = list.data?.channel_counts ?? []
 

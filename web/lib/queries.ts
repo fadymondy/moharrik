@@ -434,7 +434,13 @@ export function useConversations(workspaceId: string | null | undefined, filter:
  * as the list scrolls into view, the same useSWRInfinite shape useNewsPages
  * and useTrendTopics already use, walking next_cursor instead of has_more.
  */
-export function useConversationPages(workspaceId: string | null | undefined, filter: ConversationFilter = {}) {
+export function useConversationPages(
+  workspaceId: string | null | undefined,
+  filter: ConversationFilter = {},
+  // Ids to keep among the unread under order=unread_first (MH-599). Read at
+  // fetch time, not part of the key: a thread opened must not reset the pages.
+  keep?: () => string[],
+) {
   const base = conversationsBase(filter)
   return useSWRInfinite<ConversationPage>(
     (i, prev: ConversationPage | null) => {
@@ -443,7 +449,10 @@ export function useConversationPages(workspaceId: string | null | undefined, fil
       if (!prev?.next_cursor) return null
       return [`${base}&cursor=${encodeURIComponent(prev.next_cursor)}`, workspaceId]
     },
-    ([p, id]: [string, string]) => api<ConversationPage>(p, { workspaceId: id }),
+    ([p, id]: [string, string]) => {
+      const ids = keep?.() ?? []
+      return api<ConversationPage>(ids.length ? `${p}&keep=${encodeURIComponent(ids.join(","))}` : p, { workspaceId: id })
+    },
     { ...noRetryOn4xx, revalidateFirstPage: true },
   )
 }

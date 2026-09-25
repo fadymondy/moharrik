@@ -56,8 +56,12 @@ func TestInboxUnreadFirstPages(t *testing.T) {
 		if unread {
 			unreadWant++
 		}
-		if _, err := a.SysDB.Exec(`INSERT INTO conversations (workspace_id, channel, customer_name, last_message_at, unread) VALUES ($1, 'email', $2, $3, $4)`,
-			wsID, fmt.Sprintf("c%02d", i), at, unread); err != nil {
+		var id string
+		if err := a.SysDB.QueryRow(`INSERT INTO conversations (workspace_id, channel, customer_name, last_message_at, unread) VALUES ($1, 'email', $2, $3, $4) RETURNING id`,
+			wsID, fmt.Sprintf("c%02d", i), at, unread).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.SysDB.Exec(`INSERT INTO messages (workspace_id, conversation_id, direction, body, created_at) VALUES ($1, $2, 'in', 'hi', $3)`, wsID, id, at); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -67,31 +71,40 @@ func TestInboxUnreadFirstPages(t *testing.T) {
 		Unread        bool      `json:"unread"`
 		LastMessageAt time.Time `json:"last_message_at"`
 	}
-	var all []conv
-	cursor, pages := "", 0
-	for {
-		path := "/api/w/conversations?limit=10&order=unread_first"
-		if cursor != "" {
-			path += "&cursor=" + url.QueryEscape(cursor)
+	walk := func(extra string) ([]conv, int) {
+		var all []conv
+		cursor, pages := "", 0
+		for {
+			path := "/api/w/conversations?limit=10&order=unread_first" + extra
+			if cursor != "" {
+				path += "&cursor=" + url.QueryEscape(cursor)
+			}
+			code, b := alice.do("GET", path, nil)
+			if code != 200 {
+				t.Fatalf("page %d: %d %s", pages+1, code, b)
+			}
+			var page struct {
+				Conversations []conv `json:"conversations"`
+				NextCursor    string `json:"next_cursor"`
+			}
+			_ = json.Unmarshal(b, &page)
+			if len(page.Conversations) > 10 {
+				t.Fatalf("page %d has %d conversations, want at most 10", pages+1, len(page.Conversations))
+			}
+			all = append(all, page.Conversations...)
+			cursor, pages = page.NextCursor, pages+1
+			if cursor == "" || pages > 5 {
+				break
+			}
 		}
-		code, b := alice.do("GET", path, nil)
-		if code != 200 {
-			t.Fatalf("page %d: %d %s", pages+1, code, b)
-		}
-		var page struct {
-			Conversations []conv `json:"conversations"`
-			NextCursor    string `json:"next_cursor"`
-		}
-		_ = json.Unmarshal(b, &page)
-		if len(page.Conversations) > 10 {
-			t.Fatalf("page %d has %d conversations, want at most 10", pages+1, len(page.Conversations))
-		}
-		all = append(all, page.Conversations...)
-		cursor, pages = page.NextCursor, pages+1
-		if cursor == "" || pages > 5 {
-			break
-		}
+		return all, pages
 	}
+	// A conversation with no messages is not listed (MH-599): it has nothing
+	// to open, and read as a thread whose messages had been deleted.
+	if _, err := a.SysDB.Exec(`INSERT INTO conversations (workspace_id, channel, customer_name, last_message_at, unread) VALUES ($1, 'whatsapp', 'empty', now(), true)`, wsID); err != nil {
+		t.Fatal(err)
+	}
+	all, pages := walk("")
 	if pages != 3 || len(all) != 25 {
 		t.Fatalf("%d pages, %d conversations; want 3 pages holding all 25", pages, len(all))
 	}
@@ -106,6 +119,34 @@ func TestInboxUnreadFirstPages(t *testing.T) {
 		}
 		if i > 0 && all[i-1].Unread == c.Unread && c.LastMessageAt.After(all[i-1].LastMessageAt) {
 			t.Fatalf("position %d is newer than the one before it", i)
+		}
+	}
+
+	// Opening an unread thread reads it; kept (MH-599), it stays where it was
+	// — among the unread, in the same place — on every page walk.
+	opened := all[1]
+	if code, b := alice.do("GET", "/api/w/conversations/"+opened.ID, nil); code != 200 {
+		t.Fatalf("open: %d %s", code, b)
+	}
+	kept, pages := walk("&keep=" + url.QueryEscape(opened.ID+",not-a-conversation"))
+	if pages != 3 || len(kept) != 25 {
+		t.Fatalf("kept walk: %d pages, %d conversations; want 3 pages holding all 25", pages, len(kept))
+	}
+	if kept[1].ID != opened.ID || kept[1].Unread {
+		t.Fatalf("kept thread at position 1 is %s (unread=%v); want %s, shown read", kept[1].ID, kept[1].Unread, opened.ID)
+	}
+	seenKept := map[string]bool{}
+	for _, c := range kept {
+		if seenKept[c.ID] {
+			t.Fatalf("kept walk listed %s twice", c.ID)
+		}
+		seenKept[c.ID] = true
+	}
+	// Without keep, the read thread drops below every unread one.
+	moved, _ := walk("")
+	for i, c := range moved {
+		if c.ID == opened.ID && i < unreadWant-1 {
+			t.Fatalf("read thread still at %d without keep; want it below the %d unread", i, unreadWant-1)
 		}
 	}
 

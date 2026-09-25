@@ -413,3 +413,56 @@ func assertDatedByMessages(t *testing.T, ctx context.Context, a *app.App, wsID s
 		t.Fatalf("%d imported conversations are dated by the import, not by their messages", misdated)
 	}
 }
+
+// A chat the phone lists with no history (MH-599) makes a contact but no
+// conversation: a thread with nothing in it read as one whose messages had
+// been deleted. The chat that has history still imports.
+func TestWhatsAppImportSkipsChatsWithNoHistory(t *testing.T) {
+	a := testApp(t)
+	wsID := workspaceIn(t, a)
+	now := time.Now().Unix()
+	const withJID, emptyJID = "201015550101@s.whatsapp.net", "201015550177@s.whatsapp.net"
+	first := map[string]any{"key": map[string]any{"remoteJid": withJID, "fromMe": false, "id": "h1"}, "pushName": "Rana Fathy", "messageTimestamp": now - 60, "message": map[string]any{"conversation": "hello"}}
+	chats := []map[string]any{
+		{"remoteJid": withJID, "pushName": "Rana Fathy", "lastMessage": first},
+		{"remoteJid": emptyJID, "pushName": "Silent Sami"},
+	}
+	evo := fakeEvolutionWith(t, chats, nil, map[string][]map[string]any{withJID: {first}})
+
+	if _, err := whatsapp.Ensure(context.Background(), a, wsID, "u-test"); err != nil {
+		t.Fatal(err)
+	}
+	whatsapp.SetState(context.Background(), a, wsID, "open", "201000000000")
+	cfg := whatsapp.Config{URL: evo.URL, Key: "fake"}
+	imports.RegisterProvider(imports.WhatsAppProvider{Config: &cfg})
+	ctx := tenant.With(context.Background(), &tenant.Scope{WorkspaceID: wsID, UserID: "u-test", Email: "owner@example.test", Role: "owner", Via: "session"})
+
+	items, err := imports.Preview(ctx, a, wsID, "whatsapp", "", imports.Filters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, it := range items {
+		ids = append(ids, it.ID)
+	}
+	if len(ids) != 2 {
+		t.Fatalf("want 2 items, got %+v", items)
+	}
+	job, err := imports.StartImport(ctx, a, wsID, "whatsapp", imports.ImportRequest{Items: ids})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job = waitJob(t, ctx, a, wsID, job.ID)
+	if job.Status != "done" || job.ConversationsCreated != 1 || job.Skipped != 1 || job.MessagesImported != 1 {
+		t.Fatalf("job: %+v; want one conversation, one skipped, one message", job)
+	}
+	var empty int
+	if err := a.SQLDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM conversations c WHERE c.workspace_id = $1
+		  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id)`, wsID).Scan(&empty); err != nil {
+		t.Fatal(err)
+	}
+	if empty != 0 {
+		t.Fatalf("%d empty conversations filed; want none", empty)
+	}
+}

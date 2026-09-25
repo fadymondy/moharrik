@@ -58,6 +58,8 @@ for (const scheme of ["light", "dark"]) {
       check(`${k}-contact-dialog`, dialogOpened)
 
       if (dialogOpened) {
+        // The contact loads after the dialog opens; wait for its form.
+        await page.waitForSelector("[data-contact-dialog] input", { timeout: 10000 }).catch(() => {})
         const fields = await page.evaluate(() => {
           const d = document.querySelector("[data-contact-dialog]")
           if (!d) return null

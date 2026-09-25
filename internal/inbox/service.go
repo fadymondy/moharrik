@@ -57,6 +57,12 @@ type ConversationFilter struct {
 	// The cursor carries the unread flag too, so a page boundary that falls
 	// between the two groups still walks on correctly.
 	Order string
+	// Keep (MH-599) is the conversations this tab opened while they were
+	// unread. Opening one reads it, and under unread_first a read row drops
+	// below every unread one — so the row a person just left moved, and the
+	// slot they came back to held another conversation. Kept ids sort as if
+	// still unread until the page is reloaded; they still SHOW as read.
+	Keep []string
 }
 
 // ConversationList is a page of the inbox, most recent first.
@@ -92,6 +98,10 @@ type ConversationPatch struct {
 	Subject        *string `json:"subject,omitempty" maxLength:"200"`
 	Unread         *bool   `json:"unread,omitempty"`
 }
+
+// maxKeep bounds ConversationFilter.Keep: a long session reads many threads,
+// but the query string and the ANY() list stay small.
+const maxKeep = 100
 
 // ListConversations is the inbox, most recent first. A snooze that has run out
 // is over whether or not the waker has come round yet: the list never shows a
@@ -142,7 +152,27 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 		      OR EXISTS (SELECT 1 FROM messages sm WHERE sm.workspace_id = c.workspace_id AND sm.conversation_id = c.id
 		                 AND sm.search @@ websearch_to_tsquery('simple', $` + n2 + `)))`
 	}
+	// A conversation with no messages has nothing to open (MH-599): the
+	// WhatsApp import used to file one for every chat the phone listed, even
+	// one with no history, and it read as a thread whose messages had gone.
+	q += ` AND EXISTS (SELECT 1 FROM messages em WHERE em.workspace_id = c.workspace_id AND em.conversation_id = c.id)`
 	unreadFirst := f.Order == "unread_first"
+	// unreadKey is what unread_first sorts and pages on: unread, or kept.
+	unreadKey := `c.unread`
+	kept := map[string]bool{}
+	if unreadFirst {
+		var ids []string
+		for _, id := range f.Keep {
+			if id = strings.TrimSpace(id); id != "" && !kept[id] && len(ids) < maxKeep {
+				kept[id] = true
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) > 0 {
+			args = append(args, strings.Join(ids, ","))
+			unreadKey = `(c.unread OR c.id::text = ANY(string_to_array($` + strconv.Itoa(len(args)) + `, ',')))`
+		}
+	}
 	parts := 2
 	if unreadFirst {
 		parts = 3
@@ -160,7 +190,7 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 			// Every column descends, so "after the cursor" is one row compare.
 			args = append(args, cur[0] == "1", at, cur[2])
 			n := len(args)
-			q += ` AND (c.unread::int, c.last_message_at, c.id) < ($` + strconv.Itoa(n-2) + `::boolean::int, $` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
+			q += ` AND (` + unreadKey + `::int, c.last_message_at, c.id) < ($` + strconv.Itoa(n-2) + `::boolean::int, $` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
 		} else {
 			args = append(args, at, cur[1])
 			n1, n2 := strconv.Itoa(len(args)-1), strconv.Itoa(len(args))
@@ -172,7 +202,7 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 		return nil, huma.Error422UnprocessableEntity(lerr.Error())
 	}
 	if unreadFirst {
-		q += ` ORDER BY c.unread DESC, c.last_message_at DESC, c.id DESC LIMIT ` + strconv.Itoa(limit+1)
+		q += ` ORDER BY ` + unreadKey + ` DESC, c.last_message_at DESC, c.id DESC LIMIT ` + strconv.Itoa(limit+1)
 	} else {
 		q += ` ORDER BY c.last_message_at DESC, c.id DESC LIMIT ` + strconv.Itoa(limit+1)
 	}
@@ -195,7 +225,7 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 		at := last.LastMessageAt.UTC().Format(time.RFC3339Nano)
 		if unreadFirst {
 			flag := "0"
-			if last.Unread {
+			if last.Unread || kept[last.ID] {
 				flag = "1"
 			}
 			res.NextCursor = paging.Encode(flag, at, last.ID)
@@ -228,7 +258,8 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 // this workspace has nothing to do with.
 func channelCounts(ctx context.Context, db *sql.DB, wsID, status, q string) ([]ChannelCount, error) {
 	args := []any{wsID}
-	where := "workspace_id = $1"
+	// Empty conversations are not listed (MH-599), so they are not counted.
+	where := "workspace_id = $1 AND EXISTS (SELECT 1 FROM messages em WHERE em.workspace_id = conversations.workspace_id AND em.conversation_id = conversations.id)"
 	if status != "" {
 		args = append(args, status)
 		where += " AND status = $" + strconv.Itoa(len(args))

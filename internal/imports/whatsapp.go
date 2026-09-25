@@ -353,16 +353,6 @@ func (p WhatsAppProvider) importDirect(ctx context.Context, a *app.App, wsID str
 		job.ContactsReused++
 	}
 
-	convID, convCreated, err := directConversation(ctx, a, wsID, pc, contactID, name)
-	if err != nil {
-		return err
-	}
-	if convCreated {
-		job.ConversationsCreated++
-	} else {
-		job.ConversationsReused++
-	}
-
 	// Every JID the person has, merged newest first; the same WhatsApp message
 	// id never lands twice (insertHistory is idempotent on it).
 	var msgs []whatsapp.HistoryMessage
@@ -373,9 +363,25 @@ func (p WhatsAppProvider) importDirect(ctx context.Context, a *app.App, wsID str
 		}
 		msgs = append(msgs, m...)
 	}
+	// A chat the phone lists with no history is a contact, not a thread
+	// (MH-599): filing one made an empty conversation that read as deleted.
+	if len(msgs) == 0 {
+		job.Skipped++
+		return nil
+	}
 	sort.SliceStable(msgs, func(i, j int) bool { return msgs[i].Timestamp > msgs[j].Timestamp })
 	if len(msgs) > depth {
 		msgs = msgs[:depth]
+	}
+
+	convID, convCreated, err := directConversation(ctx, a, wsID, pc, contactID, name)
+	if err != nil {
+		return err
+	}
+	if convCreated {
+		job.ConversationsCreated++
+	} else {
+		job.ConversationsReused++
 	}
 	n, err := insertHistory(ctx, a, wsID, convID, msgs)
 	if err != nil {
@@ -387,6 +393,15 @@ func (p WhatsAppProvider) importDirect(ctx context.Context, a *app.App, wsID str
 
 func (p WhatsAppProvider) importGroup(ctx context.Context, a *app.App, wsID string, job *Job, cl *whatsapp.Client, g whatsapp.Group, depth int, importParticipants bool) error {
 	locale := localeOf(g.Subject)
+	msgs, err := cl.FindMessages(ctx, g.ID, depth)
+	if err != nil {
+		return err
+	}
+	// No history, no thread (MH-599) — the same rule as a direct chat.
+	if len(msgs) == 0 {
+		job.Skipped++
+		return nil
+	}
 	convID, convCreated, err := upsertConversation(ctx, a, wsID, KindWhatsApp, g.ID, true, nil, g.Subject, "")
 	if err != nil {
 		return err
@@ -428,10 +443,6 @@ func (p WhatsAppProvider) importGroup(ctx context.Context, a *app.App, wsID stri
 		}
 	}
 
-	msgs, err := cl.FindMessages(ctx, g.ID, depth)
-	if err != nil {
-		return err
-	}
 	n, err := insertHistory(ctx, a, wsID, convID, msgs)
 	if err != nil {
 		return err
