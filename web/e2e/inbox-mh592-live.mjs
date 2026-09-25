@@ -1,7 +1,9 @@
 // Read-only production check for MH-592: the inbox list asks for ten,
 // unread first, and scrolls for more; its search sits in the list column; an
 // email thread is full-width cards with its images loaded. en/ar × light/dark
-// × 1440/390. Nothing is changed.
+// × 1440/390. Nothing is changed. The list checks run on the whole inbox; the
+// email check runs only when the workspace has an email thread (the demo has
+// none), and says so rather than passing.
 //   DEMO_EMAIL=... DEMO_PASSWORD=... node e2e/inbox-mh592-live.mjs https://app.moharrik.com [shots]
 import { chromium } from "playwright-core"
 import { mkdtempSync } from "node:fs"
@@ -40,7 +42,7 @@ for (const scheme of ["light", "dark"]) {
     const k = `${loc}-${scheme}-${w}`
     await page.setViewportSize({ width: w, height: 900 })
     lists.length = 0
-    await page.goto(`${base}/${loc}/w/${slug}/inbox?channel=email`, { waitUntil: "load" })
+    await page.goto(`${base}/${loc}/w/${slug}/inbox`, { waitUntil: "load" })
     await page.waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 30000 }).catch(() => {})
     await page.waitForTimeout(1200)
 
@@ -62,21 +64,26 @@ for (const scheme of ["light", "dark"]) {
     }
 
     // An email thread: full-width cards, no blocked-images bar.
-    await page.locator("[data-conversation-list] [data-conversation]").first().click()
-    await page.waitForSelector("[data-message-layout=email]", { timeout: 20000 }).catch(() => {})
-    await page.waitForTimeout(1500)
-    const mail = await page.evaluate(() => {
-      const pane = document.querySelector("[data-messages]")
-      const card = document.querySelector("[data-message-layout=email]")
-      if (!pane || !card) return null
-      const padding = parseFloat(getComputedStyle(pane).paddingLeft) + parseFloat(getComputedStyle(pane).paddingRight)
-      return {
-        ratio: +(card.getBoundingClientRect().width / (pane.clientWidth - padding)).toFixed(3),
-        blocked: !!document.querySelector("[data-images-blocked]"),
-        bubbles: document.querySelectorAll("[data-message]:not([data-message-layout=email])").length,
-      }
-    })
-    check(`${k}-email`, !!mail && mail.ratio > 0.97 && !mail.blocked && mail.bubbles === 0, mail)
+    await page.goto(`${base}/${loc}/w/${slug}/inbox?channel=email`, { waitUntil: "load" })
+    const hasMail = await page.waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 8000 }).then(() => true, () => false)
+    if (!hasMail) out[`${k}-email`] = "skipped: no email thread in this workspace"
+    else {
+      await page.locator("[data-conversation-list] [data-conversation]").first().click()
+      await page.waitForSelector("[data-message-layout=email]", { timeout: 20000 }).catch(() => {})
+      await page.waitForTimeout(1500)
+      const mail = await page.evaluate(() => {
+        const pane = document.querySelector("[data-messages]")
+        const card = document.querySelector("[data-message-layout=email]")
+        if (!pane || !card) return null
+        const padding = parseFloat(getComputedStyle(pane).paddingLeft) + parseFloat(getComputedStyle(pane).paddingRight)
+        return {
+          ratio: +(card.getBoundingClientRect().width / (pane.clientWidth - padding)).toFixed(3),
+          blocked: !!document.querySelector("[data-images-blocked]"),
+          bubbles: document.querySelectorAll("[data-message]:not([data-message-layout=email])").length,
+        }
+      })
+      check(`${k}-email`, !!mail && mail.ratio > 0.97 && !mail.blocked && mail.bubbles === 0, mail)
+    }
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     check(`${k}-overflow`, overflow <= 1, overflow)
