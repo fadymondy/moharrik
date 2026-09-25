@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { ChevronUpIcon, EllipsisVerticalIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -125,8 +126,30 @@ export default function InboxPage() {
     if (e.conversation_id) void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, ws.id])
   })
 
+  // Virtualised conversation list (MH-556 cont'd): 1,000+ rows must not mean
+  // 1,000+ live DOM nodes. The scroll container is the `<ul>` itself — rows
+  // are absolutely-positioned `<li>` elements placed DIRECTLY under it (no
+  // inner sizer wrapper), so `[data-conversation-list] > *` still enumerates
+  // one element per row, in order, exactly as it did before virtualisation
+  // (a live e2e check — inbox-dates-live.mjs — walks the list this way). A
+  // position:relative + overflow-y-auto element's scrollable overflow already
+  // includes its absolutely-positioned children, so no separate spacer div is
+  // needed to make the scrollbar reflect the true (virtual) height.
+  const listParentRef = useRef<HTMLUListElement>(null)
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => listParentRef.current,
+    estimateSize: () => 92,
+    overscan: 10,
+    getItemKey: (index) => items[index]!.id,
+  })
+  const virtualItems = virtualizer.getVirtualItems()
+  const listBottom = virtualizer.getTotalSize()
+
   // Infinite scroll (MH-556): the sentinel below the list asks for the next
-  // page as soon as it is in view, instead of a "Load more" button.
+  // page as soon as it is in view, instead of a "Load more" button. Anchored
+  // at the virtualised list's true bottom (not the last rendered row), so it
+  // still fires correctly once most rows are windowed out.
   const sentinelRef = useRef<HTMLLIElement>(null)
   useEffect(() => {
     const el = sentinelRef.current
@@ -189,8 +212,8 @@ export default function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, cursorIdx])
   useEffect(() => {
-    const c = items[cursorIdx]
-    if (c) rowRefs.current[c.id]?.scrollIntoView({ block: "nearest" })
+    if (items[cursorIdx]) virtualizer.scrollToIndex(cursorIdx, { align: "auto" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursorIdx, items])
 
   const statusOpts = [
@@ -272,25 +295,47 @@ export default function InboxPage() {
         <EmptyState title={t("inbox.empty")} body={canManage ? t("inbox.emptyBody") : undefined} />
       ) : (
         <div className="grid grid-cols-1 border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
-          <ul className="min-w-0 divide-y divide-line lg:border-e lg:border-line" data-conversation-list>
-            {items.map((c, i) => (
-              <ConversationRow
-                key={c.id}
-                c={c}
-                active={c.id === selected}
-                highlighted={i === cursorIdx}
-                onSelect={() => {
-                  setCursorIdx(i)
-                  select(c.id)
-                }}
-                buttonRef={(el) => {
-                  rowRefs.current[c.id] = el
-                }}
-                onChanged={() => void pages.mutate()}
-              />
-            ))}
-            <li ref={sentinelRef} aria-hidden className="h-1" data-scroll-sentinel />
-            {loadingMore ? <li className="px-6 py-3 text-center text-xs text-grid-muted">{t("common.working")}</li> : null}
+          {/* Virtualised (MH-556): position:relative + overflow-y-auto on this
+              same element, with every row (and the sentinel) absolutely
+              positioned directly inside it — see the virtualizer setup above
+              for why there is no separate inner sizer wrapper. */}
+          <ul
+            ref={listParentRef}
+            className="relative min-w-0 divide-y divide-line overflow-y-auto lg:border-e lg:border-line"
+            style={{ height: "min(70vh, 44rem)" }}
+            data-conversation-list
+          >
+            {virtualItems.map((vi) => {
+              const c = items[vi.index]!
+              return (
+                <ConversationRow
+                  key={c.id}
+                  c={c}
+                  active={c.id === selected}
+                  highlighted={vi.index === cursorIdx}
+                  onSelect={() => {
+                    setCursorIdx(vi.index)
+                    select(c.id)
+                  }}
+                  buttonRef={(el) => {
+                    rowRefs.current[c.id] = el
+                  }}
+                  onChanged={() => void pages.mutate()}
+                  measureRef={virtualizer.measureElement}
+                  dataIndex={vi.index}
+                  style={{ position: "absolute", top: 0, insetInlineStart: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
+                />
+              )
+            })}
+            <li ref={sentinelRef} aria-hidden className="h-1" data-scroll-sentinel style={{ position: "absolute", top: listBottom, insetInlineStart: 0, width: "100%" }} />
+            {loadingMore ? (
+              <li
+                className="px-6 py-3 text-center text-xs text-grid-muted"
+                style={{ position: "absolute", top: listBottom + 4, insetInlineStart: 0, width: "100%" }}
+              >
+                {t("common.working")}
+              </li>
+            ) : null}
           </ul>
           <div className="min-w-0">
             {selected ? (
@@ -313,6 +358,9 @@ function ConversationRow({
   onSelect,
   buttonRef,
   onChanged,
+  measureRef,
+  dataIndex,
+  style,
 }: {
   c: Conversation
   active: boolean
@@ -320,6 +368,10 @@ function ConversationRow({
   onSelect: () => void
   buttonRef?: (el: HTMLButtonElement | null) => void
   onChanged?: () => void
+  /** Virtualizer's own ref (MH-556): remeasures this row's real height so variable-height rows don't drift out of sync with the estimate. */
+  measureRef?: (el: HTMLElement | null) => void
+  dataIndex?: number
+  style?: CSSProperties
 }) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
@@ -341,7 +393,10 @@ function ConversationRow({
 
   return (
     <li
+      ref={measureRef}
+      data-index={dataIndex}
       className="group relative"
+      style={style}
       onContextMenu={(e) => {
         e.preventDefault()
         setMenuOpen(true)
