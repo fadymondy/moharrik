@@ -146,8 +146,17 @@ func TestNotificationCollection(t *testing.T) {
 	// Listen as another owner-level member would, to see what alerts.
 	events, stop := a.Events.Subscribe(aID, realtime.Viewer{UserID: "someone-else", Role: "owner"})
 	defer stop()
-	alerted := func() (n int) {
+	// alerted counts the alert events that arrive for a run. They are published
+	// after the answer, so under a loaded full suite a non-blocking drain could
+	// run before they land (MH-565): wait up to a deadline for want, then a short
+	// quiet spell so an extra alert is still counted.
+	alerted := func(want int) (n int) {
+		deadline := time.After(5 * time.Second)
 		for {
+			wait := 300 * time.Millisecond
+			if n < want {
+				wait = 5 * time.Second
+			}
 			select {
 			case raw := <-events:
 				var ev realtime.Event
@@ -155,7 +164,9 @@ func TestNotificationCollection(t *testing.T) {
 				if ev.Alert {
 					n++
 				}
-			default:
+			case <-deadline:
+				return n
+			case <-time.After(wait):
 				return n
 			}
 		}
@@ -165,7 +176,7 @@ func TestNotificationCollection(t *testing.T) {
 	if run["new"].(float64) != 2 || run["source"].(map[string]any)["last_status"] != "ok" {
 		t.Fatalf("first Bluesky run: %+v", run)
 	}
-	if n := alerted(); n != 0 {
+	if n := alerted(0); n != 0 {
 		t.Errorf("the first run alerted %d times; it must file quietly", n)
 	}
 	if code, _ := alice.do("POST", "/api/w/notification_sources/"+bskyID+"/collect", nil); code != 429 {
@@ -185,14 +196,14 @@ func TestNotificationCollection(t *testing.T) {
 	if run["new"].(float64) != 2 {
 		t.Fatalf("second Bluesky run should file only the 2 new replies: %+v", run)
 	}
-	if n := alerted(); n != 2 {
+	if n := alerted(2); n != 2 {
 		t.Errorf("two new replies with push on alerted %d times, want 2", n)
 	}
 	// Six more: one summary alert, not six.
 	fake.replies.Store(10)
 	back(bskyID)
 	alice.must("POST", "/api/w/notification_sources/"+bskyID+"/collect", nil, 200)
-	if n := alerted(); n != 1 {
+	if n := alerted(1); n != 1 {
 		t.Errorf("six new replies alerted %d times, want 1 summary", n)
 	}
 
