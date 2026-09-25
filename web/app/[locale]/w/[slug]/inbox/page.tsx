@@ -180,6 +180,17 @@ export default function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, loadingMore, pages.size, items.length])
 
+  // The observer alone can stall: a list already at its bottom when a page
+  // lands (tall wrapped rows at 390px) gets a rebuilt observer while
+  // loadingMore is still true, and nothing fires again. So also ask whenever
+  // the last rendered row is near the end — re-checked on every render,
+  // including the one where loadingMore turns false.
+  const lastRendered = virtualItems[virtualItems.length - 1]?.index ?? -1
+  useEffect(() => {
+    if (lastRendered >= items.length - 5 && items.length > 0 && hasMore && !loadingMore) void pages.setSize(pages.size + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastRendered, items.length, hasMore, loadingMore, pages.size])
+
   // Keyboard navigation (MH-556): j/k or the arrows move the highlighted
   // conversation, Enter/n open it, Esc clears the search, / focuses it. Typing
   // in a field never triggers these — checked via the event's own target.
