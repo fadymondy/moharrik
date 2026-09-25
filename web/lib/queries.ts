@@ -25,6 +25,7 @@ import {
   type ImportItem,
   type ImportJob,
   type ChannelCount,
+  type SenderGroup,
   type WhatsAppLink,
   type ContactWhatsApp,
   type WhatsAppNotify,
@@ -384,6 +385,8 @@ export type ConversationFilter = {
   channel?: string
   /** Only this mailbox's email conversations (MH-555). */
   mailbox_id?: string
+  /** Only this sender's conversations, case-insensitive (MH-600) — set from a sender group's sender_email. */
+  customer_email?: string
   /** Full-text search (MH-556), kept in the URL by the page, not by this hook. */
   q?: string
   /** Page size; 50 when unset. The inbox page asks for 10 (MH-592). */
@@ -406,6 +409,7 @@ function conversationsBase(filter: ConversationFilter) {
   if (filter.unread) qs.set("unread", "true")
   if (filter.channel) qs.set("channel", filter.channel)
   if (filter.mailbox_id) qs.set("mailbox_id", filter.mailbox_id)
+  if (filter.customer_email) qs.set("customer_email", filter.customer_email)
   if (filter.q) qs.set("q", filter.q)
   if (filter.order) qs.set("order", filter.order)
   qs.set("limit", String(filter.limit ?? 50))
@@ -453,6 +457,47 @@ export function useConversationPages(
       const ids = keep?.() ?? []
       return api<ConversationPage>(ids.length ? `${p}&keep=${encodeURIComponent(ids.join(","))}` : p, { workspaceId: id })
     },
+    { ...noRetryOn4xx, revalidateFirstPage: true },
+  )
+}
+
+export type SenderGroupFilter = {
+  /** Only this mailbox's email conversations (MH-555). */
+  mailbox_id?: string
+  /** Full-text search (MH-556), the same as ConversationFilter.q. */
+  q?: string
+  /** Page size; 50 when unset. */
+  limit?: number
+}
+
+type SenderGroupPage = {
+  groups: SenderGroup[]
+  next_cursor?: string
+}
+
+function senderGroupsBase(filter: SenderGroupFilter) {
+  const qs = new URLSearchParams()
+  if (filter.mailbox_id) qs.set("mailbox_id", filter.mailbox_id)
+  if (filter.q) qs.set("q", filter.q)
+  qs.set("limit", String(filter.limit ?? 50))
+  return "/api/w/conversations/senders?" + qs.toString()
+}
+
+/**
+ * The email channel grouped by sender (MH-600), cursor-paged and growing the
+ * same way useConversationPages grows the flat list — the "grouped by
+ * sender" view's own infinite scroll.
+ */
+export function useSenderGroupPages(workspaceId: string | null | undefined, filter: SenderGroupFilter = {}) {
+  const base = senderGroupsBase(filter)
+  return useSWRInfinite<SenderGroupPage>(
+    (i, prev: SenderGroupPage | null) => {
+      if (!workspaceId) return null
+      if (i === 0) return [base, workspaceId]
+      if (!prev?.next_cursor) return null
+      return [`${base}&cursor=${encodeURIComponent(prev.next_cursor)}`, workspaceId]
+    },
+    ([p, id]: [string, string]) => api<SenderGroupPage>(p, { workspaceId: id }),
     { ...noRetryOn4xx, revalidateFirstPage: true },
   )
 }

@@ -100,20 +100,40 @@ func Register(api huma.API, a *app.App) {
 		Summary: "The inbox: conversations, most recent first", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Status    string `query:"status" enum:",open,snoozed,closed"`
-		Unread    bool   `query:"unread" doc:"Only conversations the team has not opened since the last inbound message."`
-		Channel   string `query:"channel" maxLength:"40" doc:"chat, email, whatsapp, telegram, slack, discord, or any other channel this workspace has (MH-568's channel_counts lists them); empty for every channel."`
-		ContactID string `query:"contact_id" doc:"Only conversations linked to this CRM contact."`
-		MailboxID string `query:"mailbox_id" doc:"Only email conversations on this mailbox (MH-555)."`
-		Q         string `query:"q" maxLength:"200" doc:"Full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in the thread."`
-		Cursor    string `query:"cursor" doc:"next_cursor from the page before this one; empty for the newest page."`
-		Limit     int    `query:"limit" minimum:"0" maximum:"200"`
-		Order     string `query:"order" enum:",recent,unread_first" doc:"recent (the default): newest first. unread_first (MH-592): every unread conversation, newest first, then the read ones."`
-		Keep      string `query:"keep" maxLength:"4000" doc:"unread_first only (MH-599): comma-separated conversation ids to keep sorted among the unread ones (the ones this tab opened while unread), so opening a thread does not move it."`
+		Status        string `query:"status" enum:",open,snoozed,closed"`
+		Unread        bool   `query:"unread" doc:"Only conversations the team has not opened since the last inbound message."`
+		Channel       string `query:"channel" maxLength:"40" doc:"chat, email, whatsapp, telegram, slack, discord, or any other channel this workspace has (MH-568's channel_counts lists them); empty for every channel."`
+		ContactID     string `query:"contact_id" doc:"Only conversations linked to this CRM contact."`
+		MailboxID     string `query:"mailbox_id" doc:"Only email conversations on this mailbox (MH-555)."`
+		CustomerEmail string `query:"customer_email" maxLength:"320" doc:"MH-600: only conversations from this sender (case-insensitive) — what clicking a row in the email tab's \"grouped by sender\" view narrows to."`
+		Q             string `query:"q" maxLength:"200" doc:"Full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in the thread."`
+		Cursor        string `query:"cursor" doc:"next_cursor from the page before this one; empty for the newest page."`
+		Limit         int    `query:"limit" minimum:"0" maximum:"200"`
+		Order         string `query:"order" enum:",recent,unread_first" doc:"recent (the default): newest first. unread_first (MH-592): every unread conversation, newest first, then the read ones."`
+		Keep          string `query:"keep" maxLength:"4000" doc:"unread_first only (MH-599): comma-separated conversation ids to keep sorted among the unread ones (the ones this tab opened while unread), so opening a thread does not move it."`
 	}) (*body[ConversationList], error) {
 		res, err := ListConversations(ctx, a, ConversationFilter{
 			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, MailboxID: in.MailboxID,
-			Q: in.Q, Cursor: in.Cursor, Limit: in.Limit, Order: in.Order, Keep: strings.Split(in.Keep, ","),
+			CustomerEmail: in.CustomerEmail, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit, Order: in.Order, Keep: strings.Split(in.Keep, ","),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return out(*res), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-conversations-senders", Method: http.MethodGet, Path: "/api/w/conversations/senders",
+		Summary: "The email channel grouped by sender (MH-600): one row per customer_email, unread-first then newest", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		MailboxID string `query:"mailbox_id" doc:"Only this mailbox's email conversations (MH-555)."`
+		Q         string `query:"q" maxLength:"200" doc:"Full-text search (MH-556), the same as GET /api/w/conversations."`
+		Cursor    string `query:"cursor" doc:"next_cursor from the page before this one; empty for the newest page."`
+		Limit     int    `query:"limit" minimum:"0" maximum:"200"`
+	}) (*body[SenderGroupList], error) {
+		res, err := ListConversationsBySender(ctx, a, SenderGroupFilter{
+			MailboxID: in.MailboxID, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
 		})
 		if err != nil {
 			return nil, err
