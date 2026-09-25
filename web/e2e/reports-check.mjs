@@ -70,8 +70,14 @@ for (const lang of ["en", "ar"]) {
       })
       await page.waitForTimeout(400)
       const dom = await page.evaluate(() => {
-        const stat = (id) => document.querySelector(`[data-stat="${id}"] p:nth-of-type(2)`)?.textContent?.replace(/[⁦-⁩]/g, "").trim()
-        const bars = [...document.querySelectorAll("[data-chart-id=won-lost] .recharts-bar-rectangle path")].map((p) => p.getBoundingClientRect().x)
+        const stat = (id) =>
+          document
+            .querySelector(`[data-stat="${id}"] p:nth-of-type(2)`)
+            ?.textContent?.replace(/[⁦-⁩]/g, "")
+            .trim()
+        const bars = [
+          ...document.querySelectorAll("[data-chart-id=won-lost] .recharts-bar-rectangle path"),
+        ].map((p) => p.getBoundingClientRect().x)
         return {
           dir: document.documentElement.dir,
           dark: document.documentElement.classList.contains("dark"),
@@ -83,8 +89,12 @@ for (const lang of ["en", "ar"]) {
             avg: stat("avg-deal"),
             opened: stat("opened"),
           },
-          pipelineBars: document.querySelectorAll("[data-chart-id=pipeline] .recharts-bar-rectangle").length,
-          funnelBars: document.querySelectorAll("[data-chart-id=conversion] .recharts-bar-rectangle").length,
+          pipelineBars: document.querySelectorAll(
+            "[data-chart-id=pipeline] .recharts-bar-rectangle",
+          ).length,
+          funnelBars: document.querySelectorAll(
+            "[data-chart-id=conversion] .recharts-bar-rectangle",
+          ).length,
           firstBarX: bars[0],
           lastBarX: bars.at(-1),
           arabicDigits: /[٠-٩]/.test(document.querySelector("[data-report]")?.textContent ?? ""),
@@ -98,14 +108,23 @@ for (const lang of ["en", "ar"]) {
       check(dom.dark === (theme === "dark"), `${tag}: theme follows the system (${dom.bg})`)
       check(dom.overflow <= 0, `${tag}: no horizontal overflow (${dom.overflow}px)`)
       check(!dom.arabicDigits, `${tag}: Western digits only`)
-      check(dom.pipelineBars === (api.pipeline.stages ?? []).length, `${tag}: pipeline chart draws ${dom.pipelineBars} stages`)
-      check(dom.funnelBars === (api.conversion.steps ?? []).length, `${tag}: funnel draws ${dom.funnelBars} steps`)
+      check(
+        dom.pipelineBars === (api.pipeline.stages ?? []).length,
+        `${tag}: pipeline chart draws ${dom.pipelineBars} stages`,
+      )
+      check(
+        dom.funnelBars === (api.conversion.steps ?? []).length,
+        `${tag}: funnel draws ${dom.funnelBars} steps`,
+      )
       // Time runs start-to-end: left to right in English, right to left in Arabic.
       check(
         lang === "ar" ? dom.firstBarX > dom.lastBarX : dom.firstBarX < dom.lastBarX,
         `${tag}: time axis direction (${Math.round(dom.firstBarX)} → ${Math.round(dom.lastBarX)})`,
       )
-      check((api.lead_sources?.sources ?? []).length === dom.sources.length, `${tag}: ${dom.sources.length} lead-source rows`)
+      check(
+        (api.lead_sources?.sources ?? []).length === dom.sources.length,
+        `${tag}: ${dom.sources.length} lead-source rows`,
+      )
       if (lang === "en" && theme === "light" && width === 1440) {
         // The numbers on the page are the API's numbers.
         const money = (minor) =>
@@ -114,11 +133,26 @@ for (const lang of ["en", "ar"]) {
             currency: api.currency,
             maximumFractionDigits: 2,
           }).format(minor / 100)
-        check(dom.tiles.open === money(api.pipeline.open_value_minor), `tile open pipeline ${dom.tiles.open} = ${money(api.pipeline.open_value_minor)}`)
-        check(dom.tiles.won === money(api.deals.won_value_minor), `tile won ${dom.tiles.won} = ${money(api.deals.won_value_minor)}`)
-        check(dom.tiles.rate === `${Math.round(api.deals.win_rate * 100)}%`, `tile win rate ${dom.tiles.rate} = ${Math.round(api.deals.win_rate * 100)}%`)
-        check(dom.tiles.avg === money(api.deals.avg_won_value_minor), `tile average ${dom.tiles.avg} = ${money(api.deals.avg_won_value_minor)}`)
-        check(dom.tiles.opened === String(api.deals.opened), `tile opened ${dom.tiles.opened} = ${api.deals.opened}`)
+        check(
+          dom.tiles.open === money(api.pipeline.open_value_minor),
+          `tile open pipeline ${dom.tiles.open} = ${money(api.pipeline.open_value_minor)}`,
+        )
+        check(
+          dom.tiles.won === money(api.deals.won_value_minor),
+          `tile won ${dom.tiles.won} = ${money(api.deals.won_value_minor)}`,
+        )
+        check(
+          dom.tiles.rate === `${Math.round(api.deals.win_rate * 100)}%`,
+          `tile win rate ${dom.tiles.rate} = ${Math.round(api.deals.win_rate * 100)}%`,
+        )
+        check(
+          dom.tiles.avg === money(api.deals.avg_won_value_minor),
+          `tile average ${dom.tiles.avg} = ${money(api.deals.avg_won_value_minor)}`,
+        )
+        check(
+          dom.tiles.opened === String(api.deals.opened),
+          `tile opened ${dom.tiles.opened} = ${api.deals.opened}`,
+        )
         const src = api.lead_sources.sources.map((s) => [
           s.source === "direct" ? "Direct (no source)" : s.source,
           String(s.leads),
@@ -126,7 +160,10 @@ for (const lang of ["en", "ar"]) {
           String(s.won_deals),
           money(s.won_value_minor),
         ])
-        check(JSON.stringify(dom.sources) === JSON.stringify(src), `lead sources table = API ${JSON.stringify(src)}`)
+        check(
+          JSON.stringify(dom.sources) === JSON.stringify(src),
+          `lead sources table = API ${JSON.stringify(src)}`,
+        )
         // The table views carry the same figures as the charts.
         await page.click("[data-view-toggle=timeline] >> text=Table")
         const rows = await page.$$eval("[data-table=timeline] tbody tr", (trs) =>
@@ -134,12 +171,19 @@ for (const lang of ["en", "ar"]) {
         )
         const want = api.timeline.filter((b) => b.won + b.lost > 0)
         check(
-          rows.length === want.length && rows.every((r, i) => r[1] === String(want[i].won) && r[3] === String(want[i].lost)),
+          rows.length === want.length &&
+            rows.every((r, i) => r[1] === String(want[i].won) && r[3] === String(want[i].lost)),
           `won/lost table = API (${rows.length} buckets)`,
         )
         await page.click("[data-view-toggle=conversion] >> text=Table")
-        const steps = await page.$$eval("[data-table=conversion] tbody tr", (trs) => trs.map((tr) => tr.querySelectorAll("td")[1].textContent.trim()))
-        check(JSON.stringify(steps) === JSON.stringify(api.conversion.steps.map((s) => String(s.reached))), `funnel table = API ${JSON.stringify(steps)}`)
+        const steps = await page.$$eval("[data-table=conversion] tbody tr", (trs) =>
+          trs.map((tr) => tr.querySelectorAll("td")[1].textContent.trim()),
+        )
+        check(
+          JSON.stringify(steps) ===
+            JSON.stringify(api.conversion.steps.map((s) => String(s.reached))),
+          `funnel table = API ${JSON.stringify(steps)}`,
+        )
         await page.reload({ waitUntil: "load" })
         await page.waitForSelector("[data-chart-id=won-lost] .recharts-bar-rectangle", {
           timeout: 20000,
@@ -157,9 +201,18 @@ await page.goto(`${base}/en/w/${ws.slug}/reports`, { waitUntil: "load" })
 await page.waitForSelector("[data-report]", { timeout: 20000 })
 await page.click("[data-preset='30']")
 await page.waitForURL(/days=30/, { timeout: 10000 })
-await page.waitForFunction(() => document.querySelector("[data-report]")?.getAttribute("data-from") !== null, null, { timeout: 10000 })
+await page.waitForFunction(
+  () => document.querySelector("[data-report]")?.getAttribute("data-from") !== null,
+  null,
+  { timeout: 10000 },
+)
 const api30 = await page.evaluate(
-  async (id) => (await fetch("/api/w/reports/crm?days=30", { headers: { Accept: "application/json", "X-Workspace-ID": id } })).json(),
+  async (id) =>
+    (
+      await fetch("/api/w/reports/crm?days=30", {
+        headers: { Accept: "application/json", "X-Workspace-ID": id },
+      })
+    ).json(),
   ws.id,
 )
 await page.waitForSelector(`[data-report][data-from="${api30.from}"]`, { timeout: 10000 })
@@ -169,15 +222,30 @@ await page.fill("#report-from", "2026-06-01")
 await page.fill("#report-to", "2026-08-31")
 await page.click("text=Show report")
 await page.waitForURL(/from=2026-06-01&to=2026-08-31/, { timeout: 10000 })
-await page.waitForSelector(`[data-report][data-from="2026-06-01"][data-to="2026-08-31"]`, { timeout: 10000 })
+await page.waitForSelector(`[data-report][data-from="2026-06-01"][data-to="2026-08-31"]`, {
+  timeout: 10000,
+})
 const apiQ = await page.evaluate(
-  async (id) => (await fetch("/api/w/reports/crm?from=2026-06-01&to=2026-08-31", { headers: { Accept: "application/json", "X-Workspace-ID": id } })).json(),
+  async (id) =>
+    (
+      await fetch("/api/w/reports/crm?from=2026-06-01&to=2026-08-31", {
+        headers: { Accept: "application/json", "X-Workspace-ID": id },
+      })
+    ).json(),
   ws.id,
 )
-const opened = await page.$eval('[data-stat="opened"] p:nth-of-type(2)', (e) => e.textContent.trim())
-const won = await page.$eval('[data-stat="won"] p:nth-of-type(2)', (e) => e.textContent.replace(/[⁦-⁩]/g, "").trim())
+const opened = await page.$eval('[data-stat="opened"] p:nth-of-type(2)', (e) =>
+  e.textContent.trim(),
+)
+const won = await page.$eval('[data-stat="won"] p:nth-of-type(2)', (e) =>
+  e.textContent.replace(/[⁦-⁩]/g, "").trim(),
+)
 check(
-  opened === String(apiQ.deals.opened) && won === new Intl.NumberFormat("en-US", { style: "currency", currency: apiQ.currency }).format(apiQ.deals.won_value_minor / 100),
+  opened === String(apiQ.deals.opened) &&
+    won ===
+      new Intl.NumberFormat("en-US", { style: "currency", currency: apiQ.currency }).format(
+        apiQ.deals.won_value_minor / 100,
+      ),
   `custom range Jun–Aug: opened ${opened}, won ${won} = API ${apiQ.deals.opened} / ${apiQ.deals.won_value_minor}`,
 )
 
@@ -185,7 +253,9 @@ check(
 // Put back afterwards, so the demo's figures are what they were.
 {
   const deal = await page.evaluate(async (id) => {
-    const r = await fetch("/api/w/deals?view=list&limit=200", { headers: { Accept: "application/json", "X-Workspace-ID": id } })
+    const r = await fetch("/api/w/deals?view=list&limit=200", {
+      headers: { Accept: "application/json", "X-Workspace-ID": id },
+    })
     return (await r.json()).deals.find((d) => d.stage_kind === "won")
   }, ws.id)
   const before = deal.closed_at.slice(0, 10)
@@ -195,9 +265,18 @@ check(
   await page.fill("#deal-closed-on", target)
   await page.click("form:has(#deal-closed-on) button[type=submit]")
   await page.waitForSelector("#deal-closed-on", { state: "detached", timeout: 10000 })
-  await page.waitForFunction((t) => document.body.innerText.includes(t), "1/15/2026", { timeout: 10000 })
+  await page.waitForFunction((t) => document.body.innerText.includes(t), "1/15/2026", {
+    timeout: 10000,
+  })
   const after = await page.evaluate(
-    async ([id, d]) => (await (await fetch(`/api/w/deals/${d}`, { headers: { Accept: "application/json", "X-Workspace-ID": id } })).json()).deal.closed_at,
+    async ([id, d]) =>
+      (
+        await (
+          await fetch(`/api/w/deals/${d}`, {
+            headers: { Accept: "application/json", "X-Workspace-ID": id },
+          })
+        ).json()
+      ).deal.closed_at,
     [ws.id, deal.id],
   )
   check(after.startsWith(target), `deal close day set on its page: ${after}`)
@@ -238,12 +317,16 @@ const empty = { slug: page2.url().split("/w/")[1].split("/")[0] }
 await page2.goto(`${base}/en/w/${empty.slug}/reports`, { waitUntil: "load" })
 await page2.waitForSelector("[data-report]", { timeout: 20000 })
 const emptyDom = await page2.evaluate(() => ({
-  noData: [...document.querySelectorAll("[data-no-data]")].map((e) => e.getAttribute("data-no-data")),
+  noData: [...document.querySelectorAll("[data-no-data]")].map((e) =>
+    e.getAttribute("data-no-data"),
+  ),
   rate: document.querySelector('[data-stat="win-rate"] p:nth-of-type(2)')?.textContent,
   bars: document.querySelectorAll(".recharts-bar-rectangle").length,
 }))
 check(
-  emptyDom.noData.join(",") === "pipeline,conversion,timeline,sources,inbox" && emptyDom.rate === "No data yet" && emptyDom.bars === 0,
+  emptyDom.noData.join(",") === "pipeline,conversion,timeline,sources,inbox" &&
+    emptyDom.rate === "No data yet" &&
+    emptyDom.bars === 0,
   `empty workspace: ${JSON.stringify(emptyDom)}`,
 )
 await page2.screenshot({ path: path.join(shots, "MH-394-en-light-1440-empty.png"), fullPage: true })

@@ -1,32 +1,32 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { BellOffIcon, BookmarkIcon, CheckIcon, SearchIcon, SettingsIcon } from "lucide-react";
-import { toast } from "sonner";
+import Link from "next/link"
+import { useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { BellOffIcon, BookmarkIcon, CheckIcon, SearchIcon, SettingsIcon } from "lucide-react"
+import { toast } from "sonner"
 
-import { Bdi } from "@/components/bidi";
-import { useDebounced } from "@/components/crm/contact-picker";
-import { PickSelect } from "@/components/crm/shared";
-import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager";
+import { Bdi } from "@/components/bidi"
+import { useDebounced } from "@/components/crm/contact-picker"
+import { PickSelect } from "@/components/crm/shared"
+import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import {
   NotificationDetailSheet,
   severityTone,
   severityVariant,
   useKindLabel,
-} from "@/components/notifications/notification-detail";
-import { SectionHeader } from "@/components/public-frame";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/states";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { useWorkspace } from "@/components/workspace/workspace-context";
-import { api, ApiError, type NotificationItem } from "@/lib/api";
-import { useWorkspaceEvents } from "@/lib/events";
-import { useTranslations } from "@/lib/i18n";
-import { useNotifications, type NotificationFilter } from "@/lib/queries";
-import { useDocumentTitle } from "@/lib/title";
+} from "@/components/notifications/notification-detail"
+import { SectionHeader } from "@/components/public-frame"
+import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { useWorkspace } from "@/components/workspace/workspace-context"
+import { api, ApiError, type NotificationItem } from "@/lib/api"
+import { useWorkspaceEvents } from "@/lib/events"
+import { useTranslations } from "@/lib/i18n"
+import { useNotifications, type NotificationFilter } from "@/lib/queries"
+import { useDocumentTitle } from "@/lib/title"
 
 /*
 The notification center (MH-384, fadymondy.com's center page): search, the
@@ -34,28 +34,28 @@ source and kind filters with their counts, keyset paging, mark-all-read for
 one source, and an item's full detail with the raw payload it was made from.
 */
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 25
 
 export default function NotificationsPage() {
-  const { t, locale, formatNumber } = useTranslations();
-  const ws = useWorkspace();
-  useDocumentTitle(`${t("nav.notifications")} · ${ws.summary.name}`);
-  const canWrite = ws.can("notifications:write");
-  const canManage = ws.can("notifications:manage");
-  const kindLabel = useKindLabel();
+  const { t, locale, formatNumber } = useTranslations()
+  const ws = useWorkspace()
+  useDocumentTitle(`${t("nav.notifications")} · ${ws.summary.name}`)
+  const canWrite = ws.can("notifications:write")
+  const canManage = ws.can("notifications:manage")
+  const kindLabel = useKindLabel()
 
   // ?unread=1 opens the feed already filtered — the Overview links its count here.
-  const [unread, setUnread] = useState(useSearchParams().get("unread") === "1");
-  const [saved, setSaved] = useState(false);
-  const [sourceId, setSourceId] = useState("");
-  const [kind, setKind] = useState("");
-  const [severity, setSeverity] = useState("");
-  const [search, setSearch] = useState("");
-  const q = useDebounced(search.trim());
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [unread, setUnread] = useState(useSearchParams().get("unread") === "1")
+  const [saved, setSaved] = useState(false)
+  const [sourceId, setSourceId] = useState("")
+  const [kind, setKind] = useState("")
+  const [severity, setSeverity] = useState("")
+  const [search, setSearch] = useState("")
+  const q = useDebounced(search.trim())
+  const [openId, setOpenId] = useState<string | null>(null)
 
   // A cursor belongs to one filter: any change starts again at page one.
-  const pager = useCursorStack([unread, saved, sourceId, kind, severity, q].join("|"));
+  const pager = useCursorStack([unread, saved, sourceId, kind, severity, q].join("|"))
   const filter: NotificationFilter = {
     unread,
     saved,
@@ -65,15 +65,15 @@ export default function NotificationsPage() {
     q: q || undefined,
     limit: PAGE_SIZE,
     cursor: pager.cursor || undefined,
-  };
-  const feed = useNotifications(ws.id, filter);
-  const page = feed.data;
+  }
+  const feed = useNotifications(ws.id, filter)
+  const page = feed.data
 
   // A delivery or a collected item lands here as it happens, and a read in
   // another tab (or by an agent over MCP) clears here too — no reload (MH-378).
   useWorkspaceEvents(ws.id, (e) => {
-    if (e.kind === "notification" || e.kind === "notifications") void feed.mutate();
-  });
+    if (e.kind === "notification" || e.kind === "notifications") void feed.mutate()
+  })
 
   const sourceOpts = useMemo(
     () =>
@@ -82,7 +82,7 @@ export default function NotificationsPage() {
         label: s.unread ? `${s.name} (${formatNumber(s.unread)})` : s.name,
       })),
     [page?.sources, formatNumber],
-  );
+  )
   const kindOpts = useMemo(
     () =>
       (page?.kinds ?? []).map((k) => ({
@@ -90,31 +90,31 @@ export default function NotificationsPage() {
         label: `${kindLabel(k.value)} · ${formatNumber(k.total)}`,
       })),
     [page?.kinds, kindLabel, formatNumber],
-  );
+  )
   const severityOpts = [
     { value: "info", label: t("notifications.severity.info") },
     { value: "warning", label: t("notifications.severity.warning") },
     { value: "error", label: t("notifications.severity.error") },
-  ];
-  const selectedSource = page?.sources.find((s) => s.key === sourceId);
-  const filtered = unread || saved || !!sourceId || !!kind || !!severity || !!q;
-  const nothingAtAll = !!page && page.total === 0 && !filtered;
+  ]
+  const selectedSource = page?.sources.find((s) => s.key === sourceId)
+  const filtered = unread || saved || !!sourceId || !!kind || !!severity || !!q
+  const nothingAtAll = !!page && page.total === 0 && !filtered
 
   async function markAllRead() {
     try {
-      const qs = sourceId ? `?source_id=${encodeURIComponent(sourceId)}` : "";
+      const qs = sourceId ? `?source_id=${encodeURIComponent(sourceId)}` : ""
       const res = await api<{ marked: number }>(`/api/w/notifications/mark_all_read${qs}`, {
         method: "POST",
         workspaceId: ws.id,
-      });
-      toast.success(t("notifications.markedAllRead", { n: res.marked }));
-      void feed.mutate();
+      })
+      toast.success(t("notifications.markedAllRead", { n: res.marked }))
+      void feed.mutate()
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"));
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     }
   }
 
-  const markAllDisabled = selectedSource ? selectedSource.unread === 0 : !page?.unread_count;
+  const markAllDisabled = selectedSource ? selectedSource.unread === 0 : !page?.unread_count
 
   return (
     <>
@@ -300,7 +300,7 @@ export default function NotificationsPage() {
         onChange={() => feed.mutate()}
       />
     </>
-  );
+  )
 }
 
 function NotificationRow({
@@ -310,16 +310,16 @@ function NotificationRow({
   onChange,
   kindLabel,
 }: {
-  item: NotificationItem;
-  canWrite: boolean;
-  onOpen: () => void;
-  onChange: () => void;
-  kindLabel: (k: string) => string;
+  item: NotificationItem
+  canWrite: boolean
+  onOpen: () => void
+  onChange: () => void
+  kindLabel: (k: string) => string
 }) {
-  const { t, formatDate } = useTranslations();
-  const ws = useWorkspace();
-  const isRead = !!item.read_at;
-  const isSaved = !!item.saved_at;
+  const { t, formatDate } = useTranslations()
+  const ws = useWorkspace()
+  const isRead = !!item.read_at
+  const isSaved = !!item.saved_at
 
   async function toggle(field: "read" | "saved", to: boolean) {
     try {
@@ -327,10 +327,10 @@ function NotificationRow({
         method: "PATCH",
         json: { [field]: to },
         workspaceId: ws.id,
-      });
-      onChange();
+      })
+      onChange()
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"));
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     }
   }
 
@@ -417,5 +417,5 @@ function NotificationRow({
         </div>
       ) : null}
     </li>
-  );
+  )
 }

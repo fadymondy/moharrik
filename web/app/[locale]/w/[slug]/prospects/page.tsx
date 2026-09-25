@@ -51,7 +51,10 @@ export default function ProspectsPage() {
   async function discover() {
     setStarting(true)
     try {
-      const res = await api<{ run_id: string; query: string }>("/api/w/prospect-profile/discover", { method: "POST", workspaceId: ws.id })
+      const res = await api<{ run_id: string; query: string }>("/api/w/prospect-profile/discover", {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       toast.success(t("prospects.discoverStarted", { query: res.query }))
       void runs.mutate()
     } catch (e) {
@@ -73,8 +76,17 @@ export default function ProspectsPage() {
         description={t("prospects.hint")}
         action={
           canRun && p?.can_search && p.profile.configured ? (
-            <Button size="sm" onClick={discover} disabled={starting || !!liveDiscovery} data-action="discover-now">
-              {starting || liveDiscovery ? <LoaderCircleIcon className="animate-spin" /> : <RadarIcon />}
+            <Button
+              size="sm"
+              onClick={discover}
+              disabled={starting || !!liveDiscovery}
+              data-action="discover-now"
+            >
+              {starting || liveDiscovery ? (
+                <LoaderCircleIcon className="animate-spin" />
+              ) : (
+                <RadarIcon />
+              )}
               {liveDiscovery ? t("prospects.discoverLive") : t("prospects.discoverNow")}
             </Button>
           ) : undefined
@@ -82,7 +94,11 @@ export default function ProspectsPage() {
       />
 
       {p && !p.can_search ? (
-        <p className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted" role="status" data-capability="search">
+        <p
+          className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted"
+          role="status"
+          data-capability="search"
+        >
           <InfoIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
           <span>{t("prospects.notConfigured")}</span>
         </p>
@@ -93,7 +109,10 @@ export default function ProspectsPage() {
           <span>
             {t("prospects.discoverLive")}: <bdi>{liveDiscovery.topic}</bdi>
           </span>
-          <Link className="text-grid-brand hover:underline" href={`/${locale}/w/${ws.slug}/research/${encodeURIComponent(liveDiscovery.id)}`}>
+          <Link
+            className="text-grid-brand hover:underline"
+            href={`/${locale}/w/${ws.slug}/research/${encodeURIComponent(liveDiscovery.id)}`}
+          >
             {t("research.watch")}
           </Link>
         </p>
@@ -105,7 +124,11 @@ export default function ProspectsPage() {
             {STATUSES.map((s) => (
               <TabsTrigger key={s} value={s} data-tab={s}>
                 {t(`prospects.status.${s}`)}
-                {counts && s !== "all" ? <span className="ms-1 text-grid-muted tabular-nums">{formatNumber(counts[s] ?? 0)}</span> : null}
+                {counts && s !== "all" ? (
+                  <span className="ms-1 text-grid-muted tabular-nums">
+                    {formatNumber(counts[s] ?? 0)}
+                  </span>
+                ) : null}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -120,7 +143,9 @@ export default function ProspectsPage() {
         status === "new" && counts && counts.accepted + counts.rejected === 0 ? (
           <EmptyState title={t("prospects.empty")} body={t("prospects.emptyBody")} />
         ) : (
-          <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">{t("prospects.emptyStatus")}</p>
+          <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">
+            {t("prospects.emptyStatus")}
+          </p>
         )
       ) : (
         <ul className="divide-y divide-line border-y border-line" data-prospects>
@@ -131,7 +156,19 @@ export default function ProspectsPage() {
       )}
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
-      {profile.error ? <ErrorState error={profile.error} /> : p ? <ProfileForm data={p} onSaved={() => { void profile.mutate(); void list.mutate() }} /> : <LoadingRows rows={3} />}
+      {profile.error ? (
+        <ErrorState error={profile.error} />
+      ) : p ? (
+        <ProfileForm
+          data={p}
+          onSaved={() => {
+            void profile.mutate()
+            void list.mutate()
+          }}
+        />
+      ) : (
+        <LoadingRows rows={3} />
+      )}
       <div className="pb-8" />
     </>
   )
@@ -142,7 +179,11 @@ function ProspectRow({ p }: { p: Prospect }) {
   const ws = useWorkspace()
   const href = `/${locale}/w/${ws.slug}/prospects/${encodeURIComponent(p.id)}`
   return (
-    <li className="flex flex-wrap items-start gap-3 px-6 py-4" data-prospect={p.name} data-prospect-status={p.status}>
+    <li
+      className="flex flex-wrap items-start gap-3 px-6 py-4"
+      data-prospect={p.name}
+      data-prospect-status={p.status}
+    >
       <ScoreBadge score={p.score} />
       <div className="min-w-0 flex-1 space-y-1.5">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">

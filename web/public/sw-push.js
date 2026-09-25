@@ -44,7 +44,10 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
-  const target = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin)
+  const target = new URL(
+    (event.notification.data && event.notification.data.url) || "/",
+    self.location.origin,
+  )
   // Only ever this origin: the URL came from our own server, and this keeps it so.
   if (target.origin !== self.location.origin) return
   event.waitUntil(

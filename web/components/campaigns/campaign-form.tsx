@@ -7,7 +7,13 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CampaignPreview } from "@/components/campaigns/campaign-preview"
 import { CampaignTestSend } from "@/components/campaigns/campaign-test-send"
@@ -24,10 +30,13 @@ function Reachable({ listId, audience }: { listId: string; audience: Audience })
   const { t } = useTranslations()
   const ws = useWorkspace()
   const aud = useWhatsAppAudience(ws.id, listId, audience)
-  if (aud.error) return <p className="text-sm text-grid-danger-text">{t("campaigns.reachableError")}</p>
+  if (aud.error)
+    return <p className="text-sm text-grid-danger-text">{t("campaigns.reachableError")}</p>
   return (
     <div className="text-sm" data-whatsapp-reachable={aud.data?.reachable ?? ""}>
-      <p className="font-medium">{aud.data ? t("campaigns.reachable", { count: aud.data.reachable }) : t("common.working")}</p>
+      <p className="font-medium">
+        {aud.data ? t("campaigns.reachable", { count: aud.data.reachable }) : t("common.working")}
+      </p>
       <p className="text-grid-muted">{t("campaigns.reachableRule")}</p>
     </div>
   )
@@ -130,9 +139,15 @@ export function CampaignForm({
   ]
   const listItems = lists.map((l) => ({ value: l.id, label: l.name }))
   // The campaign default is named, so "default" is never a mystery.
-  const campaignDefault = services.find((s) => s.is_campaign_default) ?? services.find((s) => s.is_default)
+  const campaignDefault =
+    services.find((s) => s.is_campaign_default) ?? services.find((s) => s.is_default)
   const serviceItems = [
-    { value: DEFAULT_SERVICE, label: campaignDefault ? t("campaigns.serviceDefaultNamed", { name: campaignDefault.name }) : t("campaigns.serviceDefault") },
+    {
+      value: DEFAULT_SERVICE,
+      label: campaignDefault
+        ? t("campaigns.serviceDefaultNamed", { name: campaignDefault.name })
+        : t("campaigns.serviceDefault"),
+    },
     ...services.map((s) => ({ value: s.id, label: s.name })),
   ]
   const audienceItems = [
@@ -149,7 +164,13 @@ export function CampaignForm({
     e.preventDefault()
     setBusy(true)
     setErr(null)
-    const payload: Record<string, unknown> = { list_id: chosen, channel, subject: subject.trim(), body, locale: lang }
+    const payload: Record<string, unknown> = {
+      list_id: chosen,
+      channel,
+      subject: subject.trim(),
+      body,
+      locale: lang,
+    }
     if (channel === "email" && service !== DEFAULT_SERVICE) payload.smtp_service_id = service
     if (audience) payload.audience_locale = audience
     try {
@@ -158,7 +179,15 @@ export function CampaignForm({
         { method: editing ? "PUT" : "POST", json: payload, workspaceId: ws.id },
       )
       if (editing) {
-        setSaved({ listId: chosen, subject: subject.trim(), body, lang, channel, service, audience })
+        setSaved({
+          listId: chosen,
+          subject: subject.trim(),
+          body,
+          lang,
+          channel,
+          service,
+          audience,
+        })
         toast.success(t("campaigns.saved"))
       } else {
         toast.success(t("campaigns.created"))
@@ -178,12 +207,23 @@ export function CampaignForm({
   const showTest = editing && canSend
 
   return (
-    <form onSubmit={onSubmit} noValidate className="max-w-3xl" data-form={editing ? "edit-campaign" : "new-campaign"}>
+    <form
+      onSubmit={onSubmit}
+      noValidate
+      className="max-w-3xl"
+      data-form={editing ? "edit-campaign" : "new-campaign"}
+    >
       <FieldGroup>
         <div className="flex flex-col gap-4 sm:flex-row">
           <Field className="sm:w-40">
-            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-channel`}>{t("campaigns.channel")}</FieldLabel>
-            <Select items={channelItems} value={channel} onValueChange={(v) => setChannel(v === "whatsapp" ? "whatsapp" : "email")}>
+            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-channel`}>
+              {t("campaigns.channel")}
+            </FieldLabel>
+            <Select
+              items={channelItems}
+              value={channel}
+              onValueChange={(v) => setChannel(v === "whatsapp" ? "whatsapp" : "email")}
+            >
               <SelectTrigger id={`${editing ? "edit" : "campaign"}-channel`} className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -197,8 +237,14 @@ export function CampaignForm({
             </Select>
           </Field>
           <Field className="sm:flex-1">
-            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-list`}>{t("campaigns.list")}</FieldLabel>
-            <Select items={listItems} value={chosen} onValueChange={(v) => setListId(String(v ?? ""))}>
+            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-list`}>
+              {t("campaigns.list")}
+            </FieldLabel>
+            <Select
+              items={listItems}
+              value={chosen}
+              onValueChange={(v) => setListId(String(v ?? ""))}
+            >
               <SelectTrigger id={`${editing ? "edit" : "campaign"}-list`} className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -212,8 +258,14 @@ export function CampaignForm({
             </Select>
           </Field>
           <Field className="sm:w-40">
-            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-lang`}>{t("campaigns.language")}</FieldLabel>
-            <Select items={langItems} value={lang} onValueChange={(v) => setLang(v === "ar" ? "ar" : "en")}>
+            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-lang`}>
+              {t("campaigns.language")}
+            </FieldLabel>
+            <Select
+              items={langItems}
+              value={lang}
+              onValueChange={(v) => setLang(v === "ar" ? "ar" : "en")}
+            >
               <SelectTrigger id={`${editing ? "edit" : "campaign"}-lang`} className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -228,9 +280,19 @@ export function CampaignForm({
           </Field>
         </div>
         <Field>
-          <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-audience`}>{t("campaigns.audience")}</FieldLabel>
-          <Select items={audienceItems} value={audience || "all"} onValueChange={(v) => setAudience(v === "en" || v === "ar" ? v : "")}>
-            <SelectTrigger id={`${editing ? "edit" : "campaign"}-audience`} className="w-full sm:w-80" data-audience-picker>
+          <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-audience`}>
+            {t("campaigns.audience")}
+          </FieldLabel>
+          <Select
+            items={audienceItems}
+            value={audience || "all"}
+            onValueChange={(v) => setAudience(v === "en" || v === "ar" ? v : "")}
+          >
+            <SelectTrigger
+              id={`${editing ? "edit" : "campaign"}-audience`}
+              className="w-full sm:w-80"
+              data-audience-picker
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -246,9 +308,19 @@ export function CampaignForm({
         </Field>
         {!wa && services.length > 1 ? (
           <Field>
-            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-service`}>{t("campaigns.service")}</FieldLabel>
-            <Select items={serviceItems} value={service} onValueChange={(v) => setService(String(v ?? DEFAULT_SERVICE))}>
-              <SelectTrigger id={`${editing ? "edit" : "campaign"}-service`} className="w-full sm:w-80" data-service-picker>
+            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-service`}>
+              {t("campaigns.service")}
+            </FieldLabel>
+            <Select
+              items={serviceItems}
+              value={service}
+              onValueChange={(v) => setService(String(v ?? DEFAULT_SERVICE))}
+            >
+              <SelectTrigger
+                id={`${editing ? "edit" : "campaign"}-service`}
+                className="w-full sm:w-80"
+                data-service-picker
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -263,13 +335,18 @@ export function CampaignForm({
           </Field>
         ) : null}
         {wa ? (
-          <div className="flex flex-col gap-3 border border-line bg-grid-card px-4 py-3" data-whatsapp-panel>
+          <div
+            className="flex flex-col gap-3 border border-line bg-grid-card px-4 py-3"
+            data-whatsapp-panel
+          >
             <Reachable listId={chosen} audience={audience} />
             {!whatsappLinked ? <WhatsAppMissing /> : null}
           </div>
         ) : null}
         <Field>
-          <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-subject`}>{wa ? t("campaigns.internalName") : t("campaigns.subject")}</FieldLabel>
+          <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-subject`}>
+            {wa ? t("campaigns.internalName") : t("campaigns.subject")}
+          </FieldLabel>
           <Input
             id={`${editing ? "edit" : "campaign"}-subject`}
             value={subject}
@@ -302,23 +379,49 @@ export function CampaignForm({
               <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-body`} className="sr-only">
                 {wa ? t("campaigns.message") : t("campaigns.body")}
               </FieldLabel>
-              <MarkdownEditor id={`${editing ? "edit" : "campaign"}-body`} value={body} onValueChange={setBody} dir={dir} toolbar={!wa} />
-              <FieldDescription>{wa ? t("campaigns.whatsappBodyHint") : t("campaigns.bodyHint")}</FieldDescription>
+              <MarkdownEditor
+                id={`${editing ? "edit" : "campaign"}-body`}
+                value={body}
+                onValueChange={setBody}
+                dir={dir}
+                toolbar={!wa}
+              />
+              <FieldDescription>
+                {wa ? t("campaigns.whatsappBodyHint") : t("campaigns.bodyHint")}
+              </FieldDescription>
             </Field>
           </TabsContent>
           <TabsContent value="preview">
-            <CampaignPreview channel={channel} subject={subject} body={body} lang={lang} onLangChange={setLang} />
+            <CampaignPreview
+              channel={channel}
+              subject={subject}
+              body={body}
+              lang={lang}
+              onLangChange={setLang}
+            />
           </TabsContent>
           {showTest && campaign ? (
             <TabsContent value="test">
-              <CampaignTestSend campaign={campaign} dirty={dirty} smtpReady={smtpReady} whatsappLinked={whatsappLinked} />
+              <CampaignTestSend
+                campaign={campaign}
+                dirty={dirty}
+                smtpReady={smtpReady}
+                whatsappLinked={whatsappLinked}
+              />
             </TabsContent>
           ) : null}
         </Tabs>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={busy || !subject.trim() || !body.trim() || !chosen || (editing && !dirty)}>
-            {busy ? t("common.working") : editing ? t("campaigns.saveChanges") : t("campaigns.create")}
+          <Button
+            type="submit"
+            disabled={busy || !subject.trim() || !body.trim() || !chosen || (editing && !dirty)}
+          >
+            {busy
+              ? t("common.working")
+              : editing
+                ? t("campaigns.saveChanges")
+                : t("campaigns.create")}
           </Button>
           {onCancel ? (
             <Button type="button" variant="ghost" onClick={onCancel}>

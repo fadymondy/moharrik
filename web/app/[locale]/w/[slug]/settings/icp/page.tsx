@@ -27,7 +27,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, ICP_SIGNALS, type Contact, type IcpCriterion, type IcpProfile, type IcpProfileOut } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  ICP_SIGNALS,
+  type Contact,
+  type IcpCriterion,
+  type IcpProfile,
+  type IcpProfileOut,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContactsPage, useIcpProfile } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
@@ -54,14 +62,24 @@ type Draft = {
 function toDraft(p: IcpProfile): Draft {
   const w = (c: IcpCriterion) => String(c.weight)
   return {
-    text: { industries: (p.industries.values ?? []).join(", "), regions: (p.regions.values ?? []).join(", "), keywords: (p.keywords.values ?? []).join(", ") },
-    weights: { industries: w(p.industries), sizes: w(p.sizes), regions: w(p.regions), keywords: w(p.keywords) },
+    text: {
+      industries: (p.industries.values ?? []).join(", "),
+      regions: (p.regions.values ?? []).join(", "),
+      keywords: (p.keywords.values ?? []).join(", "),
+    },
+    weights: {
+      industries: w(p.industries),
+      sizes: w(p.sizes),
+      regions: w(p.regions),
+      keywords: w(p.keywords),
+    },
     sizes: p.sizes.values ?? [],
     signals: Object.fromEntries(ICP_SIGNALS.map((s) => [s, String(p.signals?.[s] ?? 0)])),
   }
 }
 
-const weightOk = (s: string) => s.trim() !== "" && Number.isFinite(Number(s)) && Math.abs(Number(s)) <= 10
+const weightOk = (s: string) =>
+  s.trim() !== "" && Number.isFinite(Number(s)) && Math.abs(Number(s)) <= 10
 
 export default function IcpSettingsPage() {
   const { t } = useTranslations()
@@ -72,7 +90,13 @@ export default function IcpSettingsPage() {
   return (
     <>
       <SectionHeader micro={t("nav.settings")} title={t("icp.title")} description={t("icp.hint")} />
-      {prof.error ? <ErrorState error={prof.error} /> : !prof.data ? <LoadingRows rows={6} /> : <Editor out={prof.data} onSaved={(o) => prof.mutate(o, { revalidate: false })} />}
+      {prof.error ? (
+        <ErrorState error={prof.error} />
+      ) : !prof.data ? (
+        <LoadingRows rows={6} />
+      ) : (
+        <Editor out={prof.data} onSaved={(o) => prof.mutate(o, { revalidate: false })} />
+      )}
     </>
   )
 }
@@ -96,7 +120,10 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
     if (!valid) return
     setBusy(true)
     setErr(null)
-    const crit = (k: TextCriterion) => ({ values: splitValues(draft.text[k]), weight: Number(draft.weights[k]) })
+    const crit = (k: TextCriterion) => ({
+      values: splitValues(draft.text[k]),
+      weight: Number(draft.weights[k]),
+    })
     const body: IcpProfile = {
       industries: crit("industries"),
       regions: crit("regions"),
@@ -105,7 +132,11 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
       signals: Object.fromEntries(ICP_SIGNALS.map((s) => [s, Number(draft.signals[s])])),
     }
     try {
-      const saved = await api<IcpProfileOut>("/api/w/icp", { method: "PUT", json: body, workspaceId: ws.id })
+      const saved = await api<IcpProfileOut>("/api/w/icp", {
+        method: "PUT",
+        json: body,
+        workspaceId: ws.id,
+      })
       onSaved(saved)
       await ranking.mutate()
       toast.success(t("icp.saved"))
@@ -137,7 +168,11 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
   const textCriterion = (k: TextCriterion) => {
     const values = splitValues(draft.text[k])
     return (
-      <div key={k} className="grid gap-3 border-b border-line px-5 py-4 last:border-b-0 sm:grid-cols-[1fr_auto]" data-criterion={k}>
+      <div
+        key={k}
+        className="grid gap-3 border-b border-line px-5 py-4 last:border-b-0 sm:grid-cols-[1fr_auto]"
+        data-criterion={k}
+      >
         <Field>
           <FieldLabel htmlFor={`icp-${k}`}>{t(`icp.crit.${k}`)}</FieldLabel>
           <Input
@@ -162,7 +197,9 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
         </Field>
         <Field>
           <FieldLabel htmlFor={`icp-${k}-weight`}>{t("icp.weight")}</FieldLabel>
-          {weightInput(`icp-${k}-weight`, draft.weights[k], (v) => setDraft((d) => ({ ...d, weights: { ...d.weights, [k]: v } })))}
+          {weightInput(`icp-${k}-weight`, draft.weights[k], (v) =>
+            setDraft((d) => ({ ...d, weights: { ...d.weights, [k]: v } })),
+          )}
         </Field>
       </div>
     )
@@ -172,12 +209,19 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
     <div className="grid gap-6 px-4 pb-10 sm:px-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <form onSubmit={save} noValidate className="flex min-w-0 flex-col gap-6" data-form="icp">
         {readOnly ? <p className="text-sm text-grid-muted">{t("icp.readOnly")}</p> : null}
-        {!out.configured ? <p className="text-sm text-grid-muted" data-icp-defaults>{t("icp.defaults")}</p> : null}
+        {!out.configured ? (
+          <p className="text-sm text-grid-muted" data-icp-defaults>
+            {t("icp.defaults")}
+          </p>
+        ) : null}
 
         <Panel id="icp-fit" title={t("icp.fitSection")} icon={<TargetIcon />}>
           <p className="px-5 pt-3 text-xs text-grid-muted">{t("icp.fitHint")}</p>
           {textCriterion("industries")}
-          <div className="grid gap-3 border-b border-line px-5 py-4 sm:grid-cols-[1fr_auto]" data-criterion="sizes">
+          <div
+            className="grid gap-3 border-b border-line px-5 py-4 sm:grid-cols-[1fr_auto]"
+            data-criterion="sizes"
+          >
             <fieldset>
               <legend className="mb-2 text-sm font-medium">{t("icp.crit.sizes")}</legend>
               <div className="flex flex-wrap gap-x-5 gap-y-2">
@@ -186,7 +230,12 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
                     <Checkbox
                       checked={draft.sizes.includes(sz)}
                       disabled={readOnly}
-                      onCheckedChange={(on) => setDraft((d) => ({ ...d, sizes: on ? [...d.sizes, sz] : d.sizes.filter((x) => x !== sz) }))}
+                      onCheckedChange={(on) =>
+                        setDraft((d) => ({
+                          ...d,
+                          sizes: on ? [...d.sizes, sz] : d.sizes.filter((x) => x !== sz),
+                        }))
+                      }
                       data-size={sz}
                     />
                     <Ltr>{sz}</Ltr>
@@ -197,7 +246,9 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
             </fieldset>
             <Field>
               <FieldLabel htmlFor="icp-sizes-weight">{t("icp.weight")}</FieldLabel>
-              {weightInput("icp-sizes-weight", draft.weights.sizes, (v) => setDraft((d) => ({ ...d, weights: { ...d.weights, sizes: v } })))}
+              {weightInput("icp-sizes-weight", draft.weights.sizes, (v) =>
+                setDraft((d) => ({ ...d, weights: { ...d.weights, sizes: v } })),
+              )}
             </Field>
           </div>
           {textCriterion("regions")}
@@ -213,7 +264,9 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
                   <span className="block text-sm font-medium">{t(`icp.signal.${s}`)}</span>
                   <span className="block text-xs text-grid-muted">{t(`icp.signal.${s}.hint`)}</span>
                 </label>
-                {weightInput(`icp-signal-${s}`, draft.signals[s], (v) => setDraft((d) => ({ ...d, signals: { ...d.signals, [s]: v } })))}
+                {weightInput(`icp-signal-${s}`, draft.signals[s], (v) =>
+                  setDraft((d) => ({ ...d, signals: { ...d.signals, [s]: v } })),
+                )}
               </li>
             ))}
           </ul>
@@ -225,7 +278,9 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
             <Button type="submit" disabled={busy || !valid} data-save-icp>
               {busy ? t("common.working") : t("icp.save")}
             </Button>
-            {!valid ? <span className="text-sm text-grid-danger-text">{t("icp.weightRange")}</span> : null}
+            {!valid ? (
+              <span className="text-sm text-grid-danger-text">{t("icp.weightRange")}</span>
+            ) : null}
             {err ? <span className="text-sm text-grid-danger-text">{err}</span> : null}
           </div>
         ) : null}
@@ -236,7 +291,14 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
           id="icp-ranking"
           title={t("icp.ranking")}
           icon={<TargetIcon />}
-          meta={<span className="ms-auto text-xs text-grid-muted">{t("icp.scoredOf", { n: formatNumber(out.scored), total: formatNumber(out.contacts) })}</span>}
+          meta={
+            <span className="ms-auto text-xs text-grid-muted">
+              {t("icp.scoredOf", {
+                n: formatNumber(out.scored),
+                total: formatNumber(out.contacts),
+              })}
+            </span>
+          }
         >
           {ranking.error ? (
             <ErrorState error={ranking.error} />
@@ -251,7 +313,9 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
               ))}
             </ol>
           )}
-          <p className="border-t border-line px-5 py-2.5 text-xs text-grid-muted">{t("icp.rankingHint")}</p>
+          <p className="border-t border-line px-5 py-2.5 text-xs text-grid-muted">
+            {t("icp.rankingHint")}
+          </p>
         </Panel>
       </aside>
     </div>
@@ -261,17 +325,36 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
 function RankRow({ i, c }: { i: number; c: Contact }) {
   const { t, locale, formatNumber } = useTranslations()
   const ws = useWorkspace()
-  const top = useMemo(() => [...(c.score_reasons ?? [])].filter((r) => r.contribution > 0).sort((a, b) => b.contribution - a.contribution)[0], [c.score_reasons])
+  const top = useMemo(
+    () =>
+      [...(c.score_reasons ?? [])]
+        .filter((r) => r.contribution > 0)
+        .sort((a, b) => b.contribution - a.contribution)[0],
+    [c.score_reasons],
+  )
   return (
     <li className="flex items-center gap-3 px-5 py-2.5" data-rank-row={c.email}>
-      <span className="w-5 shrink-0 text-end text-xs text-grid-muted tabular-nums">{formatNumber(i + 1)}</span>
+      <span className="w-5 shrink-0 text-end text-xs text-grid-muted tabular-nums">
+        {formatNumber(i + 1)}
+      </span>
       <span className="min-w-0 flex-1">
-        <Link href={`/${locale}/w/${ws.slug}/contacts/${c.id}`} className="block truncate text-sm font-medium hover:underline">
+        <Link
+          href={`/${locale}/w/${ws.slug}/contacts/${c.id}`}
+          className="block truncate text-sm font-medium hover:underline"
+        >
           {c.name ? <Bdi>{c.name}</Bdi> : <Ltr>{c.email}</Ltr>}
         </Link>
         <span className="flex items-center gap-1.5 truncate text-xs text-grid-muted">
           <LifecycleBadge stage={c.lifecycle ?? ""} />
-          {top ? <span className="truncate">{t(["industry", "size", "region", "keywords"].includes(top.dimension) ? `icp.dim.${top.dimension}` : `icp.signal.${top.dimension}`)}</span> : null}
+          {top ? (
+            <span className="truncate">
+              {t(
+                ["industry", "size", "region", "keywords"].includes(top.dimension)
+                  ? `icp.dim.${top.dimension}`
+                  : `icp.signal.${top.dimension}`,
+              )}
+            </span>
+          ) : null}
         </span>
       </span>
       <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name || c.email)} />

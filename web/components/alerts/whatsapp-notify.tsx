@@ -12,7 +12,13 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NotifyKind, type WhatsAppNotify } from "@/lib/api"
@@ -28,7 +34,8 @@ one message. Nothing here is anyone else's: the API only ever reads and writes
 the caller's own row.
 */
 
-const toClock = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
+const toClock = (m: number) =>
+  `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
 const fromClock = (s: string) => {
   const [h, m] = s.split(":").map((x) => Number(x))
   return Number.isFinite(h) && Number.isFinite(m) ? Math.min(1439, h * 60 + m) : 0
@@ -51,7 +58,9 @@ export function WhatsAppNotifySection() {
       </div>
       <div className="border-y border-line px-6 py-5">
         {q.error ? (
-          <p className="text-sm text-grid-danger-text">{q.error instanceof ApiError ? q.error.message : t("common.networkError")}</p>
+          <p className="text-sm text-grid-danger-text">
+            {q.error instanceof ApiError ? q.error.message : t("common.networkError")}
+          </p>
         ) : !d ? (
           <p className="text-sm text-grid-muted">{t("common.working")}</p>
         ) : !d.available ? (
@@ -65,14 +74,22 @@ export function WhatsAppNotifySection() {
             <p className="text-sm text-grid-muted" data-wa-notify="not-linked">
               {t("waNotify.notLinked")}{" "}
               {ws.can("inbox:manage") ? (
-                <Link className="underline underline-offset-4" href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}>
+                <Link
+                  className="underline underline-offset-4"
+                  href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}
+                >
                   {t("contactWa.linkNumber")}
                 </Link>
               ) : null}
             </p>
           )
         ) : (
-          <Settings key={`${d.phone}:${d.verified_at}`} data={d} onChange={(v) => q.mutate(v, { revalidate: false })} refresh={() => q.mutate()} />
+          <Settings
+            key={`${d.phone}:${d.verified_at}`}
+            data={d}
+            onChange={(v) => q.mutate(v, { revalidate: false })}
+            refresh={() => q.mutate()}
+          />
         )}
       </div>
     </section>
@@ -92,7 +109,10 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
     setBusy(true)
     setErr(null)
     try {
-      await api("/api/w/notify/whatsapp/verify", { json: { phone: phone.trim(), locale }, workspaceId: ws.id })
+      await api("/api/w/notify/whatsapp/verify", {
+        json: { phone: phone.trim(), locale },
+        workspaceId: ws.id,
+      })
       toast.success(t("waNotify.codeSent"))
       onChange()
     } catch (e) {
@@ -107,7 +127,10 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
     setBusy(true)
     setErr(null)
     try {
-      await api("/api/w/notify/whatsapp/confirm", { json: { code: code.trim() }, workspaceId: ws.id })
+      await api("/api/w/notify/whatsapp/confirm", {
+        json: { code: code.trim() },
+        workspaceId: ws.id,
+      })
       toast.success(t("waNotify.verified"))
       setCode("")
       onChange()
@@ -119,14 +142,29 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
   }
 
   return (
-    <div className="flex max-w-xl flex-col gap-5" data-wa-notify={data.code_pending ? "code-pending" : "unverified"}>
+    <div
+      className="flex max-w-xl flex-col gap-5"
+      data-wa-notify={data.code_pending ? "code-pending" : "unverified"}
+    >
       <form onSubmit={sendCode} noValidate>
         <FieldGroup className="sm:flex-row sm:items-end">
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="wa-notify-phone">{t("waNotify.phone")}</FieldLabel>
-            <Input id="wa-notify-phone" dir="ltr" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+20 100 000 0000" />
+            <Input
+              id="wa-notify-phone"
+              dir="ltr"
+              inputMode="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+20 100 000 0000"
+            />
           </Field>
-          <Button type="submit" variant={data.code_pending ? "outline" : "default"} disabled={busy || phone.replace(/\D/g, "").length < 8}>
+          <Button
+            type="submit"
+            variant={data.code_pending ? "outline" : "default"}
+            disabled={busy || phone.replace(/\D/g, "").length < 8}
+          >
             <SendIcon />
             {data.code_pending ? t("waNotify.resend") : t("waNotify.sendCode")}
           </Button>
@@ -152,7 +190,9 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
               {t("waNotify.confirm")}
             </Button>
           </FieldGroup>
-          <FieldDescription className="mt-2">{t("waNotify.codeHint", { phone: `+${data.phone}` })}</FieldDescription>
+          <FieldDescription className="mt-2">
+            {t("waNotify.codeHint", { phone: `+${data.phone}` })}
+          </FieldDescription>
         </form>
       ) : null}
       {err ? <FieldError>{err}</FieldError> : null}
@@ -160,7 +200,15 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
   )
 }
 
-function Settings({ data, onChange, refresh }: { data: WhatsAppNotify; onChange: (v: WhatsAppNotify) => void; refresh: () => void }) {
+function Settings({
+  data,
+  onChange,
+  refresh,
+}: {
+  data: WhatsAppNotify
+  onChange: (v: WhatsAppNotify) => void
+  refresh: () => void
+}) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
   const [enabled, setEnabled] = useState(data.enabled)
@@ -177,7 +225,10 @@ function Settings({ data, onChange, refresh }: { data: WhatsAppNotify; onChange:
 
   useEffect(() => setErr(null), [data])
 
-  const batchItems = ["0", "1", "5", "15", "30", "60"].map((v) => ({ value: v, label: t(`waNotify.batch.${v}`) }))
+  const batchItems = ["0", "1", "5", "15", "30", "60"].map((v) => ({
+    value: v,
+    label: t(`waNotify.batch.${v}`),
+  }))
   const langItems = [
     { value: "en", label: t("lang.en") },
     { value: "ar", label: t("lang.ar") },
@@ -239,17 +290,32 @@ function Settings({ data, onChange, refresh }: { data: WhatsAppNotify; onChange:
           <CheckCircle2Icon />
           <Ltr>+{data.phone}</Ltr>
         </Badge>
-        {data.verified_at ? <span className="text-grid-muted">{t("waNotify.verifiedOn", { date: formatDate(data.verified_at) })}</span> : null}
+        {data.verified_at ? (
+          <span className="text-grid-muted">
+            {t("waNotify.verifiedOn", { date: formatDate(data.verified_at) })}
+          </span>
+        ) : null}
         <span className="text-grid-muted" data-wa-notify-pending={data.pending}>
-          · {t("waNotify.status", { pending: data.pending, sent: data.sent_today, cap: data.daily_cap })}
+          ·{" "}
+          {t("waNotify.status", {
+            pending: data.pending,
+            sent: data.sent_today,
+            cap: data.daily_cap,
+          })}
         </span>
-        {!data.workspace_linked ? <span className="text-grid-warn">· {t("waNotify.notLinkedShort")}</span> : null}
+        {!data.workspace_linked ? (
+          <span className="text-grid-warn">· {t("waNotify.notLinkedShort")}</span>
+        ) : null}
       </div>
 
       <form onSubmit={save} noValidate className="max-w-3xl" data-form="wa-notify">
         <FieldGroup>
           <Field orientation="horizontal">
-            <Switch id="wa-notify-enabled" checked={enabled} onCheckedChange={(v) => setEnabled(!!v)} />
+            <Switch
+              id="wa-notify-enabled"
+              checked={enabled}
+              onCheckedChange={(v) => setEnabled(!!v)}
+            />
             <FieldLabel htmlFor="wa-notify-enabled">{t("waNotify.enabled")}</FieldLabel>
           </Field>
 
@@ -261,12 +327,20 @@ function Settings({ data, onChange, refresh }: { data: WhatsAppNotify; onChange:
                   id={`wa-kind-${k.kind}`}
                   checked={kinds.includes(k.kind)}
                   disabled={!k.allowed}
-                  onCheckedChange={(v) => setKinds((cur) => (v ? [...cur.filter((x) => x !== k.kind), k.kind] : cur.filter((x) => x !== k.kind)))}
+                  onCheckedChange={(v) =>
+                    setKinds((cur) =>
+                      v
+                        ? [...cur.filter((x) => x !== k.kind), k.kind]
+                        : cur.filter((x) => x !== k.kind),
+                    )
+                  }
                 />
                 <FieldLabel htmlFor={`wa-kind-${k.kind}`} className="font-normal">
                   <span>
                     {t(`waNotify.kind.${k.kind}`)}
-                    {!k.allowed ? <span className="text-grid-muted"> · {t("waNotify.kindNotAllowed")}</span> : null}
+                    {!k.allowed ? (
+                      <span className="text-grid-muted"> · {t("waNotify.kindNotAllowed")}</span>
+                    ) : null}
                   </span>
                 </FieldLabel>
               </Field>
@@ -282,29 +356,59 @@ function Settings({ data, onChange, refresh }: { data: WhatsAppNotify; onChange:
               <div className="flex flex-col gap-4 sm:flex-row">
                 <Field className="sm:w-36">
                   <FieldLabel htmlFor="wa-quiet-start">{t("waNotify.quietFrom")}</FieldLabel>
-                  <Input id="wa-quiet-start" type="time" dir="ltr" value={qs} onChange={(e) => setQs(e.target.value)} />
+                  <Input
+                    id="wa-quiet-start"
+                    type="time"
+                    dir="ltr"
+                    value={qs}
+                    onChange={(e) => setQs(e.target.value)}
+                  />
                 </Field>
                 <Field className="sm:w-36">
                   <FieldLabel htmlFor="wa-quiet-end">{t("waNotify.quietTo")}</FieldLabel>
-                  <Input id="wa-quiet-end" type="time" dir="ltr" value={qe} onChange={(e) => setQe(e.target.value)} />
+                  <Input
+                    id="wa-quiet-end"
+                    type="time"
+                    dir="ltr"
+                    value={qe}
+                    onChange={(e) => setQe(e.target.value)}
+                  />
                 </Field>
                 <Field className="sm:flex-1">
                   <FieldLabel htmlFor="wa-tz">{t("waNotify.timezone")}</FieldLabel>
-                  <Input id="wa-tz" dir="ltr" value={tz} onChange={(e) => setTz(e.target.value)} placeholder={data.effective_timezone} />
+                  <Input
+                    id="wa-tz"
+                    dir="ltr"
+                    value={tz}
+                    onChange={(e) => setTz(e.target.value)}
+                    placeholder={data.effective_timezone}
+                  />
                 </Field>
               </div>
             ) : null}
-            <FieldDescription>{t("waNotify.quietHint", { zone: data.effective_timezone })}</FieldDescription>
+            <FieldDescription>
+              {t("waNotify.quietHint", { zone: data.effective_timezone })}
+            </FieldDescription>
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row">
             <Field className="sm:w-40">
               <FieldLabel htmlFor="wa-cap">{t("waNotify.cap")}</FieldLabel>
-              <Input id="wa-cap" dir="ltr" inputMode="numeric" value={cap} onChange={(e) => setCap(e.target.value.replace(/\D/g, ""))} />
+              <Input
+                id="wa-cap"
+                dir="ltr"
+                inputMode="numeric"
+                value={cap}
+                onChange={(e) => setCap(e.target.value.replace(/\D/g, ""))}
+              />
             </Field>
             <Field className="sm:w-56">
               <FieldLabel htmlFor="wa-batch">{t("waNotify.batch")}</FieldLabel>
-              <Select items={batchItems} value={batch} onValueChange={(v) => setBatch(String(v ?? "5"))}>
+              <Select
+                items={batchItems}
+                value={batch}
+                onValueChange={(v) => setBatch(String(v ?? "5"))}
+              >
                 <SelectTrigger id="wa-batch" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -319,7 +423,11 @@ function Settings({ data, onChange, refresh }: { data: WhatsAppNotify; onChange:
             </Field>
             <Field className="sm:w-40">
               <FieldLabel htmlFor="wa-lang">{t("waNotify.language")}</FieldLabel>
-              <Select items={langItems} value={lang} onValueChange={(v) => setLang(v === "ar" ? "ar" : "en")}>
+              <Select
+                items={langItems}
+                value={lang}
+                onValueChange={(v) => setLang(v === "ar" ? "ar" : "en")}
+              >
                 <SelectTrigger id="wa-lang" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -339,7 +447,13 @@ function Settings({ data, onChange, refresh }: { data: WhatsAppNotify; onChange:
             <Button type="submit" disabled={!!busy}>
               {busy === "save" ? t("common.working") : t("common.save")}
             </Button>
-            <Button type="button" variant="outline" disabled={!!busy || !data.workspace_linked} onClick={() => void test()} data-wa-notify-test>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!!busy || !data.workspace_linked}
+              onClick={() => void test()}
+              data-wa-notify-test
+            >
               <SendIcon />
               {busy === "test" ? t("common.working") : t("waNotify.test")}
             </Button>
@@ -361,10 +475,21 @@ function Settings({ data, onChange, refresh }: { data: WhatsAppNotify; onChange:
           <ul className="flex flex-col gap-1 text-xs text-grid-muted">
             {data.recent.map((r, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2">
-                {r.ok ? <CheckCircle2Icon className="size-3.5 text-grid-brand" /> : <XCircleIcon className="size-3.5 text-grid-danger-text" />}
+                {r.ok ? (
+                  <CheckCircle2Icon className="size-3.5 text-grid-brand" />
+                ) : (
+                  <XCircleIcon className="size-3.5 text-grid-danger-text" />
+                )}
                 <Ltr>{formatDate(r.at)}</Ltr>
-                <span>· {r.kind === "test" ? t("waNotify.logTest") : t("waNotify.logBatch", { n: r.events })}</span>
-                {!r.ok && r.error ? <span className="text-grid-danger-text">· {r.error}</span> : null}
+                <span>
+                  ·{" "}
+                  {r.kind === "test"
+                    ? t("waNotify.logTest")
+                    : t("waNotify.logBatch", { n: r.events })}
+                </span>
+                {!r.ok && r.error ? (
+                  <span className="text-grid-danger-text">· {r.error}</span>
+                ) : null}
               </li>
             ))}
           </ul>

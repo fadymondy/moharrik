@@ -35,9 +35,14 @@ function hostOf(url: string): string {
  * referring site, else direct.
  */
 /** What leadSource reads: a whole Lead, or the overview's slimmer row. */
-type SourceInput = Pick<Lead, "origin"> & { attribution: Pick<LeadAttribution, "utm_source" | "utm_medium" | "gclid" | "referrer"> }
+type SourceInput = Pick<Lead, "origin"> & {
+  attribution: Pick<LeadAttribution, "utm_source" | "utm_medium" | "gclid" | "referrer">
+}
 
-export function leadSource(lead: SourceInput, t: (key: string, vars?: Record<string, string | number>) => string): string {
+export function leadSource(
+  lead: SourceInput,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   const a = lead.attribution
   if (a.utm_source) return a.utm_medium ? `${a.utm_source} / ${a.utm_medium}` : a.utm_source
   if (a.gclid) return t("leads.source.googleAds")

@@ -20,7 +20,10 @@ export function useCursorStack(resetKey: string) {
   const [cursors, setCursors] = useState<string[]>([""])
   useEffect(() => setCursors([""]), [resetKey])
   const cursor = cursors[cursors.length - 1]
-  const next = useCallback((c: string) => setCursors((s) => (s[s.length - 1] === c ? s : [...s, c])), [])
+  const next = useCallback(
+    (c: string) => setCursors((s) => (s[s.length - 1] === c ? s : [...s, c])),
+    [],
+  )
   const prev = useCallback(() => setCursors((s) => (s.length > 1 ? s.slice(0, -1) : s)), [])
   return { cursor, index: cursors.length - 1, next, prev }
 }
@@ -35,12 +38,33 @@ export function pageRange(index: number, pageSize: number, shown: number, total:
 }
 
 /** "Showing X–Y of N", above the rows. */
-export function PageSummary({ index, pageSize, shown, total, name }: { index: number; pageSize: number; shown: number; total: number; name: string }) {
+export function PageSummary({
+  index,
+  pageSize,
+  shown,
+  total,
+  name,
+}: {
+  index: number
+  pageSize: number
+  shown: number
+  total: number
+  name: string
+}) {
   const { t, formatNumber } = useTranslations()
   const { from, to } = pageRange(index, pageSize, shown, total)
   return (
-    <p className="px-6 pb-3 text-sm text-grid-muted" aria-live="polite" data-pager-summary={name} data-range={`${from}-${to}/${total}`}>
-      {t("common.showing", { from: formatNumber(from), to: formatNumber(to), total: formatNumber(total) })}
+    <p
+      className="px-6 pb-3 text-sm text-grid-muted"
+      aria-live="polite"
+      data-pager-summary={name}
+      data-range={`${from}-${to}/${total}`}
+    >
+      {t("common.showing", {
+        from: formatNumber(from),
+        to: formatNumber(to),
+        total: formatNumber(total),
+      })}
     </p>
   )
 }
@@ -79,12 +103,20 @@ export function PageNav({
           </Button>
         </PaginationItem>
         <PaginationItem>
-          <span className="px-2 text-sm text-grid-muted tabular-nums" data-page-of={`${index + 1}/${pages}`}>
+          <span
+            className="px-2 text-sm text-grid-muted tabular-nums"
+            data-page-of={`${index + 1}/${pages}`}
+          >
             {t("common.pageOf", { page: formatNumber(index + 1), pages: formatNumber(pages) })}
           </span>
         </PaginationItem>
         <PaginationItem>
-          <Button variant="ghost" disabled={busy || !nextCursor} onClick={() => nextCursor && onNext(nextCursor)} data-page="next">
+          <Button
+            variant="ghost"
+            disabled={busy || !nextCursor}
+            onClick={() => nextCursor && onNext(nextCursor)}
+            data-page="next"
+          >
             {t("common.nextPage")}
             <ChevronRightIcon data-icon="inline-end" className="rtl:rotate-180" />
           </Button>

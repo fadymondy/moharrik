@@ -71,36 +71,50 @@ out.slugA = slugA
 
 // ---- the sidebar leads there, and the timeline starts empty ----
 await pageA.goto(`${base}/en/w/${slugA}/trends`, { waitUntil: "networkidle" })
-out.navHasTrends = await pageA.evaluate(() => [...document.querySelectorAll("nav a")].some((a) => /\/trends$/.test(new URL(a.href).pathname)))
-out.startsEmpty = await pageA.evaluate(() => document.body.innerText.includes("Nothing collected yet"))
+out.navHasTrends = await pageA.evaluate(() =>
+  [...document.querySelectorAll("nav a")].some((a) => /\/trends$/.test(new URL(a.href).pathname)),
+)
+out.startsEmpty = await pageA.evaluate(() =>
+  document.body.innerText.includes("Nothing collected yet"),
+)
 
 // ---- a URL that is not a feed is refused, on the page, with a reason ----
 await pageA.goto(`${base}/en/w/${slugA}/trends/sources`, { waitUntil: "networkidle" })
 await pageA.fill("#feed-url", `${feedBase}/not-a-feed`)
 await pageA.click('form[data-form="add-feed"] button[type=submit]')
 await pageA.waitForTimeout(1500)
-out.nonFeedRejected = await pageA.evaluate(() => /does not look like an RSS or Atom feed/i.test(document.body.innerText))
+out.nonFeedRejected = await pageA.evaluate(() =>
+  /does not look like an RSS or Atom feed/i.test(document.body.innerText),
+)
 out.nonFeedAddedNothing = (await pageA.$$("[data-feed-row]")).length === 0
 
 // ---- adding the real feed collects its items on the first fetch ----
 await pageA.fill("#feed-url", `${feedBase}/feed.xml`)
 await pageA.click('form[data-form="add-feed"] button[type=submit]')
 await pageA.waitForSelector("[data-feed-row]", { timeout: 15000 })
-out.feedRowName = await pageA.evaluate(() => document.querySelector("[data-feed-row]")?.getAttribute("data-feed-row"))
-out.feedItemCountText = await pageA.evaluate(() => document.querySelector("[data-feed-row]")?.innerText.match(/(\d+) items collected/)?.[1])
+out.feedRowName = await pageA.evaluate(() =>
+  document.querySelector("[data-feed-row]")?.getAttribute("data-feed-row"),
+)
+out.feedItemCountText = await pageA.evaluate(
+  () => document.querySelector("[data-feed-row]")?.innerText.match(/(\d+) items collected/)?.[1],
+)
 
 // ---- a topic added AFTER collection still labels what is already there ----
 await pageA.fill("#topic-name", "Postgres")
 await pageA.fill("#topic-keywords", "postgres, pgsql")
 await pageA.click('form[data-form="add-topic"] button[type=submit]')
 await pageA.waitForSelector("[data-topic-row]", { timeout: 10000 })
-out.topicBackfilled = await pageA.evaluate(() => document.querySelector("[data-topic-row]")?.innerText.match(/(\d+) items/)?.[1])
+out.topicBackfilled = await pageA.evaluate(
+  () => document.querySelector("[data-topic-row]")?.innerText.match(/(\d+) items/)?.[1],
+)
 
 // ---- the timeline shows everything, newest first ----
 await pageA.goto(`${base}/en/w/${slugA}/trends`, { waitUntil: "networkidle" })
 await pageA.waitForSelector("[data-news]", { timeout: 10000 })
 out.timelineCount = await pageA.evaluate(() => document.querySelectorAll("[data-news]").length)
-out.newestFirst = await pageA.evaluate(() => (document.querySelectorAll("[data-news]")[0]?.innerText ?? "").includes("entirely unrelated"))
+out.newestFirst = await pageA.evaluate(() =>
+  (document.querySelectorAll("[data-news]")[0]?.innerText ?? "").includes("entirely unrelated"),
+)
 out.showsTopicBadge = await pageA.evaluate(() => document.body.innerText.includes("Postgres"))
 
 // ---- search narrows, saving persists, the saved filter shows only it ----
@@ -120,13 +134,20 @@ out.savedFilterCount = await pageA.evaluate(() => document.querySelectorAll("[da
 // and it survives a reload, i.e. it was written, not just toggled in state
 await pageA.reload({ waitUntil: "networkidle" })
 await pageA.waitForTimeout(800)
-out.savedAfterReload = await pageA.evaluate(() => [...document.querySelectorAll("[data-news]")].filter((l) => l.getAttribute("data-news-saved") === "true").length)
+out.savedAfterReload = await pageA.evaluate(
+  () =>
+    [...document.querySelectorAll("[data-news]")].filter(
+      (l) => l.getAttribute("data-news-saved") === "true",
+    ).length,
+)
 
 // ---- pausing a source stops it being fetched again ----
 await pageA.goto(`${base}/en/w/${slugA}/trends/sources`, { waitUntil: "networkidle" })
 await pageA.click('[data-feed-row] [role="switch"]')
 await pageA.waitForTimeout(1000)
-out.sourcePaused = await pageA.evaluate(() => document.querySelector("[data-feed-row]")?.innerText.includes("Paused"))
+out.sourcePaused = await pageA.evaluate(() =>
+  document.querySelector("[data-feed-row]")?.innerText.includes("Paused"),
+)
 
 await ctxA.close()
 
@@ -137,8 +158,12 @@ const { slug: slugAr } = await signUpAndEnterWorkspace(pageAr, "TR AR " + Date.n
 for (const p of ["trends", "trends/sources"]) {
   await pageAr.goto(`${base}/ar/w/${slugAr}/${p}`, { waitUntil: "networkidle" })
   await pageAr.waitForTimeout(600)
-  out[`ar390_${p.replace("/", "_")}_overflow`] = await pageAr.evaluate(() => document.documentElement.scrollWidth > 390)
-  out[`ar390_${p.replace("/", "_")}_rawKeys`] = await pageAr.evaluate(() => /trends\.[a-zA-Z]|nav\.[a-zA-Z]/.test(document.body.innerText))
+  out[`ar390_${p.replace("/", "_")}_overflow`] = await pageAr.evaluate(
+    () => document.documentElement.scrollWidth > 390,
+  )
+  out[`ar390_${p.replace("/", "_")}_rawKeys`] = await pageAr.evaluate(() =>
+    /trends\.[a-zA-Z]|nav\.[a-zA-Z]/.test(document.body.innerText),
+  )
 }
 await ctxAr.close()
 
@@ -147,11 +172,16 @@ const ctxB = await newCtx()
 const pageB = ctxB.pages()[0]
 const { slug: slugB } = await signUpAndEnterWorkspace(pageB, "TR B " + Date.now())
 await pageB.goto(`${base}/en/w/${slugB}/trends`, { waitUntil: "networkidle" })
-out.workspaceBTimelineEmpty = await pageB.evaluate(() => document.body.innerText.includes("Nothing collected yet"))
-out.workspaceBSourceCount = await pageB.evaluate(async ({ ws }) => {
-  const r = await fetch("/api/w/feed_sources", { headers: { "X-Workspace-ID": ws } })
-  return (await r.json()).sources?.length ?? -1
-}, { ws: slugB })
+out.workspaceBTimelineEmpty = await pageB.evaluate(() =>
+  document.body.innerText.includes("Nothing collected yet"),
+)
+out.workspaceBSourceCount = await pageB.evaluate(
+  async ({ ws }) => {
+    const r = await fetch("/api/w/feed_sources", { headers: { "X-Workspace-ID": ws } })
+    return (await r.json()).sources?.length ?? -1
+  },
+  { ws: slugB },
+)
 await ctxB.close()
 
 srv.close()

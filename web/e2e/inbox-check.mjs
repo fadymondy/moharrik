@@ -51,9 +51,14 @@ await pageA.click('button:has-text("Add widget")')
 await pageA.waitForSelector("#widget-name", { timeout: 10000 })
 await pageA.fill("#widget-name", "Marketing site")
 await pageA.fill("#widget-origins", base)
-await pageA.click('form:has(#widget-name) button[type=submit]')
+await pageA.click("form:has(#widget-name) button[type=submit]")
 await pageA.waitForSelector('[data-widget-row="Marketing site"]', { timeout: 10000 })
-const embed = await pageA.evaluate(() => [...document.querySelectorAll("code")].map((c) => c.textContent ?? "").find((v) => v.includes("data-key=")) ?? "")
+const embed = await pageA.evaluate(
+  () =>
+    [...document.querySelectorAll("code")]
+      .map((c) => c.textContent ?? "")
+      .find((v) => v.includes("data-key=")) ?? "",
+)
 const widgetKey = (embed.match(/data-key="([^"]+)"/) || [])[1]
 out.gotWidgetKey = !!widgetKey
 
@@ -74,21 +79,32 @@ out.gotVisitorToken = !!visitorToken
 out.wrongOriginStatus = (await send({ body: "from elsewhere" }, "https://evil.test")).status
 // ---- unknown key is refused ----
 out.unknownKeyStatus = (
-  await fetch(`${base}/api/chat/cwk_0000000000000000000000000000000000000000000000000000000000000000/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Origin: base },
-    body: JSON.stringify({ body: "x" }),
-  })
+  await fetch(
+    `${base}/api/chat/cwk_0000000000000000000000000000000000000000000000000000000000000000/messages`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: base },
+      body: JSON.stringify({ body: "x" }),
+    },
+  )
 ).status
 
 // ---- it lands in the agent inbox, unread ----
 await pageA.goto(`${base}/en/w/${slugA}/inbox`, { waitUntil: "domcontentloaded" })
 await pageA.waitForSelector("[data-conversation]", { timeout: 10000 })
-out.conversationsInInbox = await pageA.evaluate(() => document.querySelectorAll("[data-conversation]").length)
-out.arrivedUnread = await pageA.evaluate(() => document.querySelector("[data-conversation]")?.getAttribute("data-conversation-unread") === "true")
+out.conversationsInInbox = await pageA.evaluate(
+  () => document.querySelectorAll("[data-conversation]").length,
+)
+out.arrivedUnread = await pageA.evaluate(
+  () =>
+    document.querySelector("[data-conversation]")?.getAttribute("data-conversation-unread") ===
+    "true",
+)
 await pageA.click("[data-conversation]")
 await pageA.waitForSelector("[data-messages]", { timeout: 10000 })
-out.threadShowsVisitorMessage = await pageA.evaluate(() => document.body.innerText.includes("My invoice is wrong"))
+out.threadShowsVisitorMessage = await pageA.evaluate(() =>
+  document.body.innerText.includes("My invoice is wrong"),
+)
 
 // ---- realtime: a second visitor message appears WITHOUT a poll (MH-135) ----
 // The agent tab stays where it is. Requests are counted first, so "it updated"
@@ -115,19 +131,30 @@ pageA.off("request", countCalls)
 // ---- the team replies ----
 await pageA.fill("#reply-body", "Sorry about that — fixing it now.")
 await pageA.click('[data-form="reply"] button[type=submit]')
-await pageA.waitForFunction(() => document.querySelectorAll('[data-message="out"]').length > 0, { timeout: 10000 })
-out.replySaved = await pageA.evaluate(() => document.querySelectorAll('[data-message="out"]').length)
+await pageA.waitForFunction(() => document.querySelectorAll('[data-message="out"]').length > 0, {
+  timeout: 10000,
+})
+out.replySaved = await pageA.evaluate(
+  () => document.querySelectorAll('[data-message="out"]').length,
+)
 
 // ---- the visitor polls and sees the reply ----
-const poll = await fetch(`${base}/api/chat/${widgetKey}/messages?visitor_token=${encodeURIComponent(visitorToken)}`, { headers: { Origin: base } })
+const poll = await fetch(
+  `${base}/api/chat/${widgetKey}/messages?visitor_token=${encodeURIComponent(visitorToken)}`,
+  { headers: { Origin: base } },
+)
 out.visitorPollStatus = poll.status
 const polled = poll.status === 200 ? await poll.json() : { messages: [] }
-out.visitorSeesReply = (polled.messages || []).some((m) => m.direction === "out" && m.body.includes("Sorry about that"))
+out.visitorSeesReply = (polled.messages || []).some(
+  (m) => m.direction === "out" && m.body.includes("Sorry about that"),
+)
 out.visitorSeesNoStaffEmail = (polled.messages || []).every((m) => !m.author_email)
 
 // ---- another visitor token is refused ----
 out.foreignVisitorTokenStatus = (
-  await fetch(`${base}/api/chat/${widgetKey}/messages?visitor_token=cvt_dead`, { headers: { Origin: base } })
+  await fetch(`${base}/api/chat/${widgetKey}/messages?visitor_token=cvt_dead`, {
+    headers: { Origin: base },
+  })
 ).status
 
 // ---- closing, then a disabled widget refuses delivery ----
@@ -148,7 +175,9 @@ for (const p of ["inbox", "inbox/widgets"]) {
   // domcontentloaded for the same reason as above: /inbox holds the stream open.
   await pageAr.goto(`${base}/ar/w/${slugAr}/${p}`, { waitUntil: "domcontentloaded" })
   await pageAr.waitForTimeout(1500)
-  out[`ar390_${p.replace("/", "_")}_overflow`] = await pageAr.evaluate(() => document.documentElement.scrollWidth > 390)
+  out[`ar390_${p.replace("/", "_")}_overflow`] = await pageAr.evaluate(
+    () => document.documentElement.scrollWidth > 390,
+  )
 }
 await ctxAr.close()
 
@@ -159,12 +188,20 @@ const { slug: slugB } = await signUpAndEnterWorkspace(pageB, "IB B " + Date.now(
 await pageB.goto(`${base}/en/w/${slugB}/inbox`, { waitUntil: "domcontentloaded" })
 // domcontentloaded returns before the list has loaded, so wait for the state to
 // render rather than reading an empty body and calling it "not empty".
-await pageB.waitForFunction(() => /No conversations yet|data-conversation/.test(document.body.innerHTML), { timeout: 15000 }).catch(() => {})
-out.workspaceBInboxEmpty = await pageB.evaluate(() => document.body.innerText.includes("No conversations yet"))
+await pageB
+  .waitForFunction(() => /No conversations yet|data-conversation/.test(document.body.innerHTML), {
+    timeout: 15000,
+  })
+  .catch(() => {})
+out.workspaceBInboxEmpty = await pageB.evaluate(() =>
+  document.body.innerText.includes("No conversations yet"),
+)
 // B asking for A's event stream by id must be refused the same way every
 // other workspace route refuses it — a stream is not a second door.
 out.workspaceBStreamOfAStatus = await pageB.evaluate(async (ws) => {
-  const r = await fetch("/api/w/events", { headers: { Accept: "text/event-stream", "X-Workspace-ID": ws } })
+  const r = await fetch("/api/w/events", {
+    headers: { Accept: "text/event-stream", "X-Workspace-ID": ws },
+  })
   await r.body?.cancel()
   return r.status
 }, slugA)

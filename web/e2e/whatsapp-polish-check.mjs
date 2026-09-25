@@ -15,13 +15,20 @@ const base = (process.argv[2] ?? "http://localhost:3514").replace(/\/$/, "")
 const logDir = process.argv[3]
 const STUB = "http://127.0.0.1:8914"
 const stub = (p, body) =>
-  fetch(STUB + p, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).then((r) => r.json())
+  fetch(STUB + p, {
+    method: body ? "POST" : "GET",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  }).then((r) => r.json())
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const out = {}
 const browser = await launch()
 const { state, wsId, slug } = await signIn(browser, base)
-const ctx = await browser.newContext({ storageState: state, viewport: { width: 1440, height: 900 } })
+const ctx = await browser.newContext({
+  storageState: state,
+  viewport: { width: 1440, height: 900 },
+})
 const page = await ctx.newPage()
 const errors = []
 page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)))
@@ -49,7 +56,8 @@ const t0 = Date.now()
 await page.waitForSelector("[data-whatsapp-state=open]", { timeout: 15000 })
 out.linkedWithoutReloadMs = Date.now() - t0
 out.qrGone = (await page.locator("[data-whatsapp-qr]").count()) === 0
-out.pollingStopped = (await page.getAttribute("[data-whatsapp-polling]", "data-whatsapp-polling")) === "off"
+out.pollingStopped =
+  (await page.getAttribute("[data-whatsapp-polling]", "data-whatsapp-polling")) === "off"
 out.webhook = await page.getAttribute("[data-webhook-status]", "data-webhook-status")
 
 // ---- 1b. Pairing code instead of a QR ---------------------------------------------
@@ -61,7 +69,9 @@ await page.fill("#wa-link-number", "+20 17 0000 9999")
 await page.getByRole("button", { name: /Get a pairing code/ }).click()
 await page.waitForSelector("[data-pairing-code]", { timeout: 20000 })
 out.pairingCode = await page.getAttribute("[data-pairing-code]", "data-pairing-code")
-out.pairingNumberSent = (await stub("/__ctl/log")).pairingRequests.includes("201700009999") || (await stub("/__ctl/log")).created.length > 0
+out.pairingNumberSent =
+  (await stub("/__ctl/log")).pairingRequests.includes("201700009999") ||
+  (await stub("/__ctl/log")).created.length > 0
 await page.screenshot({ path: `${SHOTS}/MH-413-pairing-code-en-light-1440.png` })
 await stub("/__ctl/state", { state: "open", wuid: "201055550000@s.whatsapp.net" })
 await page.waitForSelector("[data-whatsapp-state=open]", { timeout: 15000 })
@@ -71,8 +81,17 @@ out.pairingLinkedWithoutReload = (await page.locator("[data-pairing-code]").coun
 // A list with subscribers in BOTH languages, so the filter has something to
 // leave out: made here (no double opt-in; every address is mail.example).
 const stamp = Date.now().toString(36)
-const target = (await call(page, "POST", "/api/w/mail/lists", { name: `MH-413 mixed ${stamp}`, double_opt_in: false }, wsId)).body.list
-const arabic = [], english = []
+const target = (
+  await call(
+    page,
+    "POST",
+    "/api/w/mail/lists",
+    { name: `MH-413 mixed ${stamp}`, double_opt_in: false },
+    wsId,
+  )
+).body.list
+const arabic = [],
+  english = []
 for (const [i, l] of ["en", "en", "ar", "ar", "ar"].entries()) {
   const email = `mixed-${stamp}-${i}@mail.example`
   await call(page, "POST", "/api/w/contacts", { email, locale: l, list_id: target.id }, wsId)
@@ -80,7 +99,12 @@ for (const [i, l] of ["en", "en", "ar", "ar", "ar"].entries()) {
 }
 arabic.sort()
 target.subscribed = arabic.length + english.length
-out.list = { name: target.name, subscribed: target.subscribed, arabic: arabic.length, english: english.length }
+out.list = {
+  name: target.name,
+  subscribed: target.subscribed,
+  arabic: arabic.length,
+  english: english.length,
+}
 await page.goto(`${base}/en/w/${slug}/campaigns`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector("#campaign-list", { timeout: 60000 })
 await page.click("#campaign-list")
@@ -96,7 +120,8 @@ await page.locator('[data-form="new-campaign"] textarea').first().fill("قهوة
 await page.click('[data-form="new-campaign"] button[type=submit]')
 const row = page.locator(`[data-campaign-row="${subject}"]`)
 await row.waitFor({ timeout: 15000 })
-out.rowSaysArabicOnly = (await row.locator("[data-campaign-audience]").getAttribute("data-campaign-audience")) === "ar"
+out.rowSaysArabicOnly =
+  (await row.locator("[data-campaign-audience]").getAttribute("data-campaign-audience")) === "ar"
 
 // ---- 3a. Live campaign progress: sent from ANOTHER tab, watched here -------------
 const other = await ctx.newPage()
@@ -105,14 +130,19 @@ let campaignFetches = 0
 page.on("request", (r) => {
   if (new URL(r.url()).pathname === "/api/w/campaigns" && r.method() === "GET") campaignFetches++
 })
-const id = (await call(other, "GET", "/api/w/campaigns", undefined, wsId)).body.campaigns.find((c) => c.subject === subject).id
+const id = (await call(other, "GET", "/api/w/campaigns", undefined, wsId)).body.campaigns.find(
+  (c) => c.subject === subject,
+).id
 const t1 = Date.now()
 await call(other, "POST", `/api/w/campaigns/${id}/send`, {}, wsId)
 await row.locator("text=/^Sent$/").waitFor({ timeout: 20000 })
 out.liveCampaign = { sentShownMs: Date.now() - t1, refetches: campaignFetches }
 const logs = [...(fakeLog(logDir, "smtp-A.json") ?? []), ...(fakeLog(logDir, "smtp-B.json") ?? [])]
 // This run's campaign only: the sinks keep every earlier run's mail too.
-const got = logs.filter((m) => m.data.includes(subject) || m.to.includes(stamp)).map((m) => m.to).sort()
+const got = logs
+  .filter((m) => m.data.includes(subject) || m.to.includes(stamp))
+  .map((m) => m.to)
+  .sort()
 out.audienceDelivered = {
   to: got.length,
   onlyArabic: got.length === arabic.length && JSON.stringify(got) === JSON.stringify(arabic),
@@ -128,23 +158,47 @@ const visitor = `live-${Date.now().toString(36)}@mail.example`
 const t2 = Date.now()
 await fetch(`${base}/api/subscribe/${form.public_key}`, {
   method: "POST",
-  headers: { "Content-Type": "application/json", Origin: (form.allowed_origins ?? [])[0] ?? "https://nilecoffee.example" },
+  headers: {
+    "Content-Type": "application/json",
+    Origin: (form.allowed_origins ?? [])[0] ?? "https://nilecoffee.example",
+  },
   body: JSON.stringify({ email: visitor, name: "Live Visitor" }),
 })
 await page.waitForSelector(`text=${visitor}`, { timeout: 12000 })
 out.liveContactMs = Date.now() - t2
 
 out.pass =
-  out.qrPolling === "on" && out.qrPolledTimes >= 2 && out.qrGone && out.pollingStopped && out.webhook === "ok" &&
-  !!out.pairingCode && out.pairingLinkedWithoutReload && out.rowSaysArabicOnly && out.audienceDelivered.onlyArabic &&
-  out.liveCampaign.sentShownMs < 20000 && out.audienceDelivered.englishReached === 0 && out.liveContactMs < 12000
+  out.qrPolling === "on" &&
+  out.qrPolledTimes >= 2 &&
+  out.qrGone &&
+  out.pollingStopped &&
+  out.webhook === "ok" &&
+  !!out.pairingCode &&
+  out.pairingLinkedWithoutReload &&
+  out.rowSaysArabicOnly &&
+  out.audienceDelivered.onlyArabic &&
+  out.liveCampaign.sentShownMs < 20000 &&
+  out.audienceDelivered.englishReached === 0 &&
+  out.liveContactMs < 12000
 
 // ---- screenshots ------------------------------------------------------------------------
 const shots = []
-shots.push(...(await matrix(browser, state, { base, card: "MH-413", name: "whatsapp-linked", url: `/w/${slug}/inbox/whatsapp`, ready: "[data-webhook-status]" })))
 shots.push(
   ...(await matrix(browser, state, {
-    base, card: "MH-413", name: "campaign-audience", url: `/w/${slug}/campaigns`, ready: "#campaign-list",
+    base,
+    card: "MH-413",
+    name: "whatsapp-linked",
+    url: `/w/${slug}/inbox/whatsapp`,
+    ready: "[data-webhook-status]",
+  })),
+)
+shots.push(
+  ...(await matrix(browser, state, {
+    base,
+    card: "MH-413",
+    name: "campaign-audience",
+    url: `/w/${slug}/campaigns`,
+    ready: "#campaign-list",
     prepare: async (p, { locale }) => {
       await p.click("#campaign-audience")
       await p.getByRole("option").nth(2).click()
@@ -153,7 +207,14 @@ shots.push(
     },
   })),
 )
-out.shotProblems = shots.filter((s) => s.overflow > 0 || s.errors.length || s.rawKeys.length || (s.locale === "ar") !== (s.dir === "rtl") || (s.theme === "dark") !== s.dark)
+out.shotProblems = shots.filter(
+  (s) =>
+    s.overflow > 0 ||
+    s.errors.length ||
+    s.rawKeys.length ||
+    (s.locale === "ar") !== (s.dir === "rtl") ||
+    (s.theme === "dark") !== s.dark,
+)
 out.shotCount = shots.length
 out.pageErrors = errors
 console.log(JSON.stringify(out, null, 2))

@@ -52,7 +52,14 @@ export function LanguageSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon-sm" aria-label={t("header.language")} title={t("header.language")} />}
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("header.language")}
+            title={t("header.language")}
+          />
+        }
       >
         <LanguagesIcon />
       </DropdownMenuTrigger>

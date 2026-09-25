@@ -21,7 +21,11 @@ import {
   setupPending,
 } from "@/components/overview/overview-cards"
 import { TrafficCard, YouTubeCard } from "@/components/overview/google-cards"
-import { ConversationsChartCard, LeadsChartCard, PipelineChartCard } from "@/components/overview/overview-charts"
+import {
+  ConversationsChartCard,
+  LeadsChartCard,
+  PipelineChartCard,
+} from "@/components/overview/overview-charts"
 import { ErrorState } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -50,14 +54,27 @@ export default function OverviewPage() {
   const o = ov.data
 
   const sections = o
-    ? [o.pipeline, o.leads, o.conversations, o.notifications, o.marketing, o.trends, o.traffic, o.leads_daily, o.conversations_daily].filter((s) => s !== null && s !== undefined)
-        .length
+    ? [
+        o.pipeline,
+        o.leads,
+        o.conversations,
+        o.notifications,
+        o.marketing,
+        o.trends,
+        o.traffic,
+        o.leads_daily,
+        o.conversations_daily,
+      ].filter((s) => s !== null && s !== undefined).length
     : 0
   const showSetup = !!o && setupPending(o.setup)
 
   return (
     <>
-      <SectionHeader micro={t("nav.overview")} title={<Bdi>{ws.summary.name}</Bdi>} action={<Badge variant="outline">{t(`role.${ws.summary.role}`)}</Badge>} />
+      <SectionHeader
+        micro={t("nav.overview")}
+        title={<Bdi>{ws.summary.name}</Bdi>}
+        action={<Badge variant="outline">{t(`role.${ws.summary.role}`)}</Badge>}
+      />
 
       {ov.error ? (
         <div className="mt-2">
@@ -73,30 +90,74 @@ export default function OverviewPage() {
           <TodayStrip today={o.today} base={base} />
 
           <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2" data-overview-cards>
-            {showSetup && o.setup ? <SetupCard items={o.setup} base={base} can={ws.can} className="lg:col-span-2" /> : null}
-            {o.pipeline ? <PipelineCard p={o.pipeline} currency={o.currency} base={base} className="lg:col-span-2" /> : null}
-            {o.leads ? <LeadsCard leads={o.leads} counts={o.today.leads} base={base} canAddForm={ws.can("campaigns:write")} /> : null}
+            {showSetup && o.setup ? (
+              <SetupCard items={o.setup} base={base} can={ws.can} className="lg:col-span-2" />
+            ) : null}
+            {o.pipeline ? (
+              <PipelineCard
+                p={o.pipeline}
+                currency={o.currency}
+                base={base}
+                className="lg:col-span-2"
+              />
+            ) : null}
+            {o.leads ? (
+              <LeadsCard
+                leads={o.leads}
+                counts={o.today.leads}
+                base={base}
+                canAddForm={ws.can("campaigns:write")}
+              />
+            ) : null}
             {o.conversations ? (
-              <InboxCard items={o.conversations} unread={o.today.unread_conversations} base={base} canAddWidget={ws.can("inbox:manage")} />
+              <InboxCard
+                items={o.conversations}
+                unread={o.today.unread_conversations}
+                base={base}
+                canAddWidget={ws.can("inbox:manage")}
+              />
             ) : null}
             {o.notifications ? (
-              <NotificationsCard items={o.notifications} unread={o.today.unread_notifications} base={base} canAddSource={ws.can("notifications:manage")} />
+              <NotificationsCard
+                items={o.notifications}
+                unread={o.today.unread_notifications}
+                base={base}
+                canAddSource={ws.can("notifications:manage")}
+              />
             ) : null}
             {o.marketing ? (
-              <MarketingCard m={o.marketing} base={base} canWriteContacts={ws.can("contacts:write")} canWriteCampaigns={ws.can("campaigns:write")} />
+              <MarketingCard
+                m={o.marketing}
+                base={base}
+                canWriteContacts={ws.can("contacts:write")}
+                canWriteCampaigns={ws.can("campaigns:write")}
+              />
             ) : null}
-            {o.trends ? <TrendsCard tr={o.trends} base={base} canManage={ws.can("trends:manage")} /> : null}
+            {o.trends ? (
+              <TrendsCard tr={o.trends} base={base} canManage={ws.can("trends:manage")} />
+            ) : null}
             {o.traffic ? <TrafficCard traffic={o.traffic} base={base} /> : null}
-            {o.youtube && o.youtube.length ? <YouTubeCard channels={o.youtube} base={base} /> : null}
-            <WorkspaceCard base={base} timezone={o.timezone} currency={o.currency} limited={sections === 0} />
+            {o.youtube && o.youtube.length ? (
+              <YouTubeCard channels={o.youtube} base={base} />
+            ) : null}
+            <WorkspaceCard
+              base={base}
+              timezone={o.timezone}
+              currency={o.currency}
+              limited={sections === 0}
+            />
           </div>
 
           {/* Real charts (MH-567): traffic's own trend lives inside TrafficCard above; these
               three cover what the rest of the page only ever showed as counts. */}
           <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2" data-overview-charts>
             {o.leads_daily ? <LeadsChartCard leadsDaily={o.leads_daily} base={base} /> : null}
-            {o.conversations_daily ? <ConversationsChartCard conversationsDaily={o.conversations_daily} base={base} /> : null}
-            {o.pipeline ? <PipelineChartCard stages={o.pipeline.stages} currency={o.currency} base={base} /> : null}
+            {o.conversations_daily ? (
+              <ConversationsChartCard conversationsDaily={o.conversations_daily} base={base} />
+            ) : null}
+            {o.pipeline ? (
+              <PipelineChartCard stages={o.pipeline.stages} currency={o.currency} base={base} />
+            ) : null}
           </div>
         </div>
       )}
@@ -105,19 +166,62 @@ export default function OverviewPage() {
 }
 
 /** The workspace's own settings, which used to be the whole page. There is no general Settings page to move them to. */
-function WorkspaceCard({ base, timezone, currency, limited }: { base: string; timezone: string; currency: string; limited: boolean }) {
+function WorkspaceCard({
+  base,
+  timezone,
+  currency,
+  limited,
+}: {
+  base: string
+  timezone: string
+  currency: string
+  limited: boolean
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const details = ws.current?.workspace
   return (
-    <Panel id="workspace" title={t("overview.workspace")} icon={<Building2Icon />} className={limited ? "lg:col-span-2" : undefined}>
-      {limited ? <p className="border-b border-line px-5 py-3 text-sm text-grid-muted">{t("overview.limitedRole")}</p> : null}
+    <Panel
+      id="workspace"
+      title={t("overview.workspace")}
+      icon={<Building2Icon />}
+      className={limited ? "lg:col-span-2" : undefined}
+    >
+      {limited ? (
+        <p className="border-b border-line px-5 py-3 text-sm text-grid-muted">
+          {t("overview.limitedRole")}
+        </p>
+      ) : null}
       <dl className="grid grid-cols-2 gap-x-6 gap-y-4 px-5 pt-4 text-sm">
         {[
-          [t("overview.slug"), <Ltr key="s" mono>/{ws.slug}</Ltr>],
-          [t("overview.locale"), details?.locale ? <Ltr key="l" mono>{details.locale}</Ltr> : "—"],
-          [t("overview.timezone"), <Ltr key="tz" mono>{timezone}</Ltr>],
-          [t("overview.currency"), <Ltr key="c" mono>{currency}</Ltr>],
+          [
+            t("overview.slug"),
+            <Ltr key="s" mono>
+              /{ws.slug}
+            </Ltr>,
+          ],
+          [
+            t("overview.locale"),
+            details?.locale ? (
+              <Ltr key="l" mono>
+                {details.locale}
+              </Ltr>
+            ) : (
+              "—"
+            ),
+          ],
+          [
+            t("overview.timezone"),
+            <Ltr key="tz" mono>
+              {timezone}
+            </Ltr>,
+          ],
+          [
+            t("overview.currency"),
+            <Ltr key="c" mono>
+              {currency}
+            </Ltr>,
+          ],
         ].map(([label, value], i) => (
           <div key={i} className="min-w-0">
             <dt className="grid-micro mb-1">{label}</dt>
@@ -127,12 +231,22 @@ function WorkspaceCard({ base, timezone, currency, limited }: { base: string; ti
       </dl>
       <div className="flex flex-wrap gap-2 px-5 py-4">
         {ws.can("members:read") ? (
-          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`${base}/members`} />}>
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={`${base}/members`} />}
+          >
             <UsersIcon />
             {t("nav.members")}
           </Button>
         ) : null}
-        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`${base}/settings/mcp`} />}>
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={`${base}/settings/mcp`} />}
+        >
           <KeyRoundIcon />
           {t("nav.mcpTokens")}
         </Button>

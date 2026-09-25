@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 /*
   Search Console's URL inspection and sitemaps (MH-446). Inspecting spends one of the site's 2,000
@@ -7,7 +7,7 @@
   Sitemaps are listed live from Google; a count Google does not give is a dash, never a zero.
 */
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react"
 import {
   CheckCircle2Icon,
   CircleDashedIcon,
@@ -16,15 +16,15 @@ import {
   ScanSearchIcon,
   TriangleAlertIcon,
   XCircleIcon,
-} from "lucide-react";
-import { toast } from "sonner";
+} from "lucide-react"
+import { toast } from "sonner"
 
-import { Ltr } from "@/components/copy-field";
-import { useFormat } from "@/components/overview/overview-cards";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/states";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Ltr } from "@/components/copy-field"
+import { useFormat } from "@/components/overview/overview-cards"
+import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -32,14 +32,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { useWorkspace } from "@/components/workspace/workspace-context";
-import { api, ApiError, type GscInspection, type GscSitemapsOut } from "@/lib/api";
-import { useTranslations } from "@/lib/i18n";
-import { useGscInspections, useGscSitemaps } from "@/lib/queries";
+} from "@/components/ui/table"
+import { useWorkspace } from "@/components/workspace/workspace-context"
+import { api, ApiError, type GscInspection, type GscSitemapsOut } from "@/lib/api"
+import { useTranslations } from "@/lib/i18n"
+import { useGscInspections, useGscSitemaps } from "@/lib/queries"
 
 function Verdict({ v }: { v: string }) {
-  const { t } = useTranslations();
+  const { t } = useTranslations()
   const icon =
     v === "PASS" ? (
       <CheckCircle2Icon className="size-3.5 text-grid-ok" />
@@ -49,7 +49,7 @@ function Verdict({ v }: { v: string }) {
       <TriangleAlertIcon className="size-3.5 text-grid-warn" />
     ) : (
       <CircleDashedIcon className="size-3.5 text-grid-muted" />
-    );
+    )
   return (
     <span
       className="inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap"
@@ -58,21 +58,21 @@ function Verdict({ v }: { v: string }) {
       {icon}
       {t(`gsci.verdict.${v || "NONE"}`)}
     </span>
-  );
+  )
 }
 
 export function InspectTab({ resourceId, siteLabel }: { resourceId: string; siteLabel: string }) {
-  const { t, locale } = useTranslations();
-  const ws = useWorkspace();
-  const f = useFormat();
-  const data = useGscInspections(ws.id, resourceId);
-  const [url, setUrl] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState<string | null>(null);
+  const { t, locale } = useTranslations()
+  const ws = useWorkspace()
+  const f = useFormat()
+  const data = useGscInspections(ws.id, resourceId)
+  const [url, setUrl] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState<string | null>(null)
 
   async function inspect(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
+    e.preventDefault()
+    setBusy(true)
     try {
       const res = await api<GscInspection>(
         `/api/w/search-console/inspect?resource=${encodeURIComponent(resourceId)}`,
@@ -81,22 +81,22 @@ export function InspectTab({ resourceId, siteLabel }: { resourceId: string; site
           json: { url: url.trim(), locale },
           workspaceId: ws.id,
         },
-      );
-      setOpen(res.url);
-      setUrl("");
-      await data.mutate();
+      )
+      setOpen(res.url)
+      setUrl("")
+      await data.mutate()
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("common.networkError"));
+      toast.error(err instanceof ApiError ? err.message : t("common.networkError"))
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
   }
 
-  if (data.error) return <ErrorState error={data.error} />;
-  if (!data.data) return <LoadingRows rows={3} />;
-  const q = data.data.quota;
-  const list = data.data.inspections ?? [];
-  const left = Math.max(0, q.limit - q.used);
+  if (data.error) return <ErrorState error={data.error} />
+  if (!data.data) return <LoadingRows rows={3} />
+  const q = data.data.quota
+  const list = data.data.inspections ?? []
+  const left = Math.max(0, q.limit - q.used)
   return (
     <div className="pb-10" data-gsc-inspect>
       <div className="space-y-3 px-6 pb-5">
@@ -161,12 +161,12 @@ export function InspectTab({ resourceId, siteLabel }: { resourceId: string; site
         </ul>
       )}
     </div>
-  );
+  )
 }
 
 function InspectionDetail({ i }: { i: GscInspection }) {
-  const { t } = useTranslations();
-  const f = useFormat();
+  const { t } = useTranslations()
+  const f = useFormat()
   const rows: [string, ReactNode][] = [
     [t("gsci.coverage"), i.coverage_state || "—"],
     [t("gsci.lastCrawl"), i.last_crawl_time ? f.exact(i.last_crawl_time) : t("gsci.neverCrawled")],
@@ -177,7 +177,7 @@ function InspectionDetail({ i }: { i: GscInspection }) {
     [t("gsci.userCanonical"), i.user_canonical ? <Ltr mono>{i.user_canonical}</Ltr> : "—"],
     [t("gsci.mobile"), i.mobile_verdict ? <Verdict v={i.mobile_verdict} /> : "—"],
     [t("gsci.rich"), i.rich_results_verdict ? <Verdict v={i.rich_results_verdict} /> : "—"],
-  ];
+  ]
   return (
     <div className="border-t border-line bg-grid-card px-6 py-4" data-inspection-detail>
       <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[12rem_1fr]">
@@ -201,41 +201,41 @@ function InspectionDetail({ i }: { i: GscInspection }) {
         </Button>
       ) : null}
     </div>
-  );
+  )
 }
 
 export function SitemapsTab({ resourceId, site }: { resourceId: string; site: string }) {
-  const { t } = useTranslations();
-  const ws = useWorkspace();
-  const f = useFormat();
-  const data = useGscSitemaps(ws.id, resourceId);
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const f = useFormat()
+  const data = useGscSitemaps(ws.id, resourceId)
   const origin = site.startsWith("sc-domain:")
     ? `https://${site.slice("sc-domain:".length)}`
-    : site.replace(/\/$/, "");
-  const [url, setUrl] = useState(`${origin}/sitemap.xml`);
-  const [busy, setBusy] = useState(false);
+    : site.replace(/\/$/, "")
+  const [url, setUrl] = useState(`${origin}/sitemap.xml`)
+  const [busy, setBusy] = useState(false)
 
   async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
+    e.preventDefault()
+    setBusy(true)
     try {
       const out = await api<GscSitemapsOut>(
         `/api/w/search-console/sitemaps?resource=${encodeURIComponent(resourceId)}`,
         { method: "POST", json: { url: url.trim() }, workspaceId: ws.id },
-      );
-      await data.mutate(out, { revalidate: false });
-      toast.success(t("gscs.submitted"));
+      )
+      await data.mutate(out, { revalidate: false })
+      toast.success(t("gscs.submitted"))
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("common.networkError"));
+      toast.error(err instanceof ApiError ? err.message : t("common.networkError"))
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
   }
 
-  if (data.error) return <ErrorState error={data.error} />;
-  if (!data.data) return <LoadingRows rows={2} />;
-  const list = data.data.sitemaps ?? [];
-  const n = (v: number | null) => (v == null ? "—" : f.n(v));
+  if (data.error) return <ErrorState error={data.error} />
+  if (!data.data) return <LoadingRows rows={2} />
+  const list = data.data.sitemaps ?? []
+  const n = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
     <div className="pb-10" data-gsc-sitemaps>
       <div className="space-y-3 px-6 pb-5">
@@ -330,5 +330,5 @@ export function SitemapsTab({ resourceId, site }: { resourceId: string; site: st
         </div>
       )}
     </div>
-  );
+  )
 }

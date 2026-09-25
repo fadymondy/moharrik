@@ -30,7 +30,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 // prompt; everything else is the real extension).
 const SRC = path.resolve(here, "../../extension")
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-connect-"))
-cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?/.test(p.slice(SRC.length)) })
+cpSync(SRC, EXT, {
+  recursive: true,
+  filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?/.test(p.slice(SRC.length)),
+})
 {
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
   m.host_permissions = [`${base}/*`, `${apiBase}/*`, "http://localhost/*", "http://127.0.0.1/*"]
@@ -45,7 +48,9 @@ cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]
 const PAGE_PORT = 8793
 const site = createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-  res.end(`<!doctype html><html><body><h1 id="title">Orders for today</h1><p class="row">first</p><p class="row">second</p></body></html>`)
+  res.end(
+    `<!doctype html><html><body><h1 id="title">Orders for today</h1><p class="row">first</p><p class="row">second</p></body></html>`,
+  )
 })
 await new Promise((r) => site.listen(PAGE_PORT, "127.0.0.1", r))
 
@@ -64,12 +69,17 @@ const fail = (why) => {
   out.failed = why
   throw new Error(why)
 }
-const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "ext-profile-")), {
-  executablePath: process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
-  headless: false,
-  viewport: { width: 1280, height: 860 },
-  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
-})
+const ctx = await chromium.launchPersistentContext(
+  mkdtempSync(path.join(tmpdir(), "ext-profile-")),
+  {
+    executablePath:
+      process.env.EXT_CHROME ??
+      "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
+    headless: false,
+    viewport: { width: 1280, height: 860 },
+    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
+  },
+)
 
 try {
   let worker = ctx.serviceWorkers()[0]
@@ -104,7 +114,9 @@ try {
     const text = await res.text()
     return { status: res.status(), body: text ? JSON.parse(text) : null }
   }
-  const wsID = (await call("GET", "/api/me/workspaces")).body.workspaces.find((w) => w.slug === slug).id
+  const wsID = (await call("GET", "/api/me/workspaces")).body.workspaces.find(
+    (w) => w.slug === slug,
+  ).id
 
   // ---- the popup: one button ----
   const popup = await ctx.newPage()
@@ -120,8 +132,19 @@ try {
   // Since MH-483 the click first asks Chrome for every site; Chrome's prompt
   // is browser UI, answered from outside as a person would (uia-click.ps1).
   const answered = new Promise((resolve) =>
-    execFile("powershell", ["-NoProfile", "-File", path.join(path.dirname(fileURLToPath(import.meta.url)), "uia-click.ps1"), "-Button", "Allow", "-TimeoutSec", "20"], { encoding: "utf8" }, (err, o) =>
-      resolve(!err && /^pressed/.test(String(o).trim())),
+    execFile(
+      "powershell",
+      [
+        "-NoProfile",
+        "-File",
+        path.join(path.dirname(fileURLToPath(import.meta.url)), "uia-click.ps1"),
+        "-Button",
+        "Allow",
+        "-TimeoutSec",
+        "20",
+      ],
+      { encoding: "utf8" },
+      (err, o) => resolve(!err && /^pressed/.test(String(o).trim())),
     ),
   )
   await popup.bringToFront()
@@ -131,7 +154,8 @@ try {
   await approval.waitForLoadState("domcontentloaded")
   const approvalURL = approval.url()
   out.approvalPageOpened = /\/automation\/connect\/[A-Z0-9]{4}-[A-Z0-9]{4}#k=/.test(approvalURL)
-  out.keyOnlyInFragment = !new URL(approvalURL).search.includes("k=") && new URL(approvalURL).hash.startsWith("#k=")
+  out.keyOnlyInFragment =
+    !new URL(approvalURL).search.includes("k=") && new URL(approvalURL).hash.startsWith("#k=")
 
   await popup.bringToFront()
   await popup.waitForSelector("#waiting:not([hidden])", { timeout: 15000 })
@@ -146,7 +170,8 @@ try {
   out.claimsShown = (await approval.textContent("[data-connect-claims]")).includes("browser")
   await approval.fill("#connect-name", "This Chromium")
   await approval.fill("#connect-hosts", "127.0.0.1")
-  if (card) await approval.screenshot({ path: `${SHOTS}/${card}-approval-live.png`, fullPage: true })
+  if (card)
+    await approval.screenshot({ path: `${SHOTS}/${card}-approval-live.png`, fullPage: true })
   await approval.click("[data-approve]")
   await approval.waitForSelector('[data-connect-done="approved"]', { timeout: 20000 })
   out.approvedOnThePage = true
@@ -154,8 +179,18 @@ try {
   // ---- the extension collects its token and connects by itself ----
   const extState = () =>
     worker.evaluate(async () => {
-      const all = await chrome.storage.local.get(["moh.token", "moh.status", "moh.agent", "moh.pairing"])
-      return { hasToken: !!all["moh.token"], status: all["moh.status"], agent: all["moh.agent"], pairing: all["moh.pairing"] ?? null }
+      const all = await chrome.storage.local.get([
+        "moh.token",
+        "moh.status",
+        "moh.agent",
+        "moh.pairing",
+      ])
+      return {
+        hasToken: !!all["moh.token"],
+        status: all["moh.status"],
+        agent: all["moh.agent"],
+        pairing: all["moh.pairing"] ?? null,
+      }
     })
   let state
   for (let i = 0; i < 60; i++) {
@@ -165,15 +200,20 @@ try {
   }
   out.extensionConnectedByItself = state.hasToken && state.status?.state === "connected"
   out.extensionKnowsItsWorkspace = (state.agent?.workspaceName || "").startsWith("Nile Coffee Co")
-  out.extensionKnowsItsSites = JSON.stringify(state.agent?.allowedHosts) === JSON.stringify(["127.0.0.1"])
+  out.extensionKnowsItsSites =
+    JSON.stringify(state.agent?.allowedHosts) === JSON.stringify(["127.0.0.1"])
   out.requestForgotten = state.pairing === null
 
   await popup.reload()
   await popup.waitForSelector("#forget:not([hidden])", { timeout: 10000 })
   out.popupSaysConnected = (await popup.textContent("#state")).trim() === "connected"
-  out.popupNamesTheWorkspace = (await popup.textContent("#workspace-name")).includes(state.agent?.workspaceName || "?")
+  out.popupNamesTheWorkspace = (await popup.textContent("#workspace-name")).includes(
+    state.agent?.workspaceName || "?",
+  )
   out.popupNamesTheBrowser = (await popup.textContent("#agent-name")).trim() === "This Chromium"
-  out.popupShowsTheLastCommandLineAndPause = !(await popup.$eval("#last-row", (e) => e.hidden)) && !(await popup.$eval("#pause-row", (e) => e.hidden))
+  out.popupShowsTheLastCommandLineAndPause =
+    !(await popup.$eval("#last-row", (e) => e.hidden)) &&
+    !(await popup.$eval("#pause-row", (e) => e.hidden))
 
   // ---- the site sees it online, in this workspace ----
   let browsers = (await call("GET", "/api/w/browsers", undefined, wsID)).body.browsers
@@ -200,27 +240,42 @@ try {
     if (!["queued", "running"].includes(runState.run.status)) break
     await new Promise((r) => setTimeout(r, 1000))
   }
-  out.runThroughTheNewToken = runState?.run?.status === "ok" && JSON.stringify(runState.steps).includes("Orders for today")
+  out.runThroughTheNewToken =
+    runState?.run?.status === "ok" && JSON.stringify(runState.steps).includes("Orders for today")
   await popup.bringToFront()
   await popup.reload()
-  await popup.waitForFunction(() => /extract · \d+ms/.test(document.getElementById("last-command").textContent), null, { timeout: 10000 })
+  await popup.waitForFunction(
+    () => /extract · \d+ms/.test(document.getElementById("last-command").textContent),
+    null,
+    { timeout: 10000 },
+  )
   out.popupShowsTheLastCommand = true
   await shots(popup, "popup-connected")
 
   // ---- this browser's own pause: disconnects, and the site sees it go ----
   await popup.click("#pause")
-  await popup.waitForFunction(() => document.getElementById("state").textContent === "paused", null, { timeout: 10000 })
+  await popup.waitForFunction(
+    () => document.getElementById("state").textContent === "paused",
+    null,
+    { timeout: 10000 },
+  )
   await shots(popup, "popup-paused")
   let offline = false
   for (let i = 0; i < 20 && !offline; i++) {
-    offline = (await call("GET", "/api/w/browsers", undefined, wsID)).body.browsers.find((b) => b.id === mine.id)?.status === "offline"
+    offline =
+      (await call("GET", "/api/w/browsers", undefined, wsID)).body.browsers.find(
+        (b) => b.id === mine.id,
+      )?.status === "offline"
     if (!offline) await new Promise((r) => setTimeout(r, 500))
   }
   out.pauseDisconnects = offline
   await popup.click("#pause")
   let back = false
   for (let i = 0; i < 30 && !back; i++) {
-    back = (await call("GET", "/api/w/browsers", undefined, wsID)).body.browsers.find((b) => b.id === mine.id)?.status === "online"
+    back =
+      (await call("GET", "/api/w/browsers", undefined, wsID)).body.browsers.find(
+        (b) => b.id === mine.id,
+      )?.status === "online"
     if (!back) await new Promise((r) => setTimeout(r, 500))
   }
   out.unpauseReconnects = back
@@ -234,11 +289,18 @@ try {
   const recPage = await ctx.newPage()
   await recPage.goto(`http://127.0.0.1:${PAGE_PORT}/`)
   await recPage.bringToFront()
-  const recStarted = await popup.evaluate(() => chrome.runtime.sendMessage({ type: "record.start" }))
+  const recStarted = await popup.evaluate(() =>
+    chrome.runtime.sendMessage({ type: "record.start" }),
+  )
   await popup.bringToFront()
   await popup.reload()
-  await popup.waitForFunction(() => /^on/.test(document.getElementById("record-state").textContent), null, { timeout: 10000 }).catch(() => {})
-  out.popupShowsRecording = !recStarted?.error && /^on/.test(await popup.textContent("#record-state"))
+  await popup
+    .waitForFunction(() => /^on/.test(document.getElementById("record-state").textContent), null, {
+      timeout: 10000,
+    })
+    .catch(() => {})
+  out.popupShowsRecording =
+    !recStarted?.error && /^on/.test(await popup.textContent("#record-state"))
   await shots(popup, "popup-recording")
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: "record.discard" }))
   await recPage.close()
@@ -254,7 +316,11 @@ try {
   await page.waitForSelector('[data-browser="Work Chromium"]', { timeout: 15000 })
   browsers = (await call("GET", "/api/w/browsers", undefined, wsID)).body.browsers
   out.renamedOnTheSite = browsers.some((b) => b.id === mine.id && b.name === "Work Chromium")
-  if (card) await page.screenshot({ path: `${SHOTS}/${card}-automation-renamed-en-light-1440.png`, fullPage: true })
+  if (card)
+    await page.screenshot({
+      path: `${SHOTS}/${card}-automation-renamed-en-light-1440.png`,
+      fullPage: true,
+    })
 
   // ---- a refusal reaches the popup ----
   await popup.bringToFront()
@@ -274,7 +340,11 @@ try {
   out.refusalReachedTheExtension = state.pairing?.status === "denied" && !state.hasToken
   await popup.bringToFront()
   await popup.reload()
-  await popup.waitForFunction(() => document.getElementById("state").textContent === "refused", null, { timeout: 10000 })
+  await popup.waitForFunction(
+    () => document.getElementById("state").textContent === "refused",
+    null,
+    { timeout: 10000 },
+  )
   out.popupSaysRefused = (await popup.textContent("#detail")).includes("refused")
   await shots(popup, "popup-refused")
 
@@ -287,14 +357,17 @@ try {
   await approval3.fill("#connect-hosts", "127.0.0.1")
   await approval3.click("[data-approve]")
   await approval3.waitForSelector('[data-connect-done="approved"]', { timeout: 20000 })
-  out.sameBrowserReconnectedNotDuplicated = (await approval3.textContent("[data-connect-done]")).includes("already connected")
+  out.sameBrowserReconnectedNotDuplicated = (
+    await approval3.textContent("[data-connect-done]")
+  ).includes("already connected")
   for (let i = 0; i < 40; i++) {
     state = await extState()
     if (state.hasToken && state.status?.state === "connected") break
     await new Promise((r) => setTimeout(r, 1000))
   }
   browsers = (await call("GET", "/api/w/browsers", undefined, wsID)).body.browsers
-  out.stillOneBrowser = browsers.filter((b) => !b.revoked_at).length === 1 && browsers[0].id === mine.id
+  out.stillOneBrowser =
+    browsers.filter((b) => !b.revoked_at).length === 1 && browsers[0].id === mine.id
   const revoked = await call("DELETE", `/api/w/browsers/${mine.id}`, undefined, wsID)
   out.revokeAccepted = revoked.status === 204
   for (let i = 0; i < 40; i++) {

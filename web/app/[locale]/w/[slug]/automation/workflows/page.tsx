@@ -122,7 +122,12 @@ function Workflows() {
   const create = canRun ? (
     <div className="flex flex-wrap items-center gap-2">
       {/* New workflow → from a preset (MH-478): the preset gallery. */}
-      <Button variant="outline" nativeButton={false} render={<Link href={`${base}/presets`} />} data-create-from-preset>
+      <Button
+        variant="outline"
+        nativeButton={false}
+        render={<Link href={`${base}/presets`} />}
+        data-create-from-preset
+      >
         <SparklesIcon />
         {t("presets.fromPreset")}
       </Button>

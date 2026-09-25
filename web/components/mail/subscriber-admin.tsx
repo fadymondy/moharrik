@@ -14,7 +14,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -57,7 +64,11 @@ export function UnsubscribeDialog({
         `/api/w/contacts/${encodeURIComponent(target.contactId)}/lists/${encodeURIComponent(target.listId)}/unsubscribe`,
         { method: "POST", workspaceId: ws.id },
       )
-      toast.success(res.changed ? t("contacts.unsubscribed", { list: isolate(target.listName) }) : t("contacts.alreadyUnsubscribed"))
+      toast.success(
+        res.changed
+          ? t("contacts.unsubscribed", { list: isolate(target.listName) })
+          : t("contacts.alreadyUnsubscribed"),
+      )
       onDone()
       onClose()
     } catch (e) {
@@ -71,8 +82,15 @@ export function UnsubscribeDialog({
     <AlertDialog open={target !== null} onOpenChange={(v) => (v ? null : onClose())}>
       <AlertDialogContent data-dialog="unsubscribe">
         <AlertDialogHeader>
-          <AlertDialogTitle>{t("contacts.unsubscribeTitle", { list: isolate(target?.listName ?? "") })}</AlertDialogTitle>
-          <AlertDialogDescription>{t("contacts.unsubscribeBody", { who: isolate(target?.who ?? ""), list: isolate(target?.listName ?? "") })}</AlertDialogDescription>
+          <AlertDialogTitle>
+            {t("contacts.unsubscribeTitle", { list: isolate(target?.listName ?? "") })}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("contacts.unsubscribeBody", {
+              who: isolate(target?.who ?? ""),
+              list: isolate(target?.listName ?? ""),
+            })}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
@@ -86,7 +104,15 @@ export function UnsubscribeDialog({
 }
 
 /** Rename a list and change its double opt-in after it was created. */
-export function EditListDialog({ list, onClose, onSaved }: { list: MailList | null; onClose: () => void; onSaved: () => void }) {
+export function EditListDialog({
+  list,
+  onClose,
+  onSaved,
+}: {
+  list: MailList | null
+  onClose: () => void
+  onSaved: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState("")
@@ -135,13 +161,24 @@ export function EditListDialog({ list, onClose, onSaved }: { list: MailList | nu
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="edit-list-name">{t("lists.name")}</FieldLabel>
-              <Input id="edit-list-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+              <Input
+                id="edit-list-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={80}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="edit-list-description">
-                {t("lists.description")} <span className="text-grid-muted">({t("common.optional")})</span>
+                {t("lists.description")}{" "}
+                <span className="text-grid-muted">({t("common.optional")})</span>
               </FieldLabel>
-              <Input id="edit-list-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} />
+              <Input
+                id="edit-list-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={500}
+              />
             </Field>
             <Field orientation="horizontal">
               <Switch id="edit-list-doi" checked={doi} onCheckedChange={(v) => setDoi(!!v)} />

@@ -1,13 +1,26 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { FileTextIcon, MessagesSquareIcon, SearchIcon, SparklesIcon, Trash2Icon, UploadIcon } from "lucide-react"
+import {
+  FileTextIcon,
+  MessagesSquareIcon,
+  SearchIcon,
+  SparklesIcon,
+  Trash2Icon,
+  UploadIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { ConfirmButton } from "@/components/confirm-button"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -48,7 +61,11 @@ function readAsBase64(file: File): Promise<string> {
   })
 }
 
-export function ContactContextPanel({ contact }: { contact: { id: string; name: string; email: string; phone: string } }) {
+export function ContactContextPanel({
+  contact,
+}: {
+  contact: { id: string; name: string; email: string; phone: string }
+}) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const canRead = ws.can("contacts:read")
@@ -65,7 +82,13 @@ export function ContactContextPanel({ contact }: { contact: { id: string; name: 
         <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
           <h2 className="text-base font-medium">{t("contactContext.title")}</h2>
           {canWrite ? (
-            <Button variant="outline" size="sm" className="ms-auto" onClick={() => setImportOpen(true)} data-action="import-whatsapp">
+            <Button
+              variant="outline"
+              size="sm"
+              className="ms-auto"
+              onClick={() => setImportOpen(true)}
+              data-action="import-whatsapp"
+            >
               <UploadIcon />
               {t("contactContext.importWhatsApp")}
             </Button>
@@ -81,7 +104,13 @@ export function ContactContextPanel({ contact }: { contact: { id: string; name: 
 
         {ctx.data ? (
           <div className="flex flex-col gap-6 px-5 py-5">
-            <ImportsList imports={ctx.data.imports} contactId={contact.id} canWrite={canWrite} onChanged={() => ctx.mutate()} when={when} />
+            <ImportsList
+              imports={ctx.data.imports}
+              contactId={contact.id}
+              canWrite={canWrite}
+              onChanged={() => ctx.mutate()}
+              when={when}
+            />
             <AskPanel contactId={contact.id} />
             <ReportsPanel contactId={contact.id} canWrite={canWrite} when={when} />
           </div>
@@ -106,7 +135,14 @@ function ImportsList({
   onChanged,
   when,
 }: {
-  imports: { id: string; filename: string; contact_sender: string; message_count: number; media_count: number; created_at: string }[]
+  imports: {
+    id: string
+    filename: string
+    contact_sender: string
+    message_count: number
+    media_count: number
+    created_at: string
+  }[]
   contactId: string
   canWrite: boolean
   onChanged: () => void
@@ -117,10 +153,13 @@ function ImportsList({
 
   async function remove(importId: string) {
     try {
-      await api(`/api/w/contacts/${encodeURIComponent(contactId)}/context/imports/${encodeURIComponent(importId)}`, {
-        method: "DELETE",
-        workspaceId: ws.id,
-      })
+      await api(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/context/imports/${encodeURIComponent(importId)}`,
+        {
+          method: "DELETE",
+          workspaceId: ws.id,
+        },
+      )
       toast.success(t("contactContext.importRemoved"))
       onChanged()
     } catch (e) {
@@ -144,7 +183,12 @@ function ImportsList({
             <span className="min-w-0 truncate">
               <Ltr>{imp.filename}</Ltr>
             </span>
-            <span className="text-grid-muted">{t("contactContext.importCounts", { messages: imp.message_count, media: imp.media_count })}</span>
+            <span className="text-grid-muted">
+              {t("contactContext.importCounts", {
+                messages: imp.message_count,
+                media: imp.media_count,
+              })}
+            </span>
             <span className="text-xs text-grid-muted">
               <Ltr>{when.format(new Date(imp.created_at))}</Ltr>
             </span>
@@ -185,10 +229,13 @@ function AskPanel({ contactId }: { contactId: string }) {
     setAsking(true)
     setError(null)
     try {
-      const res = await api<ContextAnswer>(`/api/w/contacts/${encodeURIComponent(contactId)}/context/ask`, {
-        json: { question: question.trim() },
-        workspaceId: ws.id,
-      })
+      const res = await api<ContextAnswer>(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/context/ask`,
+        {
+          json: { question: question.trim() },
+          workspaceId: ws.id,
+        },
+      )
       setAnswer(res)
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)))
@@ -214,7 +261,12 @@ function AskPanel({ contactId }: { contactId: string }) {
             data-testid="contact-context-question"
           />
         </Field>
-        <Button type="button" onClick={ask} disabled={!question.trim() || asking} data-action="ask-contact-context">
+        <Button
+          type="button"
+          onClick={ask}
+          disabled={!question.trim() || asking}
+          data-action="ask-contact-context"
+        >
           <SearchIcon />
           {asking ? t("contactContext.asking") : t("contactContext.ask")}
         </Button>
@@ -223,18 +275,32 @@ function AskPanel({ contactId }: { contactId: string }) {
       {error ? <ErrorState error={error} /> : null}
 
       {answer ? (
-        <div className="mt-3 border border-line bg-grid-bg p-4 text-sm" data-testid="contact-context-answer" data-no-provider={answer.no_provider}>
+        <div
+          className="mt-3 border border-line bg-grid-bg p-4 text-sm"
+          data-testid="contact-context-answer"
+          data-no-provider={answer.no_provider}
+        >
           {answer.no_provider ? (
-            <p className="mb-2 flex items-center gap-1.5 text-xs text-grid-muted" data-answer-no-provider>
+            <p
+              className="mb-2 flex items-center gap-1.5 text-xs text-grid-muted"
+              data-answer-no-provider
+            >
               <SparklesIcon className="size-3.5" />
               {t("contactContext.noProvider")}
             </p>
           ) : null}
           <p className="whitespace-pre-wrap">{answer.text}</p>
           {answer.citations.length > 0 ? (
-            <ul className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3" data-testid="contact-context-citations">
+            <ul
+              className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3"
+              data-testid="contact-context-citations"
+            >
               {answer.citations.map((c, i) => (
-                <li key={i} className="flex flex-wrap items-start gap-2 text-xs text-grid-muted" data-citation-kind={c.kind}>
+                <li
+                  key={i}
+                  className="flex flex-wrap items-start gap-2 text-xs text-grid-muted"
+                  data-citation-kind={c.kind}
+                >
                   <Badge variant="secondary">{t(`contactContext.citationKind.${c.kind}`)}</Badge>
                   {c.when ? (
                     <span>
@@ -252,7 +318,15 @@ function AskPanel({ contactId }: { contactId: string }) {
   )
 }
 
-function ReportsPanel({ contactId, canWrite, when }: { contactId: string; canWrite: boolean; when: { format: (d: Date | number) => string } }) {
+function ReportsPanel({
+  contactId,
+  canWrite,
+  when,
+}: {
+  contactId: string
+  canWrite: boolean
+  when: { format: (d: Date | number) => string }
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [reports, setReports] = useState<ContactReport[] | null>(null)
@@ -265,7 +339,10 @@ function ReportsPanel({ contactId, canWrite, when }: { contactId: string; canWri
     setLoading(true)
     setError(null)
     try {
-      const res = await api<ContactReport[]>(`/api/w/contacts/${encodeURIComponent(contactId)}/context/reports`, { workspaceId: ws.id })
+      const res = await api<ContactReport[]>(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/context/reports`,
+        { workspaceId: ws.id },
+      )
       setReports(res ?? [])
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)))
@@ -277,10 +354,13 @@ function ReportsPanel({ contactId, canWrite, when }: { contactId: string; canWri
   async function generate() {
     setGenerating(true)
     try {
-      const res = await api<ContactReport>(`/api/w/contacts/${encodeURIComponent(contactId)}/context/reports`, {
-        method: "POST",
-        workspaceId: ws.id,
-      })
+      const res = await api<ContactReport>(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/context/reports`,
+        {
+          method: "POST",
+          workspaceId: ws.id,
+        },
+      )
       setReports((prev) => [res, ...(prev ?? [])])
       setOpen(res.id)
       toast.success(t("contactContext.reportGenerated", { version: res.version }))
@@ -312,7 +392,14 @@ function ReportsPanel({ contactId, canWrite, when }: { contactId: string; canWri
       <div className="mb-2 flex flex-wrap items-center gap-3">
         <h3 className="text-sm font-medium text-grid-muted">{t("contactContext.reportsTitle")}</h3>
         {canWrite ? (
-          <Button variant="outline" size="sm" className="ms-auto" onClick={generate} disabled={generating} data-action="generate-report">
+          <Button
+            variant="outline"
+            size="sm"
+            className="ms-auto"
+            onClick={generate}
+            disabled={generating}
+            data-action="generate-report"
+          >
             <FileTextIcon />
             {generating ? t("contactContext.generating") : t("contactContext.generateReport")}
           </Button>
@@ -322,19 +409,28 @@ function ReportsPanel({ contactId, canWrite, when }: { contactId: string; canWri
       {error ? <ErrorState error={error} /> : null}
       {loading ? <LoadingRows rows={1} /> : null}
 
-      {reports && reports.length === 0 ? <EmptyState title={t("contactContext.noReports")} /> : null}
+      {reports && reports.length === 0 ? (
+        <EmptyState title={t("contactContext.noReports")} />
+      ) : null}
 
       {reports && reports.length > 0 ? (
         <ul className="flex flex-col gap-2" data-testid="contact-context-report-list">
           {reports.map((r) => (
-            <li key={r.id} className="border border-line" data-contact-report={r.id} data-report-version={r.version}>
+            <li
+              key={r.id}
+              className="border border-line"
+              data-contact-report={r.id}
+              data-report-version={r.version}
+            >
               <button
                 type="button"
                 className="flex w-full items-center gap-3 px-3 py-2 text-start text-sm"
                 onClick={() => setOpen(open === r.id ? null : r.id)}
                 data-action="toggle-report"
               >
-                <span className="font-medium">{t("contactContext.reportVersion", { version: r.version })}</span>
+                <span className="font-medium">
+                  {t("contactContext.reportVersion", { version: r.version })}
+                </span>
                 {r.no_provider ? (
                   <Badge variant="secondary" data-report-no-provider>
                     {t("contactContext.noProviderShort")}
@@ -344,10 +440,19 @@ function ReportsPanel({ contactId, canWrite, when }: { contactId: string; canWri
               </button>
               {open === r.id ? (
                 <div className="border-t border-line px-3 py-3">
-                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-sans text-sm" data-testid="contact-report-markdown">
+                  <pre
+                    className="max-h-96 overflow-auto whitespace-pre-wrap font-sans text-sm"
+                    data-testid="contact-report-markdown"
+                  >
                     {r.markdown}
                   </pre>
-                  <Button variant="ghost" size="xs" className="mt-2" onClick={() => download(r)} data-action="download-report">
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="mt-2"
+                    onClick={() => download(r)}
+                    data-action="download-report"
+                  >
                     {t("contactContext.downloadReport")}
                   </Button>
                 </div>
@@ -404,10 +509,13 @@ function WhatsAppImportSheet({
     try {
       const b64 = await readAsBase64(f)
       setData(b64)
-      const res = await api<WhatsAppExportPreview>(`/api/w/contacts/${encodeURIComponent(contactId)}/context/whatsapp/preview`, {
-        json: { filename: f.name, data: b64 },
-        workspaceId: ws.id,
-      })
+      const res = await api<WhatsAppExportPreview>(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/context/whatsapp/preview`,
+        {
+          json: { filename: f.name, data: b64 },
+          workspaceId: ws.id,
+        },
+      )
       setPreview(res)
       setSender(res.guessed_contact || res.senders[0] || "")
     } catch (e) {
@@ -421,10 +529,13 @@ function WhatsAppImportSheet({
     if (!data || !fileName || !sender) return
     setCommitting(true)
     try {
-      const res = await api<WhatsAppImportResult>(`/api/w/contacts/${encodeURIComponent(contactId)}/context/whatsapp/commit`, {
-        json: { filename: fileName, data, contact_sender: sender },
-        workspaceId: ws.id,
-      })
+      const res = await api<WhatsAppImportResult>(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/context/whatsapp/commit`,
+        {
+          json: { filename: fileName, data, contact_sender: sender },
+          workspaceId: ws.id,
+        },
+      )
       setResult(res)
       toast.success(t("contactContext.importDone", { count: res.messages_added }))
       onImported()
@@ -446,7 +557,9 @@ function WhatsAppImportSheet({
       <SheetContent data-testid="whatsapp-import-sheet">
         <SheetHeader>
           <SheetTitle>{t("contactContext.importWhatsApp")}</SheetTitle>
-          <SheetDescription>{t("contactContext.importHint", { name: contactName })}</SheetDescription>
+          <SheetDescription>
+            {t("contactContext.importHint", { name: contactName })}
+          </SheetDescription>
         </SheetHeader>
 
         <div className="flex flex-col gap-4 px-4 pb-4">
@@ -459,7 +572,12 @@ function WhatsAppImportSheet({
             data-testid="whatsapp-file-input"
           />
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <Button type="button" variant="outline" onClick={() => fileInput.current?.click()} data-action="pick-whatsapp-file">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInput.current?.click()}
+              data-action="pick-whatsapp-file"
+            >
               <UploadIcon />
               {t("contactContext.chooseFile")}
             </Button>
@@ -475,15 +593,25 @@ function WhatsAppImportSheet({
           {preview ? (
             <div className="flex flex-col gap-4" data-testid="whatsapp-preview">
               <div className="flex flex-wrap gap-3 text-sm text-grid-muted">
-                <span data-preview-message-count>{t("contactContext.previewMessages", { count: preview.message_count })}</span>
-                <span data-preview-media-count>{t("contactContext.previewMedia", { count: preview.media_count })}</span>
+                <span data-preview-message-count>
+                  {t("contactContext.previewMessages", { count: preview.message_count })}
+                </span>
+                <span data-preview-media-count>
+                  {t("contactContext.previewMedia", { count: preview.media_count })}
+                </span>
                 {preview.already_imported_estimate > 0 ? (
-                  <span data-preview-already-imported>{t("contactContext.previewAlready", { count: preview.already_imported_estimate })}</span>
+                  <span data-preview-already-imported>
+                    {t("contactContext.previewAlready", {
+                      count: preview.already_imported_estimate,
+                    })}
+                  </span>
                 ) : null}
               </div>
 
               <Field>
-                <FieldLabel htmlFor="cc-sender">{t("contactContext.pickSender", { name: contactName })}</FieldLabel>
+                <FieldLabel htmlFor="cc-sender">
+                  {t("contactContext.pickSender", { name: contactName })}
+                </FieldLabel>
                 <PickSelect
                   id="cc-sender"
                   value={sender}
@@ -493,7 +621,10 @@ function WhatsAppImportSheet({
               </Field>
 
               {preview.sample.length > 0 ? (
-                <ul className="flex max-h-40 flex-col gap-1 overflow-auto border border-line p-2 text-xs" data-testid="whatsapp-sample">
+                <ul
+                  className="flex max-h-40 flex-col gap-1 overflow-auto border border-line p-2 text-xs"
+                  data-testid="whatsapp-sample"
+                >
                   {preview.sample.slice(0, 5).map((s, i) => (
                     <li key={i} className="text-grid-muted">
                       <Bdi>{s.sender ? `${s.sender}: ` : ""}</Bdi>
@@ -504,14 +635,22 @@ function WhatsAppImportSheet({
               ) : null}
 
               {result ? (
-                <div className="border border-line p-3 text-sm" data-testid="whatsapp-commit-result">
+                <div
+                  className="border border-line p-3 text-sm"
+                  data-testid="whatsapp-commit-result"
+                >
                   {t("contactContext.importDone", { count: result.messages_added })}
                   {result.messages_skipped_duplicate > 0
                     ? ` ${t("contactContext.importSkipped", { count: result.messages_skipped_duplicate })}`
                     : null}
                 </div>
               ) : (
-                <Button type="button" onClick={commit} disabled={!sender || committing} data-action="commit-whatsapp-import">
+                <Button
+                  type="button"
+                  onClick={commit}
+                  disabled={!sender || committing}
+                  data-action="commit-whatsapp-import"
+                >
                   {committing ? t("contactContext.importing") : t("contactContext.commitImport")}
                 </Button>
               )}

@@ -1,21 +1,21 @@
-"use client";
+"use client"
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react"
 import {
   ExternalLinkIcon,
   LockIcon,
   PlusIcon,
   RefreshCwIcon,
   TriangleAlertIcon,
-} from "lucide-react";
-import { toast } from "sonner";
+} from "lucide-react"
+import { toast } from "sonner"
 
-import { Bdi, isolate } from "@/components/bidi";
-import { ConfirmButton } from "@/components/confirm-button";
-import { PickSelect } from "@/components/crm/shared";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/states";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Bdi, isolate } from "@/components/bidi"
+import { ConfirmButton } from "@/components/confirm-button"
+import { PickSelect } from "@/components/crm/shared"
+import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -23,17 +23,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useWorkspace } from "@/components/workspace/workspace-context";
-import { api, ApiError, type CollectedKind, type CollectedSource } from "@/lib/api";
-import { useWorkspaceEvents } from "@/lib/events";
-import { useTranslations } from "@/lib/i18n";
-import { dateFormat } from "@/lib/i18n-locale";
-import { useCollectedSources } from "@/lib/queries";
+} from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useWorkspace } from "@/components/workspace/workspace-context"
+import { api, ApiError, type CollectedKind, type CollectedSource } from "@/lib/api"
+import { useWorkspaceEvents } from "@/lib/events"
+import { useTranslations } from "@/lib/i18n"
+import { dateFormat } from "@/lib/i18n-locale"
+import { useCollectedSources } from "@/lib/queries"
 
 /*
 Collected sources (MH-384): what the notification center polls, beside the
@@ -44,20 +44,20 @@ configured" and what they need, rather than as switches that do nothing.
 */
 
 export function CollectedSources() {
-  const { t, formatNumber } = useTranslations();
-  const ws = useWorkspace();
-  const canManage = ws.can("notifications:manage");
-  const list = useCollectedSources(ws.id);
-  const [adding, setAdding] = useState(false);
+  const { t, formatNumber } = useTranslations()
+  const ws = useWorkspace()
+  const canManage = ws.can("notifications:manage")
+  const list = useCollectedSources(ws.id)
+  const [adding, setAdding] = useState(false)
 
   // A collection run (the ticker's or someone's "collect now") moves the rows.
   useWorkspaceEvents(ws.id, (e) => {
-    if (e.kind === "notification" || e.kind === "notifications") void list.mutate();
-  });
+    if (e.kind === "notification" || e.kind === "notifications") void list.mutate()
+  })
 
-  const data = list.data;
-  const unavailable = (data?.catalog ?? []).filter((c) => !c.available);
-  const over = data ? data.budget.runs_per_hour > data.budget.limit : false;
+  const data = list.data
+  const unavailable = (data?.catalog ?? []).filter((c) => !c.available)
+  const over = data ? data.budget.runs_per_hour > data.budget.limit : false
 
   return (
     <section className="border-b border-line pb-6" data-collected-sources>
@@ -144,14 +144,14 @@ export function CollectedSources() {
         onAdded={() => list.mutate()}
       />
     </section>
-  );
+  )
 }
 
 function intervalLabel(t: ReturnType<typeof useTranslations>["t"], m: number) {
-  if (m < 60) return t("notifications.everyMinutes", { n: m });
-  if (m === 60) return t("notifications.everyHour");
-  if (m < 1440) return t("notifications.everyHours", { n: m / 60 });
-  return t("notifications.everyDay");
+  if (m < 60) return t("notifications.everyMinutes", { n: m })
+  if (m === 60) return t("notifications.everyHour")
+  if (m < 1440) return t("notifications.everyHours", { n: m / 60 })
+  return t("notifications.everyDay")
 }
 
 function CollectedRow({
@@ -160,37 +160,37 @@ function CollectedRow({
   canManage,
   onChange,
 }: {
-  source: CollectedSource;
-  intervals: number[];
-  canManage: boolean;
-  onChange: () => void;
+  source: CollectedSource
+  intervals: number[]
+  canManage: boolean
+  onChange: () => void
 }) {
-  const { t, locale, formatNumber } = useTranslations();
-  const ws = useWorkspace();
-  const [busy, setBusy] = useState(false);
-  const [kinds, setKinds] = useState(source.push_kinds);
+  const { t, locale, formatNumber } = useTranslations()
+  const ws = useWorkspace()
+  const [busy, setBusy] = useState(false)
+  const [kinds, setKinds] = useState(source.push_kinds)
   // Runs are minutes apart: the time matters as much as the day.
   const when = (v: string) =>
-    dateFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(v));
+    dateFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(v))
 
   async function patch(json: Record<string, unknown>) {
-    setBusy(true);
+    setBusy(true)
     try {
       await api(`/api/w/notification_sources/${encodeURIComponent(source.id)}`, {
         method: "PATCH",
         json,
         workspaceId: ws.id,
-      });
-      onChange();
+      })
+      onChange()
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"));
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
   }
 
   async function collectNow() {
-    setBusy(true);
+    setBusy(true)
     try {
       const res = await api<{ source: CollectedSource; new: number }>(
         `/api/w/notification_sources/${encodeURIComponent(source.id)}/collect`,
@@ -198,15 +198,15 @@ function CollectedRow({
           method: "POST",
           workspaceId: ws.id,
         },
-      );
+      )
       if (res.source.last_status === "failed")
-        toast.error(res.source.last_error || t("notifications.collectFailed"));
-      else toast.success(t("notifications.collected_n", { n: res.new }));
-      onChange();
+        toast.error(res.source.last_error || t("notifications.collectFailed"))
+      else toast.success(t("notifications.collected_n", { n: res.new }))
+      onChange()
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"));
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
   }
 
@@ -214,9 +214,9 @@ function CollectedRow({
     await api(`/api/w/notification_sources/${encodeURIComponent(source.id)}`, {
       method: "DELETE",
       workspaceId: ws.id,
-    });
-    toast.success(t("notifications.collectedDeleted"));
-    onChange();
+    })
+    toast.success(t("notifications.collectedDeleted"))
+    onChange()
   }
 
   const status =
@@ -226,7 +226,7 @@ function CollectedRow({
       <Badge variant="secondary">{t("notifications.status.ok")}</Badge>
     ) : (
       <Badge variant="outline">{t("notifications.status.never")}</Badge>
-    );
+    )
 
   return (
     <li
@@ -337,8 +337,8 @@ function CollectedRow({
             <form
               className="flex items-center gap-2"
               onSubmit={(e) => {
-                e.preventDefault();
-                void patch({ push_kinds: kinds });
+                e.preventDefault()
+                void patch({ push_kinds: kinds })
               }}
             >
               <Input
@@ -367,7 +367,7 @@ function CollectedRow({
         </p>
       )}
     </li>
-  );
+  )
 }
 
 function AddCollectedDialog({
@@ -377,38 +377,38 @@ function AddCollectedDialog({
   kinds,
   onAdded,
 }: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  intervals: number[];
-  kinds: CollectedKind[];
-  onAdded: () => void;
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  intervals: number[]
+  kinds: CollectedKind[]
+  onAdded: () => void
 }) {
-  const { t } = useTranslations();
-  const ws = useWorkspace();
-  const [kind, setKind] = useState<CollectedKind>("bluesky");
-  const [target, setTarget] = useState("");
-  const [name, setName] = useState("");
-  const [interval, setIntervalMin] = useState("60");
-  const [push, setPush] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [kind, setKind] = useState<CollectedKind>("bluesky")
+  const [target, setTarget] = useState("")
+  const [name, setName] = useState("")
+  const [interval, setIntervalMin] = useState("60")
+  const [push, setPush] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
 
   function handleOpenChange(next: boolean) {
     if (next) {
-      setKind("bluesky");
-      setTarget("");
-      setName("");
-      setIntervalMin("60");
-      setPush(false);
-      setErr(null);
+      setKind("bluesky")
+      setTarget("")
+      setName("")
+      setIntervalMin("60")
+      setPush(false)
+      setErr(null)
     }
-    onOpenChange(next);
+    onOpenChange(next)
   }
 
   async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
+    e.preventDefault()
+    setBusy(true)
+    setErr(null)
     try {
       const res = await api<{ source: CollectedSource }>("/api/w/notification_sources", {
         workspaceId: ws.id,
@@ -419,14 +419,14 @@ function AddCollectedDialog({
           interval_minutes: Number(interval),
           push_enabled: push,
         },
-      });
-      toast.success(t("notifications.collectedAdded", { name: res.source.name }));
-      onAdded();
-      handleOpenChange(false);
+      })
+      toast.success(t("notifications.collectedAdded", { name: res.source.name }))
+      onAdded()
+      handleOpenChange(false)
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"));
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
   }
 
@@ -509,5 +509,5 @@ function AddCollectedDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

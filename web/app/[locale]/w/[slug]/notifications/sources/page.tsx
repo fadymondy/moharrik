@@ -1,7 +1,13 @@
 "use client"
 
 import { useState, type FormEvent, type ReactNode } from "react"
-import { KeyRoundIcon, PlusIcon, RefreshCwIcon, ShieldCheckIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  KeyRoundIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  ShieldCheckIcon,
+  TriangleAlertIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect } from "@/components/crm/shared"
@@ -21,11 +27,25 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type WebhookSource, type WebhookSourceKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -41,19 +61,29 @@ export default function WebhookSourcesPage() {
   const canManage = ws.can("notifications:manage")
   const sources = useWebhookSources(ws.id)
   const [creating, setCreating] = useState(false)
-  const [secretDialog, setSecretDialog] = useState<{ source: WebhookSource; secret: string } | null>(null)
+  const [secretDialog, setSecretDialog] = useState<{
+    source: WebhookSource
+    secret: string
+  } | null>(null)
   const [clientSecretFor, setClientSecretFor] = useState<WebhookSource | null>(null)
 
   const list = sources.data?.sources ?? []
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("notifications.sources")} description={t("notifications.sourcesPageHint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("notifications.sources")}
+        description={t("notifications.sourcesPageHint")}
+      />
 
       {/* What the center polls (MH-384), then what posts to it. */}
       <CollectedSources />
 
-      <div className="flex flex-wrap items-end justify-between gap-3 px-6 pt-6 pb-4" data-webhook-sources>
+      <div
+        className="flex flex-wrap items-end justify-between gap-3 px-6 pt-6 pb-4"
+        data-webhook-sources
+      >
         <div className="max-w-2xl">
           <h2 className="text-lg font-semibold">{t("notifications.webhooks")}</h2>
           <p className="mt-1 text-sm text-grid-muted">{t("notifications.sourcesHint")}</p>
@@ -71,7 +101,10 @@ export default function WebhookSourcesPage() {
       ) : sources.isLoading ? (
         <LoadingRows />
       ) : list.length === 0 ? (
-        <EmptyState title={t("notifications.noSources")} body={canManage ? t("notifications.noSourcesBody") : undefined} />
+        <EmptyState
+          title={t("notifications.noSources")}
+          body={canManage ? t("notifications.noSourcesBody") : undefined}
+        />
       ) : (
         <div className="border-y border-line">
           <Table>
@@ -111,7 +144,11 @@ export default function WebhookSourcesPage() {
           setSecretDialog({ source, secret })
         }}
       />
-      <SecretDialog state={secretDialog} onClose={() => setSecretDialog(null)} onSaved={() => sources.mutate()} />
+      <SecretDialog
+        state={secretDialog}
+        onClose={() => setSecretDialog(null)}
+        onSaved={() => sources.mutate()}
+      />
       <ClientSecretDialog
         source={clientSecretFor}
         onClose={() => setClientSecretFor(null)}
@@ -144,7 +181,11 @@ function SourceRow({
 
   async function toggleEnabled() {
     try {
-      await api(`/api/w/webhook_sources/${encodeURIComponent(source.id)}`, { method: "PATCH", json: { enabled: !source.enabled }, workspaceId: ws.id })
+      await api(`/api/w/webhook_sources/${encodeURIComponent(source.id)}`, {
+        method: "PATCH",
+        json: { enabled: !source.enabled },
+        workspaceId: ws.id,
+      })
       onChange()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -154,10 +195,13 @@ function SourceRow({
   async function rotate() {
     setBusy(true)
     try {
-      const res = await api<{ source: WebhookSource; secret: string }>(`/api/w/webhook_sources/${encodeURIComponent(source.id)}/rotate`, {
-        method: "POST",
-        workspaceId: ws.id,
-      })
+      const res = await api<{ source: WebhookSource; secret: string }>(
+        `/api/w/webhook_sources/${encodeURIComponent(source.id)}/rotate`,
+        {
+          method: "POST",
+          workspaceId: ws.id,
+        },
+      )
       onChange()
       onRotated(res.secret)
     } catch (e) {
@@ -168,7 +212,10 @@ function SourceRow({
   }
 
   async function remove() {
-    await api(`/api/w/webhook_sources/${encodeURIComponent(source.id)}`, { method: "DELETE", workspaceId: ws.id })
+    await api(`/api/w/webhook_sources/${encodeURIComponent(source.id)}`, {
+      method: "DELETE",
+      workspaceId: ws.id,
+    })
     toast.success(t("notifications.sourceDeleted"))
     onChange()
   }
@@ -182,9 +229,14 @@ function SourceRow({
         <Ltr className="text-xs text-grid-muted" mono>
           {source.url}
         </Ltr>
-        {source.legacy_signing ? <LegacyNotice source={source} canManage={canManage} onChange={onChange} /> : null}
+        {source.legacy_signing ? (
+          <LegacyNotice source={source} canManage={canManage} onChange={onChange} />
+        ) : null}
         {isSentry && !source.has_secret ? (
-          <p className="mt-1 flex max-w-[min(28rem,75vw)] items-start gap-1 text-xs whitespace-normal text-grid-warn-text" data-no-secret>
+          <p
+            className="mt-1 flex max-w-[min(28rem,75vw)] items-start gap-1 text-xs whitespace-normal text-grid-warn-text"
+            data-no-secret
+          >
             <KeyRoundIcon className="mt-0.5 size-3 shrink-0" />
             {t("notifications.noSecretYet")}
           </p>
@@ -199,14 +251,22 @@ function SourceRow({
       <TableCell className="text-grid-muted">{t(`notifications.kind.${source.kind}`)}</TableCell>
       <TableCell>
         {canManage ? (
-          <Switch checked={source.enabled} onCheckedChange={toggleEnabled} aria-label={source.enabled ? t("notifications.enabled") : t("notifications.disabled")} />
+          <Switch
+            checked={source.enabled}
+            onCheckedChange={toggleEnabled}
+            aria-label={source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
+          />
         ) : (
-          <Badge variant={source.enabled ? "default" : "outline"}>{source.enabled ? t("notifications.enabled") : t("notifications.disabled")}</Badge>
+          <Badge variant={source.enabled ? "default" : "outline"}>
+            {source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
+          </Badge>
         )}
       </TableCell>
       <TableCell className="text-grid-muted">
         {source.delivery_count}
-        {source.last_delivery_at ? <span className="block text-xs">{formatDate(source.last_delivery_at)}</span> : null}
+        {source.last_delivery_at ? (
+          <span className="block text-xs">{formatDate(source.last_delivery_at)}</span>
+        ) : null}
       </TableCell>
       <TableCell className="pe-6 text-end">
         {canManage ? (
@@ -244,7 +304,15 @@ function SourceRow({
  * replayed, so it is flagged, with when it was last actually used, and the
  * owner can switch it off (one way).
  */
-function LegacyNotice({ source, canManage, onChange }: { source: WebhookSource; canManage: boolean; onChange: () => void }) {
+function LegacyNotice({
+  source,
+  canManage,
+  onChange,
+}: {
+  source: WebhookSource
+  canManage: boolean
+  onChange: () => void
+}) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
   const [open, setOpen] = useState(false)
@@ -276,22 +344,35 @@ function LegacyNotice({ source, canManage, onChange }: { source: WebhookSource; 
           {t("notifications.legacySigning")}
         </Badge>
         {canManage ? (
-          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setOpen(true)}>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={() => setOpen(true)}
+          >
             <ShieldCheckIcon />
             {t("notifications.switchSigning")}
           </Button>
         ) : null}
       </div>
       <p className="max-w-[min(28rem,75vw)] text-xs whitespace-normal text-grid-muted">
-        {source.kind === "generic" ? t("notifications.legacySigningHint") : t("notifications.legacySigningHintPlatform")}{" "}
-        {source.last_legacy_at ? t("notifications.lastLegacyDelivery", { date: formatDate(source.last_legacy_at) }) : t("notifications.noLegacyDelivery")}
+        {source.kind === "generic"
+          ? t("notifications.legacySigningHint")
+          : t("notifications.legacySigningHintPlatform")}{" "}
+        {source.last_legacy_at
+          ? t("notifications.lastLegacyDelivery", { date: formatDate(source.last_legacy_at) })
+          : t("notifications.noLegacyDelivery")}
       </p>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("notifications.switchSigningTitle", { name: isolate(source.name) })}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("notifications.switchSigningTitle", { name: isolate(source.name) })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {source.kind === "generic" ? t("notifications.switchSigningBody") : t("notifications.switchSigningBodyPlatform")}
+              {source.kind === "generic"
+                ? t("notifications.switchSigningBody")
+                : t("notifications.switchSigningBodyPlatform")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -342,7 +423,10 @@ function CreateSourceDialog({
     setBusy(true)
     setErr(null)
     try {
-      const res = await api<{ source: WebhookSource; secret: string }>("/api/w/webhook_sources", { json: { name: name.trim(), kind }, workspaceId: ws.id })
+      const res = await api<{ source: WebhookSource; secret: string }>("/api/w/webhook_sources", {
+        json: { name: name.trim(), kind },
+        workspaceId: ws.id,
+      })
       onCreated(res.source, res.secret)
       handleOpenChange(false)
     } catch (e) {
@@ -363,12 +447,25 @@ function CreateSourceDialog({
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="source-name">{t("notifications.sourceName")}</FieldLabel>
-              <Input id="source-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={t("notifications.sourceNamePlaceholder")} />
+              <Input
+                id="source-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={80}
+                placeholder={t("notifications.sourceNamePlaceholder")}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="source-kind">{t("notifications.sourceKind")}</FieldLabel>
-              <PickSelect id="source-kind" value={kind} onChange={(v) => setKind(v as WebhookSourceKind)} options={kindOpts} />
-              <FieldDescription data-kind-hint={kind}>{t(`notifications.kindHint.${kind}`)}</FieldDescription>
+              <PickSelect
+                id="source-kind"
+                value={kind}
+                onChange={(v) => setKind(v as WebhookSourceKind)}
+                options={kindOpts}
+              />
+              <FieldDescription data-kind-hint={kind}>
+                {t(`notifications.kindHint.${kind}`)}
+              </FieldDescription>
             </Field>
           </FieldGroup>
           {err ? <FieldError>{err}</FieldError> : null}
@@ -422,17 +519,26 @@ function SecretDialog({
       <DialogContent className="sm:max-w-xl">
         <div className="flex flex-col gap-4" data-secret-dialog={kind}>
           <DialogHeader>
-            <DialogTitle>{kind === "sentry" ? t("notifications.sentryTitle") : t("notifications.secretTitle")}</DialogTitle>
-            <DialogDescription>{kind === "sentry" ? t("notifications.sentryHint") : t("notifications.secretHint")}</DialogDescription>
+            <DialogTitle>
+              {kind === "sentry" ? t("notifications.sentryTitle") : t("notifications.secretTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {kind === "sentry" ? t("notifications.sentryHint") : t("notifications.secretHint")}
+            </DialogDescription>
           </DialogHeader>
           {kind !== "sentry" ? (
-            <p className="flex items-start gap-2 border border-line bg-grid-card p-3 text-sm text-grid-warn-text" role="alert">
+            <p
+              className="flex items-start gap-2 border border-line bg-grid-card p-3 text-sm text-grid-warn-text"
+              role="alert"
+            >
               <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
               {t("notifications.shownOnce")}
             </p>
           ) : null}
           <div className="space-y-1.5">
-            <p className="grid-micro">{kind === "sentry" ? t("notifications.webhookUrl") : t("notifications.url")}</p>
+            <p className="grid-micro">
+              {kind === "sentry" ? t("notifications.webhookUrl") : t("notifications.url")}
+            </p>
             <CopyField value={source.url} label={t("notifications.url")} />
           </div>
           {kind !== "sentry" ? (
@@ -450,7 +556,10 @@ function SecretDialog({
           {kind === "generic" ? (
             <div className="space-y-1.5">
               <p className="grid-micro">{t("notifications.curlExample")}</p>
-              <CopyField value={genericCurl(source.url, secret)} label={t("notifications.curlExample")} />
+              <CopyField
+                value={genericCurl(source.url, secret)}
+                label={t("notifications.curlExample")}
+              />
             </div>
           ) : null}
           {kind === "sentry" ? (
@@ -478,7 +587,15 @@ function SecretDialog({
 }
 
 /** Paste the Client Secret Sentry generated for its integration. Write-only. */
-function ClientSecretForm({ source, onSaved, secondary }: { source: WebhookSource; onSaved: () => void; secondary?: ReactNode }) {
+function ClientSecretForm({
+  source,
+  onSaved,
+  secondary,
+}: {
+  source: WebhookSource
+  onSaved: () => void
+  secondary?: ReactNode
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [value, setValue] = useState("")
@@ -532,7 +649,15 @@ function ClientSecretForm({ source, onSaved, secondary }: { source: WebhookSourc
   )
 }
 
-function ClientSecretDialog({ source, onClose, onSaved }: { source: WebhookSource | null; onClose: () => void; onSaved: () => void }) {
+function ClientSecretDialog({
+  source,
+  onClose,
+  onSaved,
+}: {
+  source: WebhookSource | null
+  onClose: () => void
+  onSaved: () => void
+}) {
   const { t } = useTranslations()
   if (!source) return null
   return (
@@ -541,7 +666,9 @@ function ClientSecretDialog({ source, onClose, onSaved }: { source: WebhookSourc
         <div className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{t("notifications.setClientSecret")}</DialogTitle>
-            <DialogDescription>{t("notifications.clientSecretHint", { name: isolate(source.name) })}</DialogDescription>
+            <DialogDescription>
+              {t("notifications.clientSecretHint", { name: isolate(source.name) })}
+            </DialogDescription>
           </DialogHeader>
           <ClientSecretForm source={source} onSaved={onSaved} />
         </div>

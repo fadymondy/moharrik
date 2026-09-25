@@ -16,7 +16,14 @@ first, from the workflow row's own confirmation, same as anywhere else).
 
 import Link from "next/link"
 import { useState } from "react"
-import { CheckIcon, ChevronDownIcon, ExternalLinkIcon, PlayIcon, PlusIcon, ShieldCheckIcon } from "lucide-react"
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ExternalLinkIcon,
+  PlayIcon,
+  PlusIcon,
+  ShieldCheckIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { AddPresetDialog } from "@/components/automation/preset-add-dialog"
@@ -59,16 +66,22 @@ export function PresetDetailSheet({
   const active = browsers.filter((b) => !b.revoked_at)
   const missingRequired = p.inputs.some((i) => i.required && !i.default)
   // A write always asks first, from the workflow row's own confirmation — never blind, one-click here.
-  const canAddAndRun = canRun && !p.workflow_id && !p.writes && active.length > 0 && !missingRequired
+  const canAddAndRun =
+    canRun && !p.workflow_id && !p.writes && active.length > 0 && !missingRequired
 
   async function addAndRun() {
     setRunningAfterAdd(true)
     try {
-      const added = await api<{ workflow: { id: string; name: string } }>(`/api/w/automation/presets/${encodeURIComponent(p.slug)}/add`, {
-        json: { locale: locale === "ar" ? "ar" : "en" },
-        workspaceId: ws.id,
-      })
-      const values = Object.fromEntries(p.inputs.filter((i) => i.default).map((i) => [i.name, i.default]))
+      const added = await api<{ workflow: { id: string; name: string } }>(
+        `/api/w/automation/presets/${encodeURIComponent(p.slug)}/add`,
+        {
+          json: { locale: locale === "ar" ? "ar" : "en" },
+          workspaceId: ws.id,
+        },
+      )
+      const values = Object.fromEntries(
+        p.inputs.filter((i) => i.default).map((i) => [i.name, i.default]),
+      )
       await api(`/api/w/workflows/${encodeURIComponent(added.workflow.id)}/run`, {
         json: { agent_id: active[0].id, values },
         workspaceId: ws.id,
@@ -86,7 +99,11 @@ export function PresetDetailSheet({
   return (
     <>
       <Sheet open onOpenChange={(v) => (v ? null : onClose())}>
-        <SheetContent side={locale === "ar" ? "left" : "right"} className="w-full sm:max-w-md" data-preset-sheet={p.slug}>
+        <SheetContent
+          side={locale === "ar" ? "left" : "right"}
+          className="w-full sm:max-w-md"
+          data-preset-sheet={p.slug}
+        >
           <SheetHeader className="flex-row items-start gap-3 space-y-0">
             <BrandIcon brand={brand} size={44} />
             <div className="min-w-0 flex-1">
@@ -106,12 +123,22 @@ export function PresetDetailSheet({
                 </Badge>
               ) : null}
             </div>
-            <p className="flex items-start gap-1 text-xs text-grid-muted" data-preset-hosts={p.hosts.join(",")}>
+            <p
+              className="flex items-start gap-1 text-xs text-grid-muted"
+              data-preset-hosts={p.hosts.join(",")}
+            >
               <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
-              <span className="min-w-0 break-words">{p.hosts.length ? t("presets.goesTo", { hosts: p.hosts.join(", ") }) : t("presets.anySite")}</span>
+              <span className="min-w-0 break-words">
+                {p.hosts.length
+                  ? t("presets.goesTo", { hosts: p.hosts.join(", ") })
+                  : t("presets.anySite")}
+              </span>
             </p>
             <Collapsible data-preset-technical>
-              <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-grid-muted underline-offset-2 hover:underline" data-technical-toggle>
+              <CollapsibleTrigger
+                className="group flex items-center gap-1 text-xs text-grid-muted underline-offset-2 hover:underline"
+                data-technical-toggle
+              >
                 <ChevronDownIcon className="size-3 transition-transform group-aria-expanded:rotate-180" />
                 {t("presets.technical")}
               </CollapsibleTrigger>
@@ -122,7 +149,9 @@ export function PresetDetailSheet({
                 <p className="text-xs text-grid-muted">{p.description}</p>
                 {p.inputs.length > 0 ? (
                   <p className="text-xs text-grid-muted" data-preset-inputs>
-                    {t("presets.asksFor", { names: p.inputs.map((i) => (i.required ? `${i.name}*` : i.name)).join(", ") })}
+                    {t("presets.asksFor", {
+                      names: p.inputs.map((i) => (i.required ? `${i.name}*` : i.name)).join(", "),
+                    })}
                   </p>
                 ) : null}
               </CollapsibleContent>
@@ -130,14 +159,25 @@ export function PresetDetailSheet({
           </div>
           <SheetFooter className="flex-row justify-end gap-2 border-t border-line">
             {p.workflow_id ? (
-              <Button nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/${p.workflow_id}`} />} data-open-added>
+              <Button
+                nativeButton={false}
+                render={
+                  <Link href={`/${locale}/w/${ws.slug}/automation/workflows/${p.workflow_id}`} />
+                }
+                data-open-added
+              >
                 <ExternalLinkIcon />
                 {t("presets.open")}
               </Button>
             ) : (
               <>
                 {canAddAndRun ? (
-                  <Button variant="outline" onClick={addAndRun} disabled={runningAfterAdd} data-add-and-run={p.slug}>
+                  <Button
+                    variant="outline"
+                    onClick={addAndRun}
+                    disabled={runningAfterAdd}
+                    data-add-and-run={p.slug}
+                  >
                     <PlayIcon />
                     {runningAfterAdd ? t("common.working") : t("presets.addAndRun")}
                   </Button>

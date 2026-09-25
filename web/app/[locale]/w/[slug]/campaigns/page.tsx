@@ -17,8 +17,21 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CampaignForm } from "@/components/campaigns/campaign-form"
@@ -68,15 +81,26 @@ export default function CampaignsPage() {
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.campaigns")} description={t("campaigns.hint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("nav.campaigns")}
+        description={t("campaigns.hint")}
+      />
 
       {campaigns.data && !smtpReady ? (
-        <p className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted" role="status" data-smtp-missing>
+        <p
+          className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted"
+          role="status"
+          data-smtp-missing
+        >
           <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
           {isAdmin ? (
             <span>
               {t("campaigns.smtpMissing")}{" "}
-              <Link className="underline underline-offset-4" href={`/${locale}/w/${ws.slug}/settings/email`}>
+              <Link
+                className="underline underline-offset-4"
+                href={`/${locale}/w/${ws.slug}/settings/email`}
+              >
                 {t("contacts.smtpLink")}
               </Link>
             </span>
@@ -91,11 +115,23 @@ export default function CampaignsPage() {
       ) : campaigns.isLoading ? (
         <LoadingRows />
       ) : (campaigns.data?.total ?? 0) === 0 ? (
-        <EmptyState title={t("campaigns.empty")} body={canWrite ? t("campaigns.emptyBody") : undefined} />
+        <EmptyState
+          title={t("campaigns.empty")}
+          body={canWrite ? t("campaigns.emptyBody") : undefined}
+        />
       ) : (
         <>
-          <PageSummary index={pager.index} pageSize={PAGE_SIZE} shown={campaigns.data?.campaigns?.length ?? 0} total={campaigns.data?.total ?? 0} name="campaigns" />
-          <div className={campaigns.current ? undefined : "opacity-60 transition-opacity"} aria-busy={!campaigns.current}>
+          <PageSummary
+            index={pager.index}
+            pageSize={PAGE_SIZE}
+            shown={campaigns.data?.campaigns?.length ?? 0}
+            total={campaigns.data?.total ?? 0}
+            name="campaigns"
+          />
+          <div
+            className={campaigns.current ? undefined : "opacity-60 transition-opacity"}
+            aria-busy={!campaigns.current}
+          >
             <CampaignTable
               items={campaigns.data?.campaigns ?? []}
               lists={lists.data?.lists ?? []}
@@ -175,7 +211,13 @@ function NewCampaign({
         </p>
       ) : (
         <div className="mt-5">
-          <CampaignForm lists={lists} whatsappLinked={whatsappLinked} smtpReady={smtpReady} canSend={canSend} onSaved={onCreated} />
+          <CampaignForm
+            lists={lists}
+            whatsappLinked={whatsappLinked}
+            smtpReady={smtpReady}
+            canSend={canSend}
+            onSaved={onCreated}
+          />
         </div>
       )}
     </section>
@@ -267,7 +309,10 @@ function CampaignTable({
 
   async function remove(id: string) {
     try {
-      await api(`/api/w/campaigns/${encodeURIComponent(id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/campaigns/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(t("campaigns.deleted"))
       onChange()
     } catch (e) {
@@ -303,7 +348,10 @@ function CampaignTable({
                     <Bdi>{c.subject}</Bdi>
                   </div>
                   {c.last_error ? (
-                    <div className="max-w-md truncate text-xs text-grid-danger-text" title={c.last_error}>
+                    <div
+                      className="max-w-md truncate text-xs text-grid-danger-text"
+                      title={c.last_error}
+                    >
                       {t("campaigns.lastError", { error: c.last_error })}
                     </div>
                   ) : null}
@@ -313,12 +361,18 @@ function CampaignTable({
                     {t(wa ? "campaigns.channel.whatsapp" : "campaigns.channel.email")}
                   </Badge>
                   {c.audience_locale ? (
-                    <div className="mt-1 text-xs text-grid-muted" data-campaign-audience={c.audience_locale}>
+                    <div
+                      className="mt-1 text-xs text-grid-muted"
+                      data-campaign-audience={c.audience_locale}
+                    >
                       {t(`campaigns.audienceOnly.${c.audience_locale}`)}
                     </div>
                   ) : null}
                   {!wa && c.smtp_service_name ? (
-                    <div className="mt-1 text-xs text-grid-muted" data-campaign-service={c.smtp_service_name}>
+                    <div
+                      className="mt-1 text-xs text-grid-muted"
+                      data-campaign-service={c.smtp_service_name}
+                    >
                       {t("campaigns.via", { name: isolate(c.smtp_service_name) })}
                     </div>
                   ) : null}
@@ -327,14 +381,21 @@ function CampaignTable({
                   <Bdi>{c.list_name}</Bdi>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={statusVariant[c.status]}>{t(`campaigns.status.${c.status}`)}</Badge>
+                  <Badge variant={statusVariant[c.status]}>
+                    {t(`campaigns.status.${c.status}`)}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-grid-muted">
                   <Ltr>
-                    {c.status === "draft" ? "—" : `${c.sent_count} / ${c.recipient_count}${c.failed_count ? ` (−${c.failed_count})` : ""}`}
+                    {c.status === "draft"
+                      ? "—"
+                      : `${c.sent_count} / ${c.recipient_count}${c.failed_count ? ` (−${c.failed_count})` : ""}`}
                   </Ltr>
                   {!wa && c.skipped_count > 0 ? (
-                    <div className="text-xs text-grid-warn-text" data-campaign-skipped={c.skipped_count}>
+                    <div
+                      className="text-xs text-grid-warn-text"
+                      data-campaign-skipped={c.skipped_count}
+                    >
                       {t("campaigns.skippedNoEmail", { count: c.skipped_count })}
                     </div>
                   ) : null}
@@ -345,7 +406,11 @@ function CampaignTable({
                 <TableCell className="pe-6 text-end whitespace-nowrap">
                   {canSend && sendable && wa && !whatsappLinked ? (
                     ws.can("inbox:manage") ? (
-                      <Link className="me-2 text-xs underline underline-offset-4" href={`/${locale}/w/${ws.slug}/inbox/whatsapp`} data-send-blocked="whatsapp">
+                      <Link
+                        className="me-2 text-xs underline underline-offset-4"
+                        href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}
+                        data-send-blocked="whatsapp"
+                      >
                         {t("campaigns.whatsappLinkToSend")}
                       </Link>
                     ) : (
@@ -354,10 +419,20 @@ function CampaignTable({
                       </span>
                     )
                   ) : canSend && sendable && (wa || smtpReady) ? (
-                    <SendButton campaign={c} count={subscribed} maxAudience={maxAudience} onSent={onChange} />
+                    <SendButton
+                      campaign={c}
+                      count={subscribed}
+                      maxAudience={maxAudience}
+                      onSent={onChange}
+                    />
                   ) : null}
                   {canWrite && sendable ? (
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(c)} data-edit-campaign={c.subject}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(c)}
+                      data-edit-campaign={c.subject}
+                    >
                       <PencilIcon />
                       {t("campaigns.edit")}
                     </Button>
@@ -381,7 +456,17 @@ function CampaignTable({
   )
 }
 
-function SendButton({ campaign, count: listCount, maxAudience, onSent }: { campaign: Campaign; count: number; maxAudience: number; onSent: () => void }) {
+function SendButton({
+  campaign,
+  count: listCount,
+  maxAudience,
+  onSent,
+}: {
+  campaign: Campaign
+  count: number
+  maxAudience: number
+  onSent: () => void
+}) {
   let count = listCount
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
@@ -389,8 +474,16 @@ function SendButton({ campaign, count: listCount, maxAudience, onSent }: { campa
   const [busy, setBusy] = useState(false)
   const wa = campaign.channel === "whatsapp"
   // Both counts follow the campaign's audience language (MH-413).
-  const aud = useWhatsAppAudience(ws.id, wa && open ? campaign.list_id : null, campaign.audience_locale)
-  const emailAud = useEmailAudience(ws.id, !wa && open ? campaign.list_id : null, campaign.audience_locale)
+  const aud = useWhatsAppAudience(
+    ws.id,
+    wa && open ? campaign.list_id : null,
+    campaign.audience_locale,
+  )
+  const emailAud = useEmailAudience(
+    ws.id,
+    !wa && open ? campaign.list_id : null,
+    campaign.audience_locale,
+  )
   const reachable = aud.data?.reachable
   if (!wa && emailAud.data) count = emailAud.data.reachable
   // One send reaches at most maxAudience (MH-467): the API refuses a larger one, so the dialog says
@@ -401,7 +494,10 @@ function SendButton({ campaign, count: listCount, maxAudience, onSent }: { campa
   async function send() {
     setBusy(true)
     try {
-      await api(`/api/w/campaigns/${encodeURIComponent(campaign.id)}/send`, { method: "POST", workspaceId: ws.id })
+      await api(`/api/w/campaigns/${encodeURIComponent(campaign.id)}/send`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       toast.success(t("campaigns.sending"))
       setOpen(false)
       onSent()
@@ -428,7 +524,11 @@ function SendButton({ campaign, count: listCount, maxAudience, onSent }: { campa
                   ? t("common.working")
                   : reachable === 0
                     ? t("campaigns.sendNobodyWhatsApp", { list: isolate(campaign.list_name) })
-                    : t("campaigns.sendBodyWhatsApp", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count: reachable })
+                    : t("campaigns.sendBodyWhatsApp", {
+                        subject: isolate(campaign.subject),
+                        list: isolate(campaign.list_name),
+                        count: reachable,
+                      })
                 : campaign.smtp_service_name
                   ? t("campaigns.sendBodyVia", {
                       subject: isolate(campaign.subject),
@@ -436,11 +536,18 @@ function SendButton({ campaign, count: listCount, maxAudience, onSent }: { campa
                       count,
                       service: isolate(campaign.smtp_service_name),
                     })
-                  : t("campaigns.sendBody", { subject: isolate(campaign.subject), list: isolate(campaign.list_name), count })}
+                  : t("campaigns.sendBody", {
+                      subject: isolate(campaign.subject),
+                      list: isolate(campaign.list_name),
+                      count,
+                    })}
             </AlertDialogDescription>
             {tooLarge ? (
               <p className="text-sm text-grid-danger-text" role="alert" data-send-too-large>
-                {t("campaigns.audienceTooLarge", { count: formatNumber(audience ?? 0), max: formatNumber(maxAudience) })}
+                {t("campaigns.audienceTooLarge", {
+                  count: formatNumber(audience ?? 0),
+                  max: formatNumber(maxAudience),
+                })}
               </p>
             ) : null}
           </AlertDialogHeader>

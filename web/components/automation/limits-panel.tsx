@@ -23,7 +23,15 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationSettings } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
-export function LimitsPanel({ settings, canManage, onSaved }: { settings?: AutomationSettings; canManage: boolean; onSaved: () => void }) {
+export function LimitsPanel({
+  settings,
+  canManage,
+  onSaved,
+}: {
+  settings?: AutomationSettings
+  canManage: boolean
+  onSaved: () => void
+}) {
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const [parallel, setParallel] = useState("")
@@ -42,7 +50,9 @@ export function LimitsPanel({ settings, canManage, onSaved }: { settings?: Autom
   if (!settings) return null
 
   const dirty =
-    parallel !== String(settings.max_parallel_runs) || hourly !== String(settings.runs_per_hour) || retention !== String(settings.retention_days)
+    parallel !== String(settings.max_parallel_runs) ||
+    hourly !== String(settings.runs_per_hour) ||
+    retention !== String(settings.retention_days)
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -52,7 +62,8 @@ export function LimitsPanel({ settings, canManage, onSaved }: { settings?: Autom
     const r = Number(retention)
     if (!Number.isInteger(p) || p < 1 || p > 50) return setErr(t("automation.limits.parallelRange"))
     if (!Number.isInteger(h) || h < 1 || h > 1000) return setErr(t("automation.limits.hourlyRange"))
-    if (!Number.isInteger(r) || r < 0 || r > 3650) return setErr(t("automation.limits.retentionRange"))
+    if (!Number.isInteger(r) || r < 0 || r > 3650)
+      return setErr(t("automation.limits.retentionRange"))
     setBusy(true)
     try {
       await api("/api/w/automation/settings", {
@@ -91,10 +102,18 @@ export function LimitsPanel({ settings, canManage, onSaved }: { settings?: Autom
           <p className="max-w-2xl text-sm text-grid-muted">{t("automation.limits.hint")}</p>
         </div>
         <p className="text-sm text-grid-muted" data-live-runs={settings.live_runs}>
-          {t("automation.limits.live", { n: formatNumber(settings.live_runs), max: formatNumber(settings.max_parallel_runs) })}
+          {t("automation.limits.live", {
+            n: formatNumber(settings.live_runs),
+            max: formatNumber(settings.max_parallel_runs),
+          })}
         </p>
       </div>
-      <form onSubmit={save} noValidate className="border-y border-line px-6 py-5" data-form="limits">
+      <form
+        onSubmit={save}
+        noValidate
+        className="border-y border-line px-6 py-5"
+        data-form="limits"
+      >
         <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field>
@@ -110,7 +129,11 @@ export function LimitsPanel({ settings, canManage, onSaved }: { settings?: Autom
             <Field>
               <FieldLabel htmlFor="lim-retention">{t("automation.limits.retention")}</FieldLabel>
               {num("lim-retention", retention, setRetention)}
-              <FieldDescription>{retention === "0" ? t("automation.limits.retentionForever") : t("automation.limits.retentionHint")}</FieldDescription>
+              <FieldDescription>
+                {retention === "0"
+                  ? t("automation.limits.retentionForever")
+                  : t("automation.limits.retentionHint")}
+              </FieldDescription>
             </Field>
           </div>
           {canManage ? (
@@ -136,7 +159,15 @@ Whether a run adds its workflow's sites to its browser (MH-517), and whether a
 run nobody watches may add sites that came from its values. Saved as they are
 flipped: a switch with a separate Save is two controls for one decision.
 */
-function SitesSwitches({ settings, canManage, onSaved }: { settings: AutomationSettings; canManage: boolean; onSaved: () => void }) {
+function SitesSwitches({
+  settings,
+  canManage,
+  onSaved,
+}: {
+  settings: AutomationSettings
+  canManage: boolean
+  onSaved: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [busy, setBusy] = useState(false)
@@ -154,19 +185,39 @@ function SitesSwitches({ settings, canManage, onSaved }: { settings: AutomationS
     }
   }
 
-  const row = (key: "auto_add_sites" | "auto_add_input_sites", on: boolean, title: string, hint: string, disabled = false) => (
-    <div className="flex items-start justify-between gap-4 px-6 py-4" data-site-switch={key} data-on={on ? "true" : "false"}>
+  const row = (
+    key: "auto_add_sites" | "auto_add_input_sites",
+    on: boolean,
+    title: string,
+    hint: string,
+    disabled = false,
+  ) => (
+    <div
+      className="flex items-start justify-between gap-4 px-6 py-4"
+      data-site-switch={key}
+      data-on={on ? "true" : "false"}
+    >
       <div className="min-w-0">
         <p className="text-sm font-medium">{title}</p>
         <p className="max-w-2xl text-sm text-grid-muted">{hint}</p>
       </div>
-      <Switch checked={on} disabled={!canManage || busy || disabled} onCheckedChange={(v) => flip(key, v)} aria-label={title} />
+      <Switch
+        checked={on}
+        disabled={!canManage || busy || disabled}
+        onCheckedChange={(v) => flip(key, v)}
+        aria-label={title}
+      />
     </div>
   )
 
   return (
     <div className="divide-y divide-line border-b border-line" data-sites-settings>
-      {row("auto_add_sites", settings.auto_add_sites, t("automation.sites.autoTitle"), t("automation.sites.autoHint"))}
+      {row(
+        "auto_add_sites",
+        settings.auto_add_sites,
+        t("automation.sites.autoTitle"),
+        t("automation.sites.autoHint"),
+      )}
       {row(
         "auto_add_input_sites",
         settings.auto_add_input_sites,

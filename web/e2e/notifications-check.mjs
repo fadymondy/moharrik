@@ -43,7 +43,11 @@ function sign(secret, body) {
 // A generic source signs timestamp + "." + body and sends the timestamp (MH-381).
 function genericHeaders(secret, body) {
   const ts = String(Math.floor(Date.now() / 1000))
-  return { "Content-Type": "application/json", "X-Webhook-Timestamp": ts, "X-Webhook-Signature": `sha256=${sign(secret, `${ts}.${body}`)}` }
+  return {
+    "Content-Type": "application/json",
+    "X-Webhook-Timestamp": ts,
+    "X-Webhook-Signature": `sha256=${sign(secret, `${ts}.${body}`)}`,
+  }
 }
 
 const out = {}
@@ -62,10 +66,14 @@ async function createSource(name, kindLabel) {
   await pageA.fill("#source-name", name)
   await pageA.click("#source-kind")
   await pageA.getByRole("option", { name: kindLabel, exact: true }).click({ timeout: 5000 })
-  await pageA.click('form:has(#source-name) button[type=submit]')
-  await pageA.waitForSelector('text=Webhook source created', { timeout: 10000 })
+  await pageA.click("form:has(#source-name) button[type=submit]")
+  await pageA.waitForSelector("text=Webhook source created", { timeout: 10000 })
   // CopyField renders the value in a <code>, not an <input>.
-  const codeVals = await pageA.evaluate(() => [...document.querySelectorAll("[data-secret-dialog] code")].map((c) => c.textContent?.trim() ?? ""))
+  const codeVals = await pageA.evaluate(() =>
+    [...document.querySelectorAll("[data-secret-dialog] code")].map(
+      (c) => c.textContent?.trim() ?? "",
+    ),
+  )
   const url = codeVals.find((v) => v.includes("/api/hooks/"))
   const secret = codeVals.find((v) => /^[0-9a-f]{64}$/.test(v))
   await pageA.click('button:has-text("I\'ve saved it")')
@@ -84,20 +92,31 @@ const { secret, id: sourceId, deliverURL } = gh
 // ---- deliver a signed GitHub-shaped payload, and an unsigned/garbage one ----
 const ghBody = JSON.stringify({
   action: "opened",
-  repository: { full_name: "fadymondy/moharrik", html_url: "https://github.com/fadymondy/moharrik" },
+  repository: {
+    full_name: "fadymondy/moharrik",
+    html_url: "https://github.com/fadymondy/moharrik",
+  },
   sender: { login: "octocat" },
 })
 const sig = sign(secret, ghBody)
 const delivered = await fetch(deliverURL, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Hub-Signature-256": `sha256=${sig}`, "X-GitHub-Event": "pull_request" },
+  headers: {
+    "Content-Type": "application/json",
+    "X-Hub-Signature-256": `sha256=${sig}`,
+    "X-GitHub-Event": "pull_request",
+  },
   body: ghBody,
 })
 out.deliveredStatus = delivered.status
 
 const badSig = await fetch(deliverURL, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Hub-Signature-256": "sha256=deadbeef", "X-GitHub-Event": "issues" },
+  headers: {
+    "Content-Type": "application/json",
+    "X-Hub-Signature-256": "sha256=deadbeef",
+    "X-GitHub-Event": "issues",
+  },
   body: JSON.stringify({ title: "forged" }),
 })
 out.badSignatureStatus = badSig.status
@@ -111,13 +130,24 @@ out.unknownSourceStatus = unknown.status
 
 // A second, generic-shaped delivery to the generic source, with an explicit
 // severity, so severity + filter can be checked.
-const genericBody = JSON.stringify({ title: "Disk almost full", severity: "warning", actor: "monitor" })
-const generic = await fetch(mon.deliverURL, { method: "POST", headers: genericHeaders(mon.secret, genericBody), body: genericBody })
+const genericBody = JSON.stringify({
+  title: "Disk almost full",
+  severity: "warning",
+  actor: "monitor",
+})
+const generic = await fetch(mon.deliverURL, {
+  method: "POST",
+  headers: genericHeaders(mon.secret, genericBody),
+  body: genericBody,
+})
 out.genericDeliveredStatus = generic.status
 // The same body signed the pre-MH-381 way (body only, no timestamp): a new source refuses it.
 const bodyOnly = await fetch(mon.deliverURL, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Webhook-Signature": `sha256=${sign(mon.secret, genericBody)}` },
+  headers: {
+    "Content-Type": "application/json",
+    "X-Webhook-Signature": `sha256=${sign(mon.secret, genericBody)}`,
+  },
   body: genericBody,
 })
 out.genericBodyOnlyStatus = bodyOnly.status
@@ -125,16 +155,30 @@ out.genericBodyOnlyStatus = bodyOnly.status
 // ---- feed shows both, unread, with the right severity ----
 await pageA.goto(`${base}/en/w/${slugA}/notifications`, { waitUntil: "networkidle" })
 await pageA.waitForSelector("[data-notification]", { timeout: 10000 })
-out.itemsOnFeed = await pageA.evaluate(() => document.querySelectorAll("[data-notification]").length)
-out.bothUnread = await pageA.evaluate(() => [...document.querySelectorAll("[data-notification]")].every((li) => li.getAttribute("data-notification-read") === "false"))
+out.itemsOnFeed = await pageA.evaluate(
+  () => document.querySelectorAll("[data-notification]").length,
+)
+out.bothUnread = await pageA.evaluate(() =>
+  [...document.querySelectorAll("[data-notification]")].every(
+    (li) => li.getAttribute("data-notification-read") === "false",
+  ),
+)
 out.hasWarningBadge = await pageA.evaluate(() => document.body.innerText.includes("Warning"))
-out.hasPRTitle = await pageA.evaluate(() => document.body.innerText.includes("pull_request") || document.body.innerText.includes("fadymondy/moharrik"))
+out.hasPRTitle = await pageA.evaluate(
+  () =>
+    document.body.innerText.includes("pull_request") ||
+    document.body.innerText.includes("fadymondy/moharrik"),
+)
 
 // mark the first one read, save the second
 const rows = await pageA.$$("[data-notification]")
 await rows[0].$eval('button[aria-label="Mark read"]', (b) => b.click())
 await pageA.waitForTimeout(500)
-out.oneMarkedRead = await pageA.evaluate(() => [...document.querySelectorAll("[data-notification]")].some((li) => li.getAttribute("data-notification-read") === "true"))
+out.oneMarkedRead = await pageA.evaluate(() =>
+  [...document.querySelectorAll("[data-notification]")].some(
+    (li) => li.getAttribute("data-notification-read") === "true",
+  ),
+)
 const rows2 = await pageA.$$("[data-notification]")
 await rows2[1].$eval('button[aria-label="Save for later"]', (b) => b.click())
 await pageA.waitForTimeout(500)
@@ -142,7 +186,9 @@ await pageA.waitForTimeout(500)
 // filter: saved only shows 1
 await pageA.click('[data-filter="saved"]')
 await pageA.waitForTimeout(500)
-out.savedFilterCount = await pageA.evaluate(() => document.querySelectorAll("[data-notification]").length)
+out.savedFilterCount = await pageA.evaluate(
+  () => document.querySelectorAll("[data-notification]").length,
+)
 await pageA.click('[data-filter="saved"]')
 
 // mark all read
@@ -151,7 +197,9 @@ await pageA.click('button:has-text("Mark all read")')
 await pageA.waitForTimeout(500)
 await pageA.click('[data-filter="unread"]')
 await pageA.waitForTimeout(500)
-out.unreadAfterMarkAll = await pageA.evaluate(() => document.querySelectorAll("[data-notification]").length)
+out.unreadAfterMarkAll = await pageA.evaluate(
+  () => document.querySelectorAll("[data-notification]").length,
+)
 
 // disable the source, confirm further deliveries are refused
 await pageA.goto(`${base}/en/w/${slugA}/notifications/sources`, { waitUntil: "networkidle" })
@@ -159,7 +207,11 @@ await pageA.click('[data-source-row="GitHub"] [role="switch"]')
 await pageA.waitForTimeout(500)
 const disabledDelivery = await fetch(deliverURL, {
   method: "POST",
-  headers: { "Content-Type": "application/json", "X-Hub-Signature-256": `sha256=${sign(secret, "{}")}`, "X-GitHub-Event": "ping" },
+  headers: {
+    "Content-Type": "application/json",
+    "X-Hub-Signature-256": `sha256=${sign(secret, "{}")}`,
+    "X-GitHub-Event": "ping",
+  },
   body: "{}",
 })
 out.disabledSourceDeliveryStatus = disabledDelivery.status
@@ -173,7 +225,9 @@ const { slug: slugAr } = await signUpAndEnterWorkspace(pageAr, "NC AR " + Date.n
 for (const p of ["notifications", "notifications/sources"]) {
   await pageAr.goto(`${base}/ar/w/${slugAr}/${p}`, { waitUntil: "networkidle" })
   await pageAr.waitForTimeout(500)
-  out[`ar390_${p.replace("/", "_")}_overflow`] = await pageAr.evaluate(() => document.documentElement.scrollWidth > 390)
+  out[`ar390_${p.replace("/", "_")}_overflow`] = await pageAr.evaluate(
+    () => document.documentElement.scrollWidth > 390,
+  )
 }
 await ctxAr.close()
 
@@ -182,7 +236,9 @@ const ctxB = await newCtx()
 const pageB = ctxB.pages()[0]
 const { slug: slugB } = await signUpAndEnterWorkspace(pageB, "NC B " + Date.now())
 await pageB.goto(`${base}/en/w/${slugB}/notifications`, { waitUntil: "networkidle" })
-out.workspaceBFeedEmpty = await pageB.evaluate(() => document.body.innerText.includes("No notifications yet"))
+out.workspaceBFeedEmpty = await pageB.evaluate(() =>
+  document.body.innerText.includes("No notifications yet"),
+)
 // Authenticated AS workspace B (its own CSRF token + X-Workspace-ID) reaching for
 // workspace A's source id — the real cross-workspace check. A bare fetch with
 // neither header only proves the CSRF gate exists, not that isolation holds.
@@ -191,7 +247,11 @@ const crossFetchStatus = await pageB.evaluate(
     const csrf = await (await fetch("/api/auth/csrf")).json()
     const r = await fetch(`/api/w/webhook_sources/${sid}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf.csrf_token, "X-Workspace-ID": ws },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrf.csrf_token,
+        "X-Workspace-ID": ws,
+      },
       body: JSON.stringify({ name: "stolen" }),
     })
     return r.status

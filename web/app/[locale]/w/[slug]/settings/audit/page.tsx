@@ -71,7 +71,9 @@ function AuditLog() {
       ...filter,
       // Dates are days in the member's own timezone; the API takes instants.
       from: filter.from ? new Date(`${filter.from}T00:00:00`).toISOString() : undefined,
-      to: filter.to ? new Date(new Date(`${filter.to}T00:00:00`).getTime() + 86_400_000).toISOString() : undefined,
+      to: filter.to
+        ? new Date(new Date(`${filter.to}T00:00:00`).getTime() + 86_400_000).toISOString()
+        : undefined,
       cursor: pager.cursor,
       limit: PAGE_SIZE,
     },
@@ -96,18 +98,28 @@ function AuditLog() {
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("audit.title")} description={t("audit.hint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("audit.title")}
+        description={t("audit.hint")}
+      />
 
       {!ws.current ? (
         <LoadingRows rows={3} />
       ) : !canRead ? (
-        <p className="flex items-start gap-2 border-y border-line px-6 py-6 text-sm text-grid-muted" data-audit="admin-only">
+        <p
+          className="flex items-start gap-2 border-y border-line px-6 py-6 text-sm text-grid-muted"
+          data-audit="admin-only"
+        >
           <ShieldIcon className="mt-0.5 size-4 shrink-0" />
           {t("audit.adminOnly")}
         </p>
       ) : (
         <>
-          <div className="grid gap-3 border-y border-line px-6 py-4 sm:grid-cols-2 lg:grid-cols-6" data-audit-filters>
+          <div
+            className="grid gap-3 border-y border-line px-6 py-4 sm:grid-cols-2 lg:grid-cols-6"
+            data-audit-filters
+          >
             <Field className="lg:col-span-2">
               <FieldLabel htmlFor="audit-actor">{t("audit.filterActor")}</FieldLabel>
               <PickSelect
@@ -115,7 +127,10 @@ function AuditLog() {
                 value={filter.actor}
                 onChange={(v) => set("actor", v)}
                 noneLabel={t("audit.anyone")}
-                options={(facets.data?.actors ?? []).map((a) => ({ value: a.id, label: `${isolate(a.name || a.id)} · ${t(`audit.kind.${a.kind || "member"}`)}` }))}
+                options={(facets.data?.actors ?? []).map((a) => ({
+                  value: a.id,
+                  label: `${isolate(a.name || a.id)} · ${t(`audit.kind.${a.kind || "member"}`)}`,
+                }))}
               />
             </Field>
             <Field>
@@ -125,7 +140,10 @@ function AuditLog() {
                 value={filter.entityType}
                 onChange={(v) => set("entity_type", v)}
                 noneLabel={t("audit.anything")}
-                options={(facets.data?.entity_types ?? []).map((e) => ({ value: e, label: entityLabel(t, e) }))}
+                options={(facets.data?.entity_types ?? []).map((e) => ({
+                  value: e,
+                  label: entityLabel(t, e),
+                }))}
               />
             </Field>
             <Field>
@@ -135,20 +153,42 @@ function AuditLog() {
                 value={filter.action}
                 onChange={(v) => set("action", v)}
                 noneLabel={t("audit.anyAction")}
-                options={(facets.data?.actions ?? []).map((a) => ({ value: a, label: actionLabel(t, a) }))}
+                options={(facets.data?.actions ?? []).map((a) => ({
+                  value: a,
+                  label: actionLabel(t, a),
+                }))}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="audit-from">{t("audit.from")}</FieldLabel>
-              <DatePicker id="audit-from" value={filter.from} max={filter.to || undefined} onValueChange={(v) => set("from", v)} placeholder={t("audit.anyDate")} clearable />
+              <DatePicker
+                id="audit-from"
+                value={filter.from}
+                max={filter.to || undefined}
+                onValueChange={(v) => set("from", v)}
+                placeholder={t("audit.anyDate")}
+                clearable
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="audit-to">{t("audit.to")}</FieldLabel>
-              <DatePicker id="audit-to" value={filter.to} min={filter.from || undefined} onValueChange={(v) => set("to", v)} placeholder={t("audit.anyDate")} clearable />
+              <DatePicker
+                id="audit-to"
+                value={filter.to}
+                min={filter.from || undefined}
+                onValueChange={(v) => set("to", v)}
+                placeholder={t("audit.anyDate")}
+                clearable
+              />
             </Field>
             {filtered ? (
               <div className="sm:col-span-2 lg:col-span-6">
-                <Button variant="ghost" size="sm" onClick={() => router.replace(pathname, { scroll: false })} data-audit-clear>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.replace(pathname, { scroll: false })}
+                  data-audit-clear
+                >
                   <FilterXIcon />
                   {t("audit.clear")}
                 </Button>
@@ -161,13 +201,33 @@ function AuditLog() {
           ) : !page.data ? (
             <LoadingRows rows={6} />
           ) : entries.length === 0 ? (
-            <EmptyState title={filtered ? t("audit.noMatch") : t("audit.empty")} body={filtered ? t("audit.noMatchBody") : t("audit.emptyBody")} />
+            <EmptyState
+              title={filtered ? t("audit.noMatch") : t("audit.empty")}
+              body={filtered ? t("audit.noMatchBody") : t("audit.emptyBody")}
+            />
           ) : (
             <div className="pt-4">
-              <PageSummary index={pager.index} pageSize={PAGE_SIZE} shown={entries.length} total={page.data.total} name="audit" />
-              <ul className={cn("divide-y divide-line border-y border-line", !page.current && "opacity-60")} data-audit-list>
+              <PageSummary
+                index={pager.index}
+                pageSize={PAGE_SIZE}
+                shown={entries.length}
+                total={page.data.total}
+                name="audit"
+              />
+              <ul
+                className={cn(
+                  "divide-y divide-line border-y border-line",
+                  !page.current && "opacity-60",
+                )}
+                data-audit-list
+              >
                 {entries.map((e) => (
-                  <EntryRow key={e.id} e={e} onActor={(id) => set("actor", id)} actorName={actorName} />
+                  <EntryRow
+                    key={e.id}
+                    e={e}
+                    onActor={(id) => set("actor", id)}
+                    actorName={actorName}
+                  />
                 ))}
               </ul>
               <PageNav
@@ -202,10 +262,24 @@ function actionLabel(t: ReturnType<typeof useTranslations>["t"], a: string) {
   return v === k ? a : v
 }
 
-function EntryRow({ e, onActor, actorName }: { e: AuditEntry; onActor: (id: string) => void; actorName: Map<string, string> }) {
+function EntryRow({
+  e,
+  onActor,
+  actorName,
+}: {
+  e: AuditEntry
+  onActor: (id: string) => void
+  actorName: Map<string, string>
+}) {
   const { t, locale } = useTranslations()
   const [open, setOpen] = useState(false)
-  const when = useMemo(() => dateFormat(locale, { dateStyle: "medium", timeStyle: "medium" }).format(new Date(e.occurred_at)), [locale, e.occurred_at])
+  const when = useMemo(
+    () =>
+      dateFormat(locale, { dateStyle: "medium", timeStyle: "medium" }).format(
+        new Date(e.occurred_at),
+      ),
+    [locale, e.occurred_at],
+  )
   const fields = Object.entries(e.changes ?? {})
   const refused = e.kind === "request" && e.status >= 400
   const name = e.actor_name || actorName.get(e.actor_id) || e.actor_id || t("audit.kind.system")
@@ -218,7 +292,12 @@ function EntryRow({ e, onActor, actorName }: { e: AuditEntry; onActor: (id: stri
         </p>
 
         <div className="min-w-0">
-          <button type="button" className="max-w-full truncate text-start text-sm font-medium hover:underline" onClick={() => e.actor_id && onActor(e.actor_id)} title={t("audit.onlyThisActor")}>
+          <button
+            type="button"
+            className="max-w-full truncate text-start text-sm font-medium hover:underline"
+            onClick={() => e.actor_id && onActor(e.actor_id)}
+            title={t("audit.onlyThisActor")}
+          >
             <Bdi>{name}</Bdi>
           </button>
           <p className="mt-0.5 flex flex-wrap items-center gap-1.5">
@@ -229,11 +308,20 @@ function EntryRow({ e, onActor, actorName }: { e: AuditEntry; onActor: (id: stri
 
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-1.5 text-sm">
-            <Badge variant={refused ? "destructive" : e.action === "delete" ? "secondary" : "default"} data-audit-action>
+            <Badge
+              variant={refused ? "destructive" : e.action === "delete" ? "secondary" : "default"}
+              data-audit-action
+            >
               {actionLabel(t, e.action)}
             </Badge>
-            {e.entity_type ? <span className="text-grid-body">{entityLabel(t, e.entity_type)}</span> : null}
-            {refused ? <span className="text-xs text-grid-warn-text">{t("audit.refused", { status: e.status })}</span> : null}
+            {e.entity_type ? (
+              <span className="text-grid-body">{entityLabel(t, e.entity_type)}</span>
+            ) : null}
+            {refused ? (
+              <span className="text-xs text-grid-warn-text">
+                {t("audit.refused", { status: e.status })}
+              </span>
+            ) : null}
           </p>
           {e.operation || e.entity_id ? (
             <p className="mt-0.5 truncate text-xs text-grid-muted" title={e.entity_id || undefined}>
@@ -241,7 +329,11 @@ function EntryRow({ e, onActor, actorName }: { e: AuditEntry; onActor: (id: stri
               <Ltr mono>
                 {e.operation}
                 {e.operation && e.entity_id ? "  " : ""}
-                {e.entity_id ? (e.entity_id.length > 12 ? `${e.entity_id.slice(0, 8)}…` : e.entity_id) : ""}
+                {e.entity_id
+                  ? e.entity_id.length > 12
+                    ? `${e.entity_id.slice(0, 8)}…`
+                    : e.entity_id
+                  : ""}
               </Ltr>
             </p>
           ) : null}
@@ -256,7 +348,13 @@ function EntryRow({ e, onActor, actorName }: { e: AuditEntry; onActor: (id: stri
             </span>
           </p>
           {fields.length > 0 ? (
-            <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen((o) => !o)} data-audit-diff-toggle>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+              data-audit-diff-toggle
+            >
               {t("audit.changes", { n: fields.length })}
               <ChevronDownIcon className={cn("transition-transform", open && "rotate-180")} />
             </Button>
@@ -270,8 +368,12 @@ function EntryRow({ e, onActor, actorName }: { e: AuditEntry; onActor: (id: stri
             <thead className="bg-grid-card text-grid-muted">
               <tr>
                 <th className="px-3 py-1.5 text-start font-medium">{t("audit.field")}</th>
-                {e.action !== "create" ? <th className="px-3 py-1.5 text-start font-medium">{t("audit.before")}</th> : null}
-                {e.action !== "delete" ? <th className="px-3 py-1.5 text-start font-medium">{t("audit.after")}</th> : null}
+                {e.action !== "create" ? (
+                  <th className="px-3 py-1.5 text-start font-medium">{t("audit.before")}</th>
+                ) : null}
+                {e.action !== "delete" ? (
+                  <th className="px-3 py-1.5 text-start font-medium">{t("audit.after")}</th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -320,12 +422,17 @@ function Retention({ days, onSaved }: { days?: number; onSaved: () => void }) {
   const [value, setValue] = useState<string>("")
   const [busy, setBusy] = useState(false)
   const current = value || (days ? String(days) : "")
-  const options = RETENTION.includes(days ?? 0) || !days ? RETENTION : [...RETENTION, days].sort((a, b) => a - b)
+  const options =
+    RETENTION.includes(days ?? 0) || !days ? RETENTION : [...RETENTION, days].sort((a, b) => a - b)
 
   async function save() {
     setBusy(true)
     try {
-      await api("/api/w/audit/retention", { method: "PUT", json: { retention_days: Number(current) }, workspaceId: ws.id })
+      await api("/api/w/audit/retention", {
+        method: "PUT",
+        json: { retention_days: Number(current) },
+        workspaceId: ws.id,
+      })
       toast.success(t("audit.retentionSaved"))
       setValue("")
       onSaved()
@@ -337,13 +444,19 @@ function Retention({ days, onSaved }: { days?: number; onSaved: () => void }) {
   }
 
   return (
-    <section className="mt-8 border-t border-line px-6 py-8" aria-labelledby="audit-retention" data-audit-retention>
+    <section
+      className="mt-8 border-t border-line px-6 py-8"
+      aria-labelledby="audit-retention"
+      data-audit-retention
+    >
       <div className="max-w-2xl space-y-1.5">
         <h2 id="audit-retention" className="grid-title flex items-center gap-2 text-lg">
           <HistoryIcon className="size-4 text-grid-muted" />
           {t("audit.retentionTitle")}
         </h2>
-        <p className="grid-body text-sm">{days ? t("audit.retentionHint", { days: formatNumber(days) }) : "…"}</p>
+        <p className="grid-body text-sm">
+          {days ? t("audit.retentionHint", { days: formatNumber(days) }) : "…"}
+        </p>
       </div>
       {canManage && days ? (
         <div className="mt-4 flex flex-wrap items-end gap-3">
@@ -353,10 +466,17 @@ function Retention({ days, onSaved }: { days?: number; onSaved: () => void }) {
               id="audit-retention-days"
               value={current}
               onChange={setValue}
-              options={options.map((d) => ({ value: String(d), label: t("audit.days", { n: formatNumber(d) }) }))}
+              options={options.map((d) => ({
+                value: String(d),
+                label: t("audit.days", { n: formatNumber(d) }),
+              }))}
             />
           </Field>
-          <Button onClick={save} disabled={busy || current === String(days)} data-audit-retention-save>
+          <Button
+            onClick={save}
+            disabled={busy || current === String(days)}
+            data-audit-retention-save
+          >
             {busy ? t("common.working") : t("common.save")}
           </Button>
         </div>

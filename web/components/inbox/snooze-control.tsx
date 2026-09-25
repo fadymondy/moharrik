@@ -42,9 +42,19 @@ export function snoozePresets(now = new Date()): Preset[] {
 export function useDateTime() {
   const { locale } = useTranslations()
   return useMemo(() => {
-    const full = new Intl.DateTimeFormat(intlTag(isLocale(locale) ? locale : "en"), { dateStyle: "medium", timeStyle: "short" })
-    const short = new Intl.DateTimeFormat(intlTag(isLocale(locale) ? locale : "en"), { weekday: "short", hour: "numeric", minute: "2-digit" })
-    return { full: (d: Date | string) => full.format(new Date(d)), short: (d: Date) => short.format(d) }
+    const full = new Intl.DateTimeFormat(intlTag(isLocale(locale) ? locale : "en"), {
+      dateStyle: "medium",
+      timeStyle: "short",
+    })
+    const short = new Intl.DateTimeFormat(intlTag(isLocale(locale) ? locale : "en"), {
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+    return {
+      full: (d: Date | string) => full.format(new Date(d)),
+      short: (d: Date) => short.format(d),
+    }
   }, [locale])
 }
 
@@ -60,7 +70,11 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
 
   async function patch(json: Record<string, unknown>, done: string) {
     try {
-      await api(`/api/w/conversations/${encodeURIComponent(c.id)}`, { method: "PATCH", json, workspaceId: ws.id })
+      await api(`/api/w/conversations/${encodeURIComponent(c.id)}`, {
+        method: "PATCH",
+        json,
+        workspaceId: ws.id,
+      })
       toast.success(done)
       onChanged()
     } catch (e) {
@@ -72,7 +86,12 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
     // When it wakes is shown in the thread's title column (SnoozedNote); the
     // controls row keeps only the button, so it does not squeeze the subject.
     return (
-      <Button variant="outline" size="sm" onClick={() => patch({ snoozed_until: "" }, t("inbox.unsnoozed"))} data-action="unsnooze">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => patch({ snoozed_until: "" }, t("inbox.unsnoozed"))}
+        data-action="unsnooze"
+      >
         <AlarmClockOffIcon />
         {t("inbox.unsnooze")}
       </Button>
@@ -94,7 +113,12 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
             <DropdownMenuItem
               key={p.key}
               data-snooze-preset={p.key}
-              onClick={() => patch({ snoozed_until: p.at.toISOString().replace(/\.\d{3}Z$/, "Z") }, t("inbox.snoozed", { when: fmt.full(p.at) }))}
+              onClick={() =>
+                patch(
+                  { snoozed_until: p.at.toISOString().replace(/\.\d{3}Z$/, "Z") },
+                  t("inbox.snoozed", { when: fmt.full(p.at) }),
+                )
+              }
             >
               <span className="flex-1">{t(`inbox.snooze.${p.key}`)}</span>
               <span className="text-xs text-grid-muted">{fmt.short(p.at)}</span>
@@ -113,9 +137,14 @@ export function SnoozedNote({ c }: { c: Conversation }) {
   const fmt = useDateTime()
   if (c.status !== "snoozed") return null
   return (
-    <p className="flex items-center gap-1 text-xs text-grid-muted [&_svg]:size-3.5" data-snoozed-until={c.snoozed_until ?? ""}>
+    <p
+      className="flex items-center gap-1 text-xs text-grid-muted [&_svg]:size-3.5"
+      data-snoozed-until={c.snoozed_until ?? ""}
+    >
       <AlarmClockIcon aria-hidden />
-      {c.snoozed_until ? t("inbox.snoozedUntil", { when: fmt.full(c.snoozed_until) }) : t("inbox.snoozedOpenEnded")}
+      {c.snoozed_until
+        ? t("inbox.snoozedUntil", { when: fmt.full(c.snoozed_until) })
+        : t("inbox.snoozedOpenEnded")}
     </p>
   )
 }

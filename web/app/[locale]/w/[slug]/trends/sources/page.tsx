@@ -2,7 +2,20 @@
 
 import Link from "next/link"
 import { useState, type FormEvent, type ReactNode } from "react"
-import { ArrowLeftIcon, CheckIcon, EllipsisIcon, GaugeIcon, LinkIcon, PencilIcon, PlusIcon, RefreshCwIcon, RssIcon, TagsIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  EllipsisIcon,
+  GaugeIcon,
+  LinkIcon,
+  PencilIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  RssIcon,
+  TagsIcon,
+  Trash2Icon,
+  TriangleAlertIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect } from "@/components/crm/shared"
@@ -22,14 +35,34 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type FeedCatalogEntry, type FeedSource, type Topic, type TrendSettings } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  type FeedCatalogEntry,
+  type FeedSource,
+  type Topic,
+  type TrendSettings,
+} from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useFeedCatalog, useFeedSources, useTopics, useTrendSettings } from "@/lib/queries"
@@ -76,7 +109,13 @@ export default function TrendSourcesPage() {
   return (
     <>
       <div className="px-6 pt-6">
-        <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/trends`} />} data-back>
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={`/${locale}/w/${ws.slug}/trends`} />}
+          data-back
+        >
           <ArrowLeftIcon className="rtl:rotate-180" />
           {t("trends.backToTopics")}
         </Button>
@@ -87,7 +126,12 @@ export default function TrendSourcesPage() {
         description={t("trends.sourcesHint")}
         action={
           canManage ? (
-            <Button variant="outline" size="sm" onClick={() => setAddingUrl(true)} data-action="add-by-url">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddingUrl(true)}
+              data-action="add-by-url"
+            >
               <LinkIcon />
               {t("trends.addByUrl")}
             </Button>
@@ -95,7 +139,13 @@ export default function TrendSourcesPage() {
         }
       />
 
-      {settings.data ? <Budget settings={settings.data.settings} canManage={canManage} onSaved={() => void settings.mutate()} /> : null}
+      {settings.data ? (
+        <Budget
+          settings={settings.data.settings}
+          canManage={canManage}
+          onSaved={() => void settings.mutate()}
+        />
+      ) : null}
 
       {/* ---- your sources ---- */}
       <Section
@@ -110,7 +160,10 @@ export default function TrendSourcesPage() {
         ) : sources.isLoading ? (
           <LoadingRows rows={3} />
         ) : list.length === 0 ? (
-          <EmptyState title={t("trends.noFeeds")} body={canManage ? t("trends.noFeedsBody") : undefined} />
+          <EmptyState
+            title={t("trends.noFeeds")}
+            body={canManage ? t("trends.noFeedsBody") : undefined}
+          />
         ) : (
           <ul className="divide-y divide-line border-y border-line">
             {list.map((s) => (
@@ -122,8 +175,19 @@ export default function TrendSourcesPage() {
 
       {/* ---- the catalog ---- */}
       {canManage ? (
-        <Section id="catalog" icon={<PlusIcon />} title={t("trends.catalog")} hint={t("trends.catalogHint")}>
-          {catalog.error ? <ErrorState error={catalog.error} /> : !catalog.data ? <LoadingRows rows={3} /> : <Catalog entries={catalog.data.entries} onAdded={refreshSources} />}
+        <Section
+          id="catalog"
+          icon={<PlusIcon />}
+          title={t("trends.catalog")}
+          hint={t("trends.catalogHint")}
+        >
+          {catalog.error ? (
+            <ErrorState error={catalog.error} />
+          ) : !catalog.data ? (
+            <LoadingRows rows={3} />
+          ) : (
+            <Catalog entries={catalog.data.entries} onAdded={refreshSources} />
+          )}
         </Section>
       ) : null}
 
@@ -136,7 +200,12 @@ export default function TrendSourcesPage() {
         hint={t("trends.topicsHint")}
         action={
           canManage ? (
-            <Button variant="outline" size="sm" onClick={() => setAddingTopic(true)} data-action="new-topic">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddingTopic(true)}
+              data-action="new-topic"
+            >
               <PlusIcon />
               {t("trends.newTopic")}
             </Button>
@@ -148,11 +217,19 @@ export default function TrendSourcesPage() {
         ) : topics.isLoading ? (
           <LoadingRows rows={2} />
         ) : topicList.length === 0 ? (
-          <EmptyState title={t("trends.noTopics")} body={canManage ? t("trends.noTopicsBody") : undefined} />
+          <EmptyState
+            title={t("trends.noTopics")}
+            body={canManage ? t("trends.noTopicsBody") : undefined}
+          />
         ) : (
           <ul className="divide-y divide-line border-y border-line">
             {topicList.map((tp) => (
-              <TopicRow key={tp.id} topic={tp} canManage={canManage} onChange={() => void topics.mutate()} />
+              <TopicRow
+                key={tp.id}
+                topic={tp}
+                canManage={canManage}
+                onChange={() => void topics.mutate()}
+              />
             ))}
           </ul>
         )}
@@ -162,20 +239,43 @@ export default function TrendSourcesPage() {
       {canManage ? (
         <>
           <AddByUrlDialog open={addingUrl} onOpenChange={setAddingUrl} onAdded={refreshSources} />
-          <TopicDialog open={addingTopic} onOpenChange={setAddingTopic} onSaved={() => void topics.mutate()} />
+          <TopicDialog
+            open={addingTopic}
+            onOpenChange={setAddingTopic}
+            onSaved={() => void topics.mutate()}
+          />
         </>
       ) : null}
     </>
   )
 }
 
-function Section({ id, icon, title, count, hint, action, children }: { id: string; icon: ReactNode; title: string; count?: number; hint: string; action?: ReactNode; children: ReactNode }) {
+function Section({
+  id,
+  icon,
+  title,
+  count,
+  hint,
+  action,
+  children,
+}: {
+  id: string
+  icon: ReactNode
+  title: string
+  count?: number
+  hint: string
+  action?: ReactNode
+  children: ReactNode
+}) {
   const { formatNumber } = useTranslations()
   return (
     <section className="pt-10" data-section={id} aria-labelledby={`section-${id}`}>
       <div className="flex flex-wrap items-end justify-between gap-3 px-6 pb-4">
         <div className="min-w-0 space-y-1">
-          <h2 id={`section-${id}`} className="flex items-center gap-2 text-lg font-medium [&_svg]:size-4 [&_svg]:text-grid-muted">
+          <h2
+            id={`section-${id}`}
+            className="flex items-center gap-2 text-lg font-medium [&_svg]:size-4 [&_svg]:text-grid-muted"
+          >
             {icon}
             {title}
             {count !== undefined ? (
@@ -193,7 +293,21 @@ function Section({ id, icon, title, count, hint, action, children }: { id: strin
   )
 }
 
-function ConfirmDialog({ open, onOpenChange, title, description, confirmLabel, onConfirm }: { open: boolean; onOpenChange: (v: boolean) => void; title: string; description: string; confirmLabel: string; onConfirm: () => Promise<void> }) {
+function ConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  title: string
+  description: string
+  confirmLabel: string
+  onConfirm: () => Promise<void>
+}) {
   const { t } = useTranslations()
   const [busy, setBusy] = useState(false)
   return (
@@ -230,14 +344,25 @@ function ConfirmDialog({ open, onOpenChange, title, description, confirmLabel, o
 
 // ---- the budget ---------------------------------------------------------------
 
-function Budget({ settings, canManage, onSaved }: { settings: TrendSettings; canManage: boolean; onSaved: () => void }) {
+function Budget({
+  settings,
+  canManage,
+  onSaved,
+}: {
+  settings: TrendSettings
+  canManage: boolean
+  onSaved: () => void
+}) {
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(String(settings.fetch_budget_per_day))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const pct = Math.min(100, Math.round((settings.fetches_today / Math.max(1, settings.fetch_budget_per_day)) * 100))
+  const pct = Math.min(
+    100,
+    Math.round((settings.fetches_today / Math.max(1, settings.fetch_budget_per_day)) * 100),
+  )
   const short = settings.scheduled_per_day > settings.fetch_budget_per_day
 
   async function save(e: FormEvent) {
@@ -245,7 +370,11 @@ function Budget({ settings, canManage, onSaved }: { settings: TrendSettings; can
     setBusy(true)
     setErr(null)
     try {
-      await api("/api/w/trend_settings", { method: "PATCH", json: { fetch_budget_per_day: Number(value) }, workspaceId: ws.id })
+      await api("/api/w/trend_settings", {
+        method: "PATCH",
+        json: { fetch_budget_per_day: Number(value) },
+        workspaceId: ws.id,
+      })
       toast.success(t("trends.budgetSaved"))
       onSaved()
       setEditing(false)
@@ -257,15 +386,25 @@ function Budget({ settings, canManage, onSaved }: { settings: TrendSettings; can
   }
 
   return (
-    <section className="mx-6 flex flex-col gap-3 rounded-lg border border-line p-4 sm:p-5" data-section="budget" aria-labelledby="budget-title">
+    <section
+      className="mx-6 flex flex-col gap-3 rounded-lg border border-line p-4 sm:p-5"
+      data-section="budget"
+      aria-labelledby="budget-title"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="budget-title" className="flex items-center gap-2 text-base font-medium">
           <GaugeIcon className="size-4 text-grid-muted" aria-hidden />
           {t("trends.budget")}
         </h2>
         <div className="flex items-center gap-3">
-          <p className="text-sm tabular-nums" data-budget-used={`${settings.fetches_today}/${settings.fetch_budget_per_day}`}>
-            {t("trends.budgetUsed", { used: formatNumber(settings.fetches_today), budget: formatNumber(settings.fetch_budget_per_day) })}
+          <p
+            className="text-sm tabular-nums"
+            data-budget-used={`${settings.fetches_today}/${settings.fetch_budget_per_day}`}
+          >
+            {t("trends.budgetUsed", {
+              used: formatNumber(settings.fetches_today),
+              budget: formatNumber(settings.fetch_budget_per_day),
+            })}
           </p>
           {canManage ? (
             <Button
@@ -284,11 +423,22 @@ function Budget({ settings, canManage, onSaved }: { settings: TrendSettings; can
           ) : null}
         </div>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t("trends.budget")}>
-        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        aria-label={t("trends.budget")}
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-[width]"
+          style={{ width: `${pct}%` }}
+        />
       </div>
       <p className="text-sm text-grid-muted">
-        {t("trends.budgetHint")} {t("trends.budgetScheduled", { n: formatNumber(settings.scheduled_per_day) })}
+        {t("trends.budgetHint")}{" "}
+        {t("trends.budgetScheduled", { n: formatNumber(settings.scheduled_per_day) })}
       </p>
       {short ? (
         <p className="flex items-start gap-1.5 text-sm text-grid-danger-text" data-budget-short>
@@ -301,12 +451,26 @@ function Budget({ settings, canManage, onSaved }: { settings: TrendSettings; can
           <form onSubmit={save} className="flex flex-col gap-4" data-form="budget">
             <DialogHeader>
               <DialogTitle>{t("trends.budgetChange")}</DialogTitle>
-              <DialogDescription>{t("trends.budgetChangeHint", { max: formatNumber(settings.max_budget) })}</DialogDescription>
+              <DialogDescription>
+                {t("trends.budgetChangeHint", { max: formatNumber(settings.max_budget) })}
+              </DialogDescription>
             </DialogHeader>
             <Field>
               <FieldLabel htmlFor="budget">{t("trends.budgetPerDay")}</FieldLabel>
-              <Input id="budget" type="number" inputMode="numeric" min={1} max={settings.max_budget} value={value} onChange={(e) => setValue(e.target.value)} dir="ltr" className="w-40" />
-              <FieldDescription>{t("trends.budgetScheduled", { n: formatNumber(settings.scheduled_per_day) })}</FieldDescription>
+              <Input
+                id="budget"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={settings.max_budget}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                dir="ltr"
+                className="w-40"
+              />
+              <FieldDescription>
+                {t("trends.budgetScheduled", { n: formatNumber(settings.scheduled_per_day) })}
+              </FieldDescription>
             </Field>
             {err ? <FieldError>{err}</FieldError> : null}
             <DialogFooter>
@@ -328,7 +492,11 @@ function Budget({ settings, canManage, onSaved }: { settings: TrendSettings; can
 
 function ProviderBadge({ provider }: { provider: string }) {
   const { t } = useTranslations()
-  return <Badge variant="outline">{provider === "feed" ? t("trends.provider.feed") : t("trends.provider.api")}</Badge>
+  return (
+    <Badge variant="outline">
+      {provider === "feed" ? t("trends.provider.feed") : t("trends.provider.api")}
+    </Badge>
+  )
 }
 
 /** A labelled fact in a source's meta line. */
@@ -341,7 +509,15 @@ function Fact({ label, children }: { label?: string; children: ReactNode }) {
   )
 }
 
-function SourceRow({ source, canManage, onChange }: { source: FeedSource; canManage: boolean; onChange: () => void }) {
+function SourceRow({
+  source,
+  canManage,
+  onChange,
+}: {
+  source: FeedSource
+  canManage: boolean
+  onChange: () => void
+}) {
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const when = useWhen()
@@ -363,7 +539,10 @@ function SourceRow({ source, canManage, onChange }: { source: FeedSource; canMan
   async function fetchNow() {
     setBusy(true)
     try {
-      const res = await api<{ added: number; source: FeedSource }>(`${path}/fetch`, { method: "POST", workspaceId: ws.id })
+      const res = await api<{ added: number; source: FeedSource }>(`${path}/fetch`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       if (res.source.last_status === "over_budget") toast.warning(t("trends.fetchedOverBudget"))
       else if (res.source.last_status === "failed") toast.error(res.source.last_error)
       else toast.success(t("trends.fetched", { n: formatNumber(res.added) }))
@@ -376,7 +555,11 @@ function SourceRow({ source, canManage, onChange }: { source: FeedSource; canMan
   }
 
   return (
-    <li className="grid gap-3 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center" data-feed-row={source.name} data-provider={source.provider}>
+    <li
+      className="grid gap-3 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+      data-feed-row={source.name}
+      data-provider={source.provider}
+    >
       <div className="min-w-0 space-y-1">
         <p className="flex flex-wrap items-center gap-2">
           <bdi className="text-sm font-medium">{source.name}</bdi>
@@ -388,7 +571,9 @@ function SourceRow({ source, canManage, onChange }: { source: FeedSource; canMan
         </Ltr>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           <Fact>
-            <span data-items-count>{t("trends.itemsCollected", { n: formatNumber(source.item_count) })}</span>
+            <span data-items-count>
+              {t("trends.itemsCollected", { n: formatNumber(source.item_count) })}
+            </span>
           </Fact>
           <Fact>
             {source.last_fetched_at
@@ -397,7 +582,11 @@ function SourceRow({ source, canManage, onChange }: { source: FeedSource; canMan
           </Fact>
           {source.enabled && source.next_run_at ? (
             <Fact>
-              <span data-next-run>{nextDue ? t("trends.nextRunSoon") : t("trends.nextRun", { when: when(source.next_run_at) })}</span>
+              <span data-next-run>
+                {nextDue
+                  ? t("trends.nextRunSoon")
+                  : t("trends.nextRun", { when: when(source.next_run_at) })}
+              </span>
             </Fact>
           ) : null}
           {!canManage ? <Fact>{t(`trends.interval.${source.interval_minutes}`)}</Fact> : null}
@@ -405,7 +594,11 @@ function SourceRow({ source, canManage, onChange }: { source: FeedSource; canMan
         {source.last_error && source.last_status !== "ok" ? (
           <p className="flex items-start gap-1 text-xs text-grid-danger-text" data-source-error>
             <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
-            <bdi>{source.last_status === "over_budget" ? t("trends.fetchedOverBudget") : source.last_error}</bdi>
+            <bdi>
+              {source.last_status === "over_budget"
+                ? t("trends.fetchedOverBudget")
+                : source.last_error}
+            </bdi>
           </p>
         ) : null}
       </div>
@@ -416,16 +609,38 @@ function SourceRow({ source, canManage, onChange }: { source: FeedSource; canMan
               id={`interval-${source.id}`}
               value={String(source.interval_minutes)}
               onChange={(v) => patch({ interval_minutes: Number(v) })}
-              options={INTERVALS.map((m) => ({ value: String(m), label: t(`trends.interval.${m}`) }))}
+              options={INTERVALS.map((m) => ({
+                value: String(m),
+                label: t(`trends.interval.${m}`),
+              }))}
             />
           </div>
-          <Switch checked={source.enabled} onCheckedChange={() => patch({ enabled: !source.enabled })} aria-label={t("trends.collectThis", { name: source.name })} />
-          <Button variant="outline" size="sm" onClick={fetchNow} disabled={busy || !source.enabled} data-action="fetch">
+          <Switch
+            checked={source.enabled}
+            onCheckedChange={() => patch({ enabled: !source.enabled })}
+            aria-label={t("trends.collectThis", { name: source.name })}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchNow}
+            disabled={busy || !source.enabled}
+            data-action="fetch"
+          >
             <RefreshCwIcon className={busy ? "animate-spin" : undefined} />
             {t("trends.fetchNow")}
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={t("trends.moreActions", { name: source.name })} data-row-actions />}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("trends.moreActions", { name: source.name })}
+                  data-row-actions
+                />
+              }
+            >
               <EllipsisIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-40">
@@ -434,7 +649,11 @@ function SourceRow({ source, canManage, onChange }: { source: FeedSource; canMan
                 {t("trends.rename")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)} data-action="delete">
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setDeleting(true)}
+                data-action="delete"
+              >
                 <Trash2Icon />
                 {t("common.delete")}
               </DropdownMenuItem>
@@ -469,7 +688,19 @@ function SourceRow({ source, canManage, onChange }: { source: FeedSource; canMan
   )
 }
 
-function RenameDialog({ open, onOpenChange, title, value, onSave }: { open: boolean; onOpenChange: (v: boolean) => void; title: string; value: string; onSave: (v: string) => Promise<void> }) {
+function RenameDialog({
+  open,
+  onOpenChange,
+  title,
+  value,
+  onSave,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  title: string
+  value: string
+  onSave: (v: string) => Promise<void>
+}) {
   const { t } = useTranslations()
   const [name, setName] = useState(value)
   const [busy, setBusy] = useState(false)
@@ -504,7 +735,13 @@ function RenameDialog({ open, onOpenChange, title, value, onSave }: { open: bool
           </DialogHeader>
           <Field>
             <FieldLabel htmlFor="rename">{t("trends.feedName")}</FieldLabel>
-            <Input id="rename" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} dir="auto" />
+            <Input
+              id="rename"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              dir="auto"
+            />
           </Field>
           {err ? <FieldError>{err}</FieldError> : null}
           <DialogFooter>
@@ -521,7 +758,15 @@ function RenameDialog({ open, onOpenChange, title, value, onSave }: { open: bool
   )
 }
 
-function AddByUrlDialog({ open, onOpenChange, onAdded }: { open: boolean; onOpenChange: (v: boolean) => void; onAdded: () => void }) {
+function AddByUrlDialog({
+  open,
+  onOpenChange,
+  onAdded,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onAdded: () => void
+}) {
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const [url, setUrl] = useState("")
@@ -540,7 +785,10 @@ function AddByUrlDialog({ open, onOpenChange, onAdded }: { open: boolean; onOpen
         workspaceId: ws.id,
       })
       if (res.source.last_error) toast.warning(res.source.last_error)
-      else toast.success(t("trends.addedSource", { name: res.source.name, n: formatNumber(res.added) }))
+      else
+        toast.success(
+          t("trends.addedSource", { name: res.source.name, n: formatNumber(res.added) }),
+        )
       setUrl("")
       setName("")
       onAdded()
@@ -562,18 +810,40 @@ function AddByUrlDialog({ open, onOpenChange, onAdded }: { open: boolean; onOpen
           </DialogHeader>
           <Field>
             <FieldLabel htmlFor="feed-url">{t("trends.feedUrl")}</FieldLabel>
-            <Input id="feed-url" dir="ltr" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/feed.xml" autoFocus />
+            <Input
+              id="feed-url"
+              dir="ltr"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/feed.xml"
+              autoFocus
+            />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="feed-name">
-                {t("trends.feedName")} <span className="text-grid-muted">({t("common.optional")})</span>
+                {t("trends.feedName")}{" "}
+                <span className="text-grid-muted">({t("common.optional")})</span>
               </FieldLabel>
-              <Input id="feed-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} dir="auto" />
+              <Input
+                id="feed-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={120}
+                dir="auto"
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="feed-interval">{t("trends.schedule")}</FieldLabel>
-              <PickSelect id="feed-interval" value={interval} onChange={setIntervalMinutes} options={INTERVALS.map((m) => ({ value: String(m), label: t(`trends.interval.${m}`) }))} />
+              <PickSelect
+                id="feed-interval"
+                value={interval}
+                onChange={setIntervalMinutes}
+                options={INTERVALS.map((m) => ({
+                  value: String(m),
+                  label: t(`trends.interval.${m}`),
+                }))}
+              />
             </Field>
           </div>
           {err ? <FieldError>{err}</FieldError> : null}
@@ -648,10 +918,17 @@ function CatalogCard({ entry, onAdded }: { entry: FeedCatalogEntry; onAdded: () 
   async function add() {
     setBusy(true)
     try {
-      const res = await api<{ added: number; source: FeedSource }>("/api/w/feed_sources", { json: { catalog_key: entry.key }, workspaceId: ws.id })
+      const res = await api<{ added: number; source: FeedSource }>("/api/w/feed_sources", {
+        json: { catalog_key: entry.key },
+        workspaceId: ws.id,
+      })
       if (res.source.last_status === "failed") toast.warning(res.source.last_error)
-      else if (res.source.last_status === "over_budget") toast.warning(t("trends.fetchedOverBudget"))
-      else toast.success(t("trends.addedSource", { name: res.source.name, n: formatNumber(res.added) }))
+      else if (res.source.last_status === "over_budget")
+        toast.warning(t("trends.fetchedOverBudget"))
+      else
+        toast.success(
+          t("trends.addedSource", { name: res.source.name, n: formatNumber(res.added) }),
+        )
       onAdded()
     } catch (e) {
       toast.error(errText(e, t("common.networkError")))
@@ -676,12 +953,22 @@ function CatalogCard({ entry, onAdded }: { entry: FeedCatalogEntry; onAdded: () 
           </p>
         </div>
         {added ? (
-          <span className="flex shrink-0 items-center gap-1 text-xs text-grid-muted" data-added-label>
+          <span
+            className="flex shrink-0 items-center gap-1 text-xs text-grid-muted"
+            data-added-label
+          >
             <CheckIcon className="size-3.5 text-primary" aria-hidden />
             {t("trends.added")}
           </span>
         ) : (
-          <Button size="sm" variant="outline" onClick={add} disabled={busy} data-action="add" aria-label={`${t("trends.add")}: ${entry.name}`}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={add}
+            disabled={busy}
+            data-action="add"
+            aria-label={`${t("trends.add")}: ${entry.name}`}
+          >
             <PlusIcon />
             {busy ? t("common.working") : t("trends.add")}
           </Button>
@@ -698,7 +985,15 @@ function CatalogCard({ entry, onAdded }: { entry: FeedCatalogEntry; onAdded: () 
 
 // ---- keyword topics -----------------------------------------------------------------
 
-function TopicRow({ topic, canManage, onChange }: { topic: Topic; canManage: boolean; onChange: () => void }) {
+function TopicRow({
+  topic,
+  canManage,
+  onChange,
+}: {
+  topic: Topic
+  canManage: boolean
+  onChange: () => void
+}) {
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const [editing, setEditing] = useState(false)
@@ -715,7 +1010,11 @@ function TopicRow({ topic, canManage, onChange }: { topic: Topic; canManage: boo
   }
 
   return (
-    <li className="grid gap-3 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center" data-topic-row={topic.name} data-enabled={topic.enabled ? "true" : "false"}>
+    <li
+      className="grid gap-3 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+      data-topic-row={topic.name}
+      data-enabled={topic.enabled ? "true" : "false"}
+    >
       <div className="min-w-0 space-y-1.5">
         <p className="flex flex-wrap items-center gap-2">
           <bdi className="text-sm font-medium">{topic.name}</bdi>
@@ -727,7 +1026,11 @@ function TopicRow({ topic, canManage, onChange }: { topic: Topic; canManage: boo
           </span>
         </p>
         {topic.keywords.length > 0 ? (
-          <ul className="flex flex-wrap gap-1" aria-label={t("trends.keywords")} data-topic-keywords>
+          <ul
+            className="flex flex-wrap gap-1"
+            aria-label={t("trends.keywords")}
+            data-topic-keywords
+          >
             {topic.keywords.map((k) => (
               <li key={k}>
                 <Badge variant="outline" className="font-normal">
@@ -742,12 +1045,28 @@ function TopicRow({ topic, canManage, onChange }: { topic: Topic; canManage: boo
       </div>
       {canManage ? (
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <Switch checked={topic.enabled} onCheckedChange={toggle} aria-label={t("trends.useThisTopic", { name: topic.name })} />
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)} data-action="edit-topic">
+          <Switch
+            checked={topic.enabled}
+            onCheckedChange={toggle}
+            aria-label={t("trends.useThisTopic", { name: topic.name })}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditing(true)}
+            data-action="edit-topic"
+          >
             <PencilIcon />
             {t("common.edit")}
           </Button>
-          <Button variant="ghost" size="icon-sm" className="text-grid-danger-text" aria-label={`${t("common.delete")}: ${topic.name}`} onClick={() => setDeleting(true)} data-action="delete-topic">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-grid-danger-text"
+            aria-label={`${t("common.delete")}: ${topic.name}`}
+            onClick={() => setDeleting(true)}
+            data-action="delete-topic"
+          >
             <Trash2Icon />
           </Button>
           <TopicDialog open={editing} onOpenChange={setEditing} topic={topic} onSaved={onChange} />
@@ -770,7 +1089,17 @@ function TopicRow({ topic, canManage, onChange }: { topic: Topic; canManage: boo
 }
 
 /** Create a keyword topic, or edit one (name, keywords). */
-function TopicDialog({ open, onOpenChange, topic, onSaved }: { open: boolean; onOpenChange: (v: boolean) => void; topic?: Topic; onSaved: () => void }) {
+function TopicDialog({
+  open,
+  onOpenChange,
+  topic,
+  onSaved,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  topic?: Topic
+  onSaved: () => void
+}) {
   const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState(topic?.name ?? "")
@@ -782,10 +1111,20 @@ function TopicDialog({ open, onOpenChange, topic, onSaved }: { open: boolean; on
     e.preventDefault()
     setBusy(true)
     setErr(null)
-    const json = { name: name.trim(), keywords: keywords.split(/[,،]/).map((k) => k.trim()).filter(Boolean) }
+    const json = {
+      name: name.trim(),
+      keywords: keywords
+        .split(/[,،]/)
+        .map((k) => k.trim())
+        .filter(Boolean),
+    }
     try {
       if (topic) {
-        await api(`/api/w/topics/${encodeURIComponent(topic.id)}`, { method: "PATCH", json, workspaceId: ws.id })
+        await api(`/api/w/topics/${encodeURIComponent(topic.id)}`, {
+          method: "PATCH",
+          json,
+          workspaceId: ws.id,
+        })
         toast.success(t("trends.topicSavedToast"))
       } else {
         const res = await api<{ topic: Topic }>("/api/w/topics", { json, workspaceId: ws.id })
@@ -813,18 +1152,41 @@ function TopicDialog({ open, onOpenChange, topic, onSaved }: { open: boolean; on
       }}
     >
       <DialogContent className="sm:max-w-lg">
-        <form onSubmit={submit} noValidate className="flex flex-col gap-4" data-form={topic ? "edit-topic" : "add-topic"}>
+        <form
+          onSubmit={submit}
+          noValidate
+          className="flex flex-col gap-4"
+          data-form={topic ? "edit-topic" : "add-topic"}
+        >
           <DialogHeader>
             <DialogTitle>{topic ? t("trends.editTopic") : t("trends.newTopic")}</DialogTitle>
-            <DialogDescription>{topic ? t("trends.editTopicHint") : t("trends.topicsHint")}</DialogDescription>
+            <DialogDescription>
+              {topic ? t("trends.editTopicHint") : t("trends.topicsHint")}
+            </DialogDescription>
           </DialogHeader>
           <Field>
-            <FieldLabel htmlFor={topic ? `topic-name-${topic.id}` : "topic-name"}>{t("trends.topicName")}</FieldLabel>
-            <Input id={topic ? `topic-name-${topic.id}` : "topic-name"} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} dir="auto" />
+            <FieldLabel htmlFor={topic ? `topic-name-${topic.id}` : "topic-name"}>
+              {t("trends.topicName")}
+            </FieldLabel>
+            <Input
+              id={topic ? `topic-name-${topic.id}` : "topic-name"}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={80}
+              dir="auto"
+            />
           </Field>
           <Field>
-            <FieldLabel htmlFor={topic ? `topic-keywords-${topic.id}` : "topic-keywords"}>{t("trends.keywords")}</FieldLabel>
-            <Input id={topic ? `topic-keywords-${topic.id}` : "topic-keywords"} value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="arabica, robusta, البن" dir="auto" />
+            <FieldLabel htmlFor={topic ? `topic-keywords-${topic.id}` : "topic-keywords"}>
+              {t("trends.keywords")}
+            </FieldLabel>
+            <Input
+              id={topic ? `topic-keywords-${topic.id}` : "topic-keywords"}
+              value={keywords}
+              onChange={(e) => setKeywords(e.target.value)}
+              placeholder="arabica, robusta, البن"
+              dir="auto"
+            />
             <FieldDescription>{t("trends.keywordsHint")}</FieldDescription>
           </Field>
           {err ? <FieldError>{err}</FieldError> : null}

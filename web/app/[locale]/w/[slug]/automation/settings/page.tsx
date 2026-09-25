@@ -14,14 +14,24 @@ import { Bdi } from "@/components/bidi"
 export default function AutomationSettingsPage() {
   const { t } = useTranslations()
   const ws = useWorkspace()
-  useDocumentTitle(`${t("automation.limitsAndSettings")} · ${t("nav.automation")} · ${ws.summary.name}`)
+  useDocumentTitle(
+    `${t("automation.limitsAndSettings")} · ${t("nav.automation")} · ${ws.summary.name}`,
+  )
   const canManage = ws.can("automation:manage")
   const settings = useAutomationSettings(ws.id)
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("automation.limitsAndSettings")} description={t("automation.limits.hint")} />
-      <LimitsPanel settings={settings.data} canManage={canManage} onSaved={() => settings.mutate()} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("automation.limitsAndSettings")}
+        description={t("automation.limits.hint")}
+      />
+      <LimitsPanel
+        settings={settings.data}
+        canManage={canManage}
+        onSaved={() => settings.mutate()}
+      />
       <div className="pb-8" />
     </>
   )

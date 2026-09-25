@@ -11,12 +11,19 @@ export function WhatsAppMissing() {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   return (
-    <p className="flex items-start gap-2 text-sm text-grid-muted" role="status" data-whatsapp-missing>
+    <p
+      className="flex items-start gap-2 text-sm text-grid-muted"
+      role="status"
+      data-whatsapp-missing
+    >
       <MessageCircleWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
       {ws.can("inbox:manage") ? (
         <span>
           {t("campaigns.whatsappMissing")}{" "}
-          <Link className="underline underline-offset-4" href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}>
+          <Link
+            className="underline underline-offset-4"
+            href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}
+          >
             {t("campaigns.whatsappLink")}
           </Link>
         </span>

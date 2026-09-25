@@ -31,12 +31,22 @@ export default function CompanyDetailPage() {
   const ws = useWorkspace()
   const canWrite = ws.can("contacts:write")
   const detail = useCompany(ws.id, id)
-  useDocumentTitle(detail.data ? `${detail.data.company.name} · ${ws.summary.name}` : t("companies.title"))
+  useDocumentTitle(
+    detail.data ? `${detail.data.company.name} · ${ws.summary.name}` : t("companies.title"),
+  )
   const base = `/${locale}/w/${ws.slug}`
 
   if (detail.error) {
     const notFound = detail.error instanceof ApiError && detail.error.status === 404
-    if (notFound) return <NotFoundState title={t("companies.notFound")} body={t("companies.notFoundBody")} backHref={`${base}/companies`} backLabel={t("companies.backToList")} />
+    if (notFound)
+      return (
+        <NotFoundState
+          title={t("companies.notFound")}
+          body={t("companies.notFoundBody")}
+          backHref={`${base}/companies`}
+          backLabel={t("companies.backToList")}
+        />
+      )
     return <ErrorState error={detail.error} />
   }
   if (!detail.data) return <LoadingRows rows={6} />
@@ -57,7 +67,10 @@ export default function CompanyDetailPage() {
               description={t("companies.deleteBody", { name: isolate(company.name) })}
               confirmLabel={t("common.delete")}
               onConfirm={async () => {
-                await api(`/api/w/companies/${encodeURIComponent(company.id)}`, { method: "DELETE", workspaceId: ws.id })
+                await api(`/api/w/companies/${encodeURIComponent(company.id)}`, {
+                  method: "DELETE",
+                  workspaceId: ws.id,
+                })
                 window.location.href = `${base}/companies`
               }}
             />
@@ -72,7 +85,10 @@ export default function CompanyDetailPage() {
           <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
             <h2 className="text-base font-medium">{t("icp.fit")}</h2>
             <ScoreMeter score={company.score} />
-            <Link className="ms-auto text-xs text-grid-muted hover:text-grid-fg hover:underline" href={`${base}/settings/icp`}>
+            <Link
+              className="ms-auto text-xs text-grid-muted hover:text-grid-fg hover:underline"
+              href={`${base}/settings/icp`}
+            >
               {t("icp.editProfile")}
             </Link>
           </div>
@@ -86,14 +102,20 @@ export default function CompanyDetailPage() {
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
       <section>
-        <h2 className="px-6 pb-4 text-base font-medium">{t("companies.people", { count: contacts.length })}</h2>
+        <h2 className="px-6 pb-4 text-base font-medium">
+          {t("companies.people", { count: contacts.length })}
+        </h2>
         {contacts.length === 0 ? (
           <p className="px-6 pb-6 text-sm text-grid-muted">{t("companies.noPeople")}</p>
         ) : (
           <ul className="mb-6 divide-y divide-line border-y border-line">
             {contacts.map((c) => (
               <li key={c.id} className="px-6 py-3 text-sm">
-                <Link className="font-medium underline decoration-grid-muted underline-offset-4 hover:decoration-current" href={`${base}/contacts/${c.id}`} data-person-link>
+                <Link
+                  className="font-medium underline decoration-grid-muted underline-offset-4 hover:decoration-current"
+                  href={`${base}/contacts/${c.id}`}
+                  data-person-link
+                >
                   {c.name ? <Bdi>{c.name}</Bdi> : <Ltr>{c.email}</Ltr>}
                 </Link>
                 {c.title ? (
@@ -117,7 +139,14 @@ export default function CompanyDetailPage() {
 
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
-      <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} conversations={detail.data.conversations ?? []} target={{ company_id: company.id }} onChange={() => detail.mutate()} />
+      <Timeline
+        items={activities}
+        total={detail.data.activities_total}
+        nextCursor={detail.data.activities_next_cursor}
+        conversations={detail.data.conversations ?? []}
+        target={{ company_id: company.id }}
+        onChange={() => detail.mutate()}
+      />
       <div className="pb-8" />
     </>
   )
@@ -127,7 +156,15 @@ function EditCompany({
   company,
   onSaved,
 }: {
-  company: { id: string; name: string; domain: string; industry: string; size: string; country: string; notes: string }
+  company: {
+    id: string
+    name: string
+    domain: string
+    industry: string
+    size: string
+    country: string
+    notes: string
+  }
   onSaved: () => void
 }) {
   const { t } = useTranslations()
@@ -148,7 +185,14 @@ function EditCompany({
     try {
       await api(`/api/w/companies/${encodeURIComponent(company.id)}`, {
         method: "PATCH",
-        json: { name: name.trim(), domain: domain.trim(), industry: industry.trim(), size, country: country.trim(), notes: notes.trim() },
+        json: {
+          name: name.trim(),
+          domain: domain.trim(),
+          industry: industry.trim(),
+          size,
+          country: country.trim(),
+          notes: notes.trim(),
+        },
         workspaceId: ws.id,
       })
       toast.success(t("companies.saved"))
@@ -175,11 +219,23 @@ function EditCompany({
       />
       <Field className="mt-4 sm:max-w-xs">
         <FieldLabel htmlFor="edit-company-country">{t("companies.country")}</FieldLabel>
-        <Input id="edit-company-country" value={country} onChange={(e) => setCountry(e.target.value)} maxLength={80} placeholder={t("companies.countryPlaceholder")} />
+        <Input
+          id="edit-company-country"
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          maxLength={80}
+          placeholder={t("companies.countryPlaceholder")}
+        />
       </Field>
       <Field className="mt-4">
         <FieldLabel htmlFor="edit-company-notes">{t("companies.notes")}</FieldLabel>
-        <Textarea id="edit-company-notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} rows={3} />
+        <Textarea
+          id="edit-company-notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          maxLength={4000}
+          rows={3}
+        />
       </Field>
       <div className="mt-4 flex items-center gap-3">
         <Button type="submit" disabled={busy || !name.trim()}>

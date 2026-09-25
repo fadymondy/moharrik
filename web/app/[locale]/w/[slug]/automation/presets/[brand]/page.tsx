@@ -31,7 +31,9 @@ export default function PresetBrandPage() {
   const ws = useWorkspace()
   const { brand: brandKey } = useParams<{ brand: string }>()
   const brand = BRANDS[brandKey]
-  useDocumentTitle(`${brand?.name ?? t("presets.title")} · ${t("presets.title")} · ${ws.summary.name}`)
+  useDocumentTitle(
+    `${brand?.name ?? t("presets.title")} · ${t("presets.title")} · ${ws.summary.name}`,
+  )
   const canRun = ws.can("automation:run")
   const canManage = ws.can("automation:manage")
   const presets = usePresets(ws.id)
@@ -39,8 +41,14 @@ export default function PresetBrandPage() {
   const profile = useAutomationProfile(ws.id)
   const [open, setOpen] = useState<AutomationPreset | null>(null)
 
-  const list = useMemo(() => (presets.data?.presets ?? []).filter((p) => brandForHosts(p.hosts).key === brandKey), [presets.data, brandKey])
-  const bySlug = useMemo(() => new Map((presets.data?.presets ?? []).map((p) => [p.slug, p])), [presets.data])
+  const list = useMemo(
+    () => (presets.data?.presets ?? []).filter((p) => brandForHosts(p.hosts).key === brandKey),
+    [presets.data, brandKey],
+  )
+  const bySlug = useMemo(
+    () => new Map((presets.data?.presets ?? []).map((p) => [p.slug, p])),
+    [presets.data],
+  )
   const galleryHref = `/${locale}/w/${ws.slug}/automation/presets`
 
   if (!brand) {
@@ -50,7 +58,12 @@ export default function PresetBrandPage() {
           micro={<Bdi>{ws.summary.name}</Bdi>}
           title={t("presets.title")}
           action={
-            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={galleryHref} />}>
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={galleryHref} />}
+            >
               <ArrowLeftIcon className="rtl:rotate-180" />
               {t("presets.backToGallery")}
             </Button>
@@ -71,9 +84,17 @@ export default function PresetBrandPage() {
             {brand.name}
           </span>
         }
-        description={presets.data ? t("presets.brandCount", { n: formatNumber(list.length) }) : undefined}
+        description={
+          presets.data ? t("presets.brandCount", { n: formatNumber(list.length) }) : undefined
+        }
         action={
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={galleryHref} />} data-back-to-gallery>
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={galleryHref} />}
+            data-back-to-gallery
+          >
             <ArrowLeftIcon className="rtl:rotate-180" />
             {t("presets.backToGallery")}
           </Button>
@@ -86,9 +107,18 @@ export default function PresetBrandPage() {
       ) : list.length === 0 ? (
         <EmptyState title={t("presets.noMatch", { q: brand.name })} />
       ) : (
-        <ul className="grid gap-3 px-6 pb-8 sm:grid-cols-2 lg:grid-cols-3" data-preset-shelf={brandKey}>
+        <ul
+          className="grid gap-3 px-6 pb-8 sm:grid-cols-2 lg:grid-cols-3"
+          data-preset-shelf={brandKey}
+        >
           {list.map((p) => (
-            <PresetCard key={p.slug} preset={p} brand={brand} twin={bySlug.get(p.dry_run ?? p.dry_run_of ?? "")} onOpen={() => setOpen(p)} />
+            <PresetCard
+              key={p.slug}
+              preset={p}
+              brand={brand}
+              twin={bySlug.get(p.dry_run ?? p.dry_run_of ?? "")}
+              onOpen={() => setOpen(p)}
+            />
           ))}
         </ul>
       )}

@@ -30,13 +30,19 @@ const SHOTS = process.env.SHOTS ?? "E:/Sites/moharrik-wt-ao-write-confirm/.setup
 // follows presets-check.mjs's own default of the Playwright-bundled
 // Chromium, overridable with EXT_CHROME on a machine where real Chrome allows
 // unpacked extensions.
-const CHROME = process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
+const CHROME =
+  process.env.EXT_CHROME ??
+  "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
 const here = path.dirname(fileURLToPath(import.meta.url))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const SRC = path.resolve(here, "../../extension")
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-wfconfirm-"))
-cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)) })
+cpSync(SRC, EXT, {
+  recursive: true,
+  filter: (p) =>
+    !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)),
+})
 {
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
   m.host_permissions = [`${base}/*`, `${apiBase}/*`, "http://*/*", "https://*/*"]
@@ -48,19 +54,23 @@ cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]
 }
 
 const out = {}
-const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "ext-wfconfirm-profile-")), {
-  executablePath: CHROME,
-  // Chrome only registers an extension's service worker in a context that is
-  // NOT headless (the same reason presets-check.mjs and the other extension
-  // checks in this directory launch headless:false); a headless context here
-  // times out waiting for it.
-  headless: false,
-  viewport: { width: 1280, height: 900 },
-  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
-})
+const ctx = await chromium.launchPersistentContext(
+  mkdtempSync(path.join(tmpdir(), "ext-wfconfirm-profile-")),
+  {
+    executablePath: CHROME,
+    // Chrome only registers an extension's service worker in a context that is
+    // NOT headless (the same reason presets-check.mjs and the other extension
+    // checks in this directory launch headless:false); a headless context here
+    // times out waiting for it.
+    headless: false,
+    viewport: { width: 1280, height: 900 },
+    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
+  },
+)
 
 try {
-  const worker = ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker", { timeout: 30000 }))
+  const worker =
+    ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker", { timeout: 30000 }))
   const extensionID = new URL(worker.url()).host
 
   const page = ctx.pages()[0] ?? (await ctx.newPage())
@@ -77,18 +87,36 @@ try {
   const slug = page.url().split("/w/")[1].split("/")[0]
   const call = async (method, p, data, wsID) => {
     const csrf = (await (await page.request.get(`${base}/api/auth/csrf`)).json()).csrf_token
-    const res = await page.request.fetch(`${base}${p}`, { method, headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) }, data })
+    const res = await page.request.fetch(`${base}${p}`, {
+      method,
+      headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) },
+      data,
+    })
     const text = await res.text()
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text}`)
     return text ? JSON.parse(text) : null
   }
   const wsID = (await call("GET", "/api/me/workspaces")).workspaces.find((w) => w.slug === slug).id
-  const { browser, online } = await connectExtension({ ctx, extensionID, site: base, api: apiBase, call, workspaceID: wsID, name: "WF Confirm Chromium", hosts: [] })
+  const { browser, online } = await connectExtension({
+    ctx,
+    extensionID,
+    site: base,
+    api: apiBase,
+    call,
+    workspaceID: wsID,
+    name: "WF Confirm Chromium",
+    hosts: [],
+  })
   out.connected = online
 
   // ---- add a publishing preset and a non-writing one, both paired to the browser ----
   await call("POST", "/api/w/automation/presets/linkedin-post/add", { agent_id: browser.id }, wsID)
-  await call("POST", "/api/w/automation/presets/google-news-search/add", { agent_id: browser.id }, wsID)
+  await call(
+    "POST",
+    "/api/w/automation/presets/google-news-search/add",
+    { agent_id: browser.id },
+    wsID,
+  )
   const wfs = (await call("GET", "/api/w/workflows", undefined, wsID)).workflows
   const writes = wfs.find((w) => w.preset === "linkedin-post")
   const plain = wfs.find((w) => w.preset === "google-news-search")
@@ -99,11 +127,14 @@ try {
   // ---- the workflows list: Publishes badge, no run button to gate ----
   await page.goto(`${base}/en/w/${slug}/automation/workflows`, { waitUntil: "load" })
   await page.waitForSelector(`li[data-workflow-row="${writes.name}"]`, { timeout: 20000 })
-  out.listFlagsPublishing = (await page.$(`li[data-workflow-row="${writes.name}"] [data-workflow-writes]`)) !== null
-  out.listHasNoRunButton = (await page.$(`li[data-workflow-row="${writes.name}"] [data-run-workflow]`)) === null
+  out.listFlagsPublishing =
+    (await page.$(`li[data-workflow-row="${writes.name}"] [data-workflow-writes]`)) !== null
+  out.listHasNoRunButton =
+    (await page.$(`li[data-workflow-row="${writes.name}"] [data-run-workflow]`)) === null
 
   const canvasUrl = (id, locale = "en") => `${base}/${locale}/w/${slug}/automation/workflows/${id}`
-  const runsFor = async (id) => (await call("GET", "/api/w/runs", undefined, wsID)).runs.filter((r) => r.workflow_id === id)
+  const runsFor = async (id) =>
+    (await call("GET", "/api/w/runs", undefined, wsID)).runs.filter((r) => r.workflow_id === id)
 
   // ---- canvas run control on a WRITES workflow: dialog first, Cancel starts nothing ----
   await page.goto(canvasUrl(writes.id), { waitUntil: "load" })
@@ -117,7 +148,9 @@ try {
   const before = await runsFor(writes.id)
   await page.click("[data-test-run]")
   await page.waitForSelector("[data-confirm-run-dialog]", { timeout: 10000 })
-  out.canvasDialogTitle = await page.textContent("[data-confirm-run-dialog] [data-slot='alert-dialog-title'], [data-confirm-run-dialog] h2")
+  out.canvasDialogTitle = await page.textContent(
+    "[data-confirm-run-dialog] [data-slot='alert-dialog-title'], [data-confirm-run-dialog] h2",
+  )
   await page.click("[data-confirm-run-dialog] button:has-text('Cancel')")
   await page.waitForSelector("[data-confirm-run-dialog]", { state: "hidden", timeout: 10000 })
   await sleep(1000)
@@ -160,7 +193,11 @@ try {
   for (const locale of ["en", "ar"]) {
     for (const theme of ["light", "dark"]) {
       for (const width of [1440, 390]) {
-        const c = await shooter.newContext({ storageState: state, viewport: { width, height: 900 }, colorScheme: theme })
+        const c = await shooter.newContext({
+          storageState: state,
+          viewport: { width, height: 900 },
+          colorScheme: theme,
+        })
         const p = await c.newPage()
         await p.goto(canvasUrl(writes.id, locale), { waitUntil: "load" })
         await p.waitForSelector("[data-test-run]:not([disabled])", { timeout: 30000 })
@@ -168,7 +205,9 @@ try {
         await p.waitForSelector("[data-confirm-run-dialog]", { timeout: 10000 })
         await p.waitForTimeout(500)
         await p.screenshot({ path: `${SHOTS}/wf-confirm-dialog-${locale}-${theme}-${width}.png` })
-        out[`dialog-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth === 0)
+        out[`dialog-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(
+          () => document.documentElement.scrollWidth - innerWidth === 0,
+        )
         await c.close()
       }
     }

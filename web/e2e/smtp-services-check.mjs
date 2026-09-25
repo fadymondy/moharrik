@@ -13,7 +13,10 @@ const logDir = process.argv[3]
 const out = {}
 const browser = await launch()
 const { state, wsId, slug } = await signIn(browser, base)
-const ctx = await browser.newContext({ storageState: state, viewport: { width: 1440, height: 900 } })
+const ctx = await browser.newContext({
+  storageState: state,
+  viewport: { width: 1440, height: 900 },
+})
 const page = await ctx.newPage()
 const errors = []
 page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)))
@@ -22,7 +25,8 @@ const stamp = Date.now().toString(36)
 // ---- start clean: remove services from an earlier run (default last) ----
 await page.goto(`${base}/en/w/${slug}/settings/email`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector("[data-smtp-state]", { timeout: 60000 })
-let existing = (await call(page, "GET", "/api/w/smtp-services", undefined, wsId)).body.services ?? []
+let existing =
+  (await call(page, "GET", "/api/w/smtp-services", undefined, wsId)).body.services ?? []
 for (const s of [...existing].sort((a, b) => Number(a.is_default) - Number(b.is_default))) {
   await call(page, "DELETE", `/api/w/smtp-services/${s.id}`, undefined, wsId)
 }
@@ -48,8 +52,12 @@ async function addService(name, port, user, pass, from) {
 }
 await addService("Transactional A", 2614, "a-user", "a-pass-SECRET", "hello@nilecoffee.example")
 await addService("Bulk B", 2615, "b-user", "b-pass-SECRET", "news@nilecoffee.example")
-out.aRoles = await page.$$eval('[data-service="Transactional A"] [data-role]', (els) => els.map((e) => e.getAttribute("data-role")))
-out.bRoles = await page.$$eval('[data-service="Bulk B"] [data-role]', (els) => els.map((e) => e.getAttribute("data-role")))
+out.aRoles = await page.$$eval('[data-service="Transactional A"] [data-role]', (els) =>
+  els.map((e) => e.getAttribute("data-role")),
+)
+out.bRoles = await page.$$eval('[data-service="Bulk B"] [data-role]', (els) =>
+  els.map((e) => e.getAttribute("data-role")),
+)
 
 // The list never carries a password.
 const listed = await call(page, "GET", "/api/w/smtp-services", undefined, wsId)
@@ -79,25 +87,45 @@ await page.click("#campaign-service")
 await page.getByRole("option", { name: "Bulk B" }).click()
 const subject = `MH-412 check ${stamp}`
 await page.fill("#campaign-subject", subject)
-await page.locator('[data-form="new-campaign"] textarea, [data-form="new-campaign"] [contenteditable=true]').first().fill("Fresh beans this week.")
+await page
+  .locator('[data-form="new-campaign"] textarea, [data-form="new-campaign"] [contenteditable=true]')
+  .first()
+  .fill("Fresh beans this week.")
 await page.click('[data-form="new-campaign"] button[type=submit]')
 const row = page.locator(`[data-campaign-row="${subject}"]`)
 await row.waitFor({ timeout: 15000 })
-out.rowSaysViaB = (await row.locator("[data-campaign-service]").getAttribute("data-campaign-service")) === "Bulk B"
+out.rowSaysViaB =
+  (await row.locator("[data-campaign-service]").getAttribute("data-campaign-service")) === "Bulk B"
 await row.getByRole("button", { name: /Send/ }).click()
 out.sendDialogNamesB = (await page.locator("[role=alertdialog]").innerText()).includes("Bulk B")
-await page.locator("[role=alertdialog]").getByRole("button", { name: /^Send$/ }).click()
+await page
+  .locator("[role=alertdialog]")
+  .getByRole("button", { name: /^Send$/ })
+  .click()
 
 // ---- meanwhile, a confirmation email: somebody joins a double-opt-in list ----
 const joiner = `joiner-${stamp}@mail.example`
-const added = await call(page, "POST", "/api/w/contacts", { email: joiner, list_id: doiList.id }, wsId)
+const added = await call(
+  page,
+  "POST",
+  "/api/w/contacts",
+  { email: joiner, list_id: doiList.id },
+  wsId,
+)
 out.confirmation = added.body.confirmation
 
 // ---- wait for the send, then read each provider's own log ----
 for (let i = 0; i < 60; i++) {
-  const c = (await call(page, "GET", "/api/w/campaigns", undefined, wsId)).body.campaigns.find((x) => x.subject === subject)
+  const c = (await call(page, "GET", "/api/w/campaigns", undefined, wsId)).body.campaigns.find(
+    (x) => x.subject === subject,
+  )
   if (c && c.status !== "sending" && c.status !== "draft") {
-    out.campaign = { status: c.status, sent: c.sent_count, failed: c.failed_count, via: c.smtp_service_name }
+    out.campaign = {
+      status: c.status,
+      sent: c.sent_count,
+      failed: c.failed_count,
+      via: c.smtp_service_name,
+    }
     break
   }
   await page.waitForTimeout(500)
@@ -126,7 +154,15 @@ out.pass =
 
 // ---- screenshots: the services, the edit sheet, the campaign picker ----
 out.shots = []
-out.shots.push(...(await matrix(browser, state, { base, card: "MH-412", name: "services", url: `/w/${slug}/settings/email`, ready: "[data-smtp-services]" })))
+out.shots.push(
+  ...(await matrix(browser, state, {
+    base,
+    card: "MH-412",
+    name: "services",
+    url: `/w/${slug}/settings/email`,
+    ready: "[data-smtp-services]",
+  })),
+)
 out.shots.push(
   ...(await matrix(browser, state, {
     base,
@@ -154,7 +190,14 @@ out.shots.push(
     },
   })),
 )
-out.shotProblems = out.shots.filter((s) => s.overflow > 0 || s.errors.length || s.rawKeys.length || (s.locale === "ar") !== (s.dir === "rtl") || (s.theme === "dark") !== s.dark)
+out.shotProblems = out.shots.filter(
+  (s) =>
+    s.overflow > 0 ||
+    s.errors.length ||
+    s.rawKeys.length ||
+    (s.locale === "ar") !== (s.dir === "rtl") ||
+    (s.theme === "dark") !== s.dark,
+)
 out.shotCount = out.shots.length
 delete out.shots
 out.pageErrors = errors

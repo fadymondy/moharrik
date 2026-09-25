@@ -78,18 +78,24 @@ check("noPageErrorsOnLoad", errs.length === 0, errs)
 // ---- WhatsApp export import: preview -> pick sender -> commit ----
 await page.click("[data-action=import-whatsapp]")
 await page.waitForSelector('[data-testid="whatsapp-import-sheet"]', { timeout: 10000 })
-const fixture = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "fixtures", "android_export.txt")
+const fixture = path.join(
+  path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")),
+  "fixtures",
+  "android_export.txt",
+)
 await page.setInputFiles('[data-testid="whatsapp-file-input"]', fixture)
 await page.waitForSelector('[data-testid="whatsapp-preview"]', { timeout: 15000 })
 check("previewShown", true)
 const msgCountText = await page.locator("[data-preview-message-count]").innerText()
 check("previewHasMessages", /[1-9]/.test(msgCountText), msgCountText)
-if (shots) await page.screenshot({ path: path.join(shots, "mh586-whatsapp-preview-en-light-1440.png") })
+if (shots)
+  await page.screenshot({ path: path.join(shots, "mh586-whatsapp-preview-en-light-1440.png") })
 
 await page.click("[data-action=commit-whatsapp-import]")
 await page.waitForSelector('[data-testid="whatsapp-commit-result"]', { timeout: 15000 })
 check("importCommitted", true)
-if (shots) await page.screenshot({ path: path.join(shots, "mh586-whatsapp-committed-en-light-1440.png") })
+if (shots)
+  await page.screenshot({ path: path.join(shots, "mh586-whatsapp-committed-en-light-1440.png") })
 
 // close the sheet, reload the summary, confirm the import is listed
 await page.keyboard.press("Escape")
@@ -109,7 +115,10 @@ await page.click("[data-action=ask-contact-context]")
 await page.waitForSelector('[data-testid="contact-context-answer"]', { timeout: 15000 })
 const answerText = await page.locator('[data-testid="contact-context-answer"]').innerText()
 check("askAnswered", answerText.trim().length > 0, answerText)
-const noProviderAttr = await page.getAttribute('[data-testid="contact-context-answer"]', "data-no-provider")
+const noProviderAttr = await page.getAttribute(
+  '[data-testid="contact-context-answer"]',
+  "data-no-provider",
+)
 out.askNoProvider = noProviderAttr
 const citationCount = await page.locator('[data-testid="contact-context-citations"] li').count()
 check("askHasCitations", citationCount > 0, citationCount)
@@ -120,7 +129,9 @@ if (shots) await page.screenshot({ path: path.join(shots, "mh586-ask-answer-en-l
 // the toggle if it isn't already expanded — clicking an already-open row
 // collapses it instead.
 await page.click("[data-action=generate-report]")
-await page.waitForSelector('[data-testid="contact-context-report-list"] [data-contact-report]', { timeout: 20000 })
+await page.waitForSelector('[data-testid="contact-context-report-list"] [data-contact-report]', {
+  timeout: 20000,
+})
 check("reportGenerated", true)
 if ((await page.locator('[data-testid="contact-report-markdown"]').count()) === 0) {
   await page.click('[data-testid="contact-context-report-list"] [data-action=toggle-report]')
@@ -128,15 +139,23 @@ if ((await page.locator('[data-testid="contact-report-markdown"]').count()) === 
 await page.waitForSelector('[data-testid="contact-report-markdown"]', { timeout: 10000 })
 const reportMd = await page.locator('[data-testid="contact-report-markdown"]').innerText()
 check("reportHasContent", reportMd.trim().length > 0, reportMd.length)
-check("reportCitesTimeline", /\[note:|\[message:/.test(reportMd) || reportMd.includes("Sara"), reportMd.slice(0, 200))
+check(
+  "reportCitesTimeline",
+  /\[note:|\[message:/.test(reportMd) || reportMd.includes("Sara"),
+  reportMd.slice(0, 200),
+)
 if (shots) await page.screenshot({ path: path.join(shots, "mh586-report-en-light-1440.png") })
 
 // ---- remove the import (must never trigger automations — asserted at the Go
 // test layer; here we only assert the UI reflects the removal) ----
 await page.click("[data-remove-import] button")
 await page.waitForSelector('[role="alertdialog"]', { timeout: 5000 })
-await page.click('[role="alertdialog"] button:has-text("Delete"), [role="alertdialog"] button:has-text("Remove")')
-await page.waitForSelector("[data-whatsapp-import]", { state: "detached", timeout: 15000 }).catch(() => {})
+await page.click(
+  '[role="alertdialog"] button:has-text("Delete"), [role="alertdialog"] button:has-text("Remove")',
+)
+await page
+  .waitForSelector("[data-whatsapp-import]", { state: "detached", timeout: 15000 })
+  .catch(() => {})
 const importsLeft = await page.locator("[data-whatsapp-import]").count()
 check("importRemoved", importsLeft === 0, importsLeft)
 
@@ -150,7 +169,9 @@ await pageAr.goto(`${base}/ar/login`, { waitUntil: "load" }).catch(() => {})
 // contacts list unauthenticated-safe route to confirm the locale boots and
 // the panel's static strings render RTL on a real page that has one: reuse
 // pageA's own contact by switching its locale prefix (same session cookie).
-await page.goto(`${base.replace(/\/$/, "")}/ar/w/${slug}/contacts/${contactId}`, { waitUntil: "load" })
+await page.goto(`${base.replace(/\/$/, "")}/ar/w/${slug}/contacts/${contactId}`, {
+  waitUntil: "load",
+})
 await page.waitForSelector("[data-contact-context-panel]", { timeout: 20000 })
 check("arabicPanelLoaded", true)
 if (shots) await page.screenshot({ path: path.join(shots, "mh586-panel-ar-dark-390.png") })

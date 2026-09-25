@@ -19,12 +19,28 @@ import type { ReactNode } from "react"
 import { Bdi } from "@/components/bidi"
 import { ChartOrTable, type SeriesPoint } from "@/components/overview/overview-charts"
 import { Panel, useFormat } from "@/components/overview/overview-cards"
-import type { OverviewGA4Summary, OverviewSearchConsoleSummary, OverviewTraffic, OverviewYouTube, OverviewYouTubeSummary } from "@/lib/api"
+import type {
+  OverviewGA4Summary,
+  OverviewSearchConsoleSummary,
+  OverviewTraffic,
+  OverviewYouTube,
+  OverviewYouTubeSummary,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat, numberFormat } from "@/lib/i18n-locale"
 import { cn } from "@/lib/utils"
 
-function Figure({ label, value, id, delta }: { label: string; value: string; id: string; delta?: ReactNode }) {
+function Figure({
+  label,
+  value,
+  id,
+  delta,
+}: {
+  label: string
+  value: string
+  id: string
+  delta?: ReactNode
+}) {
   return (
     <div className="min-w-0" data-traffic-figure={id}>
       <p className="grid-micro truncate">{label}</p>
@@ -43,15 +59,24 @@ function PctBadge({ pct }: { pct: number | null }) {
   const flat = Math.abs(pct) < 0.0005
   const good = flat ? null : pct > 0
   const Icon = flat ? MinusIcon : pct > 0 ? ArrowUpIcon : ArrowDownIcon
-  const text = numberFormat(locale, { style: "percent", maximumFractionDigits: 1, signDisplay: "always" }).format(pct)
+  const text = numberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 1,
+    signDisplay: "always",
+  }).format(pct)
   return (
     <span
-      className={cn("inline-flex items-center gap-1 text-xs font-medium tabular-nums", good == null ? "text-grid-muted" : good ? "text-grid-ok-text" : "text-grid-danger-text")}
+      className={cn(
+        "inline-flex items-center gap-1 text-xs font-medium tabular-nums",
+        good == null ? "text-grid-muted" : good ? "text-grid-ok-text" : "text-grid-danger-text",
+      )}
       data-delta={good == null ? "flat" : good ? "better" : "worse"}
     >
       <Icon className="size-3.5" aria-hidden />
       {text}
-      <span className="font-normal text-grid-muted">{t(good == null ? "gdata.flat" : good ? "gdata.better" : "gdata.worse")}</span>
+      <span className="font-normal text-grid-muted">
+        {t(good == null ? "gdata.flat" : good ? "gdata.better" : "gdata.worse")}
+      </span>
     </span>
   )
 }
@@ -76,41 +101,100 @@ function useTrafficFormat() {
   }
 }
 
-function Ga4Section({ ga4, f }: { ga4: OverviewGA4Summary; f: ReturnType<typeof useTrafficFormat> }) {
+function Ga4Section({
+  ga4,
+  f,
+}: {
+  ga4: OverviewGA4Summary
+  f: ReturnType<typeof useTrafficFormat>
+}) {
   const { t } = useTranslations()
   const num = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
     <div className="space-y-3 px-5 py-4" data-traffic-ga4>
-      <p className="text-xs font-medium text-grid-muted">{t("nav.analytics")} · {t("overview.propertiesCount", { n: f.n(ga4.properties_count) })}</p>
+      <p className="text-xs font-medium text-grid-muted">
+        {t("nav.analytics")} · {t("overview.propertiesCount", { n: f.n(ga4.properties_count) })}
+      </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Figure id="ga4-users" label={t("analytics.users")} value={num(ga4.users)} delta={<PctBadge pct={ga4.users_delta_pct} />} />
-        <Figure id="ga4-sessions" label={t("analytics.sessions")} value={num(ga4.sessions)} delta={<PctBadge pct={ga4.sessions_delta_pct} />} />
-        <Figure id="ga4-views" label={t("analytics.views")} value={num(ga4.views)} delta={<PctBadge pct={ga4.views_delta_pct} />} />
-        <Figure id="ga4-engagement" label={t("analytics.engagementRate")} value={ga4.engagement_rate == null ? "—" : f.pct(ga4.engagement_rate)} />
-        <Figure id="ga4-avg-session" label={t("overview.avgSession")} value={ga4.avg_session_seconds == null ? "—" : f.duration(ga4.avg_session_seconds)} />
+        <Figure
+          id="ga4-users"
+          label={t("analytics.users")}
+          value={num(ga4.users)}
+          delta={<PctBadge pct={ga4.users_delta_pct} />}
+        />
+        <Figure
+          id="ga4-sessions"
+          label={t("analytics.sessions")}
+          value={num(ga4.sessions)}
+          delta={<PctBadge pct={ga4.sessions_delta_pct} />}
+        />
+        <Figure
+          id="ga4-views"
+          label={t("analytics.views")}
+          value={num(ga4.views)}
+          delta={<PctBadge pct={ga4.views_delta_pct} />}
+        />
+        <Figure
+          id="ga4-engagement"
+          label={t("analytics.engagementRate")}
+          value={ga4.engagement_rate == null ? "—" : f.pct(ga4.engagement_rate)}
+        />
+        <Figure
+          id="ga4-avg-session"
+          label={t("overview.avgSession")}
+          value={ga4.avg_session_seconds == null ? "—" : f.duration(ga4.avg_session_seconds)}
+        />
         <Figure id="ga4-key-events" label={t("overview.keyEvents")} value={num(ga4.key_events)} />
       </div>
     </div>
   )
 }
 
-function GscSection({ gsc, f }: { gsc: OverviewSearchConsoleSummary; f: ReturnType<typeof useTrafficFormat> }) {
+function GscSection({
+  gsc,
+  f,
+}: {
+  gsc: OverviewSearchConsoleSummary
+  f: ReturnType<typeof useTrafficFormat>
+}) {
   const { t } = useTranslations()
   const num = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
     <div className="space-y-3 px-5 py-4" data-traffic-gsc>
-      <p className="text-xs font-medium text-grid-muted">{t("nav.searchConsole")} · {t("overview.sitesCount", { n: f.n(gsc.sites_count) })}</p>
+      <p className="text-xs font-medium text-grid-muted">
+        {t("nav.searchConsole")} · {t("overview.sitesCount", { n: f.n(gsc.sites_count) })}
+      </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Figure id="gsc-clicks" label={t("overview.searchClicks")} value={num(gsc.clicks)} delta={<PctBadge pct={gsc.clicks_delta_pct} />} />
-        <Figure id="gsc-impressions" label={t("gsc.impressions")} value={num(gsc.impressions)} delta={<PctBadge pct={gsc.impressions_delta_pct} />} />
+        <Figure
+          id="gsc-clicks"
+          label={t("overview.searchClicks")}
+          value={num(gsc.clicks)}
+          delta={<PctBadge pct={gsc.clicks_delta_pct} />}
+        />
+        <Figure
+          id="gsc-impressions"
+          label={t("gsc.impressions")}
+          value={num(gsc.impressions)}
+          delta={<PctBadge pct={gsc.impressions_delta_pct} />}
+        />
         <Figure id="gsc-ctr" label={t("gsc.ctr")} value={gsc.ctr == null ? "—" : f.pct(gsc.ctr)} />
-        <Figure id="gsc-position" label={t("gsc.positionShort")} value={gsc.avg_position == null ? "—" : f.n(gsc.avg_position)} />
+        <Figure
+          id="gsc-position"
+          label={t("gsc.positionShort")}
+          value={gsc.avg_position == null ? "—" : f.n(gsc.avg_position)}
+        />
       </div>
     </div>
   )
 }
 
-function YoutubeSection({ yt, f }: { yt: OverviewYouTubeSummary; f: ReturnType<typeof useTrafficFormat> }) {
+function YoutubeSection({
+  yt,
+  f,
+}: {
+  yt: OverviewYouTubeSummary
+  f: ReturnType<typeof useTrafficFormat>
+}) {
   const { t } = useTranslations()
   const num = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
@@ -140,10 +224,21 @@ export function TrafficCard({ traffic, base }: { traffic: OverviewTraffic; base:
     seriesKeys.push("clicks")
     seriesLabels.push(t("gsc.clicks"))
   }
-  const chartData: SeriesPoint[] = (summary?.daily ?? []).map((d) => ({ date: d.date, users: d.users, sessions: d.sessions, clicks: d.clicks }))
+  const chartData: SeriesPoint[] = (summary?.daily ?? []).map((d) => ({
+    date: d.date,
+    users: d.users,
+    sessions: d.sessions,
+    clicks: d.clicks,
+  }))
 
   return (
-    <Panel id="traffic" title={t("overview.traffic")} icon={<ChartLineIcon />} href={`${base}/analytics`} meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}>
+    <Panel
+      id="traffic"
+      title={t("overview.traffic")}
+      icon={<ChartLineIcon />}
+      href={`${base}/analytics`}
+      meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}
+    >
       {nothingConnected ? (
         <p className="px-5 py-6 text-sm text-grid-muted" data-empty>
           {t("overview.trafficPending")}
@@ -174,10 +269,16 @@ export function TrafficCard({ traffic, base }: { traffic: OverviewTraffic; base:
               <ul className="space-y-2">
                 {summary.top_properties.slice(0, 5).map((p) => (
                   <li key={p.resource_id} className="flex items-center justify-between gap-3">
-                    <Link href={`${base}/analytics`} className="min-w-0 truncate text-sm text-grid-fg hover:underline" data-top-property={p.name}>
+                    <Link
+                      href={`${base}/analytics`}
+                      className="min-w-0 truncate text-sm text-grid-fg hover:underline"
+                      data-top-property={p.name}
+                    >
                       <Bdi>{p.name}</Bdi>
                     </Link>
-                    <span className="shrink-0 text-sm text-grid-muted tabular-nums">{p.users == null ? "—" : f.n(p.users)}</span>
+                    <span className="shrink-0 text-sm text-grid-muted tabular-nums">
+                      {p.users == null ? "—" : f.n(p.users)}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -210,7 +311,9 @@ export function YouTubeCard({ channels, base }: { channels: OverviewYouTube[]; b
                 ? c.last_error
                 : c.views_28 == null
                   ? t("overview.views28Pending")
-                  : t("overview.views28Source", { to: c.views_28_to ? f.date(c.views_28_to) : "—" })}
+                  : t("overview.views28Source", {
+                      to: c.views_28_to ? f.date(c.views_28_to) : "—",
+                    })}
             </p>
           </li>
         ))}

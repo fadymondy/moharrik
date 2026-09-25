@@ -57,10 +57,17 @@ export async function call(page, method, p, body, wsId) {
       if (body !== undefined) h["Content-Type"] = "application/json"
       if (wsId) h["X-Workspace-ID"] = wsId
       if (method !== "GET") {
-        const c = await fetch("/api/auth/csrf", { credentials: "same-origin" }).then((r) => r.json())
+        const c = await fetch("/api/auth/csrf", { credentials: "same-origin" }).then((r) =>
+          r.json(),
+        )
         h["X-CSRF-Token"] = c.csrf_token
       }
-      const r = await fetch(p, { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined, credentials: "same-origin" })
+      const r = await fetch(p, {
+        method,
+        headers: h,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        credentials: "same-origin",
+      })
       const text = await r.text()
       let json = null
       try {
@@ -79,12 +86,20 @@ export const SHOTS = "E:/Sites/fadymondy.com-v2/.setup/shots"
  * shows once loaded; `prepare(page)` runs after it (open a sheet, fill a form...). Returns per-shot facts: the
  * document direction, whether dark applied, and any horizontal overflow.
  */
-export async function matrix(browser, state, { base, card, name, url, ready, prepare, fullPage = true }) {
+export async function matrix(
+  browser,
+  state,
+  { base, card, name, url, ready, prepare, fullPage = true },
+) {
   const facts = []
   for (const locale of ["en", "ar"]) {
     for (const theme of ["light", "dark"]) {
       for (const width of [1440, 390]) {
-        const ctx = await browser.newContext({ storageState: state, viewport: { width, height: 900 }, colorScheme: theme })
+        const ctx = await browser.newContext({
+          storageState: state,
+          viewport: { width, height: 900 },
+          colorScheme: theme,
+        })
         const page = await ctx.newPage()
         const errors = []
         page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)))
@@ -100,9 +115,13 @@ export async function matrix(browser, state, { base, card, name, url, ready, pre
           dir: document.documentElement.dir,
           dark: document.documentElement.classList.contains("dark"),
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-          rawKeys: [...document.body.innerText.matchAll(/\b[a-z][A-Za-z]+\.[a-z][A-Za-z.]+[A-Za-z]\b/g)]
+          rawKeys: [
+            ...document.body.innerText.matchAll(/\b[a-z][A-Za-z]+\.[a-z][A-Za-z.]+[A-Za-z]\b/g),
+          ]
             .map((m) => m[0])
-            .filter((k) => /^(smtp|campaigns|contactWa|waNotify|whatsapp|contacts|delivery|common)\./.test(k)),
+            .filter((k) =>
+              /^(smtp|campaigns|contactWa|waNotify|whatsapp|contacts|delivery|common)\./.test(k),
+            ),
         }))
         facts.push({ file: path.basename(file), locale, theme, width, ...f, errors })
         await ctx.close()

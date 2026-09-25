@@ -9,7 +9,14 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -41,25 +48,40 @@ export default function CannedRepliesPage() {
         description={t("inbox.canned.hint")}
         action={
           canManage ? (
-            <Button onClick={() => setEditing("new")} disabled={!canned.data} data-action="add-canned">
+            <Button
+              onClick={() => setEditing("new")}
+              disabled={!canned.data}
+              data-action="add-canned"
+            >
               <PlusIcon />
               {t("inbox.canned.add")}
             </Button>
           ) : undefined
         }
       />
-      {!canManage ? <p className="px-6 pb-4 text-sm text-grid-muted">{t("inbox.canned.readOnly")}</p> : null}
+      {!canManage ? (
+        <p className="px-6 pb-4 text-sm text-grid-muted">{t("inbox.canned.readOnly")}</p>
+      ) : null}
 
       {canned.error ? (
         <ErrorState error={canned.error} />
       ) : !canned.data ? (
         <LoadingRows />
       ) : list.length === 0 ? (
-        <EmptyState title={t("inbox.canned.empty")} body={canManage ? t("inbox.canned.emptyBody") : undefined} />
+        <EmptyState
+          title={t("inbox.canned.empty")}
+          body={canManage ? t("inbox.canned.emptyBody") : undefined}
+        />
       ) : (
         <ul className="divide-y divide-line border-y border-line" data-canned-list>
           {list.map((r) => (
-            <CannedRow key={r.id} r={r} canManage={canManage} onEdit={() => setEditing(r)} onChange={() => canned.mutate()} />
+            <CannedRow
+              key={r.id}
+              r={r}
+              canManage={canManage}
+              onEdit={() => setEditing(r)}
+              onChange={() => canned.mutate()}
+            />
           ))}
         </ul>
       )}
@@ -68,7 +90,9 @@ export default function CannedRepliesPage() {
       <Dialog open={editing !== null} onOpenChange={(v) => (v ? null : setEditing(null))}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editing === "new" ? t("inbox.canned.add") : t("inbox.canned.editTitle")}</DialogTitle>
+            <DialogTitle>
+              {editing === "new" ? t("inbox.canned.add") : t("inbox.canned.editTitle")}
+            </DialogTitle>
             <DialogDescription>{t("inbox.canned.bodyHint")}</DialogDescription>
           </DialogHeader>
           {editing !== null ? (
@@ -86,12 +110,25 @@ export default function CannedRepliesPage() {
   )
 }
 
-function CannedRow({ r, canManage, onEdit, onChange }: { r: CannedReply; canManage: boolean; onEdit: () => void; onChange: () => void }) {
+function CannedRow({
+  r,
+  canManage,
+  onEdit,
+  onChange,
+}: {
+  r: CannedReply
+  canManage: boolean
+  onEdit: () => void
+  onChange: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
 
   async function remove() {
-    await api(`/api/w/canned_replies/${encodeURIComponent(r.id)}`, { method: "DELETE", workspaceId: ws.id })
+    await api(`/api/w/canned_replies/${encodeURIComponent(r.id)}`, {
+      method: "DELETE",
+      workspaceId: ws.id,
+    })
     toast.success(t("inbox.canned.deleted"))
     onChange()
   }
@@ -126,17 +163,33 @@ function CannedRow({ r, canManage, onEdit, onChange }: { r: CannedReply; canMana
   )
 }
 
-function Variant({ label, text, dir, lang }: { label: string; text: string; dir: "ltr" | "rtl"; lang: "en" | "ar" }) {
+function Variant({
+  label,
+  text,
+  dir,
+  lang,
+}: {
+  label: string
+  text: string
+  dir: "ltr" | "rtl"
+  lang: "en" | "ar"
+}) {
   const { t } = useTranslations()
   return (
     <div className="min-w-0 space-y-1" data-canned-variant={lang}>
       <p className="grid-micro">{label}</p>
       {text ? (
-        <p dir={dir} lang={lang} className="rounded-md border border-line bg-grid-card px-3 py-2 text-sm break-words whitespace-pre-wrap">
+        <p
+          dir={dir}
+          lang={lang}
+          className="rounded-md border border-line bg-grid-card px-3 py-2 text-sm break-words whitespace-pre-wrap"
+        >
           {text}
         </p>
       ) : (
-        <p className="text-sm text-grid-muted">{t("inbox.canned.missing", { language: t(`inbox.canned.language.${lang}`) })}</p>
+        <p className="text-sm text-grid-muted">
+          {t("inbox.canned.missing", { language: t(`inbox.canned.language.${lang}`) })}
+        </p>
       )}
     </div>
   )
@@ -158,7 +211,11 @@ function CannedForm({ reply, onSaved }: { reply: CannedReply | null; onSaved: ()
     const json = { title: title.trim(), body_en: bodyEn.trim(), body_ar: bodyAr.trim() }
     try {
       if (reply) {
-        await api(`/api/w/canned_replies/${encodeURIComponent(reply.id)}`, { method: "PATCH", json, workspaceId: ws.id })
+        await api(`/api/w/canned_replies/${encodeURIComponent(reply.id)}`, {
+          method: "PATCH",
+          json,
+          workspaceId: ws.id,
+        })
       } else {
         await api("/api/w/canned_replies", { json, workspaceId: ws.id })
       }
@@ -175,23 +232,47 @@ function CannedForm({ reply, onSaved }: { reply: CannedReply | null; onSaved: ()
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="canned-title">{t("inbox.canned.titleLabel")}</FieldLabel>
-          <Input id="canned-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} />
+          <Input
+            id="canned-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={80}
+          />
           <FieldDescription>{t("inbox.canned.titleHint")}</FieldDescription>
         </Field>
         <div className="grid gap-4 md:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="canned-en">{t("inbox.canned.bodyEn")}</FieldLabel>
-            <Textarea id="canned-en" dir="ltr" lang="en" rows={6} value={bodyEn} onChange={(e) => setBodyEn(e.target.value)} maxLength={4000} />
+            <Textarea
+              id="canned-en"
+              dir="ltr"
+              lang="en"
+              rows={6}
+              value={bodyEn}
+              onChange={(e) => setBodyEn(e.target.value)}
+              maxLength={4000}
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="canned-ar">{t("inbox.canned.bodyAr")}</FieldLabel>
-            <Textarea id="canned-ar" dir="rtl" lang="ar" rows={6} value={bodyAr} onChange={(e) => setBodyAr(e.target.value)} maxLength={4000} />
+            <Textarea
+              id="canned-ar"
+              dir="rtl"
+              lang="ar"
+              rows={6}
+              value={bodyAr}
+              onChange={(e) => setBodyAr(e.target.value)}
+              maxLength={4000}
+            />
           </Field>
         </div>
       </FieldGroup>
       {err ? <FieldError>{err}</FieldError> : null}
       <DialogFooter>
-        <Button type="submit" disabled={busy || !title.trim() || (!bodyEn.trim() && !bodyAr.trim())}>
+        <Button
+          type="submit"
+          disabled={busy || !title.trim() || (!bodyEn.trim() && !bodyAr.trim())}
+        >
           {busy ? t("common.working") : t("inbox.canned.save")}
         </Button>
       </DialogFooter>

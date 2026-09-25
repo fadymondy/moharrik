@@ -3,7 +3,16 @@
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { Fragment, useState, type ReactNode } from "react"
-import { ArrowLeftIcon, ArrowRightIcon, ChevronDownIcon, ExternalLinkIcon, InfoIcon, LoaderCircleIcon, SquareIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ChevronDownIcon,
+  ExternalLinkIcon,
+  InfoIcon,
+  LoaderCircleIcon,
+  SquareIcon,
+  TriangleAlertIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { SectionHeader } from "@/components/public-frame"
@@ -15,7 +24,14 @@ import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type CompanySuggestion, type Evidence, type ResearchRun, type ResearchSource } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  type CompanySuggestion,
+  type Evidence,
+  type ResearchRun,
+  type ResearchSource,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useResearchContent, useResearchRun, useResearchRuns } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
@@ -42,12 +58,17 @@ export default function ResearchRunPage() {
   // first time somebody opens a source's text, and then kept.
   const [wantText, setWantText] = useState(false)
   const content = useResearchContent(ws.id, id, wantText && !live)
-  const textByPosition = new Map((content.data?.sources ?? []).map((s) => [s.position, s.content ?? ""] as const))
+  const textByPosition = new Map(
+    (content.data?.sources ?? []).map((s) => [s.position, s.content ?? ""] as const),
+  )
 
   async function cancel() {
     setCancelling(true)
     try {
-      await api(`/api/w/research/${encodeURIComponent(id)}/cancel`, { method: "POST", workspaceId: ws.id })
+      await api(`/api/w/research/${encodeURIComponent(id)}/cancel`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       toast.success(t("research.cancelled"))
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -65,16 +86,29 @@ export default function ResearchRunPage() {
       <SectionHeader
         micro={t("nav.research")}
         title={run ? <Bdi>{run.topic}</Bdi> : <Skeleton className="h-7 w-72 max-w-full" />}
-        description={run ? t("research.startedAt", { date: fmt(run.started_at ?? run.created_at) }) : undefined}
+        description={
+          run ? t("research.startedAt", { date: fmt(run.started_at ?? run.created_at) }) : undefined
+        }
         action={
           <div className="flex flex-wrap items-center gap-2">
             {canRun && live ? (
-              <Button variant="outline" size="sm" onClick={cancel} disabled={cancelling} data-action="cancel-research">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={cancel}
+                disabled={cancelling}
+                data-action="cancel-research"
+              >
                 {cancelling ? <LoaderCircleIcon className="animate-spin" /> : <SquareIcon />}
                 {t("research.cancel")}
               </Button>
             ) : null}
-            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/research/runs`} />}>
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${ws.slug}/research/runs`} />}
+            >
               <ArrowLeftIcon className="rtl:rotate-180" />
               {t("research.back")}
             </Button>
@@ -88,7 +122,10 @@ export default function ResearchRunPage() {
         <LoadingRows rows={4} />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-6 pb-4 text-sm text-grid-muted" data-run-status={run.status}>
+          <div
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 px-6 pb-4 text-sm text-grid-muted"
+            data-run-status={run.status}
+          >
             <ResearchStatusBadge status={run.status} />
             <span data-counts>
               {live
@@ -122,9 +159,19 @@ export default function ResearchRunPage() {
           ) : null}
           <div className="pb-6" />
 
-          <Outcome run={run} sources={sources} live={live} canSummarise={caps.data?.can_summarise} />
+          <Outcome
+            run={run}
+            sources={sources}
+            live={live}
+            canSummarise={caps.data?.can_summarise}
+          />
 
-          {!live ? <RunEvidence evidence={detail.data?.evidence ?? []} companies={detail.data?.companies ?? []} /> : null}
+          {!live ? (
+            <RunEvidence
+              evidence={detail.data?.evidence ?? []}
+              companies={detail.data?.companies ?? []}
+            />
+          ) : null}
 
           <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
 
@@ -161,7 +208,17 @@ export default function ResearchRunPage() {
 }
 
 /** What the run came to: live progress, an answer, or an honest account of why there is none. */
-function Outcome({ run, sources, live, canSummarise }: { run: ResearchRun; sources: ResearchSource[]; live: boolean; canSummarise?: boolean }) {
+function Outcome({
+  run,
+  sources,
+  live,
+  canSummarise,
+}: {
+  run: ResearchRun
+  sources: ResearchSource[]
+  live: boolean
+  canSummarise?: boolean
+}) {
   const { t } = useTranslations()
 
   if (live) {
@@ -193,7 +250,9 @@ function Outcome({ run, sources, live, canSummarise }: { run: ResearchRun; sourc
     return (
       <Panel icon={<SquareIcon className="text-grid-muted" />} data="cancelled">
         <p className="font-medium">{t("research.cancelledTitle")}</p>
-        <p className="text-grid-muted">{sources.length ? t("research.cancelledBody") : t("research.cancelledEmpty")}</p>
+        <p className="text-grid-muted">
+          {sources.length ? t("research.cancelledBody") : t("research.cancelledEmpty")}
+        </p>
       </Panel>
     )
   }
@@ -212,7 +271,11 @@ function Outcome({ run, sources, live, canSummarise }: { run: ResearchRun; sourc
     return (
       <section className="px-6 pb-6" data-outcome="summary">
         <h2 className="pb-2 text-base font-medium">{t("research.answer")}</h2>
-        <div className="max-w-3xl space-y-3 text-sm leading-relaxed text-grid-body" dir="auto" data-summary>
+        <div
+          className="max-w-3xl space-y-3 text-sm leading-relaxed text-grid-body"
+          dir="auto"
+          data-summary
+        >
           <Summary text={run.summary} sources={sources} />
         </div>
         <p className="mt-3 text-xs text-grid-muted">
@@ -226,9 +289,14 @@ function Outcome({ run, sources, live, canSummarise }: { run: ResearchRun; sourc
   // the model could not be used. Both are stated; neither is dressed up.
   const noModel = canSummarise === false
   return (
-    <Panel icon={<InfoIcon className="text-grid-warn" />} data={noModel ? "no-model" : "not-summarised"}>
+    <Panel
+      icon={<InfoIcon className="text-grid-warn" />}
+      data={noModel ? "no-model" : "not-summarised"}
+    >
       <p className="font-medium">{t("research.notSummarisedTitle")}</p>
-      <p className="text-grid-muted">{noModel ? t("research.noModelBody") : t("research.notSummarisedBody")}</p>
+      <p className="text-grid-muted">
+        {noModel ? t("research.noModelBody") : t("research.notSummarisedBody")}
+      </p>
       {!noModel && run.error ? <p className="text-grid-muted">{run.error}</p> : null}
     </Panel>
   )
@@ -281,7 +349,8 @@ function renderInline(text: string, byNumber: Map<number, ResearchSource>): Reac
         <span key={k++} className="whitespace-nowrap" dir="ltr">
           [
           {parts.map((part, j) => {
-            if (part === "," || part === "-" || part === "–") return <Fragment key={j}>{part === "," ? ", " : "–"}</Fragment>
+            if (part === "," || part === "-" || part === "–")
+              return <Fragment key={j}>{part === "," ? ", " : "–"}</Fragment>
             const n = Number(part)
             const src = byNumber.get(n)
             return src ? (
@@ -340,16 +409,30 @@ function SourceRow({
       data-source-read={source.fetched ? "true" : "false"}
     >
       <div className="flex items-start gap-3">
-        <span className="grid-mono w-7 shrink-0 pt-0.5 text-xs text-grid-muted tabular-nums" dir="ltr" aria-label={t("research.rank", { n })}>
+        <span
+          className="grid-mono w-7 shrink-0 pt-0.5 text-xs text-grid-muted tabular-nums"
+          dir="ltr"
+          aria-label={t("research.rank", { n })}
+        >
           #{n}
         </span>
         <div className="min-w-0 flex-1 space-y-1">
           <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-            <a className="min-w-0 break-words hover:underline" href={source.url} target="_blank" rel="noopener noreferrer">
+            <a
+              className="min-w-0 break-words hover:underline"
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <bdi>{source.title || host}</bdi>
-              <ExternalLinkIcon className="ms-1 inline size-3.5 align-[-2px] text-grid-muted" aria-hidden />
+              <ExternalLinkIcon
+                className="ms-1 inline size-3.5 align-[-2px] text-grid-muted"
+                aria-hidden
+              />
             </a>
-            <Badge variant={source.fetched ? "secondary" : "outline"}>{source.fetched ? t("research.read") : t("research.unread")}</Badge>
+            <Badge variant={source.fetched ? "secondary" : "outline"}>
+              {source.fetched ? t("research.read") : t("research.unread")}
+            </Badge>
           </p>
           {/* Aligned with the page, isolated inside: a dir="ltr" block would pin
               the link to the far left of an Arabic row, away from its title. */}
@@ -364,7 +447,11 @@ function SourceRow({
           {!source.fetched ? (
             <p className="flex items-start gap-1.5 text-xs text-grid-warn-text" data-source-error>
               <TriangleAlertIcon className="mt-px size-3.5 shrink-0" aria-hidden />
-              <span>{source.error ? t("research.couldNotRead", { reason: source.error }) : t("research.notOpened")}</span>
+              <span>
+                {source.error
+                  ? t("research.couldNotRead", { reason: source.error })
+                  : t("research.notOpened")}
+              </span>
             </p>
           ) : canOpenText ? (
             <Collapsible
@@ -373,12 +460,23 @@ function SourceRow({
               }}
             >
               <CollapsibleTrigger
-                render={<Button variant="ghost" size="sm" className="-ms-2 mt-1 text-grid-muted" data-action="page-text" />}
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="-ms-2 mt-1 text-grid-muted"
+                    data-action="page-text"
+                  />
+                }
                 className="group/trigger"
               >
                 <ChevronDownIcon className="transition-transform group-data-[panel-open]/trigger:rotate-180" />
-                <span className="group-data-[panel-open]/trigger:hidden">{t("research.showText")}</span>
-                <span className="hidden group-data-[panel-open]/trigger:inline">{t("research.hideText")}</span>
+                <span className="group-data-[panel-open]/trigger:hidden">
+                  {t("research.showText")}
+                </span>
+                <span className="hidden group-data-[panel-open]/trigger:inline">
+                  {t("research.hideText")}
+                </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2" data-page-text>
                 {textState === "error" ? (
@@ -392,7 +490,10 @@ function SourceRow({
                     <Skeleton className="h-3 w-3/4" />
                   </div>
                 ) : text ? (
-                  <pre className="max-h-96 overflow-auto border border-line bg-grid-card px-3 py-2 font-sans text-xs leading-relaxed whitespace-pre-wrap break-words" dir="auto">
+                  <pre
+                    className="max-h-96 overflow-auto border border-line bg-grid-card px-3 py-2 font-sans text-xs leading-relaxed whitespace-pre-wrap break-words"
+                    dir="auto"
+                  >
                     {text}
                   </pre>
                 ) : (
@@ -408,19 +509,32 @@ function SourceRow({
 }
 
 /** What the run kept: its evidence, and the companies that evidence names. */
-function RunEvidence({ evidence, companies }: { evidence: Evidence[]; companies: CompanySuggestion[] }) {
+function RunEvidence({
+  evidence,
+  companies,
+}: {
+  evidence: Evidence[]
+  companies: CompanySuggestion[]
+}) {
   const { t, locale, formatNumber } = useTranslations()
   const ws = useWorkspace()
   return (
     <>
       <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
-      <h2 className="flex flex-wrap items-baseline gap-x-2 px-6 pt-6 pb-1 text-base font-medium" data-run-evidence={evidence.length}>
+      <h2
+        className="flex flex-wrap items-baseline gap-x-2 px-6 pt-6 pb-1 text-base font-medium"
+        data-run-evidence={evidence.length}
+      >
         {t("research.evidence")}
-        <span className="text-sm font-normal text-grid-muted tabular-nums">{formatNumber(evidence.length)}</span>
+        <span className="text-sm font-normal text-grid-muted tabular-nums">
+          {formatNumber(evidence.length)}
+        </span>
       </h2>
       <p className="px-6 pb-3 text-sm text-grid-muted">{t("research.evidenceHint")}</p>
       {evidence.length === 0 ? (
-        <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">{t("research.noEvidence")}</p>
+        <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">
+          {t("research.noEvidence")}
+        </p>
       ) : (
         <ul className="divide-y divide-line border-y border-line">
           {evidence.map((e) => (
@@ -435,9 +549,17 @@ function RunEvidence({ evidence, companies }: { evidence: Evidence[]; companies:
           <p className="pb-3 text-sm text-grid-muted">{t("research.companiesFoundHint")}</p>
           <ul className="flex flex-wrap gap-2">
             {companies.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center gap-2 border border-line bg-grid-card px-3 py-2 text-sm" data-run-company={c.name} data-company-status={c.status}>
+              <li
+                key={c.id}
+                className="flex flex-wrap items-center gap-2 border border-line bg-grid-card px-3 py-2 text-sm"
+                data-run-company={c.name}
+                data-company-status={c.status}
+              >
                 {c.crm_company_id ? (
-                  <Link href={`/${locale}/w/${ws.slug}/companies/${encodeURIComponent(c.crm_company_id)}`} className="font-medium hover:underline">
+                  <Link
+                    href={`/${locale}/w/${ws.slug}/companies/${encodeURIComponent(c.crm_company_id)}`}
+                    className="font-medium hover:underline"
+                  >
                     <Bdi>{c.name}</Bdi>
                   </Link>
                 ) : (
@@ -448,12 +570,20 @@ function RunEvidence({ evidence, companies }: { evidence: Evidence[]; companies:
                 {c.signal_types.slice(0, 2).map((s) => (
                   <SignalBadge key={s} signal={s} />
                 ))}
-                <span className="text-xs text-grid-muted">{t(`research.suggestionStatus.${c.status}`)}</span>
+                <span className="text-xs text-grid-muted">
+                  {t(`research.suggestionStatus.${c.status}`)}
+                </span>
               </li>
             ))}
           </ul>
           {companies.some((c) => c.status === "suggested") ? (
-            <Button variant="outline" size="sm" className="mt-3" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/companies#suggestions`} />}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${ws.slug}/companies#suggestions`} />}
+            >
               {t("research.reviewOnCompanies")}
               <ArrowRightIcon className="rtl:rotate-180" />
             </Button>

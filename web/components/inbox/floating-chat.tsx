@@ -71,19 +71,37 @@ function ConversationList({ items, onOpen }: { items: BellItem[]; onOpen: (id: s
       {items.map((item) => {
         const name = item.title || t("alerts.visitor")
         return (
-          <li key={item.id} data-launcher-conversation={item.id} data-launcher-unread={item.unread ? "true" : "false"}>
+          <li
+            key={item.id}
+            data-launcher-conversation={item.id}
+            data-launcher-unread={item.unread ? "true" : "false"}
+          >
             <button
               type="button"
               onClick={() => onOpen(item.id)}
               className="flex w-full items-start gap-3 px-4 py-3 text-start transition-colors hover:bg-grid-soft"
             >
-              <PersonAvatar id={item.id} name={name} photoUrl={item.avatar_url} className="size-9 shrink-0" />
+              <PersonAvatar
+                id={item.id}
+                name={name}
+                photoUrl={item.avatar_url}
+                className="size-9 shrink-0"
+              />
               <div className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <BdiBlock className="truncate text-sm font-medium">{name}</BdiBlock>
-                  {item.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-action" aria-label={t("inbox.unread")} /> : null}
+                  {item.unread ? (
+                    <span
+                      className="size-2 shrink-0 rounded-full bg-grid-action"
+                      aria-label={t("inbox.unread")}
+                    />
+                  ) : null}
                 </span>
-                {item.snippet ? <BdiBlock className="mt-0.5 block truncate text-xs text-grid-muted">{item.snippet}</BdiBlock> : null}
+                {item.snippet ? (
+                  <BdiBlock className="mt-0.5 block truncate text-xs text-grid-muted">
+                    {item.snippet}
+                  </BdiBlock>
+                ) : null}
                 <p className="mt-1 text-xs text-grid-muted">
                   {item.channel ? `${t(`inbox.channel.${item.channel}`)} · ` : ""}
                   {relative(item.at)}
@@ -97,7 +115,17 @@ function ConversationList({ items, onOpen }: { items: BellItem[]; onOpen: (id: s
   )
 }
 
-function LauncherThread({ workspaceId, id, canWrite, onChanged }: { workspaceId: string; id: string; canWrite: boolean; onChanged: () => void }) {
+function LauncherThread({
+  workspaceId,
+  id,
+  canWrite,
+  onChanged,
+}: {
+  workspaceId: string
+  id: string
+  canWrite: boolean
+  onChanged: () => void
+}) {
   const { t } = useTranslations()
   const detail = useConversation(workspaceId, id)
   const members = useMemberNames(workspaceId)
@@ -117,7 +145,10 @@ function LauncherThread({ workspaceId, id, canWrite, onChanged }: { workspaceId:
     setBusy(true)
     setErr(null)
     try {
-      await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, { json: { body: text }, workspaceId })
+      await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, {
+        json: { body: text },
+        workspaceId,
+      })
       setReply("")
       detail.mutate()
       onChanged()
@@ -150,7 +181,15 @@ function LauncherThread({ workspaceId, id, canWrite, onChanged }: { workspaceId:
   )
 }
 
-export function FloatingChat({ workspaceId, slug, can }: { workspaceId: string; slug: string; can: (permission: string) => boolean }) {
+export function FloatingChat({
+  workspaceId,
+  slug,
+  can,
+}: {
+  workspaceId: string
+  slug: string
+  can: (permission: string) => boolean
+}) {
   const { t, locale, isRtl } = useTranslations()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -184,39 +223,73 @@ export function FloatingChat({ workspaceId, slug, can }: { workspaceId: string; 
         type="button"
         size="icon-lg"
         className="fixed bottom-5 end-5 z-40 size-14 rounded-full shadow-lg"
-        aria-label={unread > 0 ? t("inbox.launcher.openUnread", { n: unread }) : t("inbox.launcher.open")}
+        aria-label={
+          unread > 0 ? t("inbox.launcher.openUnread", { n: unread }) : t("inbox.launcher.open")
+        }
         onClick={() => setOpen(true)}
         data-floating-chat
       >
         <MessageCircleIcon className="size-6" />
         {unread > 0 ? (
-          <Badge className="pointer-events-none absolute -top-1 -end-1 h-5 min-w-5 rounded-full px-1 text-xs leading-none tabular-nums" data-floating-chat-count={unread}>
+          <Badge
+            className="pointer-events-none absolute -top-1 -end-1 h-5 min-w-5 rounded-full px-1 text-xs leading-none tabular-nums"
+            data-floating-chat-count={unread}
+          >
             {unread > 99 ? "99+" : unread}
           </Badge>
         ) : null}
       </Button>
 
       <Sheet open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
-        <SheetContent side={isRtl ? "left" : "right"} className="flex w-96 max-w-[calc(100vw-1.5rem)] flex-col gap-0 p-0" data-floating-chat-panel>
+        <SheetContent
+          side={isRtl ? "left" : "right"}
+          className="flex w-96 max-w-[calc(100vw-1.5rem)] flex-col gap-0 p-0"
+          data-floating-chat-panel
+        >
           <SheetTitle className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-4">
             {selected ? (
-              <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common.back")} onClick={() => setSelected(null)} data-floating-chat-back>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("common.back")}
+                onClick={() => setSelected(null)}
+                data-floating-chat-back
+              >
                 <ArrowLeftIcon className="rtl:-scale-x-100" />
               </Button>
             ) : (
               <MessageCircleIcon className="size-4" />
             )}
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {selected ? <Bdi>{conversations.find((c) => c.id === selected)?.title || t("inbox.launcher.title")}</Bdi> : t("inbox.launcher.title")}
+              {selected ? (
+                <Bdi>
+                  {conversations.find((c) => c.id === selected)?.title || t("inbox.launcher.title")}
+                </Bdi>
+              ) : (
+                t("inbox.launcher.title")
+              )}
             </span>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common.close")} onClick={close} data-floating-chat-close>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("common.close")}
+              onClick={close}
+              data-floating-chat-close
+            >
               <XIcon />
             </Button>
           </SheetTitle>
 
           {selected ? (
             <div className="flex min-h-0 flex-1 flex-col">
-              <LauncherThread workspaceId={workspaceId} id={selected} canWrite={canWrite} onChanged={() => void bell.mutate()} />
+              <LauncherThread
+                workspaceId={workspaceId}
+                id={selected}
+                canWrite={canWrite}
+                onChanged={() => void bell.mutate()}
+              />
             </div>
           ) : (
             <ScrollArea className="min-h-0 flex-1">
@@ -230,7 +303,16 @@ export function FloatingChat({ workspaceId, slug, can }: { workspaceId: string; 
               size="sm"
               className="w-full"
               nativeButton={false}
-              render={<Link href={selected ? hrefFor({ kind: "conversation", id: selected }, locale, slug) : `/${locale}/w/${slug}/inbox`} onClick={close} />}
+              render={
+                <Link
+                  href={
+                    selected
+                      ? hrefFor({ kind: "conversation", id: selected }, locale, slug)
+                      : `/${locale}/w/${slug}/inbox`
+                  }
+                  onClick={close}
+                />
+              }
               data-floating-chat-open-inbox
             >
               {t("inbox.launcher.openFullInbox")}

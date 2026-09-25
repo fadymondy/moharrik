@@ -26,7 +26,13 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core"
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { ArrowDownIcon, ArrowUpIcon, GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
@@ -89,7 +95,13 @@ export const COMMANDS: Record<string, FieldDef[]> = {
 }
 
 /** What the driver also accepts, and the form shows as its canonical name. */
-const ALIASES: Record<string, string> = { goto: "navigate", open: "navigate", fill: "type", key: "press", read: "extract" }
+const ALIASES: Record<string, string> = {
+  goto: "navigate",
+  open: "navigate",
+  fill: "type",
+  key: "press",
+  read: "extract",
+}
 
 export const canonical = (command: string) => {
   const c = command.trim().toLowerCase()
@@ -190,7 +202,12 @@ export function StepEditor({
           variant="outline"
           size="sm"
           data-add-step
-          onClick={() => onChange([...steps, { key: newKey(), command: steps.length === 0 ? "navigate" : "click", args: {} }])}
+          onClick={() =>
+            onChange([
+              ...steps,
+              { key: newKey(), command: steps.length === 0 ? "navigate" : "click", args: {} },
+            ])
+          }
         >
           <PlusIcon />
           {t("automation.editor.addStep")}
@@ -222,14 +239,25 @@ function StepRow({
   renderPick?: (index: number, field: string) => ReactNode
 }) {
   const { t } = useTranslations()
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: step.key })
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: step.key })
   const command = canonical(step.command)
   const fields = COMMANDS[command]
   const known = !!fields
-  const options = known ? commandOptions : [{ value: step.command, label: step.command }, ...commandOptions]
+  const options = known
+    ? commandOptions
+    : [{ value: step.command, label: step.command }, ...commandOptions]
   const id = (f: string) => `step-${step.key}-${f}`
 
-  const setArg = (name: string, value: unknown) => onChange({ args: { ...step.args, [name]: value } })
+  const setArg = (name: string, value: unknown) =>
+    onChange({ args: { ...step.args, [name]: value } })
 
   const tone: Record<StepStatus, "default" | "secondary" | "outline"> = {
     pending: "outline",
@@ -279,7 +307,11 @@ function StepRow({
                 {t(`automation.editor.status.${status.status}`)}
               </Badge>
             ) : null}
-            {!known ? <span className="text-xs text-grid-danger-text">{t("automation.editor.unknownCommand")}</span> : null}
+            {!known ? (
+              <span className="text-xs text-grid-danger-text">
+                {t("automation.editor.unknownCommand")}
+              </span>
+            ) : null}
           </div>
 
           {fields && fields.length > 0 ? (
@@ -298,22 +330,48 @@ function StepRow({
           ) : null}
 
           <label className="flex w-fit items-center gap-2 text-xs text-grid-muted">
-            <Checkbox checked={!!step.continue_on_error} onCheckedChange={(v) => onChange({ continue_on_error: !!v })} />
+            <Checkbox
+              checked={!!step.continue_on_error}
+              onCheckedChange={(v) => onChange({ continue_on_error: !!v })}
+            />
             {t("automation.editor.continueOnError")}
           </label>
 
           {status?.error ? <p className="text-xs text-grid-danger-text">{status.error}</p> : null}
-          {status?.status === "ok" && status.summary ? <p className="text-xs text-grid-muted">{status.summary}</p> : null}
+          {status?.status === "ok" && status.summary ? (
+            <p className="text-xs text-grid-muted">{status.summary}</p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-1">
-          <Button type="button" variant="ghost" size="icon-sm" disabled={index === 0} onClick={() => onMove(index - 1)} aria-label={t("automation.editor.moveUp")}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled={index === 0}
+            onClick={() => onMove(index - 1)}
+            aria-label={t("automation.editor.moveUp")}
+          >
             <ArrowUpIcon />
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" disabled={index === count - 1} onClick={() => onMove(index + 1)} aria-label={t("automation.editor.moveDown")}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled={index === count - 1}
+            onClick={() => onMove(index + 1)}
+            aria-label={t("automation.editor.moveDown")}
+          >
             <ArrowDownIcon />
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" className="text-grid-danger-text" onClick={onRemove} aria-label={t("automation.editor.removeStep")}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-grid-danger-text"
+            onClick={onRemove}
+            aria-label={t("automation.editor.removeStep")}
+          >
             <Trash2Icon />
           </Button>
         </div>
@@ -353,7 +411,10 @@ function FieldInput({
   const ltr = def.kind !== "text" || def.name === "key" || def.name === "attribute"
   return (
     // A selector or an address is read whole, so it gets the whole row.
-    <div className={`min-w-0 space-y-1.5 ${def.kind === "selector" || def.kind === "url" ? "sm:col-span-2" : ""}`} data-field={def.name}>
+    <div
+      className={`min-w-0 space-y-1.5 ${def.kind === "selector" || def.kind === "url" ? "sm:col-span-2" : ""}`}
+      data-field={def.name}
+    >
       {label}
       <div className="flex items-center gap-2">
         <Input

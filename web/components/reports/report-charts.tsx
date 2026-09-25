@@ -18,8 +18,20 @@ import { useSyncExternalStore, type ReactNode } from "react"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useTranslations } from "@/lib/i18n"
 
 /** True below the sm breakpoint: narrow charts give the labels more room. */
@@ -45,7 +57,17 @@ export type BarRow = {
   tooltip: ReactNode
 }
 
-export function HorizontalBars({ rows, series, format, id }: { rows: BarRow[]; series: string; format: (n: number) => string; id: string }) {
+export function HorizontalBars({
+  rows,
+  series,
+  format,
+  id,
+}: {
+  rows: BarRow[]
+  series: string
+  format: (n: number) => string
+  id: string
+}) {
   const { isRtl, dir } = useTranslations()
   const narrow = useNarrow()
   const config = { value: { label: series, color: "var(--chart-1)" } } satisfies ChartConfig
@@ -56,11 +78,29 @@ export function HorizontalBars({ rows, series, format, id }: { rows: BarRow[]; s
     // dir="ltr" on the chart: SVG text anchors follow the document's direction, so in RTL a
     // start-anchored tick grew off the edge and vanished. The mirroring is done explicitly
     // instead (a reversed value axis, the category axis on the right).
-    <ChartContainer id={id} config={config} className="aspect-auto w-full" style={{ height }} data-chart-id={id} dir="ltr">
-      <BarChart data={data} layout="vertical" margin={{ top: 4, bottom: 4, left: 8, right: 8 }} barCategoryGap={10} accessibilityLayer>
+    <ChartContainer
+      id={id}
+      config={config}
+      className="aspect-auto w-full"
+      style={{ height }}
+      data-chart-id={id}
+      dir="ltr"
+    >
+      <BarChart
+        data={data}
+        layout="vertical"
+        margin={{ top: 4, bottom: 4, left: 8, right: 8 }}
+        barCategoryGap={10}
+        accessibilityLayer
+      >
         <CartesianGrid horizontal={false} strokeDasharray="0" />
         {/* Head-room past the longest bar, so its label is never clipped. */}
-        <XAxis type="number" hide reversed={isRtl} domain={[0, (max: number) => Math.max(1, max) * (narrow ? 1.75 : 1.3)]} />
+        <XAxis
+          type="number"
+          hide
+          reversed={isRtl}
+          domain={[0, (max: number) => Math.max(1, max) * (narrow ? 1.75 : 1.3)]}
+        />
         <YAxis
           type="category"
           dataKey="name"
@@ -71,8 +111,22 @@ export function HorizontalBars({ rows, series, format, id }: { rows: BarRow[]; s
           tick={{ fontSize: 12 }}
           interval={0}
         />
-        <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel formatter={(_v, _n, item) => <div dir={dir}>{(item.payload as BarRow).tooltip}</div>} />} />
-        <Bar dataKey="value" fill="var(--color-value)" radius={isRtl ? [4, 0, 0, 4] : [0, 4, 4, 0]} maxBarSize={22} isAnimationActive={false}>
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              hideLabel
+              formatter={(_v, _n, item) => <div dir={dir}>{(item.payload as BarRow).tooltip}</div>}
+            />
+          }
+        />
+        <Bar
+          dataKey="value"
+          fill="var(--color-value)"
+          radius={isRtl ? [4, 0, 0, 4] : [0, 4, 4, 0]}
+          maxBarSize={22}
+          isAnimationActive={false}
+        >
           {/* The label sits past the bar's outer end: right of it in LTR, left of it in RTL. */}
           <LabelList
             dataKey="label"
@@ -82,7 +136,14 @@ export function HorizontalBars({ rows, series, format, id }: { rows: BarRow[]; s
               const y = Number(p.y ?? 0) + Number(p.height ?? 0) / 2
               const outer = isRtl ? Math.min(x, x + w) - 8 : Math.max(x, x + w) + 8
               return (
-                <text x={outer} y={y} dy="0.35em" textAnchor={isRtl ? "end" : "start"} className="fill-grid-fg" fontSize={12}>
+                <text
+                  x={outer}
+                  y={y}
+                  dy="0.35em"
+                  textAnchor={isRtl ? "end" : "start"}
+                  className="fill-grid-fg"
+                  fontSize={12}
+                >
                   {String(p.value ?? "")}
                 </text>
               )
@@ -121,16 +182,34 @@ export function WonLostChart({
   return (
     <>
       {/* The legend, in the series' own order (won, then lost); identity is never colour alone. */}
-      <ul className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-grid-muted" data-legend>
+      <ul
+        className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-grid-muted"
+        data-legend
+      >
         {(["won", "lost"] as const).map((k) => (
           <li key={k} className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded-[2px]" style={{ background: config[k].color }} aria-hidden />
+            <span
+              className="size-2.5 rounded-[2px]"
+              style={{ background: config[k].color }}
+              aria-hidden
+            />
             {config[k].label}
           </li>
         ))}
       </ul>
-      <ChartContainer id="won-lost" config={config} className="aspect-auto h-64 w-full" data-chart-id="won-lost" dir="ltr">
-        <BarChart data={points} margin={{ top: 8, bottom: 0, left: 4, right: 4 }} barGap={2} accessibilityLayer>
+      <ChartContainer
+        id="won-lost"
+        config={config}
+        className="aspect-auto h-64 w-full"
+        data-chart-id="won-lost"
+        dir="ltr"
+      >
+        <BarChart
+          data={points}
+          margin={{ top: 8, bottom: 0, left: 4, right: 4 }}
+          barGap={2}
+          accessibilityLayer
+        >
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey="start"
@@ -153,21 +232,41 @@ export function WonLostChart({
             cursor={{ fillOpacity: 0.4 }}
             content={
               <ChartTooltipContent
-                labelFormatter={(_l, payload) => formatBucket(String(payload?.[0]?.payload?.start ?? ""))}
+                labelFormatter={(_l, payload) =>
+                  formatBucket(String(payload?.[0]?.payload?.start ?? ""))
+                }
                 formatter={(value, name, item) => (
                   <div className="flex w-full items-center justify-between gap-4" dir={dir}>
                     <span className="flex items-center gap-1.5 text-grid-muted">
-                      <span className="size-2.5 rounded-[2px]" style={{ background: item.color }} aria-hidden />
+                      <span
+                        className="size-2.5 rounded-[2px]"
+                        style={{ background: item.color }}
+                        aria-hidden
+                      />
                       {name === "won" ? wonLabel : lostLabel}
                     </span>
-                    <Ltr className="font-medium text-grid-fg tabular-nums">{format(Number(value))}</Ltr>
+                    <Ltr className="font-medium text-grid-fg tabular-nums">
+                      {format(Number(value))}
+                    </Ltr>
                   </div>
                 )}
               />
             }
           />
-          <Bar dataKey="won" fill="var(--color-won)" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
-          <Bar dataKey="lost" fill="var(--color-lost)" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+          <Bar
+            dataKey="won"
+            fill="var(--color-won)"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={28}
+            isAnimationActive={false}
+          />
+          <Bar
+            dataKey="lost"
+            fill="var(--color-lost)"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={28}
+            isAnimationActive={false}
+          />
         </BarChart>
       </ChartContainer>
     </>
@@ -212,7 +311,10 @@ export function DataTable<T>({
         {rows.map((r) => (
           <TableRow key={rowKey(r)}>
             {columns.map((c) => (
-              <TableCell key={c.key} className={c.numeric ? "text-end tabular-nums" : "max-w-64 truncate"}>
+              <TableCell
+                key={c.key}
+                className={c.numeric ? "text-end tabular-nums" : "max-w-64 truncate"}
+              >
                 {c.cell(r)}
               </TableCell>
             ))}

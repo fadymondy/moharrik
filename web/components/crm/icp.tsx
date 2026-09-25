@@ -67,13 +67,21 @@ function reasonLine(r: ScoreReason, t: (k: string, v?: Record<string, string | n
 }
 
 function dimensionLabel(d: string, t: (k: string) => string) {
-  const k = ["industry", "size", "region", "keywords"].includes(d) ? `icp.dim.${d}` : `icp.signal.${d}`
+  const k = ["industry", "size", "region", "keywords"].includes(d)
+    ? `icp.dim.${d}`
+    : `icp.signal.${d}`
   const s = t(k)
   return s === k ? d : s
 }
 
 /** The reasons behind a score, biggest effect first. */
-export function ScoreReasons({ reasons, className }: { reasons: ScoreReason[]; className?: string }) {
+export function ScoreReasons({
+  reasons,
+  className,
+}: {
+  reasons: ScoreReason[]
+  className?: string
+}) {
   const { t } = useTranslations()
   const signed = useSigned()
   const sorted = [...reasons].sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
@@ -81,9 +89,16 @@ export function ScoreReasons({ reasons, className }: { reasons: ScoreReason[]; c
   return (
     <ul className={cn("divide-y divide-line", className)} data-score-reasons>
       {sorted.map((r) => (
-        <li key={r.dimension} className="flex items-start gap-3 py-2 text-sm" data-reason={r.dimension}>
+        <li
+          key={r.dimension}
+          className="flex items-start gap-3 py-2 text-sm"
+          data-reason={r.dimension}
+        >
           <span
-            className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5", r.value > 0 ? "text-grid-fg" : "text-grid-muted")}
+            className={cn(
+              "mt-0.5 flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5",
+              r.value > 0 ? "text-grid-fg" : "text-grid-muted",
+            )}
             aria-hidden
           >
             {r.value > 0 ? <CheckIcon /> : <MinusIcon />}
@@ -94,11 +109,25 @@ export function ScoreReasons({ reasons, className }: { reasons: ScoreReason[]; c
               <Bdi>{reasonLine(r, t)}</Bdi>
             </span>
           </span>
-          <span className="shrink-0 text-end tabular-nums" title={t("icp.weightOf", { w: signed(r.weight) })}>
-            <Ltr className={cn("font-medium", r.contribution < 0 ? "text-grid-danger-text" : r.contribution > 0 ? "text-grid-fg" : "text-grid-muted")}>
+          <span
+            className="shrink-0 text-end tabular-nums"
+            title={t("icp.weightOf", { w: signed(r.weight) })}
+          >
+            <Ltr
+              className={cn(
+                "font-medium",
+                r.contribution < 0
+                  ? "text-grid-danger-text"
+                  : r.contribution > 0
+                    ? "text-grid-fg"
+                    : "text-grid-muted",
+              )}
+            >
               {signed(r.contribution)}
             </Ltr>
-            <span className="block text-xs text-grid-muted">{t("icp.ofWeight", { w: signed(r.weight) })}</span>
+            <span className="block text-xs text-grid-muted">
+              {t("icp.ofWeight", { w: signed(r.weight) })}
+            </span>
           </span>
         </li>
       ))}
@@ -114,20 +143,39 @@ export function ScoreMeter({ score }: { score: number | null }) {
     <span className="inline-flex items-center gap-2" data-score={score}>
       <span className="w-7 text-end font-medium tabular-nums">{formatNumber(score)}</span>
       <span className="h-1.5 w-12 overflow-hidden rounded-full bg-grid-soft" aria-hidden>
-        <span className="block h-full rounded-full" style={{ width: `${Math.max(2, score)}%`, background: "var(--chart-1)" }} />
+        <span
+          className="block h-full rounded-full"
+          style={{ width: `${Math.max(2, score)}%`, background: "var(--chart-1)" }}
+        />
       </span>
     </span>
   )
 }
 
 /** The score in a list row: a button that opens its reasons. */
-export function ScoreButton({ score, reasons, who }: { score: number | null; reasons: ScoreReason[] | null; who: string }) {
+export function ScoreButton({
+  score,
+  reasons,
+  who,
+}: {
+  score: number | null
+  reasons: ScoreReason[] | null
+  who: string
+}) {
   const { t } = useTranslations()
   if (score === null) return <ScoreMeter score={null} />
   return (
     <Popover>
       <PopoverTrigger
-        render={<Button variant="ghost" size="sm" className="h-7 px-1.5" aria-label={t("icp.whyScore", { who, score })} data-score-button={score} />}
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-1.5"
+            aria-label={t("icp.whyScore", { who, score })}
+            data-score-button={score}
+          />
+        }
       >
         <ScoreMeter score={score} />
       </PopoverTrigger>

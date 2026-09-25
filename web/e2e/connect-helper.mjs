@@ -8,15 +8,31 @@
 // (it carries the session cookie and the CSRF token).
 
 /** Connect a STAND-IN browser through the API alone. Returns its token and id. */
-export async function connectFake(base, call, workspaceID, { name = "Check browser", hosts = [], fingerprint = "" } = {}) {
+export async function connectFake(
+  base,
+  call,
+  workspaceID,
+  { name = "Check browser", hosts = [], fingerprint = "" } = {},
+) {
   const start = await fetch(`${base}/api/agents/connect/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, platform: "e2e", extension_version: "0.0.1-test", fingerprint: fingerprint || `fp-${Date.now()}-${Math.random()}` }),
+    body: JSON.stringify({
+      name,
+      platform: "e2e",
+      extension_version: "0.0.1-test",
+      fingerprint: fingerprint || `fp-${Date.now()}-${Math.random()}`,
+    }),
   })
   if (start.status !== 201) throw new Error(`connect/start → ${start.status} ${await start.text()}`)
   const s = await start.json()
-  const approved = await call("POST", "/api/agents/connect/approve", { code: s.code, key: s.browser_key, workspace: workspaceID, name, allowed_hosts: hosts })
+  const approved = await call("POST", "/api/agents/connect/approve", {
+    code: s.code,
+    key: s.browser_key,
+    workspace: workspaceID,
+    name,
+    allowed_hosts: hosts,
+  })
   const polled = await fetch(`${base}/api/agents/connect/poll`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -31,11 +47,21 @@ export async function connectFake(base, call, workspaceID, { name = "Check brows
  * Connect button, approve the request the page it opened carries (through the
  * API, with the key from that page's address), and wait until it is online.
  */
-export async function connectExtension({ ctx, extensionID, site, api = "", call, workspaceID, name, hosts }) {
+export async function connectExtension({
+  ctx,
+  extensionID,
+  site,
+  api = "",
+  call,
+  workspaceID,
+  name,
+  hosts,
+}) {
   const popup = await ctx.newPage()
   await popup.goto(`chrome-extension://${extensionID}/popup.html`)
   await popup.evaluate(
-    ([siteOrigin, apiOrigin]) => chrome.storage.local.set({ "moh.settings": { siteOrigin, apiOrigin } }),
+    ([siteOrigin, apiOrigin]) =>
+      chrome.storage.local.set({ "moh.settings": { siteOrigin, apiOrigin } }),
     [site.replace(/\/$/, ""), api.replace(/\/$/, "")],
   )
   await popup.reload()
@@ -47,14 +73,24 @@ export async function connectExtension({ ctx, extensionID, site, api = "", call,
   // connect is started the way the button starts it once Chrome has answered
   // (extension-access-check.mjs presses the real button and answers the real
   // prompt).
-  const broad = await popup.evaluate(() => chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }))
+  const broad = await popup.evaluate(() =>
+    chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }),
+  )
   if (broad) await popup.click("#connect")
-  else await popup.evaluate(() => chrome.runtime.sendMessage({ type: "connect.start", languages: ["en"] }))
+  else
+    await popup.evaluate(() =>
+      chrome.runtime.sendMessage({ type: "connect.start", languages: ["en"] }),
+    )
   const approval = await opened
   const u = new URL(approval.url())
   const code = u.pathname.split("/").pop()
   const key = new URLSearchParams(u.hash.slice(1)).get("k")
-  const { browser } = await call("POST", "/api/agents/connect/approve", { code, key, workspace: workspaceID, name, allowed_hosts: hosts }, workspaceID)
+  const { browser } = await call(
+    "POST",
+    "/api/agents/connect/approve",
+    { code, key, workspace: workspaceID, name, allowed_hosts: hosts },
+    workspaceID,
+  )
   await approval.close()
   let online = false
   for (let i = 0; i < 40 && !online; i++) {

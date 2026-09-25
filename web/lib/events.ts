@@ -13,7 +13,8 @@ import { useEffect, useRef } from "react"
  * reply). The client never widens that — it can only stay quieter.
  */
 export type WorkspaceEvent = {
-  kind: "message" | "conversation" | "notification" | "notifications" | "schedule" | "browser" | string
+  kind:
+    "message" | "conversation" | "notification" | "notifications" | "schedule" | "browser" | string
   conversation_id?: string
   item_id?: string
   /** in = the customer wrote, out = a member replied. */
@@ -129,7 +130,10 @@ function subscribe(workspaceId: string, l: Listener): () => void {
 }
 
 /** Subscribe to this workspace's event stream (shared per tab; reconnects with backoff). */
-export function useWorkspaceEvents(workspaceId: string | null | undefined, onEvent: (e: WorkspaceEvent) => void) {
+export function useWorkspaceEvents(
+  workspaceId: string | null | undefined,
+  onEvent: (e: WorkspaceEvent) => void,
+) {
   // The callback is almost always an inline arrow; holding it in a ref keeps a
   // re-render from tearing down and reopening the subscription.
   const handler = useRef(onEvent)

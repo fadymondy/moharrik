@@ -1,0 +1,4 @@
+# Synced from fadymondy.com-v2 by packages/sync-grid.mjs; `npm run grid:check` compares them byte for byte.
+app/styles/grid-*
+# Built bundle of the moharrik-chat widget.
+public/chat/

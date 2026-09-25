@@ -3,7 +3,13 @@
 import { ContactEditForm } from "@/components/crm/contact-edit-form"
 import { CreateContactForm } from "@/components/inbox/thread-crm"
 import { LoadingRows } from "@/components/states"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { Conversation } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -59,7 +65,9 @@ export function ConversationContactDialog({
       <DialogContent className="sm:max-w-lg" data-contact-dialog>
         <DialogHeader>
           <DialogTitle>{contactId ? editTitle : t("inbox.crm.createTitle")}</DialogTitle>
-          <DialogDescription>{contactId ? t("inbox.crm.editContactHint") : t("inbox.crm.createHint")}</DialogDescription>
+          <DialogDescription>
+            {contactId ? t("inbox.crm.editContactHint") : t("inbox.crm.createHint")}
+          </DialogDescription>
         </DialogHeader>
         {contactId ? (
           detail.data ? (
@@ -70,7 +78,12 @@ export function ConversationContactDialog({
         ) : (
           <CreateContactForm
             c={c}
-            visitor={{ name: c.customer_name, email: c.customer_email, phone: c.customer_phone, locale: c.locale === "ar" ? "ar" : "en" }}
+            visitor={{
+              name: c.customer_name,
+              email: c.customer_email,
+              phone: c.customer_phone,
+              locale: c.locale === "ar" ? "ar" : "en",
+            }}
             onDone={done}
           />
         )}

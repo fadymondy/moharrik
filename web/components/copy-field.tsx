@@ -59,7 +59,15 @@ export function CopyField({
 }
 
 /** Codes, emails, numbers and dates keep LTR order inside RTL text. */
-export function Ltr({ children, mono = false, className = "" }: { children: React.ReactNode; mono?: boolean; className?: string }) {
+export function Ltr({
+  children,
+  mono = false,
+  className = "",
+}: {
+  children: React.ReactNode
+  mono?: boolean
+  className?: string
+}) {
   return (
     <span dir="ltr" className={`ltr-isolate ${mono ? "font-mono" : ""} ${className}`}>
       {children}

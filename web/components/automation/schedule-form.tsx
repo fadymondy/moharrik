@@ -31,13 +31,28 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type AutomationJob, type AutomationSchedule, type AutomationWorkflow, type BrowserAgent, type SchedulePreview, type WorkflowParam } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  type AutomationJob,
+  type AutomationSchedule,
+  type AutomationWorkflow,
+  type BrowserAgent,
+  type SchedulePreview,
+  type WorkflowParam,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { intlTag } from "@/lib/i18n-locale"
 
 type Preset = "hourly" | "daily" | "weekdays" | "weekly" | "custom"
 
-export function buildCron(preset: Preset, time: string, minute: string, day: string, custom: string): string {
+export function buildCron(
+  preset: Preset,
+  time: string,
+  minute: string,
+  day: string,
+  custom: string,
+): string {
   const [h, m] = (time || "07:00").split(":").map((x) => Number(x) || 0)
   switch (preset) {
     case "hourly":
@@ -103,10 +118,18 @@ export function ScheduleForm({
   const [agent, setAgent] = useState(editing?.agent_id ?? "")
   const allowedJobs = jobs.filter((j) => j.allowed)
   const [kind, setKind] = useState<"workflow" | "job">(
-    editing ? (editing.job_key ? "job" : "workflow") : workflows.length === 0 && allowedJobs.length > 0 ? "job" : "workflow",
+    editing
+      ? editing.job_key
+        ? "job"
+        : "workflow"
+      : workflows.length === 0 && allowedJobs.length > 0
+        ? "job"
+        : "workflow",
   )
   const [jobKey, setJobKey] = useState(editing?.job_key || allowedJobs[0]?.key || "")
-  const [workflowId, setWorkflowId] = useState(editing ? editing.workflow_id : (workflows[0]?.id ?? ""))
+  const [workflowId, setWorkflowId] = useState(
+    editing ? editing.workflow_id : (workflows[0]?.id ?? ""),
+  )
   const [values, setValues] = useState<Record<string, string>>(editing?.values ?? {})
   const [preset, setPreset] = useState<Preset>(initial?.preset ?? "weekdays")
   const [time, setTime] = useState(initial?.time ?? "07:00")
@@ -135,7 +158,9 @@ export function ScheduleForm({
   const fields: WorkflowParam[] = useMemo(() => {
     if (job) return job.params
     if (!workflow) return []
-    return workflow.placeholders.map((n) => workflow.params.find((p) => p.name === n) ?? { name: n, required: true })
+    return workflow.placeholders.map(
+      (n) => workflow.params.find((p) => p.name === n) ?? { name: n, required: true },
+    )
   }, [workflow, job])
 
   const cron = buildCron(preset, time, minute, day, custom)
@@ -147,10 +172,13 @@ export function ScheduleForm({
     }
     const ctl = new AbortController()
     const timer = setTimeout(() => {
-      api<SchedulePreview>(`/api/w/schedules/preview?cron=${encodeURIComponent(cron)}&timezone=${encodeURIComponent(zone.trim())}`, {
-        workspaceId: ws.id,
-        signal: ctl.signal,
-      })
+      api<SchedulePreview>(
+        `/api/w/schedules/preview?cron=${encodeURIComponent(cron)}&timezone=${encodeURIComponent(zone.trim())}`,
+        {
+          workspaceId: ws.id,
+          signal: ctl.signal,
+        },
+      )
         .then(setPreview)
         .catch(() => {})
     }, 250)
@@ -162,7 +190,14 @@ export function ScheduleForm({
 
   const fmt = useMemo(() => {
     try {
-      return new Intl.DateTimeFormat(intlTag(locale), { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: preview?.timezone || "UTC" })
+      return new Intl.DateTimeFormat(intlTag(locale), {
+        weekday: "long",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: preview?.timezone || "UTC",
+      })
     } catch {
       return new Intl.DateTimeFormat(intlTag(locale), { dateStyle: "full", timeStyle: "short" })
     }
@@ -171,7 +206,8 @@ export function ScheduleForm({
   async function submit(e: FormEvent) {
     e.preventDefault()
     setErr(null)
-    if (kind === "workflow" && !workflow && !ownSteps) return setErr(t("automation.sched.pickWorkflow"))
+    if (kind === "workflow" && !workflow && !ownSteps)
+      return setErr(t("automation.sched.pickWorkflow"))
     if (kind === "job" && !job) return setErr(t("automation.sched.pickJob"))
     setBusy(true)
     try {
@@ -181,11 +217,18 @@ export function ScheduleForm({
         // A blank secret is left out: on an edit that keeps the sealed value.
         if (v !== "") filled[f.name] = v
       }
-      const when = { name: name.trim(), agent_id: agent, cron, timezone: zone.trim(), catch_up: catchUp }
+      const when = {
+        name: name.trim(),
+        agent_id: agent,
+        cron,
+        timezone: zone.trim(),
+        catch_up: catchUp,
+      }
       if (editing) {
         await api(`/api/w/schedules/${encodeURIComponent(editing.id)}`, {
           method: "PATCH",
-          json: ownSteps || !workflow ? when : { ...when, workflow_id: workflow.id, values: filled },
+          json:
+            ownSteps || !workflow ? when : { ...when, workflow_id: workflow.id, values: filled },
           workspaceId: ws.id,
         })
         toast.success(t("automation.sched.updated"))
@@ -194,7 +237,16 @@ export function ScheduleForm({
       }
       if (!workflow && !job) return
       await api("/api/w/schedules", {
-        json: job ? { name: name.trim(), cron, timezone: zone.trim(), catch_up: catchUp, values: filled, job_key: job.key } : { ...when, workflow_id: workflow!.id, values: filled },
+        json: job
+          ? {
+              name: name.trim(),
+              cron,
+              timezone: zone.trim(),
+              catch_up: catchUp,
+              values: filled,
+              job_key: job.key,
+            }
+          : { ...when, workflow_id: workflow!.id, values: filled },
         workspaceId: ws.id,
       })
       toast.success(t("automation.scheduleCreated"))
@@ -233,26 +285,39 @@ export function ScheduleForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor={`${idp}-name`}>{t("automation.scheduleName")}</FieldLabel>
-            <Input id={`${idp}-name`} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+            <Input
+              id={`${idp}-name`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={80}
+            />
           </Field>
           {/* What a schedule runs is chosen when it is made; an edit keeps it. */}
           {editing ? null : (
-          <Field>
-            <FieldLabel htmlFor={`${idp}-kind`}>{t("automation.sched.kind")}</FieldLabel>
-            <PickSelect
-              id={`${idp}-kind`}
-              value={kind}
-              onChange={(v) => {
-                setKind(v as "workflow" | "job")
-                setValues({})
-              }}
-              options={[
-                ...(workflows.length > 0 ? [{ value: "workflow", label: t("automation.sched.kindWorkflow") }] : []),
-                ...(allowedJobs.length > 0 ? [{ value: "job", label: t("automation.sched.kindJob") }] : []),
-              ]}
-            />
-            <FieldDescription>{kind === "job" ? t("automation.sched.kindJobHint") : t("automation.sched.kindWorkflowHint")}</FieldDescription>
-          </Field>
+            <Field>
+              <FieldLabel htmlFor={`${idp}-kind`}>{t("automation.sched.kind")}</FieldLabel>
+              <PickSelect
+                id={`${idp}-kind`}
+                value={kind}
+                onChange={(v) => {
+                  setKind(v as "workflow" | "job")
+                  setValues({})
+                }}
+                options={[
+                  ...(workflows.length > 0
+                    ? [{ value: "workflow", label: t("automation.sched.kindWorkflow") }]
+                    : []),
+                  ...(allowedJobs.length > 0
+                    ? [{ value: "job", label: t("automation.sched.kindJob") }]
+                    : []),
+                ]}
+              />
+              <FieldDescription>
+                {kind === "job"
+                  ? t("automation.sched.kindJobHint")
+                  : t("automation.sched.kindWorkflowHint")}
+              </FieldDescription>
+            </Field>
           )}
           {ownSteps ? (
             <p className="text-sm text-grid-muted sm:col-span-2" data-schedule-own-steps>
@@ -261,7 +326,9 @@ export function ScheduleForm({
           ) : kind === "workflow" ? (
             <>
               <Field>
-                <FieldLabel htmlFor={`${idp}-workflow`}>{t("automation.sched.workflow")}</FieldLabel>
+                <FieldLabel htmlFor={`${idp}-workflow`}>
+                  {t("automation.sched.workflow")}
+                </FieldLabel>
                 <PickSelect
                   id={`${idp}-workflow`}
                   value={workflowId}
@@ -269,7 +336,10 @@ export function ScheduleForm({
                     setWorkflowId(v)
                     setValues({})
                   }}
-                  options={workflows.map((w) => ({ value: w.id, label: w.enabled === false ? `${w.name} (${t("automation.wf.off")})` : w.name }))}
+                  options={workflows.map((w) => ({
+                    value: w.id,
+                    label: w.enabled === false ? `${w.name} (${t("automation.wf.off")})` : w.name,
+                  }))}
                 />
                 <FieldDescription>{t("automation.sched.workflowHint")}</FieldDescription>
               </Field>
@@ -284,7 +354,10 @@ export function ScheduleForm({
                   setJobKey(v)
                   setValues({})
                 }}
-                options={allowedJobs.map((j) => ({ value: j.key, label: t(`automation.job.${j.key}`) }))}
+                options={allowedJobs.map((j) => ({
+                  value: j.key,
+                  label: t(`automation.job.${j.key}`),
+                }))}
               />
               <FieldDescription>{job ? t(`automation.jobHint.${job.key}`) : ""}</FieldDescription>
             </Field>
@@ -299,7 +372,11 @@ export function ScheduleForm({
                 noneLabel={t("automation.sched.anyBrowser")}
                 options={browsers.map((b) => ({ value: b.id, label: b.name }))}
               />
-              <FieldDescription>{agent ? t("automation.sched.namedBrowserHint") : t("automation.sched.anyBrowserHint")}</FieldDescription>
+              <FieldDescription>
+                {agent
+                  ? t("automation.sched.namedBrowserHint")
+                  : t("automation.sched.anyBrowserHint")}
+              </FieldDescription>
             </Field>
           ) : null}
           {fields.map((f) => (
@@ -313,12 +390,20 @@ export function ScheduleForm({
                 type={f.secret ? "password" : "text"}
                 autoComplete={f.secret ? "new-password" : "off"}
                 value={values[f.name] ?? (f.secret ? "" : (f.default ?? ""))}
-                placeholder={f.secret && sealed.has(f.name) ? t("automation.sched.secretKeepPlaceholder") : undefined}
+                placeholder={
+                  f.secret && sealed.has(f.name)
+                    ? t("automation.sched.secretKeepPlaceholder")
+                    : undefined
+                }
                 data-secret-kept={f.secret && sealed.has(f.name) ? "true" : undefined}
                 onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
               />
               {f.secret ? (
-                <FieldDescription>{sealed.has(f.name) ? t("automation.sched.secretKeep") : t("automation.sched.secretHint")}</FieldDescription>
+                <FieldDescription>
+                  {sealed.has(f.name)
+                    ? t("automation.sched.secretKeep")
+                    : t("automation.sched.secretHint")}
+                </FieldDescription>
               ) : f.help ? (
                 <FieldDescription>{f.help}</FieldDescription>
               ) : null}
@@ -333,18 +418,32 @@ export function ScheduleForm({
               id={`${idp}-preset`}
               value={preset}
               onChange={(v) => setPreset(v as Preset)}
-              options={(["hourly", "daily", "weekdays", "weekly", "custom"] as Preset[]).map((p) => ({ value: p, label: t(`automation.sched.preset.${p}`) }))}
+              options={(["hourly", "daily", "weekdays", "weekly", "custom"] as Preset[]).map(
+                (p) => ({ value: p, label: t(`automation.sched.preset.${p}`) }),
+              )}
             />
           </Field>
           {preset === "hourly" ? (
             <Field>
               <FieldLabel htmlFor={`${idp}-minute`}>{t("automation.sched.minute")}</FieldLabel>
-              <Input id={`${idp}-minute`} dir="ltr" inputMode="numeric" value={minute} onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} />
+              <Input
+                id={`${idp}-minute`}
+                dir="ltr"
+                inputMode="numeric"
+                value={minute}
+                onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+              />
             </Field>
           ) : preset === "custom" ? (
             <Field>
               <FieldLabel htmlFor={`${idp}-cron`}>{t("automation.sched.expression")}</FieldLabel>
-              <Input id={`${idp}-cron`} dir="ltr" className="font-mono" value={custom} onChange={(e) => setCustom(e.target.value)} />
+              <Input
+                id={`${idp}-cron`}
+                dir="ltr"
+                className="font-mono"
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+              />
               <FieldDescription>{t("automation.cronHint")}</FieldDescription>
             </Field>
           ) : (
@@ -352,12 +451,23 @@ export function ScheduleForm({
               {preset === "weekly" ? (
                 <Field>
                   <FieldLabel htmlFor={`${idp}-day`}>{t("automation.sched.day")}</FieldLabel>
-                  <PickSelect id={`${idp}-day`} value={day} onChange={setDay} options={days.map((d) => ({ value: d, label: t(`automation.sched.dow.${d}`) }))} />
+                  <PickSelect
+                    id={`${idp}-day`}
+                    value={day}
+                    onChange={setDay}
+                    options={days.map((d) => ({ value: d, label: t(`automation.sched.dow.${d}`) }))}
+                  />
                 </Field>
               ) : null}
               <Field>
                 <FieldLabel htmlFor={`${idp}-time`}>{t("automation.sched.at")}</FieldLabel>
-                <Input id={`${idp}-time`} type="time" dir="ltr" value={time} onChange={(e) => setTime(e.target.value)} />
+                <Input
+                  id={`${idp}-time`}
+                  type="time"
+                  dir="ltr"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                />
               </Field>
             </div>
           )}
@@ -372,7 +482,9 @@ export function ScheduleForm({
                 setZone(e.target.value)
               }}
             />
-            <FieldDescription>{t("automation.sched.zoneHint", { zone: workspaceZone })}</FieldDescription>
+            <FieldDescription>
+              {t("automation.sched.zoneHint", { zone: workspaceZone })}
+            </FieldDescription>
           </Field>
           <Field>
             <FieldLabel htmlFor={`${idp}-catchup`}>{t("automation.catchUpLabel")}</FieldLabel>
@@ -389,10 +501,18 @@ export function ScheduleForm({
           </Field>
         </div>
 
-        <div className="border border-line bg-grid-card px-4 py-3" data-preview={preview?.valid ? "valid" : "invalid"}>
+        <div
+          className="border border-line bg-grid-card px-4 py-3"
+          data-preview={preview?.valid ? "valid" : "invalid"}
+        >
           <p className="text-sm font-medium">
-            {t("automation.sched.nextFive")} <Ltr mono className="text-xs text-grid-muted">{cron || "—"}</Ltr>
-            {preview?.timezone ? <span className="text-xs text-grid-muted"> · {preview.timezone}</span> : null}
+            {t("automation.sched.nextFive")}{" "}
+            <Ltr mono className="text-xs text-grid-muted">
+              {cron || "—"}
+            </Ltr>
+            {preview?.timezone ? (
+              <span className="text-xs text-grid-muted"> · {preview.timezone}</span>
+            ) : null}
           </p>
           {preview && !preview.valid ? (
             <p className="mt-1 text-sm text-grid-danger-text">{preview.error}</p>
@@ -408,7 +528,11 @@ export function ScheduleForm({
         <div className="flex flex-wrap items-center gap-2">
           <Button type="submit" disabled={busy || !name.trim() || !preview?.valid}>
             {editing ? <CheckIcon /> : <PlusIcon />}
-            {busy ? t("common.working") : editing ? t("automation.sched.saveChanges") : t("automation.addSchedule")}
+            {busy
+              ? t("common.working")
+              : editing
+                ? t("automation.sched.saveChanges")
+                : t("automation.addSchedule")}
           </Button>
           {onCancel ? (
             <Button type="button" variant="ghost" onClick={onCancel}>

@@ -29,7 +29,9 @@ function sign(payload: string, s: Buffer): string {
 export function issueWidgetKey(r: Reporter, now = Date.now()): string | null {
   const s = secret()
   if (!s) return null
-  const payload = Buffer.from(JSON.stringify({ sub: r.id, email: r.email, exp: Math.floor(now / 1000) + TTL_SECONDS })).toString("base64url")
+  const payload = Buffer.from(
+    JSON.stringify({ sub: r.id, email: r.email, exp: Math.floor(now / 1000) + TTL_SECONDS }),
+  ).toString("base64url")
   return `${WIDGET_KEY_PREFIX}${payload}.${sign(payload, s)}`
 }
 
@@ -43,7 +45,11 @@ export function verifyWidgetKey(key: string | null | undefined, now = Date.now()
   const got = Buffer.from(sig)
   if (want.length !== got.length || !timingSafeEqual(want, got)) return null
   try {
-    const body = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: string | number; email?: string; exp?: number }
+    const body = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      sub?: string | number
+      email?: string
+      exp?: number
+    }
     if (!body.email || typeof body.exp !== "number" || body.exp * 1000 <= now) return null
     return { id: body.sub ?? null, email: body.email }
   } catch {

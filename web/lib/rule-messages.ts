@@ -50,13 +50,18 @@ function composeUpdateDeal(t: T, args: Record<string, string>): string {
 
 function composeUpdateContact(t: T, args: Record<string, string>): string {
   const parts: string[] = []
-  if (args.lifecycle) parts.push(t("rules.msg.update_contact.lifecycle", { lifecycle: args.lifecycle }))
+  if (args.lifecycle)
+    parts.push(t("rules.msg.update_contact.lifecycle", { lifecycle: args.lifecycle }))
   if (args.owner) parts.push(t("rules.msg.update_contact.owner", { owner: args.owner }))
   if (args.tags) parts.push(t("rules.msg.update_contact.tags", { tags: args.tags }))
   return t("rules.msg.update_contact.base", { id: ref(t, args.id) }) + parts.join(t("rules.join"))
 }
 
-function composeActivity(t: T, kind: "create_task" | "add_note", args: Record<string, string>): string {
+function composeActivity(
+  t: T,
+  kind: "create_task" | "add_note",
+  args: Record<string, string>,
+): string {
   let s = t(`rules.msg.${kind}.base`, { body: args.body ?? "" })
   const on: string[] = []
   if (args.contact_id)
@@ -77,7 +82,11 @@ function composeActivity(t: T, kind: "create_task" | "add_note", args: Record<st
 }
 
 /** Renders one code + its values into the viewer's language. */
-export function msgText(t: T, code: string | undefined, args: Record<string, string> | undefined): string | null {
+export function msgText(
+  t: T,
+  code: string | undefined,
+  args: Record<string, string> | undefined,
+): string | null {
   if (!code) return null
   const a = args ?? {}
   switch (code) {
@@ -107,6 +116,9 @@ export function actionErrorText(t: T, a: RuleActionResult): string | undefined {
 
 /** A run's reason (why it was skipped, limited or blocked, or its first
  * failure), translated when a code is present, English otherwise. */
-export function runReasonText(t: T, run: Pick<RuleRun, "reason" | "reason_code" | "reason_args">): string {
+export function runReasonText(
+  t: T,
+  run: Pick<RuleRun, "reason" | "reason_code" | "reason_args">,
+): string {
   return msgText(t, run.reason_code, run.reason_args) ?? run.reason
 }

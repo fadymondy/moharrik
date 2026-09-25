@@ -23,7 +23,17 @@ export function plainOf(p: AutomationPreset, locale: string) {
   return p.plain?.[locale] ?? p.plain?.en ?? { name: p.name, summary: "" }
 }
 
-export function PresetCard({ preset: p, brand, twin, onOpen }: { preset: AutomationPreset; brand: Brand; twin?: AutomationPreset; onOpen: () => void }) {
+export function PresetCard({
+  preset: p,
+  brand,
+  twin,
+  onOpen,
+}: {
+  preset: AutomationPreset
+  brand: Brand
+  twin?: AutomationPreset
+  onOpen: () => void
+}) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const plain = plainOf(p, locale)
@@ -37,7 +47,12 @@ export function PresetCard({ preset: p, brand, twin, onOpen }: { preset: Automat
       data-preset={p.slug}
       data-writes={p.writes ? "true" : undefined}
     >
-      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 flex-col gap-2 text-start" data-preset-open={p.slug}>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 flex-col gap-2 text-start"
+        data-preset-open={p.slug}
+      >
         <div className="flex items-start gap-2.5">
           <BrandIcon brand={brand} size={32} />
           <div className="min-w-0 flex-1">
@@ -65,18 +80,35 @@ export function PresetCard({ preset: p, brand, twin, onOpen }: { preset: Automat
             </Badge>
           ) : null}
         </div>
-        <p className="flex items-start gap-1 text-xs text-grid-muted" data-preset-hosts={p.hosts.join(",")}>
+        <p
+          className="flex items-start gap-1 text-xs text-grid-muted"
+          data-preset-hosts={p.hosts.join(",")}
+        >
           <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
-          <span className="min-w-0 break-words">{p.hosts.length ? t("presets.goesTo", { hosts: p.hosts.join(", ") }) : t("presets.anySite")}</span>
+          <span className="min-w-0 break-words">
+            {p.hosts.length
+              ? t("presets.goesTo", { hosts: p.hosts.join(", ") })
+              : t("presets.anySite")}
+          </span>
         </p>
       </button>
       {twin && p.dry_run ? (
         <p className="text-xs text-grid-muted">
-          {t("presets.rehearseFirst")} <a className="underline" href={`#preset-${twin.slug}`}>{plainOf(twin, locale).name}</a>
+          {t("presets.rehearseFirst")}{" "}
+          <a className="underline" href={`#preset-${twin.slug}`}>
+            {plainOf(twin, locale).name}
+          </a>
         </p>
       ) : null}
       {p.workflow_id ? (
-        <Button variant="ghost" size="sm" className="self-start" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/${p.workflow_id}`} />} data-open-added>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="self-start"
+          nativeButton={false}
+          render={<Link href={`/${locale}/w/${ws.slug}/automation/workflows/${p.workflow_id}`} />}
+          data-open-added
+        >
           <ExternalLinkIcon />
           {t("presets.open")}
         </Button>

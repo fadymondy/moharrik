@@ -33,7 +33,9 @@ const card = opt("shots", "")
 const base = (args[0] ?? "http://localhost:3508").replace(/\/$/, "")
 const apiBase = (args[1] ?? "http://localhost:8508").replace(/\/$/, "")
 const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
-const CHROME = process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
+const CHROME =
+  process.env.EXT_CHROME ??
+  "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
 const here = path.dirname(fileURLToPath(import.meta.url))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -41,7 +43,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // holding only the site itself and loopback — NOT every site.
 const SRC = path.resolve(here, "../../extension")
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-access-"))
-cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)) })
+cpSync(SRC, EXT, {
+  recursive: true,
+  filter: (p) =>
+    !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)),
+})
 const sourceVersion = JSON.parse(readFileSync(path.join(SRC, "manifest.json"), "utf8")).version
 {
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
@@ -57,8 +63,19 @@ const sourceVersion = JSON.parse(readFileSync(path.join(SRC, "manifest.json"), "
 // it, so the wait covers the prompt appearing.
 function answerPrompt(button) {
   return new Promise((resolve) => {
-    execFile("powershell", ["-NoProfile", "-File", path.join(here, "uia-click.ps1"), "-Button", button, "-TimeoutSec", "20"], { encoding: "utf8" }, (err, stdout) =>
-      resolve(!err && /^pressed/.test(stdout.trim())),
+    execFile(
+      "powershell",
+      [
+        "-NoProfile",
+        "-File",
+        path.join(here, "uia-click.ps1"),
+        "-Button",
+        button,
+        "-TimeoutSec",
+        "20",
+      ],
+      { encoding: "utf8" },
+      (err, stdout) => resolve(!err && /^pressed/.test(stdout.trim())),
     )
   })
 }
@@ -68,7 +85,9 @@ function answerPrompt(button) {
 const PORT = 8795
 const site = createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-  res.end(`<!doctype html><title>Shop</title><h1 id="title">Coffee beans, 1 kg</h1><p id="price">420</p>`)
+  res.end(
+    `<!doctype html><title>Shop</title><h1 id="title">Coffee beans, 1 kg</h1><p id="price">420</p>`,
+  )
 })
 await new Promise((r) => site.listen(PORT, "127.0.0.1", r))
 const SHOP = `http://shop.test:${PORT}/`
@@ -78,7 +97,12 @@ const launch = () =>
     executablePath: CHROME,
     headless: false,
     viewport: { width: 1280, height: 860 },
-    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", `--host-resolver-rules=MAP *.test 127.0.0.1`],
+    args: [
+      `--disable-extensions-except=${EXT}`,
+      `--load-extension=${EXT}`,
+      "--no-first-run",
+      `--host-resolver-rules=MAP *.test 127.0.0.1`,
+    ],
   })
 
 const out = {}
@@ -87,7 +111,8 @@ const ctx = await launch()
 let ctx2 = null
 
 try {
-  let worker = ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker", { timeout: 30000 }))
+  let worker =
+    ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker", { timeout: 30000 }))
   const extensionID = new URL(worker.url()).host
   const sw = () => {
     const w = ctx.serviceWorkers().find((x) => x.url().includes(extensionID))
@@ -109,7 +134,11 @@ try {
   const slug = page.url().split("/w/")[1].split("/")[0]
   const call = async (method, p, data, wsID) => {
     const csrf = (await (await page.request.get(`${base}/api/auth/csrf`)).json()).csrf_token
-    const res = await page.request.fetch(`${base}${p}`, { method, headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) }, data })
+    const res = await page.request.fetch(`${base}${p}`, {
+      method,
+      headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) },
+      data,
+    })
     const text = await res.text()
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text}`)
     return text ? JSON.parse(text) : null
@@ -121,7 +150,9 @@ try {
   await popup.setViewportSize({ width: 360, height: 700 })
   await popup.goto(`chrome-extension://${extensionID}/popup.html`)
   await popup.waitForSelector("#connect:not([hidden])", { timeout: 20000 })
-  out.connectNoteSaysWhatItAsks = /use websites for you/.test(await popup.textContent("#connect-note")) && !(await popup.$eval("#connect-note", (e) => e.hidden))
+  out.connectNoteSaysWhatItAsks =
+    /use websites for you/.test(await popup.textContent("#connect-note")) &&
+    !(await popup.$eval("#connect-note", (e) => e.hidden))
   if (card) await popup.screenshot({ path: `${SHOTS}/${card}-popup-connect.png` })
   const opened = ctx.waitForEvent("page", { timeout: 30000 })
   const allowConnect = answerPrompt("Allow")
@@ -133,14 +164,25 @@ try {
   const { browser } = await call(
     "POST",
     "/api/agents/connect/approve",
-    { code: u.pathname.split("/").pop(), key: new URLSearchParams(u.hash.slice(1)).get("k"), workspace: wsID, name: "Access Chromium", allowed_hosts: ["127.0.0.1"] },
+    {
+      code: u.pathname.split("/").pop(),
+      key: new URLSearchParams(u.hash.slice(1)).get("k"),
+      workspace: wsID,
+      name: "Access Chromium",
+      allowed_hosts: ["127.0.0.1"],
+    },
     wsID,
   )
   await approval.close()
-  const browserRow = async () => (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find((b) => b.id === browser.id)
+  const browserRow = async () =>
+    (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find(
+      (b) => b.id === browser.id,
+    )
   for (let i = 0; i < 40 && (await browserRow()).status !== "online"; i++) await sleep(1000)
   out.connected = (await browserRow()).status === "online"
-  out.connectGrantedEverySite = await popup.evaluate(() => chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }))
+  out.connectGrantedEverySite = await popup.evaluate(() =>
+    chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }),
+  )
 
   const runOnce = async (steps) => {
     const { run_id } = await call("POST", "/api/w/runs", { agent_id: browser.id, steps }, wsID)
@@ -151,32 +193,51 @@ try {
     }
     throw new Error("the run never finished")
   }
-  const shopRun = [{ command: "goto", args: { url: SHOP } }, { command: "extract", args: { selector: "#price" } }]
+  const shopRun = [
+    { command: "goto", args: { url: SHOP } },
+    { command: "extract", args: { selector: "#price" } },
+  ]
 
   // The server hears the mode, and the Automation page says it.
   for (let i = 0; i < 20 && (await browserRow()).site_access !== "all"; i++) await sleep(500)
   out.serverKnowsEverySite = (await browserRow()).site_access === "all"
 
   // ---- a site added ON THE WEBSITE works at the next run, no click in the extension ----
-  await call("PATCH", `/api/w/browsers/${browser.id}`, { allowed_hosts: ["127.0.0.1", "shop.test"] }, wsID)
+  await call(
+    "PATCH",
+    `/api/w/browsers/${browser.id}`,
+    { allowed_hosts: ["127.0.0.1", "shop.test"] },
+    wsID,
+  )
   const atOnce = await runOnce(shopRun)
-  out.siteAddedOnTheWebsiteWorksAtOnce = atOnce.run.status === "ok" && JSON.parse(atOnce.steps[1].result).value === "420"
+  out.siteAddedOnTheWebsiteWorksAtOnce =
+    atOnce.run.status === "ok" && JSON.parse(atOnce.steps[1].result).value === "420"
 
   await page.goto(`${base}/en/w/${slug}/automation`, { waitUntil: "load" })
   openRows = async (p) => {
     // Set up, the browsers fold into one status row; "Manage" opens them.
-    const manage = await p.waitForSelector("[data-manage-browsers], [data-browser-list]", { timeout: 20000 })
-    if (await manage.getAttribute("data-manage-browsers") !== null) await manage.click()
+    const manage = await p.waitForSelector("[data-manage-browsers], [data-browser-list]", {
+      timeout: 20000,
+    })
+    if ((await manage.getAttribute("data-manage-browsers")) !== null) await manage.click()
   }
   await openRows(page)
   await page.waitForSelector(`[data-site-access="all"]`, { timeout: 20000 })
-  out.automationPageSaysEverySite = /Every site is allowed in this browser/.test(await page.textContent(`[data-site-access="all"]`))
+  out.automationPageSaysEverySite = /Every site is allowed in this browser/.test(
+    await page.textContent(`[data-site-access="all"]`),
+  )
 
   // ---- 1. the Sites page: states the mode; the switch gives back and asks again ----
   const options = await ctx.newPage()
   await options.goto(`chrome-extension://${extensionID}/options.html`)
-  await options.waitForFunction(() => document.getElementById("mode").dataset.mode === "all", null, { timeout: 10000 })
-  out.sitesPageSaysEverySite = (await options.isChecked("#all-sites")) && /allows every site/.test(await options.textContent("#mode"))
+  await options.waitForFunction(
+    () => document.getElementById("mode").dataset.mode === "all",
+    null,
+    { timeout: 10000 },
+  )
+  out.sitesPageSaysEverySite =
+    (await options.isChecked("#all-sites")) &&
+    /allows every site/.test(await options.textContent("#mode"))
   if (card) await options.screenshot({ path: `${SHOTS}/${card}-sites-all.png`, fullPage: true })
 
   // What the old switch asked for, refused by Chrome itself. Asked inside a
@@ -195,7 +256,9 @@ try {
   const denyOld = answerPrompt("Deny")
   await options.bringToFront()
   await options.click("#old-ask")
-  await options.waitForFunction(() => document.getElementById("old-ask").dataset.result, null, { timeout: 25000 })
+  await options.waitForFunction(() => document.getElementById("old-ask").dataset.result, null, {
+    timeout: 25000,
+  })
   const oldResult = await options.$eval("#old-ask", (b) => b.dataset.result)
   await denyOld
   out.oldAllSitesRequestWasBroken = oldResult
@@ -208,36 +271,63 @@ try {
   await options.bringToFront()
   await options.click("#all-sites")
   out.ownSitePromptAnswered = await allowOwn
-  await options.waitForFunction(() => document.getElementById("mode").dataset.mode === "sites", null, { timeout: 10000 })
-  out.switchOffTakesItBack = !(await options.evaluate(() => chrome.permissions.contains({ origins: ["https://*/*"] })))
-  await options.waitForFunction(() => /one by one\./.test(document.getElementById("all-note").textContent), null, { timeout: 10000 })
-  out.ownSiteKeptAfterSwitchOff = await options.evaluate((o) => chrome.permissions.contains({ origins: [`${o}/*`] }), base)
-  out.sitesPageSaysOneByOne = /one by one\. 1 of your workspace's sites waits/.test(await options.textContent("#mode"))
-  if (card) await options.screenshot({ path: `${SHOTS}/${card}-sites-one-by-one.png`, fullPage: true })
+  await options.waitForFunction(
+    () => document.getElementById("mode").dataset.mode === "sites",
+    null,
+    { timeout: 10000 },
+  )
+  out.switchOffTakesItBack = !(await options.evaluate(() =>
+    chrome.permissions.contains({ origins: ["https://*/*"] }),
+  ))
+  await options.waitForFunction(
+    () => /one by one\./.test(document.getElementById("all-note").textContent),
+    null,
+    { timeout: 10000 },
+  )
+  out.ownSiteKeptAfterSwitchOff = await options.evaluate(
+    (o) => chrome.permissions.contains({ origins: [`${o}/*`] }),
+    base,
+  )
+  out.sitesPageSaysOneByOne = /one by one\. 1 of your workspace's sites waits/.test(
+    await options.textContent("#mode"),
+  )
+  if (card)
+    await options.screenshot({ path: `${SHOTS}/${card}-sites-one-by-one.png`, fullPage: true })
 
   // Declined mode: the icon counts, the popup lists it, the server hears it.
   for (let i = 0; i < 20; i++) {
     if ((await sw().evaluate(() => chrome.action.getBadgeText({}))) === "1") break
     await sleep(300)
   }
-  out.badgeCountsTheWaitingSite = (await sw().evaluate(() => chrome.action.getBadgeText({}))) === "1"
-  for (let i = 0; i < 20 && (await browserRow()).pending_hosts?.join(",") !== "shop.test"; i++) await sleep(500)
+  out.badgeCountsTheWaitingSite =
+    (await sw().evaluate(() => chrome.action.getBadgeText({}))) === "1"
+  for (let i = 0; i < 20 && (await browserRow()).pending_hosts?.join(",") !== "shop.test"; i++)
+    await sleep(500)
   const row = await browserRow()
-  out.serverKnowsWhatWaits = row.site_access === "sites" && row.pending_hosts.join(",") === "shop.test"
+  out.serverKnowsWhatWaits =
+    row.site_access === "sites" && row.pending_hosts.join(",") === "shop.test"
   await page.reload({ waitUntil: "load" })
   await page.waitForSelector(`[data-status-pending="shop.test"]`, { timeout: 20000 })
   out.foldedRowSaysWhatWaits = true
   await openRows(page)
   await page.waitForSelector(`[data-pending="shop.test"]`, { timeout: 20000 })
-  out.automationPageListsWhatWaits = /Waiting for an OK in the browser: shop\.test/.test(await page.textContent(`[data-pending="shop.test"]`))
+  out.automationPageListsWhatWaits = /Waiting for an OK in the browser: shop\.test/.test(
+    await page.textContent(`[data-pending="shop.test"]`),
+  )
 
   const refused = await runOnce(shopRun)
   out.ungrantedSiteFailsInPlainWords =
-    refused.run.status === "failed" && /Chrome has not allowed Moharrik on shop\.test yet: approve it under \\"Waiting for your OK\\"/.test(JSON.stringify(refused))
-  if (!out.ungrantedSiteFailsInPlainWords) out.refusedRun = refused.steps.map((x) => `${x.command}:${x.status}:${x.error}`)
+    refused.run.status === "failed" &&
+    /Chrome has not allowed Moharrik on shop\.test yet: approve it under \\"Waiting for your OK\\"/.test(
+      JSON.stringify(refused),
+    )
+  if (!out.ungrantedSiteFailsInPlainWords)
+    out.refusedRun = refused.steps.map((x) => `${x.command}:${x.status}:${x.error}`)
 
   await popup.reload()
-  await popup.waitForSelector("#waiting-ok:not([hidden]) [data-approve='shop.test']", { timeout: 10000 })
+  await popup.waitForSelector("#waiting-ok:not([hidden]) [data-approve='shop.test']", {
+    timeout: 10000,
+  })
   out.popupListsWaitingSite = (await popup.textContent("#pending-list")).includes("shop.test")
   if (card) {
     for (const scheme of ["light", "dark"]) {
@@ -253,21 +343,37 @@ try {
   const allowOne = answerPrompt("Allow")
   await popup.bringToFront()
   await popup.click("[data-approve='shop.test']")
-  out.approvePromptInThisProfile = (await allowOne) ? "shown and answered" : "not shown (every site was granted here before)"
+  out.approvePromptInThisProfile = (await allowOne)
+    ? "shown and answered"
+    : "not shown (every site was granted here before)"
   await popup.waitForSelector("#waiting-ok[hidden]", { state: "attached", timeout: 15000 })
   out.approvedSiteLeavesTheList = true
   const approved = await runOnce(shopRun)
   out.approvedSiteWorks = approved.run.status === "ok"
-  out.approvalWasOneSiteOnly = !(await popup.evaluate(() => chrome.permissions.contains({ origins: ["https://*/*"] })))
+  out.approvalWasOneSiteOnly = !(await popup.evaluate(() =>
+    chrome.permissions.contains({ origins: ["https://*/*"] }),
+  ))
 
   // ---- 3. the update: badge, popup, download, the Automation page's flag ----
-  await sw().evaluate(() => new Promise((r) => chrome.runtime.sendMessage({ type: "update.check" }, r)))
-  for (let i = 0; i < 20 && (await sw().evaluate(() => chrome.action.getBadgeText({}))) !== "NEW"; i++) await sleep(300)
-  out.badgeSaysNewOnceNothingWaits = (await sw().evaluate(() => chrome.action.getBadgeText({}))) === "NEW"
+  await sw().evaluate(
+    () => new Promise((r) => chrome.runtime.sendMessage({ type: "update.check" }, r)),
+  )
+  for (
+    let i = 0;
+    i < 20 && (await sw().evaluate(() => chrome.action.getBadgeText({}))) !== "NEW";
+    i++
+  )
+    await sleep(300)
+  out.badgeSaysNewOnceNothingWaits =
+    (await sw().evaluate(() => chrome.action.getBadgeText({}))) === "NEW"
   await popup.reload()
   await popup.waitForSelector("#update-box:not([hidden])", { timeout: 10000 })
-  const latest = (await (await page.request.get(`${apiBase}/api/automation/extension/latest`)).json()).version
-  out.popupOffersTheUpdate = (await popup.textContent("#update-version")).includes(`${sourceVersion} → ${latest}`)
+  const latest = (
+    await (await page.request.get(`${apiBase}/api/automation/extension/latest`)).json()
+  ).version
+  out.popupOffersTheUpdate = (await popup.textContent("#update-version")).includes(
+    `${sourceVersion} → ${latest}`,
+  )
   if (card) {
     for (const scheme of ["light", "dark"]) {
       await popup.emulateMedia({ colorScheme: scheme })
@@ -288,20 +394,31 @@ try {
   out.downloadIsOneClick = openedUrls.includes(`${base}/api/automation/extension/download`)
   if (!out.downloadIsOneClick) out.openedUrls = openedUrls
   const dlRes = await page.request.get(`${base}/api/automation/extension/download`)
-  out.downloadServesTheZip = dlRes.status() === 200 && dlRes.headers()["x-extension-version"] === latest
+  out.downloadServesTheZip =
+    dlRes.status() === 200 && dlRes.headers()["x-extension-version"] === latest
   await page.reload({ waitUntil: "load" })
-  out.automationPageFlagsTheOldVersion = !!(await page.waitForSelector(`[data-update-available]`, { timeout: 20000 }).catch(() => null))
+  out.automationPageFlagsTheOldVersion = !!(await page
+    .waitForSelector(`[data-update-available]`, { timeout: 20000 })
+    .catch(() => null))
 
   // The signed package and its manifest, public.
   const xml = await (await fetch(`${apiBase}/api/automation/extension/updates.xml`)).text()
   const crx = await fetch(`${apiBase}/api/automation/extension/moharrik.crx`)
   const crxBody = Buffer.from(await crx.arrayBuffer())
-  out.updateManifestNamesTheCRX = /<updatecheck codebase='[^']+\/api\/automation\/extension\/moharrik\.crx' version='[^']+' \/>/.test(xml)
-  out.crxIsSigned = crx.status === 200 && crx.headers.get("content-type") === "application/x-chrome-extension" && crxBody.subarray(0, 4).toString() === "Cr24" && crxBody.readUInt32LE(4) === 3
+  out.updateManifestNamesTheCRX =
+    /<updatecheck codebase='[^']+\/api\/automation\/extension\/moharrik\.crx' version='[^']+' \/>/.test(
+      xml,
+    )
+  out.crxIsSigned =
+    crx.status === 200 &&
+    crx.headers.get("content-type") === "application/x-chrome-extension" &&
+    crxBody.subarray(0, 4).toString() === "Cr24" &&
+    crxBody.readUInt32LE(4) === 3
 
   // ---- 2b. declined at Connect: still connects, site by site ----
   ctx2 = await launch()
-  const w2 = ctx2.serviceWorkers()[0] || (await ctx2.waitForEvent("serviceworker", { timeout: 30000 }))
+  const w2 =
+    ctx2.serviceWorkers()[0] || (await ctx2.waitForEvent("serviceworker", { timeout: 30000 }))
   const id2 = new URL(w2.url()).host
   const pop2 = await ctx2.newPage()
   await pop2.setViewportSize({ width: 360, height: 700 })
@@ -317,18 +434,27 @@ try {
   const second = await call(
     "POST",
     "/api/agents/connect/approve",
-    { code: u2.pathname.split("/").pop(), key: new URLSearchParams(u2.hash.slice(1)).get("k"), workspace: wsID, name: "Declined Chromium", allowed_hosts: ["127.0.0.1", "shop.test"] },
+    {
+      code: u2.pathname.split("/").pop(),
+      key: new URLSearchParams(u2.hash.slice(1)).get("k"),
+      workspace: wsID,
+      name: "Declined Chromium",
+      allowed_hosts: ["127.0.0.1", "shop.test"],
+    },
     wsID,
   )
   await approval2.close()
   let row2
   for (let i = 0; i < 40; i++) {
-    row2 = (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find((b) => b.id === second.browser.id)
+    row2 = (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find(
+      (b) => b.id === second.browser.id,
+    )
     if (row2.status === "online" && row2.site_access) break
     await sleep(1000)
   }
   out.declinedStillConnects = row2.status === "online"
-  out.declinedWaitsForTheSite = row2.site_access === "sites" && row2.pending_hosts.join(",") === "shop.test"
+  out.declinedWaitsForTheSite =
+    row2.site_access === "sites" && row2.pending_hosts.join(",") === "shop.test"
   const w2now = ctx2.serviceWorkers().find((x) => x.url().includes(id2)) || w2
   out.declinedBadgeCounts = (await w2now.evaluate(() => chrome.action.getBadgeText({}))) === "1"
   // The popup's Approve, in a profile that never granted every site: Chrome's
@@ -342,8 +468,9 @@ try {
   out.approvePromptAnswered = await allow2
   await pop2.waitForSelector("#waiting-ok[hidden]", { state: "attached", timeout: 15000 })
   out.approveGrantsOnlyThatSite =
-    (await pop2.evaluate(() => chrome.permissions.contains({ origins: ["http://*.shop.test/*"] }))) &&
-    !(await pop2.evaluate(() => chrome.permissions.contains({ origins: ["https://*/*"] })))
+    (await pop2.evaluate(() =>
+      chrome.permissions.contains({ origins: ["http://*.shop.test/*"] }),
+    )) && !(await pop2.evaluate(() => chrome.permissions.contains({ origins: ["https://*/*"] })))
   await ctx2.close()
   ctx2 = null
 
@@ -354,20 +481,34 @@ try {
     for (const locale of ["en", "ar"]) {
       for (const theme of ["light", "dark"]) {
         for (const width of [1440, 390]) {
-          const c = await shooter.newContext({ storageState: state, viewport: { width, height: 900 }, colorScheme: theme })
+          const c = await shooter.newContext({
+            storageState: state,
+            viewport: { width, height: 900 },
+            colorScheme: theme,
+          })
           const p = await c.newPage()
           await p.goto(`${base}/${locale}/w/${slug}/automation`, { waitUntil: "load" })
           await openRows(p)
           await p.waitForSelector("[data-site-access]", { timeout: 30000 })
           await p.locator("[data-site-access]").first().scrollIntoViewIfNeeded()
           await p.waitForTimeout(600)
-          await p.screenshot({ path: `${SHOTS}/${card}-automation-${locale}-${theme}-${width}.png`, fullPage: true })
-          out[`automation-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth === 0)
+          await p.screenshot({
+            path: `${SHOTS}/${card}-automation-${locale}-${theme}-${width}.png`,
+            fullPage: true,
+          })
+          out[`automation-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(
+            () => document.documentElement.scrollWidth - innerWidth === 0,
+          )
           await p.goto(`${base}/${locale}/w/${slug}/automation/extension`, { waitUntil: "load" })
           await p.waitForSelector("[data-managed]", { timeout: 30000 })
           await p.waitForTimeout(600)
-          await p.screenshot({ path: `${SHOTS}/${card}-extension-${locale}-${theme}-${width}.png`, fullPage: true })
-          out[`extension-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth === 0)
+          await p.screenshot({
+            path: `${SHOTS}/${card}-extension-${locale}-${theme}-${width}.png`,
+            fullPage: true,
+          })
+          out[`extension-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(
+            () => document.documentElement.scrollWidth - innerWidth === 0,
+          )
           await c.close()
         }
       }

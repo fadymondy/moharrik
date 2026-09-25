@@ -71,22 +71,42 @@ export default function PresetsGalleryPage() {
     const hit = (p: AutomationPreset) => {
       const plain = plainOf(p, locale)
       const brand = brandForHosts(p.hosts)
-      return `${plain.name} ${plain.summary} ${p.name} ${p.slug} ${p.description} ${p.hosts.join(" ")} ${brand.name}`.toLowerCase().includes(needle)
+      return `${plain.name} ${plain.summary} ${p.name} ${p.slug} ${p.description} ${p.hosts.join(" ")} ${brand.name}`
+        .toLowerCase()
+        .includes(needle)
     }
     const byBrand = new Map<string, AutomationPreset[]>()
-    for (const p of list) if (hit(p)) byBrand.set(brandForHosts(p.hosts).key, [...(byBrand.get(brandForHosts(p.hosts).key) ?? []), p])
-    return [...byBrand.entries()].sort((a, b) => (countByBrand.get(b[0]) ?? 0) - (countByBrand.get(a[0]) ?? 0))
+    for (const p of list)
+      if (hit(p))
+        byBrand.set(brandForHosts(p.hosts).key, [
+          ...(byBrand.get(brandForHosts(p.hosts).key) ?? []),
+          p,
+        ])
+    return [...byBrand.entries()].sort(
+      (a, b) => (countByBrand.get(b[0]) ?? 0) - (countByBrand.get(a[0]) ?? 0),
+    )
   }, [needle, list, locale, countByBrand])
   const searchCount = searchResults?.reduce((n, [, ps]) => n + ps.length, 0) ?? 0
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("presets.title")} description={t("presets.hint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("presets.title")}
+        description={t("presets.hint")}
+      />
 
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-6 py-4">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">
           <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-grid-muted" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("presets.search")} aria-label={t("presets.search")} className="ps-8" data-preset-search />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("presets.search")}
+            aria-label={t("presets.search")}
+            className="ps-8"
+            data-preset-search
+          />
         </div>
         {presets.data && needle ? (
           <p className="text-sm text-grid-muted" data-preset-count={searchCount}>
@@ -110,11 +130,19 @@ export default function PresetsGalleryPage() {
                 <h2 className="flex items-center gap-2 px-6 pb-2 text-base font-medium">
                   <BrandIcon brand={brand} size={24} />
                   {brand.name}
-                  <span className="text-sm font-normal text-grid-muted tabular-nums">{formatNumber(ps.length)}</span>
+                  <span className="text-sm font-normal text-grid-muted tabular-nums">
+                    {formatNumber(ps.length)}
+                  </span>
                 </h2>
                 <ul className="grid gap-3 px-6 sm:grid-cols-2 lg:grid-cols-3">
                   {ps.map((p) => (
-                    <PresetCard key={p.slug} preset={p} brand={brand} twin={bySlug.get(p.dry_run ?? p.dry_run_of ?? "")} onOpen={() => setOpen(p)} />
+                    <PresetCard
+                      key={p.slug}
+                      preset={p}
+                      brand={brand}
+                      twin={bySlug.get(p.dry_run ?? p.dry_run_of ?? "")}
+                      onOpen={() => setOpen(p)}
+                    />
                   ))}
                 </ul>
               </section>
@@ -130,7 +158,12 @@ export default function PresetsGalleryPage() {
               <h2 className="px-6 pb-2 text-base font-medium">{t(shelf.labelKey)}</h2>
               <div className="grid grid-cols-3 gap-2 px-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
                 {brands.map((b) => (
-                  <BrandTile key={b} brand={BRANDS[b]} count={countByBrand.get(b) ?? 0} href={`/${locale}/w/${ws.slug}/automation/presets/${b}`} />
+                  <BrandTile
+                    key={b}
+                    brand={BRANDS[b]}
+                    count={countByBrand.get(b) ?? 0}
+                    href={`/${locale}/w/${ws.slug}/automation/presets/${b}`}
+                  />
                 ))}
               </div>
             </section>
@@ -138,7 +171,11 @@ export default function PresetsGalleryPage() {
         })
       )}
 
-      <PresetProfilePanel canManage={canManage} data={profile.data} onSaved={() => profile.mutate()} />
+      <PresetProfilePanel
+        canManage={canManage}
+        data={profile.data}
+        onSaved={() => profile.mutate()}
+      />
       <div className="pb-8" />
 
       {open ? (

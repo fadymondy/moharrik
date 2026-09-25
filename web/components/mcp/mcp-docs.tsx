@@ -44,13 +44,23 @@ export function McpDocs({ initial }: { initial: McpDocsCatalog | null }) {
   useDocumentTitle(t("docs.mcp.metaTitle"))
 
   // Rendered on the server when the API answered there; fetched here otherwise.
-  const fetched = useSWR<McpDocsCatalog>(initial?.lang === locale ? null : `/api/mcp/docs?lang=${locale}`, (url: string) => api<McpDocsCatalog>(url))
+  const fetched = useSWR<McpDocsCatalog>(
+    initial?.lang === locale ? null : `/api/mcp/docs?lang=${locale}`,
+    (url: string) => api<McpDocsCatalog>(url),
+  )
   const cat = initial?.lang === locale ? initial : fetched.data
 
   return (
-    <PublicFrame eyebrow={t("docs.mcp.eyebrow")} title={t("docs.mcp.title")} description={t("docs.mcp.description", { count: cat?.tool_count ?? "—" })}>
+    <PublicFrame
+      eyebrow={t("docs.mcp.eyebrow")}
+      title={t("docs.mcp.title")}
+      description={t("docs.mcp.description", { count: cat?.tool_count ?? "—" })}
+    >
       <PublicPanel className="p-0">
-        <nav aria-label={t("docs.mcp.onThisPage")} className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-sm">
+        <nav
+          aria-label={t("docs.mcp.onThisPage")}
+          className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-sm"
+        >
           <span className="grid-micro">{t("docs.mcp.onThisPage")}</span>
           <TocLink href="#connect">{t("docs.mcp.connect.title")}</TocLink>
           <TocLink href="#scopes">{t("docs.mcp.scopes.title")}</TocLink>
@@ -87,7 +97,15 @@ function TocLink({ href, children }: { href: string; children: ReactNode }) {
   )
 }
 
-function SectionTitle({ id, children, hint }: { id: string; children: ReactNode; hint?: ReactNode }) {
+function SectionTitle({
+  id,
+  children,
+  hint,
+}: {
+  id: string
+  children: ReactNode
+  hint?: ReactNode
+}) {
   return (
     <div className="mb-5 max-w-2xl space-y-1.5">
       <h2 id={id} className="grid-title scroll-mt-20 text-xl">
@@ -101,7 +119,9 @@ function SectionTitle({ id, children, hint }: { id: string; children: ReactNode;
 function Step({ n, children }: { n: number; children: ReactNode }) {
   return (
     <li className="flex gap-2.5 text-sm text-grid-body">
-      <span className="grid size-5 shrink-0 place-items-center border border-line font-mono text-[11px] text-grid-muted">{n}</span>
+      <span className="grid size-5 shrink-0 place-items-center border border-line font-mono text-[11px] text-grid-muted">
+        {n}
+      </span>
       <span className="min-w-0">{children}</span>
     </li>
   )
@@ -162,7 +182,10 @@ function ConnectSection({ cat, locale }: { cat: McpDocsCatalog; locale: string }
         <div className="space-y-2 border border-line bg-grid-card p-4">
           <h3 className="text-sm font-medium">{t("docs.mcp.connect.checkTitle")}</h3>
           <p className="text-sm text-grid-body">{t("docs.mcp.connect.check")}</p>
-          <CopyField value={t("docs.mcp.connect.checkPrompt")} label={t("docs.mcp.connect.checkTitle")} />
+          <CopyField
+            value={t("docs.mcp.connect.checkPrompt")}
+            label={t("docs.mcp.connect.checkTitle")}
+          />
           <p className="text-sm text-grid-muted">{t("docs.mcp.connect.checkAfter")}</p>
         </div>
 
@@ -189,11 +212,18 @@ function ScopesSection({ cat }: { cat: McpDocsCatalog }) {
 
       <div className="mb-6 max-w-2xl space-y-3 text-sm text-grid-body">
         <p>{t("docs.mcp.scopes.roles")}</p>
-        <ol className="flex flex-wrap items-center gap-1.5" aria-label={t("docs.mcp.scopes.ladder")}>
+        <ol
+          className="flex flex-wrap items-center gap-1.5"
+          aria-label={t("docs.mcp.scopes.ladder")}
+        >
           {cat.roles.map((r, i) => (
             <li key={r} className="flex items-center gap-1.5">
               <Badge variant={i === 0 ? "default" : "outline"}>{t(`role.${r}`)}</Badge>
-              {i < cat.roles.length - 1 ? <span className="text-grid-muted" aria-hidden>›</span> : null}
+              {i < cat.roles.length - 1 ? (
+                <span className="text-grid-muted" aria-hidden>
+                  ›
+                </span>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -208,13 +238,20 @@ function ScopesSection({ cat }: { cat: McpDocsCatalog }) {
               <Ltr mono className="text-sm text-grid-fg">
                 {s.scope}
               </Ltr>
-              <span className="text-xs text-grid-muted">{t("docs.mcp.scopes.minRole", { role: t(`role.${s.min_role}`) })}</span>
+              <span className="text-xs text-grid-muted">
+                {t("docs.mcp.scopes.minRole", { role: t(`role.${s.min_role}`) })}
+              </span>
             </div>
             <div className="min-w-0 space-y-1.5">
               <p className="text-sm text-grid-body">{s.description}</p>
               <p className="flex flex-wrap gap-1">
                 {s.tools.map((name) => (
-                  <a key={name} href={`#tool-${name}`} dir="ltr" className="border border-line px-1.5 py-0.5 font-mono text-[11px] text-grid-muted hover:border-grid-action hover:text-grid-fg">
+                  <a
+                    key={name}
+                    href={`#tool-${name}`}
+                    dir="ltr"
+                    className="border border-line px-1.5 py-0.5 font-mono text-[11px] text-grid-muted hover:border-grid-action hover:text-grid-fg"
+                  >
                     {name}
                   </a>
                 ))}
@@ -252,11 +289,18 @@ function SafetySection() {
       </SectionTitle>
       <ul className="grid gap-px border border-line bg-line sm:grid-cols-2" data-docs-safety>
         {SAFETY.map((r) => (
-          <li key={r.key} className="flex gap-3 bg-background p-4 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-grid-muted">
+          <li
+            key={r.key}
+            className="flex gap-3 bg-background p-4 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-grid-muted"
+          >
             <span className="mt-0.5">{r.icon}</span>
             <span className="min-w-0 space-y-1">
-              <span className="block text-sm font-medium">{t(`docs.mcp.safety.${r.key}.title`)}</span>
-              <span className="block text-sm text-grid-body">{t(`docs.mcp.safety.${r.key}.body`)}</span>
+              <span className="block text-sm font-medium">
+                {t(`docs.mcp.safety.${r.key}.title`)}
+              </span>
+              <span className="block text-sm text-grid-body">
+                {t(`docs.mcp.safety.${r.key}.body`)}
+              </span>
             </span>
           </li>
         ))}
@@ -287,7 +331,11 @@ function Reference({ cat }: { cat: McpDocsCatalog }) {
         .map((g) => ({
           ...g,
           tools: needle
-            ? g.tools.filter((tool) => [tool.name, tool.scope, tool.description].some((v) => v.toLowerCase().includes(needle)))
+            ? g.tools.filter((tool) =>
+                [tool.name, tool.scope, tool.description].some((v) =>
+                  v.toLowerCase().includes(needle),
+                ),
+              )
             : g.tools,
         }))
         .filter((g) => g.tools.length > 0),
@@ -297,13 +345,20 @@ function Reference({ cat }: { cat: McpDocsCatalog }) {
 
   return (
     <PublicPanel className="py-8">
-      <SectionTitle id="reference" hint={t("docs.mcp.reference.intro", { count: formatNumber(cat.tool_count) })}>
+      <SectionTitle
+        id="reference"
+        hint={t("docs.mcp.reference.intro", { count: formatNumber(cat.tool_count) })}
+      >
         {t("docs.mcp.reference.title")}
       </SectionTitle>
 
       <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
         {cat.groups.map((g) => (
-          <a key={g.id} href={`#tools-${g.id}`} className="text-grid-body underline-offset-4 hover:text-grid-fg hover:underline">
+          <a
+            key={g.id}
+            href={`#tools-${g.id}`}
+            className="text-grid-body underline-offset-4 hover:text-grid-fg hover:underline"
+          >
             {g.title} <span className="text-grid-muted">({formatNumber(g.tools.length)})</span>
           </a>
         ))}
@@ -323,11 +378,16 @@ function Reference({ cat }: { cat: McpDocsCatalog }) {
           />
         </InputGroup>
         <p className="mt-1.5 text-xs text-grid-muted" aria-live="polite">
-          {t("docs.mcp.reference.showing", { n: formatNumber(shown), total: formatNumber(cat.tool_count) })}
+          {t("docs.mcp.reference.showing", {
+            n: formatNumber(shown),
+            total: formatNumber(cat.tool_count),
+          })}
         </p>
       </div>
 
-      {shown === 0 ? <p className="py-6 text-sm text-grid-muted">{t("docs.mcp.reference.none", { q })}</p> : null}
+      {shown === 0 ? (
+        <p className="py-6 text-sm text-grid-muted">{t("docs.mcp.reference.none", { q })}</p>
+      ) : null}
 
       <div className="space-y-10">
         {groups.map((g) => (
@@ -374,7 +434,9 @@ function ToolEntry({ tool, open: linked }: { tool: McpDocTool; open: boolean }) 
               <Badge variant="outline" className="font-mono" dir="ltr">
                 {tool.scope}
               </Badge>
-              <Badge variant="secondary">{tool.writes ? t("docs.mcp.reference.writes") : t("docs.mcp.reference.reads")}</Badge>
+              <Badge variant="secondary">
+                {tool.writes ? t("docs.mcp.reference.writes") : t("docs.mcp.reference.reads")}
+              </Badge>
             </span>
             <span className="block text-sm text-grid-body">{tool.description}</span>
           </span>
@@ -427,7 +489,11 @@ function ArgRow({ arg }: { arg: McpDocArg }) {
         <p className="flex flex-wrap items-center gap-1 text-xs text-grid-muted">
           <span>{t("docs.mcp.reference.oneOf")}</span>
           {arg.enum.map((v) => (
-            <code key={String(v)} dir="ltr" className="border border-line px-1 font-mono text-[11px]">
+            <code
+              key={String(v)}
+              dir="ltr"
+              className="border border-line px-1 font-mono text-[11px]"
+            >
               {v === "" ? '""' : String(v)}
             </code>
           ))}

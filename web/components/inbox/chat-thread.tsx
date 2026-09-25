@@ -81,7 +81,12 @@ function senderKey(m: InboxMessage): string {
  *  isGroup (Conversation.is_group, MH-604) makes an inbound message's SENDER part of "same sender"
  *  too — a Telegram/Slack/Discord group thread has many senders sharing the "in" direction, unlike
  *  a 1:1 thread where every inbound message is the same one customer. */
-function buildItems(messages: InboxMessage[], t: (key: string) => string, locale: string, isGroup: boolean): Item[] {
+function buildItems(
+  messages: InboxMessage[],
+  t: (key: string) => string,
+  locale: string,
+  isGroup: boolean,
+): Item[] {
   const items: Item[] = []
   let lastDay = ""
   let group: InboxMessage[] = []
@@ -103,8 +108,12 @@ function buildItems(messages: InboxMessage[], t: (key: string) => string, locale
     const sameSender =
       !!last &&
       last.direction === m.direction &&
-      (m.direction === "out" ? last.author_user_id === m.author_user_id : !isGroup || senderKey(last) === senderKey(m))
-    const close = !!last && new Date(m.created_at).getTime() - new Date(last.created_at).getTime() < GROUP_GAP_MS
+      (m.direction === "out"
+        ? last.author_user_id === m.author_user_id
+        : !isGroup || senderKey(last) === senderKey(m))
+    const close =
+      !!last &&
+      new Date(m.created_at).getTime() - new Date(last.created_at).getTime() < GROUP_GAP_MS
     if (last && sameSender && close) group.push(m)
     else {
       flush()
@@ -118,7 +127,9 @@ function buildItems(messages: InboxMessage[], t: (key: string) => string, locale
 function DaySeparator({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center py-3" data-day-separator>
-      <span className="rounded-full border border-line bg-grid-elevated px-3 py-1 text-xs text-grid-muted">{label}</span>
+      <span className="rounded-full border border-line bg-grid-elevated px-3 py-1 text-xs text-grid-muted">
+        {label}
+      </span>
     </div>
   )
 }
@@ -139,7 +150,13 @@ function MessageGroup({
   // group, not the conversation's own customer_name — that name belongs to
   // the thread as a whole and means nothing once several people write in it.
   const groupSenderName = group[0].sender_name || t("inbox.customer")
-  const who = out ? (group[0].author_user_id ? memberName(group[0].author_user_id) : t("inbox.team")) : conversation.is_group ? groupSenderName : conversation.customer_name || t("inbox.customer")
+  const who = out
+    ? group[0].author_user_id
+      ? memberName(group[0].author_user_id)
+      : t("inbox.team")
+    : conversation.is_group
+      ? groupSenderName
+      : conversation.customer_name || t("inbox.customer")
   const showSenderAvatar = !out && conversation.is_group
 
   // An email is a document, not a chat line (MH-592): each one is a
@@ -158,7 +175,9 @@ function MessageGroup({
             <header className="flex min-w-0 items-center gap-2 border-b border-line px-4 py-2 text-xs text-grid-muted">
               <Icon className="size-3 shrink-0" />
               <span className="min-w-0 truncate font-medium text-grid-fg">
-                <Bdi>{out ? (m.author_user_id ? memberName(m.author_user_id) : t("inbox.team")) : who}</Bdi>
+                <Bdi>
+                  {out ? (m.author_user_id ? memberName(m.author_user_id) : t("inbox.team")) : who}
+                </Bdi>
               </span>
               {conversation.subject ? (
                 <span className="min-w-0 flex-1 truncate" data-message-subject>
@@ -182,10 +201,18 @@ function MessageGroup({
   }
 
   return (
-    <div className={`flex flex-col gap-1 py-1.5 ${out ? "items-end" : "items-start"}`} data-message-group={out ? "out" : "in"}>
-      <p className={`flex items-center gap-1 px-1 text-xs text-grid-muted ${out ? "flex-row-reverse" : ""}`}>
+    <div
+      className={`flex flex-col gap-1 py-1.5 ${out ? "items-end" : "items-start"}`}
+      data-message-group={out ? "out" : "in"}
+    >
+      <p
+        className={`flex items-center gap-1 px-1 text-xs text-grid-muted ${out ? "flex-row-reverse" : ""}`}
+      >
         {out ? null : <Bdi>{who}</Bdi>}
-        <span className="inline-flex items-center gap-1" data-message-channel={conversation.channel}>
+        <span
+          className="inline-flex items-center gap-1"
+          data-message-channel={conversation.channel}
+        >
           <Icon className="size-3" />
           {channelLabel(conversation.channel, t)}
         </span>
@@ -209,7 +236,10 @@ function MessageGroup({
               className={`max-w-[36rem] rounded-2xl px-3.5 py-2 text-sm ${out ? "self-end bg-primary text-primary-foreground" : "self-start border border-line bg-grid-card"}`}
             >
               {conversation.channel === "email" && conversation.subject ? (
-                <p className={`mb-1 truncate text-xs font-medium ${out ? "text-primary-foreground/80" : "text-grid-muted"}`} data-message-subject>
+                <p
+                  className={`mb-1 truncate text-xs font-medium ${out ? "text-primary-foreground/80" : "text-grid-muted"}`}
+                  data-message-subject
+                >
                   <Bdi>{conversation.subject}</Bdi>
                 </p>
               ) : null}
@@ -303,13 +333,17 @@ export function ChatThread({
       const cards = el.querySelectorAll<HTMLElement>("[data-message-layout=email]")
       const card = cards[cards.length - 1]
       if (card) {
-        const offset = card.getBoundingClientRect().top - el.getBoundingClientRect().top - parseFloat(getComputedStyle(el).paddingTop)
+        const offset =
+          card.getBoundingClientRect().top -
+          el.getBoundingClientRect().top -
+          parseFloat(getComputedStyle(el).paddingTop)
         el.scrollTo({ top: el.scrollTop + offset, behavior })
       }
       setNewCount(0)
     })
   }
-  const jumpToLatest = (behavior: ScrollBehavior) => (isEmail ? scrollToNewestEmail(behavior) : scrollToBottom(behavior))
+  const jumpToLatest = (behavior: ScrollBehavior) =>
+    isEmail ? scrollToNewestEmail(behavior) : scrollToBottom(behavior)
 
   // Messages grow after the first paint (an email's frame, an image grid), so
   // one scroll lands short. While the thread's height settles, the pane stays
@@ -387,11 +421,18 @@ export function ChatThread({
       const elapsed = Date.now() - new Date(lastInbound.created_at).getTime()
       windowNote =
         elapsed < WHATSAPP_WINDOW_MS
-          ? t("inbox.thread.windowOpen", { hours: String(Math.max(1, Math.ceil((WHATSAPP_WINDOW_MS - elapsed) / 3600000))) })
+          ? t("inbox.thread.windowOpen", {
+              hours: String(Math.max(1, Math.ceil((WHATSAPP_WINDOW_MS - elapsed) / 3600000))),
+            })
           : t("inbox.thread.windowClosed")
     }
   }
-  const emailNote = conversation.channel === "email" ? t("inbox.thread.emailNote", { subject: conversation.subject || t("inbox.thread.noSubject") }) : null
+  const emailNote =
+    conversation.channel === "email"
+      ? t("inbox.thread.emailNote", {
+          subject: conversation.subject || t("inbox.thread.noSubject"),
+        })
+      : null
 
   function onComposerKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -426,12 +467,22 @@ export function ChatThread({
                 key={item.key}
                 ref={virtualizer.measureElement}
                 data-index={vi.index}
-                style={{ position: "absolute", top: 0, insetInlineStart: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  insetInlineStart: 0,
+                  width: "100%",
+                  transform: `translateY(${vi.start}px)`,
+                }}
               >
                 {item.kind === "day" ? (
                   <DaySeparator label={item.label} />
                 ) : (
-                  <MessageGroup group={item.group} conversation={conversation} memberName={memberName} />
+                  <MessageGroup
+                    group={item.group}
+                    conversation={conversation}
+                    memberName={memberName}
+                  />
                 )}
               </div>
             )
@@ -450,13 +501,21 @@ export function ChatThread({
             data-action="scroll-to-bottom"
           >
             <ArrowDownIcon />
-            {newCount > 0 ? t("inbox.thread.newMessages", { n: String(newCount) }) : t("inbox.thread.scrollToBottom")}
+            {newCount > 0
+              ? t("inbox.thread.newMessages", { n: String(newCount) })
+              : t("inbox.thread.scrollToBottom")}
           </Button>
         </div>
       ) : null}
 
       {canWrite ? (
-        <form ref={formRef} onSubmit={onSubmit} noValidate className="@container shrink-0 border-t border-line px-4 py-3" data-form="reply">
+        <form
+          ref={formRef}
+          onSubmit={onSubmit}
+          noValidate
+          className="@container shrink-0 border-t border-line px-4 py-3"
+          data-form="reply"
+        >
           {windowNote ? (
             <p className="mb-2 text-xs text-grid-muted" data-whatsapp-window>
               {windowNote}
@@ -481,8 +540,19 @@ export function ChatThread({
             aria-label={t("inbox.replyLabel")}
           />
           <div className="mt-2 flex items-center gap-2" data-composer-actions>
-            <CannedPicker lang={replyLanguage} onInsert={onInsertCanned} open={cannedOpen} onOpenChange={setCannedOpen} />
-            <Button type="submit" size="sm" className="ms-auto" disabled={busy || !reply.trim()} data-action="send">
+            <CannedPicker
+              lang={replyLanguage}
+              onInsert={onInsertCanned}
+              open={cannedOpen}
+              onOpenChange={setCannedOpen}
+            />
+            <Button
+              type="submit"
+              size="sm"
+              className="ms-auto"
+              disabled={busy || !reply.trim()}
+              data-action="send"
+            >
               <SendIcon />
               {t("inbox.send")}
             </Button>
@@ -490,7 +560,9 @@ export function ChatThread({
           {error ? <FieldError>{error}</FieldError> : null}
         </form>
       ) : (
-        <p className="shrink-0 border-t border-line px-4 py-4 text-sm text-grid-muted">{t("inbox.readOnly")}</p>
+        <p className="shrink-0 border-t border-line px-4 py-4 text-sm text-grid-muted">
+          {t("inbox.readOnly")}
+        </p>
       )}
     </div>
   )

@@ -34,7 +34,10 @@ const check = (k, ok, d) => {
 function psql(sql) {
   // -t -A hides column headers, but psql still prints its own "INSERT 0 1"
   // completion tag on the line after a RETURNING result — take the first line.
-  return execFileSync("psql", [ownerURL, "-t", "-A", "-c", sql], { encoding: "utf8" }).trim().split(/\r?\n/)[0].trim()
+  return execFileSync("psql", [ownerURL, "-t", "-A", "-c", sql], { encoding: "utf8" })
+    .trim()
+    .split(/\r?\n/)[0]
+    .trim()
 }
 
 const RUN = Date.now()
@@ -52,10 +55,16 @@ const owner = `mh602-${RUN}@brand.test`
 const slug = await page.evaluate(async (email) => {
   const csrf = (await (await fetch("/api/auth/csrf")).json()).csrf_token
   const post = (u, b) =>
-    fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(b) })
+    fetch(u, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify(b),
+    })
   const r = await post("/api/auth/register", { email, password: "correct-horse-battery" })
   if (!r.ok) throw new Error(`register failed: ${r.status} ${await r.text()}`)
-  const ws = await (await post("/api/me/workspaces", { name: `MH602 ${email.split("@")[0]}` })).json()
+  const ws = await (
+    await post("/api/me/workspaces", { name: `MH602 ${email.split("@")[0]}` })
+  ).json()
   return ws.workspace.slug
 }, owner)
 check("registeredAndWorkspaceCreated", !!slug, slug)
@@ -78,7 +87,12 @@ const unlinkedConvID = psql(`
 const emailConvID = psql(`
   INSERT INTO conversations (workspace_id, channel, customer_name, customer_email, subject, last_message_at)
   VALUES ('${wsID}', 'email', 'Omar Khaled', 'omar@example.test', 'question', now() - interval '2 minutes') RETURNING id`)
-check("seeded", !!(namedContactID && linkedConvID && unlinkedConvID && emailConvID), { namedContactID, linkedConvID, unlinkedConvID, emailConvID })
+check("seeded", !!(namedContactID && linkedConvID && unlinkedConvID && emailConvID), {
+  namedContactID,
+  linkedConvID,
+  unlinkedConvID,
+  emailConvID,
+})
 
 // ListConversations only shows a conversation that has at least one message
 // (MH-599: a thread with none has nothing to open) — every seeded conversation
@@ -88,7 +102,9 @@ for (const [convID, body] of [
   [unlinkedConvID, "need help"],
   [emailConvID, "question"],
 ]) {
-  psql(`INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ('${wsID}', '${convID}', 'in', '${body}') RETURNING id`)
+  psql(
+    `INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ('${wsID}', '${convID}', 'in', '${body}') RETURNING id`,
+  )
 }
 
 const W = (locale) => `${base}/${locale}/w/${slug}`
@@ -100,23 +116,44 @@ for (const scheme of ["light", "dark"]) {
       const k = `${locale}-${scheme}-${width}`
       await page.setViewportSize({ width, height: 900 })
       await page.goto(`${W(locale)}/inbox`, { waitUntil: "load" })
-      await page.waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 20000 }).catch(() => {})
+      await page
+        .waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 20000 })
+        .catch(() => {})
       await page.waitForTimeout(500)
 
       // ---- name precedence: the linked row shows the CONTACT's name, not the phone.
-      const linkedRowText = await page.locator(`[data-conversation="${linkedConvID}"]`).innerText().catch(() => "")
-      check(`${k}-linkedRowShowsContactName`, linkedRowText.includes("Salma Youssef"), linkedRowText)
+      const linkedRowText = await page
+        .locator(`[data-conversation="${linkedConvID}"]`)
+        .innerText()
+        .catch(() => "")
+      check(
+        `${k}-linkedRowShowsContactName`,
+        linkedRowText.includes("Salma Youssef"),
+        linkedRowText,
+      )
       check(`${k}-linkedRowHidesRawPhone`, !linkedRowText.includes("201005551212"), linkedRowText)
 
       // ---- every row has an avatar, and it is initials (no photo seeded for anyone here).
       const rowAvatars = await page.locator("[data-conversation-list] [data-avatar]").count()
       const rowCount = await page.locator("[data-conversation-list] [data-conversation]").count()
-      check(`${k}-everyRowHasAvatar`, rowAvatars >= rowCount && rowCount > 0, { rowAvatars, rowCount })
-      const kinds = await page.locator("[data-conversation-list] [data-avatar]").evaluateAll((els) => els.map((e) => e.getAttribute("data-avatar-kind")))
-      check(`${k}-avatarsAreInitials`, kinds.length > 0 && kinds.every((v) => v === "initials"), kinds)
+      check(`${k}-everyRowHasAvatar`, rowAvatars >= rowCount && rowCount > 0, {
+        rowAvatars,
+        rowCount,
+      })
+      const kinds = await page
+        .locator("[data-conversation-list] [data-avatar]")
+        .evaluateAll((els) => els.map((e) => e.getAttribute("data-avatar-kind")))
+      check(
+        `${k}-avatarsAreInitials`,
+        kinds.length > 0 && kinds.every((v) => v === "initials"),
+        kinds,
+      )
 
       // ---- unlinked conversation still shows something sensible (its own phone), no crash.
-      const unlinkedRowText = await page.locator(`[data-conversation="${unlinkedConvID}"]`).innerText().catch(() => "")
+      const unlinkedRowText = await page
+        .locator(`[data-conversation="${unlinkedConvID}"]`)
+        .innerText()
+        .catch(() => "")
       check(`${k}-unlinkedRowRenders`, unlinkedRowText.length > 0, unlinkedRowText)
 
       if (width === 1440 && locale === "en" && scheme === "light") {
@@ -125,10 +162,19 @@ for (const scheme of ["light", "dark"]) {
 
       // ---- open the linked thread: header shows the contact's name + an avatar.
       await page.locator(`[data-conversation="${linkedConvID}"]`).click()
-      await page.waitForSelector(`[data-thread="${linkedConvID}"]`, { timeout: 15000 }).catch(() => {})
-      const headerTitle = await page.locator(`[data-thread="${linkedConvID}"] [data-thread-title]`).innerText().catch(() => "")
+      await page
+        .waitForSelector(`[data-thread="${linkedConvID}"]`, { timeout: 15000 })
+        .catch(() => {})
+      const headerTitle = await page
+        .locator(`[data-thread="${linkedConvID}"] [data-thread-title]`)
+        .innerText()
+        .catch(() => "")
       check(`${k}-threadHeaderShowsContactName`, headerTitle.includes("Salma Youssef"), headerTitle)
-      const headerAvatarKind = await page.locator(`[data-thread="${linkedConvID}"] header [data-avatar]`).first().getAttribute("data-avatar-kind").catch(() => null)
+      const headerAvatarKind = await page
+        .locator(`[data-thread="${linkedConvID}"] header [data-avatar]`)
+        .first()
+        .getAttribute("data-avatar-kind")
+        .catch(() => null)
       check(`${k}-threadHeaderHasAvatar`, headerAvatarKind === "initials", headerAvatarKind)
 
       if (width === 1440 && locale === "en" && scheme === "light") {
@@ -141,24 +187,46 @@ for (const scheme of ["light", "dark"]) {
       // ---- contact dialog title: opening "edit contact" on the linked row shows the contact's own name (once loaded).
       await page.locator(`[data-conversation="${linkedConvID}"]`).click({ button: "right" })
       const editItem = page.locator("[data-contact-edit]")
-      const menuOk = await editItem.first().waitFor({ state: "visible", timeout: 5000 }).then(() => true, () => false)
+      const menuOk = await editItem
+        .first()
+        .waitFor({ state: "visible", timeout: 5000 })
+        .then(
+          () => true,
+          () => false,
+        )
       check(`${k}-contextMenuOpens`, menuOk)
       if (menuOk) {
         await editItem.first().click()
         const dialog = page.locator("[data-contact-dialog]")
         await dialog.waitFor({ state: "visible", timeout: 5000 }).catch(() => {})
-        await page.waitForSelector("[data-contact-dialog] [data-form=edit-contact]", { timeout: 10000 }).catch(() => {})
-        const dialogTitle = await page.locator("[data-contact-dialog] h2, [data-contact-dialog] [data-slot=dialog-title]").first().innerText().catch(() => "")
-        check(`${k}-dialogTitleShowsContactName`, dialogTitle.includes("Salma Youssef"), dialogTitle)
+        await page
+          .waitForSelector("[data-contact-dialog] [data-form=edit-contact]", { timeout: 10000 })
+          .catch(() => {})
+        const dialogTitle = await page
+          .locator("[data-contact-dialog] h2, [data-contact-dialog] [data-slot=dialog-title]")
+          .first()
+          .innerText()
+          .catch(() => "")
+        check(
+          `${k}-dialogTitleShowsContactName`,
+          dialogTitle.includes("Salma Youssef"),
+          dialogTitle,
+        )
 
         // ---- avatar upload control is present and shows initials before any upload.
         const uploadBtn = page.locator("[data-contact-avatar-control] [data-avatar-upload]")
-        check(`${k}-uploadControlPresent`, await uploadBtn.count() > 0)
-        const dialogAvatarKind = await page.locator("[data-contact-avatar-control] [data-avatar]").first().getAttribute("data-avatar-kind").catch(() => null)
+        check(`${k}-uploadControlPresent`, (await uploadBtn.count()) > 0)
+        const dialogAvatarKind = await page
+          .locator("[data-contact-avatar-control] [data-avatar]")
+          .first()
+          .getAttribute("data-avatar-kind")
+          .catch(() => null)
         check(`${k}-dialogAvatarShowsInitials`, dialogAvatarKind === "initials", dialogAvatarKind)
 
         if (locale === "en" && scheme === "light" && width === 1440) {
-          await page.screenshot({ path: path.join(shots, "mh602-contact-dialog-en-light-1440.png") })
+          await page.screenshot({
+            path: path.join(shots, "mh602-contact-dialog-en-light-1440.png"),
+          })
         }
 
         await page.keyboard.press("Escape")
@@ -189,15 +257,25 @@ await (await import("node:fs/promises")).writeFile(tmpPng, tinyPNG)
 const fileInput = page.locator("[data-contact-dialog] [data-avatar-input]")
 await fileInput.setInputFiles(tmpPng)
 await page.waitForTimeout(1500)
-const afterUploadKind = await page.locator("[data-contact-avatar-control] [data-avatar]").first().getAttribute("data-avatar-kind").catch(() => null)
+const afterUploadKind = await page
+  .locator("[data-contact-avatar-control] [data-avatar]")
+  .first()
+  .getAttribute("data-avatar-kind")
+  .catch(() => null)
 check("uploadReflectsAsImage", afterUploadKind === "image", afterUploadKind)
 await page.screenshot({ path: path.join(shots, "mh602-contact-avatar-uploaded.png") })
 
 // Reflected on the row itself once the dialog closes and the list revalidates.
 await page.keyboard.press("Escape")
-await page.locator("[data-contact-dialog]").waitFor({ state: "hidden", timeout: 5000 }).catch(() => {})
+await page
+  .locator("[data-contact-dialog]")
+  .waitFor({ state: "hidden", timeout: 5000 })
+  .catch(() => {})
 await page.waitForTimeout(1000)
-const rowKindAfterUpload = await page.locator(`[data-conversation="${linkedConvID}"] [data-avatar]`).getAttribute("data-avatar-kind").catch(() => null)
+const rowKindAfterUpload = await page
+  .locator(`[data-conversation="${linkedConvID}"] [data-avatar]`)
+  .getAttribute("data-avatar-kind")
+  .catch(() => null)
 check("rowReflectsUploadedAvatar", rowKindAfterUpload === "image", rowKindAfterUpload)
 await page.screenshot({ path: path.join(shots, "mh602-list-avatar-uploaded.png") })
 
@@ -207,7 +285,11 @@ await page.locator("[data-contact-edit]").first().click()
 await page.waitForSelector("[data-contact-dialog] [data-form=edit-contact]", { timeout: 10000 })
 await page.locator("[data-contact-avatar-control] [data-avatar-remove]").click()
 await page.waitForTimeout(1000)
-const afterRemoveKind = await page.locator("[data-contact-avatar-control] [data-avatar]").first().getAttribute("data-avatar-kind").catch(() => null)
+const afterRemoveKind = await page
+  .locator("[data-contact-avatar-control] [data-avatar]")
+  .first()
+  .getAttribute("data-avatar-kind")
+  .catch(() => null)
 check("removeReflectsAsInitials", afterRemoveKind === "initials", afterRemoveKind)
 
 await ctx.close()

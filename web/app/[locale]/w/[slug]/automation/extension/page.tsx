@@ -37,7 +37,10 @@ export default function ExtensionInstallPage() {
     if (e.kind === "browser") void browsers.mutate()
   })
   const info = ext.data
-  const when = useMemo(() => new Intl.DateTimeFormat(intlTag(locale), { dateStyle: "medium", timeStyle: "short" }), [locale])
+  const when = useMemo(
+    () => new Intl.DateTimeFormat(intlTag(locale), { dateStyle: "medium", timeStyle: "short" }),
+    [locale],
+  )
   const paired = (browsers.data?.browsers ?? []).filter((b) => !b.revoked_at)
   const fileName = info?.file ?? "moharrik-extension.zip"
 
@@ -48,7 +51,12 @@ export default function ExtensionInstallPage() {
         title={t("automation.ext.title")}
         description={t("automation.ext.hint")}
         action={
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/automation/browsers`} />}>
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={`/${locale}/w/${ws.slug}/automation/browsers`} />}
+          >
             <ArrowLeftIcon className="rtl:rotate-180" />
             {t("automation.backToAutomation")}
           </Button>
@@ -64,14 +72,24 @@ export default function ExtensionInstallPage() {
         ) : !info.available ? (
           <EmptyState title={t("automation.ext.unavailable")} body={info.reason} />
         ) : (
-          <div className="space-y-4 border-y border-line px-6 py-6" data-version={info.version} data-sha256={info.sha256}>
+          <div
+            className="space-y-4 border-y border-line px-6 py-6"
+            data-version={info.version}
+            data-sha256={info.sha256}
+          >
             <div className="flex flex-wrap items-center gap-3">
               <PuzzleIcon className="size-5 text-grid-muted" />
-              <p className="text-base font-medium">{t("automation.ext.name", { version: info.version ?? "" })}</p>
+              <p className="text-base font-medium">
+                {t("automation.ext.name", { version: info.version ?? "" })}
+              </p>
               {info.dev ? <Badge variant="outline">{t("automation.ext.devBadge")}</Badge> : null}
               <span className="text-sm text-grid-muted">
-                {t("automation.ext.size", { kb: formatNumber(Math.max(1, Math.round((info.bytes ?? 0) / 1024))) })}
-                {info.built_at ? ` · ${t("automation.ext.built", { date: when.format(new Date(info.built_at)) })}` : ""}
+                {t("automation.ext.size", {
+                  kb: formatNumber(Math.max(1, Math.round((info.bytes ?? 0) / 1024))),
+                })}
+                {info.built_at
+                  ? ` · ${t("automation.ext.built", { date: when.format(new Date(info.built_at)) })}`
+                  : ""}
               </span>
             </div>
             {info.dev ? (
@@ -81,7 +99,10 @@ export default function ExtensionInstallPage() {
               </p>
             ) : null}
             <div>
-              <Button nativeButton={false} render={<a href={info.download_url} download={fileName} data-download-link />}>
+              <Button
+                nativeButton={false}
+                render={<a href={info.download_url} download={fileName} data-download-link />}
+              >
                 <DownloadIcon />
                 {t("automation.ext.download", { file: fileName })}
               </Button>
@@ -91,7 +112,11 @@ export default function ExtensionInstallPage() {
               <CopyField value={info.sha256 ?? ""} label="SHA-256" nowrap />
               <p className="text-xs text-grid-muted">{t("automation.ext.checksumHint")}</p>
               {[`certutil -hashfile ${fileName} SHA256`, `shasum -a 256 ${fileName}`].map((cmd) => (
-                <code key={cmd} dir="ltr" className="block overflow-x-auto font-mono text-xs whitespace-nowrap text-grid-muted">
+                <code
+                  key={cmd}
+                  dir="ltr"
+                  className="block overflow-x-auto font-mono text-xs whitespace-nowrap text-grid-muted"
+                >
                   {cmd}
                 </code>
               ))}
@@ -124,7 +149,11 @@ export default function ExtensionInstallPage() {
         <p className="px-6 pb-4 text-sm text-grid-muted">{t("automation.ext.pairHint")}</p>
         <ol className="divide-y divide-line border-y border-line">
           <Step n={6} title={t("automation.ext.s6Title")} body={t("automation.ext.s6Body")} />
-          <Step n={7} title={t("automation.ext.s7Title")} body={canManage ? t("automation.ext.s7Body") : t("automation.ext.s7AskAdmin")}>
+          <Step
+            n={7}
+            title={t("automation.ext.s7Title")}
+            body={canManage ? t("automation.ext.s7Body") : t("automation.ext.s7AskAdmin")}
+          >
             {info?.site ? (
               <div className="max-w-md min-w-0 space-y-1">
                 <p className="text-xs text-grid-muted">{t("automation.ext.siteField")}</p>
@@ -175,10 +204,22 @@ export default function ExtensionInstallPage() {
   )
 }
 
-function Step({ n, title, body, children }: { n: number; title: string; body: string; children?: React.ReactNode }) {
+function Step({
+  n,
+  title,
+  body,
+  children,
+}: {
+  n: number
+  title: string
+  body: string
+  children?: React.ReactNode
+}) {
   return (
     <li className="flex gap-4 px-6 py-4" data-install-step={n}>
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-line text-sm tabular-nums">{n}</span>
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-line text-sm tabular-nums">
+        {n}
+      </span>
       <div className="min-w-0 flex-1 space-y-2">
         <p className="text-sm font-medium">{title}</p>
         <p className="text-sm text-grid-muted">{body}</p>

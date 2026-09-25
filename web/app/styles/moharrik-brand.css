@@ -49,13 +49,25 @@
 
 /* Readable sizes for the grid's own classes (synced grid.css sets them; overridden here so the
    copy stays identical). The audit found the section labels at 10.5px and meta/chips at 12px. */
-[data-brand="moharrik"] .grid-micro { font-size: 12px; }
-[data-brand="moharrik"] .grid-micro:lang(ar) { font-size: 13px; }
+[data-brand="moharrik"] .grid-micro {
+  font-size: 12px;
+}
+[data-brand="moharrik"] .grid-micro:lang(ar) {
+  font-size: 13px;
+}
 [data-brand="moharrik"] .grid-meta,
-[data-brand="moharrik"] .grid-chip { font-size: 0.8125rem; }
-[data-brand="moharrik"] .grid-btn { font-size: 0.9375rem; }
+[data-brand="moharrik"] .grid-chip {
+  font-size: 0.8125rem;
+}
+[data-brand="moharrik"] .grid-btn {
+  font-size: 0.9375rem;
+}
 /* 16px on phones so iOS Safari doesn't zoom the page when a field is focused. */
-[data-brand="moharrik"] .grid-input { font-size: 1rem; }
+[data-brand="moharrik"] .grid-input {
+  font-size: 1rem;
+}
 @media (min-width: 768px) {
-  [data-brand="moharrik"] .grid-input { font-size: 0.9375rem; }
+  [data-brand="moharrik"] .grid-input {
+    font-size: 0.9375rem;
+  }
 }

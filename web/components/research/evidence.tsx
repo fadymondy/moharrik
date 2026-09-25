@@ -1,7 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { CheckIcon, CircleDashedIcon, ExternalLinkIcon, LoaderCircleIcon, MinusIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  CheckIcon,
+  CircleDashedIcon,
+  ExternalLinkIcon,
+  LoaderCircleIcon,
+  MinusIcon,
+  TriangleAlertIcon,
+} from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
 import { useFormatDateTime } from "@/components/research/shared"
@@ -39,13 +46,21 @@ export function EvidenceItem({ e, showRun = false }: { e: Evidence; showRun?: bo
   const fmt = useFormatDateTime()
   const byModel = e.extractor.startsWith("model:")
   return (
-    <li className="space-y-2 px-6 py-4" data-evidence={e.id} data-evidence-signal={e.signal_type || "none"}>
+    <li
+      className="space-y-2 px-6 py-4"
+      data-evidence={e.id}
+      data-evidence-signal={e.signal_type || "none"}
+    >
       {e.claim ? (
         <p className="text-sm font-medium" dir="auto">
           {e.claim}
         </p>
       ) : null}
-      <blockquote className="border-s-2 border-line ps-3 text-sm leading-relaxed text-grid-body" dir="auto" data-quote>
+      <blockquote
+        className="border-s-2 border-line ps-3 text-sm leading-relaxed text-grid-body"
+        dir="auto"
+        data-quote
+      >
         {e.quote}
       </blockquote>
       <div className="flex flex-wrap items-center gap-2 text-xs text-grid-muted">
@@ -57,7 +72,11 @@ export function EvidenceItem({ e, showRun = false }: { e: Evidence; showRun?: bo
         <SignalBadge signal={e.signal_type} />
         <span>{t("research.confidence", { n: formatNumber(Math.round(e.confidence * 100)) })}</span>
         <span aria-hidden>·</span>
-        <span>{byModel ? t("research.byModel", { model: e.extractor.slice(6) }) : t("research.byHeuristic")}</span>
+        <span>
+          {byModel
+            ? t("research.byModel", { model: e.extractor.slice(6) })
+            : t("research.byHeuristic")}
+        </span>
       </div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
         <a
@@ -83,7 +102,10 @@ export function EvidenceItem({ e, showRun = false }: { e: Evidence; showRun?: bo
         {showRun && e.run_topic ? (
           <>
             <span aria-hidden>·</span>
-            <Link href={`/${locale}/w/${ws.slug}/research/${encodeURIComponent(e.run_id)}`} className="hover:underline">
+            <Link
+              href={`/${locale}/w/${ws.slug}/research/${encodeURIComponent(e.run_id)}`}
+              className="hover:underline"
+            >
               {t("research.fromRun", { topic: e.run_topic })}
             </Link>
           </>
@@ -108,11 +130,18 @@ export function StageList({ stages }: { stages: ResearchStage[] }) {
   return (
     <ol className="grid gap-px border-y border-line bg-line sm:grid-cols-5" data-stages>
       {stages.map((s) => (
-        <li key={s.stage} className="bg-background px-4 py-3 text-sm" data-stage={s.stage} data-stage-status={s.status}>
+        <li
+          key={s.stage}
+          className="bg-background px-4 py-3 text-sm"
+          data-stage={s.stage}
+          data-stage-status={s.status}
+        >
           <p className="flex items-center gap-1.5 font-medium [&>svg]:size-4 [&>svg]:shrink-0">
             {STAGE_ICON[s.status] ?? STAGE_ICON.pending}
             <span>{t(`research.stage.${s.stage}`)}</span>
-            {s.status === "done" ? <span className="ms-auto tabular-nums text-grid-muted">{formatNumber(s.count)}</span> : null}
+            {s.status === "done" ? (
+              <span className="ms-auto tabular-nums text-grid-muted">{formatNumber(s.count)}</span>
+            ) : null}
           </p>
           <p className="mt-1 text-xs text-grid-muted">{t(`research.stageStatus.${s.status}`)}</p>
           {s.note ? (

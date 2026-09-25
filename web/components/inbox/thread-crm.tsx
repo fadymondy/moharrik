@@ -11,7 +11,14 @@ import { PickSelect, toMinor } from "@/components/crm/shared"
 import { Bdi, isolate } from "@/components/bidi"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -29,7 +36,15 @@ type Done = () => void
  * link an existing contact, create one from what the visitor gave, open a deal
  * with the transcript attached.
  */
-export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor: VisitorGuess; onChanged: Done }) {
+export function ThreadCRM({
+  c,
+  visitor,
+  onChanged,
+}: {
+  c: Conversation
+  visitor: VisitorGuess
+  onChanged: Done
+}) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   // Every action here writes to both the inbox and the CRM.
@@ -39,7 +54,11 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
 
   async function unlink() {
     try {
-      await api(`/api/w/conversations/${encodeURIComponent(c.id)}`, { method: "PATCH", json: { contact_id: "" }, workspaceId: ws.id })
+      await api(`/api/w/conversations/${encodeURIComponent(c.id)}`, {
+        method: "PATCH",
+        json: { contact_id: "" },
+        workspaceId: ws.id,
+      })
       toast.success(t("inbox.crm.unlinked"))
       onChanged()
     } catch (e) {
@@ -50,12 +69,22 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
   const who = c.contact ? c.contact.name || c.contact.email : ""
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-3 text-sm" data-thread-crm data-thread-channel={c.channel}>
+    <div
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-3 text-sm"
+      data-thread-crm
+      data-thread-channel={c.channel}
+    >
       <span className="grid-micro">{t("inbox.crm.title")}</span>
       {c.contact ? (
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" data-crm-contact={c.contact.id}>
+        <span
+          className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
+          data-crm-contact={c.contact.id}
+        >
           <span className="text-grid-muted">{t("inbox.crm.contact")}:</span>
-          <Link href={`${base}/contacts/${c.contact.id}`} className="truncate font-medium underline-offset-4 hover:underline">
+          <Link
+            href={`${base}/contacts/${c.contact.id}`}
+            className="truncate font-medium underline-offset-4 hover:underline"
+          >
             <Bdi>{who}</Bdi>
           </Link>
           {c.contact.company ? (
@@ -63,7 +92,11 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
               <span className="text-grid-muted" aria-hidden>
                 ·
               </span>
-              <Link href={`${base}/companies/${c.contact.company.id}`} className="truncate underline-offset-4 hover:underline" data-crm-company>
+              <Link
+                href={`${base}/companies/${c.contact.company.id}`}
+                className="truncate underline-offset-4 hover:underline"
+                data-crm-company
+              >
                 <Bdi>{c.contact.company.name}</Bdi>
               </Link>
             </>
@@ -74,7 +107,13 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
                 <SparklesIcon />
                 {t("inbox.crm.auto")}
               </TooltipTrigger>
-              <TooltipContent>{t(c.channel === "whatsapp" ? "inbox.crm.autoHint.phone" : "inbox.crm.autoHint.email")}</TooltipContent>
+              <TooltipContent>
+                {t(
+                  c.channel === "whatsapp"
+                    ? "inbox.crm.autoHint.phone"
+                    : "inbox.crm.autoHint.email",
+                )}
+              </TooltipContent>
             </Tooltip>
           ) : null}
         </span>
@@ -87,7 +126,10 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
       {c.deal ? (
         <span className="flex min-w-0 items-center gap-2" data-crm-deal={c.deal.id}>
           <span className="text-grid-muted">{t("inbox.crm.deal")}:</span>
-          <Link href={`${base}/deals/${c.deal.id}`} className="truncate font-medium underline-offset-4 hover:underline">
+          <Link
+            href={`${base}/deals/${c.deal.id}`}
+            className="truncate font-medium underline-offset-4 hover:underline"
+          >
             <Bdi>{c.deal.title}</Bdi>
           </Link>
         </span>
@@ -97,7 +139,12 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
         <span className="flex flex-wrap items-center gap-2 sm:ms-auto">
           {c.contact ? (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setDialog("link")} data-crm-action="change">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDialog("link")}
+                data-crm-action="change"
+              >
                 <LinkIcon />
                 {t("inbox.crm.change")}
               </Button>
@@ -108,18 +155,34 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
             </>
           ) : (
             <>
-              <Button variant="outline" size="sm" onClick={() => setDialog("link")} data-crm-action="link">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDialog("link")}
+                data-crm-action="link"
+              >
                 <LinkIcon />
                 {t("inbox.crm.link")}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setDialog("create")} data-crm-action="create">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDialog("create")}
+                data-crm-action="create"
+              >
                 <UserPlusIcon />
                 {t("inbox.crm.create")}
               </Button>
             </>
           )}
           {!c.deal ? (
-            <Button variant="outline" size="sm" onClick={() => setDialog("deal")} data-crm-action="deal" disabled={c.message_count === 0}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDialog("deal")}
+              data-crm-action="deal"
+              disabled={c.message_count === 0}
+            >
               <BriefcaseIcon />
               {t("inbox.crm.openDeal")}
             </Button>
@@ -127,9 +190,25 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
         </span>
       ) : null}
 
-      <LinkContactDialog open={dialog === "link"} onOpenChange={(v) => setDialog(v ? "link" : null)} c={c} onDone={onChanged} />
-      <CreateContactDialog open={dialog === "create"} onOpenChange={(v) => setDialog(v ? "create" : null)} c={c} visitor={visitor} onDone={onChanged} />
-      <OpenDealDialog open={dialog === "deal"} onOpenChange={(v) => setDialog(v ? "deal" : null)} c={c} onDone={onChanged} />
+      <LinkContactDialog
+        open={dialog === "link"}
+        onOpenChange={(v) => setDialog(v ? "link" : null)}
+        c={c}
+        onDone={onChanged}
+      />
+      <CreateContactDialog
+        open={dialog === "create"}
+        onOpenChange={(v) => setDialog(v ? "create" : null)}
+        c={c}
+        visitor={visitor}
+        onDone={onChanged}
+      />
+      <OpenDealDialog
+        open={dialog === "deal"}
+        onOpenChange={(v) => setDialog(v ? "deal" : null)}
+        c={c}
+        onDone={onChanged}
+      />
     </div>
   )
 }
@@ -137,7 +216,12 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
 // Each dialog's form is its own component: Base UI unmounts a closed dialog's
 // content, so the form's state starts fresh (and prefilled) on every opening.
 
-type DialogProps = { open: boolean; onOpenChange: (v: boolean) => void; c: Conversation; onDone: Done }
+type DialogProps = {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  c: Conversation
+  onDone: Done
+}
 
 function LinkContactDialog({ open, onOpenChange, c, onDone }: DialogProps) {
   const { t } = useTranslations()
@@ -167,13 +251,18 @@ function LinkContactForm({ c, onDone }: { c: Conversation; onDone: Done }) {
     setBusy(true)
     setErr(null)
     try {
-      const res = await api<{ conversation: Conversation }>(`/api/w/conversations/${encodeURIComponent(c.id)}`, {
-        method: "PATCH",
-        json: { contact_id: contactId },
-        workspaceId: ws.id,
-      })
+      const res = await api<{ conversation: Conversation }>(
+        `/api/w/conversations/${encodeURIComponent(c.id)}`,
+        {
+          method: "PATCH",
+          json: { contact_id: contactId },
+          workspaceId: ws.id,
+        },
+      )
       const linked = res.conversation.contact
-      toast.success(t("inbox.crm.linked", { who: isolate(linked ? linked.name || linked.email : "") }))
+      toast.success(
+        t("inbox.crm.linked", { who: isolate(linked ? linked.name || linked.email : "") }),
+      )
       onDone()
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -197,7 +286,13 @@ function LinkContactForm({ c, onDone }: { c: Conversation; onDone: Done }) {
   )
 }
 
-function CreateContactDialog({ open, onOpenChange, c, visitor, onDone }: DialogProps & { visitor: VisitorGuess }) {
+function CreateContactDialog({
+  open,
+  onOpenChange,
+  c,
+  visitor,
+  onDone,
+}: DialogProps & { visitor: VisitorGuess }) {
   const { t } = useTranslations()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -216,7 +311,15 @@ function CreateContactDialog({ open, onOpenChange, c, visitor, onDone }: DialogP
  * form and POST /api/w/conversations/{id}/contact call, seeded from whatever
  * visitor guess the caller has to hand — a list row has only its own
  * customer_name/email/phone/locale, not the full VisitorGuess a thread loads. */
-export function CreateContactForm({ c, visitor, onDone }: { c: Conversation; visitor: VisitorGuess; onDone: Done }) {
+export function CreateContactForm({
+  c,
+  visitor,
+  onDone,
+}: {
+  c: Conversation
+  visitor: VisitorGuess
+  onDone: Done
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   // Prefilled from what the visitor gave (the API reads it from the
@@ -237,12 +340,20 @@ export function CreateContactForm({ c, visitor, onDone }: { c: Conversation; vis
     setBusy(true)
     setErr(null)
     try {
-      const res = await api<{ contact_id: string; contact_created: boolean; conversation: Conversation }>(
-        `/api/w/conversations/${encodeURIComponent(c.id)}/contact`,
-        { json: { email: email.trim(), name: name.trim(), phone: phone.trim(), locale: lang }, workspaceId: ws.id },
+      const res = await api<{
+        contact_id: string
+        contact_created: boolean
+        conversation: Conversation
+      }>(`/api/w/conversations/${encodeURIComponent(c.id)}/contact`, {
+        json: { email: email.trim(), name: name.trim(), phone: phone.trim(), locale: lang },
+        workspaceId: ws.id,
+      })
+      const who = res.conversation.contact
+        ? res.conversation.contact.name || res.conversation.contact.email || phone
+        : email || phone
+      toast.success(
+        res.contact_created ? t("inbox.crm.created") : t("inbox.crm.reused", { who: isolate(who) }),
       )
-      const who = res.conversation.contact ? res.conversation.contact.name || res.conversation.contact.email || phone : email || phone
-      toast.success(res.contact_created ? t("inbox.crm.created") : t("inbox.crm.reused", { who: isolate(who) }))
       onDone()
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -255,19 +366,37 @@ export function CreateContactForm({ c, visitor, onDone }: { c: Conversation; vis
       <FieldGroup className="grid gap-4 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="new-contact-name">{t("contacts.name")}</FieldLabel>
-          <Input id="new-contact-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
+          <Input
+            id="new-contact-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="new-contact-email">
             {t("contacts.email")} <span className="text-grid-muted">({t("common.optional")})</span>
           </FieldLabel>
-          <Input id="new-contact-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} />
+          <Input
+            id="new-contact-email"
+            type="email"
+            dir="ltr"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={254}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="new-contact-phone">
             {t("contacts.phone")} <span className="text-grid-muted">({t("common.optional")})</span>
           </FieldLabel>
-          <Input id="new-contact-phone" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
+          <Input
+            id="new-contact-phone"
+            dir="ltr"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            maxLength={40}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="new-contact-lang">{t("inbox.crm.language")}</FieldLabel>
@@ -282,7 +411,9 @@ export function CreateContactForm({ c, visitor, onDone }: { c: Conversation; vis
           />
         </Field>
       </FieldGroup>
-      {!email.trim() && !phone.trim() ? <FieldDescription>{t("contacts.needsIdentity")}</FieldDescription> : null}
+      {!email.trim() && !phone.trim() ? (
+        <FieldDescription>{t("contacts.needsIdentity")}</FieldDescription>
+      ) : null}
       {err ? <FieldError>{err}</FieldError> : null}
       <DialogFooter>
         <Button type="submit" disabled={busy || (!email.trim() && !phone.trim())}>
@@ -323,7 +454,9 @@ function OpenDealForm({ c, onDone }: { c: Conversation; onDone: Done }) {
   const openStages = (stages.data?.stages ?? []).filter((s) => s.kind === "open")
   const stageOpts = (stages.data?.stages ?? []).map((s) => ({ value: s.id, label: s.name }))
   const chosenStage = stageId || openStages[0]?.id || ""
-  const who = c.contact ? c.contact.name || c.contact.email : c.customer_name || c.customer_email || c.customer_phone
+  const who = c.contact
+    ? c.contact.name || c.contact.email
+    : c.customer_name || c.customer_email || c.customer_phone
   const placeholder = `${who || t("inbox.anonymous")} — ${t(`inbox.channel.${c.channel}`)}`
 
   async function submit(e: FormEvent) {
@@ -336,12 +469,22 @@ function OpenDealForm({ c, onDone }: { c: Conversation; onDone: Done }) {
     setBusy(true)
     setErr(null)
     try {
-      const res = await api<{ deal_id: string }>(`/api/w/conversations/${encodeURIComponent(c.id)}/deal`, {
-        json: { title: title.trim() || undefined, stage_id: chosenStage || undefined, value_minor: minor || undefined },
-        workspaceId: ws.id,
-      })
+      const res = await api<{ deal_id: string }>(
+        `/api/w/conversations/${encodeURIComponent(c.id)}/deal`,
+        {
+          json: {
+            title: title.trim() || undefined,
+            stage_id: chosenStage || undefined,
+            value_minor: minor || undefined,
+          },
+          workspaceId: ws.id,
+        },
+      )
       toast.success(t("inbox.crm.dealOpened"), {
-        action: { label: t("inbox.crm.viewDeal"), onClick: () => router.push(`/${locale}/w/${ws.slug}/deals/${res.deal_id}`) },
+        action: {
+          label: t("inbox.crm.viewDeal"),
+          onClick: () => router.push(`/${locale}/w/${ws.slug}/deals/${res.deal_id}`),
+        },
       })
       onDone()
     } catch (e) {
@@ -353,7 +496,10 @@ function OpenDealForm({ c, onDone }: { c: Conversation; onDone: Done }) {
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4" data-form="open-deal">
       {!c.contact ? (
-        <p className="rounded-md border border-line bg-grid-soft px-3 py-2 text-sm text-grid-muted" data-deal-no-contact>
+        <p
+          className="rounded-md border border-line bg-grid-soft px-3 py-2 text-sm text-grid-muted"
+          data-deal-no-contact
+        >
           {t("inbox.crm.dealNoContact")}
         </p>
       ) : (
@@ -370,21 +516,44 @@ function OpenDealForm({ c, onDone }: { c: Conversation; onDone: Done }) {
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="deal-title">{t("inbox.crm.dealName")}</FieldLabel>
-          <Input id="deal-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} placeholder={placeholder} />
+          <Input
+            id="deal-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={160}
+            placeholder={placeholder}
+          />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="deal-stage">{t("inbox.crm.stage")}</FieldLabel>
-            <PickSelect id="deal-stage" value={chosenStage} onChange={setStageId} options={stageOpts} disabled={!stages.data} />
+            <PickSelect
+              id="deal-stage"
+              value={chosenStage}
+              onChange={setStageId}
+              options={stageOpts}
+              disabled={!stages.data}
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="deal-value">{t("inbox.crm.value", { currency })}</FieldLabel>
-            <Input id="deal-value" dir="ltr" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0" />
+            <Input
+              id="deal-value"
+              dir="ltr"
+              inputMode="decimal"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="0"
+            />
             <FieldDescription>{t("common.optional")}</FieldDescription>
           </Field>
         </div>
       </FieldGroup>
-      {stages.error ? <FieldError>{stages.error instanceof ApiError ? stages.error.message : t("common.networkError")}</FieldError> : null}
+      {stages.error ? (
+        <FieldError>
+          {stages.error instanceof ApiError ? stages.error.message : t("common.networkError")}
+        </FieldError>
+      ) : null}
       {err ? <FieldError>{err}</FieldError> : null}
       <DialogFooter>
         <Button type="submit" disabled={busy || !stages.data}>

@@ -2,7 +2,15 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { BellIcon, BellRingIcon, CheckIcon, MailIcon, MessageCircleIcon, MessageSquareIcon, SettingsIcon } from "lucide-react"
+import {
+  BellIcon,
+  BellRingIcon,
+  CheckIcon,
+  MailIcon,
+  MessageCircleIcon,
+  MessageSquareIcon,
+  SettingsIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -43,7 +51,9 @@ export function hrefFor(item: Pick<BellItem, "kind" | "id">, locale: string, slu
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
-  return (parts.length > 1 ? parts[0][0] + parts[1][0] : (parts[0] ?? "?").slice(0, 2)).toUpperCase()
+  return (
+    parts.length > 1 ? parts[0][0] + parts[1][0] : (parts[0] ?? "?").slice(0, 2)
+  ).toUpperCase()
 }
 
 function useRelative() {
@@ -59,7 +69,11 @@ function useRelative() {
   }
 }
 
-const severityTone: Record<string, string> = { info: "bg-grid-brand", warning: "bg-grid-warn", error: "bg-grid-danger" }
+const severityTone: Record<string, string> = {
+  info: "bg-grid-brand",
+  warning: "bg-grid-warn",
+  error: "bg-grid-danger",
+}
 
 function ItemIcon({ item }: { item: BellItem }) {
   if (item.kind === "notification") return <BellIcon />
@@ -85,21 +99,29 @@ function Row({
 }) {
   const { t } = useTranslations()
   const relative = useRelative()
-  const name = item.title || (item.kind === "conversation" ? t("alerts.visitor") : t("alerts.notification"))
+  const name =
+    item.title || (item.kind === "conversation" ? t("alerts.visitor") : t("alerts.notification"))
   return (
     <li
       data-bell-item={item.kind}
       data-bell-unread={item.unread ? "true" : "false"}
-      className={cn("group relative flex gap-3 px-4 py-3 transition-colors hover:bg-grid-soft", item.unread && "bg-grid-card")}
+      className={cn(
+        "group relative flex gap-3 px-4 py-3 transition-colors hover:bg-grid-soft",
+        item.unread && "bg-grid-card",
+      )}
     >
       <div className="relative h-fit shrink-0">
         <Avatar className="size-9">
-          <AvatarFallback className="text-xs">{item.kind === "conversation" ? initials(name) : <BellIcon className="size-4" />}</AvatarFallback>
+          <AvatarFallback className="text-xs">
+            {item.kind === "conversation" ? initials(name) : <BellIcon className="size-4" />}
+          </AvatarFallback>
         </Avatar>
         <span
           className={cn(
             "absolute -bottom-0.5 -end-0.5 flex size-4 items-center justify-center rounded-full text-white [&_svg]:size-2.5",
-            item.kind === "notification" ? (severityTone[item.severity ?? "info"] ?? "bg-grid-brand") : "bg-grid-action",
+            item.kind === "notification"
+              ? (severityTone[item.severity ?? "info"] ?? "bg-grid-brand")
+              : "bg-grid-action",
           )}
           aria-hidden
         >
@@ -116,9 +138,13 @@ function Row({
           </p>
         ) : null}
         <p className="mt-1 text-xs text-grid-muted">
-          {item.kind === "conversation" && item.channel ? `${t(`inbox.channel.${item.channel}`)} · ` : ""}
+          {item.kind === "conversation" && item.channel
+            ? `${t(`inbox.channel.${item.channel}`)} · `
+            : ""}
           {relative(item.at)}
-          {item.assignee_user_id && item.assignee_user_id === userId ? ` · ${t("alerts.assignedToMe")}` : ""}
+          {item.assignee_user_id && item.assignee_user_id === userId
+            ? ` · ${t("alerts.assignedToMe")}`
+            : ""}
         </p>
       </Link>
       {item.unread ? (
@@ -135,7 +161,10 @@ function Row({
             <CheckIcon />
           </Button>
         ) : (
-          <span className="mt-1.5 size-2 shrink-0 rounded-full bg-grid-action" aria-label={t("inbox.unread")} />
+          <span
+            className="mt-1.5 size-2 shrink-0 rounded-full bg-grid-action"
+            aria-label={t("inbox.unread")}
+          />
         )
       ) : null}
     </li>
@@ -173,9 +202,17 @@ export function NotificationBell({
   async function mark(item: BellItem) {
     try {
       if (item.kind === "conversation") {
-        await api(`/api/w/conversations/${encodeURIComponent(item.id)}`, { method: "PATCH", json: { unread: false }, workspaceId })
+        await api(`/api/w/conversations/${encodeURIComponent(item.id)}`, {
+          method: "PATCH",
+          json: { unread: false },
+          workspaceId,
+        })
       } else {
-        await api(`/api/w/notifications/${encodeURIComponent(item.id)}`, { method: "PATCH", json: { read: true }, workspaceId })
+        await api(`/api/w/notifications/${encodeURIComponent(item.id)}`, {
+          method: "PATCH",
+          json: { read: true },
+          workspaceId,
+        })
       }
       void bell.mutate()
     } catch (e) {
@@ -239,7 +276,11 @@ export function NotificationBell({
           </Badge>
         ) : null}
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[22rem] max-w-[calc(100vw-1rem)] gap-0 p-0" data-bell-panel>
+      <PopoverContent
+        align="end"
+        className="w-[22rem] max-w-[calc(100vw-1rem)] gap-0 p-0"
+        data-bell-panel
+      >
         <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{t("alerts.bell")}</span>
@@ -250,14 +291,22 @@ export function NotificationBell({
             ) : null}
           </div>
           {count > 0 && (canMarkConv || canMarkNote) ? (
-            <Button variant="ghost" size="xs" onClick={markAll} className="text-grid-muted hover:text-grid-fg" data-bell-mark-all>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={markAll}
+              className="text-grid-muted hover:text-grid-fg"
+              data-bell-mark-all
+            >
               {t("alerts.markAllRead")}
             </Button>
           ) : null}
         </div>
 
         {nothing ? (
-          <p className="px-4 py-8 text-center text-sm text-grid-muted">{t("alerts.nothingToRead")}</p>
+          <p className="px-4 py-8 text-center text-sm text-grid-muted">
+            {t("alerts.nothingToRead")}
+          </p>
         ) : (
           <Tabs defaultValue="all" className="gap-0">
             <div className="border-b border-line px-4 py-2">
@@ -267,7 +316,9 @@ export function NotificationBell({
                 </TabsTrigger>
                 <TabsTrigger value="unread" className="flex-1 text-xs">
                   {t("alerts.tabUnread")}
-                  {unreadItems.length ? <span className="text-xs">({unreadItems.length})</span> : null}
+                  {unreadItems.length ? (
+                    <span className="text-xs">({unreadItems.length})</span>
+                  ) : null}
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -283,7 +334,13 @@ export function NotificationBell({
         {perm === "default" ? (
           <div className="border-t border-line px-4 py-2">
             {/* A click, never on load: see useNotificationPermission. */}
-            <Button variant="outline" size="sm" className="w-full" onClick={() => void requestPerm()} data-allow-desktop>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => void requestPerm()}
+              data-allow-desktop
+            >
               <BellRingIcon />
               {t("alerts.enableDesktop")}
             </Button>
@@ -292,7 +349,12 @@ export function NotificationBell({
 
         <div className="flex flex-wrap items-center gap-1 border-t border-line px-2 py-2">
           {data?.can_inbox ? (
-            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${slug}/inbox`} onClick={() => setOpen(false)} />}>
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${slug}/inbox`} onClick={() => setOpen(false)} />}
+            >
               {t("alerts.openInbox")}
             </Button>
           ) : null}
@@ -301,7 +363,9 @@ export function NotificationBell({
               variant="ghost"
               size="sm"
               nativeButton={false}
-              render={<Link href={`/${locale}/w/${slug}/notifications`} onClick={() => setOpen(false)} />}
+              render={
+                <Link href={`/${locale}/w/${slug}/notifications`} onClick={() => setOpen(false)} />
+              }
             >
               {t("alerts.allNotifications")}
             </Button>
@@ -314,7 +378,12 @@ export function NotificationBell({
               aria-label={t("alerts.delivery")}
               title={t("alerts.delivery")}
               nativeButton={false}
-              render={<Link href={`/${locale}/w/${slug}/settings/delivery`} onClick={() => setOpen(false)} />}
+              render={
+                <Link
+                  href={`/${locale}/w/${slug}/settings/delivery`}
+                  onClick={() => setOpen(false)}
+                />
+              }
             >
               <SettingsIcon />
             </Button>

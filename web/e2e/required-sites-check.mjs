@@ -29,16 +29,26 @@ const card = opt("shots", "")
 const base = (args[0] ?? "http://localhost:3508").replace(/\/$/, "")
 const apiBase = (args[1] ?? "http://localhost:8508").replace(/\/$/, "")
 const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
-const CHROME = process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
+const CHROME =
+  process.env.EXT_CHROME ??
+  "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
 const here = path.dirname(fileURLToPath(import.meta.url))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 function extensionCopy(broad) {
   const SRC = path.resolve(here, "../../extension")
   const EXT = mkdtempSync(path.join(tmpdir(), "ext-sites-"))
-  cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)) })
+  cpSync(SRC, EXT, {
+    recursive: true,
+    filter: (p) =>
+      !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)),
+  })
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
-  m.host_permissions = [`${base}/*`, `${apiBase}/*`, ...(broad ? ["http://*/*", "https://*/*"] : [])]
+  m.host_permissions = [
+    `${base}/*`,
+    `${apiBase}/*`,
+    ...(broad ? ["http://*/*", "https://*/*"] : []),
+  ]
   writeFileSync(path.join(EXT, "manifest.json"), JSON.stringify(m, null, 2))
   const cfg = readFileSync(path.join(EXT, "config.js"), "utf8")
     .replace(/siteOrigin:\s*"[^"]*"/, `siteOrigin: ${JSON.stringify(base)}`)
@@ -51,12 +61,28 @@ const launch = (EXT) =>
     executablePath: CHROME,
     headless: false,
     viewport: { width: 1280, height: 900 },
-    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", "--host-resolver-rules=MAP *.test 127.0.0.1"],
+    args: [
+      `--disable-extensions-except=${EXT}`,
+      `--load-extension=${EXT}`,
+      "--no-first-run",
+      "--host-resolver-rules=MAP *.test 127.0.0.1",
+    ],
   })
 function answerPrompt(button) {
   return new Promise((resolve) =>
-    execFile("powershell", ["-NoProfile", "-File", path.join(here, "uia-click.ps1"), "-Button", button, "-TimeoutSec", "25"], { encoding: "utf8" }, (err, o) =>
-      resolve(!err && /^pressed/.test(String(o).trim())),
+    execFile(
+      "powershell",
+      [
+        "-NoProfile",
+        "-File",
+        path.join(here, "uia-click.ps1"),
+        "-Button",
+        button,
+        "-TimeoutSec",
+        "25",
+      ],
+      { encoding: "utf8" },
+      (err, o) => resolve(!err && /^pressed/.test(String(o).trim())),
     ),
   )
 }
@@ -72,7 +98,8 @@ const out = {}
 const ctxA = await launch(extensionCopy(true))
 let ctxB = null
 try {
-  const workerA = ctxA.serviceWorkers()[0] || (await ctxA.waitForEvent("serviceworker", { timeout: 30000 }))
+  const workerA =
+    ctxA.serviceWorkers()[0] || (await ctxA.waitForEvent("serviceworker", { timeout: 30000 }))
   const idA = new URL(workerA.url()).host
   const page = ctxA.pages()[0] ?? (await ctxA.newPage())
   await page.goto(`${base}/en/register`, { waitUntil: "load" })
@@ -88,24 +115,44 @@ try {
   const slug = page.url().split("/w/")[1].split("/")[0]
   const call = async (method, p, data, wsID) => {
     const csrf = (await (await page.request.get(`${base}/api/auth/csrf`)).json()).csrf_token
-    const res = await page.request.fetch(`${base}${p}`, { method, headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) }, data })
+    const res = await page.request.fetch(`${base}${p}`, {
+      method,
+      headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) },
+      data,
+    })
     const text = await res.text()
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text}`)
     return text ? JSON.parse(text) : null
   }
   const wsID = (await call("GET", "/api/me/workspaces")).workspaces.find((w) => w.slug === slug).id
-  const a = await connectExtension({ ctx: ctxA, extensionID: idA, site: base, api: apiBase, call, workspaceID: wsID, name: "Office Chrome", hosts: [] })
+  const a = await connectExtension({
+    ctx: ctxA,
+    extensionID: idA,
+    site: base,
+    api: apiBase,
+    call,
+    workspaceID: wsID,
+    name: "Office Chrome",
+    hosts: [],
+  })
   out.connectedA = a.online
-  const hostsOf = async (id) => (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find((b) => b.id === id).allowed_hosts
+  const hostsOf = async (id) =>
+    (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find((b) => b.id === id)
+      .allowed_hosts
 
   const wf = (
-    await call("POST", "/api/w/workflows", {
-      name: "Roaster price",
-      steps: [
-        { command: "goto", args: { url: `http://roaster.test:${PORT}/` } },
-        { command: "extract", args: { selector: "#price" } },
-      ],
-    }, wsID)
+    await call(
+      "POST",
+      "/api/w/workflows",
+      {
+        name: "Roaster price",
+        steps: [
+          { command: "goto", args: { url: `http://roaster.test:${PORT}/` } },
+          { command: "extract", args: { selector: "#price" } },
+        ],
+      },
+      wsID,
+    )
   ).workflow
   out.workflowKnowsItsSites = (wf.required_sites || []).join(",") === "roaster.test"
 
@@ -124,34 +171,52 @@ try {
   }
   out.runAOk = runA?.status === "ok"
   out.siteAddedToTheBrowser = (await hostsOf(a.browser.id)).includes("roaster.test")
-  out.runSaysWhatItAdded = (runA?.notes || [])[0] === "Added roaster.test to Office Chrome's allowed sites"
-  const extHosts = await workerA.evaluate(async () => (await chrome.storage.local.get("moh.agent"))["moh.agent"]?.allowedHosts || [])
+  out.runSaysWhatItAdded =
+    (runA?.notes || [])[0] === "Added roaster.test to Office Chrome's allowed sites"
+  const extHosts = await workerA.evaluate(
+    async () => (await chrome.storage.local.get("moh.agent"))["moh.agent"]?.allowedHosts || [],
+  )
   out.pushedToTheExtension = extHosts.includes("roaster.test")
   await page.goto(`${base}/en/w/${slug}/automation/runs/${runA.id}`, { waitUntil: "load" })
   await page.waitForSelector("[data-run-note='sites-added']", { timeout: 20000 })
-  out.runPageShowsIt = /Added roaster\.test to Office Chrome's allowed sites/.test(await page.textContent("[data-run-notes]"))
+  out.runPageShowsIt = /Added roaster\.test to Office Chrome's allowed sites/.test(
+    await page.textContent("[data-run-notes]"),
+  )
   if (card) await page.screenshot({ path: `${SHOTS}/${card}-run-note.png` })
 
   // ---- C: the canvas trigger shows the sites ----
   await page.goto(`${base}/en/w/${slug}/automation/workflows/${wf.id}`, { waitUntil: "load" })
   await page.waitForSelector("[data-trigger-sites]", { timeout: 30000 })
-  out.triggerNodeShowsSites = /roaster\.test · added when it runs/.test(await page.textContent("[data-trigger-sites]"))
+  out.triggerNodeShowsSites = /roaster\.test · added when it runs/.test(
+    await page.textContent("[data-trigger-sites]"),
+  )
   await page.click("[data-canvas-node='trigger']")
-  await page.waitForSelector("[data-trigger-required-sites='roaster.test'] [data-auto-add='on']", { timeout: 15000 })
+  await page.waitForSelector("[data-trigger-required-sites='roaster.test'] [data-auto-add='on']", {
+    timeout: 15000,
+  })
   out.triggerPanelShowsStatus = true
   if (card) await page.screenshot({ path: `${SHOTS}/${card}-canvas-trigger.png` })
 
   // ---- C2: "Test workflow" on the canvas is a first run too ----
   const wf2 = (
-    await call("POST", "/api/w/workflows", {
-      name: "Beans page",
-      steps: [{ command: "goto", args: { url: `http://beans.test:${PORT}/` } }, { command: "extract", args: { selector: "#price" } }],
-    }, wsID)
+    await call(
+      "POST",
+      "/api/w/workflows",
+      {
+        name: "Beans page",
+        steps: [
+          { command: "goto", args: { url: `http://beans.test:${PORT}/` } },
+          { command: "extract", args: { selector: "#price" } },
+        ],
+      },
+      wsID,
+    )
   ).workflow
   await page.goto(`${base}/en/w/${slug}/automation/workflows/${wf2.id}`, { waitUntil: "load" })
   await page.waitForSelector("[data-test-run]:not([disabled])", { timeout: 30000 })
   await page.click("[data-test-run]")
-  for (let i = 0; i < 30 && !(await hostsOf(a.browser.id)).includes("beans.test"); i++) await sleep(500)
+  for (let i = 0; i < 30 && !(await hostsOf(a.browser.id)).includes("beans.test"); i++)
+    await sleep(500)
   out.testRunAddsTheSite = (await hostsOf(a.browser.id)).includes("beans.test")
   let testRun
   for (let i = 0; i < 60; i++) {
@@ -159,19 +224,41 @@ try {
     if (testRun && !["queued", "running"].includes(testRun.status)) break
     await sleep(1000)
   }
-  out.testRunOk = testRun?.status === "ok" && (testRun.notes || [])[0] === "Added beans.test to Office Chrome's allowed sites"
+  out.testRunOk =
+    testRun?.status === "ok" &&
+    (testRun.notes || [])[0] === "Added beans.test to Office Chrome's allowed sites"
 
   // ---- B: a browser that declined every site waits for the OK, then carries on ----
   ctxB = await launch(extensionCopy(false))
-  const workerB = ctxB.serviceWorkers()[0] || (await ctxB.waitForEvent("serviceworker", { timeout: 30000 }))
+  const workerB =
+    ctxB.serviceWorkers()[0] || (await ctxB.waitForEvent("serviceworker", { timeout: 30000 }))
   const idB = new URL(workerB.url()).host
-  const b = await connectExtension({ ctx: ctxB, extensionID: idB, site: base, api: apiBase, call, workspaceID: wsID, name: "Laptop Chrome", hosts: [] })
+  const b = await connectExtension({
+    ctx: ctxB,
+    extensionID: idB,
+    site: base,
+    api: apiBase,
+    call,
+    workspaceID: wsID,
+    name: "Laptop Chrome",
+    hosts: [],
+  })
   out.connectedB = b.online
   for (let i = 0; i < 20; i++) {
-    if ((await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find((x) => x.id === b.browser.id).site_access === "sites") break
+    if (
+      (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find(
+        (x) => x.id === b.browser.id,
+      ).site_access === "sites"
+    )
+      break
     await sleep(500)
   }
-  const { run_id } = await call("POST", `/api/w/workflows/${wf.id}/run`, { agent_id: b.browser.id, values: {} }, wsID)
+  const { run_id } = await call(
+    "POST",
+    `/api/w/workflows/${wf.id}/run`,
+    { agent_id: b.browser.id, values: {} },
+    wsID,
+  )
   // The site is on the browser's list and waiting for its OK.
   const popup = await ctxB.newPage()
   await popup.setViewportSize({ width: 360, height: 700 })
@@ -192,7 +279,9 @@ try {
     await sleep(1000)
   }
   out.runBOkAfterTheOK = mid.run.status === "ok"
-  out.runBExtracted = mid.steps.some((s) => s.command === "extract" && s.status === "ok" && s.result.includes("Beans: 420"))
+  out.runBExtracted = mid.steps.some(
+    (s) => s.command === "extract" && s.status === "ok" && s.result.includes("Beans: 420"),
+  )
 
   if (card) {
     const state = await ctxA.storageState()
@@ -200,15 +289,23 @@ try {
     for (const locale of ["en", "ar"]) {
       for (const theme of ["light", "dark"]) {
         for (const width of [1440, 390]) {
-          const c = await shooter.newContext({ storageState: state, viewport: { width, height: 900 }, colorScheme: theme })
+          const c = await shooter.newContext({
+            storageState: state,
+            viewport: { width, height: 900 },
+            colorScheme: theme,
+          })
           const p = await c.newPage()
           await p.goto(`${base}/${locale}/w/${slug}/automation`, { waitUntil: "load" })
           await p.waitForSelector("[data-sites-settings]", { timeout: 30000 })
           await p.locator("[data-sites-settings]").scrollIntoViewIfNeeded()
           await p.waitForTimeout(600)
           await p.screenshot({ path: `${SHOTS}/${card}-settings-${locale}-${theme}-${width}.png` })
-          out[`settings-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth === 0)
-          await p.goto(`${base}/${locale}/w/${slug}/automation/runs/${runA.id}`, { waitUntil: "load" })
+          out[`settings-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(
+            () => document.documentElement.scrollWidth - innerWidth === 0,
+          )
+          await p.goto(`${base}/${locale}/w/${slug}/automation/runs/${runA.id}`, {
+            waitUntil: "load",
+          })
           await p.waitForSelector("[data-run-notes]", { timeout: 30000 })
           await p.waitForTimeout(500)
           await p.screenshot({ path: `${SHOTS}/${card}-run-${locale}-${theme}-${width}.png` })

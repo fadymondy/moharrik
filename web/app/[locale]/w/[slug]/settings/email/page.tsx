@@ -1,7 +1,16 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
-import { CheckCircle2Icon, EllipsisIcon, MailWarningIcon, PencilIcon, PlusIcon, SendIcon, StarIcon, XCircleIcon } from "lucide-react"
+import {
+  CheckCircle2Icon,
+  EllipsisIcon,
+  MailWarningIcon,
+  PencilIcon,
+  PlusIcon,
+  SendIcon,
+  StarIcon,
+  XCircleIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -15,8 +24,20 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,7 +102,10 @@ export default function EmailSettingsPage() {
         <LoadingRows rows={3} />
       ) : (
         <>
-          <p className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted" data-smtp-state={list.length ? "configured" : "missing"}>
+          <p
+            className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted"
+            data-smtp-state={list.length ? "configured" : "missing"}
+          >
             {list.length ? (
               <>
                 <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-grid-brand" />
@@ -97,7 +121,11 @@ export default function EmailSettingsPage() {
           {list.length === 0 ? (
             <EmptyState title={t("smtp.emptyTitle")} body={t("smtp.emptyBody")} />
           ) : (
-            <ServiceList services={list} onEdit={(s) => setEditing(s)} onChange={() => services.mutate()} />
+            <ServiceList
+              services={list}
+              onEdit={(s) => setEditing(s)}
+              onChange={() => services.mutate()}
+            />
           )}
           {list.length > 0 ? (
             <>
@@ -130,7 +158,11 @@ function TestBadge({ s }: { s: SmtpService }) {
       title={s.last_test_error || undefined}
       data-test-ok={s.last_test_ok ? "yes" : "no"}
     >
-      {s.last_test_ok ? <CheckCircle2Icon className="size-3.5 text-grid-brand" /> : <XCircleIcon className="size-3.5" />}
+      {s.last_test_ok ? (
+        <CheckCircle2Icon className="size-3.5 text-grid-brand" />
+      ) : (
+        <XCircleIcon className="size-3.5" />
+      )}
       {s.last_test_ok ? t("smtp.testOk") : t("smtp.testFailed")}
       {s.last_test_at ? (
         <>
@@ -142,7 +174,15 @@ function TestBadge({ s }: { s: SmtpService }) {
   )
 }
 
-function ServiceList({ services, onEdit, onChange }: { services: SmtpService[]; onEdit: (s: SmtpService) => void; onChange: () => void }) {
+function ServiceList({
+  services,
+  onEdit,
+  onChange,
+}: {
+  services: SmtpService[]
+  onEdit: (s: SmtpService) => void
+  onChange: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [removing, setRemoving] = useState<SmtpService | null>(null)
@@ -150,8 +190,15 @@ function ServiceList({ services, onEdit, onChange }: { services: SmtpService[]; 
 
   async function makeDefault(s: SmtpService, role: "transactional" | "campaign") {
     try {
-      await api(`/api/w/smtp-services/${encodeURIComponent(s.id)}/default`, { json: { role }, workspaceId: ws.id })
-      toast.success(role === "campaign" ? t("smtp.nowCampaignDefault", { name: isolate(s.name) }) : t("smtp.nowDefault", { name: isolate(s.name) }))
+      await api(`/api/w/smtp-services/${encodeURIComponent(s.id)}/default`, {
+        json: { role },
+        workspaceId: ws.id,
+      })
+      toast.success(
+        role === "campaign"
+          ? t("smtp.nowCampaignDefault", { name: isolate(s.name) })
+          : t("smtp.nowDefault", { name: isolate(s.name) }),
+      )
       onChange()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -162,7 +209,10 @@ function ServiceList({ services, onEdit, onChange }: { services: SmtpService[]; 
     if (!removing) return
     setBusy(true)
     try {
-      await api(`/api/w/smtp-services/${encodeURIComponent(removing.id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/smtp-services/${encodeURIComponent(removing.id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(t("smtp.removedOne", { name: isolate(removing.name) }))
       setRemoving(null)
       onChange()
@@ -180,7 +230,11 @@ function ServiceList({ services, onEdit, onChange }: { services: SmtpService[]; 
   return (
     <ul className="border-y border-line" data-smtp-services>
       {services.map((s) => (
-        <li key={s.id} className="flex flex-col gap-3 border-b border-line px-6 py-4 last:border-b-0 sm:flex-row sm:items-start" data-service={s.name}>
+        <li
+          key={s.id}
+          className="flex flex-col gap-3 border-b border-line px-6 py-4 last:border-b-0 sm:flex-row sm:items-start"
+          data-service={s.name}
+        >
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">
@@ -215,20 +269,42 @@ function ServiceList({ services, onEdit, onChange }: { services: SmtpService[]; 
               {t("smtp.edit")}
             </Button>
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={t("common.actions")} data-service-menu={s.name} />}>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("common.actions")}
+                    data-service-menu={s.name}
+                  />
+                }
+              >
                 <EllipsisIcon />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-60">
-                <DropdownMenuItem disabled={s.is_default} onClick={() => makeDefault(s, "transactional")} data-make-default>
+                <DropdownMenuItem
+                  disabled={s.is_default}
+                  onClick={() => makeDefault(s, "transactional")}
+                  data-make-default
+                >
                   <StarIcon />
                   {t("smtp.makeDefault")}
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled={s.is_campaign_default} onClick={() => makeDefault(s, "campaign")} data-make-campaign-default>
+                <DropdownMenuItem
+                  disabled={s.is_campaign_default}
+                  onClick={() => makeDefault(s, "campaign")}
+                  data-make-campaign-default
+                >
                   <SendIcon />
                   {t("smtp.makeCampaignDefault")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" disabled={defaultLocked(s)} onClick={() => setRemoving(s)} data-remove-service>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={defaultLocked(s)}
+                  onClick={() => setRemoving(s)}
+                  data-remove-service
+                >
                   <XCircleIcon />
                   {defaultLocked(s) ? t("smtp.removeDefaultLocked") : t("smtp.remove")}
                 </DropdownMenuItem>
@@ -240,9 +316,13 @@ function ServiceList({ services, onEdit, onChange }: { services: SmtpService[]; 
       <AlertDialog open={!!removing} onOpenChange={(o) => (!o ? setRemoving(null) : undefined)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("smtp.removeOneTitle", { name: isolate(removing?.name ?? "") })}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("smtp.removeOneTitle", { name: isolate(removing?.name ?? "") })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {removing?.is_default ? t("smtp.removeBody") : t("smtp.removeOneBody", { count: removing?.campaigns ?? 0 })}
+              {removing?.is_default
+                ? t("smtp.removeBody")
+                : t("smtp.removeOneBody", { count: removing?.campaigns ?? 0 })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -257,7 +337,15 @@ function ServiceList({ services, onEdit, onChange }: { services: SmtpService[]; 
   )
 }
 
-function ServiceSheet({ editing, onClose, onSaved }: { editing: SmtpService | "new" | null; onClose: () => void; onSaved: () => void }) {
+function ServiceSheet({
+  editing,
+  onClose,
+  onSaved,
+}: {
+  editing: SmtpService | "new" | null
+  onClose: () => void
+  onSaved: () => void
+}) {
   const { t, isRtl } = useTranslations()
   const current = editing && editing !== "new" ? editing : null
   return (
@@ -268,16 +356,35 @@ function ServiceSheet({ editing, onClose, onSaved }: { editing: SmtpService | "n
         data-service-sheet
       >
         <SheetHeader className="pe-12">
-          <SheetTitle>{current ? t("smtp.editTitle", { name: isolate(current.name) }) : t("smtp.addTitle")}</SheetTitle>
+          <SheetTitle>
+            {current ? t("smtp.editTitle", { name: isolate(current.name) }) : t("smtp.addTitle")}
+          </SheetTitle>
           <SheetDescription>{t("smtp.formHint")}</SheetDescription>
         </SheetHeader>
-        <div className="px-4 pb-6">{editing ? <SmtpForm key={current?.id ?? "new"} current={current} onSaved={onSaved} onCancel={onClose} /> : null}</div>
+        <div className="px-4 pb-6">
+          {editing ? (
+            <SmtpForm
+              key={current?.id ?? "new"}
+              current={current}
+              onSaved={onSaved}
+              onCancel={onClose}
+            />
+          ) : null}
+        </div>
       </SheetContent>
     </Sheet>
   )
 }
 
-function SmtpForm({ current, onSaved, onCancel }: { current: SmtpService | null; onSaved: () => void; onCancel: () => void }) {
+function SmtpForm({
+  current,
+  onSaved,
+  onCancel,
+}: {
+  current: SmtpService | null
+  onSaved: () => void
+  onCancel: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState(current?.name ?? "")
@@ -293,7 +400,10 @@ function SmtpForm({ current, onSaved, onCancel }: { current: SmtpService | null;
 
   useEffect(() => setErr(null), [current])
 
-  const tlsItems = (["starttls", "tls", "none"] as const).map((v) => ({ value: v, label: t(`smtp.tls.${v}`) }))
+  const tlsItems = (["starttls", "tls", "none"] as const).map((v) => ({
+    value: v,
+    label: t(`smtp.tls.${v}`),
+  }))
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -311,11 +421,14 @@ function SmtpForm({ current, onSaved, onCancel }: { current: SmtpService | null;
       }
       // Empty keeps the stored password; typing one replaces it.
       if (password !== "" || !current?.has_password) payload.password = password
-      await api(current ? `/api/w/smtp-services/${encodeURIComponent(current.id)}` : "/api/w/smtp-services", {
-        method: current ? "PUT" : "POST",
-        json: payload,
-        workspaceId: ws.id,
-      })
+      await api(
+        current ? `/api/w/smtp-services/${encodeURIComponent(current.id)}` : "/api/w/smtp-services",
+        {
+          method: current ? "PUT" : "POST",
+          json: payload,
+          workspaceId: ws.id,
+        },
+      )
       setPassword("")
       toast.success(current ? t("smtp.saved") : t("smtp.added", { name: isolate(name.trim()) }))
       onSaved()
@@ -331,22 +444,44 @@ function SmtpForm({ current, onSaved, onCancel }: { current: SmtpService | null;
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="smtp-name">{t("smtp.name")}</FieldLabel>
-          <Input id="smtp-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={t("smtp.namePlaceholder")} />
+          <Input
+            id="smtp-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+            placeholder={t("smtp.namePlaceholder")}
+          />
           <FieldDescription>{t("smtp.nameHint")}</FieldDescription>
         </Field>
         <div className="flex flex-col gap-4 sm:flex-row">
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="smtp-host">{t("smtp.host")}</FieldLabel>
-            <Input id="smtp-host" dir="ltr" value={host} onChange={(e) => setHost(e.target.value)} placeholder="smtp.example.com" />
+            <Input
+              id="smtp-host"
+              dir="ltr"
+              value={host}
+              onChange={(e) => setHost(e.target.value)}
+              placeholder="smtp.example.com"
+            />
           </Field>
           <Field className="sm:w-28">
             <FieldLabel htmlFor="smtp-port">{t("smtp.port")}</FieldLabel>
-            <Input id="smtp-port" dir="ltr" inputMode="numeric" value={port} onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))} />
+            <Input
+              id="smtp-port"
+              dir="ltr"
+              inputMode="numeric"
+              value={port}
+              onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))}
+            />
           </Field>
         </div>
         <Field>
           <FieldLabel htmlFor="smtp-tls">{t("smtp.security")}</FieldLabel>
-          <Select items={tlsItems} value={tls} onValueChange={(v) => setTls(String(v ?? "starttls"))}>
+          <Select
+            items={tlsItems}
+            value={tls}
+            onValueChange={(v) => setTls(String(v ?? "starttls"))}
+          >
             <SelectTrigger id="smtp-tls" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -364,7 +499,13 @@ function SmtpForm({ current, onSaved, onCancel }: { current: SmtpService | null;
             <FieldLabel htmlFor="smtp-username">
               {t("smtp.username")} <span className="text-grid-muted">({t("common.optional")})</span>
             </FieldLabel>
-            <Input id="smtp-username" dir="ltr" autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} />
+            <Input
+              id="smtp-username"
+              dir="ltr"
+              autoComplete="off"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
           </Field>
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="smtp-password">{t("smtp.password")}</FieldLabel>
@@ -384,15 +525,29 @@ function SmtpForm({ current, onSaved, onCancel }: { current: SmtpService | null;
             <FieldLabel htmlFor="smtp-from-name">
               {t("smtp.fromName")} <span className="text-grid-muted">({t("common.optional")})</span>
             </FieldLabel>
-            <Input id="smtp-from-name" value={fromName} onChange={(e) => setFromName(e.target.value)} />
+            <Input
+              id="smtp-from-name"
+              value={fromName}
+              onChange={(e) => setFromName(e.target.value)}
+            />
           </Field>
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="smtp-from-email">{t("smtp.fromEmail")}</FieldLabel>
-            <Input id="smtp-from-email" type="email" dir="ltr" value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} placeholder="news@company.com" />
+            <Input
+              id="smtp-from-email"
+              type="email"
+              dir="ltr"
+              value={fromEmail}
+              onChange={(e) => setFromEmail(e.target.value)}
+              placeholder="news@company.com"
+            />
           </Field>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="submit" disabled={busy || !name.trim() || !host.trim() || !port || !fromEmail.trim()}>
+          <Button
+            type="submit"
+            disabled={busy || !name.trim() || !host.trim() || !port || !fromEmail.trim()}
+          >
             {busy ? t("common.working") : current ? t("smtp.save") : t("smtp.add")}
           </Button>
           <Button type="button" variant="ghost" onClick={onCancel}>
@@ -423,7 +578,10 @@ function TestSection({ services, onTested }: { services: SmtpService[]; onTested
     setBusy(true)
     setErr(null)
     try {
-      await api(`/api/w/smtp-services/${encodeURIComponent(chosen.id)}/test`, { json: { to: target.trim() }, workspaceId: ws.id })
+      await api(`/api/w/smtp-services/${encodeURIComponent(chosen.id)}/test`, {
+        json: { to: target.trim() },
+        workspaceId: ws.id,
+      })
       toast.success(t("smtp.testSentVia", { email: target.trim(), name: isolate(chosen.name) }))
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -440,7 +598,11 @@ function TestSection({ services, onTested }: { services: SmtpService[]; onTested
         <FieldGroup className="sm:flex-row sm:items-end">
           <Field className="sm:w-56">
             <FieldLabel htmlFor="smtp-test-service">{t("smtp.testService")}</FieldLabel>
-            <Select items={items} value={chosen?.id ?? ""} onValueChange={(v) => setServiceId(String(v ?? ""))}>
+            <Select
+              items={items}
+              value={chosen?.id ?? ""}
+              onValueChange={(v) => setServiceId(String(v ?? ""))}
+            >
               <SelectTrigger id="smtp-test-service" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -455,7 +617,13 @@ function TestSection({ services, onTested }: { services: SmtpService[]; onTested
           </Field>
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="smtp-test-to">{t("smtp.testTo")}</FieldLabel>
-            <Input id="smtp-test-to" type="email" dir="ltr" value={target} onChange={(e) => setTo(e.target.value)} />
+            <Input
+              id="smtp-test-to"
+              type="email"
+              dir="ltr"
+              value={target}
+              onChange={(e) => setTo(e.target.value)}
+            />
           </Field>
           <Button type="submit" variant="outline" disabled={busy || !target.trim() || !chosen}>
             {busy ? t("common.working") : t("smtp.test")}

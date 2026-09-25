@@ -38,7 +38,9 @@ const card = opt("shots", "")
 const base = (args[0] ?? "http://localhost:3508").replace(/\/$/, "")
 const apiBase = (args[1] ?? "http://localhost:8508").replace(/\/$/, "")
 const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
-const CHROME = process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
+const CHROME =
+  process.env.EXT_CHROME ??
+  "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"
 const here = path.dirname(fileURLToPath(import.meta.url))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -46,7 +48,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // allowed (MH-483): the workspace's list is then the only gate.
 const SRC = path.resolve(here, "../../extension")
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-presets-"))
-cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)) })
+cpSync(SRC, EXT, {
+  recursive: true,
+  filter: (p) =>
+    !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?|[\\/]store[\\/]?/.test(p.slice(SRC.length)),
+})
 {
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
   m.host_permissions = [`${base}/*`, `${apiBase}/*`, "http://*/*", "https://*/*"]
@@ -58,15 +64,19 @@ cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]
 }
 
 const out = {}
-const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "ext-presets-profile-")), {
-  executablePath: CHROME,
-  headless: false,
-  viewport: { width: 1280, height: 900 },
-  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
-})
+const ctx = await chromium.launchPersistentContext(
+  mkdtempSync(path.join(tmpdir(), "ext-presets-profile-")),
+  {
+    executablePath: CHROME,
+    headless: false,
+    viewport: { width: 1280, height: 900 },
+    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
+  },
+)
 
 try {
-  const worker = ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker", { timeout: 30000 }))
+  const worker =
+    ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker", { timeout: 30000 }))
   const extensionID = new URL(worker.url()).host
 
   const page = ctx.pages()[0] ?? (await ctx.newPage())
@@ -83,17 +93,31 @@ try {
   const slug = page.url().split("/w/")[1].split("/")[0]
   const call = async (method, p, data, wsID) => {
     const csrf = (await (await page.request.get(`${base}/api/auth/csrf`)).json()).csrf_token
-    const res = await page.request.fetch(`${base}${p}`, { method, headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) }, data })
+    const res = await page.request.fetch(`${base}${p}`, {
+      method,
+      headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) },
+      data,
+    })
     const text = await res.text()
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text}`)
     return text ? JSON.parse(text) : null
   }
   const wsID = (await call("GET", "/api/me/workspaces")).workspaces.find((w) => w.slug === slug).id
-  const { browser, online } = await connectExtension({ ctx, extensionID, site: base, api: apiBase, call, workspaceID: wsID, name: "Presets Chromium", hosts: [] })
+  const { browser, online } = await connectExtension({
+    ctx,
+    extensionID,
+    site: base,
+    api: apiBase,
+    call,
+    workspaceID: wsID,
+    name: "Presets Chromium",
+    hosts: [],
+  })
   out.connected = online
 
   const galleryUrl = (locale = "en") => `${base}/${locale}/w/${slug}/automation/presets`
-  const brandUrl = (brand, locale = "en") => `${base}/${locale}/w/${slug}/automation/presets/${brand}`
+  const brandUrl = (brand, locale = "en") =>
+    `${base}/${locale}/w/${slug}/automation/presets/${brand}`
 
   // ---- the gallery home: brand tiles, searchable ----
   await page.goto(galleryUrl(), { waitUntil: "load" })
@@ -101,7 +125,11 @@ try {
   out.galleryTitled = (await page.title()).startsWith("Presets")
   out.galleryHasBrandTiles = (await page.$$("[data-brand-tile]")).length >= 10
   await page.fill("[data-preset-search]", "trends")
-  await page.waitForFunction(() => document.querySelectorAll("[data-preset]").length > 0 && document.querySelectorAll("[data-preset]").length < 10)
+  await page.waitForFunction(
+    () =>
+      document.querySelectorAll("[data-preset]").length > 0 &&
+      document.querySelectorAll("[data-preset]").length < 10,
+  )
   out.searchNarrows = (await page.$$("[data-preset]")).length
   await page.fill("[data-preset-search]", "")
   await page.waitForSelector("[data-brand-tile]", { timeout: 15000 })
@@ -109,32 +137,63 @@ try {
   // ---- a brand page: every preset as a card, with its sites and a "Publishes" marker ----
   await page.goto(brandUrl("google-news"), { waitUntil: "load" })
   await page.waitForSelector("[data-preset='google-news-search']", { timeout: 30000 })
-  out.galleryShowsSites = (await page.getAttribute("[data-preset='google-news-search'] [data-preset-hosts]", "data-preset-hosts")) === "news.google.com"
-  out.galleryMarksPublishing = (await page.$("[data-preset='google-news-search'] [data-preset-publishes]")) === null
+  out.galleryShowsSites =
+    (await page.getAttribute(
+      "[data-preset='google-news-search'] [data-preset-hosts]",
+      "data-preset-hosts",
+    )) === "news.google.com"
+  out.galleryMarksPublishing =
+    (await page.$("[data-preset='google-news-search'] [data-preset-publishes]")) === null
   await page.goto(brandUrl("linkedin"), { waitUntil: "load" })
   await page.waitForSelector("[data-preset='linkedin-post']", { timeout: 30000 })
-  out.galleryMarksPublishing = out.galleryMarksPublishing && (await page.$("[data-preset='linkedin-post'] [data-preset-publishes]")) !== null
-  out.galleryNamesTheRehearsal = (await page.textContent("[data-preset='linkedin-group-share']")).includes("Rehearse it first with")
+  out.galleryMarksPublishing =
+    out.galleryMarksPublishing &&
+    (await page.$("[data-preset='linkedin-post'] [data-preset-publishes]")) !== null
+  out.galleryNamesTheRehearsal = (
+    await page.textContent("[data-preset='linkedin-group-share']")
+  ).includes("Rehearse it first with")
 
   // ---- plain words first, the technical notes collapsed behind the detail sheet (MH-518, MH-527) ----
   await page.goto(brandUrl("google-news"), { waitUntil: "load" })
   await page.waitForSelector("[data-preset='google-news-search']", { timeout: 30000 })
-  out.plainNameLeads = (await page.textContent("[data-preset='google-news-search'] [data-preset-name]")) === "Search Google News"
+  out.plainNameLeads =
+    (await page.textContent("[data-preset='google-news-search'] [data-preset-name]")) ===
+    "Search Google News"
   await page.click("[data-preset-open='google-news-search']")
   await page.waitForSelector("[data-preset-sheet='google-news-search']", { timeout: 10000 })
-  out.technicalCollapsed = !(await page.isVisible("[data-preset-sheet='google-news-search'] [data-preset-technical] [data-preset-inputs]"))
+  out.technicalCollapsed = !(await page.isVisible(
+    "[data-preset-sheet='google-news-search'] [data-preset-technical] [data-preset-inputs]",
+  ))
   await page.click("[data-preset-sheet='google-news-search'] [data-technical-toggle]")
-  await page.waitForSelector("[data-preset-sheet='google-news-search'] [data-preset-technical] [data-preset-inputs]", { state: "visible", timeout: 5000 })
-  out.technicalOpens = (await page.textContent("[data-preset-sheet='google-news-search'] [data-preset-technical]")).includes("Google News: search")
+  await page.waitForSelector(
+    "[data-preset-sheet='google-news-search'] [data-preset-technical] [data-preset-inputs]",
+    { state: "visible", timeout: 5000 },
+  )
+  out.technicalOpens = (
+    await page.textContent("[data-preset-sheet='google-news-search'] [data-preset-technical]")
+  ).includes("Google News: search")
   await page.keyboard.press("Escape")
 
   await page.goto(brandUrl("google-news", "ar"), { waitUntil: "load" })
-  await page.waitForSelector("[data-preset='google-news-search'] [data-preset-name]", { timeout: 30000 })
-  out.arabicNames = (await page.textContent("[data-preset='google-news-search'] [data-preset-name]")) === "البحث في أخبار Google"
+  await page.waitForSelector("[data-preset='google-news-search'] [data-preset-name]", {
+    timeout: 30000,
+  })
+  out.arabicNames =
+    (await page.textContent("[data-preset='google-news-search'] [data-preset-name]")) ===
+    "البحث في أخبار Google"
   await page.goto(brandUrl("linkedin", "ar"), { waitUntil: "load" })
-  await page.waitForSelector("[data-preset='linkedin-post'] [data-preset-summary]", { timeout: 30000 })
-  out.arabicNames = out.arabicNames && /[؀-ۿ]/.test(await page.textContent("[data-preset='linkedin-post'] [data-preset-summary]"))
-  const arAdded = await call("POST", "/api/w/automation/presets/news-headlines-techcrunch/add", { locale: "ar" }, wsID)
+  await page.waitForSelector("[data-preset='linkedin-post'] [data-preset-summary]", {
+    timeout: 30000,
+  })
+  out.arabicNames =
+    out.arabicNames &&
+    /[؀-ۿ]/.test(await page.textContent("[data-preset='linkedin-post'] [data-preset-summary]"))
+  const arAdded = await call(
+    "POST",
+    "/api/w/automation/presets/news-headlines-techcrunch/add",
+    { locale: "ar" },
+    wsID,
+  )
   out.addedInArabicIsNamedInArabic = arAdded.workflow.name === "عناوين TechCrunch"
 
   // ---- add Google News with the browser: its site allowed in the same step ----
@@ -146,25 +205,43 @@ try {
   await page.waitForSelector("[data-preset-dialog='google-news-search'] [data-add-allow]")
   if (card) await page.screenshot({ path: `${SHOTS}/${card}-add-dialog.png` })
   await page.click("[data-confirm-add]")
-  await page.waitForSelector("[data-preset='google-news-search'] [data-preset-added]", { timeout: 15000 })
-  const row = (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find((b) => b.id === browser.id)
+  await page.waitForSelector("[data-preset='google-news-search'] [data-preset-added]", {
+    timeout: 15000,
+  })
+  const row = (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find(
+    (b) => b.id === browser.id,
+  )
   out.siteAllowedInTheSameStep = row.allowed_hosts.join(",") === "news.google.com"
   // Pushed to the connected extension, no reconnect.
   let extHosts = []
   for (let i = 0; i < 20; i++) {
-    extHosts = await worker.evaluate(async () => (await chrome.storage.local.get("moh.agent"))["moh.agent"]?.allowedHosts || [])
+    extHosts = await worker.evaluate(
+      async () => (await chrome.storage.local.get("moh.agent"))["moh.agent"]?.allowedHosts || [],
+    )
     if (extHosts.includes("news.google.com")) break
     await sleep(300)
   }
   out.pushedToTheExtension = extHosts.includes("news.google.com")
 
   // ---- Google Trends too, then run Google News on the real site ----
-  await call("POST", "/api/w/automation/presets/google-trends-explore/add", { agent_id: browser.id }, wsID)
+  await call(
+    "POST",
+    "/api/w/automation/presets/google-trends-explore/add",
+    { agent_id: browser.id },
+    wsID,
+  )
   const wfs = (await call("GET", "/api/w/workflows", undefined, wsID)).workflows
   const news = wfs.find((w) => w.preset === "google-news-search")
-  out.trendsAllowedToo = (await call("GET", "/api/w/browsers", undefined, wsID)).browsers.find((b) => b.id === browser.id).allowed_hosts.includes("trends.google.com")
+  out.trendsAllowedToo = (await call("GET", "/api/w/browsers", undefined, wsID)).browsers
+    .find((b) => b.id === browser.id)
+    .allowed_hosts.includes("trends.google.com")
   const runIt = async (wf, values) => {
-    const { run_id } = await call("POST", `/api/w/workflows/${wf.id}/run`, { agent_id: browser.id, values }, wsID)
+    const { run_id } = await call(
+      "POST",
+      `/api/w/workflows/${wf.id}/run`,
+      { agent_id: browser.id, values },
+      wsID,
+    )
     let d
     for (let i = 0; i < 120; i++) {
       d = await call("GET", `/api/w/runs/${run_id}`, undefined, wsID)
@@ -178,19 +255,25 @@ try {
   const trends = wfs.find((w) => w.preset === "google-trends-explore")
   const tr = await runIt(trends, { keyword: "coffee" })
   out.trendsRunStepStates = tr.d.steps.map((s) => `${s.command}:${s.status}`).join(" ")
-  out.realTrendsRowsExtracted = tr.rows.length > 10 && tr.rows.every((r) => r.date && r.value !== undefined)
+  out.realTrendsRowsExtracted =
+    tr.rows.length > 10 && tr.rows.every((r) => r.date && r.value !== undefined)
   out.trendsSample = tr.rows.slice(0, 2)
   // Google News by topic, on the real site: a real Google page, read by the
   // preset's own selectors.
   await call("POST", "/api/w/automation/presets/google-news-topic/add", {}, wsID)
-  const topic = (await call("GET", "/api/w/workflows", undefined, wsID)).workflows.find((w) => w.preset === "google-news-topic")
+  const topic = (await call("GET", "/api/w/workflows", undefined, wsID)).workflows.find(
+    (w) => w.preset === "google-news-topic",
+  )
   const tp = await runIt(topic, {})
   out.topicRunStepStates = tp.d.steps.map((s) => `${s.command}:${s.status}`).join(" ")
-  out.realGoogleNewsHeadlinesExtracted = tp.rows.length > 5 && tp.rows.some((r) => (r.headline || "").length > 10)
+  out.realGoogleNewsHeadlinesExtracted =
+    tp.rows.length > 5 && tp.rows.some((r) => (r.headline || "").length > 10)
   out.topicSample = tp.rows.slice(0, 2).map((r) => `${r.headline} — ${r.source}`)
   if (!out.realTrendsRowsExtracted) {
     // Trends answers this address with 429 at the moment; said, not hidden.
-    out.trendsRunNote = tr.d.steps[0]?.result?.includes("429") ? "trends.google.com answered 429 Too Many Requests" : tr.d.run.error
+    out.trendsRunNote = tr.d.steps[0]?.result?.includes("429")
+      ? "trends.google.com answered 429 Too Many Requests"
+      : tr.d.run.error
     delete out.realTrendsRowsExtracted
   }
   // Google News search, on the real site. Google answers a burst of automated
@@ -210,14 +293,26 @@ try {
   await page.waitForSelector("[data-preset-sheet='whatsapp-send-self']")
   await page.click("[data-add-preset='whatsapp-send-self']")
   await page.waitForSelector("#preset-number")
-  out.writesNoteShown = (await page.$("[data-preset-dialog='whatsapp-send-self'] [data-add-writes]")) !== null
+  out.writesNoteShown =
+    (await page.$("[data-preset-dialog='whatsapp-send-self'] [data-add-writes]")) !== null
   await page.click("[data-confirm-add]")
-  await page.waitForSelector("[data-preset-dialog='whatsapp-send-self'] [data-slot='field-error'], [data-preset-dialog='whatsapp-send-self'] [role='alert']", { timeout: 10000 }).catch(() => null)
-  out.refusedWithoutANumber = /WhatsApp number/.test(await page.textContent("[data-preset-dialog='whatsapp-send-self']"))
+  await page
+    .waitForSelector(
+      "[data-preset-dialog='whatsapp-send-self'] [data-slot='field-error'], [data-preset-dialog='whatsapp-send-self'] [role='alert']",
+      { timeout: 10000 },
+    )
+    .catch(() => null)
+  out.refusedWithoutANumber = /WhatsApp number/.test(
+    await page.textContent("[data-preset-dialog='whatsapp-send-self']"),
+  )
   await page.fill("#preset-number", "201000000001")
   await page.click("[data-confirm-add]")
-  await page.waitForSelector("[data-preset='whatsapp-send-self'] [data-preset-added]", { timeout: 15000 })
-  const selfWF = (await call("GET", "/api/w/workflows", undefined, wsID)).workflows.find((w) => w.preset === "whatsapp-send-self")
+  await page.waitForSelector("[data-preset='whatsapp-send-self'] [data-preset-added]", {
+    timeout: 15000,
+  })
+  const selfWF = (await call("GET", "/api/w/workflows", undefined, wsID)).workflows.find(
+    (w) => w.preset === "whatsapp-send-self",
+  )
   const selfID = selfWF?.id
   out.addedWithTheNumber = !!selfWF && JSON.stringify(selfWF.steps).includes("phone=201000000001")
 
@@ -231,8 +326,11 @@ try {
   // silently dropped or faked in this check.
   await page.goto(`${base}/en/w/${slug}/automation/workflows`, { waitUntil: "load" })
   await page.waitForSelector("[data-workflow-writes]", { timeout: 20000 })
-  out.listFlagsThePublishingWorkflow = (await page.$("li[data-workflow-row] [data-workflow-writes]")) !== null
-  out.cancelRunsNothing = (await call("GET", "/api/w/runs", undefined, wsID)).runs.every((r) => r.workflow_id !== selfID)
+  out.listFlagsThePublishingWorkflow =
+    (await page.$("li[data-workflow-row] [data-workflow-writes]")) !== null
+  out.cancelRunsNothing = (await call("GET", "/api/w/runs", undefined, wsID)).runs.every(
+    (r) => r.workflow_id !== selfID,
+  )
 
   // ---- Limits & settings, Schedules: the workflows list's "From a preset" ----
   await page.goto(`${base}/en/w/${slug}/automation/settings`, { waitUntil: "load" })
@@ -261,19 +359,33 @@ try {
     for (const locale of ["en", "ar"]) {
       for (const theme of ["light", "dark"]) {
         for (const width of [1440, 390]) {
-          const c = await shooter.newContext({ storageState: state, viewport: { width, height: 900 }, colorScheme: theme })
+          const c = await shooter.newContext({
+            storageState: state,
+            viewport: { width, height: 900 },
+            colorScheme: theme,
+          })
           const p = await c.newPage()
           await p.goto(galleryUrl(locale), { waitUntil: "load" })
           await p.waitForSelector("[data-brand-tile]", { timeout: 30000 })
           await p.waitForTimeout(700)
-          await p.screenshot({ path: `${SHOTS}/${card}-gallery-${locale}-${theme}-${width}.png`, fullPage: true })
-          out[`gallery-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth === 0)
+          await p.screenshot({
+            path: `${SHOTS}/${card}-gallery-${locale}-${theme}-${width}.png`,
+            fullPage: true,
+          })
+          out[`gallery-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(
+            () => document.documentElement.scrollWidth - innerWidth === 0,
+          )
 
           await p.goto(brandUrl("google-news", locale), { waitUntil: "load" })
           await p.waitForSelector("[data-preset='google-news-search']", { timeout: 30000 })
           await p.waitForTimeout(700)
-          await p.screenshot({ path: `${SHOTS}/${card}-brand-${locale}-${theme}-${width}.png`, fullPage: true })
-          out[`brand-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth === 0)
+          await p.screenshot({
+            path: `${SHOTS}/${card}-brand-${locale}-${theme}-${width}.png`,
+            fullPage: true,
+          })
+          out[`brand-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(
+            () => document.documentElement.scrollWidth - innerWidth === 0,
+          )
 
           await p.click("[data-preset-open='google-news-search']")
           await p.waitForSelector("[data-preset-sheet='google-news-search']", { timeout: 10000 })
@@ -283,8 +395,13 @@ try {
           await p.goto(`${base}/${locale}/w/${slug}/automation/settings`, { waitUntil: "load" })
           await p.waitForSelector("[data-limits]", { timeout: 30000 })
           await p.waitForTimeout(700)
-          await p.screenshot({ path: `${SHOTS}/${card}-automation-settings-${locale}-${theme}-${width}.png`, fullPage: true })
-          out[`automation-settings-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth === 0)
+          await p.screenshot({
+            path: `${SHOTS}/${card}-automation-settings-${locale}-${theme}-${width}.png`,
+            fullPage: true,
+          })
+          out[`automation-settings-${locale}-${theme}-${width}-noOverflow`] = await p.evaluate(
+            () => document.documentElement.scrollWidth - innerWidth === 0,
+          )
           await c.close()
         }
       }

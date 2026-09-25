@@ -52,7 +52,9 @@ const slug = await page.evaluate(async (email) => {
       body: JSON.stringify(b),
     })
   await post("/api/auth/register", { email, password: "correct-horse-battery" })
-  const ws = await (await post("/api/me/workspaces", { name: `Brand Co ${email.split("@")[0].slice(-6)}` })).json()
+  const ws = await (
+    await post("/api/me/workspaces", { name: `Brand Co ${email.split("@")[0].slice(-6)}` })
+  ).json()
   return ws.workspace.slug
 }, owner)
 const vcardURL = (locale) => `${base}/${locale}/w/${slug}/contacts/vcard`
@@ -66,7 +68,11 @@ const api = (url, init = {}) =>
       const id = ((ws.workspaces ?? ws.items ?? ws).find((w) => w.slug === slug) ?? {}).id
       const headers = { "X-Workspace-ID": id, "Content-Type": "application/json" }
       if (init.method && init.method !== "GET") {
-        headers["X-CSRF-Token"] = (await (await fetch("/api/auth/csrf", { credentials: "include", cache: "no-store" })).json()).csrf_token
+        headers["X-CSRF-Token"] = (
+          await (
+            await fetch("/api/auth/csrf", { credentials: "include", cache: "no-store" })
+          ).json()
+        ).csrf_token
       }
       const r = await fetch(url, { credentials: "include", ...init, headers })
       return { status: r.status, body: await r.text() }
@@ -81,21 +87,32 @@ ok(errs.length === 0, "no page errors on load")
 
 const csvEmail = `mh585.csv.${RUN}@example.test`
 const csvPhone = "+2010000" + String(RUN).slice(-4)
-const csv = ["First Name,Last Name,E-mail 1 - Value,Phone 1 - Value", `Google,Csv,${csvEmail},${csvPhone}`].join("\n")
+const csv = [
+  "First Name,Last Name,E-mail 1 - Value,Phone 1 - Value",
+  `Google,Csv,${csvEmail},${csvPhone}`,
+].join("\n")
 
 await page.click("[data-action=source-google-csv]")
 await page.fill("[data-testid=vcard-text-input]", csv)
 await page.click("[data-action=preview-vcard]")
 await page.waitForSelector("[data-testid=vcard-preview-table]", { timeout: 15000 })
-ok(/\b1\b/.test(await page.locator("[data-testid=vcard-new-count]").innerText()), "Google CSV preview shows one new contact")
+ok(
+  /\b1\b/.test(await page.locator("[data-testid=vcard-new-count]").innerText()),
+  "Google CSV preview shows one new contact",
+)
 await page.screenshot({ path: path.join(shots, "mh585-csv-preview-en-light-1440.png") })
 
 await page.click("[data-action=commit-vcard]")
 await page.waitForSelector("[data-testid=vcard-commit-result]", { timeout: 15000 })
-ok(/\b1\b/.test(await page.locator("[data-testid=vcard-commit-result]").innerText()), "Google CSV commit reports one created")
+ok(
+  /\b1\b/.test(await page.locator("[data-testid=vcard-commit-result]").innerText()),
+  "Google CSV commit reports one created",
+)
 
 await page.reload({ waitUntil: "domcontentloaded" })
-const afterReload = JSON.parse((await api(`/api/w/contacts?q=${encodeURIComponent(csvEmail)}`)).body)
+const afterReload = JSON.parse(
+  (await api(`/api/w/contacts?q=${encodeURIComponent(csvEmail)}`)).body,
+)
 const csvContacts = afterReload.contacts ?? afterReload.items ?? []
 const csvCreated = csvContacts.find((c) => c.email === csvEmail)
 ok(!!csvCreated, `the Google CSV import persisted after reload (${JSON.stringify(csvContacts)})`)
@@ -103,7 +120,10 @@ ok(!!csvCreated, `the Google CSV import persisted after reload (${JSON.stringify
 // ---- 2) "Import from Google" panel: not-connected state ----------------------------
 await page.goto(vcardURL("en"))
 await page.waitForSelector("[data-testid=google-contacts-panel]", { timeout: 15000 })
-ok(await page.getByTestId("google-contacts-empty").isVisible(), "not-connected state shown before any account is linked")
+ok(
+  await page.getByTestId("google-contacts-empty").isVisible(),
+  "not-connected state shown before any account is linked",
+)
 // The admin flag (ws.can) resolves a render cycle after the workspace loads,
 // so the button can still be attaching when the empty state above already
 // painted -- wait for it rather than sampling isVisible() immediately.
@@ -119,7 +139,10 @@ await connectBtn.click()
 await page.waitForURL((u) => u.host === FAKE_HOST, { timeout: 15000 })
 ok(true, "connect sends the browser to the fake Google, never the real one")
 const connectURL = new URL(page.url())
-ok(connectURL.pathname.includes("/o/oauth2") || connectURL.pathname.includes("/auth"), `oauth start URL looks right (${connectURL.pathname})`)
+ok(
+  connectURL.pathname.includes("/o/oauth2") || connectURL.pathname.includes("/auth"),
+  `oauth start URL looks right (${connectURL.pathname})`,
+)
 
 // ---- 3) consent as the seeded account, then Sync now against the fake --------------
 // The callback always lands on the workspace's integrations page (never
@@ -130,7 +153,10 @@ const googleEmail = "contacts@brand.test"
 await page.fill('input[name="email"]', googleEmail)
 await page.click('button[value="allow"]')
 await page.waitForURL((u) => u.pathname.endsWith("/settings/integrations"), { timeout: 15000 })
-ok(new URL(page.url()).searchParams.get("google") === "connected", "consent comes back as connected")
+ok(
+  new URL(page.url()).searchParams.get("google") === "connected",
+  "consent comes back as connected",
+)
 
 await page.goto(vcardURL("en"))
 await page.waitForSelector(`[data-google-contacts-connection="${googleEmail}"]`, { timeout: 15000 })
@@ -143,9 +169,14 @@ ok(/\b1\b/.test(syncText), `sync now shows the seeded contact synced (${syncText
 await page.screenshot({ path: path.join(shots, "mh585-google-synced-en-light-1440.png") })
 
 // ---- 4) the sync actually landed a real contact --------------------------------------
-const seeded = JSON.parse((await api(`/api/w/contacts?q=${encodeURIComponent("fake-sync@example.test")}`)).body)
+const seeded = JSON.parse(
+  (await api(`/api/w/contacts?q=${encodeURIComponent("fake-sync@example.test")}`)).body,
+)
 const seededContacts = seeded.contacts ?? seeded.items ?? []
-ok(seededContacts.some((c) => c.email === "fake-sync@example.test"), "the synced Google contact actually persisted")
+ok(
+  seededContacts.some((c) => c.email === "fake-sync@example.test"),
+  "the synced Google contact actually persisted",
+)
 
 // ---- 5) en/ar x light/dark x 1440/390, no horizontal overflow ------------------------
 for (const locale of ["en", "ar"]) {
@@ -164,9 +195,14 @@ for (const locale of ["en", "ar"]) {
         html.dark === (scheme === "dark") && html.dir === (locale === "ar" ? "rtl" : "ltr"),
         `${locale}/${scheme}/${width}: theme and direction applied`,
       )
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
       ok(overflow <= 0, `${locale}/${scheme}/${width}: no horizontal page overflow (${overflow}px)`)
-      await page.screenshot({ path: path.join(shots, `mh585-${locale}-${scheme}-${width}.png`), fullPage: true })
+      await page.screenshot({
+        path: path.join(shots, `mh585-${locale}-${scheme}-${width}.png`),
+        fullPage: true,
+      })
     }
   }
 }

@@ -38,7 +38,9 @@ export function UserMenu({ email, onReport }: { email: string; onReport?: () => 
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={t("header.account")} />}>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size="icon-sm" aria-label={t("header.account")} />}
+      >
         <UserIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">

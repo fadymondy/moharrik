@@ -13,7 +13,12 @@ import { cn } from "@/lib/utils"
  * where scrollLeft runs negative).
  * When it does overflow the box becomes focusable, so the keyboard can scroll it too.
  */
-export function ScrollX({ className, innerClassName, children, ...props }: ComponentProps<"div"> & { innerClassName?: string }) {
+export function ScrollX({
+  className,
+  innerClassName,
+  children,
+  ...props
+}: ComponentProps<"div"> & { innerClassName?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [edge, setEdge] = useState({ start: false, end: false })
 
@@ -46,7 +51,14 @@ export function ScrollX({ className, innerClassName, children, ...props }: Compo
       className={cn("relative min-w-0", className)}
       {...props}
     >
-      <div ref={ref} tabIndex={overflowing ? 0 : undefined} className={cn("scroll-x relative overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-ring/50", innerClassName)}>
+      <div
+        ref={ref}
+        tabIndex={overflowing ? 0 : undefined}
+        className={cn(
+          "scroll-x relative overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          innerClassName,
+        )}
+      >
         {children}
       </div>
       <div

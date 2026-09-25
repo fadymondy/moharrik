@@ -103,7 +103,10 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
  * Read as a Blob, never as text: Response.text() decodes UTF-8 and silently drops
  * the byte-order mark, and the BOM is what makes Excel read Arabic correctly.
  */
-export async function downloadFile(path: string, opts: { workspaceId?: string | null; fallbackName: string }): Promise<void> {
+export async function downloadFile(
+  path: string,
+  opts: { workspaceId?: string | null; fallbackName: string },
+): Promise<void> {
   const headers: Record<string, string> = { Accept: "text/csv, */*" }
   if (opts.workspaceId) headers["X-Workspace-ID"] = opts.workspaceId
   const res = await fetch(path, { headers, credentials: "same-origin", cache: "no-store" })
@@ -144,17 +147,42 @@ export type User = { id: string | number; email: string; roles?: string[] | null
 export type Role = "owner" | "admin" | "manager" | "member" | "client"
 export const INVITABLE_ROLES = ["admin", "manager", "member", "client"] as const
 
-export type WorkspaceSummary = { id: string; slug: string; name: string; role: Role; locale?: string }
+export type WorkspaceSummary = {
+  id: string
+  slug: string
+  name: string
+  role: Role
+  locale?: string
+}
 
 export type CurrentWorkspace = {
-  workspace: { id: string; slug: string; name: string; locale?: string; timezone?: string; currency?: string }
+  workspace: {
+    id: string
+    slug: string
+    name: string
+    locale?: string
+    timezone?: string
+    currency?: string
+  }
   role: Role
   can: string[]
 }
 
-export type Member = { user_id: string; email: string; role: Role; status: string; joined_at: string | null }
+export type Member = {
+  user_id: string
+  email: string
+  role: Role
+  status: string
+  joined_at: string | null
+}
 
-export type Invitation = { id: string; email: string; role: Role; expires_at: string; created_at: string }
+export type Invitation = {
+  id: string
+  email: string
+  role: Role
+  expires_at: string
+  created_at: string
+}
 
 export type InvitationPreview = {
   workspace_name: string
@@ -408,7 +436,10 @@ export type SmtpService = {
 }
 
 /** What a campaign's service picker may know: names and roles only. */
-export type SmtpServiceOption = Pick<SmtpService, "id" | "name" | "is_default" | "is_campaign_default">
+export type SmtpServiceOption = Pick<
+  SmtpService,
+  "id" | "name" | "is_default" | "is_campaign_default"
+>
 
 // ── CRM ──────────────────────────────────────────────────────────────────
 
@@ -632,7 +663,13 @@ export type NotificationItem = {
 export type NotificationOrigin = "webhook" | "collected" | "internal"
 
 /** One source in the feed's source filter, with its counts (MH-384). */
-export type NotificationSourceFacet = { key: string; name: string; origin: NotificationOrigin; total: number; unread: number }
+export type NotificationSourceFacet = {
+  key: string
+  name: string
+  origin: NotificationOrigin
+  total: number
+  unread: number
+}
 export type NotificationKindFacet = { value: string; total: number; unread: number }
 
 /** One page of the notification feed. */
@@ -978,7 +1015,13 @@ export type TrendTopic = {
   items: NewsItem[]
 }
 
-export type TrendCounts = { open: number; saved: number; reviewed: number; dismissed: number; all: number }
+export type TrendCounts = {
+  open: number
+  saved: number
+  reviewed: number
+  dismissed: number
+  all: number
+}
 
 export type TrendTopicPage = {
   topics: TrendTopic[]
@@ -1041,7 +1084,13 @@ export type BrowserAgent = {
 }
 
 /** A workspace the signed-in member could connect a browser to (MH-478). */
-export type ConnectWorkspace = { id: string; slug: string; name: string; role: Role; can_approve: boolean }
+export type ConnectWorkspace = {
+  id: string
+  slug: string
+  name: string
+  role: Role
+  can_approve: boolean
+}
 
 /** A browser asking to connect, as the approval page sees it (MH-478). */
 export type ConnectRequest = {
@@ -1264,7 +1313,12 @@ export type ContactWhatsApp = {
     workspace_max: number
     blocked?: string
   }
-  recent: { at: string; kind: "reply" | "broadcast" | "direct" | string; ok: boolean; error: string }[]
+  recent: {
+    at: string
+    kind: "reply" | "broadcast" | "direct" | string
+    ok: boolean
+    error: string
+  }[]
 }
 
 // ── Contact context: WhatsApp export, notes, ask, reports (MH-586) ────────
@@ -1430,7 +1484,8 @@ export type WorkflowChannel = {
 
 // ── Unified channels list (MH-571) ──────────────────────────────────────
 
-export type ChannelType = "email" | "whatsapp" | "chat" | "telegram" | "slack" | "discord" | "workflow"
+export type ChannelType =
+  "email" | "whatsapp" | "chat" | "telegram" | "slack" | "discord" | "workflow"
 export type ChannelStatus = "connected" | "error" | "paused"
 
 /** One row of GET /api/w/channels: every inbox channel of every type, in one shape. */
@@ -1448,7 +1503,11 @@ export type ChannelRow = {
   enabled: boolean
 }
 
-export type ChannelPage = { channels: ChannelRow[] | null; next_cursor?: string; counts?: Record<ChannelType, number> }
+export type ChannelPage = {
+  channels: ChannelRow[] | null
+  next_cursor?: string
+  counts?: Record<ChannelType, number>
+}
 
 export type NotifyKind = "automation_failed" | "lead" | "notification"
 
@@ -1519,7 +1578,6 @@ export type AutomationSchedule = {
   failing: boolean
 }
 
-
 /** The downloadable extension (MH-399). */
 export type ExtensionInfo = {
   available: boolean
@@ -1550,7 +1608,11 @@ export type WorkflowParam = {
   help?: string
 }
 
-export type WorkflowStep = { command: string; args?: Record<string, unknown>; continue_on_error?: boolean }
+export type WorkflowStep = {
+  command: string
+  args?: Record<string, unknown>
+  continue_on_error?: boolean
+}
 
 export type AutomationWorkflow = {
   id: string
@@ -1691,7 +1753,16 @@ export type ResearchDetail = {
 
 // ── Research evidence (MH-388) ──────────────────────────────────────────
 
-export const SIGNAL_TYPES = ["hiring", "funding", "launch", "expansion", "partnership", "leadership", "technology", "regulatory"] as const
+export const SIGNAL_TYPES = [
+  "hiring",
+  "funding",
+  "launch",
+  "expansion",
+  "partnership",
+  "leadership",
+  "technology",
+  "regulatory",
+] as const
 export type SignalType = (typeof SIGNAL_TYPES)[number]
 
 export type ResearchStage = {
@@ -1805,10 +1876,23 @@ export type ProspectProfile = {
   effective_queries: string[]
 }
 
-export type ProspectProfileOut = { profile: ProspectProfile; can_search: boolean; can_summarise: boolean; budget: ResearchBudget }
+export type ProspectProfileOut = {
+  profile: ProspectProfile
+  can_search: boolean
+  can_summarise: boolean
+  budget: ResearchBudget
+}
 
 export type ProspectReason = {
-  dimension: "signals" | "fit" | "region" | "evidence" | "recency" | "excluded" | "feedback_down" | "feedback_up"
+  dimension:
+    | "signals"
+    | "fit"
+    | "region"
+    | "evidence"
+    | "recency"
+    | "excluded"
+    | "feedback_down"
+    | "feedback_up"
   points: number
   items: string[] | null
   count: number
@@ -1839,7 +1923,15 @@ export type Prospect = {
   created_at: string
 }
 
-export type ProspectDraft = { id: string; locale: "en" | "ar"; subject: string; body: string; generator: string; evidence_ids: string[]; created_at: string }
+export type ProspectDraft = {
+  id: string
+  locale: "en" | "ar"
+  subject: string
+  body: string
+  generator: string
+  evidence_ids: string[]
+  created_at: string
+}
 
 export type ProspectDetail = { prospect: Prospect; timeline: Evidence[]; drafts: ProspectDraft[] }
 
@@ -1984,7 +2076,13 @@ export type GoogleResource = {
   display_name: string
   /** The GA4 account, or the site's permission level. */
   parent_name: string
-  details: { handle?: string; avatar_url?: string; permission_level?: string; account?: string; property_type?: string } | null
+  details: {
+    handle?: string
+    avatar_url?: string
+    permission_level?: string
+    account?: string
+    property_type?: string
+  } | null
   /** Still returned by the latest discovery. */
   available: boolean
   enabled: boolean
@@ -2046,11 +2144,20 @@ export type Ga4ConversionEvent = {
 
 export type Ga4ConversionsPage = {
   settings: Ga4ConversionSettings
-  events: { name: string; when: "lead_created" | "lead_qualified" | "lead_converted" | "deal_won" }[]
+  events: {
+    name: string
+    when: "lead_created" | "lead_qualified" | "lead_converted" | "deal_won"
+  }[]
   recent: Ga4ConversionEvent[] | null
 }
 
-export type Ga4Stream = { property: string; property_name: string; name: string; measurement_id: string; uri: string }
+export type Ga4Stream = {
+  property: string
+  property_name: string
+  name: string
+  measurement_id: string
+  uri: string
+}
 export type Ga4Streams = { streams: Ga4Stream[] | null; errors: string[] | null }
 
 export type Ga4TestResult = {
@@ -2099,10 +2206,27 @@ export type GaReportOut = {
 
 // ── Search Console (MH-445) ──────────────────────────────────────────────
 
-export type GscTotals = { clicks: number; impressions: number; ctr: number; position: number | null }
+export type GscTotals = {
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number | null
+}
 /** One day. Null fields: the day was never imported (unknown), unlike 0 (imported, no data). */
-export type GscPoint = { date: string; clicks: number | null; impressions: number | null; ctr: number | null; position: number | null }
-export type GscRow = { key: string; clicks: number; impressions: number; ctr: number; position: number | null }
+export type GscPoint = {
+  date: string
+  clicks: number | null
+  impressions: number | null
+  ctr: number | null
+  position: number | null
+}
+export type GscRow = {
+  key: string
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number | null
+}
 
 export type GscPerformance = {
   days: number
@@ -2120,7 +2244,13 @@ export type GscPerformance = {
   top_pages: GscRow[] | null
   countries: string[] | null
   devices: string[] | null
-  coverage: { imported_days: number; first_date: string | null; last_data_date: string | null; last_import_at: string | null; truncated_days: number }
+  coverage: {
+    imported_days: number
+    first_date: string | null
+    last_data_date: string | null
+    last_import_at: string | null
+    truncated_days: number
+  }
   empty: boolean
   nothing_yet: boolean
   /** Days of the window not imported yet: totals over them are partial. */
@@ -2128,7 +2258,10 @@ export type GscPerformance = {
   previous_missing_days: number
 }
 
-export type GscPerformanceOut = { resource: GoogleResource | null; performance: GscPerformance | null }
+export type GscPerformanceOut = {
+  resource: GoogleResource | null
+  performance: GscPerformance | null
+}
 
 export type GscInspection = {
   url: string
@@ -2164,7 +2297,12 @@ export type GscSitemap = {
   submitted: number | null
   indexed: number | null
 }
-export type GscSitemapsOut = { resource: GoogleResource | null; sitemaps: GscSitemap[] | null; error?: string; can_write: boolean }
+export type GscSitemapsOut = {
+  resource: GoogleResource | null
+  sitemaps: GscSitemap[] | null
+  error?: string
+  can_write: boolean
+}
 
 // ── YouTube (MH-441) ─────────────────────────────────────────────────────
 
@@ -2199,9 +2337,19 @@ export type YtSyncStep = {
   error?: string
 }
 
-export type YtQuota = { day: string; workspace_used: number; workspace_limit: number; global_used: number; global_limit: number }
+export type YtQuota = {
+  day: string
+  workspace_used: number
+  workspace_limit: number
+  global_used: number
+  global_limit: number
+}
 
-export type YtChannelOut = { resource: GoogleResource | null; channel: YtChannel | null; quota: YtQuota }
+export type YtChannelOut = {
+  resource: GoogleResource | null
+  channel: YtChannel | null
+  quota: YtQuota
+}
 
 export type YtVideo = {
   id: string
@@ -2225,7 +2373,13 @@ export type YtVideo = {
   studio_url: string
 }
 
-export type YtVideoPage = { videos: YtVideo[] | null; has_more: boolean; next_cursor?: string; total: number; counts: Record<string, number> | null }
+export type YtVideoPage = {
+  videos: YtVideo[] | null
+  has_more: boolean
+  next_cursor?: string
+  total: number
+  counts: Record<string, number> | null
+}
 
 export type YtComment = {
   id: string
@@ -2250,23 +2404,71 @@ export type YtAnalytics = {
   start_date: string
   end_date: string
   empty: boolean
-  totals: { views: number; watch_minutes: number; avg_view_duration_seconds: number; subscribers_gained: number; subscribers_lost: number; likes: number; comments: number }
+  totals: {
+    views: number
+    watch_minutes: number
+    avg_view_duration_seconds: number
+    subscribers_gained: number
+    subscribers_lost: number
+    likes: number
+    comments: number
+  }
   /** Null values: YouTube has not published that day yet. */
-  daily: { day: string; views: number | null; watch_minutes: number | null; subscribers_gained: number | null; subscribers_lost: number | null }[] | null
-  top_videos: { video_id: string; title: string; thumbnail_url: string; views: number; watch_minutes: number }[] | null
+  daily:
+    | {
+        day: string
+        views: number | null
+        watch_minutes: number | null
+        subscribers_gained: number | null
+        subscribers_lost: number | null
+      }[]
+    | null
+  top_videos:
+    | {
+        video_id: string
+        title: string
+        thumbnail_url: string
+        views: number
+        watch_minutes: number
+      }[]
+    | null
   traffic_sources: { source: string; views: number }[] | null
   fetched_at: string
   stale: boolean
   note?: string
 }
 
-export type YtAnalyticsOut = { resource: GoogleResource | null; analytics: YtAnalytics | null; error?: string }
+export type YtAnalyticsOut = {
+  resource: GoogleResource | null
+  analytics: YtAnalytics | null
+  error?: string
+}
 
 // ── YouTube Reporting (MH-443) ───────────────────────────────────────────
 
 export type YtReports = {
-  jobs: { job_id: string; report_type_id: string; name: string; created_at: string | null; created_here: boolean; reports: number; latest_day: string | null }[] | null
-  reports: { report_id: string; report_type_id: string; start_time: string | null; end_time: string | null; row_count: number; bytes: number; downloaded_at: string }[] | null
+  jobs:
+    | {
+        job_id: string
+        report_type_id: string
+        name: string
+        created_at: string | null
+        created_here: boolean
+        reports: number
+        latest_day: string | null
+      }[]
+    | null
+  reports:
+    | {
+        report_id: string
+        report_type_id: string
+        start_time: string | null
+        end_time: string | null
+        row_count: number
+        bytes: number
+        downloaded_at: string
+      }[]
+    | null
   /** The last reporting pass; null when none has run. */
   checked_at: string | null
 }
@@ -2324,7 +2526,10 @@ export type OverviewToday = {
   leads_received_today: number | null
   unread_conversations: number | null
   unread_notifications: number | null
-  research: { live: number; latest: { id: string; topic: string; status: "queued" | "running" } | null } | null
+  research: {
+    live: number
+    latest: { id: string; topic: string; status: "queued" | "running" } | null
+  } | null
 }
 
 export type OverviewStage = { id: string; name: string; deal_count: number; value_minor: number }
@@ -2347,7 +2552,12 @@ export type OverviewPipeline = {
   open_value_minor: number
   /** Open deals in another currency: counted, never summed. */
   other_currency_deals: number
-  won_this_month: { since: string; count: number; value_minor: number; other_currency_deals: number }
+  won_this_month: {
+    since: string
+    count: number
+    value_minor: number
+    other_currency_deals: number
+  }
   next_closes: OverviewDeal[]
 }
 
@@ -2389,13 +2599,26 @@ export type OverviewMarketing = {
   /** null without contacts:read. */
   lists: { id: string; name: string; subscribed: number; pending: number }[] | null
   draft_count: number
-  drafts: { id: string; subject: string; channel: CampaignChannel; list_name: string; created_at: string }[]
+  drafts: {
+    id: string
+    subject: string
+    channel: CampaignChannel
+    list_name: string
+    created_at: string
+  }[]
 }
 
 export type OverviewTrends = {
   topics: number
   matched: number
-  items: { id: string; title: string; url: string; source_name: string; topics: string[]; published_at: string }[]
+  items: {
+    id: string
+    title: string
+    url: string
+    source_name: string
+    topics: string[]
+    published_at: string
+  }[]
 }
 
 export type SetupKey = "inquiry_form" | "smtp" | "chat_widget" | "whatsapp" | "google" | "browser"
@@ -2404,7 +2627,12 @@ export type SetupKey = "inquiry_form" | "smtp" | "chat_widget" | "whatsapp" | "g
 export type OverviewCountDay = { date: string; count: number }
 
 /** One day of conversations started, split by channel (MH-567). */
-export type OverviewConversationDay = { date: string; chat: number; email: number; whatsapp: number }
+export type OverviewConversationDay = {
+  date: string
+  chat: number
+  email: number
+  whatsapp: number
+}
 
 export type Overview = {
   currency: string
@@ -2442,26 +2670,30 @@ export type OverviewYouTube = {
 
 /** The last 28 days of each enabled GA4 property (MH-444). A null figure was never fetched. */
 export type OverviewTraffic = {
-  properties: {
-    resource_id: string
-    name: string
-    users: number | null
-    sessions: number | null
-    start_date: string | null
-    end_date: string | null
-    fetched_at: string | null
-    last_error: string
-  }[] | null
+  properties:
+    | {
+        resource_id: string
+        name: string
+        users: number | null
+        sessions: number | null
+        start_date: string | null
+        end_date: string | null
+        fetched_at: string | null
+        last_error: string
+      }[]
+    | null
   /** Each enabled Search Console site's clicks over the 28 days ending on its newest day with data (MH-445). */
-  sites?: {
-    resource_id: string
-    name: string
-    clicks: number | null
-    impressions: number | null
-    start_date: string | null
-    end_date: string | null
-    last_error: string
-  }[] | null
+  sites?:
+    | {
+        resource_id: string
+        name: string
+        clicks: number | null
+        impressions: number | null
+        start_date: string | null
+        end_date: string | null
+        last_error: string
+      }[]
+    | null
   /**
    * The cross-source summary that replaced one row per property (MH-567):
    * totals over the last 28 days, each with its % change vs the 28 days
@@ -2548,8 +2780,20 @@ export type ReportConversionStep = {
   from_previous: number | null
   from_start: number | null
 }
-export type ReportBucket = { start: string; won: number; lost: number; won_value_minor: number; lost_value_minor: number }
-export type ReportLeadSource = { source: string; leads: number; converted: number; won_deals: number; won_value_minor: number }
+export type ReportBucket = {
+  start: string
+  won: number
+  lost: number
+  won_value_minor: number
+  lost_value_minor: number
+}
+export type ReportLeadSource = {
+  source: string
+  leads: number
+  converted: number
+  won_deals: number
+  won_value_minor: number
+}
 export type ReportChannel = {
   channel: ConversationChannel | "all"
   conversations: number
@@ -2566,7 +2810,12 @@ export type CrmReport = {
   currency: string
   bucket: "day" | "week" | "month"
   generated_at: string
-  pipeline: { stages: ReportStage[] | null; open_deals: number; open_value_minor: number; other_currency_deals: number }
+  pipeline: {
+    stages: ReportStage[] | null
+    open_deals: number
+    open_value_minor: number
+    other_currency_deals: number
+  }
   deals: {
     opened: number
     won: number
@@ -2580,7 +2829,12 @@ export type CrmReport = {
   }
   conversion: { opened: number; lost: number; steps: ReportConversionStep[] | null }
   timeline: ReportBucket[] | null
-  lead_sources: { leads: number; spam: number; converted: number; sources: ReportLeadSource[] | null } | null
+  lead_sources: {
+    leads: number
+    spam: number
+    converted: number
+    sources: ReportLeadSource[] | null
+  } | null
   inbox: { channels: ReportChannel[] | null; total: ReportChannel } | null
 }
 
@@ -2598,7 +2852,16 @@ export type LifecycleEvent = {
   at: string
 }
 
-export const ICP_SIGNALS = ["open_deal", "won_deal", "lost_deal", "inbound_lead", "conversation", "subscribed", "whatsapp_opt_in", "recent_activity"] as const
+export const ICP_SIGNALS = [
+  "open_deal",
+  "won_deal",
+  "lost_deal",
+  "inbound_lead",
+  "conversation",
+  "subscribed",
+  "whatsapp_opt_in",
+  "recent_activity",
+] as const
 export type IcpSignal = (typeof ICP_SIGNALS)[number]
 
 /** One scored dimension: its weight, how much of it is present (0..1), and weight × value. */

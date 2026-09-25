@@ -30,7 +30,11 @@ export function Bdi(props: ComponentProps<"bdi">) {
 }
 
 /** A whole element of user text (usually truncated): content direction, UI alignment. */
-export function BdiBlock<T extends ElementType = "span">({ as, className, ...props }: { as?: T } & ComponentProps<T>) {
+export function BdiBlock<T extends ElementType = "span">({
+  as,
+  className,
+  ...props
+}: { as?: T } & ComponentProps<T>) {
   const Tag = (as ?? "span") as ElementType
   return <Tag dir="auto" className={cn("bidi-block", className)} {...props} />
 }

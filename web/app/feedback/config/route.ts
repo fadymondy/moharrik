@@ -32,5 +32,8 @@ export async function GET() {
 }
 
 function look(widget: unknown) {
-  return Response.json({ widget: widget ?? null }, { headers: { "cache-control": "public, max-age=60" } })
+  return Response.json(
+    { widget: widget ?? null },
+    { headers: { "cache-control": "public, max-age=60" } },
+  )
 }

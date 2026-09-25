@@ -27,12 +27,24 @@ export default function LeadDetailPage() {
   const ws = useWorkspace()
   const detail = useLead(ws.id, id)
   const lead = detail.data?.lead
-  useDocumentTitle(lead ? `${lead.name || lead.email} · ${t("nav.leads")} · ${ws.summary.name}` : t("leads.detailTitle"))
+  useDocumentTitle(
+    lead
+      ? `${lead.name || lead.email} · ${t("nav.leads")} · ${ws.summary.name}`
+      : t("leads.detailTitle"),
+  )
   const base = `/${locale}/w/${ws.slug}`
 
   if (detail.error) {
     const notFound = detail.error instanceof ApiError && detail.error.status === 404
-    if (notFound) return <NotFoundState title={t("leads.notFound")} body={t("leads.notFoundBody")} backHref={`${base}/leads`} backLabel={t("leads.backToList")} />
+    if (notFound)
+      return (
+        <NotFoundState
+          title={t("leads.notFound")}
+          body={t("leads.notFoundBody")}
+          backHref={`${base}/leads`}
+          backLabel={t("leads.backToList")}
+        />
+      )
     return <ErrorState error={detail.error} />
   }
   if (!lead) return <LoadingRows rows={6} />
@@ -59,7 +71,11 @@ export default function LeadDetailPage() {
 
       <section className="border-t border-line">
         <h2 className="px-6 pt-5 pb-2 text-base font-medium">{t("leads.message")}</h2>
-        <p className="px-6 pb-6 text-sm leading-6 break-words whitespace-pre-wrap text-grid-fg" data-lead-message dir="auto">
+        <p
+          className="px-6 pb-6 text-sm leading-6 break-words whitespace-pre-wrap text-grid-fg"
+          data-lead-message
+          dir="auto"
+        >
           {lead.message}
         </p>
       </section>
@@ -75,7 +91,14 @@ export default function LeadDetailPage() {
               [t("leads.field.budget"), lead.budget ? <Bdi key="b">{lead.budget}</Bdi> : null],
               [t("leads.field.form"), lead.form_name ? <Bdi key="f">{lead.form_name}</Bdi> : null],
               [t("leads.field.site"), lead.origin ? <Ltr key="o">{lead.origin}</Ltr> : null],
-              [t("leads.field.received"), <Ltr key="r">{dateFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(lead.created_at))}</Ltr>],
+              [
+                t("leads.field.received"),
+                <Ltr key="r">
+                  {dateFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
+                    new Date(lead.created_at),
+                  )}
+                </Ltr>,
+              ],
             ]}
           />
         </section>
@@ -103,7 +126,11 @@ function LeadActions({ lead, onChange }: { lead: Lead; onChange: () => void }) {
     if (!status || status === lead.status) return
     setBusy("status")
     try {
-      await api(`/api/w/leads/${encodeURIComponent(lead.id)}`, { method: "PATCH", json: { status }, workspaceId: ws.id })
+      await api(`/api/w/leads/${encodeURIComponent(lead.id)}`, {
+        method: "PATCH",
+        json: { status },
+        workspaceId: ws.id,
+      })
       toast.success(t("leads.statusSaved", { status: t(`leads.status.${status}`) }))
       onChange()
     } catch (e) {
@@ -116,9 +143,18 @@ function LeadActions({ lead, onChange }: { lead: Lead; onChange: () => void }) {
   async function convert() {
     setBusy("convert")
     try {
-      const c = await api<LeadConversion>(`/api/w/leads/${encodeURIComponent(lead.id)}/convert`, { method: "POST", workspaceId: ws.id })
+      const c = await api<LeadConversion>(`/api/w/leads/${encodeURIComponent(lead.id)}/convert`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       toast.success(t("leads.converted"), {
-        description: c.free_mail ? t("leads.convertedFreeMail") : c.company_id ? t("leads.convertedWithCompany", { company: isolate(c.lead.converted_company?.name ?? "") }) : undefined,
+        description: c.free_mail
+          ? t("leads.convertedFreeMail")
+          : c.company_id
+            ? t("leads.convertedWithCompany", {
+                company: isolate(c.lead.converted_company?.name ?? ""),
+              })
+            : undefined,
       })
       onChange()
     } catch (e) {
@@ -128,14 +164,23 @@ function LeadActions({ lead, onChange }: { lead: Lead; onChange: () => void }) {
     }
   }
 
-  const opts = (["new", "contacted", "qualified", "spam"] as LeadStatus[]).map((s) => ({ value: s, label: t(`leads.status.${s}`) }))
+  const opts = (["new", "contacted", "qualified", "spam"] as LeadStatus[]).map((s) => ({
+    value: s,
+    label: t(`leads.status.${s}`),
+  }))
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="w-40">
         <label htmlFor="lead-status" className="sr-only">
           {t("leads.statusLabel")}
         </label>
-        <PickSelect id="lead-status" value={lead.status} onChange={setStatus} options={opts} disabled={busy !== null} />
+        <PickSelect
+          id="lead-status"
+          value={lead.status}
+          onChange={setStatus}
+          options={opts}
+          disabled={busy !== null}
+        />
       </div>
       {canConvert ? (
         lead.status === "spam" ? (
@@ -154,7 +199,11 @@ function LeadActions({ lead, onChange }: { lead: Lead; onChange: () => void }) {
 function Converted({ lead, base }: { lead: Lead; base: string }) {
   const { t, formatDate } = useTranslations()
   const link = (href: string, icon: ReactNode, label: string, name: string, attr: string) => (
-    <Link href={href} className="flex min-w-0 items-center gap-2.5 px-6 py-4 transition-colors hover:bg-grid-soft [&_svg]:size-4 [&_svg]:shrink-0" data-converted={attr}>
+    <Link
+      href={href}
+      className="flex min-w-0 items-center gap-2.5 px-6 py-4 transition-colors hover:bg-grid-soft [&_svg]:size-4 [&_svg]:shrink-0"
+      data-converted={attr}
+    >
       {icon}
       <span className="min-w-0">
         <span className="block text-xs text-grid-muted">{label}</span>
@@ -164,15 +213,32 @@ function Converted({ lead, base }: { lead: Lead; base: string }) {
   )
   return (
     <section className="border-t border-line bg-grid-card" data-lead-converted>
-      <p className="px-6 pt-4 text-sm text-grid-body">{t("leads.convertedOn", { date: formatDate(lead.converted_at) })}</p>
+      <p className="px-6 pt-4 text-sm text-grid-body">
+        {t("leads.convertedOn", { date: formatDate(lead.converted_at) })}
+      </p>
       <div className="grid sm:grid-cols-3">
         {lead.converted_contact
-          ? link(`${base}/contacts/${lead.converted_contact.id}`, <UserIcon />, t("leads.contact"), lead.converted_contact.name, "contact")
+          ? link(
+              `${base}/contacts/${lead.converted_contact.id}`,
+              <UserIcon />,
+              t("leads.contact"),
+              lead.converted_contact.name,
+              "contact",
+            )
           : null}
         {lead.converted_company ? (
-          link(`${base}/companies/${lead.converted_company.id}`, <Building2Icon />, t("leads.company"), lead.converted_company.name, "company")
+          link(
+            `${base}/companies/${lead.converted_company.id}`,
+            <Building2Icon />,
+            t("leads.company"),
+            lead.converted_company.name,
+            "company",
+          )
         ) : (
-          <div className="flex items-center gap-2.5 px-6 py-4 text-grid-muted [&_svg]:size-4 [&_svg]:shrink-0" data-converted="no-company">
+          <div
+            className="flex items-center gap-2.5 px-6 py-4 text-grid-muted [&_svg]:size-4 [&_svg]:shrink-0"
+            data-converted="no-company"
+          >
             <Building2Icon />
             <span className="min-w-0">
               <span className="block text-xs">{t("leads.company")}</span>
@@ -180,7 +246,15 @@ function Converted({ lead, base }: { lead: Lead; base: string }) {
             </span>
           </div>
         )}
-        {lead.converted_deal ? link(`${base}/deals/${lead.converted_deal.id}`, <HandshakeIcon />, t("leads.deal"), lead.converted_deal.name, "deal") : null}
+        {lead.converted_deal
+          ? link(
+              `${base}/deals/${lead.converted_deal.id}`,
+              <HandshakeIcon />,
+              t("leads.deal"),
+              lead.converted_deal.name,
+              "deal",
+            )
+          : null}
       </div>
     </section>
   )
@@ -208,7 +282,12 @@ function Attribution({ lead }: { lead: Lead }) {
     v ? (
       <span dir="ltr" className="ltr-isolate block truncate rtl:text-right" title={v}>
         {/^https?:\/\//i.test(v) ? (
-          <a href={v} target="_blank" rel="noopener noreferrer nofollow" className="underline-offset-2 hover:underline">
+          <a
+            href={v}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="underline-offset-2 hover:underline"
+          >
             {v}
           </a>
         ) : (
@@ -216,7 +295,12 @@ function Attribution({ lead }: { lead: Lead }) {
         )}
       </span>
     ) : null
-  const code = (v: string) => (v ? <Ltr mono className="text-xs">{v}</Ltr> : null)
+  const code = (v: string) =>
+    v ? (
+      <Ltr mono className="text-xs">
+        {v}
+      </Ltr>
+    ) : null
   return (
     <Facts
       rows={[

@@ -39,13 +39,17 @@ const check = (k, ok, d) => {
 function psql(sql) {
   // -t -A hides column headers, but psql still prints its own completion tag
   // on the line after a RETURNING result — take the first line.
-  return execFileSync("psql", [ownerURL, "-t", "-A", "-c", sql], { encoding: "utf8" }).trim().split(/\r?\n/)[0].trim()
+  return execFileSync("psql", [ownerURL, "-t", "-A", "-c", sql], { encoding: "utf8" })
+    .trim()
+    .split(/\r?\n/)[0]
+    .trim()
 }
 
 const RUN = Date.now()
 
 // A tiny real PNG (1x1), the same fixture internal/crm's own tests use.
-const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+const tinyPNGBase64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "mh604-")), {
   executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -60,10 +64,16 @@ const owner = `mh604-${RUN}@brand.test`
 const slug = await page.evaluate(async (email) => {
   const csrf = (await (await fetch("/api/auth/csrf")).json()).csrf_token
   const post = (u, b) =>
-    fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(b) })
+    fetch(u, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify(b),
+    })
   const r = await post("/api/auth/register", { email, password: "correct-horse-battery" })
   if (!r.ok) throw new Error(`register failed: ${r.status} ${await r.text()}`)
-  const ws = await (await post("/api/me/workspaces", { name: `MH604 ${email.split("@")[0]}` })).json()
+  const ws = await (
+    await post("/api/me/workspaces", { name: `MH604 ${email.split("@")[0]}` })
+  ).json()
   return ws.workspace.slug
 }, owner)
 check("registeredAndWorkspaceCreated", !!slug, slug)
@@ -103,7 +113,9 @@ const dmContactID = psql(`
 const dmConvID = psql(`
   INSERT INTO conversations (workspace_id, channel, customer_name, customer_phone, contact_id, subject, last_message_at)
   VALUES ('${wsID}', 'whatsapp', 'Youssef Adel', '201005552222', '${dmContactID}', 'hi', now()) RETURNING id`)
-psql(`INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ('${wsID}', '${dmConvID}', 'in', 'hi') RETURNING id`)
+psql(
+  `INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ('${wsID}', '${dmConvID}', 'in', 'hi') RETURNING id`,
+)
 check("seededDmConversation", !!(dmContactID && dmConvID), { dmContactID, dmConvID })
 
 const W = (locale) => `${base}/${locale}/w/${slug}`
@@ -117,10 +129,16 @@ for (const scheme of ["light", "dark"]) {
 
       // ---- group thread: open it, check both senders' avatars.
       await page.goto(`${W(locale)}/inbox`, { waitUntil: "load" })
-      await page.waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 20000 }).catch(() => {})
+      await page
+        .waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 20000 })
+        .catch(() => {})
       await page.waitForTimeout(500)
       await page.locator(`[data-conversation="${groupConvID}"]`).click()
-      await page.waitForSelector(`[data-thread="${groupConvID}"] [data-message-group="in"]`, { timeout: 15000 }).catch(() => {})
+      await page
+        .waitForSelector(`[data-thread="${groupConvID}"] [data-message-group="in"]`, {
+          timeout: 15000,
+        })
+        .catch(() => {})
       await page.waitForTimeout(400)
 
       const groups = page.locator(`[data-thread="${groupConvID}"] [data-message-group="in"]`)
@@ -135,7 +153,9 @@ for (const scheme of ["light", "dark"]) {
       const samiKind = await samiAvatar.getAttribute("data-avatar-kind").catch(() => null)
       check(`${k}-groupSenderNoPhotoIsInitials`, samiKind === "initials", samiKind)
 
-      let overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      let overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      )
       check(`${k}-groupThreadNoOverflow`, overflow <= 1, overflow)
       if (width === 1440 && locale === "en" && scheme === "light") {
         await page.screenshot({ path: path.join(shots, "mh604-group-thread-en-light-1440.png") })
@@ -150,12 +170,20 @@ for (const scheme of ["light", "dark"]) {
       // ---- 1:1 thread: no group-sender avatar anywhere, even though the
       // same PersonAvatar component is on the page for the header itself.
       await page.goto(`${W(locale)}/inbox`, { waitUntil: "load" })
-      await page.waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 20000 }).catch(() => {})
+      await page
+        .waitForSelector("[data-conversation-list] [data-conversation]", { timeout: 20000 })
+        .catch(() => {})
       await page.waitForTimeout(500)
       await page.locator(`[data-conversation="${dmConvID}"]`).click()
-      await page.waitForSelector(`[data-thread="${dmConvID}"] [data-message-group="in"]`, { timeout: 15000 }).catch(() => {})
+      await page
+        .waitForSelector(`[data-thread="${dmConvID}"] [data-message-group="in"]`, {
+          timeout: 15000,
+        })
+        .catch(() => {})
       await page.waitForTimeout(300)
-      const dmAvatarCount = await page.locator(`[data-thread="${dmConvID}"] [data-group-sender-avatar]`).count()
+      const dmAvatarCount = await page
+        .locator(`[data-thread="${dmConvID}"] [data-group-sender-avatar]`)
+        .count()
       check(`${k}-dmThreadHasNoGroupSenderAvatar`, dmAvatarCount === 0, dmAvatarCount)
       overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       check(`${k}-dmThreadNoOverflow`, overflow <= 1, overflow)

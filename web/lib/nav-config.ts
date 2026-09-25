@@ -76,7 +76,16 @@ export type NavGroup = {
 export type NavEntry = { type: "link"; item: NavItem } | { type: "group"; group: NavGroup }
 
 export const NAV: NavEntry[] = [
-  { type: "link", item: { key: "overview", labelKey: "nav.overview", icon: LayoutGridIcon, path: "", exact: true } },
+  {
+    type: "link",
+    item: {
+      key: "overview",
+      labelKey: "nav.overview",
+      icon: LayoutGridIcon,
+      path: "",
+      exact: true,
+    },
+  },
   {
     type: "group",
     group: {
@@ -88,7 +97,13 @@ export const NAV: NavEntry[] = [
         { key: "companies", labelKey: "nav.companies", icon: Building2Icon, path: "companies" },
         { key: "contacts", labelKey: "nav.contacts", icon: MailIcon, path: "contacts" },
         { key: "deals", labelKey: "nav.deals", icon: HandshakeIcon, path: "deals" },
-        { key: "reports", labelKey: "nav.reports", icon: ChartColumnBigIcon, path: "reports", can: "contacts:read" },
+        {
+          key: "reports",
+          labelKey: "nav.reports",
+          icon: ChartColumnBigIcon,
+          path: "reports",
+          can: "contacts:read",
+        },
       ],
     },
   },
@@ -100,7 +115,12 @@ export const NAV: NavEntry[] = [
       icon: SendIcon,
       items: [
         { key: "campaigns", labelKey: "nav.campaigns", icon: SendIcon, path: "campaigns" },
-        { key: "subscribe-forms", labelKey: "nav.subscribeForms", icon: ClipboardListIcon, path: "subscribe-forms" },
+        {
+          key: "subscribe-forms",
+          labelKey: "nav.subscribeForms",
+          icon: ClipboardListIcon,
+          path: "subscribe-forms",
+        },
       ],
     },
   },
@@ -111,12 +131,30 @@ export const NAV: NavEntry[] = [
       labelKey: "nav.inbox",
       icon: InboxIcon,
       items: [
-        { key: "inbox-messages", labelKey: "nav.inbox", icon: InboxIcon, path: "inbox", exact: true },
+        {
+          key: "inbox-messages",
+          labelKey: "nav.inbox",
+          icon: InboxIcon,
+          path: "inbox",
+          exact: true,
+        },
         { key: "inbox-stats", labelKey: "inbox.stats", icon: BarChart3Icon, path: "inbox/stats" },
-        { key: "inbox-canned", labelKey: "inbox.canned", icon: MessageSquareQuoteIcon, path: "inbox/canned", can: "inbox:manage" },
+        {
+          key: "inbox-canned",
+          labelKey: "inbox.canned",
+          icon: MessageSquareQuoteIcon,
+          path: "inbox/canned",
+          can: "inbox:manage",
+        },
         // MH-571: the seven per-type setup pages (email/whatsapp/widgets/telegram/slack/discord/
         // workflow-channels) collapsed into this one list+filter page; each old path now redirects here.
-        { key: "inbox-channels", labelKey: "channels.title", icon: CableIcon, path: "inbox/channels", can: "inbox:manage" },
+        {
+          key: "inbox-channels",
+          labelKey: "channels.title",
+          icon: CableIcon,
+          path: "inbox/channels",
+          can: "inbox:manage",
+        },
       ],
     },
   },
@@ -127,13 +165,43 @@ export const NAV: NavEntry[] = [
       labelKey: "nav.automation",
       icon: BotIcon,
       items: [
-        { key: "automation-browsers", labelKey: "automation.browsers", icon: LaptopIcon, path: "automation/browsers" },
-        { key: "automation-workflows", labelKey: "nav.workflows", icon: WorkflowIcon, path: "automation/workflows" },
-        { key: "automation-presets", labelKey: "presets.title", icon: SparklesIcon, path: "automation/presets" },
+        {
+          key: "automation-browsers",
+          labelKey: "automation.browsers",
+          icon: LaptopIcon,
+          path: "automation/browsers",
+        },
+        {
+          key: "automation-workflows",
+          labelKey: "nav.workflows",
+          icon: WorkflowIcon,
+          path: "automation/workflows",
+        },
+        {
+          key: "automation-presets",
+          labelKey: "presets.title",
+          icon: SparklesIcon,
+          path: "automation/presets",
+        },
         { key: "automation-rules", labelKey: "nav.rules", icon: ZapIcon, path: "automation/rules" },
-        { key: "automation-runs", labelKey: "automation.runs", icon: PlayIcon, path: "automation/runs" },
-        { key: "automation-schedules", labelKey: "automation.schedules", icon: ClipboardListIcon, path: "automation/schedules" },
-        { key: "automation-settings", labelKey: "automation.limitsAndSettings", icon: SettingsIcon, path: "automation/settings" },
+        {
+          key: "automation-runs",
+          labelKey: "automation.runs",
+          icon: PlayIcon,
+          path: "automation/runs",
+        },
+        {
+          key: "automation-schedules",
+          labelKey: "automation.schedules",
+          icon: ClipboardListIcon,
+          path: "automation/schedules",
+        },
+        {
+          key: "automation-settings",
+          labelKey: "automation.limitsAndSettings",
+          icon: SettingsIcon,
+          path: "automation/settings",
+        },
       ],
     },
   },
@@ -145,9 +213,24 @@ export const NAV: NavEntry[] = [
       icon: SearchCheckIcon,
       can: "research:read",
       items: [
-        { key: "research-runs", labelKey: "research.tabRuns", icon: SearchCheckIcon, path: "research/runs" },
-        { key: "research-evidence", labelKey: "research.tabEvidence", icon: ScrollTextIcon, path: "research/evidence" },
-        { key: "research-schedules", labelKey: "research.tabSchedules", icon: ClipboardListIcon, path: "research/schedules" },
+        {
+          key: "research-runs",
+          labelKey: "research.tabRuns",
+          icon: SearchCheckIcon,
+          path: "research/runs",
+        },
+        {
+          key: "research-evidence",
+          labelKey: "research.tabEvidence",
+          icon: ScrollTextIcon,
+          path: "research/evidence",
+        },
+        {
+          key: "research-schedules",
+          labelKey: "research.tabSchedules",
+          icon: ClipboardListIcon,
+          path: "research/schedules",
+        },
         { key: "prospects", labelKey: "nav.prospects", icon: RadarIcon, path: "prospects" },
       ],
     },
@@ -159,11 +242,40 @@ export const NAV: NavEntry[] = [
       labelKey: "nav.group.insights",
       icon: TrendingUpIcon,
       items: [
-        { key: "trends-topics", labelKey: "nav.trendsTopics", icon: TrendingUpIcon, path: "trends", except: ["trends/sources"] },
-        { key: "trends-sources", labelKey: "nav.trendsSources", icon: RssIcon, path: "trends/sources" },
-        { key: "analytics", labelKey: "nav.analytics", icon: ChartLineIcon, path: "analytics", can: "analytics:read" },
-        { key: "search-console", labelKey: "nav.searchConsole", icon: SearchIcon, path: "search-console", can: "analytics:read" },
-        { key: "youtube", labelKey: "nav.youtube", icon: YoutubeIcon, path: "youtube", can: "analytics:read" },
+        {
+          key: "trends-topics",
+          labelKey: "nav.trendsTopics",
+          icon: TrendingUpIcon,
+          path: "trends",
+          except: ["trends/sources"],
+        },
+        {
+          key: "trends-sources",
+          labelKey: "nav.trendsSources",
+          icon: RssIcon,
+          path: "trends/sources",
+        },
+        {
+          key: "analytics",
+          labelKey: "nav.analytics",
+          icon: ChartLineIcon,
+          path: "analytics",
+          can: "analytics:read",
+        },
+        {
+          key: "search-console",
+          labelKey: "nav.searchConsole",
+          icon: SearchIcon,
+          path: "search-console",
+          can: "analytics:read",
+        },
+        {
+          key: "youtube",
+          labelKey: "nav.youtube",
+          icon: YoutubeIcon,
+          path: "youtube",
+          can: "analytics:read",
+        },
       ],
     },
   },
@@ -174,12 +286,26 @@ export const NAV: NavEntry[] = [
       labelKey: "nav.notifications",
       icon: BellIcon,
       items: [
-        { key: "notifications-center", labelKey: "nav.notifications", icon: BellIcon, path: "notifications", exact: true },
-        { key: "notifications-sources", labelKey: "notifications.sources", icon: WebhookIcon, path: "notifications/sources" },
+        {
+          key: "notifications-center",
+          labelKey: "nav.notifications",
+          icon: BellIcon,
+          path: "notifications",
+          exact: true,
+        },
+        {
+          key: "notifications-sources",
+          labelKey: "notifications.sources",
+          icon: WebhookIcon,
+          path: "notifications/sources",
+        },
       ],
     },
   },
-  { type: "link", item: { key: "members", labelKey: "nav.members", icon: UsersIcon, path: "members" } },
+  {
+    type: "link",
+    item: { key: "members", labelKey: "nav.members", icon: UsersIcon, path: "members" },
+  },
   {
     type: "group",
     group: {
@@ -188,14 +314,48 @@ export const NAV: NavEntry[] = [
       icon: SettingsIcon,
       items: [
         { key: "settings-email", labelKey: "nav.email", icon: ServerIcon, path: "settings/email" },
-        { key: "settings-icp", labelKey: "nav.icp", icon: TargetIcon, path: "settings/icp", can: "contacts:read" },
-        { key: "settings-integrations", labelKey: "nav.integrations", icon: PlugIcon, path: "settings/integrations" },
-        { key: "settings-mcp", labelKey: "nav.mcpTokens", icon: KeyRoundIcon, path: "settings/mcp" },
+        {
+          key: "settings-icp",
+          labelKey: "nav.icp",
+          icon: TargetIcon,
+          path: "settings/icp",
+          can: "contacts:read",
+        },
+        {
+          key: "settings-integrations",
+          labelKey: "nav.integrations",
+          icon: PlugIcon,
+          path: "settings/integrations",
+        },
+        {
+          key: "settings-mcp",
+          labelKey: "nav.mcpTokens",
+          icon: KeyRoundIcon,
+          path: "settings/mcp",
+        },
         // The workspace profile (MH-478, landed on main by batch H): what a preset's
         // job-application inputs and the extension's Application autofill panel fill from.
-        { key: "settings-automation-profile", labelKey: "nav.automationProfile", icon: UserRoundIcon, path: "settings/automation-profile", can: "automation:read" },
-        { key: "settings-audit", labelKey: "nav.audit", icon: ScrollTextIcon, path: "settings/audit", can: "audit:read" },
-        { key: "settings-delivery", labelKey: "nav.delivery", icon: BellIcon, path: "settings/delivery", can: "push:manage" },
+        {
+          key: "settings-automation-profile",
+          labelKey: "nav.automationProfile",
+          icon: UserRoundIcon,
+          path: "settings/automation-profile",
+          can: "automation:read",
+        },
+        {
+          key: "settings-audit",
+          labelKey: "nav.audit",
+          icon: ScrollTextIcon,
+          path: "settings/audit",
+          can: "audit:read",
+        },
+        {
+          key: "settings-delivery",
+          labelKey: "nav.delivery",
+          icon: BellIcon,
+          path: "settings/delivery",
+          can: "push:manage",
+        },
       ],
     },
   },
@@ -218,8 +378,13 @@ export function itemActive(item: NavItem, rest: string): boolean {
   const p = item.path
   // A research run's own page (/research/<id>) has no "/runs" segment, but it is
   // that run's evidence, so it belongs under "Runs" like any other item there.
-  const researchRunDetail = item.key === "research-runs" && /^research\/[^/]+$/.test(rest) && rest !== "research/evidence" && rest !== "research/schedules"
-  const inside = researchRunDetail || (p === "" ? rest === "" : rest === p || rest.startsWith(p + "/"))
+  const researchRunDetail =
+    item.key === "research-runs" &&
+    /^research\/[^/]+$/.test(rest) &&
+    rest !== "research/evidence" &&
+    rest !== "research/schedules"
+  const inside =
+    researchRunDetail || (p === "" ? rest === "" : rest === p || rest.startsWith(p + "/"))
   if (!inside) return false
   if (item.except?.some((x) => rest === x || rest.startsWith(x + "/"))) return false
   if (item.exact) return rest === p

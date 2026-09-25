@@ -49,7 +49,9 @@ createServer((req, res) => {
       const b = json()
       evo.state = b.state
       dump()
-      return reply(200, { hook: await hook("connection.update", { state: b.state, wuid: b.wuid || "" }) })
+      return reply(200, {
+        hook: await hook("connection.update", { state: b.state, wuid: b.wuid || "" }),
+      })
     }
     if (url.pathname === "/__ctl/inbound") {
       const b = json()
@@ -75,14 +77,20 @@ createServer((req, res) => {
       if (evo.state === "close") evo.state = "connecting"
       dump()
       const number = json().number
-      return reply(201, { qrcode: { base64: FAKE_QR, code: "2@fake", ...(number ? { pairingCode: "FAKE1234" } : {}) } })
+      return reply(201, {
+        qrcode: { base64: FAKE_QR, code: "2@fake", ...(number ? { pairingCode: "FAKE1234" } : {}) },
+      })
     }
     if (url.pathname.startsWith("/instance/connect/")) {
       const number = url.searchParams.get("number")
       if (number) evo.pairingRequests.push(number)
       if (evo.state === "close") evo.state = "connecting"
       dump()
-      return reply(200, { base64: FAKE_QR, code: "2@fake", ...(number ? { pairingCode: "FAKE1234" } : {}) })
+      return reply(200, {
+        base64: FAKE_QR,
+        code: "2@fake",
+        ...(number ? { pairingCode: "FAKE1234" } : {}),
+      })
     }
     if (url.pathname.startsWith("/webhook/set/")) {
       evo.webhook = { instance: url.pathname.split("/").pop(), ...json().webhook }
@@ -144,7 +152,9 @@ function sink(port, label) {
             sock.write("250-sink-" + label + "\r\n")
             say("250 AUTH PLAIN")
           } else if (cmd.startsWith("AUTH PLAIN")) {
-            const dec = Buffer.from(line.split(" ")[2] || "", "base64").toString("utf8").split("\0")
+            const dec = Buffer.from(line.split(" ")[2] || "", "base64")
+              .toString("utf8")
+              .split("\0")
             m.user = dec[1] || ""
             say("235 ok")
           } else if (cmd.startsWith("MAIL FROM:")) {

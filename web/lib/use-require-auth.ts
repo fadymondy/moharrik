@@ -28,6 +28,7 @@ export function useRequireAuth() {
 
 /** Only same-app relative paths are honoured as a post-login destination. */
 export function safeNext(next: string | null | undefined, fallback: string): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return fallback
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\"))
+    return fallback
   return next
 }

@@ -17,7 +17,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { Ltr } from "@/components/copy-field"
 import { Bdi } from "@/components/bidi"
@@ -55,10 +61,15 @@ export function ContactWhatsAppPanel({
   if (!canRead) return null
   const data = st.data
   const who = contact.name || contact.email
-  const threadHref = data?.conversation_id ? `/${locale}/w/${ws.slug}/inbox?c=${encodeURIComponent(data.conversation_id)}` : null
+  const threadHref = data?.conversation_id
+    ? `/${locale}/w/${ws.slug}/inbox?c=${encodeURIComponent(data.conversation_id)}`
+    : null
 
   return (
-    <section className="px-6 pb-6" data-contact-whatsapp={data ? (data.can_send ? "ready" : data.reason) : "loading"}>
+    <section
+      className="px-6 pb-6"
+      data-contact-whatsapp={data ? (data.can_send ? "ready" : data.reason) : "loading"}
+    >
       <div className="flex flex-col gap-3 border border-line bg-grid-card px-4 py-3 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -71,18 +82,29 @@ export function ContactWhatsAppPanel({
             ) : null}
             {data ? (
               <WhatsAppConsent
-                contact={{ ...contact, whatsapp_opt_in_at: data.whatsapp_opt_in_at, whatsapp_opt_out_at: data.whatsapp_opt_out_at }}
+                contact={{
+                  ...contact,
+                  whatsapp_opt_in_at: data.whatsapp_opt_in_at,
+                  whatsapp_opt_out_at: data.whatsapp_opt_out_at,
+                }}
                 onChange={() => st.mutate()}
               />
             ) : null}
           </div>
           {data && !data.can_send ? (
-            <p id="wa-disabled-reason" className="flex items-start gap-1.5 text-xs text-grid-muted" data-whatsapp-disabled-reason={data.reason}>
+            <p
+              id="wa-disabled-reason"
+              className="flex items-start gap-1.5 text-xs text-grid-muted"
+              data-whatsapp-disabled-reason={data.reason}
+            >
               <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
               <span>
                 {t(`contactWa.reason.${data.reason ?? "unavailable"}`)}{" "}
                 {data.reason === "not_linked" && ws.can("inbox:manage") ? (
-                  <Link className="underline underline-offset-4" href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}>
+                  <Link
+                    className="underline underline-offset-4"
+                    href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}
+                  >
                     {t("contactWa.linkNumber")}
                   </Link>
                 ) : null}
@@ -90,7 +112,11 @@ export function ContactWhatsAppPanel({
             </p>
           ) : null}
           {threadHref ? (
-            <Link className="text-xs underline underline-offset-4" href={threadHref} data-whatsapp-thread>
+            <Link
+              className="text-xs underline underline-offset-4"
+              href={threadHref}
+              data-whatsapp-thread
+            >
               {t("contactWa.openThread")}
             </Link>
           ) : null}
@@ -112,14 +138,22 @@ export function ContactWhatsAppPanel({
 
       {data && data.recent.length > 0 ? (
         <details className="mt-2 text-xs text-grid-muted" data-whatsapp-log>
-          <summary className="cursor-pointer select-none">{t("contactWa.log", { count: data.recent.length })}</summary>
+          <summary className="cursor-pointer select-none">
+            {t("contactWa.log", { count: data.recent.length })}
+          </summary>
           <ul className="mt-2 flex flex-col gap-1">
             {data.recent.map((r, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2">
-                {r.ok ? <CheckCircle2Icon className="size-3.5 text-grid-brand" /> : <XCircleIcon className="size-3.5 text-grid-danger-text" />}
+                {r.ok ? (
+                  <CheckCircle2Icon className="size-3.5 text-grid-brand" />
+                ) : (
+                  <XCircleIcon className="size-3.5 text-grid-danger-text" />
+                )}
                 <Ltr>{formatDate(r.at)}</Ltr>
                 <span>· {t(`contactWa.kind.${r.kind}`)}</span>
-                {!r.ok && r.error ? <span className="text-grid-danger-text">· {r.error}</span> : null}
+                {!r.ok && r.error ? (
+                  <span className="text-grid-danger-text">· {r.error}</span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -166,10 +200,13 @@ function MessageSheet({
     setBusy(true)
     setErr(null)
     try {
-      const res = await api<DirectSendResult>(`/api/w/contacts/${encodeURIComponent(contactId)}/whatsapp/send`, {
-        json: { text: text.trim(), ...(code ? { code } : {}) },
-        workspaceId: ws.id,
-      })
+      const res = await api<DirectSendResult>(
+        `/api/w/contacts/${encodeURIComponent(contactId)}/whatsapp/send`,
+        {
+          json: { text: text.trim(), ...(code ? { code } : {}) },
+          workspaceId: ws.id,
+        },
+      )
       if (res.confirmation_required && res.code) {
         setConfirm({ code: res.code, summary: res.summary })
         return
@@ -212,7 +249,9 @@ function MessageSheet({
       >
         <SheetHeader className="pe-12">
           <SheetTitle>{t("contactWa.title", { who })}</SheetTitle>
-          <SheetDescription>{newThread ? t("contactWa.hintNew") : t("contactWa.hintThread")}</SheetDescription>
+          <SheetDescription>
+            {newThread ? t("contactWa.hintNew") : t("contactWa.hintThread")}
+          </SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-6">
           {sentTo ? (
@@ -222,7 +261,16 @@ function MessageSheet({
                 {t("contactWa.sent", { who })}
               </p>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/inbox?c=${encodeURIComponent(sentTo)}`} data-open-thread />}>
+                <Button
+                  size="sm"
+                  nativeButton={false}
+                  render={
+                    <Link
+                      href={`/${locale}/w/${ws.slug}/inbox?c=${encodeURIComponent(sentTo)}`}
+                      data-open-thread
+                    />
+                  }
+                >
                   {t("contactWa.openThread")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setSentTo(null)}>
@@ -271,7 +319,10 @@ function MessageSheet({
             <AlertDialogTitle>{t("contactWa.confirmTitle", { who })}</AlertDialogTitle>
             <AlertDialogDescription>{t("contactWa.confirmBody")}</AlertDialogDescription>
           </AlertDialogHeader>
-          <blockquote className="max-h-48 overflow-y-auto border-s-2 border-line ps-3 text-sm whitespace-pre-wrap" dir="auto">
+          <blockquote
+            className="max-h-48 overflow-y-auto border-s-2 border-line ps-3 text-sm whitespace-pre-wrap"
+            dir="auto"
+          >
             <Bdi>{text.trim()}</Bdi>
           </blockquote>
           <AlertDialogFooter>

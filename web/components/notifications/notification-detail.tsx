@@ -1,30 +1,30 @@
-"use client";
+"use client"
 
-import { useEffect, useMemo, useRef } from "react";
-import { BookmarkIcon, ExternalLinkIcon } from "lucide-react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useRef } from "react"
+import { BookmarkIcon, ExternalLinkIcon } from "lucide-react"
+import { toast } from "sonner"
 
-import { Bdi } from "@/components/bidi";
-import { LoadingRows } from "@/components/states";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Bdi } from "@/components/bidi"
+import { LoadingRows } from "@/components/states"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { useWorkspace } from "@/components/workspace/workspace-context";
-import { api, ApiError, type NotificationSeverity } from "@/lib/api";
-import { useTranslations } from "@/lib/i18n";
-import { useNotificationItem } from "@/lib/queries";
+} from "@/components/ui/sheet"
+import { useWorkspace } from "@/components/workspace/workspace-context"
+import { api, ApiError, type NotificationSeverity } from "@/lib/api"
+import { useTranslations } from "@/lib/i18n"
+import { useNotificationItem } from "@/lib/queries"
 
 export const severityTone: Record<NotificationSeverity, string> = {
   info: "bg-grid-brand",
   warning: "bg-grid-warn",
   error: "bg-grid-danger",
-};
+}
 
 export const severityVariant: Record<
   NotificationSeverity,
@@ -33,16 +33,16 @@ export const severityVariant: Record<
   info: "secondary",
   warning: "default",
   error: "destructive",
-};
+}
 
 /** A kind's label: the known ones are translated, anything else is shown as it came. */
 export function useKindLabel() {
-  const { t } = useTranslations();
+  const { t } = useTranslations()
   return (kind: string) => {
-    const key = `notifications.kindName.${kind}`;
-    const v = t(key);
-    return v === key ? kind : v;
-  };
+    const key = `notifications.kindName.${kind}`
+    const v = t(key)
+    return v === key ? kind : v
+  }
 }
 
 /*
@@ -57,56 +57,56 @@ export function NotificationDetailSheet({
   onOpenChange,
   onChange,
 }: {
-  id: string | null;
-  canWrite: boolean;
-  onOpenChange: (open: boolean) => void;
-  onChange: () => void;
+  id: string | null
+  canWrite: boolean
+  onOpenChange: (open: boolean) => void
+  onChange: () => void
 }) {
-  const { t, isRtl, formatDate } = useTranslations();
-  const ws = useWorkspace();
-  const detail = useNotificationItem(ws.id, id);
-  const item = detail.data?.item;
-  const kindLabel = useKindLabel();
-  const marked = useRef<string | null>(null);
+  const { t, isRtl, formatDate } = useTranslations()
+  const ws = useWorkspace()
+  const detail = useNotificationItem(ws.id, id)
+  const item = detail.data?.item
+  const kindLabel = useKindLabel()
+  const marked = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!canWrite || !item || item.read_at || marked.current === item.id) return;
-    marked.current = item.id;
+    if (!canWrite || !item || item.read_at || marked.current === item.id) return
+    marked.current = item.id
     api(`/api/w/notifications/${encodeURIComponent(item.id)}`, {
       method: "PATCH",
       json: { read: true },
       workspaceId: ws.id,
     })
       .then(() => {
-        void detail.mutate();
-        onChange();
+        void detail.mutate()
+        onChange()
       })
       .catch(() => {
         /* it stays unread; nothing to tell */
-      });
-  }, [canWrite, item, ws.id, detail, onChange]);
+      })
+  }, [canWrite, item, ws.id, detail, onChange])
 
   const payload = useMemo(() => {
-    if (!item?.payload) return "";
+    if (!item?.payload) return ""
     try {
-      return JSON.stringify(JSON.parse(item.payload), null, 2);
+      return JSON.stringify(JSON.parse(item.payload), null, 2)
     } catch {
-      return item.payload;
+      return item.payload
     }
-  }, [item?.payload]);
+  }, [item?.payload])
 
   async function toggleSaved() {
-    if (!item) return;
+    if (!item) return
     try {
       await api(`/api/w/notifications/${encodeURIComponent(item.id)}`, {
         method: "PATCH",
         json: { saved: !item.saved_at },
         workspaceId: ws.id,
-      });
-      void detail.mutate();
-      onChange();
+      })
+      void detail.mutate()
+      onChange()
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"));
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     }
   }
 
@@ -215,5 +215,5 @@ export function NotificationDetailSheet({
         )}
       </SheetContent>
     </Sheet>
-  );
+  )
 }

@@ -28,7 +28,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 
 const SRC = path.resolve(here, "../../extension")
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-runtime-"))
-cpSync(SRC, EXT, { recursive: true, filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?/.test(p.slice(SRC.length)) })
+cpSync(SRC, EXT, {
+  recursive: true,
+  filter: (p) => !/node_modules|[\\/]test[\\/]?|[\\/]dist[\\/]?/.test(p.slice(SRC.length)),
+})
 {
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
   m.host_permissions = [`${base}/*`, `${apiBase}/*`, "http://localhost/*", "http://127.0.0.1/*"]
@@ -45,7 +48,9 @@ const PORT = 8794
 const site = createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
   if (req.url.startsWith("/results")) {
-    res.end(`<!doctype html><title>Results</title><h1 id="result">results for ${new URL(req.url, "http://x").searchParams.get("q")}</h1>`)
+    res.end(
+      `<!doctype html><title>Results</title><h1 id="result">results for ${new URL(req.url, "http://x").searchParams.get("q")}</h1>`,
+    )
     return
   }
   res.end(`<!doctype html><html><head><title>Orders</title></head><body>
@@ -64,12 +69,17 @@ const site = createServer((req, res) => {
 await new Promise((r) => site.listen(PORT, "127.0.0.1", r))
 
 const out = {}
-const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "ext-rt-profile-")), {
-  executablePath: process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
-  headless: false,
-  viewport: { width: 1280, height: 860 },
-  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
-})
+const ctx = await chromium.launchPersistentContext(
+  mkdtempSync(path.join(tmpdir(), "ext-rt-profile-")),
+  {
+    executablePath:
+      process.env.EXT_CHROME ??
+      "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
+    headless: false,
+    viewport: { width: 1280, height: 860 },
+    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
+  },
+)
 
 try {
   let worker = ctx.serviceWorkers()[0]
@@ -91,18 +101,34 @@ try {
   const slug = page.url().split("/w/")[1].split("/")[0]
   const call = async (method, p, data, wsID) => {
     const csrf = (await (await page.request.get(`${base}/api/auth/csrf`)).json()).csrf_token
-    const res = await page.request.fetch(`${base}${p}`, { method, headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) }, data })
+    const res = await page.request.fetch(`${base}${p}`, {
+      method,
+      headers: { "X-CSRF-Token": csrf, ...(wsID ? { "X-Workspace-ID": wsID } : {}) },
+      data,
+    })
     const text = await res.text()
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text}`)
     return text ? JSON.parse(text) : null
   }
   const wsID = (await call("GET", "/api/me/workspaces")).workspaces.find((w) => w.slug === slug).id
 
-  const { browser, online } = await connectExtension({ ctx, extensionID, site: base, api: apiBase, call, workspaceID: wsID, name: "Runtime Chromium", hosts: ["127.0.0.1"] })
+  const { browser, online } = await connectExtension({
+    ctx,
+    extensionID,
+    site: base,
+    api: apiBase,
+    call,
+    workspaceID: wsID,
+    name: "Runtime Chromium",
+    hosts: ["127.0.0.1"],
+  })
   out.connected = online
 
   // ---- the socket lives in the offscreen document ----
-  out.offscreenDocumentOwnsTheSocket = await worker.evaluate(async () => (await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"] })).length === 1)
+  out.offscreenDocumentOwnsTheSocket = await worker.evaluate(
+    async () =>
+      (await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"] })).length === 1,
+  )
   out.helloToldTheRuntime = await worker.evaluate(async () => {
     const a = (await chrome.storage.local.get("moh.agent"))["moh.agent"] || {}
     return a.tabsPerBrowser > 0 && a.automationWindow?.width >= 800
@@ -128,15 +154,22 @@ try {
     { command: "press", args: { key: "Enter", selector: "#q" } },
     { command: "extract", args: { selector: "#result" } },
     { command: "goto", args: { url: u } },
-    { command: "extract", args: { list: "li.order", fields: { name: "a", href: "a|@href", total: ".total" } } },
+    {
+      command: "extract",
+      args: { list: "li.order", fields: { name: "a", href: "a|@href", total: ".total" } },
+    },
     { command: "wait_for", args: { selector: "text=Orders for today" } },
-    { command: "eval_readonly", args: { expression: "document.querySelectorAll('li.order').length" } },
+    {
+      command: "eval_readonly",
+      args: { expression: "document.querySelectorAll('li.order').length" },
+    },
     { command: "screenshot" },
   ])
   out.runAfterIdleFinished = d.run.status === "ok"
   const results = d.steps.map((s) => (s.result ? JSON.parse(s.result) : {}))
   out.stepsAnswered = d.steps.map((s) => `${s.command}:${s.status}`).join(" ")
-  out.realInputUsed = results.slice(1).every((r) => !r.input || r.input === "cdp") && results[1]?.input === "cdp"
+  out.realInputUsed =
+    results.slice(1).every((r) => !r.input || r.input === "cdp") && results[1]?.input === "cdp"
   out.pageBelievedTheClick = results[2]?.value === "opened by a real click"
   out.roleSelectorResolved = results[1]?.strategy === "role"
   out.typedWithoutEcho = results[3]?.characters === 8 && !d.steps[3].result.includes("moharrik")
@@ -146,29 +179,51 @@ try {
   const rows = results[7]?.rows || []
   out.structuredRows =
     rows.length === 2 &&
-    rows[0].name === "Order 1" && rows[0].href === "/o/1" && rows[0].total === "120" &&
-    rows[1].name === "Order 2" && rows[1].href === "/o/2" && rows[1].total === "80"
+    rows[0].name === "Order 1" &&
+    rows[0].href === "/o/1" &&
+    rows[0].total === "120" &&
+    rows[1].name === "Order 2" &&
+    rows[1].href === "/o/2" &&
+    rows[1].total === "80"
   out.textSelectorWaited = results[8]?.strategy === "text"
   out.evalReturned = results[9]?.value === 2
   out.screenshotKept = d.steps[10].has_screenshot === true && !d.steps[10].result.includes("base64")
-  const shot = await page.request.get(`${base}/api/w/runs/${d.run.id}/steps/10/screenshot`, { headers: { "X-Workspace-ID": wsID } })
+  const shot = await page.request.get(`${base}/api/w/runs/${d.run.id}/steps/10/screenshot`, {
+    headers: { "X-Workspace-ID": wsID },
+  })
   const png = await shot.body()
-  out.screenshotIsAPng = shot.status() === 200 && png.subarray(1, 4).toString() === "PNG" && png.length > 1000
+  out.screenshotIsAPng =
+    shot.status() === 200 && png.subarray(1, 4).toString() === "PNG" && png.length > 1000
 
   // ---- the run's page shows the screenshot, in every locale and scheme ----
   if (card) {
     const state = await ctx.storageState()
-    const shooter = await chromium.launch({ executablePath: process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe" })
+    const shooter = await chromium.launch({
+      executablePath:
+        process.env.EXT_CHROME ??
+        "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
+    })
     for (const locale of ["en", "ar"]) {
       for (const theme of ["light", "dark"]) {
         for (const width of [1440, 390]) {
-          const c = await shooter.newContext({ storageState: state, viewport: { width, height: 900 }, colorScheme: theme })
+          const c = await shooter.newContext({
+            storageState: state,
+            viewport: { width, height: 900 },
+            colorScheme: theme,
+          })
           const p = await c.newPage()
-          await p.goto(`${base}/${locale}/w/${slug}/automation/runs/${d.run.id}`, { waitUntil: "load" })
+          await p.goto(`${base}/${locale}/w/${slug}/automation/runs/${d.run.id}`, {
+            waitUntil: "load",
+          })
           await p.waitForSelector("[data-step-shot] img", { timeout: 60000 })
           await p.waitForTimeout(800)
-          await p.screenshot({ path: `${SHOTS}/${card}-run-${locale}-${theme}-${width}.png`, fullPage: true })
-          out[`runPage-${locale}-${theme}-${width}-overflow`] = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth === 0)
+          await p.screenshot({
+            path: `${SHOTS}/${card}-run-${locale}-${theme}-${width}.png`,
+            fullPage: true,
+          })
+          out[`runPage-${locale}-${theme}-${width}-overflow`] = await p.evaluate(
+            () => document.documentElement.scrollWidth - innerWidth === 0,
+          )
           await c.close()
         }
       }
@@ -177,29 +232,32 @@ try {
   }
 
   // ---- the run had a tab of its own, in the Moharrik window, and gave it back ----
-  const look = () => worker.evaluate(async () => {
-    const win = (await chrome.storage.local.get("moh.automationWindow"))["moh.automationWindow"]
-    const groups = await chrome.tabGroups.query({ title: "Moharrik" })
-    // getTargets() cannot answer this under Playwright, which is itself
-    // attached to every tab. Asking Chrome to detach THIS extension can: it
-    // refuses when the extension is not attached.
-    const owned = (await chrome.storage.local.get("moh.automationTabs"))["moh.automationTabs"] || []
-    let stillAttached = 0
-    for (const tabId of owned) {
-      await new Promise((resolve) =>
-        chrome.debugger.detach({ tabId }, () => {
-          if (!chrome.runtime.lastError) stillAttached++
-          resolve()
-        }),
-      )
-    }
-    return {
-      window: typeof win === "number",
-      grouped: groups.length > 0,
-      stillAttached,
-      runTabs: Object.keys((await chrome.storage.local.get("moh.runTabs"))["moh.runTabs"] || {}).length,
-    }
-  })
+  const look = () =>
+    worker.evaluate(async () => {
+      const win = (await chrome.storage.local.get("moh.automationWindow"))["moh.automationWindow"]
+      const groups = await chrome.tabGroups.query({ title: "Moharrik" })
+      // getTargets() cannot answer this under Playwright, which is itself
+      // attached to every tab. Asking Chrome to detach THIS extension can: it
+      // refuses when the extension is not attached.
+      const owned =
+        (await chrome.storage.local.get("moh.automationTabs"))["moh.automationTabs"] || []
+      let stillAttached = 0
+      for (const tabId of owned) {
+        await new Promise((resolve) =>
+          chrome.debugger.detach({ tabId }, () => {
+            if (!chrome.runtime.lastError) stillAttached++
+            resolve()
+          }),
+        )
+      }
+      return {
+        window: typeof win === "number",
+        grouped: groups.length > 0,
+        stillAttached,
+        runTabs: Object.keys((await chrome.storage.local.get("moh.runTabs"))["moh.runTabs"] || {})
+          .length,
+      }
+    })
   let where = await look()
   for (let i = 0; i < 10 && (where.runTabs || where.stillAttached); i++) {
     await new Promise((r) => setTimeout(r, 500)) // run.end is pushed as the run finishes
@@ -216,13 +274,21 @@ try {
     { command: "extract", args: { selector: "body" }, continue_on_error: true },
   ])
   out.realClickOffTheListStopped =
-    breach.run.status === "failed" && /step 2 went to localhost, which isn't on this browser's allowed sites/.test(breach.run.error) && breach.steps[2].status === "skipped"
+    breach.run.status === "failed" &&
+    /step 2 went to localhost, which isn't on this browser's allowed sites/.test(
+      breach.run.error,
+    ) &&
+    breach.steps[2].status === "skipped"
 
   // ---- the popup, now with the debugging-banner note, and the Sites page ----
   const popup = await ctx.newPage()
   await popup.setViewportSize({ width: 360, height: 640 })
   await popup.goto(`chrome-extension://${extensionID}/popup.html`)
-  await popup.waitForFunction(() => document.getElementById("state").textContent === "connected", null, { timeout: 15000 })
+  await popup.waitForFunction(
+    () => document.getElementById("state").textContent === "connected",
+    null,
+    { timeout: 15000 },
+  )
   out.popupShowsBannerNote = !(await popup.$eval("#banner-note", (e) => e.hidden))
   if (card) {
     for (const scheme of ["light", "dark"]) {
@@ -234,7 +300,9 @@ try {
   const options = await ctx.newPage()
   await options.goto(`chrome-extension://${extensionID}/options.html`)
   await options.waitForSelector("#site-hosts li", { timeout: 10000 })
-  out.sitesPageListsTheWorkspacesSites = (await options.textContent("#site-hosts")).includes("127.0.0.1")
+  out.sitesPageListsTheWorkspacesSites = (await options.textContent("#site-hosts")).includes(
+    "127.0.0.1",
+  )
   if (card) {
     for (const scheme of ["light", "dark"]) {
       await options.emulateMedia({ colorScheme: scheme })
@@ -247,7 +315,11 @@ try {
   // ---- a name change on the site reaches the popup without a reconnect ----
   await call("PATCH", `/api/w/browsers/${browser.id}`, { name: "Renamed Chromium" }, wsID)
   await popup.bringToFront()
-  await popup.waitForFunction(() => document.getElementById("agent-name").textContent === "Renamed Chromium", null, { timeout: 15000 })
+  await popup.waitForFunction(
+    () => document.getElementById("agent-name").textContent === "Renamed Chromium",
+    null,
+    { timeout: 15000 },
+  )
   out.renamePushedToTheBrowser = true
 } catch (e) {
   out.error = String(e?.stack || e).slice(0, 900)

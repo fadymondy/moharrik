@@ -12,7 +12,16 @@
   Values are drawn exactly as given: a null is a gap, never a zero.
 */
 
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react"
 
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -74,7 +83,9 @@ export function TrendChart({
 
   const n = dates.length
   const { ticks, lo, hi } = useMemo(() => {
-    const all = series.flatMap((s) => s.values).filter((v): v is number => v != null && Number.isFinite(v))
+    const all = series
+      .flatMap((s) => s.values)
+      .filter((v): v is number => v != null && Number.isFinite(v))
     const max = all.length ? Math.max(...all) : 0
     const min = all.length ? Math.min(...all) : 0
     if (invert) {
@@ -113,7 +124,10 @@ export function TrendChart({
       d += run.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("")
       if (!invert && s.slot === 1 && series.length === 1) {
         const base = yAt(lo)
-        area += `M${run[0][0].toFixed(1)},${base}` + run.map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join("") + `L${run[run.length - 1][0].toFixed(1)},${base}Z`
+        area +=
+          `M${run[0][0].toFixed(1)},${base}` +
+          run.map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join("") +
+          `L${run[run.length - 1][0].toFixed(1)},${base}Z`
       }
       run = []
     }
@@ -165,7 +179,16 @@ export function TrendChart({
           {series.map((s) => (
             <li key={s.key} className="flex items-center gap-2">
               <svg width="22" height="8" className="shrink-0">
-                <line x1="1" x2="21" y1="4" y2="4" stroke={`var(--chart-${s.slot})`} strokeWidth="2" strokeDasharray={s.dashed ? "4 3" : undefined} strokeLinecap="round" />
+                <line
+                  x1="1"
+                  x2="21"
+                  y1="4"
+                  y2="4"
+                  stroke={`var(--chart-${s.slot})`}
+                  strokeWidth="2"
+                  strokeDasharray={s.dashed ? "4 3" : undefined}
+                  strokeLinecap="round"
+                />
               </svg>
               <span className="text-grid-body">{s.label}</span>
             </li>
@@ -192,7 +215,16 @@ export function TrendChart({
         >
           {ticks.map((v) => (
             <g key={v}>
-              <line x1={PAD.start} x2={width - PAD.end} y1={yAt(v)} y2={yAt(v)} stroke="var(--grid-line)" strokeWidth="1" strokeDasharray={v === lo && !invert ? undefined : "2 4"} transform={isRtl ? `translate(${PAD.end - PAD.start} 0)` : undefined} />
+              <line
+                x1={PAD.start}
+                x2={width - PAD.end}
+                y1={yAt(v)}
+                y2={yAt(v)}
+                stroke="var(--grid-line)"
+                strokeWidth="1"
+                strokeDasharray={v === lo && !invert ? undefined : "2 4"}
+                transform={isRtl ? `translate(${PAD.end - PAD.start} 0)` : undefined}
+              />
               <text
                 x={isRtl ? width - PAD.start + 8 : PAD.start - 8}
                 y={yAt(v)}
@@ -209,13 +241,27 @@ export function TrendChart({
               key={i}
               x={xAt(i)}
               y={height - 8}
-              textAnchor={i === 0 ? (isRtl ? "end" : "start") : i === n - 1 ? (isRtl ? "start" : "end") : "middle"}
+              textAnchor={
+                i === 0
+                  ? isRtl
+                    ? "end"
+                    : "start"
+                  : i === n - 1
+                    ? isRtl
+                      ? "start"
+                      : "end"
+                    : "middle"
+              }
               className="fill-grid-muted text-[11px]"
             >
               {formatDate(dates[i])}
             </text>
           ))}
-          {paths.map(({ s, area }) => (area ? <path key={s.key + "-a"} d={area} fill={`var(--chart-${s.slot})`} opacity="0.1" /> : null))}
+          {paths.map(({ s, area }) =>
+            area ? (
+              <path key={s.key + "-a"} d={area} fill={`var(--chart-${s.slot})`} opacity="0.1" />
+            ) : null,
+          )}
           {paths.map(({ s, d }) => (
             <path
               key={s.key}
@@ -230,11 +276,29 @@ export function TrendChart({
           ))}
           {hover != null ? (
             <g>
-              <line x1={xAt(hover)} x2={xAt(hover)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--grid-muted)" strokeWidth="1" opacity="0.6" />
+              <line
+                x1={xAt(hover)}
+                x2={xAt(hover)}
+                y1={PAD.top}
+                y2={PAD.top + plotH}
+                stroke="var(--grid-muted)"
+                strokeWidth="1"
+                opacity="0.6"
+              />
               {series.map((s) => {
                 const v = s.values[hover]
                 if (v == null) return null
-                return <circle key={s.key} cx={xAt(hover)} cy={yAt(v)} r="4.5" fill={`var(--chart-${s.slot})`} stroke="var(--grid-bg)" strokeWidth="2" />
+                return (
+                  <circle
+                    key={s.key}
+                    cx={xAt(hover)}
+                    cy={yAt(v)}
+                    r="4.5"
+                    fill={`var(--chart-${s.slot})`}
+                    stroke="var(--grid-bg)"
+                    strokeWidth="2"
+                  />
+                )
               })}
             </g>
           ) : null}
@@ -243,7 +307,11 @@ export function TrendChart({
           <div
             role="status"
             className="pointer-events-none absolute top-1 z-10 min-w-36 border border-line bg-grid-card px-3 py-2 text-xs shadow-sm"
-            style={flip ? { left: Math.max(0, tipLeft - 12), transform: "translateX(-100%)" } : { left: Math.min(width - 12, tipLeft + 12) }}
+            style={
+              flip
+                ? { left: Math.max(0, tipLeft - 12), transform: "translateX(-100%)" }
+                : { left: Math.min(width - 12, tipLeft + 12) }
+            }
             data-chart-tip
           >
             {series.map((s) => {
@@ -252,10 +320,20 @@ export function TrendChart({
               return (
                 <div key={s.key} className="flex items-center gap-2 py-0.5">
                   <svg width="14" height="6" className="shrink-0" aria-hidden>
-                    <line x1="1" x2="13" y1="3" y2="3" stroke={`var(--chart-${s.slot})`} strokeWidth="2" strokeDasharray={s.dashed ? "3 2" : undefined} />
+                    <line
+                      x1="1"
+                      x2="13"
+                      y1="3"
+                      y2="3"
+                      stroke={`var(--chart-${s.slot})`}
+                      strokeWidth="2"
+                      strokeDasharray={s.dashed ? "3 2" : undefined}
+                    />
                   </svg>
                   <span className="text-grid-muted">{date ? formatDate(date) : ""}</span>
-                  <span className="ms-auto ps-3 font-medium text-grid-fg tabular-nums">{v == null ? "—" : format(v)}</span>
+                  <span className="ms-auto ps-3 font-medium text-grid-fg tabular-nums">
+                    {v == null ? "—" : format(v)}
+                  </span>
                 </div>
               )
             })}
@@ -263,7 +341,9 @@ export function TrendChart({
         ) : null}
       </div>
       <details className="text-xs text-grid-muted" id={`${id}-table`}>
-        <summary className="w-fit cursor-pointer select-none hover:text-grid-fg">{t("charts.table")}</summary>
+        <summary className="w-fit cursor-pointer select-none hover:text-grid-fg">
+          {t("charts.table")}
+        </summary>
         <div className="mt-2 max-h-72 overflow-auto border border-line">
           <table className="w-full text-start text-xs">
             <caption className="sr-only">{title}</caption>
@@ -284,7 +364,9 @@ export function TrendChart({
                   {series.map((s) => (
                     <td key={s.key} className="px-3 py-1 text-end text-grid-body tabular-nums">
                       {s.values[i] == null ? "—" : format(s.values[i] as number)}
-                      {s.dates && s.dates[i] ? <span className="ms-1 text-grid-muted">({formatDate(s.dates[i])})</span> : null}
+                      {s.dates && s.dates[i] ? (
+                        <span className="ms-1 text-grid-muted">({formatDate(s.dates[i])})</span>
+                      ) : null}
                     </td>
                   ))}
                 </tr>
@@ -316,11 +398,21 @@ export function BarList({
         <li key={r.key} className="px-5 py-2.5" data-bar-row>
           <div className="flex items-baseline gap-3 text-sm">
             <span className="min-w-0 flex-1 truncate text-grid-fg">{r.label}</span>
-            {r.sub ? <span className="shrink-0 text-xs text-grid-muted tabular-nums">{r.sub}</span> : null}
-            <span className="shrink-0 font-medium text-grid-fg tabular-nums">{format(r.value)}</span>
+            {r.sub ? (
+              <span className="shrink-0 text-xs text-grid-muted tabular-nums">{r.sub}</span>
+            ) : null}
+            <span className="shrink-0 font-medium text-grid-fg tabular-nums">
+              {format(r.value)}
+            </span>
           </div>
           <div className="mt-1.5 h-1.5 w-full" aria-hidden>
-            <div className="h-full rounded-e-full" style={{ width: `${Math.max(1.5, (r.value / max) * 100)}%`, background: "var(--chart-1)" }} />
+            <div
+              className="h-full rounded-e-full"
+              style={{
+                width: `${Math.max(1.5, (r.value / max) * 100)}%`,
+                background: "var(--chart-1)",
+              }}
+            />
           </div>
         </li>
       ))}

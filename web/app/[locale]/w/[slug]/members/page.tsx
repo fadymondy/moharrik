@@ -8,8 +8,21 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
@@ -32,7 +45,11 @@ export default function MembersPage() {
 
   return (
     <>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={t("nav.members")} description={t("members.hint")} />
+      <SectionHeader
+        micro={<Bdi>{ws.summary.name}</Bdi>}
+        title={t("nav.members")}
+        description={t("members.hint")}
+      />
 
       {members.error ? (
         <ErrorState error={members.error} />
@@ -146,7 +163,11 @@ function InviteSection() {
           </Field>
           <Field className="sm:w-44">
             <FieldLabel htmlFor="invite-role">{t("members.role")}</FieldLabel>
-            <Select items={roleItems} value={role} onValueChange={(v) => setRole(String(v ?? "member"))}>
+            <Select
+              items={roleItems}
+              value={role}
+              onValueChange={(v) => setRole(String(v ?? "member"))}
+            >
               <SelectTrigger id="invite-role" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -202,7 +223,10 @@ function PendingInvitations({
 
   async function revoke(id: string) {
     try {
-      await api(`/api/w/invitations/${encodeURIComponent(id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/invitations/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       toast.success(t("members.revoked"))
       onRevoked()
     } catch (err) {

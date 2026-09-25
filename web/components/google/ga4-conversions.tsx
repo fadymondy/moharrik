@@ -26,7 +26,14 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type Ga4ConversionEvent, type Ga4ConversionsPage, type Ga4Streams, type Ga4TestResult } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  type Ga4ConversionEvent,
+  type Ga4ConversionsPage,
+  type Ga4Streams,
+  type Ga4TestResult,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useGa4Conversions } from "@/lib/queries"
 
@@ -73,9 +80,18 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
     setSaving(true)
     setError("")
     try {
-      const json: Record<string, unknown> = { measurement_id: mid.trim(), events_enabled: events, tag_in_embeds: tag, debug_mode: debug }
+      const json: Record<string, unknown> = {
+        measurement_id: mid.trim(),
+        events_enabled: events,
+        tag_in_embeds: tag,
+        debug_mode: debug,
+      }
       if (secret.trim()) json.api_secret = secret.trim()
-      const out = await api<Ga4ConversionsPage>("/api/w/ga4-conversions", { method: "PATCH", json, workspaceId: ws.id })
+      const out = await api<Ga4ConversionsPage>("/api/w/ga4-conversions", {
+        method: "PATCH",
+        json,
+        workspaceId: ws.id,
+      })
       await page.mutate(out, { revalidate: false })
       setSecret("")
       toast.success(t("ga4conv.saved"))
@@ -105,9 +121,19 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
     setTesting(true)
     setTest(null)
     try {
-      setTest(await api<Ga4TestResult>("/api/w/ga4-conversions/test", { method: "POST", workspaceId: ws.id }))
+      setTest(
+        await api<Ga4TestResult>("/api/w/ga4-conversions/test", {
+          method: "POST",
+          workspaceId: ws.id,
+        }),
+      )
     } catch (err) {
-      setTest({ valid: false, sent: false, messages: [], error: err instanceof ApiError ? err.message : t("common.networkError") })
+      setTest({
+        valid: false,
+        sent: false,
+        messages: [],
+        error: err instanceof ApiError ? err.message : t("common.networkError"),
+      })
     } finally {
       setTesting(false)
     }
@@ -117,7 +143,12 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
   const list = streams?.streams ?? []
   const ready = !!s?.measurement_id && !!s?.api_secret_set
   const dirty =
-    !!s && (mid.trim().toUpperCase() !== s.measurement_id || !!secret.trim() || events !== s.events_enabled || tag !== s.tag_in_embeds || debug !== s.debug_mode)
+    !!s &&
+    (mid.trim().toUpperCase() !== s.measurement_id ||
+      !!secret.trim() ||
+      events !== s.events_enabled ||
+      tag !== s.tag_in_embeds ||
+      debug !== s.debug_mode)
 
   return (
     <section className="pt-6" data-ga4-conversions data-ga4-ready={ready}>
@@ -136,10 +167,17 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
               <FieldLabel htmlFor="ga4-stream">{t("ga4conv.pickStream")}</FieldLabel>
               <PickSelect
                 id="ga4-stream"
-                value={list.some((x) => x.measurement_id === mid.trim().toUpperCase()) ? mid.trim().toUpperCase() : ""}
+                value={
+                  list.some((x) => x.measurement_id === mid.trim().toUpperCase())
+                    ? mid.trim().toUpperCase()
+                    : ""
+                }
                 onChange={(v) => v && setMid(v)}
                 noneLabel={t("ga4conv.pickStreamNone")}
-                options={list.map((x) => ({ value: x.measurement_id, label: `${x.property_name} · ${x.name} · ${x.measurement_id}` }))}
+                options={list.map((x) => ({
+                  value: x.measurement_id,
+                  label: `${x.property_name} · ${x.name} · ${x.measurement_id}`,
+                }))}
               />
               <FieldDescription>{t("ga4conv.pickStreamHint")}</FieldDescription>
             </Field>
@@ -152,7 +190,16 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
 
           <Field>
             <FieldLabel htmlFor="ga4-mid">{t("ga4conv.measurementId")}</FieldLabel>
-            <Input id="ga4-mid" dir="ltr" className="font-mono" value={mid} onChange={(e) => setMid(e.target.value)} placeholder="G-XXXXXXXXXX" autoComplete="off" data-ga4-mid />
+            <Input
+              id="ga4-mid"
+              dir="ltr"
+              className="font-mono"
+              value={mid}
+              onChange={(e) => setMid(e.target.value)}
+              placeholder="G-XXXXXXXXXX"
+              autoComplete="off"
+              data-ga4-mid
+            />
             <FieldDescription>{t("ga4conv.measurementIdHint")}</FieldDescription>
           </Field>
 
@@ -172,7 +219,14 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
                 data-ga4-secret
               />
               {s?.api_secret_set ? (
-                <Button type="button" variant="ghost" size="sm" className="shrink-0 text-grid-danger-text" onClick={() => void removeSecret()} data-ga4-remove-secret>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-grid-danger-text"
+                  onClick={() => void removeSecret()}
+                  data-ga4-remove-secret
+                >
                   {t("ga4conv.removeSecret")}
                 </Button>
               ) : null}
@@ -180,12 +234,34 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
             <FieldDescription>{t("ga4conv.apiSecretHint")}</FieldDescription>
           </Field>
 
-          <ToggleRow id="ga4-events" checked={events} onChange={setEvents} title={t("ga4conv.sendEvents")} hint={t("ga4conv.sendEventsHint")} />
-          <ToggleRow id="ga4-tag" checked={tag} onChange={setTag} title={t("ga4conv.tag")} hint={t("ga4conv.tagHint")} />
-          <ToggleRow id="ga4-debug" checked={debug} onChange={setDebug} title={t("ga4conv.debug")} hint={t("ga4conv.debugHint")} />
+          <ToggleRow
+            id="ga4-events"
+            checked={events}
+            onChange={setEvents}
+            title={t("ga4conv.sendEvents")}
+            hint={t("ga4conv.sendEventsHint")}
+          />
+          <ToggleRow
+            id="ga4-tag"
+            checked={tag}
+            onChange={setTag}
+            title={t("ga4conv.tag")}
+            hint={t("ga4conv.tagHint")}
+          />
+          <ToggleRow
+            id="ga4-debug"
+            checked={debug}
+            onChange={setDebug}
+            title={t("ga4conv.debug")}
+            hint={t("ga4conv.debugHint")}
+          />
 
           {error ? (
-            <p role="alert" className="flex items-start gap-2 text-sm text-grid-danger-text" data-ga4-error>
+            <p
+              role="alert"
+              className="flex items-start gap-2 text-sm text-grid-danger-text"
+              data-ga4-error
+            >
               <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
               {error}
             </p>
@@ -197,7 +273,13 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
             </Button>
             {/* Offered only once a test can work: an id and a secret are stored. */}
             {ready ? (
-              <Button type="button" variant="outline" onClick={() => void sendTest()} disabled={testing} data-ga4-test>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void sendTest()}
+                disabled={testing}
+                data-ga4-test
+              >
                 <SendIcon />
                 {testing ? t("common.working") : t("ga4conv.test")}
               </Button>
@@ -215,7 +297,10 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
       </div>
       <ul className="divide-y divide-line border-y border-line" data-ga4-event-map>
         {page.data.events.map((e) => (
-          <li key={e.name} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-2.5 text-sm">
+          <li
+            key={e.name}
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-2.5 text-sm"
+          >
             <span className="min-w-44">
               <Ltr mono className="text-xs text-grid-fg">
                 {e.name}
@@ -231,7 +316,19 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
   )
 }
 
-function ToggleRow({ id, checked, onChange, title, hint }: { id: string; checked: boolean; onChange: (v: boolean) => void; title: string; hint: string }) {
+function ToggleRow({
+  id,
+  checked,
+  onChange,
+  title,
+  hint,
+}: {
+  id: string
+  checked: boolean
+  onChange: (v: boolean) => void
+  title: string
+  hint: string
+}) {
   return (
     <Field orientation="horizontal" className="items-start">
       <Switch id={id} checked={checked} onCheckedChange={onChange} data-toggle={id} />
@@ -247,7 +344,11 @@ function TestOutcome({ r }: { r: Ga4TestResult }) {
   const { t } = useTranslations()
   if (r.sent) {
     return (
-      <p role="status" className="flex items-start gap-2 text-sm text-grid-fg" data-ga4-test-result="sent">
+      <p
+        role="status"
+        className="flex items-start gap-2 text-sm text-grid-fg"
+        data-ga4-test-result="sent"
+      >
         <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-grid-action" />
         {t("ga4conv.testSent")}
       </p>
@@ -276,7 +377,10 @@ function TestOutcome({ r }: { r: Ga4TestResult }) {
   )
 }
 
-const STATUS_VARIANT: Record<Ga4ConversionEvent["status"], "default" | "secondary" | "outline" | "destructive"> = {
+const STATUS_VARIANT: Record<
+  Ga4ConversionEvent["status"],
+  "default" | "secondary" | "outline" | "destructive"
+> = {
   sent: "secondary",
   pending: "outline",
   skipped: "outline",
@@ -297,15 +401,26 @@ function Recent({ list }: { list: Ga4ConversionEvent[] }) {
       ) : (
         <ul className="divide-y divide-line border-y border-line" data-ga4-recent={list.length}>
           {list.map((e) => (
-            <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 py-2.5 text-sm" data-ga4-event={e.name} data-status={e.status}>
+            <li
+              key={e.id}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 py-2.5 text-sm"
+              data-ga4-event={e.name}
+              data-status={e.status}
+            >
               <Ltr mono className="text-xs text-grid-fg">
                 {e.name}
               </Ltr>
               <Badge variant={STATUS_VARIANT[e.status]}>{t(`ga4conv.status.${e.status}`)}</Badge>
-              {e.attributed === false ? <Badge variant="outline">{t("ga4conv.unattributed")}</Badge> : null}
+              {e.attributed === false ? (
+                <Badge variant="outline">{t("ga4conv.unattributed")}</Badge>
+              ) : null}
               {e.debug ? <Badge variant="outline">DebugView</Badge> : null}
               <Link
-                href={e.subject_kind === "lead" ? `/${locale}/w/${ws.slug}/leads/${e.subject_id}` : `/${locale}/w/${ws.slug}/deals/${e.subject_id}`}
+                href={
+                  e.subject_kind === "lead"
+                    ? `/${locale}/w/${ws.slug}/leads/${e.subject_id}`
+                    : `/${locale}/w/${ws.slug}/deals/${e.subject_id}`
+                }
                 className="text-xs text-grid-action underline-offset-4 hover:underline"
               >
                 {t(`ga4conv.subject.${e.subject_kind}`)}

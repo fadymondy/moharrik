@@ -52,7 +52,11 @@ function requestKey() {
 
 export function MahaamFeedbackWidget() {
   const { locale } = useTranslations()
-  const { key } = useSyncExternalStore(subscribe, () => state, () => server)
+  const { key } = useSyncExternalStore(
+    subscribe,
+    () => state,
+    () => server,
+  )
   useEffect(requestKey, [])
   // Not configured on this deployment, or not signed in: no widget, and no button (useFeedback).
   if (!key) return null
@@ -72,7 +76,11 @@ export function MahaamFeedbackWidget() {
 
 /** Whether "Report a problem" can open: the widget has a key and its script has loaded. */
 export function useFeedbackReady(): boolean {
-  const s = useSyncExternalStore(subscribe, () => state, () => server)
+  const s = useSyncExternalStore(
+    subscribe,
+    () => state,
+    () => server,
+  )
   return !!s.key && s.loaded
 }
 

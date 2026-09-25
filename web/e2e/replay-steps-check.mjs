@@ -43,7 +43,10 @@ const SRC = path.resolve(process.env.EXT_SRC ?? path.resolve(here, "../../extens
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-398-"))
 cpSync(SRC, EXT, {
   recursive: true,
-  filter: (p) => !/[\\/](node_modules|test)([\\/]|$)/.test(path.relative(SRC, p) ? "/" + path.relative(SRC, p) : ""),
+  filter: (p) =>
+    !/[\\/](node_modules|test)([\\/]|$)/.test(
+      path.relative(SRC, p) ? "/" + path.relative(SRC, p) : "",
+    ),
 })
 {
   const m = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"))
@@ -88,7 +91,9 @@ const site = createServer((req, res) => {
   if (url.pathname === "/search") return res.end(SEARCH_THAT_NAVIGATES)
   if (url.pathname === "/results") {
     const q = url.searchParams.get("q") ?? ""
-    return res.end(`<!doctype html><title>Results</title><h1 id="result">results for ${q.replace(/[<&]/g, "")}</h1>`)
+    return res.end(
+      `<!doctype html><title>Results</title><h1 id="result">results for ${q.replace(/[<&]/g, "")}</h1>`,
+    )
   }
   res.end(FIXTURE.replace("</body>", REPORTER + "</body>"))
 })
@@ -96,7 +101,9 @@ await new Promise((r) => site.listen(PAGE_PORT, "127.0.0.1", r))
 
 const out = { checks: {} }
 const check = (name, ok, detail) => {
-  out.checks[name] = ok ? "PASS" : `FAIL${detail !== undefined ? ": " + JSON.stringify(detail).slice(0, 400) : ""}`
+  out.checks[name] = ok
+    ? "PASS"
+    : `FAIL${detail !== undefined ? ": " + JSON.stringify(detail).slice(0, 400) : ""}`
 }
 let ctx
 process.on("exit", () => console.log(JSON.stringify(out, null, 1)))
@@ -104,7 +111,9 @@ process.on("exit", () => console.log(JSON.stringify(out, null, 1)))
 try {
   const userDir = mkdtempSync(path.join(tmpdir(), "ext-398-profile-"))
   ctx = await chromium.launchPersistentContext(userDir, {
-    executablePath: process.env.EXT_CHROME ?? "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
+    executablePath:
+      process.env.EXT_CHROME ??
+      "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
     headless: false,
     viewport: { width: 1280, height: 800 },
     args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run"],
@@ -127,14 +136,27 @@ try {
     if (!res.ok()) throw new Error(`${method} ${p} → ${res.status()} ${text.slice(0, 300)}`)
     return text ? JSON.parse(text) : null
   }
-  await call("POST", "/api/auth/register", { email: `mh398-${Date.now()}@x.test`, password: "Passw0rd!long-enough" })
+  await call("POST", "/api/auth/register", {
+    email: `mh398-${Date.now()}@x.test`,
+    password: "Passw0rd!long-enough",
+  })
   const { workspace } = await call("POST", "/api/me/workspaces", { name: `MH-398 ${Date.now()}` })
   out.workspace = workspace.slug
 
   // ---- connect through the extension's own popup (MH-478) ----
-  const { browser: connected, online, popup } = await connectExtension({
-    ctx, extensionID, site: apiBase, api: apiBase, call, workspaceID: workspace.id,
-    name: "MH-398 Chromium", hosts: ["127.0.0.1"],
+  const {
+    browser: connected,
+    online,
+    popup,
+  } = await connectExtension({
+    ctx,
+    extensionID,
+    site: apiBase,
+    api: apiBase,
+    call,
+    workspaceID: workspace.id,
+    name: "MH-398 Chromium",
+    hosts: ["127.0.0.1"],
   })
   const agentID = connected.id
   check("extension paired and connected by itself", online)
@@ -168,20 +190,32 @@ try {
   }))
 
   const stopped = await popup.evaluate(() => chrome.runtime.sendMessage({ type: "record.stop" }))
-  check("recording saved as a workflow", stopped?.ok === true && !!stopped.saved?.workflow_id, stopped)
+  check(
+    "recording saved as a workflow",
+    stopped?.ok === true && !!stopped.saved?.workflow_id,
+    stopped,
+  )
   const workflowID = stopped.saved.workflow_id
 
   const { workflows } = await call("GET", "/api/w/workflows", undefined, workspace.id)
   const wf = workflows.find((w) => w.id === workflowID)
   out.recordedSteps = wf.steps
   const byCommand = (c) => wf.steps.filter((s) => s.command === c)
-  check("the recording holds a press {key: Enter}", byCommand("press").some((s) => s.args?.key === "Enter"), wf.steps)
+  check(
+    "the recording holds a press {key: Enter}",
+    byCommand("press").some((s) => s.args?.key === "Enter"),
+    wf.steps,
+  )
   check(
     "the recording holds a select {selector, value: <label>}",
     byCommand("select").some((s) => s.args?.selector && s.args?.value === "United Kingdom"),
     wf.steps,
   )
-  check("the recording holds a scroll {dy}", byCommand("scroll").some((s) => Number(s.args?.dy) >= 300), wf.steps)
+  check(
+    "the recording holds a scroll {dy}",
+    byCommand("scroll").some((s) => Number(s.args?.dy) >= 300),
+    wf.steps,
+  )
   await page.close()
 
   // ---- REPLAY the recorded workflow ----
@@ -193,24 +227,44 @@ try {
     }
     out.debugTabs = await worker.evaluate(async () => ({
       tabs: (await chrome.tabs.query({})).map((t) => [t.id, t.windowId, t.url, t.status, t.active]),
-      store: await chrome.storage.local.get(["moh.runTabs", "moh.automationTabs", "moh.automationWindow", "moh.recording"]),
+      store: await chrome.storage.local.get([
+        "moh.runTabs",
+        "moh.automationTabs",
+        "moh.automationWindow",
+        "moh.recording",
+      ]),
     }))
     throw new Error(`run ${runID} did not finish`)
   }
   reports = []
-  const { run_id: replayID } = await call("POST", `/api/w/workflows/${workflowID}/run`, { agent_id: agentID }, workspace.id)
+  const { run_id: replayID } = await call(
+    "POST",
+    `/api/w/workflows/${workflowID}/run`,
+    { agent_id: agentID },
+    workspace.id,
+  )
   const replay = await waitForRun(replayID)
   out.replay = {
     status: replay.run.status,
     error: replay.run.error,
-    steps: replay.steps.map((s) => `${s.position} ${s.command} ${s.status}: ${s.summary || s.error}`),
+    steps: replay.steps.map(
+      (s) => `${s.position} ${s.command} ${s.status}: ${s.summary || s.error}`,
+    ),
   }
   check("the recorded workflow replays: run ok", replay.run.status === "ok", out.replay)
-  check("every step of the replay ok", replay.steps.every((s) => s.status === "ok"), out.replay.steps)
+  check(
+    "every step of the replay ok",
+    replay.steps.every((s) => s.status === "ok"),
+    out.replay.steps,
+  )
   const last = reports[reports.length - 1] ?? {}
   out.replayedPage = last
   check("replay: Enter submitted the search", last.searched === "searched: moharrik", last)
-  check("replay: the dropdown choice reached the page's change handler", last.chosen === "chosen: uk", last)
+  check(
+    "replay: the dropdown choice reached the page's change handler",
+    last.chosen === "chosen: uk",
+    last,
+  )
   const clickedAt = Number((last.clicked || "").match(/scrollY (\d+)/)?.[1] ?? -1)
   check("replay: the page was scrolled before the deep button was clicked", clickedAt >= 1500, last)
 
@@ -241,8 +295,16 @@ try {
     steps: hand.steps.map((s) => `${s.position} ${s.command} ${s.status}: ${s.summary || s.error}`),
   }
   check("hand-written run ok", hand.run.status === "ok", out.handWritten)
-  check("select by value chose Large", /chose "Large" in #size/.test(hand.steps[1]?.summary ?? ""), hand.steps[1])
-  check("scroll to a selector", /scrolled #bottom into view/.test(hand.steps[3]?.summary ?? ""), hand.steps[3])
+  check(
+    "select by value chose Large",
+    /chose "Large" in #size/.test(hand.steps[1]?.summary ?? ""),
+    hand.steps[1],
+  )
+  check(
+    "scroll to a selector",
+    /scrolled #bottom into view/.test(hand.steps[3]?.summary ?? ""),
+    hand.steps[3],
+  )
   check(
     "Enter navigated and the next step ran on the new page",
     (hand.steps[6]?.summary ?? "") === "results for real navigation",

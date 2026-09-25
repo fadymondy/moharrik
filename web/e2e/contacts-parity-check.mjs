@@ -83,8 +83,15 @@ await page.fill("#edit-contact-biography", "Met at the Cairo meetup; prefers Wha
 // and is what we compare on reload.
 await page.click("#edit-contact-birthday")
 await page.waitForSelector("[data-day]", { timeout: 10000 })
-await page.locator("td:not([data-outside]) [data-day] , [data-day]:not([data-outside])").filter({ hasText: /^15$/ }).first().click()
-await page.waitForFunction(() => document.getElementById("edit-contact-birthday")?.getAttribute("data-value"), { timeout: 10000 })
+await page
+  .locator("td:not([data-outside]) [data-day] , [data-day]:not([data-outside])")
+  .filter({ hasText: /^15$/ })
+  .first()
+  .click()
+await page.waitForFunction(
+  () => document.getElementById("edit-contact-birthday")?.getAttribute("data-value"),
+  { timeout: 10000 },
+)
 const birthdayPicked = await page.getAttribute("#edit-contact-birthday", "data-value")
 if (shots) await page.screenshot({ path: path.join(shots, "contact-person-fields.png") })
 await page.click('[data-form="edit-contact"] button[type=submit]')
@@ -138,7 +145,10 @@ await page.waitForSelector("[data-meta-panel]", { timeout: 15000 })
 // The panel may show saved pairs as editable inputs, whose values are not in innerText.
 out.metaPersisted = await page.evaluate(() => {
   const panel = document.querySelector("[data-meta-panel]")
-  const seen = (panel?.innerText ?? "") + " " + [...(panel?.querySelectorAll("input") ?? [])].map((i) => i.value).join(" ")
+  const seen =
+    (panel?.innerText ?? "") +
+    " " +
+    [...(panel?.querySelectorAll("input") ?? [])].map((i) => i.value).join(" ")
   return seen.includes("favorite_drink") && seen.includes("Turkish coffee")
 })
 check("metaPersisted", out.metaPersisted)
@@ -160,7 +170,9 @@ check("foundUnlinkedThreadForLinkAction", linkable >= 0)
 if (linkable >= 0) {
   await page.locator("[data-conversation]").nth(linkable).click()
   await page.waitForSelector('[data-crm-action="link"]', { timeout: 15000 })
-  const channel = await page.evaluate(() => document.querySelector("[data-thread-crm]")?.getAttribute("data-thread-channel") ?? "")
+  const channel = await page.evaluate(
+    () => document.querySelector("[data-thread-crm]")?.getAttribute("data-thread-channel") ?? "",
+  )
   await page.click('[data-crm-action="link"]')
   await page.waitForSelector('form[data-form="link-contact"]', { timeout: 10000 })
   await page.click("#link-contact")
@@ -181,9 +193,13 @@ if (linkable >= 0) {
   out.identityCountAfterLink = identityCountAfterLink
   out.threadChannel = channel
   if (channel && channel !== "chat") {
-    check("senderIdentityAttachedOnLink", identityCountAfterLink >= 2, { channel, identityCountAfterLink })
+    check("senderIdentityAttachedOnLink", identityCountAfterLink >= 2, {
+      channel,
+      identityCountAfterLink,
+    })
   } else {
-    out.senderIdentityAttachedOnLink = "skipped (chat channel has no stable per-conversation identity)"
+    out.senderIdentityAttachedOnLink =
+      "skipped (chat channel has no stable per-conversation identity)"
   }
 }
 

@@ -66,7 +66,9 @@ export function DatePicker({
   const selected = fromISO(value)
   const before = fromISO(min)
   const after = fromISO(max)
-  const label = selected ? dateFormat(locale, { dateStyle: "medium" }).format(selected) : (placeholder ?? t("date.pick"))
+  const label = selected
+    ? dateFormat(locale, { dateStyle: "medium" }).format(selected)
+    : (placeholder ?? t("date.pick"))
 
   const trigger = (
     <PopoverTrigger
@@ -78,7 +80,10 @@ export function DatePicker({
           disabled={disabled}
           data-date-picker
           data-value={value || undefined}
-          className={cn("min-w-0 flex-1 justify-between font-normal", !selected && "text-muted-foreground")}
+          className={cn(
+            "min-w-0 flex-1 justify-between font-normal",
+            !selected && "text-muted-foreground",
+          )}
         >
           <span className="truncate">{label}</span>
           <CalendarIcon />
@@ -92,7 +97,15 @@ export function DatePicker({
       {clearable && selected ? (
         <ButtonGroup className={cn("w-full", className)}>
           {trigger}
-          <Button type="button" variant="outline" size="icon" disabled={disabled} aria-label={t("date.clear")} onClick={() => onValueChange("")} data-date-clear>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={disabled}
+            aria-label={t("date.clear")}
+            onClick={() => onValueChange("")}
+            data-date-clear
+          >
             <XIcon />
           </Button>
         </ButtonGroup>
@@ -109,7 +122,11 @@ export function DatePicker({
           numerals="latn"
           // Arabic's full day names ("أربعاء", "خميس") run into each other in a 28px column;
           // the narrow ones are what an Arabic calendar prints. English keeps its default.
-          formatters={locale === "ar" ? { formatWeekdayName: (d) => dateFormat("ar", { weekday: "narrow" }).format(d) } : undefined}
+          formatters={
+            locale === "ar"
+              ? { formatWeekdayName: (d) => dateFormat("ar", { weekday: "narrow" }).format(d) }
+              : undefined
+          }
           disabled={[...(before ? [{ before }] : []), ...(after ? [{ after }] : [])]}
           onSelect={(date) => {
             onValueChange(date ? toISO(date) : "")

@@ -62,17 +62,52 @@ const groups = [
 
 const history = {
   "201015550101@s.whatsapp.net": [
-    { key: { remoteJid: "201015550101@s.whatsapp.net", fromMe: false, id: "wamid.001" }, pushName: "Rana Fathy", messageTimestamp: now - 7200, message: { conversation: "مرحبًا، عايزة أعرف حالة طلبي" } },
-    { key: { remoteJid: "201015550101@s.whatsapp.net", fromMe: true, id: "wamid.002" }, pushName: "", messageTimestamp: now - 5400, message: { conversation: "أهلًا رنا، جاري المتابعة الآن" } },
-    { key: { remoteJid: "201015550101@s.whatsapp.net", fromMe: false, id: "wamid.003" }, pushName: "Rana Fathy", messageTimestamp: now - 3600, message: { conversation: "هل وصل طلبي رقم NC-20417؟" } },
+    {
+      key: { remoteJid: "201015550101@s.whatsapp.net", fromMe: false, id: "wamid.001" },
+      pushName: "Rana Fathy",
+      messageTimestamp: now - 7200,
+      message: { conversation: "مرحبًا، عايزة أعرف حالة طلبي" },
+    },
+    {
+      key: { remoteJid: "201015550101@s.whatsapp.net", fromMe: true, id: "wamid.002" },
+      pushName: "",
+      messageTimestamp: now - 5400,
+      message: { conversation: "أهلًا رنا، جاري المتابعة الآن" },
+    },
+    {
+      key: { remoteJid: "201015550101@s.whatsapp.net", fromMe: false, id: "wamid.003" },
+      pushName: "Rana Fathy",
+      messageTimestamp: now - 3600,
+      message: { conversation: "هل وصل طلبي رقم NC-20417؟" },
+    },
   ],
   "201227654321@s.whatsapp.net": [
-    { key: { remoteJid: "201227654321@s.whatsapp.net", fromMe: false, id: "wamid.101" }, pushName: "Omar Khalifa", messageTimestamp: now - 9000, message: { conversation: "See you at the coffee fair?" } },
-    { key: { remoteJid: "201227654321@s.whatsapp.net", fromMe: true, id: "wamid.102" }, pushName: "", messageTimestamp: now - 7200, message: { conversation: "Thanks, see you at the fair!" } },
+    {
+      key: { remoteJid: "201227654321@s.whatsapp.net", fromMe: false, id: "wamid.101" },
+      pushName: "Omar Khalifa",
+      messageTimestamp: now - 9000,
+      message: { conversation: "See you at the coffee fair?" },
+    },
+    {
+      key: { remoteJid: "201227654321@s.whatsapp.net", fromMe: true, id: "wamid.102" },
+      pushName: "",
+      messageTimestamp: now - 7200,
+      message: { conversation: "Thanks, see you at the fair!" },
+    },
   ],
   "120363011234567890@g.us": [
-    { key: { remoteJid: "120363011234567890@g.us", fromMe: false, id: "wamid.201" }, pushName: "Laila Hassan", messageTimestamp: now - 3600, message: { conversation: "متى الشحنة الجاية؟" } },
-    { key: { remoteJid: "120363011234567890@g.us", fromMe: false, id: "wamid.202" }, pushName: "Rana Fathy", messageTimestamp: now - 1800, message: { conversation: "الشحنة الجديدة وصلت اليوم ☕" } },
+    {
+      key: { remoteJid: "120363011234567890@g.us", fromMe: false, id: "wamid.201" },
+      pushName: "Laila Hassan",
+      messageTimestamp: now - 3600,
+      message: { conversation: "متى الشحنة الجاية؟" },
+    },
+    {
+      key: { remoteJid: "120363011234567890@g.us", fromMe: false, id: "wamid.202" },
+      pushName: "Rana Fathy",
+      messageTimestamp: now - 1800,
+      message: { conversation: "الشحنة الجديدة وصلت اليوم ☕" },
+    },
   ],
 }
 

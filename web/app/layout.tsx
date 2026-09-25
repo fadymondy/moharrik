@@ -13,7 +13,8 @@ const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-int
 
 export const metadata: Metadata = {
   title: "Moharrik",
-  description: "The AI engine behind a business: automation, inbox, campaigns, CRM and research — all over MCP.",
+  description:
+    "The AI engine behind a business: automation, inbox, campaigns, CRM and research — all over MCP.",
 }
 
 // The locale lives in the URL (/en/..., /ar/...). A root layout cannot read route params, so

@@ -57,7 +57,9 @@ export function ContactPicker({
   const q = useDebounced(query)
   const res = useContactsPage(ws.id, { q, limit: PICK_LIMIT })
 
-  const [chosen, setChosen] = useState<Option | null>(selected ? { value: selected.id, label: label(selected) } : null)
+  const [chosen, setChosen] = useState<Option | null>(
+    selected ? { value: selected.id, label: label(selected) } : null,
+  )
   // A preset id with no label (a deal started from a contact's page): look it up once.
   const preset = useContact(ws.id, value && !chosen ? value : undefined)
   useEffect(() => {
@@ -90,9 +92,16 @@ export function ContactPicker({
         if (details.reason === "input-change" || details.reason === "input-clear") setQuery(v)
       }}
     >
-      <ComboboxInput id={id} className="w-full" placeholder={t("contacts.pickPlaceholder")} showClear={!!chosen} />
+      <ComboboxInput
+        id={id}
+        className="w-full"
+        placeholder={t("contacts.pickPlaceholder")}
+        showClear={!!chosen}
+      />
       <ComboboxContent>
-        <ComboboxEmpty>{res.isLoading ? t("common.working") : t("contacts.pickNone")}</ComboboxEmpty>
+        <ComboboxEmpty>
+          {res.isLoading ? t("common.working") : t("contacts.pickNone")}
+        </ComboboxEmpty>
         <ComboboxList>
           {(o: Option) => (
             <ComboboxItem key={o.value} value={o}>

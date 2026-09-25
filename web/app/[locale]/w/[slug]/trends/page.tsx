@@ -55,7 +55,12 @@ export default function TrendsPage() {
         description={t("trends.hint")}
         action={
           canManage ? (
-            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/trends/sources`} />}>
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${ws.slug}/trends/sources`} />}
+            >
               <SettingsIcon />
               {t("trends.sources")}
             </Button>
@@ -72,7 +77,11 @@ export default function TrendsPage() {
               {t("trends.tabItems")}
             </TabsTrigger>
           </TabsList>
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite" data-live>
+          <p
+            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            aria-live="polite"
+            data-live
+          >
             <RadioIcon className="size-3.5 text-primary" aria-hidden />
             {updatedAt ? t("trends.liveUpdated", { when: when(updatedAt) }) : t("trends.live")}
           </p>
@@ -132,10 +141,20 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
   }
 
   const count = (s: string) => (first ? first.counts[s as keyof typeof first.counts] : undefined)
-  const stateOpts = STATES.map((s) => ({ value: s, label: count(s) === undefined ? t(`trends.state.${s}`) : `${t(`trends.state.${s}`)} (${formatNumber(count(s)!)})` }))
+  const stateOpts = STATES.map((s) => ({
+    value: s,
+    label:
+      count(s) === undefined
+        ? t(`trends.state.${s}`)
+        : `${t(`trends.state.${s}`)} (${formatNumber(count(s)!)})`,
+  }))
   const sourceOpts = (sources.data?.sources ?? []).map((s) => ({ value: s.id, label: s.name }))
-  const dayOpts = (first?.days ?? []).map((d) => ({ value: d.day, label: `${dayLabel(d.day)} (${formatNumber(d.count)})` }))
-  if (day && !dayOpts.some((o) => o.value === day)) dayOpts.unshift({ value: day, label: dayLabel(day) })
+  const dayOpts = (first?.days ?? []).map((d) => ({
+    value: d.day,
+    label: `${dayLabel(d.day)} (${formatNumber(d.count)})`,
+  }))
+  if (day && !dayOpts.some((o) => o.value === day))
+    dayOpts.unshift({ value: day, label: dayLabel(day) })
 
   // Topics grouped under their day, in list order.
   const groups: { day: string; topics: TrendTopic[] }[] = []
@@ -144,23 +163,50 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
     if (last && last.day === topic.day) last.topics.push(topic)
     else groups.push({ day: topic.day, topics: [topic] })
   }
-  const total = first ? (state === "all" ? first.counts.all : count(state) ?? 0) : 0
+  const total = first ? (state === "all" ? first.counts.all : (count(state) ?? 0)) : 0
   const filtered = !!(source || day || search)
   const noSources = (sources.data?.sources ?? []).length === 0
 
   return (
     <section>
-      <div className="grid grid-cols-1 gap-2 px-6 pb-4 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center" role="group" aria-label={t("trends.filters")}>
+      <div
+        className="grid grid-cols-1 gap-2 px-6 pb-4 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center"
+        role="group"
+        aria-label={t("trends.filters")}
+      >
         <div className="lg:w-48" data-filter="state">
-          <PickSelect id="trends-state" value={state} onChange={(v) => setState(v || "open")} options={stateOpts} />
+          <PickSelect
+            id="trends-state"
+            value={state}
+            onChange={(v) => setState(v || "open")}
+            options={stateOpts}
+          />
         </div>
         <div className="lg:w-52" data-filter="day">
-          <PickSelect id="trends-day" value={day} onChange={setDay} options={dayOpts} noneLabel={t("trends.anyDay")} />
+          <PickSelect
+            id="trends-day"
+            value={day}
+            onChange={setDay}
+            options={dayOpts}
+            noneLabel={t("trends.anyDay")}
+          />
         </div>
         <div className="lg:w-52" data-filter="source">
-          <PickSelect id="trends-source" value={source} onChange={setSource} options={sourceOpts} noneLabel={t("trends.allSources")} />
+          <PickSelect
+            id="trends-source"
+            value={source}
+            onChange={setSource}
+            options={sourceOpts}
+            noneLabel={t("trends.allSources")}
+          />
         </div>
-        <Input aria-label={t("trends.searchTopics")} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("trends.searchTopics")} className="lg:w-56" />
+        <Input
+          aria-label={t("trends.searchTopics")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("trends.searchTopics")}
+          className="lg:w-56"
+        />
       </div>
 
       {pages.error ? (
@@ -169,11 +215,22 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
         <LoadingRows rows={5} />
       ) : topics.length === 0 ? (
         <EmptyState
-          title={noSources ? t("trends.empty") : filtered ? t("trends.noMatches") : t(`trends.emptyState.${state}`)}
+          title={
+            noSources
+              ? t("trends.empty")
+              : filtered
+                ? t("trends.noMatches")
+                : t(`trends.emptyState.${state}`)
+          }
           body={noSources && canManage ? t("trends.emptyBody") : undefined}
           action={
             noSources && canManage ? (
-              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/${locale}/w/${ws.slug}/trends/sources`} />}>
+              <Button
+                variant="outline"
+                size="sm"
+                nativeButton={false}
+                render={<Link href={`/${locale}/w/${ws.slug}/trends/sources`} />}
+              >
                 {t("trends.addSource")}
               </Button>
             ) : undefined
@@ -181,8 +238,14 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
         />
       ) : (
         <>
-          <p className="px-6 pb-2 text-xs text-muted-foreground" data-topics-summary={`${topics.length}/${total}`}>
-            {t("trends.showingTopics", { shown: formatNumber(topics.length), total: formatNumber(total) })}
+          <p
+            className="px-6 pb-2 text-xs text-muted-foreground"
+            data-topics-summary={`${topics.length}/${total}`}
+          >
+            {t("trends.showingTopics", {
+              shown: formatNumber(topics.length),
+              total: formatNumber(total),
+            })}
           </p>
           <div className="flex flex-col gap-6" data-trend-topics>
             {groups.map((g) => (
@@ -192,7 +255,12 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
                 </h2>
                 <ul className="divide-y divide-line border-y border-line">
                   {g.topics.map((topic) => (
-                    <TopicCard key={topic.id} topic={topic} href={`/${locale}/w/${ws.slug}/trends/${topic.id}`} onChange={onChange} />
+                    <TopicCard
+                      key={topic.id}
+                      topic={topic}
+                      href={`/${locale}/w/${ws.slug}/trends/${topic.id}`}
+                      onChange={onChange}
+                    />
                   ))}
                 </ul>
               </section>
@@ -200,7 +268,12 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
           </div>
           {hasMore ? (
             <div className="flex justify-center px-6 pt-5">
-              <Button variant="outline" onClick={() => void pages.setSize(pages.size + 1)} disabled={loadingMore} data-load-more="topics">
+              <Button
+                variant="outline"
+                onClick={() => void pages.setSize(pages.size + 1)}
+                disabled={loadingMore}
+                data-load-more="topics"
+              >
                 {loadingMore ? t("trends.loadingMore") : t("trends.loadMore")}
               </Button>
             </div>
@@ -245,15 +318,44 @@ function ItemsTab() {
 
   return (
     <section>
-      <div className="grid grid-cols-1 gap-2 px-6 pb-4 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center" role="group" aria-label={t("trends.filters")}>
+      <div
+        className="grid grid-cols-1 gap-2 px-6 pb-4 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center"
+        role="group"
+        aria-label={t("trends.filters")}
+      >
         <div className="lg:w-52">
-          <PickSelect id="items-day" value={day} onChange={setDay} options={dayOpts} noneLabel={t("trends.anyDay")} />
+          <PickSelect
+            id="items-day"
+            value={day}
+            onChange={setDay}
+            options={dayOpts}
+            noneLabel={t("trends.anyDay")}
+          />
         </div>
         <div className="lg:w-52">
-          <PickSelect id="items-source" value={source} onChange={setSource} options={(sources.data?.sources ?? []).map((s) => ({ value: s.id, label: s.name }))} noneLabel={t("trends.allSources")} />
+          <PickSelect
+            id="items-source"
+            value={source}
+            onChange={setSource}
+            options={(sources.data?.sources ?? []).map((s) => ({ value: s.id, label: s.name }))}
+            noneLabel={t("trends.allSources")}
+          />
         </div>
-        <Input aria-label={t("trends.search")} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("trends.search")} className="lg:w-56" />
-        <Button type="button" variant={saved ? "default" : "outline"} aria-pressed={saved} onClick={() => setSaved((v) => !v)} data-filter="saved" className="lg:w-auto">
+        <Input
+          aria-label={t("trends.search")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("trends.search")}
+          className="lg:w-56"
+        />
+        <Button
+          type="button"
+          variant={saved ? "default" : "outline"}
+          aria-pressed={saved}
+          onClick={() => setSaved((v) => !v)}
+          data-filter="saved"
+          className="lg:w-auto"
+        >
           <BookmarkIcon />
           {t("trends.filterSaved")}
         </Button>
@@ -267,7 +369,10 @@ function ItemsTab() {
       ) : (
         <>
           <p className="px-6 pb-2 text-xs text-muted-foreground" data-items-summary={items.length}>
-            {t("trends.showingItems", { shown: formatNumber(items.length), total: formatNumber(total) })}
+            {t("trends.showingItems", {
+              shown: formatNumber(items.length),
+              total: formatNumber(total),
+            })}
           </p>
           <ul className="divide-y divide-line border-y border-line" data-news-list>
             {items.map((item) => (
@@ -276,7 +381,12 @@ function ItemsTab() {
           </ul>
           {hasMore ? (
             <div className="flex justify-center px-6 pt-5">
-              <Button variant="outline" onClick={() => void pages.setSize(pages.size + 1)} disabled={loadingMore} data-load-more="items">
+              <Button
+                variant="outline"
+                onClick={() => void pages.setSize(pages.size + 1)}
+                disabled={loadingMore}
+                data-load-more="items"
+              >
                 {loadingMore ? t("trends.loadingMore") : t("trends.loadMore")}
               </Button>
             </div>
@@ -294,7 +404,11 @@ function NewsRow({ item, onChange }: { item: NewsItem; onChange: () => void }) {
 
   async function toggleSaved() {
     try {
-      await api(`/api/w/news/${encodeURIComponent(item.id)}`, { method: "PATCH", json: { saved: !isSaved }, workspaceId: ws.id })
+      await api(`/api/w/news/${encodeURIComponent(item.id)}`, {
+        method: "PATCH",
+        json: { saved: !isSaved },
+        workspaceId: ws.id,
+      })
       onChange()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -302,7 +416,11 @@ function NewsRow({ item, onChange }: { item: NewsItem; onChange: () => void }) {
   }
 
   return (
-    <li className="flex items-start gap-3 px-6 py-3" data-news={item.id} data-news-saved={isSaved ? "true" : "false"}>
+    <li
+      className="flex items-start gap-3 px-6 py-3"
+      data-news={item.id}
+      data-news-saved={isSaved ? "true" : "false"}
+    >
       <div className="min-w-0 flex-1">
         <ItemLine item={item} showSummary />
       </div>

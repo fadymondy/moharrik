@@ -15,7 +15,14 @@ import { isolate } from "@/components/bidi"
 import { PickSelect } from "@/components/crm/shared"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -43,7 +50,9 @@ export function AddPresetDialog({
   const plainName = plainOf(p, locale).name
   const [agent, setAgent] = useState(browsers[0]?.id ?? "")
   const chosen = browsers.find((b) => b.id === agent)
-  const missingHosts = p.hosts.filter((h) => !chosen?.allowed_hosts.some((a) => h === a || h.endsWith(`.${a}`)))
+  const missingHosts = p.hosts.filter(
+    (h) => !chosen?.allowed_hosts.some((a) => h === a || h.endsWith(`.${a}`)),
+  )
   const [allow, setAllow] = useState(true)
   const [number, setNumber] = useState("")
   const [busy, setBusy] = useState(false)
@@ -56,17 +65,23 @@ export function AddPresetDialog({
     setErr(null)
     setBusy(true)
     try {
-      const out = await api<{ workflow: { id: string; name: string }; hosts_added: string[] }>(`/api/w/automation/presets/${encodeURIComponent(p.slug)}/add`, {
-        json: {
-          ...(canAllow && allow && agent && missingHosts.length > 0 ? { agent_id: agent } : {}),
-          ...(p.needs_whatsapp && number.trim() ? { whatsapp_number: number.trim() } : {}),
-          locale: locale === "ar" ? "ar" : "en",
+      const out = await api<{ workflow: { id: string; name: string }; hosts_added: string[] }>(
+        `/api/w/automation/presets/${encodeURIComponent(p.slug)}/add`,
+        {
+          json: {
+            ...(canAllow && allow && agent && missingHosts.length > 0 ? { agent_id: agent } : {}),
+            ...(p.needs_whatsapp && number.trim() ? { whatsapp_number: number.trim() } : {}),
+            locale: locale === "ar" ? "ar" : "en",
+          },
+          workspaceId: ws.id,
         },
-        workspaceId: ws.id,
-      })
+      )
       toast.success(
         out.hosts_added.length
-          ? t("presets.addedWithHosts", { name: isolate(out.workflow.name), hosts: out.hosts_added.join(", ") })
+          ? t("presets.addedWithHosts", {
+              name: isolate(out.workflow.name),
+              hosts: out.hosts_added.join(", "),
+            })
           : t("presets.addedToast", { name: isolate(out.workflow.name) }),
       )
       onAdded(out.workflow.id)
@@ -94,7 +109,14 @@ export function AddPresetDialog({
             {p.needs_whatsapp ? (
               <Field>
                 <FieldLabel htmlFor="preset-number">{t("presets.whatsappNumber")}</FieldLabel>
-                <Input id="preset-number" dir="ltr" inputMode="tel" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="201000000000" />
+                <Input
+                  id="preset-number"
+                  dir="ltr"
+                  inputMode="tel"
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                  placeholder="201000000000"
+                />
                 <FieldDescription>{t("presets.whatsappHint")}</FieldDescription>
               </Field>
             ) : null}
@@ -102,7 +124,9 @@ export function AddPresetDialog({
               <p className="text-sm text-grid-muted" data-add-profile>
                 {missingProfile.length === 0
                   ? t("presets.profileFilled")
-                  : t("presets.profileMissing", { fields: missingProfile.map((f) => t(`presets.profile.${f}`)).join(", ") })}{" "}
+                  : t("presets.profileMissing", {
+                      fields: missingProfile.map((f) => t(`presets.profile.${f}`)).join(", "),
+                    })}{" "}
                 <a className="underline" href="#profile" onClick={onClose}>
                   {t("presets.profileEdit")}
                 </a>
@@ -112,19 +136,36 @@ export function AddPresetDialog({
               <>
                 <Field>
                   <FieldLabel htmlFor="preset-agent">{t("presets.browser")}</FieldLabel>
-                  <PickSelect id="preset-agent" value={agent} onChange={setAgent} options={browsers.map((b) => ({ value: b.id, label: b.name }))} />
+                  <PickSelect
+                    id="preset-agent"
+                    value={agent}
+                    onChange={setAgent}
+                    options={browsers.map((b) => ({ value: b.id, label: b.name }))}
+                  />
                 </Field>
                 {missingHosts.length > 0 ? (
                   <label className="flex items-start gap-2 text-sm" htmlFor="preset-allow">
-                    <Checkbox id="preset-allow" checked={allow} onCheckedChange={(v) => setAllow(v === true)} className="mt-0.5" data-add-allow />
+                    <Checkbox
+                      id="preset-allow"
+                      checked={allow}
+                      onCheckedChange={(v) => setAllow(v === true)}
+                      className="mt-0.5"
+                      data-add-allow
+                    />
                     <span>{t("presets.allowHosts", { hosts: missingHosts.join(", ") })}</span>
                   </label>
                 ) : (
-                  <p className="text-sm text-grid-muted">{t("presets.hostsAlready", { name: isolate(chosen?.name ?? "") })}</p>
+                  <p className="text-sm text-grid-muted">
+                    {t("presets.hostsAlready", { name: isolate(chosen?.name ?? "") })}
+                  </p>
                 )}
               </>
             ) : p.hosts.length > 0 ? (
-              <p className="text-sm text-grid-muted">{canManage ? t("presets.noBrowser") : t("presets.adminAllows", { hosts: p.hosts.join(", ") })}</p>
+              <p className="text-sm text-grid-muted">
+                {canManage
+                  ? t("presets.noBrowser")
+                  : t("presets.adminAllows", { hosts: p.hosts.join(", ") })}
+              </p>
             ) : null}
           </FieldGroup>
           {err ? <FieldError className="mb-3">{err}</FieldError> : null}

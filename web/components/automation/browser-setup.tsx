@@ -9,7 +9,15 @@ one status row once all three are done, opened again on demand.
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { BookOpenIcon, CheckIcon, ChevronUpIcon, DownloadIcon, PencilIcon, SettingsIcon, ShieldCheckIcon } from "lucide-react"
+import {
+  BookOpenIcon,
+  CheckIcon,
+  ChevronUpIcon,
+  DownloadIcon,
+  PencilIcon,
+  SettingsIcon,
+  ShieldCheckIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
@@ -54,7 +62,11 @@ export function FlowStep({
       <div className="min-w-0 flex-1 space-y-3">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {title}
-          <Badge variant={state === "done" ? "secondary" : state === "current" ? "default" : "outline"}>{t(`automation.flow.state.${state}`)}</Badge>
+          <Badge
+            variant={state === "done" ? "secondary" : state === "current" ? "default" : "outline"}
+          >
+            {t(`automation.flow.state.${state}`)}
+          </Badge>
         </p>
         {children}
       </div>
@@ -63,15 +75,31 @@ export function FlowStep({
 }
 
 /** Setup is done: one row that says so, with the way back in. */
-export function BrowsersStatus({ browsers, onManage, installHref }: { browsers: BrowserAgent[]; onManage: () => void; installHref: string }) {
+export function BrowsersStatus({
+  browsers,
+  onManage,
+  installHref,
+}: {
+  browsers: BrowserAgent[]
+  onManage: () => void
+  installHref: string
+}) {
   const { t } = useTranslations()
   const online = browsers.filter((b) => b.status === "online").length
   const outdated = browsers.filter((b) => b.update_available).length
   const hosts = [...new Set(browsers.flatMap((b) => b.allowed_hosts))]
-  const waiting = [...new Set(browsers.filter((b) => b.status === "online").flatMap((b) => b.pending_hosts ?? []))]
+  const waiting = [
+    ...new Set(browsers.filter((b) => b.status === "online").flatMap((b) => b.pending_hosts ?? [])),
+  ]
   return (
-    <section className="flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-line bg-grid-card px-6 py-4" data-browser-status>
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground" aria-hidden>
+    <section
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-line bg-grid-card px-6 py-4"
+      data-browser-status
+    >
+      <span
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+        aria-hidden
+      >
         <CheckIcon className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
@@ -85,7 +113,9 @@ export function BrowsersStatus({ browsers, onManage, installHref }: { browsers: 
         </p>
         <p className="flex items-start gap-1 text-xs text-grid-muted">
           <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
-          <span className="min-w-0 break-words">{t("automation.mayVisit", { hosts: hosts.join(", ") })}</span>
+          <span className="min-w-0 break-words">
+            {t("automation.mayVisit", { hosts: hosts.join(", ") })}
+          </span>
         </p>
         {/* A site added here that a browser has not given its OK to yet
             (MH-483): said in the folded row too, or nobody opens "Manage". */}
@@ -96,7 +126,13 @@ export function BrowsersStatus({ browsers, onManage, installHref }: { browsers: 
         ) : null}
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={installHref} />} data-install-link>
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={installHref} />}
+          data-install-link
+        >
           <DownloadIcon />
           {t("automation.ext.link")}
         </Button>
@@ -109,12 +145,22 @@ export function BrowsersStatus({ browsers, onManage, installHref }: { browsers: 
   )
 }
 
-export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserAgent; canManage: boolean; onChange: () => void }) {
+export function BrowserRow({
+  browser,
+  canManage,
+  onChange,
+}: {
+  browser: BrowserAgent
+  canManage: boolean
+  onChange: () => void
+}) {
   const { t, formatDate, locale } = useTranslations()
   const ws = useWorkspace()
   // A browser that may go nowhere opens with its allow-list ready to fill in:
   // that is the setup step it is waiting on.
-  const [editing, setEditing] = useState(canManage && !browser.revoked_at && browser.allowed_hosts.length === 0)
+  const [editing, setEditing] = useState(
+    canManage && !browser.revoked_at && browser.allowed_hosts.length === 0,
+  )
   const [hosts, setHosts] = useState(browser.allowed_hosts.join(", "))
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(browser.name)
@@ -126,7 +172,11 @@ export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserA
     if (!name.trim()) return
     setBusy(true)
     try {
-      await api(`/api/w/browsers/${encodeURIComponent(browser.id)}`, { method: "PATCH", json: { name: name.trim() }, workspaceId: ws.id })
+      await api(`/api/w/browsers/${encodeURIComponent(browser.id)}`, {
+        method: "PATCH",
+        json: { name: name.trim() },
+        workspaceId: ws.id,
+      })
       toast.success(t("automation.renamed"))
       setRenaming(false)
       onChange()
@@ -143,7 +193,12 @@ export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserA
     try {
       await api(`/api/w/browsers/${encodeURIComponent(browser.id)}`, {
         method: "PATCH",
-        json: { allowed_hosts: hosts.split(",").map((h) => h.trim()).filter(Boolean) },
+        json: {
+          allowed_hosts: hosts
+            .split(",")
+            .map((h) => h.trim())
+            .filter(Boolean),
+        },
         workspaceId: ws.id,
       })
       toast.success(t("automation.hostsSaved"))
@@ -157,7 +212,10 @@ export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserA
   }
 
   async function revoke() {
-    await api(`/api/w/browsers/${encodeURIComponent(browser.id)}`, { method: "DELETE", workspaceId: ws.id })
+    await api(`/api/w/browsers/${encodeURIComponent(browser.id)}`, {
+      method: "DELETE",
+      workspaceId: ws.id,
+    })
     toast.success(t("automation.revoked"))
     onChange()
   }
@@ -179,19 +237,28 @@ export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserA
               // The extension reports its version on every connect, so this
               // clears by itself once the browser is updated (MH-399).
               <Link href={`/${locale}/w/${ws.slug}/automation/extension`} data-update-available>
-                <Badge variant="secondary">{t("automation.ext.outdated", { version: browser.extension_version || "?" })}</Badge>
+                <Badge variant="secondary">
+                  {t("automation.ext.outdated", { version: browser.extension_version || "?" })}
+                </Badge>
               </Link>
             ) : null}
           </p>
           <p className="text-xs text-grid-muted">
-            {[browser.platform, browser.browser_version, browser.extension_version].filter(Boolean).join(" · ") || t("automation.unknownPlatform")}
+            {[browser.platform, browser.browser_version, browser.extension_version]
+              .filter(Boolean)
+              .join(" · ") || t("automation.unknownPlatform")}
             {" · "}
             {t("automation.lastSeen", { date: formatDate(browser.last_seen_at) })}
           </p>
-          <p className="mt-1 flex items-start gap-1 text-xs" data-hosts={browser.allowed_hosts.join(",")}>
+          <p
+            className="mt-1 flex items-start gap-1 text-xs"
+            data-hosts={browser.allowed_hosts.join(",")}
+          >
             <ShieldCheckIcon className="mt-0.5 size-3 shrink-0 text-grid-muted" />
             {browser.allowed_hosts.length > 0 ? (
-              <span className="text-grid-muted">{t("automation.mayVisit", { hosts: browser.allowed_hosts.join(", ") })}</span>
+              <span className="text-grid-muted">
+                {t("automation.mayVisit", { hosts: browser.allowed_hosts.join(", ") })}
+              </span>
             ) : (
               // Not an error — it is the safe default, and saying so stops
               // someone "fixing" it by pasting in a wildcard.
@@ -202,9 +269,15 @@ export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserA
               browser (MH-483). Said only while the browser is connected: it is
               the browser's own report. */}
           {browser.status === "online" && browser.site_access && !revoked ? (
-            <p className="mt-1 text-xs text-grid-muted" data-site-access={browser.site_access} data-pending={browser.pending_hosts.join(",")}>
+            <p
+              className="mt-1 text-xs text-grid-muted"
+              data-site-access={browser.site_access}
+              data-pending={browser.pending_hosts.join(",")}
+            >
               {browser.pending_hosts.length > 0 ? (
-                <span className="text-foreground">{t("automation.access.pending", { hosts: browser.pending_hosts.join(", ") })}</span>
+                <span className="text-foreground">
+                  {t("automation.access.pending", { hosts: browser.pending_hosts.join(", ") })}
+                </span>
               ) : browser.site_access === "all" ? (
                 t("automation.access.all")
               ) : (
@@ -215,7 +288,12 @@ export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserA
         </div>
         {canManage && !revoked ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setRenaming((v) => !v)} data-rename-browser>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRenaming((v) => !v)}
+              data-rename-browser
+            >
               <PencilIcon />
               {t("automation.rename")}
             </Button>
@@ -238,7 +316,12 @@ export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserA
           <FieldGroup className="sm:flex-row sm:items-end">
             <Field className="sm:flex-1">
               <FieldLabel htmlFor={`name-${browser.id}`}>{t("automation.browserName")}</FieldLabel>
-              <Input id={`name-${browser.id}`} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+              <Input
+                id={`name-${browser.id}`}
+                value={name}
+                maxLength={80}
+                onChange={(e) => setName(e.target.value)}
+              />
             </Field>
             <Button type="submit" disabled={busy || !name.trim()}>
               <CheckIcon />
@@ -252,8 +335,16 @@ export function BrowserRow({ browser, canManage, onChange }: { browser: BrowserA
         <form onSubmit={saveHosts} className="mt-3" data-form="hosts">
           <FieldGroup className="sm:flex-row sm:items-end">
             <Field className="sm:flex-1">
-              <FieldLabel htmlFor={`hosts-${browser.id}`}>{t("automation.allowedHosts")}</FieldLabel>
-              <Input id={`hosts-${browser.id}`} dir="ltr" value={hosts} onChange={(e) => setHosts(e.target.value)} placeholder="example.com, mail.google.com" />
+              <FieldLabel htmlFor={`hosts-${browser.id}`}>
+                {t("automation.allowedHosts")}
+              </FieldLabel>
+              <Input
+                id={`hosts-${browser.id}`}
+                dir="ltr"
+                value={hosts}
+                onChange={(e) => setHosts(e.target.value)}
+                placeholder="example.com, mail.google.com"
+              />
               <FieldDescription>{t("automation.allowedHostsHint")}</FieldDescription>
             </Field>
             <Button type="submit" disabled={busy}>

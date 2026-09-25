@@ -30,7 +30,9 @@ export async function POST(req: NextRequest) {
     return Response.json({ detail: "Invalid report." }, { status: 400 })
   }
 
-  const me = verifyWidgetKey(String(form.get("public_key") ?? "")) ?? (await sessionReporter(req.headers.get("cookie")))
+  const me =
+    verifyWidgetKey(String(form.get("public_key") ?? "")) ??
+    (await sessionReporter(req.headers.get("cookie")))
   if (!me?.email) return Response.json({ detail: "Sign in to report a problem." }, { status: 401 })
   let meta: Record<string, unknown> = {}
   try {
@@ -47,7 +49,14 @@ export async function POST(req: NextRequest) {
 
   form.set(
     "meta",
-    JSON.stringify({ ...meta, product: "moharrik", host, workspace, reporter: me.email, reporter_id: me.id ?? null }),
+    JSON.stringify({
+      ...meta,
+      product: "moharrik",
+      host,
+      workspace,
+      reporter: me.email,
+      reporter_id: me.id ?? null,
+    }),
   )
   form.set("public_key", key)
   form.set("reporter_email", me.email)
@@ -62,5 +71,8 @@ export async function POST(req: NextRequest) {
     const status = res.status === 429 || res.status === 402 || res.status === 403 ? res.status : 502
     return Response.json({ detail: "The report was not accepted." }, { status })
   }
-  return new Response(body, { status: 200, headers: { "content-type": res.headers.get("content-type") ?? "application/json" } })
+  return new Response(body, {
+    status: 200,
+    headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
+  })
 }

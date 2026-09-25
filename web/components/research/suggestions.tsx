@@ -7,7 +7,14 @@ import { toast } from "sonner"
 import { Bdi, isolate } from "@/components/bidi"
 import { EvidenceItem, SignalBadge } from "@/components/research/evidence"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -39,7 +46,9 @@ export function SuggestionsPanel({ onAccepted }: { onAccepted: () => void }) {
       <h2 className="flex items-center gap-2 px-6 text-base font-medium">
         <SparklesIcon className="size-4 text-grid-brand" aria-hidden />
         {t("research.suggestions")}
-        <span className="text-sm font-normal text-grid-muted tabular-nums">{formatNumber(total)}</span>
+        <span className="text-sm font-normal text-grid-muted tabular-nums">
+          {formatNumber(total)}
+        </span>
       </h2>
       <p className="px-6 pt-1 pb-3 text-sm text-grid-muted">{t("research.suggestionsHint")}</p>
       <ul className="divide-y divide-line border-y border-line">
@@ -57,11 +66,20 @@ export function SuggestionsPanel({ onAccepted }: { onAccepted: () => void }) {
       {total > items.length ? (
         <div className="flex flex-wrap items-center gap-3 px-6 pt-3">
           {!all && loaded.length > items.length ? (
-            <Button variant="outline" size="sm" onClick={() => setAll(true)} data-action="all-suggestions">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAll(true)}
+              data-action="all-suggestions"
+            >
               {t("research.suggestionsAll", { n: formatNumber(loaded.length) })}
             </Button>
           ) : null}
-          {total > loaded.length ? <p className="text-xs text-grid-muted">{t("research.suggestionMore", { n: formatNumber(total - loaded.length) })}</p> : null}
+          {total > loaded.length ? (
+            <p className="text-xs text-grid-muted">
+              {t("research.suggestionMore", { n: formatNumber(total - loaded.length) })}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -79,7 +97,10 @@ function SuggestionRow({ s, onDone }: { s: CompanySuggestion; onDone: () => void
   async function dismiss() {
     setBusy(true)
     try {
-      await api(`/api/w/company-suggestions/${encodeURIComponent(s.id)}/dismiss`, { method: "POST", workspaceId: ws.id })
+      await api(`/api/w/company-suggestions/${encodeURIComponent(s.id)}/dismiss`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
       toast.success(t("research.dismissed"))
       onDone()
     } catch (err) {
@@ -104,15 +125,28 @@ function SuggestionRow({ s, onDone }: { s: CompanySuggestion; onDone: () => void
               <SignalBadge key={sig} signal={sig} />
             ))}
           </p>
-          <p className="text-xs text-grid-muted">{t("research.suggestionEvidence", { n: formatNumber(s.evidence_count) })}</p>
+          <p className="text-xs text-grid-muted">
+            {t("research.suggestionEvidence", { n: formatNumber(s.evidence_count) })}
+          </p>
         </div>
         {canWrite ? (
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setOpen(true)} disabled={busy} data-action="accept-suggestion">
+            <Button
+              size="sm"
+              onClick={() => setOpen(true)}
+              disabled={busy}
+              data-action="accept-suggestion"
+            >
               <CheckIcon />
               {t("research.accept")}
             </Button>
-            <Button size="sm" variant="ghost" onClick={dismiss} disabled={busy} data-action="dismiss-suggestion">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={dismiss}
+              disabled={busy}
+              data-action="dismiss-suggestion"
+            >
               <XIcon />
               {t("research.dismiss")}
             </Button>
@@ -132,9 +166,20 @@ function SuggestionRow({ s, onDone }: { s: CompanySuggestion; onDone: () => void
           onClose={() => setOpen(false)}
           onAccepted={(id, created) => {
             setOpen(false)
-            toast.success(created ? t("research.accepted", { name: isolate(s.name) }) : t("research.linkedExisting", { name: isolate(s.name) }), {
-              action: { label: t("research.openCompany"), onClick: () => window.location.assign(`/${locale}/w/${ws.slug}/companies/${encodeURIComponent(id)}`) },
-            })
+            toast.success(
+              created
+                ? t("research.accepted", { name: isolate(s.name) })
+                : t("research.linkedExisting", { name: isolate(s.name) }),
+              {
+                action: {
+                  label: t("research.openCompany"),
+                  onClick: () =>
+                    window.location.assign(
+                      `/${locale}/w/${ws.slug}/companies/${encodeURIComponent(id)}`,
+                    ),
+                },
+              },
+            )
             onDone()
           }}
         />
@@ -143,7 +188,15 @@ function SuggestionRow({ s, onDone }: { s: CompanySuggestion; onDone: () => void
   )
 }
 
-function AcceptDialog({ s, onClose, onAccepted }: { s: CompanySuggestion; onClose: () => void; onAccepted: (companyId: string, created: boolean) => void }) {
+function AcceptDialog({
+  s,
+  onClose,
+  onAccepted,
+}: {
+  s: CompanySuggestion
+  onClose: () => void
+  onAccepted: (companyId: string, created: boolean) => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState(s.name)
@@ -156,10 +209,13 @@ function AcceptDialog({ s, onClose, onAccepted }: { s: CompanySuggestion; onClos
     setBusy(true)
     setErr(null)
     try {
-      const res = await api<{ company_id: string; company_created: boolean }>(`/api/w/company-suggestions/${encodeURIComponent(s.id)}/accept`, {
-        json: { name: name.trim(), domain: domain.trim() },
-        workspaceId: ws.id,
-      })
+      const res = await api<{ company_id: string; company_created: boolean }>(
+        `/api/w/company-suggestions/${encodeURIComponent(s.id)}/accept`,
+        {
+          json: { name: name.trim(), domain: domain.trim() },
+          workspaceId: ws.id,
+        },
+      )
       onAccepted(res.company_id, res.company_created)
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -178,13 +234,26 @@ function AcceptDialog({ s, onClose, onAccepted }: { s: CompanySuggestion; onClos
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="acc-name">{t("companies.name")}</FieldLabel>
-              <Input id="acc-name" dir="auto" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
+              <Input
+                id="acc-name"
+                dir="auto"
+                maxLength={120}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="acc-domain">
-                {t("companies.domain")} <span className="text-grid-muted">({t("common.optional")})</span>
+                {t("companies.domain")}{" "}
+                <span className="text-grid-muted">({t("common.optional")})</span>
               </FieldLabel>
-              <Input id="acc-domain" dir="ltr" value={domain} placeholder="company.com" onChange={(e) => setDomain(e.target.value)} />
+              <Input
+                id="acc-domain"
+                dir="ltr"
+                value={domain}
+                placeholder="company.com"
+                onChange={(e) => setDomain(e.target.value)}
+              />
             </Field>
           </FieldGroup>
           {err ? <FieldError className="mt-3">{err}</FieldError> : null}
@@ -202,4 +271,3 @@ function AcceptDialog({ s, onClose, onAccepted }: { s: CompanySuggestion; onClos
     </Dialog>
   )
 }
-
