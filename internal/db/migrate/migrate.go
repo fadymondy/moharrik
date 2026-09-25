@@ -64,6 +64,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	// Telegram, Slack, Discord, Messenger, Instagram, LinkedIn, X, the widget
 	// (MH-583)
 	"contact_identities",
+	// vCard import bookkeeping (MH-584)
+	"vcard_imports",
 }
 
 /*

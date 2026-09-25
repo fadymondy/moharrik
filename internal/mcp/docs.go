@@ -128,7 +128,7 @@ var scopeAR = map[string]string{
 func toolDocs() map[string]ToolDoc {
 	out := map[string]ToolDoc{}
 	for _, set := range []map[string]ToolDoc{
-		docsWorkspace, docsCRM, docsLeads, docsInbox, docsImports, docsCampaigns,
+		docsWorkspace, docsCRM, docsLeads, docsInbox, docsImports, docsVcard, docsCampaigns,
 		docsNotifications, docsTrends, docsAutomation, docsRules, docsBrowserRun, docsResearch, docsProspects, docsGoogle, docsAudit,
 		docsMailbox, docsChannels,
 	} {
@@ -145,7 +145,7 @@ func toolDocs() map[string]ToolDoc {
 func argAR() map[string]string {
 	out := map[string]string{}
 	for _, set := range []map[string]string{
-		argsARCommon, argsARCRM, argsARInbox, argsARImports, argsARNotifications, argsARTools, argsARProspects,
+		argsARCommon, argsARCRM, argsARInbox, argsARImports, argsARVcard, argsARNotifications, argsARTools, argsARProspects,
 		argsARRules, argsARBrowserRun, argsARMailbox, argsARChannels,
 	} {
 		for k, v := range set {
