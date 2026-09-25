@@ -128,13 +128,25 @@ func TestPresetsAndBrowserTools(t *testing.T) {
 	all := []string{"automation:read", "automation:run", "automation:manage"}
 	aliceMCP := token(alice, "alice agent", all...)
 
+	decode := func(t *testing.T, text string) map[string]any {
+		t.Helper()
+		var v map[string]any
+		if err := json.Unmarshal([]byte(text), &v); err != nil {
+			t.Fatalf("not JSON: %s: %v", text, err)
+		}
+		return v
+	}
+
 	_, text, isErr := mcpCall(aliceMCP, "/api/mcp", "browser_allowed_sites", map[string]any{})
-	if isErr || !strings.Contains(text, "may drive 1 sites") || !strings.Contains(text, "news.google.com") {
-		t.Fatalf("browser_allowed_sites: %v %s", isErr, text)
+	allowed := decode(t, text)
+	if isErr || allowed["count"] != float64(1) || !strings.Contains(mustJSONText(allowed["hosts"]), "news.google.com") {
+		t.Fatalf("browser_allowed_sites: %v %v", isErr, allowed)
 	}
 	_, text, isErr = mcpCall(aliceMCP, "/api/mcp", "browser_set_allowed_sites", map[string]any{"agent": "office chrome", "add": []string{"https://Example.com/x", "not a host!"}})
-	if isErr || !strings.Contains(text, "Added: example.com") || !strings.Contains(text, "ignored: not a host!") || hostsOf() != "example.com,news.google.com" {
-		t.Fatalf("browser_set_allowed_sites add: %v %s (browser %q)", isErr, text, hostsOf())
+	setSites := decode(t, text)
+	if isErr || !strings.Contains(mustJSONText(setSites["added"]), "example.com") || !strings.Contains(mustJSONText(setSites["rejected"]), "not a host!") ||
+		hostsOf() != "example.com,news.google.com" {
+		t.Fatalf("browser_set_allowed_sites add: %v %v (browser %q)", isErr, setSites, hostsOf())
 	}
 	var audited int
 	_ = a.SysDB.QueryRow(`SELECT count(*) FROM audit_log WHERE workspace_id = $1 AND entity_type = 'browser_agents' AND entity_id = $2 AND via = 'mcp' AND operation = 'mcp:browser_set_allowed_sites'`, wsID, agentID).Scan(&audited)
@@ -142,8 +154,9 @@ func TestPresetsAndBrowserTools(t *testing.T) {
 		t.Error("the allowed-sites change is not in the audit log")
 	}
 	_, text, _ = mcpCall(aliceMCP, "/api/mcp", "browser_set_allowed_sites", map[string]any{"replace": []string{"news.google.com"}})
-	if !strings.Contains(text, "Removed: example.com") || hostsOf() != "news.google.com" {
-		t.Fatalf("replace: %s (browser %q)", text, hostsOf())
+	replaced := decode(t, text)
+	if !strings.Contains(mustJSONText(replaced["removed"]), "example.com") || hostsOf() != "news.google.com" {
+		t.Fatalf("replace: %v (browser %q)", replaced, hostsOf())
 	}
 
 	// A manager's token cannot carry automation:manage, so the tool is refused.
@@ -153,9 +166,17 @@ func TestPresetsAndBrowserTools(t *testing.T) {
 	}
 
 	_, text, _ = mcpCall(bobMCP, "/api/mcp", "browser_plugins", map[string]any{})
-	if !strings.Contains(text, "slug google-news-search") || !strings.Contains(text, "sites: news.google.com") || !strings.Contains(text, "PUBLISHES") ||
-		!strings.Contains(text, "Presets not added to this workspace yet") {
-		t.Fatalf("browser_plugins: %s", text)
+	plugins := decode(t, text)
+	pluginsText := mustJSONText(plugins)
+	var anyWrites bool
+	for _, it := range plugins["items"].([]any) {
+		if it.(map[string]any)["writes"] == true {
+			anyWrites = true
+		}
+	}
+	if !strings.Contains(pluginsText, `"slug":"google-news-search"`) || !strings.Contains(pluginsText, `"hosts":["news.google.com"]`) ||
+		!anyWrites || len(plugins["not_added"].([]any)) == 0 {
+		t.Fatalf("browser_plugins: %s", pluginsText)
 	}
 
 	// Saving records sites but allows none of them.
@@ -163,34 +184,40 @@ func TestPresetsAndBrowserTools(t *testing.T) {
 		"slug": "evil-read", "name": "Evil read", "hosts": []string{"evil.test"},
 		"steps": []map[string]any{{"command": "navigate", "args": map[string]any{"url": "https://evil.test/"}}},
 	})
-	if !strings.Contains(text, "Created evil-read (v1") || hostsOf() != "news.google.com" {
-		t.Fatalf("browser_plugin_save: %s (browser %q)", text, hostsOf())
+	saved := decode(t, text)
+	if saved["ok"] != true || saved["created"] != true || saved["version"] != float64(1) || hostsOf() != "news.google.com" {
+		t.Fatalf("browser_plugin_save: %v (browser %q)", saved, hostsOf())
 	}
 	_, text, _ = mcpCall(bobMCP, "/api/mcp", "browser_plugin_save", map[string]any{
 		"slug": "evil-read", "name": "Evil read, renamed", "hosts": []string{"evil.test"},
 		"steps": []map[string]any{{"command": "navigate", "args": map[string]any{"url": "https://evil.test/"}}},
 	})
-	if !strings.Contains(text, "still v1") {
-		t.Fatalf("a rename bumped the version: %s", text)
+	renamed := decode(t, text)
+	if renamed["changed"] == true || renamed["version"] != float64(1) {
+		t.Fatalf("a rename bumped the version: %v", renamed)
 	}
 	_, text, _ = mcpCall(bobMCP, "/api/mcp", "browser_plugin_save", map[string]any{
 		"slug": "evil-read", "name": "Evil read, renamed",
 		"steps": []map[string]any{{"command": "navigate", "args": map[string]any{"url": "https://evil.test/{{p}}"}}},
 	})
-	if !strings.Contains(text, "as v2") {
-		t.Fatalf("a step change did not keep a version: %s", text)
+	stepChanged := decode(t, text)
+	if stepChanged["changed"] != true || stepChanged["version"] != float64(2) {
+		t.Fatalf("a step change did not keep a version: %v", stepChanged)
 	}
 	// And running it is refused by the browser's list, not allowed by the save.
-	if _, text, _ := mcpCall(bobMCP, "/api/mcp", "browser_plugin_run", map[string]any{"plugin": "evil-read", "inputs": map[string]any{"p": "x"}}); strings.Contains(text, "started") {
-		t.Fatalf("a run to a site the browser does not allow started: %s", text)
+	_, text, _ = mcpCall(bobMCP, "/api/mcp", "browser_plugin_run", map[string]any{"plugin": "evil-read", "inputs": map[string]any{"p": "x"}})
+	refusedRun := decode(t, text)
+	if refusedRun["ok"] == true {
+		t.Fatalf("a run to a site the browser does not allow started: %v", refusedRun)
 	}
 
 	// A publishing workflow does not run without confirm.
 	_, text, _ = mcpCall(bobMCP, "/api/mcp", "browser_plugin_run", map[string]any{"plugin": "whatsapp-send-self", "inputs": map[string]any{"text": "hi"}})
+	notConfirmed := decode(t, text)
 	var runs int
 	_ = a.SysDB.QueryRow(`SELECT count(*) FROM automation_runs WHERE workspace_id = $1`, wsID).Scan(&runs)
-	if !strings.Contains(text, "Nothing was run") || runs != 0 {
-		t.Fatalf("a publishing workflow ran without confirm: %s (%d runs)", text, runs)
+	if notConfirmed["needs_confirm"] != true || runs != 0 {
+		t.Fatalf("a publishing workflow ran without confirm: %v (%d runs)", notConfirmed, runs)
 	}
 }
 

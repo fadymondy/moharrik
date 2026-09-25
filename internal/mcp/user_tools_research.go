@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/fadymondy/moharrik/internal/app"
@@ -63,7 +62,7 @@ func ResearchTools(engine *research.Engine) []Tool {
 				if err != nil {
 					return "", err
 				}
-				return fmt.Sprintf("Research started. Run id: %s\nRead it back with get_research once it has finished.", runID), nil
+				return jsonResult(map[string]any{"ok": true, "run_id": runID, "message": "Read it back with get_research once it has finished."})
 			},
 		},
 		{
@@ -89,19 +88,7 @@ func ResearchTools(engine *research.Engine) []Tool {
 				if err != nil {
 					return "", err
 				}
-				if len(runs) == 0 {
-					return "No research has been run in this workspace yet.", nil
-				}
-				var b strings.Builder
-				for _, r := range runs {
-					fmt.Fprintf(&b, "- [%s] %s — %s (%s, %s), %d found / %d read / %d evidence",
-						r.ID, r.Topic, r.Status, r.Mode, r.Origin, r.FoundCount, r.ReadCount, r.EvidenceCount)
-					if r.Error != "" {
-						fmt.Fprintf(&b, " (%s)", r.Error)
-					}
-					b.WriteString("\n")
-				}
-				return b.String(), nil
+				return jsonResult(map[string]any{"count": len(runs), "items": runs})
 			},
 		},
 		{
@@ -130,64 +117,23 @@ func ResearchTools(engine *research.Engine) []Tool {
 					return "", err
 				}
 
-				var b strings.Builder
-				fmt.Fprintf(&b, "Question: %s\nMode: %s · Origin: %s\nStatus: %s", run.Topic, run.Mode, run.Origin, run.Status)
 				if run.Status == "queued" || run.Status == "running" {
-					fmt.Fprintf(&b, " — still going (stage: %s), ask again shortly.\n", run.Stage)
-					return b.String(), nil
-				}
-				b.WriteString("\n\nStages:\n")
-				for _, st := range run.Stages {
-					fmt.Fprintf(&b, "- %s: %s (%d)", st.Stage, st.Status, st.Count)
-					if st.Note != "" {
-						fmt.Fprintf(&b, " — %s", st.Note)
-					}
-					b.WriteString("\n")
-				}
-				c := run.Cost
-				fmt.Fprintf(&b, "Spent: %d search queries, %d/%d pages read, %d model calls (%d paid), %d tokens in / %d out\n",
-					c.SearchQueries, c.PagesRead, c.PagesTried, c.ModelCalls, c.PaidCalls, c.InputTokens, c.OutputTokens)
-
-				if run.Error != "" {
-					fmt.Fprintf(&b, "Note: %s\n", run.Error)
-				}
-				if run.Summary != "" {
-					fmt.Fprintf(&b, "\n%s\n", run.Summary)
-					if run.Model != "" {
-						fmt.Fprintf(&b, "\n(summarised by %s)\n", run.Model)
-					}
-				} else {
-					b.WriteString("\nNo summary was written — the sources and evidence below are what was found.\n")
+					return jsonResult(map[string]any{
+						"run": run, "message": "Still going — ask again shortly.",
+					})
 				}
 
-				fmt.Fprintf(&b, "\nSources (%d found, %d read):\n", run.FoundCount, run.ReadCount)
-				for _, src := range sources {
-					fmt.Fprintf(&b, "[%d] %s\n    %s\n", src.Position+1, src.Title, src.URL)
-					if !src.Fetched {
-						fmt.Fprintf(&b, "    not read: %s\n", src.Error)
-						if src.Snippet != "" {
-							fmt.Fprintf(&b, "    snippet: %s\n", src.Snippet)
-						}
-					}
-					if in.FullText && src.Content != "" {
-						fmt.Fprintf(&b, "\n%s\n\n", src.Content)
-					}
-				}
+				var evidence []research.Evidence
+				var evidenceTotal int
 				ev, err := research.FindEvidence(ctx, a.SQLDB, s.WorkspaceID, research.EvidenceQuery{RunID: run.ID, Limit: 30})
-				if err == nil && len(ev.Evidence) > 0 {
-					fmt.Fprintf(&b, "\nEvidence (%d; find_evidence searches it across runs):\n", ev.Total)
-					for _, e := range ev.Evidence {
-						b.WriteString("- ")
-						if e.SignalType != "" {
-							fmt.Fprintf(&b, "[%s] ", e.SignalType)
-						}
-						if e.CompanyName != "" {
-							fmt.Fprintf(&b, "%s: ", e.CompanyName)
-						}
-						fmt.Fprintf(&b, "“%s” — %s\n", e.Quote, e.SourceURL)
-					}
+				if err == nil && ev != nil {
+					evidence = ev.Evidence
+					evidenceTotal = ev.Total
 				}
-				return b.String(), nil
+				return jsonResult(map[string]any{
+					"run": run, "sources": sources, "evidence": evidence, "evidence_total": evidenceTotal,
+					"message": "evidence_total may exceed evidence — find_evidence searches evidence across every run.",
+				})
 			},
 		},
 		{
