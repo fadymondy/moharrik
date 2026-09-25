@@ -86,8 +86,14 @@ for (const scheme of ["light", "dark"]) {
         const f = document.querySelector("[data-floating-chat-open-inbox]")?.parentElement?.getBoundingClientRect()
         return t && f ? Math.round(f.top - t.bottom) : null
       })(),
+      // The reply box is usable in the narrow panel, not squeezed beside the actions.
+      replyShare: (() => {
+        const ta = document.querySelector("[data-floating-chat-panel] [data-form=reply] textarea")?.getBoundingClientRect()
+        const p = document.querySelector("[data-floating-chat-panel]")?.getBoundingClientRect()
+        return ta && p ? Math.round((ta.width / p.width) * 100) : null
+      })(),
     }))
-    check(`${k}-launcher-thread`, opened.bubbles > 0 && opened.back && opened.gap !== null && Math.abs(opened.gap) <= 2, opened)
+    check(`${k}-launcher-thread`, opened.bubbles > 0 && opened.back && opened.gap !== null && Math.abs(opened.gap) <= 2 && opened.replyShare >= 70, opened)
     await shot(page, `${k}-launcher-thread`)
     await page.keyboard.press("Escape").catch(() => {})
   }

@@ -325,7 +325,7 @@ export function ChatThread({
       ) : null}
 
       {canWrite ? (
-        <form ref={formRef} onSubmit={onSubmit} noValidate className="shrink-0 border-t border-line px-4 py-3" data-form="reply">
+        <form ref={formRef} onSubmit={onSubmit} noValidate className="@container shrink-0 border-t border-line px-4 py-3" data-form="reply">
           {windowNote ? (
             <p className="mb-2 text-xs text-grid-muted" data-whatsapp-window>
               {windowNote}
@@ -336,7 +336,9 @@ export function ChatThread({
               <Bdi>{emailNote}</Bdi>
             </p>
           ) : null}
-          <div className="flex items-end gap-2">
+          {/* One row when there is room (the inbox page); in a narrow container (the
+              launcher panel) the reply box takes a full line and the actions sit under it. */}
+          <div className="flex flex-wrap items-end justify-end gap-2">
             <Textarea
               id="reply-body"
               value={reply}
@@ -345,7 +347,7 @@ export function ChatThread({
               placeholder={t("inbox.replyPlaceholder")}
               rows={1}
               dir="auto"
-              className="max-h-40 flex-1 resize-none"
+              className="max-h-40 min-w-0 basis-full resize-none @lg:basis-0 @lg:flex-1"
               aria-label={t("inbox.replyLabel")}
             />
             <CannedPicker lang={replyLanguage} onInsert={onInsertCanned} open={cannedOpen} onOpenChange={setCannedOpen} />
