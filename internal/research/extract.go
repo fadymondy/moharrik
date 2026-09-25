@@ -394,7 +394,16 @@ func companyIn(sentence string, pageCo pageCo) (name, domain string) {
 			}
 			keep = append(keep, w)
 		}
-		if len(keep) > 0 {
+		// "شركة الحكومة" ("the government's company") names no one; every
+		// word kept is an institutional word, not a brand.
+		generic := len(keep) > 0
+		for _, w := range keep {
+			if !arNotCompany[normalise(w)] {
+				generic = false
+				break
+			}
+		}
+		if len(keep) > 0 && !generic {
 			n := strings.Join(keep, " ")
 			return n, pageCo.domainFor(n)
 		}
@@ -446,12 +455,25 @@ func cleanName(n string) string {
 }
 
 // notCompany are words that name places, markets and kinds of news — never,
-// on their own, a company.
+// on their own, a company. A captured name is rejected only when EVERY word
+// in it is on this list, so "Venture Garden" (one generic word, one brand
+// word) still passes while "Ministerial Group" (two generic words) does not.
 var notCompany = set(`egypt egyptian cairo giza alexandria saudi arabia ksa uae emirates dubai abu dhabi riyadh jeddah qatar doha kuwait bahrain oman jordan
 morocco tunisia algeria lebanon iraq turkey kenya nigeria ghana africa african mena gcc middle east north gulf europe asia america us usa uk london
-global world international region regional market markets sector industry ecosystem government ministry
+global world international region regional market markets sector industry ecosystem
 raise raises raised funding fund funds round rounds seed series investment investments investor investors capital venture ventures
-startup startups company companies fintech fintechs business businesses news report reports update weekly daily the`)
+startup startups company companies fintech fintechs business businesses news report reports update weekly daily the
+government governmental ministry ministries ministerial cabinet parliament parliamentary authority authorities agency agencies
+committee committees council councils commission commissions federation chamber regulator regulators regulatory
+state national federal public supreme presidency presidential central bank banking working advisory steering technical
+group holdings task taskforce force`)
+
+// arNotCompany is notCompany's Arabic equivalent, in normalise()'s folded
+// spelling (ة folded to ه): government, ministry and other institutional
+// words that "شركة ..." sometimes precedes without naming a business.
+var arNotCompany = set(`الحكومه حكومه الحكوميه حكوميه الوزاره وزاره الوزاري وزاري الوزاريه وزاريه الوزارات وزارات
+المجلس مجلس اللجنه لجنه الهيئه هيئه البنك بنك المركزي مركزي الدوله دوله الاتحاد اتحاد الغرفه غرفه الجهاز جهاز
+المجموعه مجموعه الهيئات هيئات السلطه سلطه`)
 
 // pageCo is the company whose own site a page is on.
 type pageCo struct{ name, domain string }

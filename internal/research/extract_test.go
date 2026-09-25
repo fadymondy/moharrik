@@ -192,3 +192,62 @@ func TestPlacesAndPlainWordsAreNotCompanies(t *testing.T) {
 		t.Errorf("a company whose name contains a generic word was dropped: %q", got)
 	}
 }
+
+// MH-515: production suggested "Ministerial Group" as a company from an
+// evidence line about Egyptian startup funding — an institutional phrase
+// with no brand in it, not a business. The heuristic's legalName pattern
+// treats "Group"/"Holdings" as a legal-suffix signal, which is right for
+// "Acme Group" but wrong when everything in front of it is a generic,
+// institutional word too ("Ministerial", "Working", "Advisory", ...), and
+// the same generic words can name a company via a news verb ("The Central
+// Bank raised rates") without any legal-suffix word at all.
+func TestGenericInstitutionalPhrasesAreNotCompanies(t *testing.T) {
+	for _, s := range []string{
+		// The real production evidence line (trimmed of its "…" continuation
+		// in the report), completed with the phrase that was mistaken for a
+		// company.
+		"Egyptian startups raised $614m in funding in 2025, marking a 51% year-on-year increase, as the government's Ministerial Group moved to fast-track new fintech licensing rules.",
+		"The Ministerial Group announced new regulations for fintech firms operating in Egypt this week.",
+		"The Working Group raised concerns about the pace of regulatory reform in the banking sector.",
+		"The Advisory Group raised concerns about the pace of regulatory reform in the payments sector.",
+		"The Central Bank raised interest rates again this quarter to curb inflation.",
+		"The National Council announced new licensing rules for payment startups in the region.",
+	} {
+		if got, _ := companyIn(s, pageCo{}); got != "" {
+			t.Errorf("companyIn(%q) = %q, want none (institutional phrase, not a company)", s, got)
+		}
+	}
+}
+
+// Tightening the heuristic against institutional phrases must not cost the
+// companies whose names happen to contain an ordinary word — the fix rejects
+// a name only when EVERY word in it is generic.
+func TestRealCompaniesWithGenericLookingNamesStillPass(t *testing.T) {
+	cases := map[string]string{
+		"Swvl raised $30 million in a bridge round to expand its transport network across the region.": "Swvl",
+		"Paymob, the Egyptian fintech, closed a $50 million Series B round led by regional investors.":  "Paymob",
+		"MNT-Halan raised $260 million in one of the region's largest funding rounds this year.":        "MNT-Halan",
+		"Fawry expanded its e-payment network across Egypt this quarter after a strong year of growth.": "Fawry",
+		"Instabug partnered with a regional telecom to expand its bug-reporting platform into new markets.": "Instabug",
+	}
+	for s, want := range cases {
+		if got, _ := companyIn(s, pageCo{}); got != want {
+			t.Errorf("companyIn(%q) = %q, want %q", s, got, want)
+		}
+	}
+}
+
+// The Arabic path must reject the same kind of institutional phrase: a
+// sentence that names a ministry or a central bank as "the company" it is
+// about, rather than a business.
+func TestArabicInstitutionalPhrasesAreNotCompanies(t *testing.T) {
+	cases := []string{
+		"أعلنت شركة الحكومة عن قواعد جديدة لتراخيص شركات التكنولوجيا المالية.",
+		"وقالت شركة البنك المركزي إنها ستراجع القواعد المنظمة للمدفوعات الرقمية.",
+	}
+	for _, s := range cases {
+		if got, _ := companyIn(s, pageCo{}); got != "" {
+			t.Errorf("companyIn(%q) = %q, want none (institutional phrase)", s, got)
+		}
+	}
+}
