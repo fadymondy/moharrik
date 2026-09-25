@@ -572,6 +572,13 @@ func LinkContactIdentity(ctx context.Context, db *sql.DB, contactID string, in L
 	if err != nil {
 		return nil, err
 	}
+	// A contact outside this workspace is not found, not a failed insert (RLS
+	// hides it, so the identity's foreign key would otherwise fail as a 500).
+	if _, err := getContact(ctx, db, s.WorkspaceID, contactID); notFound(err) {
+		return nil, huma.Error404NotFound("contact not found")
+	} else if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the contact")
+	}
 	if _, err := contacts.LinkIdentity(ctx, db, s.WorkspaceID, contactID, in.Channel, in.ExternalID, in.Label, in.IsPrimary); err != nil {
 		switch {
 		case errors.Is(err, contacts.ErrDuplicateIdentity):

@@ -208,7 +208,8 @@ func BrowserTools() []Tool {
 			Name: "browser_plugin_run",
 			Description: "Run a saved workflow by slug (or id) on a paired browser, with values for its inputs. " +
 				"A workflow that publishes, sends or submits needs confirm: true — run its -dryrun twin first where " +
-				"there is one. Returns the run id; read it with get_browser_run.",
+				"there is one. Waits about 25 seconds and answers with the run's steps and extracted data; a run still going " +
+				"by then answers with its id, to poll with browser_result.",
 			Scope: "automation:run",
 			InputSchema: schema([]string{"plugin"}, map[string]any{
 				"plugin":  map[string]any{"type": "string", "description": "slug or id"},
