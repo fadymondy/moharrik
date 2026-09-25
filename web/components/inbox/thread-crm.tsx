@@ -212,7 +212,11 @@ function CreateContactDialog({ open, onOpenChange, c, visitor, onDone }: DialogP
   )
 }
 
-function CreateContactForm({ c, visitor, onDone }: { c: Conversation; visitor: VisitorGuess; onDone: Done }) {
+/** Exported for the inbox row's contact dialog (MH-595): the SAME create/link
+ * form and POST /api/w/conversations/{id}/contact call, seeded from whatever
+ * visitor guess the caller has to hand — a list row has only its own
+ * customer_name/email/phone/locale, not the full VisitorGuess a thread loads. */
+export function CreateContactForm({ c, visitor, onDone }: { c: Conversation; visitor: VisitorGuess; onDone: Done }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   // Prefilled from what the visitor gave (the API reads it from the

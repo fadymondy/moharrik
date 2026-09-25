@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { ChevronUpIcon, EllipsisVerticalIcon } from "lucide-react"
+import { ChevronUpIcon, PencilIcon, UserPlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { ChatThread } from "@/components/inbox/chat-thread"
+import { ConversationContactDialog } from "@/components/inbox/contact-row-dialog"
 import { SnoozeControl, SnoozedNote } from "@/components/inbox/snooze-control"
 import { ThreadCRM } from "@/components/inbox/thread-crm"
 import { SectionHeader } from "@/components/public-frame"
@@ -15,7 +16,7 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, phoneLabel, type ChannelCount, type Conversation, type ConversationStatus, type InboxMessage, type ThreadPage } from "@/lib/api"
@@ -386,11 +387,13 @@ function ConversationRow({
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
   const who = c.customer_name || c.customer_email || phoneLabel(c.customer_phone) || t("inbox.anonymous")
-  const [menuOpen, setMenuOpen] = useState(false)
-  const longPress = useRef<number | null>(null)
+  const [contactOpen, setContactOpen] = useState(false)
 
-  // The context menu (MH-556): a kebab button, right-click, and a touch
-  // long-press all open the SAME menu — one set of actions, three ways in.
+  // The row's menu (MH-556, MH-596): right-click, a touch long-press and
+  // Shift+F10 / the keyboard Menu key on the focused row all open the SAME
+  // ContextMenu — the browser fires the same "contextmenu" event for all
+  // three, and Base UI's ContextMenu.Trigger listens for exactly that, so a
+  // plain click on the row still just opens the conversation.
   async function act(patch: Record<string, unknown>, message: string) {
     try {
       await api(`/api/w/conversations/${encodeURIComponent(c.id)}`, { method: "PATCH", json: patch, workspaceId: ws.id })
@@ -402,73 +405,54 @@ function ConversationRow({
   }
 
   return (
-    <li
-      ref={measureRef}
-      data-index={dataIndex}
-      className="group relative"
-      style={style}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        setMenuOpen(true)
-      }}
-      onTouchStart={() => {
-        longPress.current = window.setTimeout(() => setMenuOpen(true), 500)
-      }}
-      onTouchEnd={() => {
-        if (longPress.current) window.clearTimeout(longPress.current)
-      }}
-    >
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={onSelect}
-        aria-current={active ? "true" : undefined}
-        data-conversation={c.id}
-        data-conversation-unread={c.unread ? "true" : "false"}
-        className={`flex w-full min-w-0 flex-col gap-1 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
+    <ContextMenu>
+      <ContextMenuTrigger
+        render={<li ref={measureRef} data-index={dataIndex} className="group relative" style={style} data-row-menu="context" />}
       >
-        <span className="flex min-w-0 items-center gap-2">
-          {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
-          <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
-          <Badge variant={statusVariant[c.status]} className="ms-auto shrink-0">
-            {t(`inbox.status.${c.status}`)}
-          </Badge>
-        </span>
-        <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
-          {c.preview || c.subject}
-        </BdiBlock>
-        <span className="text-xs text-grid-muted">
-          {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> · {t("inbox.messageCount", { n: c.message_count })}
-        </span>
-      </button>
-
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger
-          render={
-            <button
-              type="button"
-              aria-label={t("inbox.moreActions")}
-              data-context-menu-trigger
-              onClick={(e) => e.stopPropagation()}
-              className="absolute end-2 top-3 rounded-md p-1 text-grid-muted opacity-0 hover:bg-grid-card focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
-            />
-          }
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={onSelect}
+          aria-current={active ? "true" : undefined}
+          data-conversation={c.id}
+          data-conversation-unread={c.unread ? "true" : "false"}
+          className={`flex w-full min-w-0 flex-col gap-1 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
         >
-          <EllipsisVerticalIcon className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuItem onClick={() => act({ unread: !c.unread }, c.unread ? t("inbox.markedRead") : t("inbox.markedUnread"))} data-action="toggle-unread">
-            {c.unread ? t("inbox.markRead") : t("inbox.markUnread")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => act({ status: c.status === "closed" ? "open" : "closed" }, c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"))}
-            data-action="toggle-status"
-          >
-            {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </li>
+          <span className="flex min-w-0 items-center gap-2">
+            {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
+            <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
+            <Badge variant={statusVariant[c.status]} className="ms-auto shrink-0">
+              {t(`inbox.status.${c.status}`)}
+            </Badge>
+          </span>
+          <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
+            {c.preview || c.subject}
+          </BdiBlock>
+          <span className="text-xs text-grid-muted">
+            {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> · {t("inbox.messageCount", { n: c.message_count })}
+          </span>
+        </button>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent className="min-w-48">
+        <ContextMenuItem onClick={() => act({ unread: !c.unread }, c.unread ? t("inbox.markedRead") : t("inbox.markedUnread"))} data-action="toggle-unread">
+          {c.unread ? t("inbox.markRead") : t("inbox.markUnread")}
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => act({ status: c.status === "closed" ? "open" : "closed" }, c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"))}
+          data-action="toggle-status"
+        >
+          {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => setContactOpen(true)} data-contact-edit>
+          {c.contact_id ? <PencilIcon /> : <UserPlusIcon />}
+          {c.contact_id ? t("inbox.crm.editContact") : t("inbox.crm.addContact")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+
+      <ConversationContactDialog c={c} open={contactOpen} onOpenChange={setContactOpen} onDone={() => onChanged?.()} />
+    </ContextMenu>
   )
 }
 

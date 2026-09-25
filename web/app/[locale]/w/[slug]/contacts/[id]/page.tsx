@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useState, type FormEvent } from "react"
+import { useState } from "react"
 import { LogOutIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -17,15 +17,13 @@ import { NotFoundState } from "@/components/not-found-state"
 import { SectionHeader } from "@/components/public-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, contactIdentity, LIFECYCLE_STAGES, type ContactDetail, type Lifecycle, type SubscriptionStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContact } from "@/lib/queries"
 import { dateFormat } from "@/lib/i18n-locale"
-import { CompanyPicker } from "@/components/crm/company-picker"
+import { ContactEditForm } from "@/components/crm/contact-edit-form"
 import { ContactWhatsAppPanel } from "@/components/crm/contact-whatsapp"
 import { IdentitiesPanel, MetaPanel } from "@/components/crm/contact-identities"
 import { useDocumentTitle } from "@/lib/title"
@@ -108,7 +106,11 @@ export default function ContactDetailPage() {
       <ContactFit contact={contact} canWrite={canWrite} onSaved={() => detail.mutate()} />
       <ContactWhatsAppPanel key={contact.phone} contact={contact} />
 
-      {canWrite ? <EditContact contact={contact} onSaved={() => detail.mutate()} /> : null}
+      {canWrite ? (
+        <div className="px-6 pb-6">
+          <ContactEditForm contact={contact} onSaved={() => detail.mutate()} />
+        </div>
+      ) : null}
 
       <div className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
         <IdentitiesPanel contactId={contact.id} identities={contact.identities ?? []} canWrite={canWrite} onChanged={() => detail.mutate()} />
@@ -130,106 +132,6 @@ export default function ContactDetailPage() {
       <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} conversations={detail.data.conversations ?? []} target={{ contact_id: contact.id }} onChange={() => detail.mutate()} />
       <div className="pb-8" />
     </>
-  )
-}
-
-function EditContact({
-  contact,
-  onSaved,
-}: {
-  contact: {
-    id: string
-    name: string
-    email: string
-    phone: string
-    handle: string
-    title: string
-    company: { id: string; name: string } | null
-    owner_user_id: string | null
-  }
-  onSaved: () => void
-}) {
-  const { t } = useTranslations()
-  const ws = useWorkspace()
-  const members = useMemberNames(ws.id)
-  const [name, setName] = useState(contact.name)
-  const [email, setEmail] = useState(contact.email)
-  const [phone, setPhone] = useState(contact.phone)
-  const [handle, setHandle] = useState(contact.handle)
-  const [title, setTitle] = useState(contact.title)
-  const [companyId, setCompanyId] = useState(contact.company?.id ?? "")
-  const [ownerId, setOwnerId] = useState(contact.owner_user_id ?? "")
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  const hasIdentity = !!(email.trim() || phone.trim() || handle.trim())
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setErr(null)
-    try {
-      await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, {
-        method: "PATCH",
-        json: {
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          handle: handle.trim(),
-          title: title.trim(),
-          company_id: companyId,
-          owner_user_id: ownerId,
-        },
-        workspaceId: ws.id,
-      })
-      toast.success(t("contacts.saved"))
-      onSaved()
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} noValidate className="px-6 pb-6" data-form="edit-contact">
-      <FieldGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field>
-          <FieldLabel htmlFor="edit-contact-name">{t("contacts.name")}</FieldLabel>
-          <Input id="edit-contact-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="edit-contact-email">{t("contacts.email")}</FieldLabel>
-          <Input id="edit-contact-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="edit-contact-phone">{t("contacts.phone")}</FieldLabel>
-          <Input id="edit-contact-phone" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="edit-contact-handle">{t("contacts.handle")}</FieldLabel>
-          <Input id="edit-contact-handle" dir="ltr" value={handle} onChange={(e) => setHandle(e.target.value)} maxLength={120} />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="edit-contact-title">{t("contacts.jobTitle")}</FieldLabel>
-          <Input id="edit-contact-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="edit-contact-company">{t("companies.title")}</FieldLabel>
-          <CompanyPicker id="edit-contact-company" value={companyId} selected={contact.company} onChange={setCompanyId} />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="edit-contact-owner">{t("crm.owner")}</FieldLabel>
-          <PickSelect id="edit-contact-owner" value={ownerId} onChange={setOwnerId} options={members.options} noneLabel={t("crm.unassigned")} />
-        </Field>
-      </FieldGroup>
-      <div className="mt-4 flex items-center gap-3">
-        <Button type="submit" disabled={busy || !hasIdentity}>
-          {busy ? t("common.working") : t("common.save")}
-        </Button>
-        {!hasIdentity ? <FieldError>{t("contacts.needsIdentity")}</FieldError> : err ? <FieldError>{err}</FieldError> : null}
-      </div>
-    </form>
   )
 }
 
