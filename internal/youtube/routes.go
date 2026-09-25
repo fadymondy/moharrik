@@ -206,7 +206,7 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error404NotFound("no YouTube channel is enabled in this workspace")
 		}
 		if err := RefreshReports(ctx, a, s.WorkspaceID, *r); err != nil {
-			return nil, huma.Error502BadGateway(google.Describe(err))
+			return nil, huma.NewError(http.StatusFailedDependency, google.Describe(err))
 		}
 		out, err := ListReports(tenant.WithWorkspace(ctx, s.WorkspaceID), a.SQLDB, s.WorkspaceID, r.ID, 60)
 		if err != nil {

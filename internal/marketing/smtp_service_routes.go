@@ -263,7 +263,7 @@ func registerSMTPServices(api huma.API, a *app.App) {
 		sendErr := Send(ctx, svc, SMTPTestMessage(to.Address, svc.ServiceName))
 		RecordSMTPTest(ctx, a.SQLDB, s.WorkspaceID, in.ID, sendErr)
 		if sendErr != nil {
-			return nil, huma.Error502BadGateway(sendErr.Error())
+			return nil, huma.NewError(http.StatusFailedDependency, sendErr.Error())
 		}
 		o, err := GetSMTPService(ctx, a.SQLDB, s.WorkspaceID, in.ID)
 		if err != nil {

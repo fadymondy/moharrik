@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"net/http"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -127,5 +128,5 @@ func mailError(err error) error {
 	if marketing.IsHardBounce(err) {
 		return huma.Error422UnprocessableEntity("the mail server rejected that address: " + err.Error())
 	}
-	return huma.Error502BadGateway("the reply could not be sent: " + err.Error())
+	return huma.NewError(http.StatusFailedDependency, "the reply could not be sent: " + err.Error())
 }

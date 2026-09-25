@@ -117,7 +117,7 @@ func notifyError(err error) error {
 	}
 	var e *Error
 	if errors.As(err, &e) {
-		return huma.Error502BadGateway(e.Error())
+		return huma.NewError(http.StatusFailedDependency, e.Error())
 	}
 	return huma.Error500InternalServerError("could not update WhatsApp notifications")
 }

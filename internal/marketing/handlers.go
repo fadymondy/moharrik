@@ -437,7 +437,7 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error409Conflict("only a pending subscription needs confirming")
 		}
 		if err := sendConfirmation(ctx, a.SQLDB, s.WorkspaceID, email, locale, listName, token); err != nil {
-			return nil, huma.Error502BadGateway(err.Error())
+			return nil, huma.NewError(http.StatusFailedDependency, err.Error())
 		}
 		return out(struct {
 			Sent bool `json:"sent"`
@@ -764,7 +764,7 @@ func Register(api huma.API, a *app.App) {
 		sendErr := Send(ctx, svc, SMTPTestMessage(to.Address, ""))
 		RecordSMTPTest(ctx, a.SQLDB, s.WorkspaceID, svc.ServiceID, sendErr)
 		if sendErr != nil {
-			return nil, huma.Error502BadGateway(sendErr.Error())
+			return nil, huma.NewError(http.StatusFailedDependency, sendErr.Error())
 		}
 		return out(struct {
 			Sent bool `json:"sent"`

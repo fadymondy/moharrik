@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"net/http"
 	"context"
 	"database/sql"
 	"errors"
@@ -234,7 +235,7 @@ func whatsappError(err error) error {
 	}
 	var we *whatsapp.Error
 	if errors.As(err, &we) {
-		return huma.Error502BadGateway(we.Error())
+		return huma.NewError(http.StatusFailedDependency, we.Error())
 	}
 	return huma.Error500InternalServerError("the reply could not be sent")
 }

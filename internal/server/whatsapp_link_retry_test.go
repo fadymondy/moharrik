@@ -3,7 +3,7 @@ package server
 /*
 TestWhatsAppLinkRetry — MH-529/530: linking a number survives an Evolution
 that is still starting the instance (the create fails, the first connect
-answers 500) by asking once more, and a link that does fail answers 502 with
+answers 500) by asking once more, and a link that does fail answers 424 with
 the reason rather than a bare 500. A stand-in Evolution; nothing is linked.
 
 	TEST_DATABASE_URL=... TEST_APP_DATABASE_URL=... go test -count=1 ./internal/server/ -run WhatsAppLinkRetry -v
@@ -84,11 +84,11 @@ func TestWhatsAppLinkRetry(t *testing.T) {
 		t.Fatalf("connects = %d, want 2 (one retry)", n)
 	}
 
-	// An answer that is not JSON is the WhatsApp server's failure: 502, named.
+	// An answer that is not JSON is the WhatsApp server's failure: 424, named.
 	garbled.Store(true)
 	code, body := alice.do("POST", "/api/w/whatsapp/link", map[string]any{})
-	if code != http.StatusBadGateway || !strings.Contains(string(body), "not readable") {
-		t.Fatalf("garbled answer: %d %s, want 502 naming it", code, body)
+	if code != http.StatusFailedDependency || !strings.Contains(string(body), "not readable") {
+		t.Fatalf("garbled answer: %d %s, want 424 naming it", code, body)
 	}
 }
 

@@ -29,6 +29,7 @@ consent — a consent is a decision a person made, not a fact an import found.
 package imports
 
 import (
+	"net/http"
 	"context"
 	"database/sql"
 	"errors"
@@ -251,7 +252,7 @@ func Preview(ctx context.Context, a *app.App, wsID, source, connectionID string,
 			return nil, err
 		}
 		slog.Warn("import preview failed", "source", source, "workspace", wsID, "err", err)
-		return nil, huma.Error502BadGateway("could not read this " + source + " connection: " + err.Error())
+		return nil, huma.NewError(http.StatusFailedDependency, "could not read this " + source + " connection: " + err.Error())
 	}
 	if err := markImported(ctx, a, wsID, source, items); err != nil {
 		return nil, err

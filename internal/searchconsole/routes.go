@@ -80,7 +80,7 @@ func toolError(err error) error {
 		return huma.Error429TooManyRequests(q.Error())
 	}
 	// Google refused or failed: say what it said, in words (never a token).
-	return huma.Error502BadGateway(google.Describe(err))
+	return huma.NewError(http.StatusFailedDependency, google.Describe(err))
 }
 
 // Register mounts the Search Console routes. `a` may be nil (OpenAPI export).

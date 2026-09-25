@@ -139,8 +139,8 @@ func testError(err error) error {
 	case errors.Is(err, whatsapp.ErrNotConfigured):
 		return huma.Error503ServiceUnavailable(err.Error())
 	case errors.As(err, &evo):
-		return huma.Error502BadGateway(evo.Error())
+		return huma.NewError(http.StatusFailedDependency, evo.Error())
 	}
 	// The mail server's own refusal is the part that says what to change.
-	return huma.Error502BadGateway(err.Error())
+	return huma.NewError(http.StatusFailedDependency, err.Error())
 }

@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"net/http"
 	"context"
 	"database/sql"
 	"errors"
@@ -18,7 +19,7 @@ import (
 // UI can explain — the same role whatsappError and mailError play for their
 // own channels.
 func channelError(err error) error {
-	return huma.Error502BadGateway("the reply could not be sent: " + err.Error())
+	return huma.NewError(http.StatusFailedDependency, "the reply could not be sent: " + err.Error())
 }
 
 // FileChannelMessage puts one Telegram, Slack, Discord or workflow-channel

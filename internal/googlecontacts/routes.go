@@ -47,7 +47,7 @@ func mapErr(err error) error {
 	case errors.Is(err, google.ErrScope):
 		return huma.Error403Forbidden(err.Error())
 	default:
-		return huma.Error502BadGateway("Google Contacts sync failed: " + err.Error())
+		return huma.NewError(http.StatusFailedDependency, "Google Contacts sync failed: "+google.Describe(err))
 	}
 }
 
