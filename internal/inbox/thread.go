@@ -27,8 +27,18 @@ message. Each page still reads oldest to newest, the way a thread is read.
 */
 
 const (
-	threadPageDefault = 100
+	// threadPageDefault (MH-648): opening a conversation shows its newest 30
+	// messages — for every channel, not just email — with older ones loaded a
+	// page at a time on scroll-up. threadPageMax stays generous for thread()
+	// (routes.go), which reads a whole recent window for search/context/
+	// export rather than paging a human scrolls through.
+	threadPageDefault = 30
 	threadPageMax     = 500
+	// messagesPageMax bounds GET /api/w/conversations/{id}/messages (MH-648):
+	// smaller than threadPageMax because that endpoint IS the human-scroll
+	// path, and a page a human scrolls to should never be as large as the
+	// internal "read the whole recent thread" ceiling.
+	messagesPageMax = 100
 )
 
 // ThreadPage is one page of a thread, oldest first, and how to get the one before it.
@@ -58,7 +68,7 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 	}
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, direction, author_user_id, body, body_html, mailbox_id, created_at,
-		       sender_contact_id, sender_name, sender_external_id
+		       sender_contact_id, sender_name, sender_external_id, subject
 		FROM messages WHERE workspace_id = $1 AND conversation_id = $2`+where+`
 		ORDER BY created_at DESC, id DESC LIMIT $3`, args...)
 	if err != nil {
@@ -70,7 +80,7 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 		var m MessageOut
 		var author, mailboxID, senderContactID sql.NullString
 		if err := rows.Scan(&m.ID, &m.Direction, &author, &m.Body, &m.BodyHTML, &mailboxID, &m.CreatedAt,
-			&senderContactID, &m.SenderName, &m.SenderExternalID); err != nil {
+			&senderContactID, &m.SenderName, &m.SenderExternalID, &m.Subject); err != nil {
 			return nil, err
 		}
 		m.AuthorUserID = strp(author)
@@ -174,7 +184,7 @@ func ThreadMessages(ctx context.Context, a *app.App, id, cursor string, limit in
 	if err != nil {
 		return nil, err
 	}
-	n, err := paging.Limit(limit, threadPageDefault, threadPageMax)
+	n, err := paging.Limit(limit, threadPageDefault, messagesPageMax)
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
@@ -204,7 +214,7 @@ func registerThread(api huma.API, a *app.App) {
 		wsHeader
 		ID     string `path:"id"`
 		Cursor string `query:"cursor" doc:"next_cursor from the page after this one; empty for the newest page."`
-		Limit  int    `query:"limit" minimum:"0" maximum:"500" doc:"Messages per page, default 100."`
+		Limit  int    `query:"limit" minimum:"0" maximum:"100" doc:"Messages per page, default 30, at most 100."`
 	}) (*body[ThreadPage], error) {
 		page, err := ThreadMessages(ctx, a, in.ID, in.Cursor, in.Limit)
 		if err != nil {

@@ -1,6 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDownIcon, SendIcon } from "lucide-react"
 
@@ -77,6 +84,25 @@ function senderKey(m: InboxMessage): string {
   return m.sender_contact_id || m.sender_name || ""
 }
 
+/** MH-600: whether to show message `m`'s own subject line — only when it
+ *  differs from the PREVIOUS message's, so three emails from the same sender
+ *  with the same subject read as one conversation and a fourth with a new
+ *  one still announces itself. This is a flat, whole-thread comparison
+ *  (previous message in `messages`, not previous message in the same
+ *  render-group) since buildItems groups by sender/proximity, not subject —
+ *  two emails a minute apart with different subjects still land in one
+ *  group, and each still needs its own header. */
+function subjectVisibility(messages: InboxMessage[]): Map<string, boolean> {
+  const show = new Map<string, boolean>()
+  let prev = ""
+  for (const m of messages) {
+    const subject = m.subject || ""
+    show.set(m.id, subject !== "" && subject !== prev)
+    prev = subject
+  }
+  return show
+}
+
 /** Day separators + consecutive-same-sender grouping, in one pass over an already-ordered thread.
  *  isGroup (Conversation.is_group, MH-604) makes an inbound message's SENDER part of "same sender"
  *  too — a Telegram/Slack/Discord group thread has many senders sharing the "in" direction, unlike
@@ -138,10 +164,14 @@ function MessageGroup({
   group,
   conversation,
   memberName,
+  showSubject,
 }: {
   group: InboxMessage[]
   conversation: Conversation
   memberName: (id: string | null | undefined) => string
+  /** MH-600: does THIS message's own subject differ from the one before it
+   *  in the whole thread — see subjectVisibility(). */
+  showSubject: (id: string) => boolean
 }) {
   const { t, locale } = useTranslations()
   const out = group[0].direction === "out"
@@ -179,9 +209,9 @@ function MessageGroup({
                   {out ? (m.author_user_id ? memberName(m.author_user_id) : t("inbox.team")) : who}
                 </Bdi>
               </span>
-              {conversation.subject ? (
+              {showSubject(m.id) ? (
                 <span className="min-w-0 flex-1 truncate" data-message-subject>
-                  <Bdi>{conversation.subject}</Bdi>
+                  <Bdi>{m.subject}</Bdi>
                 </span>
               ) : (
                 <span className="flex-1" />
@@ -235,12 +265,12 @@ function MessageGroup({
               data-message={m.direction}
               className={`max-w-[36rem] rounded-2xl px-3.5 py-2 text-sm ${out ? "self-end bg-primary text-primary-foreground" : "self-start border border-line bg-grid-card"}`}
             >
-              {conversation.channel === "email" && conversation.subject ? (
+              {conversation.channel === "email" && showSubject(m.id) ? (
                 <p
                   className={`mb-1 truncate text-xs font-medium ${out ? "text-primary-foreground/80" : "text-grid-muted"}`}
                   data-message-subject
                 >
-                  <Bdi>{conversation.subject}</Bdi>
+                  <Bdi>{m.subject}</Bdi>
                 </p>
               ) : null}
               <MessageBody body={m.body} bodyHtml={m.body_html} attachments={m.attachments} />
@@ -269,6 +299,9 @@ export function ChatThread({
   error,
   onInsertCanned,
   fill = false,
+  hasOlder = false,
+  loadingOlder = false,
+  onLoadOlder,
 }: {
   conversation: Conversation
   messages: InboxMessage[]
@@ -283,9 +316,17 @@ export function ChatThread({
   onInsertCanned: (text: string) => void
   /** Fill the parent's height (the launcher panel) instead of the inbox page's fixed one. */
   fill?: boolean
+  /** MH-648: is there an older page left to load — omit/false hides the top loader entirely. */
+  hasOlder?: boolean
+  /** MH-648: a load triggered by scrolling near the top is already in flight. */
+  loadingOlder?: boolean
+  /** MH-648: load the page before whatever is currently the oldest loaded message. */
+  onLoadOlder?: () => void
 }) {
   const { t, locale } = useTranslations()
   const items = buildItems(messages, t, locale, conversation.is_group)
+  const subjectShown = subjectVisibility(messages)
+  const showSubject = (id: string) => subjectShown.get(id) ?? false
 
   const parentRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -294,6 +335,13 @@ export function ChatThread({
   const [newCount, setNewCount] = useState(0)
   const lastIdRef = useRef<string | null>(null)
   const firstRenderRef = useRef(true)
+  // MH-648: "load older" scroll-anchor bookkeeping. firstIdRef tracks the
+  // oldest currently-loaded message so a prepend can be told apart from an
+  // append; olderAnchorRef snapshots scroll geometry at the moment a load is
+  // triggered so the view can be restored to the same spot once the older
+  // page's messages land above it, instead of jumping.
+  const firstIdRef = useRef<string | null>(null)
+  const olderAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null)
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -406,10 +454,44 @@ export function ChatThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length])
 
+  // MH-648: an older page just landed at the FRONT of `messages` (the oldest
+  // loaded message's id changed). Restore the reader's spot relative to the
+  // content they were looking at — not the raw scrollTop, which would now
+  // point at whatever just got prepended above it — by adding back exactly
+  // how much the scroll height grew. useLayoutEffect: this must happen
+  // before the browser paints the new layout, or the jump would be visible
+  // for a frame.
+  useLayoutEffect(() => {
+    const first = messages[0]?.id ?? null
+    const anchor = olderAnchorRef.current
+    const el = parentRef.current
+    if (first && first !== firstIdRef.current && anchor && el) {
+      el.scrollTop = anchor.scrollTop + (el.scrollHeight - anchor.scrollHeight)
+      olderAnchorRef.current = null
+    }
+    firstIdRef.current = first
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length])
+
+  function triggerLoadOlder() {
+    if (!hasOlder || loadingOlder || !onLoadOlder) return
+    const el = parentRef.current
+    if (!el) return
+    olderAnchorRef.current = { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop }
+    onLoadOlder()
+  }
+
   function onScroll() {
     const bottom = isNearBottom()
     setAtBottom(bottom)
     if (bottom) setNewCount(0)
+    // Near-top: load the previous page. 200px gives the fetch a head start
+    // before the reader actually hits the top of what is loaded. Skipped
+    // while anchorRef is still holding the pane on open — that transient
+    // scrollTop-near-0 is the initial jump-to-latest animation passing
+    // through, not the reader asking for older messages.
+    const el = parentRef.current
+    if (el && !anchorRef.current && el.scrollTop < 200) triggerLoadOlder()
   }
 
   // WhatsApp's 24h customer-service window (informational only — nothing here
@@ -459,6 +541,17 @@ export function ChatThread({
         data-messages
         data-anchor={isEmail ? "newest-email" : "bottom"}
       >
+        {loadingOlder ? (
+          <div
+            className="sticky top-0 z-10 flex justify-center py-2"
+            data-loading-older
+            aria-live="polite"
+          >
+            <span className="rounded-full border border-line bg-grid-elevated px-3 py-1 text-xs text-grid-muted shadow-sm">
+              {t("inbox.thread.loadingOlder")}
+            </span>
+          </div>
+        ) : null}
         <div ref={sizerRef} style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
           {virtualizer.getVirtualItems().map((vi) => {
             const item = items[vi.index]!
@@ -482,6 +575,7 @@ export function ChatThread({
                     group={item.group}
                     conversation={conversation}
                     memberName={memberName}
+                    showSubject={showSubject}
                   />
                 )}
               </div>

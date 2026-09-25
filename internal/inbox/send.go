@@ -64,9 +64,14 @@ func SendEmailReply(ctx context.Context, a *app.App, workspaceID, convID, mailbo
 // thread so the References chain stays intact.
 func threadHeadersFor(ctx context.Context, a *app.App, workspaceID, convID string) (string, []string, error) {
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	// direction = 'in': MH-600 threads a reply under the CUSTOMER's messages,
+	// not the team's own previous replies — those already have their own
+	// References chain from when they were sent, and re-using one as the
+	// parent would build a chain that does not match what either mail client
+	// actually shows.
 	rows, err := a.SQLDB.QueryContext(sctx, `
 		SELECT external_id FROM messages
-		WHERE workspace_id = $1 AND conversation_id = $2 AND external_id <> ''
+		WHERE workspace_id = $1 AND conversation_id = $2 AND external_id <> '' AND direction = 'in'
 		ORDER BY created_at LIMIT 50`, workspaceID, convID)
 	if err != nil {
 		return "", nil, err
@@ -86,6 +91,29 @@ func threadHeadersFor(ctx context.Context, a *app.App, workspaceID, convID strin
 		return "", nil, nil
 	}
 	return ids[len(ids)-1], ids, nil
+}
+
+// latestInboundEmail finds the message a reply answers (MH-600): the newest
+// inbound message on the conversation, since folding every sender's email
+// into one thread means the conversation's OWN subject/mailbox_id can now be
+// newer than, or from a different mailbox than, the message actually being
+// answered. Falls back to the conversation's own subject/mailbox (passed by
+// the caller) when the conversation has no inbound message yet — a reply
+// opened cold, before the customer ever wrote.
+func latestInboundEmail(ctx context.Context, db *sql.DB, workspaceID, convID string) (subject, mailboxID string, err error) {
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	var mb sql.NullString
+	err = db.QueryRowContext(sctx, `
+		SELECT subject, mailbox_id FROM messages
+		WHERE workspace_id = $1 AND conversation_id = $2 AND direction = 'in'
+		ORDER BY created_at DESC LIMIT 1`, workspaceID, convID).Scan(&subject, &mb)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	return subject, mb.String, nil
 }
 
 // replySubject prefixes Re: once, the way a mail client would.

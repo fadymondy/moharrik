@@ -40,22 +40,6 @@ var docsInbox = map[string]ToolDoc{
 			`"next_cursor":"MjAyNi0wOS0yM1QxMTo0MjozMFp8YTRlOGIyYzY","unread_count":1,` +
 			`"channel_counts":[{"channel":"chat","total":1,"unread":0},{"channel":"email","total":0,"unread":0},{"channel":"whatsapp","total":1,"unread":1}]}`,
 	},
-	"list_conversations_by_sender": {
-		AR: "قناة البريد مُجمَّعة حسب المُرسِل (MH-600): صف واحد لكل customer_email (بحروف صغيرة)، ويحمل كل صف اسم المُرسِل وعدد " +
-			"محادثاته وعدد غير المقروء منها وموضوع/معاينة/وقت آخر رسالة، وlatest_conversation_id. تُرتَّب المجموعات بغير المقروء " +
-			"أولًا (أي محادثة من هذا المُرسِل غير مقروءة) ثم بالأحدث نشاطًا. يمكن التصفية حسب mailbox_id (MH-555) أو q (نفس البحث " +
-			"النصي الذي تستخدمه list_conversations). مرّر sender_email من مجموعة إلى list_conversations في customer_email لرؤية " +
-			"محادثات ذلك المُرسِل وحده. تحمل الصفحة limit مُرسِلًا على الأكثر؛ وإذا عادت next_cursor بقيمة فمرّرها في cursor للصفحة التالية.",
-		Example: map[string]any{"limit": 2},
-		Result: `{"count":2,"groups":[{"sender_email":"mona@mail.example","sender_name":"Mona Adel",` +
-			`"conversation_count":3,"unread_count":1,"latest_subject":"Do you deliver to Alexandria?",` +
-			`"latest_preview":"Do you deliver to Alexandria?","latest_message_at":"2026-09-23T14:05:12Z",` +
-			`"latest_conversation_id":"3c9a7e21-4b6d-4f80-a2c5-9e1d7b3f6a04"},` +
-			`{"sender_email":"karim@mail.example","sender_name":"Karim Nabil","conversation_count":1,"unread_count":0,` +
-			`"latest_subject":"Pricing question","latest_preview":"Does the Growth plan include WhatsApp?",` +
-			`"latest_message_at":"2026-09-23T11:42:30Z","latest_conversation_id":"a4e8b2c6-1d3f-4a5b-8c7d-9e0f1a2b3c4d"}],` +
-			`"next_cursor":""}`,
-	},
 	"get_conversation": {
 		AR: "محادثة واحدة كاملة: من هو العميل (الاسم والبريد والهاتف ومعرّف جهة الاتصال المرتبطة contact_id)، وقناتها وحالتها والمسؤول عنها، " +
 			"وجهة الاتصال والصفقة المرتبطتان بها في إدارة العملاء، وأحدث 100 رسالة مرتّبة من الأقدم إلى الأحدث، لكلٍّ منها معرّفها " +
@@ -307,6 +291,6 @@ var argsARInbox = map[string]string{
 	"The code from the first call, for a contact with no thread yet":             "الرمز الوارد في الاستدعاء الأول، لجهة اتصال ليست لها محادثة بعد",
 	"The CRM contact's id (search_contacts, get_contact)":                        "معرّف جهة الاتصال في إدارة العملاء (search_contacts وget_contact)",
 	"The message, at most 4096 characters":                                       "نص الرسالة، 4096 حرفًا على الأكثر",
-	// MH-600: group the email channel by sender.
+	// MH-600: one email conversation per sender.
 	"MH-600: only conversations from this sender, case-insensitive": "MH-600: محادثات هذا المُرسِل فقط، بلا تفريق بين حروف كبيرة وصغيرة",
 }

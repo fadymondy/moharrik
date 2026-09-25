@@ -25,7 +25,6 @@ import {
   type ImportItem,
   type ImportJob,
   type ChannelCount,
-  type SenderGroup,
   type WhatsAppLink,
   type ContactWhatsApp,
   type ContextSummary,
@@ -77,6 +76,7 @@ import {
   type ChatWidget,
   type Conversation,
   type ConversationDetail,
+  type ThreadPage,
   type ConversationRef,
   type CannedReply,
   type InboxStats,
@@ -480,7 +480,9 @@ export type ConversationFilter = {
   channel?: string
   /** Only this mailbox's email conversations (MH-555). */
   mailbox_id?: string
-  /** Only this sender's conversations, case-insensitive (MH-600) — set from a sender group's sender_email. */
+  /** Only this sender's conversations, case-insensitive (MH-600). Since MH-600's ingest-time
+   *  fold, a workspace has at most one email conversation per sender, so this mostly matters
+   *  for other channels reusing the filter. */
   customer_email?: string
   /** Full-text search (MH-556), kept in the URL by the page, not by this hook. */
   q?: string
@@ -562,56 +564,40 @@ export function useConversationPages(
   )
 }
 
-export type SenderGroupFilter = {
-  /** Only this mailbox's email conversations (MH-555). */
-  mailbox_id?: string
-  /** Full-text search (MH-556), the same as ConversationFilter.q. */
-  q?: string
-  /** Page size; 50 when unset. */
-  limit?: number
-}
-
-type SenderGroupPage = {
-  groups: SenderGroup[]
-  next_cursor?: string
-}
-
-function senderGroupsBase(filter: SenderGroupFilter) {
-  const qs = new URLSearchParams()
-  if (filter.mailbox_id) qs.set("mailbox_id", filter.mailbox_id)
-  if (filter.q) qs.set("q", filter.q)
-  qs.set("limit", String(filter.limit ?? 50))
-  return "/api/w/conversations/senders?" + qs.toString()
-}
-
-/**
- * The email channel grouped by sender (MH-600), cursor-paged and growing the
- * same way useConversationPages grows the flat list — the "grouped by
- * sender" view's own infinite scroll.
- */
-export function useSenderGroupPages(
-  workspaceId: string | null | undefined,
-  filter: SenderGroupFilter = {},
-) {
-  const base = senderGroupsBase(filter)
-  return useSWRInfinite<SenderGroupPage>(
-    (i, prev: SenderGroupPage | null) => {
-      if (!workspaceId) return null
-      if (i === 0) return [base, workspaceId]
-      if (!prev?.next_cursor) return null
-      return [`${base}&cursor=${encodeURIComponent(prev.next_cursor)}`, workspaceId]
-    },
-    ([p, id]: [string, string]) => api<SenderGroupPage>(p, { workspaceId: id }),
-    { ...noRetryOn4xx, revalidateFirstPage: true },
-  )
-}
-
 /** One thread. Same as the list: revalidated by the event stream, not by a timer. */
 export function useConversation(workspaceId: string | null | undefined, id?: string) {
   return useSWR<ConversationDetail>(
     workspaceId && id ? [`/api/w/conversations/${encodeURIComponent(id)}`, workspaceId] : null,
     ([p, ws]: [string, string]) => api<ConversationDetail>(p, { workspaceId: ws }),
     noRetryOn4xx,
+  )
+}
+
+/** Prepends an older page onto what is already loaded, deduping by id — a
+ *  redelivered/overlapping page must never double a message in the thread. */
+export function mergeMessages(older: InboxMessage[], newer: InboxMessage[]): InboxMessage[] {
+  const seen = new Set(older.map((m) => m.id))
+  return [...older, ...newer.filter((m) => !seen.has(m.id))]
+}
+
+/**
+ * MH-648: one page of the messages BEFORE `before` (a ThreadPage.next_cursor,
+ * from either ConversationDetail.messages_next_cursor or an earlier call to
+ * this same function) — "load older", walking back from wherever the thread
+ * is currently scrolled to. Not a hook: chat-thread.tsx calls this from a
+ * scroll handler, not from render, so it is a plain async function over the
+ * same `api` helper every other fetch in this file uses, not useSWR.
+ */
+export function fetchOlderMessages(
+  workspaceId: string,
+  conversationId: string,
+  before: string,
+  limit = 30,
+) {
+  const qs = new URLSearchParams({ cursor: before, limit: String(limit) })
+  return api<ThreadPage>(
+    `/api/w/conversations/${encodeURIComponent(conversationId)}/messages?${qs.toString()}`,
+    { workspaceId },
   )
 }
 

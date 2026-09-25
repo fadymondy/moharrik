@@ -34,8 +34,6 @@ import {
   type Conversation,
   type ConversationStatus,
   type InboxMessage,
-  type SenderGroup,
-  type ThreadPage,
 } from "@/lib/api"
 import { channelIcon, channelLabel } from "@/lib/inbox-channels"
 import { useTranslations } from "@/lib/i18n"
@@ -43,10 +41,11 @@ import { useSWRConfig } from "swr"
 
 import { useWorkspaceEvents } from "@/lib/events"
 import {
+  fetchOlderMessages,
+  mergeMessages,
   useConversation,
   useConversationPages,
   useMailboxes,
-  useSenderGroupPages,
 } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, BdiBlock } from "@/components/bidi"
@@ -94,7 +93,6 @@ export default function InboxPage() {
     else p.delete("channel")
     if (next !== "email") {
       p.delete("mailbox")
-      p.delete("sender")
     }
     const qs = p.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
@@ -107,32 +105,6 @@ export default function InboxPage() {
     const qs = p.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
-  // MH-600: which sender the email tab's "grouped by sender" view has been
-  // narrowed to, kept in the URL (?sender=) for the same reason ?c= and ?q=
-  // are — a reload or a shared link keeps the narrowing. Always the group's
-  // own lower-cased sender_email, so it round-trips as customer_email below.
-  const sender = params.get("sender") ?? ""
-  function setSender(next: string) {
-    const p = new URLSearchParams(params.toString())
-    if (next) p.set("sender", next)
-    else p.delete("sender")
-    const qs = p.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }
-  // Grouped-by-sender vs the flat list (MH-600), persisted per browser so the
-  // choice survives a reload; a fresh browser defaults to grouped, since a
-  // sender writing several times is exactly what this view is for.
-  const [grouped, setGroupedState] = useState(true)
-  useEffect(() => {
-    const stored = window.localStorage.getItem("inbox.email.groupedBySender")
-    if (stored !== null) setGroupedState(stored === "true")
-  }, [])
-  function setGrouped(next: boolean) {
-    setGroupedState(next)
-    window.localStorage.setItem("inbox.email.groupedBySender", String(next))
-    if (!next) setSender("")
-  }
-  const showSenderGroups = channel === "email" && grouped && !sender
   // The search term lives in the URL too (?q=, MH-556), the same reason `c` does:
   // a search someone is looking at survives a reload or a shared link.
   const [q, setQ] = useState(() => params.get("q") ?? "")
@@ -164,8 +136,6 @@ export default function InboxPage() {
       // Only meaningful under Email (MH-555); dropped everywhere else so a
       // leftover value can never silently narrow another channel's list.
       mailbox_id: channel === "email" ? mailboxFilter || undefined : undefined,
-      // MH-600: narrowed to one sender, drilled into from the grouped view.
-      customer_email: channel === "email" ? sender || undefined : undefined,
       // Ten at a time, unread on top (MH-592): what needs an answer is what
       // opens first, and the rest arrives as the list is scrolled or searched.
       limit: 10,
@@ -184,18 +154,6 @@ export default function InboxPage() {
     keepRef.current = [...keepRef.current, selected].slice(-100)
   }
 
-  // MH-600: the email channel grouped by sender. Only fetched on the Email
-  // tab while the grouped view is showing — ws.id withheld otherwise, the
-  // same conditional-fetch shape useConversation uses, so switching away
-  // never leaves a stale request in flight.
-  const senderGroups = useSenderGroupPages(showSenderGroups ? ws.id : null, {
-    mailbox_id: mailboxFilter || undefined,
-    q: params.get("q") ?? undefined,
-    limit: 20,
-  })
-  const senderGroupItems = (senderGroups.data ?? []).flatMap((p) => p.groups)
-  const senderGroupsHasMore = !!senderGroups.data?.[senderGroups.data.length - 1]?.next_cursor
-  const senderGroupsLoadingMore = senderGroups.isValidating && senderGroups.size > 1
   const loadingMore = pages.isValidating && pages.size > 1
   const channelCounts: ChannelCount[] = list.data?.channel_counts ?? []
 
@@ -405,37 +363,6 @@ export default function InboxPage() {
           {t("inbox.filterUnread")}
           {list.data?.unread_count ? ` (${list.data.unread_count})` : ""}
         </Button>
-        {channel === "email" ? (
-          // MH-600: grouped-by-sender vs the flat list. Two buttons rather than
-          // a single toggle switch — each state names itself, so it reads right
-          // in both LTR and RTL without a direction-aware icon.
-          <div
-            className="ms-auto flex items-center gap-1"
-            role="group"
-            aria-label={t("inbox.senderGroups.toggleGrouped")}
-          >
-            <Button
-              type="button"
-              size="sm"
-              variant={grouped ? "default" : "outline"}
-              aria-pressed={grouped}
-              onClick={() => setGrouped(true)}
-              data-sender-toggle="grouped"
-            >
-              {t("inbox.senderGroups.toggleGrouped")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={!grouped ? "default" : "outline"}
-              aria-pressed={!grouped}
-              onClick={() => setGrouped(false)}
-              data-sender-toggle="flat"
-            >
-              {t("inbox.senderGroups.toggleFlat")}
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       <div className="grid grid-cols-1 border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
@@ -461,68 +388,7 @@ export default function InboxPage() {
               className="h-8 w-full border border-line bg-grid-card px-3 text-sm placeholder:text-grid-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grid-brand"
             />
           </div>
-          {channel === "email" && sender ? (
-            // MH-600: narrowed to one sender, either by clicking a group or via
-            // a shared ?sender= link. The banner names who, and "back" only
-            // makes sense when there is a grouped view underneath to return to.
-            <div
-              className="flex shrink-0 items-center justify-between gap-2 border-b border-line bg-grid-soft px-3 py-2 text-sm"
-              data-sender-filter-banner
-            >
-              <span className="min-w-0 truncate text-grid-fg">
-                {t("inbox.senderGroups.showingSender", {
-                  who:
-                    senderGroupItems.find((g) => g.sender_email === sender)?.sender_name || sender,
-                })}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setSender("")}
-                data-sender-clear
-              >
-                {grouped ? t("inbox.senderGroups.back") : t("inbox.senderGroups.clear")}
-              </Button>
-            </div>
-          ) : null}
-          {showSenderGroups ? (
-            senderGroups.error ? (
-              <ErrorState error={senderGroups.error} />
-            ) : !senderGroups.data ? (
-              <LoadingRows rows={5} />
-            ) : senderGroupItems.length === 0 ? (
-              <EmptyState title={t("inbox.senderGroups.empty")} />
-            ) : (
-              <ul
-                className="relative min-h-0 min-w-0 flex-1 divide-y divide-line overflow-y-auto"
-                data-sender-group-list
-              >
-                {senderGroupItems.map((g) => (
-                  <SenderGroupRow
-                    key={g.sender_email}
-                    group={g}
-                    onSelect={() => setSender(g.sender_email)}
-                  />
-                ))}
-                {senderGroupsHasMore ? (
-                  <li className="p-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="w-full"
-                      disabled={senderGroupsLoadingMore}
-                      onClick={() => void senderGroups.setSize(senderGroups.size + 1)}
-                      data-sender-groups-load-more
-                    >
-                      {senderGroupsLoadingMore ? t("common.working") : t("common.loadMore")}
-                    </Button>
-                  </li>
-                ) : null}
-              </ul>
-            )
-          ) : list.error ? (
+          {list.error ? (
             <ErrorState error={list.error} />
           ) : !list.data ? (
             <LoadingRows rows={5} />
@@ -607,54 +473,6 @@ export default function InboxPage() {
       </div>
       <div className="pb-8" />
     </>
-  )
-}
-
-function SenderGroupRow({ group, onSelect }: { group: SenderGroup; onSelect: () => void }) {
-  const { t, formatDate } = useTranslations()
-  const who = group.sender_name || group.sender_email || t("inbox.senderGroups.anonymous")
-  return (
-    <li className="relative">
-      <button
-        type="button"
-        onClick={onSelect}
-        data-sender-group={group.sender_email}
-        data-sender-group-unread={group.unread_count > 0 ? "true" : "false"}
-        className={`flex w-full min-w-0 flex-col gap-1 px-6 py-4 text-start transition-colors ${group.unread_count > 0 ? "bg-grid-card" : ""} hover:bg-grid-soft`}
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          {group.unread_count > 0 ? (
-            <span
-              className="size-2 shrink-0 rounded-full bg-grid-brand"
-              aria-label={t("inbox.unread")}
-            />
-          ) : null}
-          <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
-          <span className="ms-auto shrink-0 text-xs text-grid-muted">
-            {formatDate(group.latest_message_at)}
-          </span>
-        </span>
-        <span className="min-w-0 truncate text-xs text-grid-muted" dir="auto">
-          {group.sender_email}
-        </span>
-        {group.latest_subject ? (
-          <BdiBlock className="truncate text-sm text-grid-fg">{group.latest_subject}</BdiBlock>
-        ) : null}
-        {group.latest_preview ? (
-          <BdiBlock className="truncate text-xs text-grid-muted">{group.latest_preview}</BdiBlock>
-        ) : null}
-        <span className="flex items-center gap-3 text-xs text-grid-muted">
-          <span data-sender-group-count>
-            {t("inbox.senderGroups.conversationCount", { n: group.conversation_count })}
-          </span>
-          {group.unread_count > 0 ? (
-            <Badge variant="default" data-sender-group-unread-badge>
-              {t("inbox.senderGroups.unreadCount", { n: group.unread_count })}
-            </Badge>
-          ) : null}
-        </span>
-      </button>
-    </li>
   )
 }
 
@@ -876,17 +694,6 @@ function VisitorContext({ c }: { c: Conversation }) {
   )
 }
 
-/**
- * Two runs of a thread as one, each message once. `older` ends where `newer`
- * begins or overlaps it, and each is already in the server's order, so the
- * order is kept rather than re-sorted: timestamps as strings do not sort (a
- * fractional second sorts before a whole one).
- */
-function mergeMessages(older: InboxMessage[], newer: InboxMessage[]): InboxMessage[] {
-  const seen = new Set(older.map((m) => m.id))
-  return [...older, ...newer.filter((m) => !seen.has(m.id))]
-}
-
 function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
@@ -914,10 +721,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
     if (!cursor || !detail.data) return
     setLoadingEarlier(true)
     try {
-      const page = await api<ThreadPage>(
-        `/api/w/conversations/${encodeURIComponent(id)}/messages?cursor=${encodeURIComponent(cursor)}`,
-        { workspaceId: ws.id },
-      )
+      const page = await fetchOlderMessages(ws.id, id, cursor)
       setEarlier({ messages: mergeMessages(page.messages, messages), cursor: page.next_cursor })
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -1086,6 +890,9 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
         busy={busy}
         error={err}
         onInsertCanned={insert}
+        hasOlder={!!cursor}
+        loadingOlder={loadingEarlier}
+        onLoadOlder={loadEarlier}
       />
     </section>
   )

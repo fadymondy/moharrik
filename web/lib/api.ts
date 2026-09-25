@@ -735,19 +735,6 @@ export type ConversationStatus = "open" | "snoozed" | "closed"
 /** One channel's conversation counts (MH-568) — ConversationPage.channel_counts. */
 export type ChannelCount = { channel: ConversationChannel; total: number; unread: number }
 
-/** One sender's rolled-up emails (MH-600) — GET /api/w/conversations/senders. */
-export type SenderGroup = {
-  /** Always lower-cased — the whole point is that two different cases group together. */
-  sender_email: string
-  sender_name: string
-  conversation_count: number
-  unread_count: number
-  latest_subject: string
-  latest_preview: string
-  latest_message_at: string
-  latest_conversation_id: string
-}
-
 export type Conversation = {
   id: string
   channel: ConversationChannel
@@ -875,6 +862,10 @@ export type InboxMessage = {
   /** Sanitised HTML (MH-556): an email's own HTML part, or body's Markdown rendered. Empty when there is nothing beyond body. */
   body_html?: string
   mailbox_id?: string | null
+  /** MH-600: an email keeps its own subject even after every sender's email
+   *  folds into one conversation. "" for chat/WhatsApp/other channels — the
+   *  client shows it only when it differs from the previous message's. */
+  subject?: string
   attachments?: InboxAttachment[]
   created_at: string
   /** MH-604: who wrote THIS message in a group thread (Conversation.is_group);

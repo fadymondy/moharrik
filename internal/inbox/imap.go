@@ -328,18 +328,22 @@ func dial(mb Mailbox) (*client.Client, error) {
 	return c, nil
 }
 
-// File puts one email on the right conversation, creating it if this is a new
-// thread. It is exported so the tests and the "check this mailbox now" button
-// share exactly one code path with the collector.
+// File puts one email on the right conversation, creating it if this sender
+// has never written before. It is exported so the tests and the "check this
+// mailbox now" button share exactly one code path with the collector.
 //
 // mailboxID names which of the workspace's mailboxes (MH-555) this email
-// arrived on; "" is accepted (a test, or a caller with no mailbox context) and
-// stores NULL. findThread and the "same sender, same subject" fallback stay
-// scoped to workspace + channel, NOT to mailboxID — deliberately: two
-// mailboxes on the same workspace collecting mail from the same customer
-// dedupe and thread together exactly as if they were one mailbox, because a
-// customer does not know or care which of the workspace's addresses they
-// wrote to.
+// arrived ON — recorded on the MESSAGE (messages.mailbox_id), not just the
+// conversation, because MH-600 folds every conversation from one sender into
+// one thread: a reply has to go out through the mailbox that received the
+// message being answered, which may not be the conversation's own mailbox_id
+// once a sender has written to more than one of the workspace's addresses.
+// "" is accepted (a test, or a caller with no mailbox context) and stores
+// NULL. findThread stays scoped to workspace + channel + sender, NOT to
+// mailboxID — deliberately: two mailboxes on the same workspace collecting
+// mail from the same customer thread together exactly as if they were one
+// mailbox, because a customer does not know or care which of the workspace's
+// addresses they wrote to.
 func File(ctx context.Context, a *app.App, workspaceID, mailboxID string, e *Email) error {
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
 	db := a.SQLDB
@@ -376,11 +380,11 @@ func File(ctx context.Context, a *app.App, workspaceID, mailboxID string, e *Ema
 
 	var msgID string
 	err = db.QueryRowContext(sctx, `
-		INSERT INTO messages (workspace_id, conversation_id, direction, body, body_html, mailbox_id, external_id, created_at)
-		VALUES ($1, $2, 'in', $3, $4, $5, $6, $7)
+		INSERT INTO messages (workspace_id, conversation_id, direction, body, body_html, mailbox_id, external_id, created_at, subject)
+		VALUES ($1, $2, 'in', $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING
 		RETURNING id`,
-		workspaceID, convID, e.Body, e.BodyHTML, mbID, e.MessageID, e.Date).Scan(&msgID)
+		workspaceID, convID, e.Body, e.BodyHTML, mbID, e.MessageID, e.Date, subjectOrDefault(e.Subject)).Scan(&msgID)
 	inserted := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -395,10 +399,16 @@ func File(ctx context.Context, a *app.App, workspaceID, mailboxID string, e *Ema
 	}
 
 	// An inbound message makes the thread unread for the team again, and
-	// reopens it rather than answering into a closed conversation.
+	// reopens it rather than answering into a closed conversation. MH-600:
+	// the conversation's OWN subject also tracks the latest message once
+	// senders fold together — a stale first-ever subject would mislabel the
+	// inbox row long after the thread moved on. Only when this email had one:
+	// a blank Subject must not blank out a real subject the thread already has.
+	subjectArg := strings.TrimSpace(e.Subject)
 	_, err = db.ExecContext(sctx, `
-		UPDATE conversations SET last_message_at = GREATEST(last_message_at, $3), unread = true, updated_at = now(), `+reopenOnInbound+`
-		WHERE workspace_id = $1 AND id = $2`, workspaceID, convID, e.Date)
+		UPDATE conversations SET last_message_at = GREATEST(last_message_at, $3), unread = true, updated_at = now(),
+		       subject = CASE WHEN $4 <> '' THEN $4 ELSE subject END, `+reopenOnInbound+`
+		WHERE workspace_id = $1 AND id = $2`, workspaceID, convID, e.Date, subjectArg)
 	if err != nil {
 		return err
 	}
@@ -453,6 +463,13 @@ func storeAttachments(ctx context.Context, db *sql.DB, workspaceID, messageID st
 // findThread answers "which conversation is this" in the order the rules are
 // trustworthy: an explicit Message-ID reference first, then the sender's own
 // open thread with the same subject, and otherwise nothing (a new thread).
+// findThread locates the ONE conversation a sender's email folds into
+// (MH-600): every email from the same address, in this workspace, is one
+// thread — like a WhatsApp contact — regardless of subject or mailbox or
+// whether it was previously closed. Message-ID is still checked first: a
+// reply/redelivery of a message we already filed must land back on the exact
+// conversation that holds it even if, somehow, the sender address on the
+// envelope changed since (a forwarded copy, a renamed alias).
 func findThread(ctx context.Context, db *sql.DB, workspaceID string, e *Email) (string, error) {
 	for _, key := range e.ThreadKeys() {
 		var convID string
@@ -467,24 +484,15 @@ func findThread(ctx context.Context, db *sql.DB, workspaceID string, e *Email) (
 		}
 	}
 
-	// Fallback: the same person, the same subject, a thread that is not closed.
-	// Paired with the address on purpose — subjects collide ("Hello"), and
-	// matching on subject alone would drop one customer into another's thread.
 	if e.From == "" {
-		return "", nil
-	}
-	subject := NormalisedSubject(e.Subject)
-	if subject == "" {
 		return "", nil
 	}
 	var convID string
 	err := db.QueryRowContext(ctx, `
 		SELECT id FROM conversations
 		WHERE workspace_id = $1 AND channel = 'email' AND lower(customer_email) = $2
-		  AND status <> 'closed'
-		  AND regexp_replace(lower(subject), '^((re|fw|fwd)\s*:\s*)+', '') = $3
 		ORDER BY last_message_at DESC LIMIT 1`,
-		workspaceID, e.From, subject).Scan(&convID)
+		workspaceID, e.From).Scan(&convID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
