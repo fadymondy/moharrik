@@ -47,13 +47,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS contacts_workspace_email_uniq ON contacts (wor
 CREATE UNIQUE INDEX IF NOT EXISTS contacts_workspace_phone_uniq ON contacts (workspace_id, phone) WHERE phone <> '';
 CREATE UNIQUE INDEX IF NOT EXISTS contacts_workspace_handle_uniq ON contacts (workspace_id, handle) WHERE handle <> '';
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contacts_identity_chk') THEN
-        ALTER TABLE contacts ADD CONSTRAINT contacts_identity_chk
-            CHECK (email <> '' OR phone <> '' OR handle <> '');
-    END IF;
-END $$;
+-- The "needs at least one identity" rule itself now lives in
+-- 167_channel_contact_identity.sql as a deferred constraint trigger, not a
+-- plain CHECK: a bare CHECK cannot see contact_identities, so it rejected the
+-- one thing MH-583 needs — a contact created from a Telegram/Slack/Discord
+-- identity alone, with no legacy email/phone/handle. Since every file in this
+-- directory reruns on every migrate (guarded by IF NOT EXISTS, not a version
+-- table), this file must stop re-adding the CHECK 167 drops, or the next run
+-- would recreate a constraint that current identity-only contacts violate.
 
 -- MH-561: campaigns report how many subscribed contacts they skipped for
 -- having no email, alongside sent_count/failed_count.

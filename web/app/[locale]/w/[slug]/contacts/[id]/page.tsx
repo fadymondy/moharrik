@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/date-picker"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, contactIdentity, LIFECYCLE_STAGES, type ContactDetail, type Lifecycle, type SubscriptionStatus } from "@/lib/api"
@@ -133,22 +135,7 @@ export default function ContactDetailPage() {
   )
 }
 
-function EditContact({
-  contact,
-  onSaved,
-}: {
-  contact: {
-    id: string
-    name: string
-    email: string
-    phone: string
-    handle: string
-    title: string
-    company: { id: string; name: string } | null
-    owner_user_id: string | null
-  }
-  onSaved: () => void
-}) {
+function EditContact({ contact, onSaved }: { contact: ContactDetail; onSaved: () => void }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const members = useMemberNames(ws.id)
@@ -159,6 +146,17 @@ function EditContact({
   const [title, setTitle] = useState(contact.title)
   const [companyId, setCompanyId] = useState(contact.company?.id ?? "")
   const [ownerId, setOwnerId] = useState(contact.owner_user_id ?? "")
+  // MH-583: Google-People-parity scalar fields the identities/meta panels don't cover.
+  const [givenName, setGivenName] = useState(contact.given_name ?? "")
+  const [familyName, setFamilyName] = useState(contact.family_name ?? "")
+  const [middleName, setMiddleName] = useState(contact.middle_name ?? "")
+  const [namePrefix, setNamePrefix] = useState(contact.name_prefix ?? "")
+  const [nameSuffix, setNameSuffix] = useState(contact.name_suffix ?? "")
+  const [phoneticGivenName, setPhoneticGivenName] = useState(contact.phonetic_given_name ?? "")
+  const [phoneticFamilyName, setPhoneticFamilyName] = useState(contact.phonetic_family_name ?? "")
+  const [nickname, setNickname] = useState(contact.nickname ?? "")
+  const [birthday, setBirthday] = useState(contact.birthday ?? "")
+  const [biography, setBiography] = useState(contact.biography ?? "")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -179,6 +177,16 @@ function EditContact({
           title: title.trim(),
           company_id: companyId,
           owner_user_id: ownerId,
+          given_name: givenName.trim(),
+          family_name: familyName.trim(),
+          middle_name: middleName.trim(),
+          name_prefix: namePrefix.trim(),
+          name_suffix: nameSuffix.trim(),
+          phonetic_given_name: phoneticGivenName.trim(),
+          phonetic_family_name: phoneticFamilyName.trim(),
+          nickname: nickname.trim(),
+          birthday: birthday.trim(),
+          biography: biography.trim(),
         },
         workspaceId: ws.id,
       })
@@ -223,6 +231,51 @@ function EditContact({
           <PickSelect id="edit-contact-owner" value={ownerId} onChange={setOwnerId} options={members.options} noneLabel={t("crm.unassigned")} />
         </Field>
       </FieldGroup>
+
+      <h3 className="mt-6 text-sm font-medium text-grid-muted">{t("contacts.personDetails")}</h3>
+      <FieldGroup className="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Field>
+          <FieldLabel htmlFor="edit-contact-name-prefix">{t("contacts.namePrefix")}</FieldLabel>
+          <Input id="edit-contact-name-prefix" value={namePrefix} onChange={(e) => setNamePrefix(e.target.value)} maxLength={40} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-given-name">{t("contacts.givenName")}</FieldLabel>
+          <Input id="edit-contact-given-name" value={givenName} onChange={(e) => setGivenName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-middle-name">{t("contacts.middleName")}</FieldLabel>
+          <Input id="edit-contact-middle-name" value={middleName} onChange={(e) => setMiddleName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-family-name">{t("contacts.familyName")}</FieldLabel>
+          <Input id="edit-contact-family-name" value={familyName} onChange={(e) => setFamilyName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-name-suffix">{t("contacts.nameSuffix")}</FieldLabel>
+          <Input id="edit-contact-name-suffix" value={nameSuffix} onChange={(e) => setNameSuffix(e.target.value)} maxLength={40} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-nickname">{t("contacts.nickname")}</FieldLabel>
+          <Input id="edit-contact-nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-phonetic-given">{t("contacts.phoneticGivenName")}</FieldLabel>
+          <Input id="edit-contact-phonetic-given" value={phoneticGivenName} onChange={(e) => setPhoneticGivenName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-phonetic-family">{t("contacts.phoneticFamilyName")}</FieldLabel>
+          <Input id="edit-contact-phonetic-family" value={phoneticFamilyName} onChange={(e) => setPhoneticFamilyName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-contact-birthday">{t("contacts.birthday")}</FieldLabel>
+          <DatePicker id="edit-contact-birthday" value={birthday} onValueChange={setBirthday} clearable max={new Date().toISOString().slice(0, 10)} />
+        </Field>
+        <Field className="sm:col-span-2 lg:col-span-3">
+          <FieldLabel htmlFor="edit-contact-biography">{t("contacts.biography")}</FieldLabel>
+          <Textarea id="edit-contact-biography" value={biography} onChange={(e) => setBiography(e.target.value)} maxLength={5000} rows={3} />
+        </Field>
+      </FieldGroup>
+
       <div className="mt-4 flex items-center gap-3">
         <Button type="submit" disabled={busy || !hasIdentity}>
           {busy ? t("common.working") : t("common.save")}

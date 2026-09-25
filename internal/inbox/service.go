@@ -470,6 +470,15 @@ func UpdateConversation(ctx context.Context, a *app.App, id string, p Conversati
 			// Closed or reopened: the visitor's widget shows the note (MH-382).
 			visitors.publish(id, "status")
 		}
+		if p.ContactID != nil && *p.ContactID != "" {
+			// MH-583: a member picking an existing contact for this
+			// conversation (the inbox "link to existing contact" action)
+			// should not have to also open the contact and add the identity
+			// by hand — attach the sender's identity for THIS conversation's
+			// channel too, the same identity a later message on that channel
+			// would otherwise need autoLink or FileChannelMessage to guess at.
+			linkConversationSenderIdentity(ctx, a.SQLDB, s.WorkspaceID, id, *p.ContactID)
+		}
 	}
 	c, err := readConversation(ctx, a.SQLDB, s.WorkspaceID, id)
 	if notFound(err) {
@@ -478,6 +487,61 @@ func UpdateConversation(ctx context.Context, a *app.App, id string, p Conversati
 		return nil, huma.Error500InternalServerError("could not read the conversation")
 	}
 	return &c, nil
+}
+
+// identityChannelFor maps an inbox channel to the contact_identities enum
+// (166_contact_identities.sql): every inbox channel name is already a valid
+// identity channel except "facebook", whose messaging surface is Messenger,
+// and "chat" (the embeddable widget), which has no stable cross-conversation
+// identity to attach.
+func identityChannelFor(channel string) string {
+	switch channel {
+	case "facebook":
+		return "messenger"
+	case "chat":
+		return ""
+	default:
+		return channel
+	}
+}
+
+// linkConversationSenderIdentity attaches this conversation's sender to
+// contactID via contacts.LinkIdentity (MH-583), so a member using the inbox's
+// "link to existing contact" action does not also have to open the contact
+// and add the identity by hand. Email and WhatsApp key on the address/number
+// already shown in the UI; Telegram, Slack, Discord and the browser-workflow
+// channels key on external_thread_id — the platform id FileChannelMessage
+// itself writes identities against — with the handle only as a label.
+// Best-effort: the conversation is already linked by the caller's UPDATE, so
+// a failure here (e.g. that identity already belongs to a DIFFERENT contact)
+// must not undo it or fail the request.
+func linkConversationSenderIdentity(ctx context.Context, db *sql.DB, wsID, convID, contactID string) {
+	var channel, email, phone, handle, threadID string
+	if err := db.QueryRowContext(ctx, `
+		SELECT channel, customer_email, customer_phone, customer_handle, external_thread_id
+		FROM conversations WHERE workspace_id = $1 AND id = $2`,
+		wsID, convID).Scan(&channel, &email, &phone, &handle, &threadID); err != nil {
+		return
+	}
+
+	var identChannel, externalID, label string
+	switch channel {
+	case "email":
+		identChannel, externalID = contacts.ChannelEmail, email
+	case "whatsapp":
+		identChannel, externalID = contacts.ChannelWhatsApp, phone
+	default:
+		identChannel = identityChannelFor(channel)
+		externalID = strings.TrimSpace(threadID)
+		if externalID == "" {
+			externalID = strings.TrimSpace(handle)
+		}
+		label = handle
+	}
+	if identChannel == "" || strings.TrimSpace(externalID) == "" {
+		return
+	}
+	_, _ = contacts.LinkIdentity(ctx, db, wsID, contactID, identChannel, externalID, label, false)
 }
 
 // ---- the CRM side of a conversation (MH-379) --------------------------------------

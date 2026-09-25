@@ -50,7 +50,7 @@ export function ThreadCRM({ c, visitor, onChanged }: { c: Conversation; visitor:
   const who = c.contact ? c.contact.name || c.contact.email : ""
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-3 text-sm" data-thread-crm>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-3 text-sm" data-thread-crm data-thread-channel={c.channel}>
       <span className="grid-micro">{t("inbox.crm.title")}</span>
       {c.contact ? (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" data-crm-contact={c.contact.id}>
