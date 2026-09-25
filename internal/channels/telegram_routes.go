@@ -131,7 +131,7 @@ func RegisterTelegram(api huma.API, a *app.App) {
 			if c == nil {
 				return nil, telegramErr(err)
 			}
-			return nil, huma.Error502BadGateway(err.Error())
+			return nil, huma.NewError(http.StatusFailedDependency, err.Error())
 		}
 		return out(telegramOne{*c}), nil
 	})

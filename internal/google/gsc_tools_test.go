@@ -131,7 +131,7 @@ func TestSearchConsoleTools(t *testing.T) {
 			t.Errorf("a sitemap outside the site: %d", code)
 		}
 		f.fake.Fail("sitemapSubmit", 403, "forbidden", 1)
-		if code, b, _ := alice.do(t, "POST", "/api/w/search-console/sitemaps", map[string]string{"url": "https://demo.example/sitemap-x.xml"}); code != 502 || !strings.Contains(string(b), "refused access") {
+		if code, b, _ := alice.do(t, "POST", "/api/w/search-console/sitemaps", map[string]string{"url": "https://demo.example/sitemap-x.xml"}); code != 424 || !strings.Contains(string(b), "refused access") {
 			t.Errorf("Google refusing: %d %s", code, b)
 		}
 	})

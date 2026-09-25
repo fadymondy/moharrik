@@ -133,7 +133,7 @@ func RegisterDiscord(api huma.API, a *app.App) {
 			if c == nil {
 				return nil, discordErr(err)
 			}
-			return nil, huma.Error502BadGateway(err.Error())
+			return nil, huma.NewError(http.StatusFailedDependency, err.Error())
 		}
 		return out(discordOne{*c}), nil
 	})

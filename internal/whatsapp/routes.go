@@ -222,7 +222,7 @@ func evolutionErr(err error) error {
 	case errors.Is(err, ErrNotConfigured):
 		return huma.Error503ServiceUnavailable(err.Error())
 	case errors.As(err, &e):
-		return huma.Error502BadGateway(e.Error())
+		return huma.NewError(http.StatusFailedDependency, e.Error())
 	}
 	return huma.Error500InternalServerError("the WhatsApp server could not be reached")
 }

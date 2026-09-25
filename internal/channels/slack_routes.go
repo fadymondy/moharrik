@@ -129,7 +129,7 @@ func RegisterSlack(api huma.API, a *app.App) {
 			if c == nil {
 				return nil, slackErr(err)
 			}
-			return nil, huma.Error502BadGateway(err.Error())
+			return nil, huma.NewError(http.StatusFailedDependency, err.Error())
 		}
 		return out(slackOne{*c}), nil
 	})

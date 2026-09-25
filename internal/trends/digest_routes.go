@@ -89,7 +89,7 @@ func RegisterDigest(api huma.API, a *app.App) {
 		case errors.Is(err, ErrDigestNoEmail):
 			return nil, huma.Error409Conflict(err.Error())
 		case err != nil:
-			return nil, huma.Error502BadGateway("the mail server refused it: " + res.Error)
+			return nil, huma.NewError(http.StatusFailedDependency, "the mail server refused it: " + res.Error)
 		}
 		return out(res), nil
 	})
