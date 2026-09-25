@@ -1,5 +1,7 @@
 import DOMPurify from "dompurify"
 
+import { type InboxAttachment } from "@/lib/api"
+
 /*
 Client-side email/Markdown rendering (MH-556) — the SECOND of two independent
 sanitisation passes. The first already ran on the server (internal/inbox/sanitize.go,
@@ -18,6 +20,14 @@ about what to SHOW, not what is safe:
   - a trailing quoted-reply block ("On ... wrote:", a blockquote, Gmail/Outlook/
     Apple Mail's own quote wrappers) is collapsed under <details>, closed by
     default, so a long thread's history does not bury the new part.
+  - a `cid:` reference (an inline attachment embedded IN the message, not a
+    remote fetch) is rewritten to the matching attachment's signed download
+    URL, given the message's own attachment list — resolved here, client-side,
+    rather than server-side, because this is also the layer that already owns
+    "what to show" for every other image path and the message's attachments
+    are already on hand wherever this renders. A `cid:` that matches nothing
+    is stripped exactly like a blocked remote image: it is not this
+    workspace's content either, just an unresolved reference.
 */
 
 const purifyConfig = {
@@ -32,6 +42,26 @@ function isLocalAttachmentURL(src: string): boolean {
   return src.startsWith("/api/attachments/") || /^https?:\/\/[^/]+\/api\/attachments\//.test(src)
 }
 
+/** A content-id header is often wrapped in `<...>`; a `cid:` URI's value never is. Compare on the same normal form either way. */
+function normalizeContentId(id: string): string {
+  return id.trim().replace(/^</, "").replace(/>$/, "").toLowerCase()
+}
+
+/** The matching attachment's signed URL for a `cid:` reference, or null if nothing matches. */
+function resolveCid(src: string, attachments: InboxAttachment[]): string | null {
+  if (!src.toLowerCase().startsWith("cid:")) return null
+  let raw = src.slice(4)
+  try {
+    raw = decodeURIComponent(raw)
+  } catch {
+    // Not URI-encoded: use as-is.
+  }
+  const target = normalizeContentId(raw)
+  if (!target) return null
+  const match = attachments.find((a) => a.content_id && normalizeContentId(a.content_id) === target)
+  return match?.url ?? null
+}
+
 /** Quote-block selectors used by the mail clients that actually produce them. */
 const QUOTE_SELECTORS = [
   ".gmail_quote",
@@ -43,7 +73,11 @@ const QUOTE_SELECTORS = [
   "blockquote",
 ]
 
-export function renderEmailHtml(rawHtml: string, opts: { blockImages: boolean }): { html: string; hadRemoteImages: boolean } {
+export function renderEmailHtml(
+  rawHtml: string,
+  opts: { blockImages: boolean },
+  attachments: InboxAttachment[] = [],
+): { html: string; hadRemoteImages: boolean } {
   const clean = DOMPurify.sanitize(rawHtml, purifyConfig)
   if (typeof window === "undefined" || typeof DOMParser === "undefined") {
     return { html: clean, hadRemoteImages: false }
@@ -52,30 +86,41 @@ export function renderEmailHtml(rawHtml: string, opts: { blockImages: boolean })
   const root = doc.body.firstElementChild as HTMLElement | null
   if (!root) return { html: clean, hadRemoteImages: false }
 
+  function blockImg(img: HTMLImageElement, src: string) {
+    img.setAttribute("data-blocked-src", src)
+    img.removeAttribute("src")
+    img.setAttribute("alt", img.getAttribute("alt") || "")
+    img.style.border = "1px dashed currentColor"
+    img.style.minHeight = "1.5em"
+    img.style.minWidth = "3em"
+    img.style.display = "inline-block"
+  }
+
   // rawHtml is re-sanitised fresh on every call (never a previously-blocked
   // string), so every <img> still carries its real src at this point — when
   // blockImages is false there is nothing to restore, only to leave alone.
   let hadRemoteImages = false
-  if (opts.blockImages) {
-    root.querySelectorAll("img").forEach((img) => {
-      const src = img.getAttribute("src") || ""
-      if (src && !isLocalAttachmentURL(src) && !src.startsWith("cid:")) {
-        hadRemoteImages = true
-        img.setAttribute("data-blocked-src", src)
-        img.removeAttribute("src")
-        img.setAttribute("alt", img.getAttribute("alt") || "")
-        img.style.border = "1px dashed currentColor"
-        img.style.minHeight = "1.5em"
-        img.style.minWidth = "3em"
-        img.style.display = "inline-block"
-      }
-      // A cid: reference (an inline attachment) is left alone rather than
-      // blocked: it is the workspace's own content. The server does not yet
-      // rewrite it to the matching attachment's signed URL, so today it simply
-      // does not load — never worse than before MH-556 (no HTML rendering at
-      // all). Tracked as follow-up work; see the mailbox card's report.
-    })
-  }
+  root.querySelectorAll("img").forEach((img) => {
+    const src = img.getAttribute("src") || ""
+    if (!src) return
+
+    // A cid: reference resolves independently of blockImages — it is the
+    // message's own inline content, the same reasoning that already exempts
+    // /api/attachments/ URLs below, never a remote fetch to gate. One that
+    // matches nothing is stripped exactly like a blocked remote image: it
+    // points at nothing real either.
+    if (src.toLowerCase().startsWith("cid:")) {
+      const resolved = resolveCid(src, attachments)
+      if (resolved) img.setAttribute("src", resolved)
+      else blockImg(img, src)
+      return
+    }
+
+    if (opts.blockImages && !isLocalAttachmentURL(src)) {
+      hadRemoteImages = true
+      blockImg(img, src)
+    }
+  })
 
   // Collapse quoted history: the first quote-marker element found, and
   // everything after it in its parent, moves under <details>.
