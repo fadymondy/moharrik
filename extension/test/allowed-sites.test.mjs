@@ -390,8 +390,12 @@ test("a data: URL in the run tab is off the list", async () => {
   const tab = browser()
   const r = runner()
   await r.step("goto", { url: "https://allowed.test/start" })
-  tab.window.__navigate("data:text/html,<input id=field>")
-  await settledAt(tab, "data:text/html,<input id=field>")
+  const data = "data:text/html,<input id=field>"
+  tab.window.__navigate(data)
+  // Wait for the commit, not for the tab to settle there: the extension answers
+  // the commit by sending the tab to about:blank, so "settled at data:" lasts a
+  // few milliseconds and a loaded run polled straight past it (MH-565).
+  await until(() => tab.commits.includes(data), `the tab to commit ${data}`)
   await assertStops(r.step("type", { selector: "#field", text: "x" }), /^after step 1 the page went to a data: URL,/)
   await closeRun(r.run)
 })
