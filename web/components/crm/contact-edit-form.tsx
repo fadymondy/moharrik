@@ -10,6 +10,8 @@ import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/date-picker"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -24,6 +26,17 @@ export type ContactEditable = {
   company: { id: string; name: string } | null
   owner_user_id: string | null
   avatar_url?: string
+  // MH-583: Google-People-parity fields.
+  given_name?: string
+  family_name?: string
+  middle_name?: string
+  name_prefix?: string
+  name_suffix?: string
+  phonetic_given_name?: string
+  phonetic_family_name?: string
+  nickname?: string
+  birthday?: string | null
+  biography?: string
 }
 
 // MH-602: server-validated too (internal/crm/avatar.go), this is only so a
@@ -183,6 +196,17 @@ export function ContactEditForm({ contact, onSaved, idPrefix = "edit-contact" }:
   const [companyId, setCompanyId] = useState(contact.company?.id ?? "")
   const [ownerId, setOwnerId] = useState(contact.owner_user_id ?? "")
   const [avatarUrl, setAvatarUrl] = useState(contact.avatar_url ?? "")
+  // MH-583: Google-People-parity scalar fields the identities/meta panels don't cover.
+  const [givenName, setGivenName] = useState(contact.given_name ?? "")
+  const [familyName, setFamilyName] = useState(contact.family_name ?? "")
+  const [middleName, setMiddleName] = useState(contact.middle_name ?? "")
+  const [namePrefix, setNamePrefix] = useState(contact.name_prefix ?? "")
+  const [nameSuffix, setNameSuffix] = useState(contact.name_suffix ?? "")
+  const [phoneticGivenName, setPhoneticGivenName] = useState(contact.phonetic_given_name ?? "")
+  const [phoneticFamilyName, setPhoneticFamilyName] = useState(contact.phonetic_family_name ?? "")
+  const [nickname, setNickname] = useState(contact.nickname ?? "")
+  const [birthday, setBirthday] = useState(contact.birthday ?? "")
+  const [biography, setBiography] = useState(contact.biography ?? "")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -203,6 +227,16 @@ export function ContactEditForm({ contact, onSaved, idPrefix = "edit-contact" }:
           title: title.trim(),
           company_id: companyId,
           owner_user_id: ownerId,
+          given_name: givenName.trim(),
+          family_name: familyName.trim(),
+          middle_name: middleName.trim(),
+          name_prefix: namePrefix.trim(),
+          name_suffix: nameSuffix.trim(),
+          phonetic_given_name: phoneticGivenName.trim(),
+          phonetic_family_name: phoneticFamilyName.trim(),
+          nickname: nickname.trim(),
+          birthday: birthday.trim(),
+          biography: biography.trim(),
         },
         workspaceId: ws.id,
       })
@@ -246,6 +280,49 @@ export function ContactEditForm({ contact, onSaved, idPrefix = "edit-contact" }:
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-owner`}>{t("crm.owner")}</FieldLabel>
           <PickSelect id={`${idPrefix}-owner`} value={ownerId} onChange={setOwnerId} options={members.options} noneLabel={t("crm.unassigned")} />
+        </Field>
+      </FieldGroup>
+      <h3 className="text-sm font-medium text-grid-muted">{t("contacts.personDetails")}</h3>
+      <FieldGroup className="grid gap-4 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-name-prefix`}>{t("contacts.namePrefix")}</FieldLabel>
+          <Input id={`${idPrefix}-name-prefix`} value={namePrefix} onChange={(e) => setNamePrefix(e.target.value)} maxLength={40} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-given-name`}>{t("contacts.givenName")}</FieldLabel>
+          <Input id={`${idPrefix}-given-name`} value={givenName} onChange={(e) => setGivenName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-middle-name`}>{t("contacts.middleName")}</FieldLabel>
+          <Input id={`${idPrefix}-middle-name`} value={middleName} onChange={(e) => setMiddleName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-family-name`}>{t("contacts.familyName")}</FieldLabel>
+          <Input id={`${idPrefix}-family-name`} value={familyName} onChange={(e) => setFamilyName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-name-suffix`}>{t("contacts.nameSuffix")}</FieldLabel>
+          <Input id={`${idPrefix}-name-suffix`} value={nameSuffix} onChange={(e) => setNameSuffix(e.target.value)} maxLength={40} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-nickname`}>{t("contacts.nickname")}</FieldLabel>
+          <Input id={`${idPrefix}-nickname`} value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-phonetic-given`}>{t("contacts.phoneticGivenName")}</FieldLabel>
+          <Input id={`${idPrefix}-phonetic-given`} value={phoneticGivenName} onChange={(e) => setPhoneticGivenName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-phonetic-family`}>{t("contacts.phoneticFamilyName")}</FieldLabel>
+          <Input id={`${idPrefix}-phonetic-family`} value={phoneticFamilyName} onChange={(e) => setPhoneticFamilyName(e.target.value)} maxLength={120} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-birthday`}>{t("contacts.birthday")}</FieldLabel>
+          <DatePicker id={`${idPrefix}-birthday`} value={birthday} onValueChange={setBirthday} clearable max={new Date().toISOString().slice(0, 10)} />
+        </Field>
+        <Field className="sm:col-span-2">
+          <FieldLabel htmlFor={`${idPrefix}-biography`}>{t("contacts.biography")}</FieldLabel>
+          <Textarea id={`${idPrefix}-biography`} value={biography} onChange={(e) => setBiography(e.target.value)} maxLength={5000} rows={3} />
         </Field>
       </FieldGroup>
       <div className="flex items-center gap-3">
