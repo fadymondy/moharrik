@@ -28,6 +28,7 @@ import {
   type SenderGroup,
   type WhatsAppLink,
   type ContactWhatsApp,
+  type ContextSummary,
   type WhatsAppNotify,
   type TelegramChannel,
   type SlackChannel,
@@ -700,6 +701,10 @@ export const useWhatsAppNotify = (wsId?: string | null) => useScoped<WhatsAppNot
 /** Whether one contact can be messaged on WhatsApp now, and why not (MH-410). */
 export const useContactWhatsApp = (wsId: string | null | undefined, contactId: string, enabled = true) =>
   useScoped<ContactWhatsApp>(`/api/w/contacts/${encodeURIComponent(contactId)}/whatsapp`, wsId, enabled && !!contactId)
+
+/** A contact's context at a glance: notes, messages, WhatsApp imports, open deals (MH-586). */
+export const useContactContext = (wsId: string | null | undefined, contactId: string, enabled = true) =>
+  useScoped<ContextSummary>(`/api/w/contacts/${encodeURIComponent(contactId)}/context`, wsId, enabled && !!contactId)
 
 // ── Inbox channels: Telegram, Slack, Discord (MH-563), workflow (MH-564) ──
 

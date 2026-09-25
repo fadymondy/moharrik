@@ -68,6 +68,9 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"vcard_imports",
 	// uploaded contact avatars (MH-602)
 	"contact_avatars",
+	// contact context: WhatsApp-export imports, free-text notes/files, and
+	// generated relationship reports (MH-586)
+	"contact_context_imports", "contact_context_notes", "contact_context_reports",
 }
 
 /*

@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/togo-framework/togo"
 
+	"github.com/fadymondy/moharrik/internal/ai"
 	"github.com/fadymondy/moharrik/internal/alerts"
 	"github.com/fadymondy/moharrik/internal/analytics"
 	"github.com/fadymondy/moharrik/internal/app"
@@ -25,6 +26,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/channels"
 	"github.com/fadymondy/moharrik/internal/clientip"
+	"github.com/fadymondy/moharrik/internal/contactcontext"
 	"github.com/fadymondy/moharrik/internal/conversions"
 	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/google"
@@ -32,7 +34,6 @@ import (
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
 	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/imports"
-	"github.com/fadymondy/moharrik/internal/vcard"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/leads"
 	"github.com/fadymondy/moharrik/internal/marketing"
@@ -49,6 +50,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/searchconsole"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
+	"github.com/fadymondy/moharrik/internal/vcard"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 	"github.com/fadymondy/moharrik/internal/youtube"
@@ -330,6 +332,11 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	imports.RegisterProvider(imports.WorkflowProvider{}) // MH-562: no history source — honestly not-ready
 	imports.Register(api, a)                             // Contacts → "Import from a connection"
 	vcard.Register(api, a)                               // Contacts → import/export .vcf (MH-584)
+	var ccAI *ai.Client
+	if a != nil {
+		ccAI = contactcontext.ResolveAIClient(a.Log) // nil is a fully supported state (MH-586): every ask/report path works without one
+	}
+	contactcontext.Register(api, a, ccAI) // Contacts → WhatsApp export/notes/ask/report (MH-586)
 	trends.Register(api, a)
 	trends.RegisterDigest(api, a) // the trends digest (MH-389)
 	automation.Register(api, a, automation.Default())

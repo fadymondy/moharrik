@@ -1254,6 +1254,88 @@ export type ContactWhatsApp = {
   recent: { at: string; kind: "reply" | "broadcast" | "direct" | string; ok: boolean; error: string }[]
 }
 
+// ── Contact context: WhatsApp export, notes, ask, reports (MH-586) ────────
+
+/** One retrieved/timeline item — a note, a message, a deal, or an activity. */
+export type ContextPassage = {
+  kind: "message" | "note" | "deal" | "activity" | "field"
+  id: string
+  text: string
+  when?: string
+  rank?: number
+  conversation_id?: string
+}
+
+export type ContextImportRow = {
+  id: string
+  filename: string
+  contact_sender: string
+  message_count: number
+  media_count: number
+  skipped_count: number
+  date_from?: string
+  date_to?: string
+  created_at: string
+}
+
+/** GET /api/w/contacts/{id}/context — a contact's context at a glance (MH-586). */
+export type ContextSummary = {
+  contact: { id: string; name: string; email: string; phone: string }
+  recent_notes: ContextPassage[]
+  recent_messages: ContextPassage[]
+  imports: ContextImportRow[]
+  open_deals: ContextPassage[]
+}
+
+export type ContextCitation = {
+  kind: string
+  id: string
+  conversation_id?: string
+  when?: string
+  snippet: string
+}
+
+/** POST .../context/ask — grounded Q&A, works with zero AI provider configured. */
+export type ContextAnswer = {
+  text: string
+  citations: ContextCitation[]
+  no_provider: boolean
+  provider?: string
+  model?: string
+}
+
+/** POST/GET .../context/reports — a versioned, cited relationship report. */
+export type ContactReport = {
+  id: string
+  version: number
+  markdown: string
+  no_provider: boolean
+  provider?: string
+  model?: string
+}
+
+export type WhatsAppExportPreview = {
+  filename: string
+  message_count: number
+  system_count: number
+  media_count: number
+  senders: string[]
+  date_from?: string
+  date_to?: string
+  sample: { time: string; sender?: string; text: string; system: boolean }[]
+  needs_sender_pick: boolean
+  guessed_contact?: string
+  already_imported_estimate: number
+}
+
+export type WhatsAppImportResult = {
+  import_id: string
+  conversation_id: string
+  messages_added: number
+  messages_skipped_duplicate: number
+  media_stored: number
+}
+
 // ── Inbox channels: Telegram, Slack, Discord (MH-563), workflow (MH-564) ──
 
 /** One of the workspace's Telegram bot connections. The bot token is never returned. */

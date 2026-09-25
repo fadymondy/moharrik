@@ -24,6 +24,7 @@ import { api, ApiError, contactIdentity, LIFECYCLE_STAGES, type ContactDetail, t
 import { useTranslations } from "@/lib/i18n"
 import { useContact } from "@/lib/queries"
 import { dateFormat } from "@/lib/i18n-locale"
+import { ContactContextPanel } from "@/components/crm/contact-context"
 import { ContactEditForm } from "@/components/crm/contact-edit-form"
 import { ContactWhatsAppPanel } from "@/components/crm/contact-whatsapp"
 import { IdentitiesPanel, MetaPanel } from "@/components/crm/contact-identities"
@@ -136,6 +137,10 @@ export default function ContactDetailPage() {
       <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
 
       <Timeline items={activities} total={detail.data.activities_total} nextCursor={detail.data.activities_next_cursor} conversations={detail.data.conversations ?? []} target={{ contact_id: contact.id }} onChange={() => detail.mutate()} />
+
+      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+
+      <ContactContextPanel contact={{ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone }} />
       <div className="pb-8" />
     </>
   )
