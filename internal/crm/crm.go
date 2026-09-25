@@ -147,6 +147,10 @@ type ContactDetail struct {
 	Company       *Ref               `json:"company"`
 	OwnerUserID   *string            `json:"owner_user_id"`
 	CreatedAt     time.Time          `json:"created_at"`
+	// UpdatedAt (MH-591): the GraphQL Contact type needs it for parity with
+	// REST/MCP fields that already expose created_at; getContact selects
+	// c.updated_at alongside the rest of the row.
+	UpdatedAt     time.Time          `json:"updated_at"`
 	Subscriptions []ListSubscription `json:"subscriptions"`
 	// MH-395: where the contact is in the lifecycle, and its ideal-customer score.
 	Lifecycle             string               `json:"lifecycle" enum:",subscriber,lead,qualified,customer" doc:"Empty until an event or a member sets it."`

@@ -1,0 +1,127 @@
+# MH-591: Contacts (and their identities, meta and Person-parity fields) were
+# missing from the GraphQL schema — REST and MCP had them, GraphQL did not,
+# breaking the API-first rule. This fragment is hand-written (not generated
+# from a sqlc model, unlike workspace.graphqls) because internal/crm.Contact*
+# is a hand-assembled DTO, not a 1:1 table row: resolvers call the same
+# internal/crm and internal/marketing functions REST/MCP call, so authz,
+# validation and RLS all agree with the REST surface.
+#
+# meta is a list of key/value pairs, not a GraphQL map: GraphQL has no map
+# scalar, and internal/crm.ContactFields.Meta replaces the whole map on
+# write — updateContact's meta argument follows that same replace-whole-thing
+# semantics.
+
+type ContactMetaEntry {
+  key: String!
+  value: String!
+}
+
+input ContactMetaEntryInput {
+  key: String!
+  value: String!
+}
+
+type ContactIdentity {
+  id: ID!
+  channel: String!
+  externalId: String!
+  label: String!
+  isPrimary: Boolean!
+}
+
+type Contact {
+  id: ID!
+  name: String!
+  email: String!
+  phone: String!
+  handle: String!
+  title: String!
+  companyId: ID
+  ownerUserId: ID
+  tags: [String!]!
+  lifecycle: String!
+  locale: String!
+
+  # MH-583 Google-People-parity fields.
+  givenName: String!
+  familyName: String!
+  middleName: String!
+  namePrefix: String!
+  nameSuffix: String!
+  phoneticGivenName: String!
+  phoneticFamilyName: String!
+  nickname: String!
+  birthday: String
+  biography: String!
+
+  avatarUrl: String!
+  meta: [ContactMetaEntry!]!
+  identities: [ContactIdentity!]!
+
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type ContactPage {
+  contacts: [Contact!]!
+  total: Int!
+  limit: Int!
+  nextCursor: String
+}
+
+input CreateContactInput {
+  email: String
+  phone: String
+  handle: String
+  name: String
+  locale: String
+  listId: ID
+  title: String
+  companyId: ID
+}
+
+# All fields nil = unchanged, matching internal/crm.ContactFields' pointer
+# semantics (an empty string clears email/phone/handle/etc.; meta, if given,
+# replaces the whole list).
+input UpdateContactInput {
+  email: String
+  name: String
+  phone: String
+  handle: String
+  title: String
+  companyId: String
+  ownerUserId: String
+  tags: [String!]
+  lifecycle: String
+  givenName: String
+  familyName: String
+  middleName: String
+  namePrefix: String
+  nameSuffix: String
+  phoneticGivenName: String
+  phoneticFamilyName: String
+  nickname: String
+  birthday: String
+  biography: String
+  meta: [ContactMetaEntryInput!]
+}
+
+input LinkContactIdentityInput {
+  channel: String!
+  externalId: String!
+  label: String
+  isPrimary: Boolean
+}
+
+extend type Query {
+  contact(id: ID!): Contact
+  contacts(search: String, limit: Int, cursor: String): ContactPage!
+}
+
+extend type Mutation {
+  createContact(input: CreateContactInput!): Contact!
+  updateContact(id: ID!, input: UpdateContactInput!): Contact!
+  deleteContact(id: ID!): Boolean!
+  linkContactIdentity(contactId: ID!, input: LinkContactIdentityInput!): Contact!
+  unlinkContactIdentity(contactId: ID!, identityId: ID!): Contact!
+}

@@ -18,3 +18,12 @@ autobind:
 models:
   Time:
     model: github.com/99designs/gqlgen/graphql.Time
+  # MH-591: internal/db/gen (sqlc) already exports stale Contact and
+  # ContactIdentity structs; without these overrides autobind would silently
+  # wire the GraphQL types to them instead of the hand-written model package.
+  Contact:
+    model: github.com/fadymondy/moharrik/internal/graph/model.Contact
+  ContactIdentity:
+    model: github.com/fadymondy/moharrik/internal/graph/model.ContactIdentity
+  ContactMetaEntry:
+    model: github.com/fadymondy/moharrik/internal/graph/model.ContactMetaEntry

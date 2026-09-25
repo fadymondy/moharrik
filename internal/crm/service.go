@@ -862,6 +862,25 @@ func GetContactPage(ctx context.Context, db *sql.DB, id string) (*ContactPageOut
 	return res, nil
 }
 
+// GetContact reads just the contact row (parity fields, meta, identities) —
+// no deals or timeline. MH-591: the GraphQL contact(id) query needs the same
+// authz/validation/RLS as REST's GetContactPage without its extra hydration,
+// so this is GetContactPage minus the deals/timeline fetch, reusing getContact.
+func GetContact(ctx context.Context, db *sql.DB, id string) (*ContactDetail, error) {
+	s, err := scope(ctx, authz.ContactsRead)
+	if err != nil {
+		return nil, err
+	}
+	rescore(ctx, db, s.WorkspaceID)
+	c, err := getContact(ctx, db, s.WorkspaceID, id)
+	if notFound(err) {
+		return nil, huma.Error404NotFound("contact not found")
+	} else if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the contact")
+	}
+	return c, nil
+}
+
 // TimelineQuery names one record (exactly one id) and a page of its timeline.
 type TimelineQuery struct {
 	ContactID, CompanyID, DealID string
