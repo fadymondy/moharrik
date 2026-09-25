@@ -28,15 +28,14 @@ func ProspectTools(engine *research.Engine) []Tool {
 	return []Tool{
 		{
 			Name: "capability_profile",
-			Description: "The workspace's ideal customer, as prospect discovery searches for and scores it: industries, keywords, regions, " +
-				"excluded words, signal weights, the offer the outreach draft pitches, the queries discovery will search, and whether " +
-				"scheduled discovery is on. Pass any field to change it (waiting prospects are rescored).",
+			Description: "The workspace's ideal customer, as prospect discovery searches for and scores it: excluded words, signal weights, " +
+				"the offer the outreach draft pitches, the queries discovery will search, and whether scheduled discovery is on. Pass any " +
+				"field to change it (waiting prospects are rescored). industries/keywords/regions/sizes are also in the answer but are " +
+				"read-only here (MH-514): they are the workspace's CRM ICP — read/change them with get_icp_profile/set_icp_profile, and " +
+				"discovery follows.",
 			Scope: "research:read",
 			InputSchema: schema(nil, map[string]any{
 				"offer":            prop("string", "What the workspace sells, in a sentence or two."),
-				"industries":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-				"keywords":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-				"regions":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 				"exclude_keywords": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 				"signal_weights":   map[string]any{"type": "object", "description": "Signal type -> weight 0..3: hiring, funding, launch, expansion, partnership, leadership, technology, regulatory."},
 				"queries":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "What discovery searches, in turn. Empty: built from the profile."},
@@ -52,7 +51,7 @@ func ProspectTools(engine *research.Engine) []Tool {
 				if err := bind(args, &in); err != nil {
 					return "", err
 				}
-				changing := in.Offer != nil || in.Industries != nil || in.Keywords != nil || in.Regions != nil || in.ExcludeKeywords != nil ||
+				changing := in.Offer != nil || in.ExcludeKeywords != nil ||
 					in.SignalWeights != nil || in.Queries != nil || in.Enabled != nil || in.Cadence != nil
 				var p *prospects.ProspectProfile
 				if changing {

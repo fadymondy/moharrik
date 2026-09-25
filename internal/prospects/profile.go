@@ -6,6 +6,15 @@
 // research company suggestion, scored. Discovery is a research run with
 // origin "discovery"; scheduled discovery spends the same daily budget as
 // scheduled research.
+//
+// MH-514: the *who* — industries, company sizes, regions and keywords — is no
+// longer this package's own data. It is read from the workspace's CRM ICP
+// (internal/icp, MH-395) so a workspace describes its ideal customer once.
+// This package keeps only what is specific to discovery: the offer, the
+// excluded words, the signal weights, the queries and the schedule. The old
+// prospect_profiles.industries/keywords/regions columns still exist (a
+// backfill migration seeded icp_profiles from them, internal/db/post/514_
+// prospect_icp_link.sql) but nothing here reads them anymore.
 package prospects
 
 import (
@@ -17,16 +26,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/research"
 )
 
 // ProspectProfile is the workspace's ideal customer, as discovery searches for it.
 type ProspectProfile struct {
-	Offer           string             `json:"offer" doc:"What the workspace sells, in a sentence or two. The outreach draft's pitch."`
-	Industries      []string           `json:"industries"`
-	Keywords        []string           `json:"keywords"`
-	Regions         []string           `json:"regions"`
-	ExcludeKeywords []string           `json:"exclude_keywords"`
+	Offer      string   `json:"offer" doc:"What the workspace sells, in a sentence or two. The outreach draft's pitch."`
+	// Industries, Sizes, Regions and Keywords are the workspace's CRM ICP
+	// (GET /api/w/icp), read-only here: change them there. Discovery builds
+	// its queries and scores prospects against them.
+	Industries      []string           `json:"industries" doc:"From the CRM ICP; read-only here (GET/PUT /api/w/icp)."`
+	Sizes           []string           `json:"sizes" doc:"Company sizes from the CRM ICP; read-only here, not yet used to build queries (no size fact in discovery evidence)."`
+	Regions         []string           `json:"regions" doc:"From the CRM ICP; read-only here (GET/PUT /api/w/icp)."`
+	Keywords        []string           `json:"keywords" doc:"From the CRM ICP; read-only here (GET/PUT /api/w/icp)."`
+	ICPConfigured   bool               `json:"icp_configured" doc:"False while the workspace's CRM ICP is still the default (nothing to search or score by yet)."`
+	ExcludeKeywords []string           `json:"exclude_keywords" doc:"Discovery-only: words that rule a prospect out. Not part of the CRM ICP."`
 	SignalWeights   map[string]float64 `json:"signal_weights" doc:"Signal type -> weight 0..3; 0 ignores it."`
 	Queries         []string           `json:"queries" doc:"What discovery searches, one per pass, in turn. Empty: built from the profile."`
 	Enabled         bool               `json:"enabled" doc:"Scheduled discovery on or off."`
@@ -36,18 +51,19 @@ type ProspectProfile struct {
 	LastRunAt       *time.Time         `json:"last_run_at"`
 	LastStatus      string             `json:"last_status" enum:",started,over_budget,busy,not_configured,failed,no_queries"`
 	LastNote        string             `json:"last_note"`
-	// Configured is false until the profile names something to look for.
+	// Configured is false until the profile (its own fields, or the ICP it
+	// reads industries/keywords from) names something to look for.
 	Configured bool `json:"configured"`
 	// EffectiveQueries is what discovery will actually search.
 	EffectiveQueries []string `json:"effective_queries"`
 }
 
 // ProspectProfileInput changes the profile. nil = unchanged.
+//
+// Industries, sizes, regions and keywords are not here (MH-514): they come
+// from the CRM ICP now, changed with PUT /api/w/icp.
 type ProspectProfileInput struct {
 	Offer           *string             `json:"offer,omitempty" maxLength:"600"`
-	Industries      *[]string           `json:"industries,omitempty" maxItems:"20"`
-	Keywords        *[]string           `json:"keywords,omitempty" maxItems:"30"`
-	Regions         *[]string           `json:"regions,omitempty" maxItems:"20"`
 	ExcludeKeywords *[]string           `json:"exclude_keywords,omitempty" maxItems:"30"`
 	SignalWeights   *map[string]float64 `json:"signal_weights,omitempty"`
 	Queries         *[]string           `json:"queries,omitempty" maxItems:"20"`
@@ -168,27 +184,44 @@ func clean(list []string, max int) []string {
 	return out
 }
 
+// ensureProfile creates an empty prospect_profiles row for a workspace that
+// has never configured discovery. It deliberately does NOT touch
+// icp_profiles (MH-514): icp_profiles.Configured means "a person saved this
+// ICP" (internal/icp/store.go), and a mere GET of the discovery profile must
+// not flip that to true behind the CRM ICP settings page's back. Reading the
+// "who" via icp.LoadProfile is safe with no icp_profiles row at all — it
+// falls back to icp.Default() — so there is nothing here for it to need.
 func ensureProfile(ctx context.Context, db *sql.DB, ws string) error {
 	_, err := db.ExecContext(ctx, `INSERT INTO prospect_profiles (workspace_id) VALUES ($1) ON CONFLICT (workspace_id) DO NOTHING`, ws)
 	return err
 }
 
-// GetProfile reads the workspace's profile (an empty one is created on first read).
+// GetProfile reads the workspace's profile (an empty one is created on first
+// read): its own discovery-specific fields from prospect_profiles, and its
+// who — industries, sizes, regions, keywords — from the workspace's CRM ICP
+// (MH-514).
 func GetProfile(ctx context.Context, db *sql.DB, ws string) (*ProspectProfile, error) {
 	if err := ensureProfile(ctx, db, ws); err != nil {
 		return nil, err
 	}
 	var p ProspectProfile
-	var ind, kw, reg, ex, q, weights string
+	var ex, q, weights string
 	var last sql.NullTime
 	if err := db.QueryRowContext(ctx, `
-		SELECT offer, industries::text, keywords::text, regions::text, exclude_keywords::text, signal_weights::text, queries::text,
+		SELECT offer, exclude_keywords::text, signal_weights::text, queries::text,
 		       enabled, cadence, next_run_at, last_run_id, last_run_at, last_status, last_note
-		FROM prospect_profiles WHERE workspace_id = $1`, ws).Scan(&p.Offer, &ind, &kw, &reg, &ex, &weights, &q,
+		FROM prospect_profiles WHERE workspace_id = $1`, ws).Scan(&p.Offer, &ex, &weights, &q,
 		&p.Enabled, &p.Cadence, &p.NextRunAt, &p.LastRunID, &last, &p.LastStatus, &p.LastNote); err != nil {
 		return nil, err
 	}
-	p.Industries, p.Keywords, p.Regions, p.ExcludeKeywords, p.Queries = pgList(ind), pgList(kw), pgList(reg), pgList(ex), pgList(q)
+	p.ExcludeKeywords, p.Queries = pgList(ex), pgList(q)
+	sp, err := icp.LoadProfile(ctx, db, ws)
+	if err != nil {
+		return nil, err
+	}
+	p.Industries, p.Sizes, p.Regions, p.Keywords = orEmpty(sp.Profile.Industries.Values), orEmpty(sp.Profile.Sizes.Values),
+		orEmpty(sp.Profile.Regions.Values), orEmpty(sp.Profile.Keywords.Values)
+	p.ICPConfigured = sp.Configured
 	p.SignalWeights = map[string]float64{}
 	_ = json.Unmarshal([]byte(weights), &p.SignalWeights)
 	// Every signal type is present in the answer, with the weight in effect,
@@ -207,6 +240,15 @@ func GetProfile(ctx context.Context, db *sql.DB, ws string) (*ProspectProfile, e
 	return &p, nil
 }
 
+// orEmpty turns a nil slice into an empty one, so the API answers [] rather
+// than null.
+func orEmpty(v []string) []string {
+	if v == nil {
+		return []string{}
+	}
+	return v
+}
+
 // SaveProfile changes the profile, and rescores the prospects waiting for
 // review: a changed profile re-ranks them.
 func SaveProfile(ctx context.Context, db *sql.DB, ws, userID string, in ProspectProfileInput) (*ProspectProfile, error) {
@@ -216,15 +258,6 @@ func SaveProfile(ctx context.Context, db *sql.DB, ws, userID string, in Prospect
 	}
 	if in.Offer != nil {
 		cur.Offer = strings.TrimSpace(*in.Offer)
-	}
-	if in.Industries != nil {
-		cur.Industries = clean(*in.Industries, 20)
-	}
-	if in.Keywords != nil {
-		cur.Keywords = clean(*in.Keywords, 30)
-	}
-	if in.Regions != nil {
-		cur.Regions = clean(*in.Regions, 20)
 	}
 	if in.ExcludeKeywords != nil {
 		cur.ExcludeKeywords = clean(*in.ExcludeKeywords, 30)
@@ -257,13 +290,17 @@ func SaveProfile(ctx context.Context, db *sql.DB, ws, userID string, in Prospect
 		return nil, errors.New("name at least one industry, keyword or query before turning discovery on")
 	}
 	weights, _ := json.Marshal(cur.SignalWeights)
+	// Industries/keywords/regions are not written here (MH-514): they live in
+	// icp_profiles now, changed only through the ICP API/package. The
+	// prospect_profiles columns of the same name are left exactly as the
+	// backfill migration set them — dead, not maintained.
 	if _, err := db.ExecContext(ctx, `
-		UPDATE prospect_profiles SET offer = $2, industries = $3, keywords = $4, regions = $5, exclude_keywords = $6,
-			signal_weights = $7::jsonb, queries = $8, enabled = $9, cadence = $10,
-			next_run_at = CASE WHEN $9 AND NOT $11 THEN now() ELSE next_run_at END,
-			updated_by = $12, updated_at = now()
+		UPDATE prospect_profiles SET offer = $2, exclude_keywords = $3,
+			signal_weights = $4::jsonb, queries = $5, enabled = $6, cadence = $7,
+			next_run_at = CASE WHEN $6 AND NOT $8 THEN now() ELSE next_run_at END,
+			updated_by = $9, updated_at = now()
 		WHERE workspace_id = $1`,
-		ws, cur.Offer, pgArr(cur.Industries), pgArr(cur.Keywords), pgArr(cur.Regions), pgArr(cur.ExcludeKeywords),
+		ws, cur.Offer, pgArr(cur.ExcludeKeywords),
 		string(weights), pgArr(cur.Queries), cur.Enabled, cur.Cadence, wasOn, userID); err != nil {
 		return nil, err
 	}

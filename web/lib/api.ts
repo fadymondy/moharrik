@@ -1770,9 +1770,14 @@ export type ResearchSchedule = {
 
 export type ProspectProfile = {
   offer: string
+  // industries/sizes/regions/keywords (MH-514): read-only here — they are the
+  // workspace's CRM ICP (IcpProfile). Change them on the ICP settings page;
+  // discovery follows.
   industries: string[]
+  sizes: string[]
   keywords: string[]
   regions: string[]
+  icp_configured: boolean
   exclude_keywords: string[]
   signal_weights: Record<string, number>
   queries: string[]

@@ -92,16 +92,17 @@ var docsProspects = map[string]ToolDoc{
 	},
 	"capability_profile": {
 		Group: "research",
-		AR: "العميل المثالي لمساحة العمل، كما يبحث عنه ويقيّمه استكشاف العملاء المرتقبين: القطاعات والكلمات المفتاحية والمناطق " +
-			"والكلمات المستبعدة، وأوزان الإشارات، والعرض الذي تصوغه مسودة التواصل، والاستعلامات التي سيبحث عنها الاستكشاف تباعًا، " +
-			"وهل الاستكشاف المجدوَل مفعَّل. مرِّر أي حقل لتغييره (يُعاد عندها تقييم العملاء المرتقبين المنتظرين).",
+		AR: "العميل المثالي لمساحة العمل، كما يبحث عنه ويقيّمه استكشاف العملاء المرتقبين: الكلمات المستبعدة، وأوزان الإشارات، " +
+			"والعرض الذي تصوغه مسودة التواصل، والاستعلامات التي سيبحث عنها الاستكشاف تباعًا، وهل الاستكشاف المجدوَل مفعَّل. مرِّر " +
+			"أي حقل لتغييره (يُعاد عندها تقييم العملاء المرتقبين المنتظرين). القطاعات/الأحجام/المناطق/الكلمات المفتاحية تظهر في " +
+			"الرد أيضًا لكنها للقراءة فقط هنا (MH-514): هي ملف العميل المثالي في إدارة العلاقات لمساحة العمل — غيّرها عبر " +
+			"get_icp_profile/set_icp_profile، ويتبعها الاستكشاف.",
 		Example: map[string]any{
-			"offer": "Fleet tracking software for logistics companies", "industries": []string{"Logistics", "Retail"},
-			"keywords": []string{"fleet", "warehouse"}, "regions": []string{"Egypt"}, "enabled": true, "cadence": "daily",
+			"offer": "Fleet tracking software for logistics companies", "enabled": true, "cadence": "daily",
 		},
 		Result: `{"can_search":true,"profile":{"offer":"Fleet tracking software for logistics companies",` +
-			`"industries":["Logistics","Retail"],"keywords":["fleet","warehouse"],"regions":["Egypt"],"exclude_keywords":[],` +
-			`"signal_weights":{"expansion":0.8,"funding":1,"hiring":1,"launch":0.6,"leadership":0.4,"partnership":0.5,` +
+			`"industries":["Logistics","Retail"],"sizes":[],"keywords":["fleet","warehouse"],"regions":["Egypt"],"exclude_keywords":[],` +
+			`"icp_configured":true,"signal_weights":{"expansion":0.8,"funding":1,"hiring":1,"launch":0.6,"leadership":0.4,"partnership":0.5,` +
 			`"regulatory":0.3,"technology":0.6},"queries":[],"enabled":true,"cadence":"daily","next_run_at":"2026-09-25T00:00:00Z",` +
 			`"last_run_id":"","last_run_at":null,"last_status":"","last_note":"","configured":true,` +
 			`"effective_queries":["Logistics companies raises funding Egypt","Logistics companies hiring Egypt"]}}`,

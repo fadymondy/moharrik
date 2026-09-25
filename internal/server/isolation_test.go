@@ -620,6 +620,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 
 	// Prospects (MH-397): A's profile, a prospect on A's suggestion, a verdict
 	// on it and a draft — written directly, like the research rows above.
+	// Its "who" (MH-514) is read from icp_profiles by workspace_id, a logical
+	// link with no schema FK, so no icp_profiles row is needed here.
 	var prospectID, pfbID, pdraftID string
 	if _, err := a.SysDB.Exec(`INSERT INTO prospect_profiles (workspace_id, offer, keywords) VALUES ($1, $2, '{iso}')`, aID, marker+" offer"); err != nil {
 		t.Fatal(err)
