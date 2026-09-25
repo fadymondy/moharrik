@@ -36,10 +36,16 @@ try {
   const raw = JSON.stringify(tools)
   // MH-528: browser_plugin_run says it waits and answers with the data, polling via browser_result.
   const pr = tools.find((t) => t.name === "browser_plugin_run")?.description ?? ""
+  // MH-519: send_campaign sends on the campaign's own channel, not always SMTP.
+  const sc = tools.find((t) => t.name === "send_campaign")?.description ?? ""
+  // MH-583: update_contact takes the Google-People-parity fields and meta.
+  const uc = Object.keys(tools.find((t) => t.name === "update_contact")?.inputSchema?.properties ?? {})
   out = { status: res.status, tools: tools.length, bad, nullProperties: /"properties":null/.test(raw),
-    pluginRunDescribed: /25 seconds/.test(pr) && /browser_result/.test(pr) && !/get_browser_run/.test(pr) }
+    pluginRunDescribed: /25 seconds/.test(pr) && /browser_result/.test(pr) && !/get_browser_run/.test(pr),
+    sendCampaignByChannel: /on its own channel/.test(sc) && /WhatsApp through/.test(sc),
+    updateContactParity: ["given_name", "family_name", "birthday", "biography", "meta"].every((k) => uc.includes(k)) }
 } finally {
   const del = await rest("DELETE", `/api/w/mcp_tokens/${minted.token.id}`, null, ws); out.revoked = del.status < 300
 }
 console.log(JSON.stringify(out))
-console.log(out.status === 200 && out.tools > 0 && out.bad.length === 0 && !out.nullProperties && out.pluginRunDescribed && out.revoked ? "ALL OK" : "FAIL")
+console.log(out.status === 200 && out.tools > 0 && out.bad.length === 0 && !out.nullProperties && out.pluginRunDescribed && out.sendCampaignByChannel && out.updateContactParity && out.revoked ? "ALL OK" : "FAIL")
