@@ -55,6 +55,17 @@ func mapErr(err error) error {
 // during OpenAPI export.
 func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
+		OperationID: "w-google-contacts-connections", Method: http.MethodGet, Path: "/api/w/google/contacts/connections",
+		Summary: "Connected Google accounts that have granted Contacts, for the Import from Google panel (any workspace member)", Tags: restTags,
+	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[ContactsConnectionsOut], error) {
+		list, err := ListConnections(ctx, a, wsID(ctx))
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		return &body[ContactsConnectionsOut]{ContactsConnectionsOut{Connections: list}}, nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "w-google-contacts-preview", Method: http.MethodGet, Path: "/api/w/google/contacts/{connection_id}/preview",
 		Summary: "Preview what syncing this Google connection's contacts would do, without writing anything", Tags: restTags,
 	}, func(ctx context.Context, in *struct {

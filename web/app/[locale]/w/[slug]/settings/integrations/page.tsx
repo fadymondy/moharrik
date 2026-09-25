@@ -26,7 +26,9 @@ import { Bdi, isolate } from "@/components/bidi"
 // What the callback can answer (internal/google, Result*). Anything else reads as "failed".
 const RESULTS = ["connected", "cancelled", "access_denied", "state", "forbidden", "failed", "no_refresh", "scope", "no_identity", "not_configured"]
 
-const PRODUCT_ICON: Record<GoogleProduct, ReactNode> = {
+// Partial: "contacts" has no row here (its own panel lives on the vCard
+// import page instead, see GoogleContactsPanel), so it needs no icon.
+const PRODUCT_ICON: Partial<Record<GoogleProduct, ReactNode>> = {
   analytics: <ChartLineIcon />,
   search_console: <SearchIcon />,
   youtube: <YoutubeIcon />,

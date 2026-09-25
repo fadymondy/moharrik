@@ -314,6 +314,13 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirect.String(), http.StatusFound)
 }
 
+// SubOf is the fake's deterministic "sub" for an email — what consenting as
+// that email produces (see the consent handler below). Exported for callers
+// that need to pre-seed account-scoped data (e.g. Contacts, via SetContact)
+// before a browser ever reaches the consent screen: fakegoogle's own
+// -seed-contacts-* flags, and any other out-of-process seeding.
+func SubOf(email string) string { return "sub-" + hexOf(email)[:16] }
+
 func hexOf(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])

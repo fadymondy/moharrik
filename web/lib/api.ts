@@ -1803,7 +1803,14 @@ export type LeadConversion = {
 
 // ── Integrations: Google (MH-439) ───────────────────────────────────────
 
-export type GoogleProduct = "analytics" | "search_console" | "youtube"
+// "contacts" (MH-585) is a valid product a connection can carry (it drives
+// GET /api/w/google/connect?product=contacts and shows up in a connection's
+// `products`), but it is deliberately NOT in GOOGLE_PRODUCTS: that list
+// drives the Integrations page's generic "connect a product" rows, and
+// Contacts has its own panel on the vCard import page instead (no
+// property/site/channel picker, and "Sync now" belongs next to the import
+// flow it feeds).
+export type GoogleProduct = "analytics" | "search_console" | "youtube" | "contacts"
 export const GOOGLE_PRODUCTS: GoogleProduct[] = ["analytics", "search_console", "youtube"]
 
 /** A connected Google account. No token of any kind is ever in it. */
@@ -1832,6 +1839,33 @@ export type GoogleConnections = {
 }
 
 export type GoogleDisconnected = { revoked: boolean; shared: boolean; revoke_error?: string }
+
+// ── Google Contacts import (MH-585) ──────────────────────────────────────
+
+/** A connected Google account that has granted Contacts, trimmed for any workspace member (not just an admin). */
+export type GoogleContactsConnection = {
+  id: string
+  email: string
+  /** "" = working; "reauth" = an admin needs to reconnect it. */
+  status: "" | "reauth"
+}
+
+export type GoogleContactsConnections = { connections: GoogleContactsConnection[] | null }
+
+export type GoogleContactsSyncStatus = {
+  connection_id: string
+  last_synced_at: string | null
+  last_error: string
+  has_token: boolean
+}
+
+export type GoogleContactsSyncResult = {
+  added: number
+  updated: number
+  flagged_deleted: number
+  invalid: number
+  full_resync: boolean
+}
 
 // ── Google resources (MH-440) ────────────────────────────────────────────
 
