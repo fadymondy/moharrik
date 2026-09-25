@@ -11,6 +11,11 @@ A 600-message thread must now open on its newest page and state its total.
 Following the cursor must reach the first message, with every message exactly
 once and in order. The visitor's widget must show the newest message.
 
+MH-648 shrank the opening page from 100 to 30 (every channel loads older on
+scroll-up now, so there is no reason to ship more than a screenful up front)
+and capped GET .../messages at 100 (down from 500) since that endpoint is the
+human-scroll path, not the internal "read the whole recent thread" one.
+
 	TEST_DATABASE_URL=... TEST_APP_DATABASE_URL=... go test -count=1 ./internal/server/ -run ThreadPages -v
 */
 
@@ -91,11 +96,11 @@ func TestThreadPagesToItsFirstMessage(t *testing.T) {
 	if err := json.Unmarshal(b, &detail); err != nil {
 		t.Fatal(err)
 	}
-	if detail.MessagesTotal != 600 || len(detail.Messages) != 100 || detail.MessagesNextCursor == "" {
+	if detail.MessagesTotal != 600 || len(detail.Messages) != 30 || detail.MessagesNextCursor == "" {
 		t.Fatalf("opening: total %d, %d messages, cursor %q", detail.MessagesTotal, len(detail.Messages), detail.MessagesNextCursor)
 	}
-	if detail.Messages[99].Body != "message 599" || detail.Messages[0].Body != "message 500" {
-		t.Fatalf("opening shows %s .. %s, want the newest page, 500 .. 599", detail.Messages[0].Body, detail.Messages[99].Body)
+	if detail.Messages[29].Body != "message 599" || detail.Messages[0].Body != "message 570" {
+		t.Fatalf("opening shows %s .. %s, want the newest page, 570 .. 599", detail.Messages[0].Body, detail.Messages[29].Body)
 	}
 
 	// Walk back to the first message.
@@ -107,7 +112,7 @@ func TestThreadPagesToItsFirstMessage(t *testing.T) {
 			Total      int64  `json:"total"`
 			NextCursor string `json:"next_cursor"`
 		}
-		code, b := alice.do("GET", "/api/w/conversations/"+convID+"/messages?limit=150&cursor="+url.QueryEscape(cursor), nil)
+		code, b := alice.do("GET", "/api/w/conversations/"+convID+"/messages?limit=100&cursor="+url.QueryEscape(cursor), nil)
 		if code != 200 {
 			t.Fatalf("page %d: %d %s", pages+1, code, b)
 		}
@@ -121,8 +126,8 @@ func TestThreadPagesToItsFirstMessage(t *testing.T) {
 			t.Fatal("the cursor never ran out")
 		}
 	}
-	if len(all) != 600 || pages != 5 {
-		t.Fatalf("walked %d messages in %d pages, want 600 in 5 (100 + 150 x 3 + 50)", len(all), pages)
+	if len(all) != 600 || pages != 7 {
+		t.Fatalf("walked %d messages in %d pages, want 600 in 7 (30 opening + 100 x 5 + 70)", len(all), pages)
 	}
 	seen := map[string]bool{}
 	for i, m := range all {
@@ -139,7 +144,7 @@ func TestThreadPagesToItsFirstMessage(t *testing.T) {
 	}
 
 	// Refused, not guessed: a cursor this server never issued, a page too big.
-	for _, q := range []string{"cursor=not-a-cursor", "limit=501", "limit=-1"} {
+	for _, q := range []string{"cursor=not-a-cursor", "limit=101", "limit=-1"} {
 		if code, b := alice.do("GET", "/api/w/conversations/"+convID+"/messages?"+q, nil); code != http.StatusUnprocessableEntity {
 			t.Errorf("?%s: %d %s, want 422", q, code, b)
 		}

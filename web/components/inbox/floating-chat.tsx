@@ -20,7 +20,7 @@ import { api, ApiError, type BellItem, type InboxMessage } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { relativeTimeFormat } from "@/lib/i18n-locale"
-import { useBell, useConversation } from "@/lib/queries"
+import { fetchOlderMessages, mergeMessages, useBell, useConversation } from "@/lib/queries"
 
 /*
 The floating chat launcher (MH-587): every workspace page except the inbox
@@ -30,10 +30,13 @@ the bell already tracks (/api/w/alerts, MH-378) and, once one is picked,
 reuses ChatThread — the identical WhatsApp-style bubbles/composer as the full
 inbox page — so a reply typed here and one typed on /inbox behave the same.
 
-Scoped down from the full inbox thread on purpose: no "load earlier" paging
-and no assignee/snooze/close controls — this is a quick-glance/quick-reply
-surface, not a second inbox. That is a feature-set choice, not a dead
-control: everything rendered here works.
+Scoped down from the full inbox thread on purpose: no assignee/snooze/close
+controls — this is a quick-glance/quick-reply surface, not a second inbox.
+That is a feature-set choice, not a dead control: everything rendered here
+works. It DOES get MH-648's "load earlier" paging, though: a thread opened
+here can be just as long as one opened on /inbox (an 80-message WhatsApp
+history doesn't get shorter because it's in the launcher), so ChatThread's
+scroll-up-to-load-more has to work here too.
 
 @shadcnspace/chat-bubble-02 and -03 (the launcher patterns named in the
 card) returned FORBIDDEN when fetched via the shadcn MCP server in this
@@ -132,11 +135,31 @@ function LauncherThread({
   const [reply, setReply] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // MH-648: same "load earlier" shape as the full inbox thread (page.tsx's
+  // Thread) — opening shows the newest page, ChatThread's scroll-up loads
+  // what came before it, and a message arriving mid-scroll can't open a gap
+  // because `earlier` and the live page are merged, never replaced.
+  const [earlier, setEarlier] = useState<{ messages: InboxMessage[]; cursor: string } | null>(null)
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
 
   if (detail.error) return <ErrorState error={detail.error} />
   if (!detail.data) return <LoadingRows rows={4} />
   const { conversation, reply_language: replyLang } = detail.data
-  const messages: InboxMessage[] = detail.data.messages
+  const messages = mergeMessages(earlier?.messages ?? [], detail.data.messages)
+  const cursor = earlier ? earlier.cursor : detail.data.messages_next_cursor
+
+  async function loadEarlier() {
+    if (!cursor || !detail.data) return
+    setLoadingEarlier(true)
+    try {
+      const page = await fetchOlderMessages(workspaceId, id, cursor)
+      setEarlier({ messages: mergeMessages(page.messages, messages), cursor: page.next_cursor })
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }
 
   async function send(e: FormEvent) {
     e.preventDefault()
@@ -177,6 +200,9 @@ function LauncherThread({
       busy={busy}
       error={err}
       onInsertCanned={insert}
+      hasOlder={!!cursor}
+      loadingOlder={loadingEarlier}
+      onLoadOlder={loadEarlier}
     />
   )
 }

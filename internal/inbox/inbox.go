@@ -116,6 +116,12 @@ type MessageOut struct {
 	Body         string    `json:"body" doc:"Plain text. For chat/WhatsApp this is Markdown source; for email it is the text/plain rendering."`
 	BodyHTML     string    `json:"body_html,omitempty" doc:"Sanitised HTML (MH-556): an email's own HTML part, or the Markdown in Body rendered. Empty when there is nothing to add over Body (plain-text-only email)."`
 	MailboxID    *string   `json:"mailbox_id,omitempty" doc:"Which mailbox this email arrived on or went out through; absent for chat/WhatsApp."`
+	// Subject (MH-600): an email keeps its OWN subject line even after every
+	// sender's email folds into one conversation. Empty for chat/WhatsApp,
+	// where a message has no subject of its own — the client shows this only
+	// when it differs from the previous message's, so a run of replies on the
+	// same subject shows it once.
+	Subject      string          `json:"subject,omitempty" doc:"The email's own subject line (email channel only); empty for chat/WhatsApp."`
 	Attachments  []AttachmentOut `json:"attachments,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	// Sender identity (MH-604), set only for an inbound message on a group
