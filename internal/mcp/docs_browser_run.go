@@ -9,11 +9,11 @@ var docsBrowserRun = map[string]ToolDoc{
 		AR: "المتصفّحات المقترنة بهذه المساحة: اسم كل منها، وهل هو متصل الآن، وما يعمل عليه، وآخر مرة شوهد فيها، والمواقع التي يحق " +
 			"له العمل عليها. هذه متصفّحات حقيقية، مسجَّلة دخولها بحسابات أصحابها.",
 		Example: map[string]any{},
-		Result: "2 paired browser(s):\n\n" +
-			"- Sara's Chrome (3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14) — online, macOS, extension 0.5.0, last seen 2026-09-24T10:20:00Z\n" +
-			"    may be driven on: acme.example, crm.acme.example\n" +
-			"- Office laptop (b81f0d26-9e3a-4c75-a2d8-4f6e1c0b93a7) — offline, Windows, extension 0.5.0, last seen 2026-09-23T18:05:00Z\n" +
-			"    may be driven on: nothing yet — an admin adds sites (browser_set_allowed_sites, or the Automation page)\n",
+		Result: `{"count":2,"items":[` +
+			`{"id":"3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14","name":"Sara's Chrome","platform":"macOS","extension_version":"0.5.0",` +
+			`"status":"online","allowed_hosts":["acme.example","crm.acme.example"],"last_seen_at":"2026-09-24T10:20:00Z"},` +
+			`{"id":"b81f0d26-9e3a-4c75-a2d8-4f6e1c0b93a7","name":"Office laptop","platform":"Windows","extension_version":"0.5.0",` +
+			`"status":"offline","allowed_hosts":[],"last_seen_at":"2026-09-23T18:05:00Z"}]}`,
 	},
 	"browser_extract": {
 		AR: "يفتح رابطًا في أحد متصفّحات مساحة العمل ويستخرج بيانات من الصفحة، مستخدمًا الجلسة التي سجّل المتصفّح دخوله فيها بالفعل. " +
@@ -25,12 +25,11 @@ var docsBrowserRun = map[string]ToolDoc{
 			"list":   "table tbody tr",
 			"fields": map[string]any{"item": "td:nth-child(1)", "price": "td:nth-child(2)"},
 		},
-		Result: "Run 6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680 — ok (2/2 steps ok)\n" +
-			"\nSteps:\n" +
-			"  1. navigate — ok (1180ms) https://importer.example/prices\n" +
-			"  2. extract — ok (95ms) 3 row(s)\n" +
-			"\nExtracted data (exactly as the browser sent it):\n\n" +
-			`step 2: [{"item":"Ethiopia Yirgacheffe","price":"$6.40/kg"},{"item":"Colombia Huila","price":"$5.90/kg"},{"item":"Brazil Cerrado","price":"$4.75/kg"}]` + "\n",
+		Result: `{"run_id":"6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680","status":"ok","error":"","step_count":2,"ok_count":2,"notes":[],"steps":[` +
+			`{"position":0,"command":"navigate","status":"ok","summary":"https://importer.example/prices","error":"","duration_ms":1180},` +
+			`{"position":1,"command":"extract","status":"ok","summary":"3 row(s)","error":"","duration_ms":95,` +
+			`"result":"[{\"item\":\"Ethiopia Yirgacheffe\",\"price\":\"$6.40/kg\"},{\"item\":\"Colombia Huila\",\"price\":\"$5.90/kg\"},{\"item\":\"Brazil Cerrado\",\"price\":\"$4.75/kg\"}]"}],` +
+			`"data":"step 2: [{\"item\":\"Ethiopia Yirgacheffe\",\"price\":\"$6.40/kg\"},{\"item\":\"Colombia Huila\",\"price\":\"$5.90/kg\"},{\"item\":\"Brazil Cerrado\",\"price\":\"$4.75/kg\"}]"}`,
 	},
 	"browser_run": {
 		AR: "يشغّل سلسلة أوامر متصفّح صريحة على متصفّح من متصفّحات مساحة العمل. الأوامر: navigate وwait_for وclick وtype وpress وscroll " +
@@ -44,28 +43,26 @@ var docsBrowserRun = map[string]ToolDoc{
 				map[string]any{"command": "extract", "args": map[string]any{"selector": "h1"}},
 			},
 		},
-		Result: "Run 8b1c4e70-5a3d-4f92-b6e7-1d4a9c0f7b23 — ok (3/3 steps ok)\n" +
-			"\nSteps:\n" +
-			"  1. navigate — ok (1240ms) https://acme.example/pricing\n" +
-			"  2. click — ok (310ms) text=Annual\n" +
-			"  3. extract — ok (60ms) \"Save 20% billed yearly\"\n" +
-			"\nExtracted data (exactly as the browser sent it):\n\n" +
-			`step 3: "Save 20% billed yearly"` + "\n",
+		Result: `{"run_id":"8b1c4e70-5a3d-4f92-b6e7-1d4a9c0f7b23","status":"ok","error":"","step_count":3,"ok_count":3,"notes":[],"steps":[` +
+			`{"position":0,"command":"navigate","status":"ok","summary":"https://acme.example/pricing","error":"","duration_ms":1240},` +
+			`{"position":1,"command":"click","status":"ok","summary":"text=Annual","error":"","duration_ms":310},` +
+			`{"position":2,"command":"extract","status":"ok","summary":"\"Save 20% billed yearly\"","error":"","duration_ms":60,` +
+			`"result":"\"Save 20% billed yearly\""}],` +
+			`"data":"step 3: \"Save 20% billed yearly\""}`,
 	},
 	"browser_result": {
 		AR:      "يجلب تشغيل متصفّح بمفتاحه: حالته، وكل خطوة مع توقيتها، وسبب التوقّف إن فشل، والبيانات المستخرَجة إن انتهى.",
 		Example: map[string]any{"run": "6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680"},
-		Result: "Run 6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680 — ok (2/2 steps ok)\n" +
-			"\nSteps:\n" +
-			"  1. navigate — ok (1180ms) https://importer.example/prices\n" +
-			"  2. extract — ok (95ms) 3 row(s)\n" +
-			"\nExtracted data (exactly as the browser sent it):\n\n" +
-			`step 2: [{"item":"Ethiopia Yirgacheffe","price":"$6.40/kg"},{"item":"Colombia Huila","price":"$5.90/kg"},{"item":"Brazil Cerrado","price":"$4.75/kg"}]` + "\n",
+		Result: `{"run_id":"6d2e8f41-7a3b-4c19-9e05-b1f7a4c2d680","status":"ok","error":"","step_count":2,"ok_count":2,"notes":[],"steps":[` +
+			`{"position":0,"command":"navigate","status":"ok","summary":"https://importer.example/prices","error":"","duration_ms":1180},` +
+			`{"position":1,"command":"extract","status":"ok","summary":"3 row(s)","error":"","duration_ms":95,` +
+			`"result":"[{\"item\":\"Ethiopia Yirgacheffe\",\"price\":\"$6.40/kg\"},{\"item\":\"Colombia Huila\",\"price\":\"$5.90/kg\"},{\"item\":\"Brazil Cerrado\",\"price\":\"$4.75/kg\"}]"}],` +
+			`"data":"step 2: [{\"item\":\"Ethiopia Yirgacheffe\",\"price\":\"$6.40/kg\"},{\"item\":\"Colombia Huila\",\"price\":\"$5.90/kg\"},{\"item\":\"Brazil Cerrado\",\"price\":\"$4.75/kg\"}]"}`,
 	},
 	"browser_cancel": {
 		AR:      "يوقف تشغيل متصفّح. يتوقّف بعد الخطوة الجارية حاليًا.",
 		Example: map[string]any{"run": "8b1c4e70-5a3d-4f92-b6e7-1d4a9c0f7b23"},
-		Result:  "Run 8b1c4e70-5a3d-4f92-b6e7-1d4a9c0f7b23 is cancelled; it stops after the step in flight.",
+		Result:  `{"ok":true,"cancelled":true,"run_id":"8b1c4e70-5a3d-4f92-b6e7-1d4a9c0f7b23"}`,
 	},
 }
 

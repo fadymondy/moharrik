@@ -568,19 +568,33 @@ type PluginSave struct {
 	Writes, Enabled               *bool
 }
 
+// PluginSaveResult is what SavePlugin answers: ok is false only for a bad
+// input (never a database error, which is returned separately).
+type PluginSaveResult struct {
+	OK              bool   `json:"ok"`
+	Reason          string `json:"reason,omitempty"`
+	Slug            string `json:"slug,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Created         bool   `json:"created,omitempty"`
+	Changed         bool   `json:"changed,omitempty"`
+	Version         int    `json:"version,omitempty"`
+	PreviousVersion int    `json:"previous_version,omitempty"`
+	StepCount       int    `json:"step_count,omitempty"`
+}
+
 // SavePlugin creates or updates a workflow by slug, the way fadymondy.com's
 // browser_plugin_save does: the slug is the identity, and a change to the
 // steps or inputs keeps the previous definition as a version, while a new
 // name, description or list of sites does not. The sites are recorded, never
 // allowed: a run is checked against the browser's own list.
-func SavePlugin(ctx context.Context, a *app.App, workspaceID, userID string, in PluginSave) (string, error) {
+func SavePlugin(ctx context.Context, a *app.App, workspaceID, userID string, in PluginSave) (*PluginSaveResult, error) {
 	slug := strings.ToLower(strings.TrimSpace(in.Slug))
 	if !slugRE.MatchString(slug) {
-		return "slug must be lowercase letters and digits separated by dashes, e.g. search-google", nil
+		return &PluginSaveResult{Reason: "slug must be lowercase letters and digits separated by dashes, e.g. search-google"}, nil
 	}
 	wf := WorkflowInput{Name: in.Name, Slug: slug, Description: in.Description, Steps: in.Steps, Params: in.Params}
 	if err := ValidateWorkflow(wf); err != nil {
-		return err.Error(), nil
+		return &PluginSaveResult{Reason: err.Error()}, nil
 	}
 	wf = cleanInput(wf)
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
@@ -588,19 +602,20 @@ func SavePlugin(ctx context.Context, a *app.App, workspaceID, userID string, in 
 	var version int
 	err := a.SQLDB.QueryRowContext(sctx, `SELECT id, steps::text, params::text, version FROM automation_workflows WHERE workspace_id = $1 AND slug = $2`,
 		workspaceID, slug).Scan(&id, &steps, &params, &version)
+	nameTaken := &PluginSaveResult{Reason: "another workflow is already called " + wf.Name + "; pick another name"}
 	created, changed := false, false
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		id, err = CreateWorkflow(ctx, a, workspaceID, userID, wf, "Saved over MCP")
 		if errors.Is(err, ErrNameTaken) {
-			return "another workflow is already called " + wf.Name + "; pick another name", nil
+			return nameTaken, nil
 		}
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		created, version = true, 1
 	case err != nil:
-		return "", err
+		return nil, err
 	default:
 		// Compared as stored, after a round trip through the same types.
 		var oldSteps []Step
@@ -614,17 +629,17 @@ func SavePlugin(ctx context.Context, a *app.App, workspaceID, userID string, in 
 		if string(a1) != string(b1) || string(a2) != string(b2) {
 			next, err := SaveWorkflow(ctx, a, workspaceID, userID, id, wf, 0)
 			if errors.Is(err, ErrNameTaken) {
-				return "another workflow is already called " + wf.Name + "; pick another name", nil
+				return nameTaken, nil
 			}
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			version, changed = next, true
 		} else if _, err := a.SQLDB.ExecContext(sctx, `UPDATE automation_workflows SET name = $3, description = $4, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
 			workspaceID, id, wf.Name, wf.Description); pgCode(err) == "23505" {
-			return "another workflow is already called " + wf.Name + "; pick another name", nil
+			return nameTaken, nil
 		} else if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 	if _, err := a.SQLDB.ExecContext(sctx, `
@@ -633,13 +648,11 @@ func SavePlugin(ctx context.Context, a *app.App, workspaceID, userID string, in 
 		    writes = COALESCE($5, writes), enabled = COALESCE($6, enabled)
 		WHERE workspace_id = $1 AND id = $2`,
 		workspaceID, id, pgtext.Literal(cleanHosts(in.Hosts)), strings.TrimSpace(in.Icon), in.Writes, in.Enabled); err != nil {
-		return "", err
+		return nil, err
 	}
-	switch {
-	case created:
-		return fmt.Sprintf("Created %s (v1, %d steps).", slug, len(wf.Steps)), nil
-	case changed:
-		return fmt.Sprintf("Saved %s as v%d (%d steps); v%d kept in history.", slug, version, len(wf.Steps), version-1), nil
+	res := &PluginSaveResult{OK: true, Slug: slug, Name: wf.Name, Created: created, Changed: changed, Version: version, StepCount: len(wf.Steps)}
+	if changed {
+		res.PreviousVersion = version - 1
 	}
-	return fmt.Sprintf("Updated %s (still v%d: the workflow itself did not change).", slug, version), nil
+	return res, nil
 }

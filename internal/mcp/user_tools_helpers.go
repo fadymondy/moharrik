@@ -90,6 +90,14 @@ func minor(v float64) int64 {
 	return int64(v*100 + 0.5)
 }
 
+// noMatch answers a tool call that found nothing to act on — an ambiguous or
+// absent reference the caller can resolve (unlike errNotFound, which is for
+// something wholly outside the caller's reach). reason carries whatever a
+// person would need to try again: what was paired, what matched, or why not.
+func noMatch(reason string) (string, error) {
+	return jsonResult(map[string]any{"ok": false, "reason": reason})
+}
+
 // clipText bounds a long text in a list answer.
 func clipText(s string, n int) string {
 	s = strings.TrimSpace(s)

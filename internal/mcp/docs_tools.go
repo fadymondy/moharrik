@@ -61,38 +61,37 @@ var docsAutomation = map[string]ToolDoc{
 		AR: "يعرض المواقع التي يحق لمتصفّح مقترن قيادتها (قائمته المسموحة). تُحتسب النطاقات الفرعية تلقائيًا: " +
 			"google.com تغطي news.google.com. قائمة فارغة تعني أن المتصفّح لا يقود أي موقع.",
 		Example: map[string]any{"agent": "Sara's Chrome"},
-		Result:  "Sara's Chrome (3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14) may drive 2 sites:\n- acme.example\n- crm.acme.example",
+		Result:  `{"id":"3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14","name":"Sara's Chrome","hosts":["acme.example","crm.acme.example"],"count":2}`,
 	},
 	"browser_set_allowed_sites": {
 		AR: "يغيّر المواقع التي يحق لمتصفّح مقترن قيادتها. استخدم add و/أو remove لتعديل القائمة، أو replace لضبطها بالكامل. " +
 			"أسماء مضيفين فقط (acme.example) وليست روابط أو مسارات كاملة. يُدفَع التغيير إلى المتصفّح فورًا ويُسجَّل في سجل التدقيق.",
 		Example: map[string]any{"agent": "Sara's Chrome", "add": []any{"crm.acme.example"}},
-		Result:  "Sara's Chrome now allows 2 sites.\nAdded: crm.acme.example",
+		Result: `{"ok":true,"id":"3a9c1e57-2b4d-4f60-8e1a-7c5d9b2f0e14","name":"Sara's Chrome","changed":true,` +
+			`"hosts":["acme.example","crm.acme.example"],"count":2,"added":["crm.acme.example"],"removed":[],"rejected":[]}`,
 	},
 	"browser_plugins": {
 		AR: "يسرد سير عمل المتصفّح المحفوظة في مساحة العمل (الإضافات)، بما فيها المضافة من نماذج جاهزة أو المسجَّلة من الإضافة: " +
 			"المعرّف المختصر (slug)، وما يؤديه كلٌّ منها، والمواقع التي يلمسها، والمدخلات التي يطلبها، وهل ينشر. " +
-			"تُدرَج النماذج الجاهزة غير المضافة بعد آخر القائمة. شغّل أحدها بـ browser_plugin_run.",
+			"تُدرَج النماذج الجاهزة غير المضافة بعد آخر القائمة (not_added) بمعرّفاتها. شغّل أحدها بـ browser_plugin_run.",
 		Example: map[string]any{},
-		Result: "1 workflow(s):\n\n- Check green-coffee supplier prices (slug check-supplier-prices, v1, 3 steps)\n" +
-			"    Opens the importer's price page, waits for the table, and reads the current price per kg.\n" +
-			"    sites: importer.example\n\n" +
-			"Presets not added to this workspace yet (2), added on the Presets gallery:\n" +
-			"- linkedin-post-job — Post a job opening on LinkedIn [writes] (sites: linkedin.com)\n" +
-			"- google-trends-daily — Read today's trending searches (sites: trends.google.com)\n",
+		Result: `{"count":1,"items":[{"slug":"check-supplier-prices","name":"Check green-coffee supplier prices",` +
+			`"description":"Opens the importer's price page, waits for the table, and reads the current price per kg.",` +
+			`"hosts":["importer.example"],"params":[],"step_count":3,"version":1,"enabled":true,"writes":false}],` +
+			`"not_added":[{"slug":"linkedin-post-job","summary":"linkedin-post-job — Post a job opening on LinkedIn [writes] (sites: linkedin.com)"},` +
+			`{"slug":"google-trends-daily","summary":"google-trends-daily — Read today's trending searches (sites: trends.google.com)"}]}`,
 	},
 	"browser_plugin_run": {
 		AR: "يشغّل سير عمل محفوظًا بمعرّفه المختصر (أو معرّفه) على متصفّح مقترن، مع قيم لمدخلاته. " +
 			"سير العمل الذي ينشر أو يرسل أو يقدّم يحتاج confirm: true — شغّل نسخته التجريبية (‎-dryrun‎) أولًا إن وُجدت. " +
 			"ينتظر حتى نحو 25 ثانية ثم يجيب بالبيانات، أو بمفتاح التشغيل لتستطلعه لاحقًا عبر browser_result إن كان لا يزال جاريًا (MH-478).",
 		Example: map[string]any{"plugin": "check-supplier-prices", "agent": "Sara's Chrome", "confirm": false},
-		Result: "Run d4a1e9f7-3c58-4b02-9e6a-1f7b2c9d3e84 — ok (3/3 steps ok)\n" +
-			"\nSteps:\n" +
-			"  1. navigate — ok (1180ms) https://importer.example/prices\n" +
-			"  2. wait_for — ok (340ms) .price-table\n" +
-			"  3. extract — ok (95ms) 3 row(s)\n" +
-			"\nExtracted data (exactly as the browser sent it):\n\n" +
-			`step 3: [{"item":"Ethiopia Yirgacheffe","price":"$6.40/kg"},{"item":"Colombia Huila","price":"$5.90/kg"},{"item":"Brazil Cerrado","price":"$4.75/kg"}]` + "\n",
+		Result: `{"run_id":"d4a1e9f7-3c58-4b02-9e6a-1f7b2c9d3e84","status":"ok","error":"","step_count":3,"ok_count":3,"notes":[],"steps":[` +
+			`{"position":0,"command":"navigate","status":"ok","summary":"https://importer.example/prices","error":"","duration_ms":1180},` +
+			`{"position":1,"command":"wait_for","status":"ok","summary":".price-table","error":"","duration_ms":340},` +
+			`{"position":2,"command":"extract","status":"ok","summary":"3 row(s)","error":"","duration_ms":95,` +
+			`"result":"[{\"item\":\"Ethiopia Yirgacheffe\",\"price\":\"$6.40/kg\"},{\"item\":\"Colombia Huila\",\"price\":\"$5.90/kg\"},{\"item\":\"Brazil Cerrado\",\"price\":\"$4.75/kg\"}]"}],` +
+			`"data":"step 3: [{\"item\":\"Ethiopia Yirgacheffe\",\"price\":\"$6.40/kg\"},{\"item\":\"Colombia Huila\",\"price\":\"$5.90/kg\"},{\"item\":\"Brazil Cerrado\",\"price\":\"$4.75/kg\"}]"}`,
 	},
 	"browser_plugin_save": {
 		AR: "ينشئ سير عمل متصفّح محفوظًا (إضافة) بمعرّفه المختصر أو يُحدِّثه. تستخدم الخطوات الأوامر نفسها التي يستخدمها start_browser_run؛ " +
@@ -110,7 +109,7 @@ var docsAutomation = map[string]ToolDoc{
 			"writes":  false,
 			"enabled": true,
 		},
-		Result: "Created check-supplier-prices (v1, 2 steps).",
+		Result: `{"ok":true,"slug":"check-supplier-prices","name":"Check green-coffee supplier prices","created":true,"version":1,"step_count":2}`,
 	},
 }
 
@@ -120,29 +119,32 @@ var docsResearch = map[string]ToolDoc{
 			"والإشارة التي تُبلِّغ عنها) ويلخّصها عند ضبط نموذج. أو مرّر mode=urls مع قائمة روابط لقراءة تلك الصفحات بدل البحث عنها. " +
 			"يُعيد معرّف التشغيل فورًا لأن البحث يستغرق دقائق، ثم تقرأ النتيجة لاحقًا عبر get_research.",
 		Example: map[string]any{"topic": "What are the VAT registration thresholds for small businesses in Egypt in 2026?"},
-		Result: "Research started. Run id: 2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75\n" +
-			"Read it back with get_research once it has finished.",
+		Result: `{"ok":true,"run_id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75",` +
+			`"message":"Read it back with get_research once it has finished."}`,
 	},
 	"list_research": {
 		AR:      "عمليات البحث السابقة في مساحة العمل هذه، من الأحدث إلى الأقدم، مع حالة كلٍّ منها وعدد المصادر التي عثرت عليها وقرأتها.",
 		Example: map[string]any{"limit": 5},
-		Result: "- [2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75] What are the VAT registration thresholds for small businesses in Egypt in 2026? — ok, 6 found / 5 read\n" +
-			"- [8a1d4f60-3e27-4b95-c0d8-7f2e6a9b1c34] Best CRM tools for Arabic-speaking sales teams — ok, 6 found / 4 read (no model is configured, so the pages were collected but not summarised)\n",
+		Result: `{"count":2,"items":[` +
+			`{"id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75","topic":"What are the VAT registration thresholds for small businesses in Egypt in 2026?",` +
+			`"status":"ok","mode":"search","origin":"manual","found_count":6,"read_count":5,"evidence_count":9},` +
+			`{"id":"8a1d4f60-3e27-4b95-c0d8-7f2e6a9b1c34","topic":"Best CRM tools for Arabic-speaking sales teams",` +
+			`"status":"ok","mode":"search","origin":"manual","found_count":6,"read_count":4,"evidence_count":11}]}`,
 	},
 	"get_research": {
-		AR: "عملية بحث واحدة: إجابتها وكل مصدر استندت إليه مع روابطه. " +
+		AR: "عملية بحث واحدة: مراحلها وما أنفقته، وإجابتها، وكل مصدر استندت إليه مع روابطه، والأدلة التي استخرجتها. " +
 			"تُدرج المصادر حتى تلك التي تعذّرت قراءتها، فتظهر الإجابة الضعيفة ضعيفةً بوضوح.",
 		Example: map[string]any{"run_id": "2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75", "full_text": false},
-		Result: "Question: What are the VAT registration thresholds for small businesses in Egypt in 2026?\n" +
-			"Status: ok\n" +
-			"\nBusinesses must register for VAT once their annual turnover reaches EGP 500,000 [1]. " +
-			"Some professional services must register regardless of turnover [2].\n" +
-			"\n(summarised by anthropic)\n" +
-			"\nSources (6 found, 5 read):\n" +
-			"[1] VAT registration guide\n    https://tax.example/vat/registration\n" +
-			"[2] Professional services and VAT\n    https://advisors.example/blog/vat-services\n" +
-			"[3] VAT FAQ\n    https://news.example/vat-faq\n    not read: the page took too long to load\n" +
-			"    snippet: Answers to the most common questions about VAT registration…\n",
+		Result: `{"run":{"id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75",` +
+			`"topic":"What are the VAT registration thresholds for small businesses in Egypt in 2026?","status":"ok","mode":"search",` +
+			`"summary":"Businesses must register for VAT once their annual turnover reaches EGP 500,000 [1]. Some professional services must register regardless of turnover [2].",` +
+			`"model":"anthropic","found_count":6,"read_count":5,"evidence_count":9},` +
+			`"sources":[{"position":0,"url":"https://tax.example/vat/registration","title":"VAT registration guide","fetched":true},` +
+			`{"position":1,"url":"https://advisors.example/blog/vat-services","title":"Professional services and VAT","fetched":true},` +
+			`{"position":2,"url":"https://news.example/vat-faq","title":"VAT FAQ","fetched":false,"error":"the page took too long to load",` +
+			`"snippet":"Answers to the most common questions about VAT registration…"}],` +
+			`"evidence":[{"quote":"annual turnover reaches EGP 500,000","source_url":"https://tax.example/vat/registration"}],"evidence_total":9,` +
+			`"message":"evidence_total may exceed evidence — find_evidence searches evidence across every run."}`,
 	},
 }
 

@@ -51,13 +51,13 @@ func BrowserTools() []Tool {
 				}
 				_ = json.Unmarshal(args, &in)
 				b, why, err := findBrowser(ctx, a, s.WorkspaceID, in.Agent)
-				if err != nil || b == nil {
-					return why, err
+				if err != nil {
+					return "", err
 				}
-				if len(b.hosts) == 0 {
-					return fmt.Sprintf("%s (%s) may drive no sites.", b.name, b.id), nil
+				if b == nil {
+					return noMatch(why)
 				}
-				return fmt.Sprintf("%s (%s) may drive %d sites:\n- %s", b.name, b.id, len(b.hosts), strings.Join(b.hosts, "\n- ")), nil
+				return jsonResult(map[string]any{"id": b.id, "name": b.name, "hosts": b.hosts, "count": len(b.hosts)})
 			},
 		},
 		{
@@ -87,8 +87,11 @@ func BrowserTools() []Tool {
 					return "", err
 				}
 				b, why, err := findBrowser(ctx, a, s.WorkspaceID, in.Agent)
-				if err != nil || b == nil {
-					return why, err
+				if err != nil {
+					return "", err
+				}
+				if b == nil {
+					return noMatch(why)
 				}
 				var rejected []string
 				for _, list := range [][]string{in.Add, in.Remove} {
@@ -104,25 +107,10 @@ func BrowserTools() []Tool {
 					return "", err
 				}
 				removed := minus(b.hosts, next)
-				if len(added) == 0 && len(removed) == 0 {
-					msg := fmt.Sprintf("No change: %s already allows %d sites.", b.name, len(b.hosts))
-					if len(rejected) > 0 {
-						msg += " Not host names, ignored: " + strings.Join(rejected, ", ")
-					}
-					return msg, nil
-				}
-				var w strings.Builder
-				fmt.Fprintf(&w, "%s now allows %d sites.", b.name, len(next))
-				if len(added) > 0 {
-					fmt.Fprintf(&w, "\nAdded: %s", strings.Join(added, ", "))
-				}
-				if len(removed) > 0 {
-					fmt.Fprintf(&w, "\nRemoved: %s", strings.Join(removed, ", "))
-				}
-				if len(rejected) > 0 {
-					fmt.Fprintf(&w, "\nNot host names, ignored: %s", strings.Join(rejected, ", "))
-				}
-				return w.String(), nil
+				return jsonResult(map[string]any{
+					"ok": true, "id": b.id, "name": b.name, "changed": len(added) > 0 || len(removed) > 0,
+					"hosts": next, "count": len(next), "added": added, "removed": removed, "rejected": rejected,
+				})
 			},
 		},
 		{
@@ -144,9 +132,8 @@ func BrowserTools() []Tool {
 					return "", err
 				}
 				defer rows.Close()
-				var b strings.Builder
+				items := []map[string]any{}
 				added := map[string]bool{}
-				n := 0
 				for rows.Next() {
 					var slug, name, desc, params, steps, preset string
 					var hosts pgtext.Array
@@ -160,48 +147,24 @@ func BrowserTools() []Tool {
 					_ = json.Unmarshal([]byte(params), &ps)
 					var st []automation.Step
 					_ = json.Unmarshal([]byte(steps), &st)
-					state := ""
-					if !enabled {
-						state = " — turned off"
-					}
-					if writes {
-						state += " — PUBLISHES as the signed-in account (needs confirm)"
-					}
-					fmt.Fprintf(&b, "- %s (slug %s, v%d, %d steps)%s\n", name, slug, version, len(st), state)
-					if desc != "" {
-						fmt.Fprintf(&b, "    %s\n", desc)
-					}
-					if len(hosts) > 0 {
-						fmt.Fprintf(&b, "    sites: %s\n", strings.Join(hosts, ", "))
-					}
-					for _, p := range ps {
-						req := ""
-						if p.Required {
-							req = " (required)"
-						}
-						fmt.Fprintf(&b, "    input %s%s", p.Name, req)
-						if p.Help != "" {
-							fmt.Fprintf(&b, " — %s", p.Help)
-						}
-						b.WriteString("\n")
-					}
-					n++
+					items = append(items, map[string]any{
+						"slug": slug, "name": name, "description": desc, "hosts": []string(hosts), "params": ps,
+						"step_count": len(st), "version": version, "enabled": enabled, "writes": writes,
+					})
 				}
-				out := fmt.Sprintf("%d workflow(s):\n\n%s", n, b.String())
-				if n == 0 {
-					out = "No workflows yet. Add a preset on the Automation page's Presets gallery, or record one from the extension.\n"
+				if err := rows.Err(); err != nil {
+					return "", err
 				}
 				_, presets := automation.Presets()
-				var more []string
+				notAdded := []map[string]any{}
 				for i := range presets {
 					if !added[presets[i].Slug] {
-						more = append(more, "- "+automation.PresetSummary(&presets[i]))
+						notAdded = append(notAdded, map[string]any{
+							"slug": presets[i].Slug, "summary": automation.PresetSummary(&presets[i]),
+						})
 					}
 				}
-				if len(more) > 0 {
-					out += fmt.Sprintf("\nPresets not added to this workspace yet (%d), added on the Presets gallery:\n%s\n", len(more), strings.Join(more, "\n"))
-				}
-				return out, nil
+				return jsonResult(map[string]any{"count": len(items), "items": items, "not_added": notAdded})
 			},
 		},
 		{
@@ -233,18 +196,22 @@ func BrowserTools() []Tool {
 				}
 				w, err := automation.FindWorkflow(ctx, a, s.WorkspaceID, in.Plugin)
 				if err != nil {
-					return "No workflow with that slug. List them with browser_plugins.", nil
+					return noMatch("No workflow with that slug. List them with browser_plugins.")
 				}
 				if !w.Enabled {
-					return fmt.Sprintf("%s is turned off.", w.Name), nil
+					return jsonResult(map[string]any{"ok": false, "reason": fmt.Sprintf("%s is turned off.", w.Name)})
 				}
 				if w.Writes && !in.Confirm {
-					return fmt.Sprintf("%s publishes as the signed-in account on %s. Nothing was run. Check the inputs "+
-						"with the person you act for, then call again with confirm: true.", w.Name, strings.Join(w.Hosts, ", ")), nil
+					return jsonResult(map[string]any{
+						"ok": false, "needs_confirm": true, "workflow": w.Name, "hosts": w.Hosts,
+					})
 				}
 				b, why, err := resolveOnline(ctx, a, s.WorkspaceID, in.Agent)
-				if err != nil || b == nil {
-					return why, err
+				if err != nil {
+					return "", err
+				}
+				if b == nil {
+					return noMatch(why)
 				}
 				values := map[string]string{}
 				for k, v := range in.Inputs {
@@ -256,14 +223,17 @@ func BrowserTools() []Tool {
 				}
 				runID, err := automation.RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, w.ID, b.id, "mcp", values)
 				if err != nil {
-					// Sentences a model can act on, not failures of the tool:
+					// Answers a model can act on, not failures of the tool:
 					// a value missing, a site only an admin can allow.
 					var missing *automation.MissingParam
 					if errors.As(err, &missing) || errors.Is(err, automation.ErrSitesNeedAdmin) {
-						return err.Error(), nil
+						return jsonResult(map[string]any{"ok": false, "reason": err.Error()})
 					}
 					if errors.Is(err, automation.ErrHostNotAllowed) {
-						return fmt.Sprintf("%s. Nothing was run. An admin can allow the site with browser_set_allowed_sites, or on the Automation page.", err.Error()), nil
+						return jsonResult(map[string]any{
+							"ok": false, "reason": err.Error(),
+							"message": "An admin can allow the site with browser_set_allowed_sites, or on the Automation page.",
+						})
 					}
 					return "", err
 				}
@@ -323,10 +293,14 @@ func BrowserTools() []Tool {
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", err
 				}
-				return automation.SavePlugin(ctx, a, s.WorkspaceID, s.UserID, automation.PluginSave{
+				res, err := automation.SavePlugin(ctx, a, s.WorkspaceID, s.UserID, automation.PluginSave{
 					Slug: in.Slug, Name: in.Name, Description: in.Description, Icon: in.Icon, Hosts: in.Hosts,
 					Params: in.Inputs, Steps: in.Steps, Writes: in.Writes, Enabled: in.Enabled,
 				})
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(res)
 			},
 		},
 	}

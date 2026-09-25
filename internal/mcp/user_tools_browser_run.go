@@ -75,8 +75,7 @@ func BrowserRunTools() []Tool {
 				if hub != nil {
 					access = hub.AccessIn(s.WorkspaceID)
 				}
-				var b strings.Builder
-				n := 0
+				items := []map[string]any{}
 				for rows.Next() {
 					var id, name, platform, version string
 					var hosts pgtext.Array
@@ -91,31 +90,23 @@ func BrowserRunTools() []Tool {
 					if revoked.Valid {
 						state = "revoked"
 					}
-					fmt.Fprintf(&b, "- %s (%s) — %s", name, id, state)
-					if platform != "" {
-						fmt.Fprintf(&b, ", %s", platform)
-					}
-					if version != "" {
-						fmt.Fprintf(&b, ", extension %s", version)
-					}
+					var lastSeenAt any
 					if seen.Valid {
-						fmt.Fprintf(&b, ", last seen %s", seen.Time.UTC().Format(time.RFC3339))
+						lastSeenAt = seen.Time.UTC()
 					}
-					b.WriteString("\n")
-					if len(hosts) > 0 {
-						fmt.Fprintf(&b, "    may be driven on: %s\n", strings.Join(hosts, ", "))
-					} else {
-						b.WriteString("    may be driven on: nothing yet — an admin adds sites (browser_set_allowed_sites, or the Automation page)\n")
+					item := map[string]any{
+						"id": id, "name": name, "platform": platform, "extension_version": version, "status": state,
+						"allowed_hosts": []string(hosts), "last_seen_at": lastSeenAt,
 					}
 					if acc, ok := access[id]; ok && acc.Mode == "sites" && len(acc.Pending) > 0 {
-						fmt.Fprintf(&b, "    waiting for an OK in the browser for: %s\n", strings.Join(acc.Pending, ", "))
+						item["pending_approval"] = acc.Pending
 					}
-					n++
+					items = append(items, item)
 				}
-				if n == 0 {
-					return "No browsers are paired yet. Install the extension and connect it from its popup; an admin approves it on the site.", nil
+				if err := rows.Err(); err != nil {
+					return "", err
 				}
-				return fmt.Sprintf("%d paired browser(s):\n\n%s", n, b.String()), nil
+				return jsonResult(map[string]any{"count": len(items), "items": items})
 			},
 		},
 		{
@@ -151,14 +142,17 @@ func BrowserRunTools() []Tool {
 					return "", err
 				}
 				if !strings.HasPrefix(in.URL, "http://") && !strings.HasPrefix(in.URL, "https://") {
-					return "url must be an http(s) address.", nil
+					return noMatch("url must be an http(s) address.")
 				}
 				if len(in.Fields) == 0 {
-					return "fields must name at least one selector.", nil
+					return noMatch("fields must name at least one selector.")
 				}
 				b, why, err := resolveOnline(ctx, a, s.WorkspaceID, in.Agent)
-				if err != nil || b == nil {
-					return why, err
+				if err != nil {
+					return "", err
+				}
+				if b == nil {
+					return noMatch(why)
 				}
 				steps := []automation.Step{{Command: "navigate", Args: map[string]any{"url": in.URL}}}
 				if in.WaitFor != "" {
@@ -201,16 +195,19 @@ func BrowserRunTools() []Tool {
 					Steps []automation.Step `json:"steps"`
 				}
 				if err := json.Unmarshal(raw, &in); err != nil || len(in.Steps) == 0 {
-					return "steps must be a list of {command, args}.", nil
+					return noMatch("steps must be a list of {command, args}.")
 				}
 				for i, st := range in.Steps {
 					if strings.TrimSpace(st.Command) == "" {
-						return fmt.Sprintf("step %d has no command.", i+1), nil
+						return noMatch(fmt.Sprintf("step %d has no command.", i+1))
 					}
 				}
 				b, why, err := resolveOnline(ctx, a, s.WorkspaceID, in.Agent)
-				if err != nil || b == nil {
-					return why, err
+				if err != nil {
+					return "", err
+				}
+				if b == nil {
+					return noMatch(why)
 				}
 				return startAndReport(ctx, a, s, b, in.Steps)
 			},
@@ -251,7 +248,7 @@ func BrowserRunTools() []Tool {
 				err := a.SQLDB.QueryRowContext(ctx, `SELECT status FROM automation_runs WHERE workspace_id = $1 AND id = $2`,
 					s.WorkspaceID, strings.TrimSpace(in.Run)).Scan(&status)
 				if errors.Is(err, sql.ErrNoRows) || strings.TrimSpace(in.Run) == "" {
-					return "No run with that key.", nil
+					return noMatch("No run with that key.")
 				}
 				if err != nil {
 					return "", err
@@ -261,9 +258,12 @@ func BrowserRunTools() []Tool {
 					return "", err
 				}
 				if !stopped {
-					return fmt.Sprintf("Run %s had already finished (%s); nothing to stop.", in.Run, status), nil
+					return jsonResult(map[string]any{
+						"ok": false, "run_id": in.Run, "status": status,
+						"reason": "already finished; nothing to stop",
+					})
 				}
-				return fmt.Sprintf("Run %s is cancelled; it stops after the step in flight.", in.Run), nil
+				return jsonResult(map[string]any{"ok": true, "cancelled": true, "run_id": in.Run})
 			},
 		},
 	}
@@ -276,8 +276,11 @@ func resolveOnline(ctx context.Context, a *app.App, workspaceID, ref string) (*b
 	online := func(id string) bool { return hub != nil && hub.Online(id) }
 	if strings.TrimSpace(ref) != "" {
 		b, why, err := findBrowser(ctx, a, workspaceID, ref)
-		if err != nil || b == nil {
-			return nil, why, err
+		if err != nil {
+			return nil, "", err
+		}
+		if b == nil {
+			return nil, why, nil
 		}
 		if !online(b.id) {
 			return nil, fmt.Sprintf("The browser %q is paired but not connected right now. It needs to be open with the extension running; ask its owner to open it, then try again.", b.name), nil
@@ -332,7 +335,10 @@ func startAndReport(ctx context.Context, a *app.App, s *tenant.Scope, b *browser
 	runID, err := hub.Start(ctx, a, s.WorkspaceID, s.UserID, "mcp", b.id, steps)
 	if err != nil {
 		if errors.Is(err, automation.ErrHostNotAllowed) {
-			return fmt.Sprintf("%s. Nothing was run. An admin can allow the site with browser_set_allowed_sites, or on the Automation page.", err.Error()), nil
+			return jsonResult(map[string]any{
+				"ok": false, "reason": err.Error(),
+				"message": "Nothing was run. An admin can allow the site with browser_set_allowed_sites, or on the Automation page.",
+			})
 		}
 		return "", err
 	}
@@ -351,19 +357,21 @@ func waitAndDescribe(ctx context.Context, a *app.App, workspaceID, browserName, 
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Sprintf("Run %s is still going; poll it with browser_result.", runID), nil
+			return jsonResult(map[string]any{"ok": true, "run_id": runID, "status": "running", "message": "Still going; poll it with browser_result."})
 		case <-time.After(300 * time.Millisecond):
 		}
 	}
-	return fmt.Sprintf("Run %s on %s is still going after %s. Poll it with browser_result — it keeps running in the browser.",
-		runID, browserName, browserWaitWindow), nil
+	return jsonResult(map[string]any{
+		"ok": true, "run_id": runID, "browser": browserName, "status": "running",
+		"message": fmt.Sprintf("Still going after %s. Poll it with browser_result — it keeps running in the browser.", browserWaitWindow),
+	})
 }
 
 // describeRun is what the model reads: the outcome first, then the data.
 func describeRun(ctx context.Context, a *app.App, workspaceID, runID string) (string, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
-		return "Give the run key returned when the run started.", nil
+		return noMatch("Give the run key returned when the run started.")
 	}
 	var status, runErr string
 	var stepCount, okCount int
@@ -371,7 +379,7 @@ func describeRun(ctx context.Context, a *app.App, workspaceID, runID string) (st
 	err := a.SQLDB.QueryRowContext(ctx, `SELECT status, error, step_count, ok_count, notes FROM automation_runs WHERE workspace_id = $1 AND id = $2`,
 		workspaceID, runID).Scan(&status, &runErr, &stepCount, &okCount, &notes)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "No run with that key. It may have aged out — runs are kept for the workspace's retention period.", nil
+		return noMatch("No run with that key. It may have aged out — runs are kept for the workspace's retention period.")
 	}
 	if err != nil {
 		return "", err
@@ -396,8 +404,11 @@ func describeRun(ctx context.Context, a *app.App, workspaceID, runID string) (st
 		}
 		steps = append(steps, r)
 	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
 	// ok_count is stamped when a run finishes: one still going is counted
-	// from its steps, or the header would contradict the list under it.
+	// from its steps, or the answer would contradict the steps under it.
 	if status == "queued" || status == "running" {
 		okCount = 0
 		for _, st := range steps {
@@ -406,27 +417,26 @@ func describeRun(ctx context.Context, a *app.App, workspaceID, runID string) (st
 			}
 		}
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "Run %s — %s (%d/%d steps ok)\n", runID, status, okCount, stepCount)
-	for _, n := range notes {
-		fmt.Fprintf(&b, "Note: %s\n", n)
-	}
-	if runErr != "" {
-		fmt.Fprintf(&b, "Stopped: %s\n", runErr)
-	}
-	if len(steps) > 0 {
-		b.WriteString("\nSteps:\n")
-		for _, st := range steps {
-			detail := st.summary
-			if st.error != "" {
-				detail = st.error
-			}
-			fmt.Fprintf(&b, "  %d. %s — %s (%dms) %s\n", st.pos+1, st.command, st.status, st.ms, detail)
+	stepItems := make([]map[string]any, 0, len(steps))
+	for _, st := range steps {
+		item := map[string]any{
+			"position": st.pos, "command": st.command, "status": st.status, "summary": st.summary,
+			"error": st.error, "duration_ms": st.ms,
 		}
+		// The payload as the browser sent it, not a re-encoding of it — see
+		// get_browser_run's note in user_tools_automation.go.
+		if st.res != "" {
+			item["result"] = st.res
+		}
+		stepItems = append(stepItems, item)
+	}
+	out := map[string]any{
+		"run_id": runID, "status": status, "error": runErr, "step_count": stepCount, "ok_count": okCount,
+		"notes": []string(notes), "steps": stepItems,
 	}
 	if status == "queued" || status == "running" {
-		b.WriteString("\nStill going — poll again in a few seconds.\n")
-		return b.String(), nil
+		out["message"] = "Still going — poll again in a few seconds."
+		return jsonResult(out)
 	}
 	// The data: every extract step's result, quoted as the browser sent it.
 	var data strings.Builder
@@ -438,14 +448,15 @@ func describeRun(ctx context.Context, a *app.App, workspaceID, runID string) (st
 			fmt.Fprintf(&data, "step %d: %s", st.pos+1, st.res)
 		}
 	}
-	if data.Len() == 0 {
-		return b.String(), nil
+	if data.Len() > 0 {
+		if data.Len() > modelPayloadLimit {
+			out["data"] = data.String()[:modelPayloadLimit]
+			out["data_truncated"] = true
+			out["data_url"] = fmt.Sprintf("/api/w/runs/%s/data", runID)
+			out["message"] = fmt.Sprintf("The extracted data is %d kB — too large to quote in full; data holds the first part. All of it is at data_url (CSV with ?format=csv).", data.Len()/1024)
+		} else {
+			out["data"] = data.String()
+		}
 	}
-	if data.Len() > modelPayloadLimit {
-		fmt.Fprintf(&b, "\nThe extracted data is %d kB — too large to quote in full. All of it is at /api/w/runs/%s/data (CSV with ?format=csv); the first part is:\n\n%s…\n",
-			data.Len()/1024, runID, data.String()[:modelPayloadLimit])
-		return b.String(), nil
-	}
-	fmt.Fprintf(&b, "\nExtracted data (exactly as the browser sent it):\n\n%s\n", data.String())
-	return b.String(), nil
+	return jsonResult(out)
 }

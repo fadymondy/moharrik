@@ -10,6 +10,7 @@ browser_cancel, answered by a stand-in browser on a real socket.
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -103,43 +104,82 @@ func TestBrowserRunTools(t *testing.T) {
 		return text
 	}
 
-	if text := call("browser_agents", map[string]any{}); !strings.Contains(text, "Shop Chrome ("+shopID+") — online") || !strings.Contains(text, "may be driven on: shop.test") {
-		t.Fatalf("browser_agents: %s", text)
+	decode := func(t *testing.T, text string) map[string]any {
+		t.Helper()
+		var v map[string]any
+		if err := json.Unmarshal([]byte(text), &v); err != nil {
+			t.Fatalf("not JSON: %s: %v", text, err)
+		}
+		return v
+	}
+
+	agents := decode(t, call("browser_agents", map[string]any{}))
+	items, _ := agents["items"].([]any)
+	var found bool
+	for _, it := range items {
+		m := it.(map[string]any)
+		if m["id"] == shopID {
+			found = true
+			if m["status"] != "online" {
+				t.Fatalf("browser_agents: %v", m)
+			}
+			hosts, _ := m["allowed_hosts"].([]any)
+			if len(hosts) != 1 || hosts[0] != "shop.test" {
+				t.Fatalf("browser_agents allowed_hosts: %v", m)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("browser_agents: shop browser not found in %v", agents)
 	}
 
 	// Open and read, with the data quoted back in the same call.
-	text := call("browser_extract", map[string]any{"url": "https://shop.test/beans", "fields": map[string]string{"name": "h1"}, "list": "li"})
-	if !strings.Contains(text, "— ok (2/2 steps ok)") || !strings.Contains(text, "Extracted data") || !strings.Contains(text, "Beans, 1 kg") {
-		t.Fatalf("browser_extract: %s", text)
+	text := decode(t, call("browser_extract", map[string]any{"url": "https://shop.test/beans", "fields": map[string]string{"name": "h1"}, "list": "li"}))
+	if text["status"] != "ok" || text["ok_count"] != float64(2) || text["step_count"] != float64(2) {
+		t.Fatalf("browser_extract: %v", text)
+	}
+	if data, _ := text["data"].(string); !strings.Contains(data, "Beans, 1 kg") {
+		t.Fatalf("browser_extract data: %v", text)
 	}
 	// A site the browser does not allow: named, with the way to allow it, and nothing runs.
 	var before int
 	_ = a.SysDB.QueryRow(`SELECT count(*) FROM automation_runs WHERE workspace_id = $1`, wsID).Scan(&before)
-	text = call("browser_extract", map[string]any{"url": "https://evil.test/", "fields": map[string]string{"x": "h1"}})
+	notAllowed := decode(t, call("browser_extract", map[string]any{"url": "https://evil.test/", "fields": map[string]string{"x": "h1"}}))
 	var after int
 	_ = a.SysDB.QueryRow(`SELECT count(*) FROM automation_runs WHERE workspace_id = $1`, wsID).Scan(&after)
-	if !strings.Contains(text, "evil.test") || !strings.Contains(text, "Nothing was run") || !strings.Contains(text, "browser_set_allowed_sites") || after != before {
-		t.Fatalf("browser_extract off the list: %s (%d → %d runs)", text, before, after)
+	reason, _ := notAllowed["reason"].(string)
+	msg, _ := notAllowed["message"].(string)
+	if notAllowed["ok"] != false || !strings.Contains(reason, "evil.test") || !strings.Contains(msg, "browser_set_allowed_sites") || after != before {
+		t.Fatalf("browser_extract off the list: %v (%d → %d runs)", notAllowed, before, after)
 	}
-	if text := call("browser_extract", map[string]any{"url": "file:///etc/passwd", "fields": map[string]string{"x": "h1"}}); !strings.Contains(text, "http(s)") {
-		t.Fatalf("a file URL: %s", text)
+	if fileURL := decode(t, call("browser_extract", map[string]any{"url": "file:///etc/passwd", "fields": map[string]string{"x": "h1"}})); !strings.Contains(fmt.Sprint(fileURL["reason"]), "http(s)") {
+		t.Fatalf("a file URL: %v", fileURL)
 	}
 
 	// An explicit sequence, and its result read back by key.
-	text = call("browser_run", map[string]any{"steps": []map[string]any{
+	run := decode(t, call("browser_run", map[string]any{"steps": []map[string]any{
 		{"command": "navigate", "args": map[string]any{"url": "https://shop.test/"}},
 		{"command": "click", "args": map[string]any{"selector": "#more"}},
 		{"command": "extract", "args": map[string]any{"selector": "h1"}},
-	}})
-	if !strings.Contains(text, "(3/3 steps ok)") {
-		t.Fatalf("browser_run: %s", text)
+	}}))
+	if run["status"] != "ok" || run["ok_count"] != float64(3) || run["step_count"] != float64(3) {
+		t.Fatalf("browser_run: %v", run)
 	}
-	runKey := strings.Fields(strings.TrimPrefix(text, "Run "))[0]
-	if text := call("browser_result", map[string]any{"run": runKey}); !strings.HasPrefix(text, "Run "+runKey+" — ok") || !strings.Contains(text, "3. extract — ok") {
-		t.Fatalf("browser_result: %s", text)
+	runKey, _ := run["run_id"].(string)
+	if runKey == "" {
+		t.Fatalf("browser_run: no run_id in %v", run)
 	}
-	if text := call("browser_result", map[string]any{"run": "00000000-0000-0000-0000-000000000000"}); !strings.Contains(text, "No run with that key") {
-		t.Fatalf("browser_result, unknown key: %s", text)
+	result := decode(t, call("browser_result", map[string]any{"run": runKey}))
+	if result["run_id"] != runKey || result["status"] != "ok" {
+		t.Fatalf("browser_result: %v", result)
+	}
+	steps, _ := result["steps"].([]any)
+	if len(steps) != 3 || steps[2].(map[string]any)["command"] != "extract" || steps[2].(map[string]any)["status"] != "ok" {
+		t.Fatalf("browser_result steps: %v", result)
+	}
+	unknown := decode(t, call("browser_result", map[string]any{"run": "00000000-0000-0000-0000-000000000000"}))
+	if unknown["ok"] != false || !strings.Contains(fmt.Sprint(unknown["reason"]), "No run with that key") {
+		t.Fatalf("browser_result, unknown key: %v", unknown)
 	}
 
 	// Cancelling: a run still going stops; a finished one says so.
@@ -147,24 +187,28 @@ func TestBrowserRunTools(t *testing.T) {
 	if err := a.SysDB.QueryRow(`INSERT INTO automation_runs (workspace_id, agent_id, status, trigger) VALUES ($1, $2, 'running', 'mcp') RETURNING id`, wsID, shopID).Scan(&liveRun); err != nil {
 		t.Fatal(err)
 	}
-	if text := call("browser_cancel", map[string]any{"run": liveRun}); !strings.Contains(text, "is cancelled") {
-		t.Fatalf("browser_cancel: %s", text)
+	cancelled := decode(t, call("browser_cancel", map[string]any{"run": liveRun}))
+	if cancelled["ok"] != true || cancelled["cancelled"] != true {
+		t.Fatalf("browser_cancel: %v", cancelled)
 	}
 	var st string
 	_ = a.SysDB.QueryRow(`SELECT status FROM automation_runs WHERE id = $1`, liveRun).Scan(&st)
 	if st != "cancelled" {
 		t.Fatalf("the run is %s", st)
 	}
-	if text := call("browser_cancel", map[string]any{"run": runKey}); !strings.Contains(text, "already finished") {
-		t.Fatalf("browser_cancel, finished: %s", text)
+	alreadyFinished := decode(t, call("browser_cancel", map[string]any{"run": runKey}))
+	if alreadyFinished["ok"] != false || !strings.Contains(fmt.Sprint(alreadyFinished["reason"]), "already finished") {
+		t.Fatalf("browser_cancel, finished: %v", alreadyFinished)
 	}
 
 	// No name and two connected browsers: the model is asked, not guessed for.
 	connect("Laptop Chrome", "{shop.test}")
-	if text := call("browser_extract", map[string]any{"url": "https://shop.test/", "fields": map[string]string{"x": "h1"}}); !strings.Contains(text, "More than one browser is connected") {
-		t.Fatalf("two browsers, no name: %s", text)
+	twoBrowsers := decode(t, call("browser_extract", map[string]any{"url": "https://shop.test/", "fields": map[string]string{"x": "h1"}}))
+	if twoBrowsers["ok"] != false || !strings.Contains(fmt.Sprint(twoBrowsers["reason"]), "More than one browser is connected") {
+		t.Fatalf("two browsers, no name: %v", twoBrowsers)
 	}
-	if text := call("browser_extract", map[string]any{"agent": "laptop chrome", "url": "https://shop.test/", "fields": map[string]string{"x": "h1"}}); !strings.Contains(text, "(2/2 steps ok)") {
-		t.Fatalf("named: %s", text)
+	named := decode(t, call("browser_extract", map[string]any{"agent": "laptop chrome", "url": "https://shop.test/", "fields": map[string]string{"x": "h1"}}))
+	if named["status"] != "ok" || named["ok_count"] != float64(2) || named["step_count"] != float64(2) {
+		t.Fatalf("named: %v", named)
 	}
 }
