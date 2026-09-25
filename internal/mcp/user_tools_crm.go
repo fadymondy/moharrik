@@ -346,6 +346,33 @@ func CrmTools() []Tool {
 				return jsonResult(map[string]any{"contact": c})
 			},
 		},
+		{
+			Name: "merge_contact",
+			Description: "Merge source_id into id and delete source_id: every child row (linked identities, deals, activities, " +
+				"conversations, messages, context notes, lifecycle history, avatar, list subscriptions) moves onto id, id's blank " +
+				"fields and tags are filled in from source_id. Returns the surviving contact.",
+			Scope: "contacts:write",
+			InputSchema: schema([]string{"id", "source_id"}, map[string]any{
+				"id":        prop("string", "The contact that survives"),
+				"source_id": prop("string", "The contact that is merged in and deleted"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				args := decodeArgs(raw)
+				id, err := required("id", str(args, "id"))
+				if err != nil {
+					return "", err
+				}
+				sourceID, err := required("source_id", str(args, "source_id"))
+				if err != nil {
+					return "", err
+				}
+				c, err := crm.MergeContact(ctx, a.SQLDB, id, crm.MergeContactInput{SourceID: sourceID})
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"contact": c})
+			},
+		},
 
 		// ---- companies --------------------------------------------------------
 		{

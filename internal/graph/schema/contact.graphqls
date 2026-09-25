@@ -124,4 +124,8 @@ extend type Mutation {
   deleteContact(id: ID!): Boolean!
   linkContactIdentity(contactId: ID!, input: LinkContactIdentityInput!): Contact!
   unlinkContactIdentity(contactId: ID!, identityId: ID!): Contact!
+  # MH-647: folds sourceId into contactId — every child row moves, blank
+  # fields and tags are filled in, and sourceId is deleted. Returns the
+  # surviving contact.
+  mergeContact(contactId: ID!, sourceId: ID!): Contact!
 }

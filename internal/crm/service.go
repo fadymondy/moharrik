@@ -623,6 +623,54 @@ func UnlinkContactIdentity(ctx context.Context, db *sql.DB, contactID, identityI
 	return c, nil
 }
 
+// MergeContactInput names the contact that is folded into the one in the
+// path and deleted. dst is always the id in the URL; src is the id that
+// disappears.
+type MergeContactInput struct {
+	SourceID string `json:"source_id" minLength:"1" doc:"The contact to merge into this one. It is deleted; this contact survives."`
+}
+
+// MergeContact folds src (the request body) into dst (the path id): every
+// child row — linked identities, deals, activities, conversations, messages
+// (including a group thread's per-sender identity), context notes, lifecycle
+// history, avatars, list subscriptions — moves onto dst, dst's blank fields
+// and tags are filled from src, and src is deleted (MH-647). Both contacts
+// must already exist in this workspace; a contact from another workspace is
+// invisible under RLS and comes back 404, same as any other lookup here.
+func MergeContact(ctx context.Context, db *sql.DB, dstID string, in MergeContactInput) (*ContactDetail, error) {
+	s, err := scope(ctx, authz.ContactsWrite)
+	if err != nil {
+		return nil, err
+	}
+	srcID := strings.TrimSpace(in.SourceID)
+	if srcID == "" {
+		return nil, huma.Error422UnprocessableEntity("source_id is required")
+	}
+	if srcID == dstID {
+		return nil, huma.Error422UnprocessableEntity("a contact cannot be merged into itself")
+	}
+	if _, err := getContact(ctx, db, s.WorkspaceID, dstID); notFound(err) {
+		return nil, huma.Error404NotFound("contact not found")
+	} else if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the contact")
+	}
+	if _, err := getContact(ctx, db, s.WorkspaceID, srcID); notFound(err) {
+		return nil, huma.Error404NotFound("the source contact was not found")
+	} else if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the source contact")
+	}
+	if err := contacts.MergeContacts(ctx, db, s.WorkspaceID, dstID, srcID); err != nil {
+		return nil, huma.Error500InternalServerError("could not merge those contacts")
+	}
+	c, err := getContact(ctx, db, s.WorkspaceID, dstID)
+	if notFound(err) {
+		return nil, huma.Error404NotFound("contact not found")
+	} else if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the contact")
+	}
+	return c, nil
+}
+
 // ---- activities ----------------------------------------------------------------
 
 // CreateActivity logs a note, call or meeting, or adds a task, on a contact,

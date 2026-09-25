@@ -431,6 +431,27 @@ func Register(api huma.API, a *app.App) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "w-merge-contact", Method: http.MethodPost, Path: "/api/w/contacts/{id}/merge",
+		Summary:     "Merge another contact into this one",
+		Description: "The contact named by source_id is folded into this one and deleted: its identities, deals, activities, conversations, messages, context notes, lifecycle history, avatar and list subscriptions all move here; this contact's blank fields and tags are filled in from it. Returns the surviving contact.",
+		Tags:        tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body MergeContactInput
+	}) (*body[struct {
+		Contact ContactDetail `json:"contact"`
+	}], error) {
+		c, err := MergeContact(ctx, db(), in.ID, in.Body)
+		if err != nil {
+			return nil, err
+		}
+		return out(struct {
+			Contact ContactDetail `json:"contact"`
+		}{*c}), nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "w-upload-contact-avatar", Method: http.MethodPost, Path: "/api/w/contacts/{id}/avatar",
 		Summary:     "Upload or replace a contact's photo (MH-602)",
 		Description: "PNG, JPEG or WEBP only, at most 2MB. base64 in the body, the same shape as vCard import's text-in-JSON, not multipart.",

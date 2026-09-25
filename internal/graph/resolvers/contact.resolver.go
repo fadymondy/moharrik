@@ -281,3 +281,11 @@ func (r *mutationResolver) UnlinkContactIdentity(ctx context.Context, contactID 
 	}
 	return toModelContact(c), nil
 }
+
+func (r *mutationResolver) MergeContact(ctx context.Context, contactID string, sourceID string) (*model.Contact, error) {
+	c, err := crm.MergeContact(ctx, r.App.SQLDB, contactID, crm.MergeContactInput{SourceID: sourceID})
+	if err != nil {
+		return nil, err
+	}
+	return toModelContact(c), nil
+}

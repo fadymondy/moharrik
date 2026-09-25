@@ -34,6 +34,7 @@ import { useContact } from "@/lib/queries"
 import { dateFormat } from "@/lib/i18n-locale"
 import { ContactContextPanel } from "@/components/crm/contact-context"
 import { ContactEditForm } from "@/components/crm/contact-edit-form"
+import { MergeContactAction } from "@/components/crm/contact-merge"
 import { ContactWhatsAppPanel } from "@/components/crm/contact-whatsapp"
 import { IdentitiesPanel, MetaPanel } from "@/components/crm/contact-identities"
 import { useDocumentTitle } from "@/lib/title"
@@ -99,19 +100,29 @@ export default function ContactDetailPage() {
         description={contact.name ? <Ltr>{identity(contact)}</Ltr> : undefined}
         action={
           canWrite ? (
-            <ConfirmButton
-              label={t("common.delete")}
-              title={t("contacts.deleteTitle")}
-              description={t("contacts.deleteBody", { email: isolate(identity(contact)) })}
-              confirmLabel={t("common.delete")}
-              onConfirm={async () => {
-                await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, {
-                  method: "DELETE",
-                  workspaceId: ws.id,
-                })
-                window.location.href = `${base}/contacts`
-              }}
-            />
+            <div className="flex items-center gap-1">
+              <MergeContactAction
+                contact={contact}
+                // This page's contact is always the merge target (dst), so the
+                // survivor is always here — "go to the survivor" means refetch,
+                // not navigate, and a stale identities/timeline panel below
+                // would otherwise still show the just-deleted contact's data.
+                onMerged={() => void detail.mutate()}
+              />
+              <ConfirmButton
+                label={t("common.delete")}
+                title={t("contacts.deleteTitle")}
+                description={t("contacts.deleteBody", { email: isolate(identity(contact)) })}
+                confirmLabel={t("common.delete")}
+                onConfirm={async () => {
+                  await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, {
+                    method: "DELETE",
+                    workspaceId: ws.id,
+                  })
+                  window.location.href = `${base}/contacts`
+                }}
+              />
+            </div>
           ) : undefined
         }
       />
