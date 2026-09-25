@@ -3,7 +3,9 @@ package whatsapp
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -118,6 +120,7 @@ func StartLink(ctx context.Context, a *app.App, number string) (*LinkOut, error)
 
 	l, err := Ensure(ctx, a, s.WorkspaceID, s.UserID)
 	if err != nil {
+		slog.Warn("whatsapp: link: could not prepare the link row", "workspace", s.WorkspaceID, "err", masked(err))
 		return nil, huma.Error500InternalServerError("could not prepare the link")
 	}
 	c := ClientFor(cfg, l)
@@ -126,7 +129,18 @@ func StartLink(ctx context.Context, a *app.App, number string) (*LinkOut, error)
 	// answers 403 for an existing instance, which is not an error here.
 	qr, err := c.Create(ctx, number)
 	if err != nil || (number != "" && qr.PairingCode == "") {
-		if qr, err = c.Connect(ctx, number); err != nil {
+		if qr, err = c.Connect(ctx, number); err != nil && retryable(err) {
+			// An instance Evolution is still starting (a create that timed
+			// out, a restart) answers the first connect with a 5xx or not at
+			// all; one more try a moment later is usually the QR (MH-529).
+			select {
+			case <-ctx.Done():
+			case <-time.After(2 * time.Second):
+				qr, err = c.Connect(ctx, number)
+			}
+		}
+		if err != nil {
+			slog.Warn("whatsapp: link: connect failed", "workspace", s.WorkspaceID, "err", masked(err))
 			SetError(ctx, a, s.WorkspaceID, err)
 			return nil, evolutionErr(err)
 		}
@@ -135,6 +149,7 @@ func StartLink(ctx context.Context, a *app.App, number string) (*LinkOut, error)
 	if err := c.SetWebhook(ctx, hookURL, l.Token); err != nil {
 		// Without the webhook nothing would ever arrive, so this is a
 		// failure of the whole link rather than a detail.
+		slog.Warn("whatsapp: link: setting the webhook failed", "workspace", s.WorkspaceID, "err", masked(err))
 		SetError(ctx, a, s.WorkspaceID, err)
 		return nil, evolutionErr(err)
 	}
@@ -194,4 +209,19 @@ func (c *Client) Webhook(ctx context.Context) (WebhookConfig, error) {
 func MarkHook(ctx context.Context, a *app.App, workspaceID string) {
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
 	_, _ = a.SQLDB.ExecContext(sctx, `UPDATE whatsapp_links SET last_hook_at = now() WHERE workspace_id = $1`, workspaceID)
+}
+
+// retryable is an Evolution failure worth one more try: nothing got there, or
+// the server itself failed. A 4xx is an answer, and asking again changes nothing.
+func retryable(err error) bool {
+	var e *Error
+	return errors.As(err, &e) && (e.Unreachable || e.Status >= 500)
+}
+
+var longDigits = regexp.MustCompile(`\d{8,}`)
+
+// masked is an error as a log line may carry it: Evolution's messages can echo
+// the number being linked, and a phone number does not belong in the logs.
+func masked(err error) string {
+	return longDigits.ReplaceAllString(err.Error(), "<number>")
 }

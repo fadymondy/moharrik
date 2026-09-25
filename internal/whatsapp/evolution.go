@@ -129,7 +129,9 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 	if out != nil && len(bytes.TrimSpace(raw)) > 0 {
 		if err := json.Unmarshal(raw, out); err != nil {
-			return fmt.Errorf("the WhatsApp server's answer was not readable: %w", err)
+			// Still the WhatsApp server's fault, not ours: a 502 with a reason,
+			// never a bare 500 (MH-530).
+			return &Error{Status: res.StatusCode, Message: "its answer was not readable JSON"}
 		}
 	}
 	return nil

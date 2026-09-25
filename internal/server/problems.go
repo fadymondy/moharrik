@@ -3,10 +3,12 @@ package server
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -57,7 +59,7 @@ func installProblemReports(k *togo.Kernel) {
 			go func(ctx context.Context) {
 				_, _ = c.Report(ctx, feedback.Report{
 					Title:    fmt.Sprintf("%d on %s %s", sw.status, r.Method, routePattern(r)),
-					Body:     fmt.Sprintf("%s %s answered %d.\n\nServed by %s (Host: %s).", r.Method, r.URL.Path, sw.status, servedBy, r.Host),
+					Body:     fmt.Sprintf("%s %s answered %d.%s\n\nServed by %s (Host: %s).", r.Method, r.URL.Path, sw.status, problemDetail(sw.body), servedBy, r.Host),
 					Type:     "bug",
 					Priority: "high",
 					Extra:    map[string]string{"route": r.URL.Path, "user_agent": r.UserAgent()},
@@ -98,6 +100,30 @@ type statusWriter struct {
 	http.ResponseWriter
 	status      int
 	wroteHeader bool
+	// body keeps the start of a 5xx answer, so the report can say WHY (the
+	// problem's detail) rather than only "answered 502" — MH-529/530 could not
+	// be diagnosed from the status alone.
+	body []byte
+}
+
+const maxProblemBody = 4 << 10
+
+var longDigits = regexp.MustCompile(`\d{8,}`)
+
+// problemDetail is the "detail" of a problem+json answer, one line, with long
+// digit runs (phone numbers) masked. Empty when the answer carried none.
+func problemDetail(raw []byte) string {
+	var p struct {
+		Detail string `json:"detail"`
+	}
+	if json.Unmarshal(raw, &p) != nil || strings.TrimSpace(p.Detail) == "" {
+		return ""
+	}
+	d := longDigits.ReplaceAllString(strings.Join(strings.Fields(p.Detail), " "), "<number>")
+	if len(d) > 300 {
+		d = d[:300] + "…"
+	}
+	return "\n\nDetail: " + d
 }
 
 func (w *statusWriter) WriteHeader(code int) {
@@ -109,6 +135,9 @@ func (w *statusWriter) WriteHeader(code int) {
 
 func (w *statusWriter) Write(p []byte) (int, error) {
 	w.wroteHeader = true
+	if w.status >= 500 && len(w.body) < maxProblemBody {
+		w.body = append(w.body, p[:min(len(p), maxProblemBody-len(w.body))]...)
+	}
 	return w.ResponseWriter.Write(p)
 }
 
