@@ -356,7 +356,7 @@ func MarketingTools() []Tool {
 		},
 		{
 			Name:        "send_campaign",
-			Description: "Send a drafted campaign, by its exact subject. Returns as soon as sending starts; poll list_campaigns for progress.",
+			Description: "Send a drafted campaign, by its exact subject, on its own channel: email through SMTP, WhatsApp through the workspace's linked number. Returns as soon as sending starts; poll list_campaigns for progress.",
 			Scope:       "campaigns:write",
 			InputSchema: schema([]string{"subject"}, map[string]any{
 				"subject": prop("string", "The draft campaign's exact subject"),
@@ -370,11 +370,11 @@ func MarketingTools() []Tool {
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", fmt.Errorf("bad arguments: %w", err)
 				}
-				var id, status string
+				var id, status, channel string
 				if err := a.SQLDB.QueryRowContext(ctx, `
-					SELECT id, status FROM campaigns WHERE workspace_id = $1 AND lower(subject) = lower($2)
+					SELECT id, status, channel FROM campaigns WHERE workspace_id = $1 AND lower(subject) = lower($2)
 					ORDER BY created_at DESC LIMIT 1`,
-					s.WorkspaceID, strings.TrimSpace(in.Subject)).Scan(&id, &status); err != nil {
+					s.WorkspaceID, strings.TrimSpace(in.Subject)).Scan(&id, &status, &channel); err != nil {
 					if errNoRows(err) {
 						return "", fmt.Errorf("no campaign with the subject %q", in.Subject)
 					}
@@ -382,6 +382,17 @@ func MarketingTools() []Tool {
 				}
 				if status != "draft" && status != "failed" {
 					return "", fmt.Errorf("that campaign is already %s", status)
+				}
+				// A WhatsApp campaign goes out on WhatsApp, the same worker the
+				// Send button uses — never through SMTP (MH-519).
+				if channel == "whatsapp" {
+					if err := marketing.StartWhatsAppSend(ctx, a, s.WorkspaceID, id); err != nil {
+						if errors.Is(err, marketing.ErrNotSendable) {
+							return "", fmt.Errorf("that campaign has already been sent")
+						}
+						return "", err
+					}
+					return fmt.Sprintf("Sending %q on WhatsApp to the list's WhatsApp opt-ins. Poll list_campaigns for progress.", strings.TrimSpace(in.Subject)), nil
 				}
 				// Resolve the service first, so a misconfiguration is reported here
 				// rather than discovered halfway through the list: the campaign's
