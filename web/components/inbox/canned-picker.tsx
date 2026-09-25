@@ -51,7 +51,7 @@ export function CannedPicker({
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger render={<Button type="button" variant="outline" data-action="canned" data-quick-replies disabled={!canned.data} />}>
+      <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="sm" data-action="canned" data-quick-replies disabled={!canned.data} />}>
         <MessageSquareQuoteIcon />
         {t("inbox.canned.insert")}
         <ChevronDownIcon />

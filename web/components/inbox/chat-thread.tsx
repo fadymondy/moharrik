@@ -434,23 +434,24 @@ export function ChatThread({
               <Bdi>{emailNote}</Bdi>
             </p>
           ) : null}
-          {/* One row when there is room (the inbox page); in a narrow container (the
-              launcher panel) the reply box takes a full line and the actions sit under it. */}
-          <div className="flex flex-wrap items-end justify-end gap-2">
-            <Textarea
-              id="reply-body"
-              value={reply}
-              onChange={(e) => onReplyChange(e.target.value)}
-              onKeyDown={onComposerKeyDown}
-              placeholder={t("inbox.replyPlaceholder")}
-              rows={1}
-              dir="auto"
-              className="max-h-40 min-w-0 basis-full resize-none @lg:basis-0 @lg:flex-1"
-              aria-label={t("inbox.replyLabel")}
-            />
+          {/* The reply box takes the full width; under it, the action bar (MH-595):
+              quick replies at the start, Send at the end. */}
+          <Textarea
+            id="reply-body"
+            value={reply}
+            onChange={(e) => onReplyChange(e.target.value)}
+            onKeyDown={onComposerKeyDown}
+            placeholder={t("inbox.replyPlaceholder")}
+            rows={2}
+            dir="auto"
+            className="max-h-40 min-w-0 resize-none"
+            aria-label={t("inbox.replyLabel")}
+          />
+          <div className="mt-2 flex items-center gap-2" data-composer-actions>
             <CannedPicker lang={replyLanguage} onInsert={onInsertCanned} open={cannedOpen} onOpenChange={setCannedOpen} />
-            <Button type="submit" size="icon" disabled={busy || !reply.trim()} aria-label={t("inbox.send")} data-action="send">
+            <Button type="submit" size="sm" className="ms-auto" disabled={busy || !reply.trim()} data-action="send">
               <SendIcon />
+              {t("inbox.send")}
             </Button>
           </div>
           {error ? <FieldError>{error}</FieldError> : null}

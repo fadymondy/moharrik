@@ -82,16 +82,18 @@ for (const scheme of ["light", "dark"]) {
     // Quick replies live in the composer's action bar, not a separate spot.
     if (opened) {
       const quickReplies = await page.evaluate(() => {
-        const el = document.querySelector("[data-quick-replies]")
-        const textarea = document.querySelector("textarea")
-        if (!el || !textarea) return { present: !!el, sameActionBar: false }
-        // The action bar is the flex row shared by the composer's Textarea and
-        // its Send button; the quick-replies trigger must sit in that same row.
-        let bar = textarea.parentElement
-        while (bar && !bar.contains(el)) bar = bar.parentElement
-        return { present: true, sameActionBar: !!bar }
+        const bar = document.querySelector("[data-form=reply] [data-composer-actions]")
+        const textarea = document.querySelector("[data-form=reply] textarea")
+        if (!bar || !textarea) return { bar: !!bar, textarea: !!textarea }
+        // Its own bar under the reply box, holding quick replies and Send.
+        return {
+          bar: true,
+          quick: !!bar.querySelector("[data-quick-replies]"),
+          send: !!bar.querySelector("[data-action=send]"),
+          below: bar.getBoundingClientRect().top >= textarea.getBoundingClientRect().bottom - 1,
+        }
       })
-      check(`${k}-quick-replies`, quickReplies.present && quickReplies.sameActionBar, quickReplies)
+      check(`${k}-quick-replies`, quickReplies.bar && quickReplies.quick && quickReplies.send && quickReplies.below, quickReplies)
     }
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
