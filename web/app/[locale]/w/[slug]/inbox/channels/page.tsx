@@ -61,7 +61,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type ChannelRow, type ChannelStatus, type ChannelType } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -77,7 +83,15 @@ import {
 } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 
-const CHANNEL_TYPES: ChannelType[] = ["email", "whatsapp", "chat", "telegram", "slack", "discord", "workflow"]
+const CHANNEL_TYPES: ChannelType[] = [
+  "email",
+  "whatsapp",
+  "chat",
+  "telegram",
+  "slack",
+  "discord",
+  "workflow",
+]
 const STATUSES: ChannelStatus[] = ["connected", "error", "paused"]
 
 const TYPE_ICON: Record<ChannelType, typeof MailIcon> = {
@@ -113,7 +127,11 @@ export default function ChannelsPage() {
   const params = useSearchParams()
 
   const typeParam = params.get("type")
-  const selectedTypes = new Set<ChannelType>((typeParam ? typeParam.split(",") : []).filter((t): t is ChannelType => CHANNEL_TYPES.includes(t as ChannelType)))
+  const selectedTypes = new Set<ChannelType>(
+    (typeParam ? typeParam.split(",") : []).filter((t): t is ChannelType =>
+      CHANNEL_TYPES.includes(t as ChannelType),
+    ),
+  )
   const status = (params.get("status") as ChannelStatus | null) ?? ""
   const [query, setQuery] = useState(() => params.get("q") ?? "")
 
@@ -138,7 +156,11 @@ export default function ChannelsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
-  const list = useChannels(ws.id, { type: Array.from(selectedTypes), status, q: params.get("q") ?? undefined })
+  const list = useChannels(ws.id, {
+    type: Array.from(selectedTypes),
+    status,
+    q: params.get("q") ?? undefined,
+  })
   // Header counts are the workspace's totals per type, not the filtered result —
   // a separate unfiltered request so they never look like "results" for the current filter.
   const totals = useChannels(ws.id, {})
@@ -166,7 +188,10 @@ export default function ChannelsPage() {
 
   const [addType, setAddType] = useState<ChannelType | null>(null)
   const [editRow, setEditRow] = useState<ChannelRow | null>(null)
-  const editingWidget = editRow?.type === "chat" ? widgets.data?.widgets?.find((w) => w.id === editRow.id) ?? null : null
+  const editingWidget =
+    editRow?.type === "chat"
+      ? (widgets.data?.widgets?.find((w) => w.id === editRow.id) ?? null)
+      : null
 
   const items = list.data?.channels ?? []
   // The backend doesn't (yet) return a `counts` aggregate on /api/w/channels — derive per-type
@@ -181,7 +206,11 @@ export default function ChannelsPage() {
   async function toggleEnabled(row: ChannelRow) {
     if (row.type === "whatsapp") return // WhatsApp has no enable switch — unlink instead.
     try {
-      await api(`${TYPE_PATH[row.type]}/${encodeURIComponent(row.id)}`, { method: "PATCH", json: { enabled: !row.enabled }, workspaceId: ws.id })
+      await api(`${TYPE_PATH[row.type]}/${encodeURIComponent(row.id)}`, {
+        method: "PATCH",
+        json: { enabled: !row.enabled },
+        workspaceId: ws.id,
+      })
       toast.success(row.enabled ? t("channels.turnedOff") : t("channels.turnedOn"))
       refreshAll()
     } catch (e) {
@@ -191,11 +220,14 @@ export default function ChannelsPage() {
 
   async function testRow(row: ChannelRow) {
     try {
-      await api(`${TYPE_PATH[row.type as Exclude<ChannelType, "whatsapp" | "chat" | "workflow">]}/${encodeURIComponent(row.id)}/test`, {
-        method: "POST",
-        json: {},
-        workspaceId: ws.id,
-      })
+      await api(
+        `${TYPE_PATH[row.type as Exclude<ChannelType, "whatsapp" | "chat" | "workflow">]}/${encodeURIComponent(row.id)}/test`,
+        {
+          method: "POST",
+          json: {},
+          workspaceId: ws.id,
+        },
+      )
       toast.success(t("channels.testOk"))
       refreshAll()
     } catch (e) {
@@ -208,7 +240,10 @@ export default function ChannelsPage() {
     if (row.type === "whatsapp") {
       await api("/api/w/whatsapp", { method: "DELETE", workspaceId: ws.id })
     } else {
-      await api(`${TYPE_PATH[row.type]}/${encodeURIComponent(row.id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`${TYPE_PATH[row.type]}/${encodeURIComponent(row.id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
     }
     toast.success(t("channels.removed"))
     refreshAll()
@@ -246,7 +281,10 @@ export default function ChannelsPage() {
       />
 
       {/* Header counts: totals per type across the workspace — not the filtered count. */}
-      <div className="flex flex-wrap items-center gap-2 px-6 pb-4" aria-label={t("channels.totalsLabel")}>
+      <div
+        className="flex flex-wrap items-center gap-2 px-6 pb-4"
+        aria-label={t("channels.totalsLabel")}
+      >
         <span className="text-xs text-grid-muted">{t("channels.totalsLabel")}</span>
         {CHANNEL_TYPES.map((ty) => (
           <Badge key={ty} variant="outline" className="gap-1" data-total-type={ty}>
@@ -257,7 +295,11 @@ export default function ChannelsPage() {
       </div>
 
       <div className="flex flex-col gap-3 px-6 pb-4">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("channels.filterType")}>
+        <div
+          className="flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label={t("channels.filterType")}
+        >
           {CHANNEL_TYPES.map((ty) => {
             const Icon = TYPE_ICON[ty]
             const active = selectedTypes.has(ty)
@@ -278,8 +320,19 @@ export default function ChannelsPage() {
           })}
         </div>
         <div className="flex flex-wrap items-center gap-3 lg:flex-row">
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("channels.filterStatus")}>
-            <Button type="button" size="sm" variant={status === "" ? "default" : "outline"} aria-pressed={status === ""} onClick={() => setParam("status", null)} data-status-filter="all">
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="group"
+            aria-label={t("channels.filterStatus")}
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant={status === "" ? "default" : "outline"}
+              aria-pressed={status === ""}
+              onClick={() => setParam("status", null)}
+              data-status-filter="all"
+            >
               {t("channels.allStatuses")}
             </Button>
             {STATUSES.map((s) => (
@@ -297,7 +350,10 @@ export default function ChannelsPage() {
             ))}
           </div>
           <div className="relative lg:ms-auto lg:w-72">
-            <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-grid-muted" aria-hidden />
+            <SearchIcon
+              className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-grid-muted"
+              aria-hidden
+            />
             <Input
               type="search"
               value={query}
@@ -318,7 +374,9 @@ export default function ChannelsPage() {
         <LoadingRows rows={5} />
       ) : items.length === 0 ? (
         <EmptyState
-          title={selectedTypes.size || status || query ? t("channels.noMatch") : t("channels.empty")}
+          title={
+            selectedTypes.size || status || query ? t("channels.noMatch") : t("channels.empty")
+          }
           body={selectedTypes.size || status || query ? undefined : t("channels.emptyBody")}
         />
       ) : (
@@ -341,26 +399,99 @@ export default function ChannelsPage() {
 
       {/* Add channel: a type picker (the dropdown above), then that type's existing form in a sheet. */}
       <Sheet open={!!addType} onOpenChange={(v) => !v && setAddType(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg" data-add-channel-sheet={addType ?? undefined}>
+        <SheetContent
+          className="w-full overflow-y-auto sm:max-w-lg"
+          data-add-channel-sheet={addType ?? undefined}
+        >
           <SheetHeader>
-            <SheetTitle>{addType ? t("channels.addTypeTitle", { type: t(`inbox.channel.${addType}`) }) : ""}</SheetTitle>
+            <SheetTitle>
+              {addType ? t("channels.addTypeTitle", { type: t(`inbox.channel.${addType}`) }) : ""}
+            </SheetTitle>
             <SheetDescription>{t("channels.addTypeHint")}</SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-4">
-            {addType === "email" ? <MailboxChannelForm onSaved={() => { setAddType(null); refreshAll() }} onCancel={() => setAddType(null)} /> : null}
-            {addType === "whatsapp" ? <WhatsAppChannelForm onChanged={() => { refreshAll() }} /> : null}
-            {addType === "chat" ? <WidgetChannelForm onSaved={() => { setAddType(null); refreshAll() }} onCancel={() => setAddType(null)} /> : null}
-            {addType === "telegram" ? <TelegramChannelForm onSaved={() => { setAddType(null); refreshAll() }} onCancel={() => setAddType(null)} /> : null}
-            {addType === "slack" ? <SlackChannelForm onSaved={() => { setAddType(null); refreshAll() }} onCancel={() => setAddType(null)} /> : null}
-            {addType === "discord" ? <DiscordChannelForm onSaved={() => { setAddType(null); refreshAll() }} onCancel={() => setAddType(null)} /> : null}
-            {addType === "workflow" ? <WorkflowChannelForm onSaved={() => { setAddType(null); refreshAll() }} onCancel={() => setAddType(null)} /> : null}
+            {/* The guide opens by default only for a type with no connections yet — once one exists, it starts collapsed but stays one click away. */}
+            {addType === "email" ? (
+              <MailboxChannelForm
+                defaultGuideOpen={!counts?.email}
+                onSaved={() => {
+                  setAddType(null)
+                  refreshAll()
+                }}
+                onCancel={() => setAddType(null)}
+              />
+            ) : null}
+            {addType === "whatsapp" ? (
+              <WhatsAppChannelForm
+                defaultGuideOpen={!counts?.whatsapp}
+                onChanged={() => {
+                  refreshAll()
+                }}
+              />
+            ) : null}
+            {addType === "chat" ? (
+              <WidgetChannelForm
+                defaultGuideOpen={!counts?.chat}
+                onSaved={() => {
+                  setAddType(null)
+                  refreshAll()
+                }}
+                onCancel={() => setAddType(null)}
+              />
+            ) : null}
+            {addType === "telegram" ? (
+              <TelegramChannelForm
+                defaultGuideOpen={!counts?.telegram}
+                onSaved={() => {
+                  setAddType(null)
+                  refreshAll()
+                }}
+                onCancel={() => setAddType(null)}
+              />
+            ) : null}
+            {addType === "slack" ? (
+              <SlackChannelForm
+                defaultGuideOpen={!counts?.slack}
+                onSaved={() => {
+                  setAddType(null)
+                  refreshAll()
+                }}
+                onCancel={() => setAddType(null)}
+              />
+            ) : null}
+            {addType === "discord" ? (
+              <DiscordChannelForm
+                defaultGuideOpen={!counts?.discord}
+                onSaved={() => {
+                  setAddType(null)
+                  refreshAll()
+                }}
+                onCancel={() => setAddType(null)}
+              />
+            ) : null}
+            {addType === "workflow" ? (
+              <WorkflowChannelForm
+                defaultGuideOpen={!counts?.workflow}
+                onSaved={() => {
+                  setAddType(null)
+                  refreshAll()
+                }}
+                onCancel={() => setAddType(null)}
+              />
+            ) : null}
           </div>
         </SheetContent>
       </Sheet>
 
       {/* Edit: the same forms, pre-filled from this type's own list (the unified row doesn't carry every field). */}
-      <Sheet open={!!editRow && editRow.type !== "chat"} onOpenChange={(v) => !v && setEditRow(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg" data-edit-channel-sheet={editRow?.type ?? undefined}>
+      <Sheet
+        open={!!editRow && editRow.type !== "chat"}
+        onOpenChange={(v) => !v && setEditRow(null)}
+      >
+        <SheetContent
+          className="w-full overflow-y-auto sm:max-w-lg"
+          data-edit-channel-sheet={editRow?.type ?? undefined}
+        >
           <SheetHeader>
             <SheetTitle>{editRow ? isolate(editRow.name) : ""}</SheetTitle>
           </SheetHeader>
@@ -368,36 +499,53 @@ export default function ChannelsPage() {
             {editRow?.type === "email" ? (
               <MailboxChannelForm
                 mailbox={mailboxes.data?.mailboxes?.find((m) => m.id === editRow.id)}
-                onSaved={() => { setEditRow(null); refreshAll() }}
+                onSaved={() => {
+                  setEditRow(null)
+                  refreshAll()
+                }}
                 onCancel={() => setEditRow(null)}
               />
             ) : null}
-            {editRow?.type === "whatsapp" ? <WhatsAppChannelForm onChanged={() => refreshAll()} /> : null}
+            {editRow?.type === "whatsapp" ? (
+              <WhatsAppChannelForm onChanged={() => refreshAll()} />
+            ) : null}
             {editRow?.type === "telegram" ? (
               <TelegramChannelForm
                 channel={telegram.data?.channels?.find((c) => c.id === editRow.id)}
-                onSaved={() => { setEditRow(null); refreshAll() }}
+                onSaved={() => {
+                  setEditRow(null)
+                  refreshAll()
+                }}
                 onCancel={() => setEditRow(null)}
               />
             ) : null}
             {editRow?.type === "slack" ? (
               <SlackChannelForm
                 channel={slack.data?.channels?.find((c) => c.id === editRow.id)}
-                onSaved={() => { setEditRow(null); refreshAll() }}
+                onSaved={() => {
+                  setEditRow(null)
+                  refreshAll()
+                }}
                 onCancel={() => setEditRow(null)}
               />
             ) : null}
             {editRow?.type === "discord" ? (
               <DiscordChannelForm
                 channel={discord.data?.channels?.find((c) => c.id === editRow.id)}
-                onSaved={() => { setEditRow(null); refreshAll() }}
+                onSaved={() => {
+                  setEditRow(null)
+                  refreshAll()
+                }}
                 onCancel={() => setEditRow(null)}
               />
             ) : null}
             {editRow?.type === "workflow" ? (
               <WorkflowChannelForm
                 channel={workflow.data?.channels?.find((c) => c.id === editRow.id)}
-                onSaved={() => { setEditRow(null); refreshAll() }}
+                onSaved={() => {
+                  setEditRow(null)
+                  refreshAll()
+                }}
                 onCancel={() => setEditRow(null)}
               />
             ) : null}
@@ -409,7 +557,10 @@ export default function ChannelsPage() {
       <WidgetSettingsSheet
         widget={editRow?.type === "chat" ? editingWidget : null}
         onOpenChange={(open) => (!open ? setEditRow(null) : undefined)}
-        onSaved={() => { setEditRow(null); refreshAll() }}
+        onSaved={() => {
+          setEditRow(null)
+          refreshAll()
+        }}
       />
     </>
   )
@@ -443,19 +594,41 @@ function ChannelListRow({
   }
 
   return (
-    <li className="px-6 py-4" data-channel-row={row.id} data-channel-type={row.type} data-channel-status={row.status}>
+    <li
+      className="px-6 py-4"
+      data-channel-row={row.id}
+      data-channel-type={row.type}
+      data-channel-status={row.status}
+    >
       <div className="flex flex-wrap items-center gap-3">
         <Icon className="size-4 shrink-0 text-grid-muted" aria-hidden />
         <p className="text-sm font-medium">
           <Bdi>{row.name}</Bdi>
         </p>
-        {row.type === "workflow" && row.network ? <Badge variant="secondary">{t(`inbox.channel.${row.network}`)}</Badge> : null}
-        <Badge variant={row.status === "error" ? "destructive" : row.status === "connected" ? "default" : "outline"} data-channel-status-badge>
+        {row.type === "workflow" && row.network ? (
+          <Badge variant="secondary">{t(`inbox.channel.${row.network}`)}</Badge>
+        ) : null}
+        <Badge
+          variant={
+            row.status === "error"
+              ? "destructive"
+              : row.status === "connected"
+                ? "default"
+                : "outline"
+          }
+          data-channel-status-badge
+        >
           {row.status === "error" ? <TriangleAlertIcon className="size-3" /> : null}
           {t(`channels.status.${row.status}`)}
         </Badge>
         <div className="ms-auto flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={conversationsHref} />} data-open-conversations>
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={conversationsHref} />}
+            data-open-conversations
+          >
             {t("channels.openConversations")}
           </Button>
           {onTest ? (
@@ -501,7 +674,11 @@ function ChannelListRow({
         </div>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-grid-muted">
-        <span>{row.last_message_at ? t("channels.lastMessage", { date: formatDate(row.last_message_at) }) : t("channels.neverReceived")}</span>
+        <span>
+          {row.last_message_at
+            ? t("channels.lastMessage", { date: formatDate(row.last_message_at) })
+            : t("channels.neverReceived")}
+        </span>
         <span>{t("channels.conversations30d", { n: row.conversations_30d })}</span>
         {row.unread > 0 ? (
           <span className="font-medium text-grid-fg" data-unread={row.unread}>
@@ -510,7 +687,11 @@ function ChannelListRow({
         ) : null}
       </div>
       {row.status === "error" && row.last_error ? (
-        <p className="mt-2 flex items-start gap-2 border border-grid-danger-text/40 bg-grid-danger-text/5 px-3 py-2 text-sm" role="status" data-channel-error>
+        <p
+          className="mt-2 flex items-start gap-2 border border-grid-danger-text/40 bg-grid-danger-text/5 px-3 py-2 text-sm"
+          role="status"
+          data-channel-error
+        >
           <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-danger-text" />
           <span>{row.last_error}</span>
         </p>

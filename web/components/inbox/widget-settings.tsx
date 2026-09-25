@@ -1,12 +1,13 @@
-"use client";
+"use client"
 
-import { useState, type FormEvent } from "react";
-import { MessageCircleIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { toast } from "sonner";
+import { useState, type FormEvent } from "react"
+import { MessageCircleIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { toast } from "sonner"
 
-import { Bdi } from "@/components/bidi";
-import { PickSelect } from "@/components/crm/shared";
-import { Button } from "@/components/ui/button";
+import { Bdi } from "@/components/bidi"
+import { CopyField } from "@/components/copy-field"
+import { PickSelect } from "@/components/crm/shared"
+import { Button } from "@/components/ui/button"
 import {
   Field,
   FieldDescription,
@@ -15,8 +16,8 @@ import {
   FieldLabel,
   FieldLegend,
   FieldSet,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import {
   Sheet,
   SheetContent,
@@ -24,19 +25,19 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useWorkspace } from "@/components/workspace/workspace-context";
+} from "@/components/ui/sheet"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
   ApiError,
   type ChatQuickAction,
   type ChatWidget,
   type ChatWidgetSettings,
-} from "@/lib/api";
-import { useTranslations } from "@/lib/i18n";
+} from "@/lib/api"
+import { useTranslations } from "@/lib/i18n"
 
 /*
 Everything a chat widget does on the customer's page (MH-382): greeting, look,
@@ -46,9 +47,9 @@ widget has its own. The widget reads them from its config, so saving here
 changes every page that already embeds the key.
 */
 
-const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
 // What the SDK paints with when no accent is set (moharrik-chat's DEFAULT_ACCENT).
-const SDK_DEFAULT_ACCENT = "#00A0A8";
+const SDK_DEFAULT_ACCENT = "#00A0A8"
 
 /*
 The ink the widget itself puts on the accent: dark or light, whichever reads
@@ -57,14 +58,14 @@ the embedded widget exactly — these two are the widget's colours, not the
 app's theme.
 */
 function inkOn(hex: string): string {
-  let h = hex.slice(1);
-  if (h.length === 3) h = h.replace(/./g, (c) => c + c);
+  let h = hex.slice(1)
+  if (h.length === 3) h = h.replace(/./g, (c) => c + c)
   const lin = (i: number) => {
-    const c = parseInt(h.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  const L = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
-  return (L + 0.05) / 0.0575 >= 1.05 / (L + 0.05) ? "#0B1429" : "#ffffff";
+    const c = parseInt(h.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const L = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4)
+  return (L + 0.05) / 0.0575 >= 1.05 / (L + 0.05) ? "#0B1429" : "#ffffff"
 }
 
 function settingsOf(w: ChatWidget): ChatWidgetSettings {
@@ -84,7 +85,7 @@ function settingsOf(w: ChatWidget): ChatWidgetSettings {
       locale: q.locale ?? "",
     })),
     lead_event: w.lead_event !== false,
-  };
+  }
 }
 
 export function WidgetSettingsSheet({
@@ -92,11 +93,11 @@ export function WidgetSettingsSheet({
   onOpenChange,
   onSaved,
 }: {
-  widget: ChatWidget | null;
-  onOpenChange: (open: boolean) => void;
-  onSaved: () => void;
+  widget: ChatWidget | null
+  onOpenChange: (open: boolean) => void
+  onSaved: () => void
 }) {
-  const { t, isRtl } = useTranslations();
+  const { t, isRtl } = useTranslations()
   return (
     <Sheet open={!!widget} onOpenChange={onOpenChange}>
       <SheetContent
@@ -118,7 +119,7 @@ export function WidgetSettingsSheet({
         ) : null}
       </SheetContent>
     </Sheet>
-  );
+  )
 }
 
 function SettingsForm({
@@ -126,43 +127,43 @@ function SettingsForm({
   onSaved,
   onCancel,
 }: {
-  widget: ChatWidget;
-  onSaved: () => void;
-  onCancel: () => void;
+  widget: ChatWidget
+  onSaved: () => void
+  onCancel: () => void
 }) {
-  const { t, locale } = useTranslations();
-  const ws = useWorkspace();
-  const [s, setS] = useState<ChatWidgetSettings>(() => settingsOf(widget));
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { t, locale } = useTranslations()
+  const ws = useWorkspace()
+  const [s, setS] = useState<ChatWidgetSettings>(() => settingsOf(widget))
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
   const set = <K extends keyof ChatWidgetSettings>(k: K, v: ChatWidgetSettings[K]) =>
-    setS((cur) => ({ ...cur, [k]: v }));
+    setS((cur) => ({ ...cur, [k]: v }))
 
-  const accentOk = s.accent === "" || HEX.test(s.accent);
-  const previewAccent = accentOk && s.accent ? s.accent : SDK_DEFAULT_ACCENT;
+  const accentOk = s.accent === "" || HEX.test(s.accent)
+  const previewAccent = accentOk && s.accent ? s.accent : SDK_DEFAULT_ACCENT
   // The preview speaks the language this page is in, as the widget would.
-  const ar = locale === "ar";
-  const previewTitle = (ar && s.title_ar) || s.title || t("inbox.widgetDefaultTitle");
-  const previewGreeting = (ar && s.greeting_ar) || s.greeting || t("inbox.widgetDefaultGreeting");
+  const ar = locale === "ar"
+  const previewTitle = (ar && s.title_ar) || s.title || t("inbox.widgetDefaultTitle")
+  const previewGreeting = (ar && s.greeting_ar) || s.greeting || t("inbox.widgetDefaultGreeting")
   const previewActions = s.quick_actions.filter(
     (q) => q.label.trim() && (!q.locale || q.locale === (ar ? "ar" : "en")),
-  );
+  )
 
   function setAction(i: number, patch: Partial<ChatQuickAction>) {
     set(
       "quick_actions",
       s.quick_actions.map((q, j) => (j === i ? { ...q, ...patch } : q)),
-    );
+    )
   }
 
   async function submit(e: FormEvent) {
-    e.preventDefault();
+    e.preventDefault()
     if (!accentOk) {
-      setErr(t("inbox.accentInvalid"));
-      return;
+      setErr(t("inbox.accentInvalid"))
+      return
     }
-    setBusy(true);
-    setErr(null);
+    setBusy(true)
+    setErr(null)
     try {
       await api(`/api/w/chat_widgets/${encodeURIComponent(widget.id)}`, {
         method: "PATCH",
@@ -176,13 +177,13 @@ function SettingsForm({
             ...(q.locale ? { locale: q.locale } : {}),
           })),
         },
-      });
-      toast.success(t("inbox.widgetSettingsSaved"));
-      onSaved();
+      })
+      toast.success(t("inbox.widgetSettingsSaved"))
+      onSaved()
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"));
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
   }
 
@@ -219,6 +220,12 @@ function SettingsForm({
           ) : null}
         </div>
       </div>
+
+      <Field>
+        <FieldLabel>{t("inbox.embed")}</FieldLabel>
+        <CopyField value={widget.embed} label={t("inbox.embed")} pre />
+        <FieldDescription>{t("inbox.embedHint")}</FieldDescription>
+      </Field>
 
       <FieldSet>
         <FieldLegend>{t("inbox.widgetText")}</FieldLegend>
@@ -478,5 +485,5 @@ function SettingsForm({
         </Button>
       </SheetFooter>
     </form>
-  );
+  )
 }
