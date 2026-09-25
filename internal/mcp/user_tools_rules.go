@@ -247,7 +247,8 @@ func RuleTools() []Tool {
 				"rule_id": map[string]any{"type": "string"},
 				"status":  map[string]any{"type": "string", "enum": []string{"ok", "partial", "failed", "skipped", "rate_limited", "loop_blocked"}},
 				"real":    map[string]any{"type": "boolean", "description": "Leave out tests."},
-				"before":  map[string]any{"type": "string", "description": "next from the previous page"},
+				"before":  map[string]any{"type": "string", "description": "next (or next_cursor) from the previous page"},
+				"cursor":  map[string]any{"type": "string", "description": "Same as before — next_cursor from the previous page"},
 				"limit":   map[string]any{"type": "integer", "description": "1–100, default 50"},
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
@@ -256,16 +257,21 @@ func RuleTools() []Tool {
 					Status string `json:"status"`
 					Real   bool   `json:"real"`
 					Before string `json:"before"`
+					Cursor string `json:"cursor"`
 					Limit  int    `json:"limit"`
 				}
 				if err := bind(args, &in); err != nil {
 					return "", err
 				}
-				p, err := rules.ListRuleRuns(ctx, a, rules.RunFilter{RuleID: in.RuleID, Status: in.Status, RealOnly: in.Real, Before: in.Before, Limit: in.Limit})
+				before := in.Before
+				if before == "" {
+					before = in.Cursor
+				}
+				p, err := rules.ListRuleRuns(ctx, a, rules.RunFilter{RuleID: in.RuleID, Status: in.Status, RealOnly: in.Real, Before: before, Limit: in.Limit})
 				if err != nil {
 					return "", err
 				}
-				return jsonResult(p)
+				return jsonResult(map[string]any{"runs": p.Runs, "next": p.Next, "next_cursor": p.Next})
 			},
 		},
 	}

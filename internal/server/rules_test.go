@@ -651,6 +651,16 @@ func TestAutomationRules(t *testing.T) {
 	if len(arr(lr["runs"])) != 2 {
 		t.Fatalf("list_rule_runs: %v", lr)
 	}
+	if _, ok := lr["next_cursor"]; !ok {
+		t.Fatalf("list_rule_runs should carry next_cursor alongside next: %v", lr)
+	}
+	// "cursor" is accepted as an alias for "before" so list_rule_runs matches
+	// every other list_X tool's paging vocabulary (MH-520).
+	firstID := obj(arr(lr["runs"])[0])["id"]
+	lr2 := mcpJSON(t, agent, "list_rule_runs", map[string]any{"rule_id": agentRule, "cursor": firstID})
+	if len(arr(lr2["runs"])) != 1 {
+		t.Fatalf("list_rule_runs cursor alias: %v", lr2)
+	}
 	if !strings.Contains(mcpRefused(t, agent, "create_rule", map[string]any{"name": "bad", "trigger": "nope", "actions": []any{}}), "not an event") {
 		t.Error("create_rule with an unknown trigger")
 	}

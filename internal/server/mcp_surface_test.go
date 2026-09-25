@@ -588,6 +588,10 @@ func TestMCPSurface(t *testing.T) {
 	}
 	if n := mcpJSON(t, agent, "mark_all_notifications_read", map[string]any{"source_id": srcID}); n["marked"].(float64) != 3 {
 		t.Fatalf("mark_all_notifications_read: %v", n)
+	} else if n["count"] != n["marked"] {
+		// "count" was added alongside "marked" so mark_all_notifications_read
+		// matches the "count" vocabulary every other tool answers with (MH-520).
+		t.Fatalf("mark_all_notifications_read should carry count alongside marked: %v", n)
 	}
 	if left := mcpJSON(t, agent, "list_notifications", nil); len(arr(left["items"])) != 0 {
 		t.Errorf("unread after mark all: %v", left)
@@ -708,6 +712,11 @@ func TestMCPSurface(t *testing.T) {
 	p1 := mcpJSON(t, agent, "list_trend_items", map[string]any{"limit": 2, "source_id": feedID})
 	if len(arr(p1["items"])) != 2 || p1["has_more"] != true || p1["next_cursor"] == "" {
 		t.Fatalf("list_trend_items page 1: %v", p1)
+	}
+	// "total" was added alongside "collected_total" so list_trend_items matches
+	// every other list_X tool's total-count key (MH-520).
+	if p1["total"] != p1["collected_total"] {
+		t.Fatalf("list_trend_items should carry total alongside collected_total: %v", p1)
 	}
 	p2 := mcpJSON(t, agent, "list_trend_items", map[string]any{"limit": 2, "source_id": feedID, "cursor": p1["next_cursor"]})
 	if len(arr(p2["items"])) != 1 || p2["has_more"] != false {
@@ -849,6 +858,20 @@ func TestMCPSurface(t *testing.T) {
 	}
 	if len(evo.sends()) != 3 {
 		t.Error("a message reached an opted-out contact")
+	}
+
+	// ---- research schedules: delete_research_schedule's answer shape -------------
+	sched := obj(mcpJSON(t, agent, "save_research_schedule", map[string]any{
+		"name": "Weekly competitor scan", "topic": "competitor pricing changes", "mode": "search", "cadence": "weekly",
+	}))
+	schedID, _ := sched["id"].(string)
+	if schedID == "" {
+		t.Fatalf("save_research_schedule: %v", sched)
+	}
+	// "deleted" carries a bool (not the id) and "id" names the record, matching
+	// how every other delete_X tool answers (MH-520).
+	if del := mcpJSON(t, agent, "delete_research_schedule", map[string]any{"id": schedID}); del["ok"] != true || del["deleted"] != true || del["id"] != schedID {
+		t.Fatalf("delete_research_schedule: %v", del)
 	}
 
 	// ---- scopes: a token without the scope is refused, naming it -----------------
