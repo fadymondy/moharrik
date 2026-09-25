@@ -45,7 +45,12 @@ const check = (k, ok, d) => {
 function psql(sql) {
   // -t -A hides column headers, but psql still prints its own completion tag
   // on the line after a RETURNING result — take the first line.
-  return execFileSync("psql", [ownerURL, "-t", "-A", "-c", sql], { encoding: "utf8" })
+  // SQL goes on stdin: Windows re-encodes argv to the ANSI code page, which mangles "—".
+  return execFileSync("psql", [ownerURL, "-t", "-A", "-f", "-"], {
+    input: sql,
+    encoding: "utf8",
+    env: { ...process.env, PGCLIENTENCODING: "UTF8" },
+  })
     .trim()
     .split(/\r?\n/)[0]
     .trim()
@@ -219,34 +224,46 @@ for (const scheme of ["light", "dark"]) {
         initial,
       )
 
-      // Locate WA message 51 — the oldest of the first (newest) page — before
-      // scrolling up, to check its position holds once older ones load above it.
-      const anchorLocator = page.locator(`[data-thread="${waConvID}"] [data-message]`, {
-        hasText: "WA message 51",
-      })
-      const beforeBox = await anchorLocator
-        .first()
-        .boundingBox()
-        .catch(() => null)
-
-      // Scroll to the very top — the reader reaching for older history.
-      await page.evaluate((convID) => {
-        const pane = document.querySelector(`[data-thread="${convID}"] [data-messages]`)
-        if (pane) pane.scrollTop = 0
-        pane?.dispatchEvent(new Event("scroll", { bubbles: true }))
-      }, waConvID)
+      // Scroll up the way a reader does — with the wheel. (Setting scrollTop from
+      // script is not a reader: for the first seconds after open the pane holds
+      // itself on the latest message until real input — wheel/touch/key — arrives.)
+      const paneSel = `[data-thread="${waConvID}"] [data-messages]`
+      await page.locator(paneSel).scrollIntoViewIfNeeded()
+      const paneBox = await page.locator(paneSel).boundingBox()
+      await page.mouse.move(paneBox.x + paneBox.width / 2, paneBox.y + paneBox.height / 2)
+      for (let i = 0; i < 12; i++) {
+        await page.mouse.wheel(0, -1500)
+        await page.waitForTimeout(80)
+        const n = await page.evaluate(
+          (sel) => document.querySelector(sel)?.querySelectorAll("[data-message]").length ?? 0,
+          paneSel,
+        )
+        if (n > 30) break
+      }
 
       await page
         .waitForFunction(
-          (convID) =>
-            (document
-              .querySelector(`[data-thread="${convID}"] [data-messages]`)
-              ?.querySelectorAll("[data-message]").length ?? 0) > 30,
-          waConvID,
+          (sel) =>
+            (document.querySelector(sel)?.querySelectorAll("[data-message]").length ?? 0) > 30,
+          paneSel,
           { timeout: 10000 },
         )
         .catch(() => {})
       await page.waitForTimeout(500)
+
+      // No jump: WA message 51 — the oldest of the first page, the one the reader
+      // was looking at when they reached the top — is still in view once 30 older
+      // messages land above it, and the pane is no longer at scrollTop 0.
+      const anchor = await page.evaluate((sel) => {
+        const pane = document.querySelector(sel)
+        const el = [...(pane?.querySelectorAll("[data-message]") ?? [])].find((m) =>
+          m.textContent.includes("WA message 51"),
+        )
+        if (!pane || !el) return { found: false, scrollTop: pane?.scrollTop ?? null }
+        const p = pane.getBoundingClientRect(),
+          r = el.getBoundingClientRect()
+        return { found: true, scrollTop: pane.scrollTop, top: r.top - p.top, paneHeight: p.height }
+      }, paneSel)
 
       const afterCount = await page.evaluate((convID) => {
         const pane = document.querySelector(`[data-thread="${convID}"] [data-messages]`)
@@ -254,12 +271,9 @@ for (const scheme of ["light", "dark"]) {
       }, waConvID)
       check(`${k}-whatsappLoadsOlderOnScrollUp`, afterCount > 30, afterCount)
 
-      const afterBox = await anchorLocator
-        .first()
-        .boundingBox()
-        .catch(() => null)
-      const anchorHeld = !!beforeBox && !!afterBox && Math.abs(afterBox.y - beforeBox.y) < 40
-      check(`${k}-whatsappScrollAnchorHolds`, anchorHeld, { beforeBox, afterBox })
+      const anchorHeld =
+        anchor.found && anchor.scrollTop > 0 && anchor.top > -60 && anchor.top < anchor.paneHeight
+      check(`${k}-whatsappScrollAnchorHolds`, anchorHeld, anchor)
 
       overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       check(`${k}-whatsappNoOverflow`, overflow <= 1, overflow)
