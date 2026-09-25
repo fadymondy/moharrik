@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { UploadIcon } from "lucide-react"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -67,8 +68,10 @@ export default function VcardPage() {
   const [committing, setCommitting] = useState(false)
   const [result, setResult] = useState<CommitResult | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(null)
 
   async function onFilePicked(f: File | null) {
+    setFileName(f?.name ?? null)
     if (!f) return
     const content = await f.text()
     setText(content)
@@ -153,16 +156,34 @@ export default function VcardPage() {
 
         <Field className="mb-4">
           <FieldLabel htmlFor="vcard-file">{t("vcard.pickFile")}</FieldLabel>
+          {/* The native picker's own button and "no file chosen" are in the
+              browser's language, not the page's — keep the input for the
+              file dialog and drive it from a translated button. */}
           <input
             ref={fileInput}
             id="vcard-file"
             type="file"
             accept=".vcf,text/vcard"
-            className="text-sm"
+            className="sr-only"
             disabled={!canWrite}
             onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
             data-testid="vcard-file-input"
           />
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!canWrite}
+              onClick={() => fileInput.current?.click()}
+              data-action="pick-vcard-file"
+            >
+              <UploadIcon />
+              {t("vcard.chooseFile")}
+            </Button>
+            <span className="min-w-0 truncate text-sm text-grid-muted" data-vcard-file-name>
+              {fileName ?? t("vcard.noFile")}
+            </span>
+          </div>
         </Field>
 
         <Field className="mb-4">

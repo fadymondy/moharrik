@@ -1107,6 +1107,8 @@
   "vcard.exporting": "جارٍ التصدير…",
   "vcard.exportHint": "يُنزّل كل جهة اتصال في مساحة العمل هذه بصيغة vCard 3.0.",
   "vcard.pickFile": "اختر ملف .vcf",
+  "vcard.chooseFile": "اختر ملفًا",
+  "vcard.noFile": "لم يُختر ملف",
   "vcard.orPaste": "أو الصق نص vCard",
   "vcard.preview": "معاينة",
   "vcard.previewing": "جارٍ المعاينة…",
