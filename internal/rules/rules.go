@@ -445,12 +445,23 @@ type RuleConditionResult struct {
 }
 
 // RuleActionResult is one action's outcome in a run.
+//
+// Summary/Error are the English sentence, unchanged (MCP list_rule_runs and
+// runs logged before MH-524 read only these). SummaryCode/ErrorCode name a
+// stable message with SummaryArgs/ErrorArgs as its values, so a UI can show
+// the same outcome in the viewer's language; both are '' when the action
+// wraps an arbitrary error from outside internal/rules; a UI falls back to
+// the English text when the code is empty.
 type RuleActionResult struct {
 	Type string `json:"type"`
 	// ok | failed | skipped | would (a test: nothing was done)
-	Status  string `json:"status"`
-	Summary string `json:"summary"`
-	Error   string `json:"error,omitempty"`
+	Status      string            `json:"status"`
+	Summary     string            `json:"summary"`
+	SummaryCode string            `json:"summary_code,omitempty"`
+	SummaryArgs map[string]string `json:"summary_args,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	ErrorCode   string            `json:"error_code,omitempty"`
+	ErrorArgs   map[string]string `json:"error_args,omitempty"`
 	// What it made, when it made something (a deal id, a run id…).
 	Ref string `json:"ref,omitempty"`
 }
@@ -466,6 +477,8 @@ type RuleRun struct {
 	Status     string                `json:"status" doc:"ok, partial, failed, skipped, rate_limited or loop_blocked."`
 	DryRun     bool                  `json:"dry_run"`
 	Reason     string                `json:"reason"`
+	ReasonCode string                `json:"reason_code,omitempty"`
+	ReasonArgs map[string]string     `json:"reason_args,omitempty"`
 	Event      map[string]any        `json:"event"`
 	Conditions []RuleConditionResult `json:"conditions"`
 	Actions    []RuleActionResult    `json:"actions"`
@@ -475,14 +488,14 @@ type RuleRun struct {
 	FinishedAt *time.Time            `json:"finished_at"`
 }
 
-const runCols = `id, rule_id, rule_name, event_id, trigger, subject_id, status, dry_run, reason, event::text, conditions::text, actions::text,
-	depth, tested_by, started_at, finished_at`
+const runCols = `id, rule_id, rule_name, event_id, trigger, subject_id, status, dry_run, reason, reason_code, reason_args::text,
+	event::text, conditions::text, actions::text, depth, tested_by, started_at, finished_at`
 
 func scanRun(r scanner) (RuleRun, error) {
 	var x RuleRun
-	var ev, conds, acts string
+	var ev, conds, acts, reasonArgs string
 	var fin sql.NullTime
-	err := r.Scan(&x.ID, &x.RuleID, &x.RuleName, &x.EventID, &x.Trigger, &x.SubjectID, &x.Status, &x.DryRun, &x.Reason,
+	err := r.Scan(&x.ID, &x.RuleID, &x.RuleName, &x.EventID, &x.Trigger, &x.SubjectID, &x.Status, &x.DryRun, &x.Reason, &x.ReasonCode, &reasonArgs,
 		&ev, &conds, &acts, &x.Depth, &x.TestedBy, &x.StartedAt, &fin)
 	if err != nil {
 		return x, err
@@ -490,6 +503,7 @@ func scanRun(r scanner) (RuleRun, error) {
 	_ = json.Unmarshal([]byte(ev), &x.Event)
 	_ = json.Unmarshal([]byte(conds), &x.Conditions)
 	_ = json.Unmarshal([]byte(acts), &x.Actions)
+	_ = json.Unmarshal([]byte(reasonArgs), &x.ReasonArgs)
 	if x.Event == nil {
 		x.Event = map[string]any{}
 	}

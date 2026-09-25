@@ -216,6 +216,11 @@ func TestAutomationRules(t *testing.T) {
 	if draft["status"] != "skipped" || obj(arr(draft["conditions"])[0])["passed"] != false {
 		t.Fatalf("a draft whose condition fails on the sample: %v", draft)
 	}
+	// MH-524: a skip carries a stable reason code + values alongside the
+	// English reason, which is unchanged.
+	if draft["reason_code"] != "conditions_not_met" || draft["reason"] != "the conditions did not hold" {
+		t.Fatalf("draft skip reason code/text: %v / %v", draft["reason_code"], draft["reason"])
+	}
 
 	// Switched off, a real lead does nothing.
 	inq := alice.must("POST", "/api/w/subscribe-forms", map[string]any{"kind": "inquiry", "name": "Site form", "allowed_origins": []string{"https://rules.test"}}, 201)
@@ -250,6 +255,21 @@ func TestAutomationRules(t *testing.T) {
 	real := runs[0]
 	if real["status"] != "ok" || real["dry_run"] != false || obj(real["event"])["company"] != "Acme" {
 		t.Fatalf("the lead run: %v", real)
+	}
+	// MH-524: an ok run has no reason code, and each action carries its own
+	// summary code + values alongside the unchanged English summary.
+	if real["reason_code"] != nil && real["reason_code"] != "" {
+		t.Fatalf("an ok run should have no reason code: %v", real["reason_code"])
+	}
+	notifyAct := obj(arr(real["actions"])[0])
+	if notifyAct["summary_code"] != "notify_members" ||
+		obj(notifyAct["summary_args"])["title"] != "New lead: Rana (Acme)" ||
+		!strings.Contains(notifyAct["summary"].(string), "New lead: Rana (Acme)") {
+		t.Fatalf("notify_members action code/args/summary: %v", notifyAct)
+	}
+	dealAct := obj(arr(real["actions"])[1])
+	if dealAct["summary_code"] != "create_deal" || obj(dealAct["summary_args"])["title"] != "Acme — Rana" {
+		t.Fatalf("create_deal action code/args: %v", dealAct)
 	}
 	dealID := obj(arr(real["actions"])[1])["ref"].(string)
 	var dealTitle string
@@ -436,9 +456,19 @@ func TestAutomationRules(t *testing.T) {
 	if len(br) != 2 || br[0]["status"] != "rate_limited" || br[1]["status"] != "ok" {
 		t.Fatalf("braked rule: %v", br)
 	}
+	// MH-524: the rate limit's reason has a code + the limit value, and the
+	// English reason is unchanged.
+	if br[0]["reason_code"] != "rate_limited_rule" || obj(br[0]["reason_args"])["limit"] != "1" ||
+		!strings.Contains(br[0]["reason"].(string), "already ran 1 times in the last hour") {
+		t.Fatalf("rate-limited reason code/args/text: %v", br[0])
+	}
 	on := runsOf(once["id"].(string))
 	if len(on) != 2 || on[0]["status"] != "skipped" || !strings.Contains(on[0]["reason"].(string), "once per record") {
 		t.Fatalf("once-per-record rule: %v", on)
+	}
+	// MH-524: same for once-per-record.
+	if on[0]["reason_code"] != "once_per_record" {
+		t.Fatalf("once-per-record reason code: %v", on[0]["reason_code"])
 	}
 
 	// ---- consent and what a rule may not do ------------------------------------------------
@@ -463,6 +493,24 @@ func TestAutomationRules(t *testing.T) {
 		obj(ca[1])["status"] != "failed" || !strings.Contains(obj(ca[1])["error"].(string), "opted in") ||
 		obj(ca[2])["status"] != "ok" {
 		t.Fatalf("consent run: %v", cr)
+	}
+	// MH-524: a failed action's error carries a code too — one written in
+	// internal/rules itself gets its own code (not_recipient), one wrapping an
+	// arbitrary error from another package (whatsapp/inbox) gets the generic
+	// code with the English text as its "detail" arg. cr's own status/reason
+	// has no code: "partial" is not skipped/limited/blocked and has no reason.
+	if obj(ca[0])["error_code"] != "not_recipient" {
+		t.Fatalf("send_email's own error should have a code: %v", ca[0])
+	}
+	if obj(ca[1])["error_code"] != "generic_error" || !strings.Contains(obj(obj(ca[1])["error_args"])["detail"].(string), "opted in") {
+		t.Fatalf("whatsapp_contact's wrapped error: %v", ca[1])
+	}
+	if obj(ca[2])["summary_code"] != "send_email" || obj(obj(ca[2])["summary_args"])["subject"] != "You are qualified now" {
+		t.Fatalf("the ok send_email action's code/args: %v", ca[2])
+	}
+	// A "partial" run's own reason is the first failure, with its own code.
+	if cr["reason_code"] != "step_error" || obj(cr["reason_args"])["step"] != "1" || obj(cr["reason_args"])["type"] != "send_email" {
+		t.Fatalf("partial run's reason code/args: %v", cr["reason_code"])
 	}
 	if m := sink.mails(); len(m) != 1 || !strings.Contains(m[0], "You are qualified now") {
 		t.Fatalf("the one allowed email: %q", m)

@@ -86,8 +86,15 @@ CREATE TABLE IF NOT EXISTS automation_rule_runs (
     status       text        NOT NULL,
     -- A test against a sample event: nothing was carried out.
     dry_run      boolean     NOT NULL DEFAULT false,
-    -- Why it was skipped, limited or blocked, or the first failure.
+    -- Why it was skipped, limited or blocked, or the first failure. English,
+    -- kept for MCP list_rule_runs and runs from before reason_code existed.
     reason       text        NOT NULL DEFAULT '',
+    -- MH-524: the same reason as a stable code + values, so a UI can show it
+    -- in the viewer's language. '' on old rows and on a plain "ok" (nothing to
+    -- say). Actions carry their own summary_code/error_code inside `actions`
+    -- (jsonb needs no column for that).
+    reason_code  text        NOT NULL DEFAULT '',
+    reason_args  jsonb       NOT NULL DEFAULT '{}',
     event        jsonb       NOT NULL DEFAULT '{}',
     conditions   jsonb       NOT NULL DEFAULT '[]',
     actions      jsonb       NOT NULL DEFAULT '[]',

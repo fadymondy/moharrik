@@ -108,15 +108,16 @@ func (x *execCtx) webhook(act RuleAction) RuleActionResult {
 	target := x.param(act, "url")
 	u, err := url.Parse(target)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-		return fail(act.Type, "", fmt.Errorf("%q is not a web address", target))
+		return fail(act.Type, "", fmt.Errorf("%q is not a web address", target), msg{}, m("invalid_url", "value", target))
 	}
 	summary := "POST the event to " + u.Scheme + "://" + u.Host + u.Path
+	sm := m("webhook", "url", u.Scheme+"://"+u.Host+u.Path)
 	if x.dry {
-		return would(act.Type, summary+", signed with the rule's secret")
+		return would(act.Type, summary+", signed with the rule's secret", sm)
 	}
 	secretKey, err := x.webhookSecret()
 	if err != nil {
-		return fail(act.Type, summary, errors.New("could not read the rule's signing secret"))
+		return fail(act.Type, summary, errors.New("could not read the rule's signing secret"), sm, m("webhook_secret_unreadable"))
 	}
 	now := time.Now().UTC()
 	body, _ := json.Marshal(map[string]any{
@@ -127,7 +128,7 @@ func (x *execCtx) webhook(act RuleAction) RuleActionResult {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
-		return fail(act.Type, summary, err)
+		return fail(act.Type, summary, err, sm, generic(err))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "Moharrik-Rules/1.0 (+https://moharrik.com)")
@@ -138,17 +139,17 @@ func (x *execCtx) webhook(act RuleAction) RuleActionResult {
 	if err != nil {
 		var ue *url.Error
 		if errors.As(err, &ue) && errors.Is(ue.Err, errPrivate) {
-			return fail(act.Type, summary, errPrivate)
+			return fail(act.Type, summary, errPrivate, sm, m("private_address"))
 		}
 		if errors.Is(err, errPrivate) {
-			return fail(act.Type, summary, errPrivate)
+			return fail(act.Type, summary, errPrivate, sm, m("private_address"))
 		}
-		return fail(act.Type, summary, fmt.Errorf("could not reach it: %s", clip(err.Error(), 200)))
+		return fail(act.Type, summary, fmt.Errorf("could not reach it: %s", clip(err.Error(), 200)), sm, m("webhook_unreachable", "detail", clip(err.Error(), 200)))
 	}
 	defer res.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 64<<10))
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return fail(act.Type, summary, fmt.Errorf("it answered %d", res.StatusCode))
+		return fail(act.Type, summary, fmt.Errorf("it answered %d", res.StatusCode), sm, m("webhook_bad_status", "status", strconv.Itoa(res.StatusCode)))
 	}
-	return ok(act.Type, fmt.Sprintf("%s — it answered %d", summary, res.StatusCode), "")
+	return ok(act.Type, fmt.Sprintf("%s — it answered %d", summary, res.StatusCode), "", m("webhook_ok", "url", u.Scheme+"://"+u.Host+u.Path, "status", strconv.Itoa(res.StatusCode)))
 }
