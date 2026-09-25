@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/crm"
+	"github.com/fadymondy/moharrik/internal/paging"
 )
 
 /*
@@ -105,6 +107,92 @@ func ListSuggestions(ctx context.Context, db *sql.DB, ws, status string, limit i
 		out = []CompanySuggestion{}
 	}
 	return out, total, nil
+}
+
+// SuggestionPage is one page of ListSuggestionsPage.
+type SuggestionPage struct {
+	Suggestions []CompanySuggestion `json:"suggestions"`
+	Total       int                 `json:"total"`
+	NextCursor  string              `json:"next_cursor,omitempty"`
+}
+
+// ListSuggestionsPage is ListSuggestions, keyset-paged (MH-603): strongest
+// first, tiebroken on evidence_count, then last_seen_at, then id, so the order
+// (and the page boundary) is stable across pages even when several
+// suggestions tie on every other column.
+func ListSuggestionsPage(ctx context.Context, db *sql.DB, ws, status, cursor string, limit int) (*SuggestionPage, error) {
+	if status == "" {
+		status = "suggested"
+	}
+	n, err := paging.Limit(limit, 25, 100)
+	if err != nil {
+		return nil, err
+	}
+	cur, err := paging.Decode(cursor, 4)
+	if err != nil {
+		return nil, err
+	}
+
+	page := &SuggestionPage{}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM research_companies WHERE workspace_id = $1 AND status = $2`, ws, status).Scan(&page.Total); err != nil {
+		return nil, err
+	}
+
+	where := `WHERE s.workspace_id = $1 AND s.status = $2`
+	args := []any{ws, status}
+	if cur != nil {
+		strongest, err := strconv.ParseFloat(cur[0], 64)
+		if err != nil {
+			return nil, paging.ErrBadCursor
+		}
+		evidenceCount, err := strconv.Atoi(cur[1])
+		if err != nil {
+			return nil, paging.ErrBadCursor
+		}
+		lastSeenAt, err := time.Parse(time.RFC3339Nano, cur[2])
+		if err != nil {
+			return nil, paging.ErrBadCursor
+		}
+		args = append(args, strongest, evidenceCount, lastSeenAt, cur[3])
+		i := len(args)
+		where += ` AND (s.strongest, s.evidence_count, s.last_seen_at, s.id) < ($` + strconv.Itoa(i-3) + `, $` + strconv.Itoa(i-2) +
+			`, $` + strconv.Itoa(i-1) + `, $` + strconv.Itoa(i) + `)`
+	}
+	args = append(args, n+1)
+	rows, err := db.QueryContext(ctx, `SELECT `+suggestionColumns+` `+suggestionFrom+` `+where+`
+		ORDER BY s.strongest DESC, s.evidence_count DESC, s.last_seen_at DESC, s.id DESC LIMIT $`+strconv.Itoa(len(args)), args...)
+	if err != nil {
+		return nil, err
+	}
+	var out []CompanySuggestion
+	for rows.Next() {
+		s, err := scanSuggestion(rows)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) > n {
+		out = out[:n]
+		last := out[n-1]
+		page.NextCursor = paging.Encode(strconv.FormatFloat(last.Strongest, 'f', -1, 64), strconv.Itoa(last.EvidenceCount),
+			last.LastSeenAt.UTC().Format(time.RFC3339Nano), last.ID)
+	}
+	for i := range out {
+		if out[i].Evidence, err = companyEvidence(ctx, db, ws, out[i].CompanyKey, 3); err != nil {
+			return nil, err
+		}
+	}
+	if out == nil {
+		out = []CompanySuggestion{}
+	}
+	page.Suggestions = out
+	return page, nil
 }
 
 // GetSuggestion returns one suggestion with its evidence.

@@ -406,26 +406,65 @@ func TestLeadIntake(t *testing.T) {
 		}
 		reader := mint("leads:read")
 		_, text, isErr := mcpCall(reader, "/api/mcp", "list_leads", map[string]any{"q": email})
-		if isErr || !strings.Contains(text, email) || !strings.Contains(text, "newsletter") {
-			t.Fatalf("list_leads: %v %q", isErr, text)
+		var listOut struct {
+			Total int `json:"total"`
+			Items []struct {
+				ID        string `json:"id"`
+				Email     string `json:"email"`
+				UtmSource string `json:"utm_source"`
+			} `json:"items"`
 		}
-		id := alice.must("GET", "/api/w/leads?q="+email, nil, 200)["leads"].([]any)[0].(map[string]any)["id"].(string)
-		if _, text, isErr := mcpCall(reader, "/api/mcp", "get_lead", map[string]any{"id": id}); isErr || !strings.Contains(text, "We would like a quote.") || !strings.Contains(text, "gc-1") {
-			t.Errorf("get_lead: %v %q", isErr, text)
+		if err := json.Unmarshal([]byte(text), &listOut); isErr || err != nil || listOut.Total != 1 ||
+			len(listOut.Items) != 1 || listOut.Items[0].Email != email || listOut.Items[0].UtmSource != "newsletter" {
+			t.Fatalf("list_leads: %v %v %q", isErr, err, text)
+		}
+		id := listOut.Items[0].ID
+
+		_, text, isErr = mcpCall(reader, "/api/mcp", "get_lead", map[string]any{"id": id})
+		var getOut struct {
+			Lead struct {
+				Message     string `json:"message"`
+				Attribution struct {
+					Gclid string `json:"gclid"`
+				} `json:"attribution"`
+			} `json:"lead"`
+		}
+		if err := json.Unmarshal([]byte(text), &getOut); isErr || err != nil ||
+			!strings.Contains(getOut.Lead.Message, "We would like a quote.") || getOut.Lead.Attribution.Gclid != "gc-1" {
+			t.Errorf("get_lead: %v %v %q", isErr, err, text)
 		}
 		if _, _, isErr := mcpCall(reader, "/api/mcp", "update_lead", map[string]any{"id": id, "status": "contacted"}); !isErr {
 			t.Error("leads:read changed a lead")
 		}
 		triage := mint("leads:read", "leads:write")
-		if _, text, isErr := mcpCall(triage, "/api/mcp", "update_lead", map[string]any{"id": id, "status": "contacted"}); isErr || !strings.Contains(text, "contacted") {
-			t.Errorf("update_lead: %v %q", isErr, text)
+		_, text, isErr = mcpCall(triage, "/api/mcp", "update_lead", map[string]any{"id": id, "status": "contacted"})
+		var updateOut struct {
+			OK   bool `json:"ok"`
+			Lead struct {
+				Status string `json:"status"`
+			} `json:"lead"`
+		}
+		if err := json.Unmarshal([]byte(text), &updateOut); isErr || err != nil || !updateOut.OK || updateOut.Lead.Status != "contacted" {
+			t.Errorf("update_lead: %v %v %q", isErr, err, text)
 		}
 		if _, text, isErr := mcpCall(triage, "/api/mcp", "convert_lead", map[string]any{"id": id}); !isErr || !strings.Contains(text, "contacts:write") {
 			t.Errorf("convert_lead without contacts:write: %v %q", isErr, text)
 		}
 		full := mint("leads:write", "contacts:write")
-		if _, text, isErr := mcpCall(full, "/api/mcp", "convert_lead", map[string]any{"id": id}); isErr || !strings.Contains(text, "company: Initech") {
-			t.Errorf("convert_lead: %v %q", isErr, text)
+		_, text, isErr = mcpCall(full, "/api/mcp", "convert_lead", map[string]any{"id": id})
+		var convertOut struct {
+			OK             bool   `json:"ok"`
+			CompanyCreated bool   `json:"company_created"`
+			CompanyID      string `json:"company_id"`
+			Lead           struct {
+				ConvertedCompany *struct {
+					Name string `json:"name"`
+				} `json:"converted_company"`
+			} `json:"lead"`
+		}
+		if err := json.Unmarshal([]byte(text), &convertOut); isErr || err != nil || !convertOut.OK || convertOut.CompanyID == "" ||
+			convertOut.Lead.ConvertedCompany == nil || convertOut.Lead.ConvertedCompany.Name != "Initech" {
+			t.Errorf("convert_lead: %v %v %q", isErr, err, text)
 		}
 		// A token acts only in its own workspace.
 		btok := bob.must("POST", "/api/w/mcp_tokens", map[string]any{"name": "b", "scopes": []string{"leads:read", "leads:write", "contacts:write"}}, 201)

@@ -219,52 +219,47 @@ var docsInbox = map[string]ToolDoc{
 
 var docsCampaigns = map[string]ToolDoc{
 	"list_campaigns": {
-		AR: "الحملات وتقدّم تسليمها، الأحدث أولًا، صفحةً بعد صفحة. يذكر الرد العدد الإجمالي للحملات؛ " +
-			"مرّر المؤشر cursor الوارد فيه لتحصل على الصفحة التالية.",
+		AR: "الحملات وتقدّم تسليمها، الأحدث أولًا، صفحةً بعد صفحة: الموضوع والقائمة والقناة والحالة وأعداد المُرسَل والمستلمين " +
+			"والفاشل. total هو عدد الحملات كلها؛ مرّر next_cursor من الرد كـcursor للصفحة التالية.",
 		Example: map[string]any{"limit": 2},
-		Result: "Showing 2 of 7 campaign(s):\n" +
-			"October product update -> Newsletter [email, sending] 212/418 sent\n" +
-			"September WhatsApp offer -> Customers [whatsapp, sent] 96/98 sent, 2 failed\n" +
-			"More: call list_campaigns again with cursor=MTc4OTk4MTIwMDAwMDAwMB81YTFlMmMzZC03YjhmLTRhOTAtOGMxZC0yZTNmNGE1YjZjN2Q",
+		Result: `{"total":7,"count":2,"items":[{"id":"c1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","subject":"October product update",` +
+			`"list":"Newsletter","channel":"email","status":"sending","sent":212,"recipients":418,"failed":0},` +
+			`{"id":"d2b3c4d5-2222-4b2b-9b2b-2b2b2b2b2b2b","subject":"September WhatsApp offer","list":"Customers",` +
+			`"channel":"whatsapp","status":"sent","sent":96,"recipients":98,"failed":2}],` +
+			`"next_cursor":"MTc4OTk4MTIwMDAwMDAwMB81YTFlMmMzZC03YjhmLTRhOTAtOGMxZC0yZTNmNGE1YjZjN2Q"}`,
 	},
 	"create_campaign": {
 		AR: "صياغة مسودة حملة بريدية موجّهة إلى قائمة بريدية (تُحدَّد باسمها الدقيق). لا تُرسَل الحملة حتى تستدعي send_campaign.",
 		Example: map[string]any{"list": "Newsletter", "subject": "October product update",
 			"body": "## What's new\n\n- WhatsApp in the shared inbox\n- Campaign previews", "locale": "en", "smtp_service": "Postmark"},
-		Result: `Drafted "October product update" for Newsletter (418 confirmed subscriber(s)). Call send_campaign to send it.`,
+		Result: `{"ok":true,"id":"c1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","subject":"October product update",` +
+			`"list":"Newsletter","list_id":"e1e2e3e4-3333-4e3e-9e3e-3e3e3e3e3e3e","recipients":418,"skipped_no_email":3}`,
 	},
 	"update_campaign": {
 		AR: "تعديل حملة لم تُرسَل بعد (مسودة، أو حملة فشلت وتنتظر إعادة المحاولة)، يُعثر عليها بموضوعها الحالي الدقيق. " +
 			"لا يتغير إلا ما تمرّره من حقول، ويُرفض التعديل بمجرد أن يبدأ الإرسال.",
 		Example: map[string]any{"subject": "October product update", "new_subject": "What's new in October",
 			"audience_locale": "en"},
-		Result: `Saved "What's new in October". Call preview_campaign to see it as recipients will.`,
+		Result: `{"ok":true,"id":"c1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","subject":"What's new in October"}`,
 	},
 	"preview_campaign": {
 		AR: "عرض الحملة تمامًا كما يتلقاها المستلمون، ويُعثر عليها بموضوعها الدقيق: موضوع البريد ونصّه العادي ونسخة HTML " +
 			"(بلغته، ومن اليمين إلى اليسار للعربية)، أو رسالة واتساب مع سطر الإيقاف الذي يحمله كل بث.",
 		Example: map[string]any{"subject": "What's new in October"},
-		Result: "email campaign, en (ltr), draft.\n\n" +
-			"Subject: What's new in October\n\n" +
-			"Plain-text part:\n\n" +
-			"## What's new\n\n- WhatsApp in the shared inbox\n- Campaign previews\n\n" +
-			"—\nUnsubscribe: https://moharrik.com/en/mail/unsubscribe?token=preview\n\n" +
-			"HTML part:\n\n" +
-			"<!doctype html>\n<html dir=\"ltr\" lang=\"en\">\n" +
-			"<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"></head>\n…",
+		Result: `{"channel":"email","locale":"en","dir":"ltr","status":"draft","text":"## What's new\n\n- WhatsApp in the shared inbox\n- Campaign previews\n\n—\nUnsubscribe: https://moharrik.com/en/mail/unsubscribe?token=preview",` +
+			`"subject":"What's new in October","html":"<!doctype html><html dir=\"ltr\" lang=\"en\">…"}`,
 	},
 	"list_smtp_services": {
 		AR: "خدمات SMTP في مساحة العمل بأسمائها: أيّها الافتراضية لرسائل التأكيد والردود، وأيّها الافتراضية للحملات، " +
 			"وهل نجح آخر اختبار لكلٍّ منها. لا تتضمن بيانات الاعتماد أبدًا.",
 		Example: map[string]any{},
-		Result: "2 SMTP service(s):\n" +
-			"- Postmark (default for confirmations and replies, campaign default): last test worked; 5 campaign(s) name it\n" +
-			"- Office 365: last test failed; 0 campaign(s) name it\n",
+		Result: `{"count":2,"items":[{"name":"Postmark","is_default":true,"is_campaign_default":true,"last_test_ok":true,"campaigns":5},` +
+			`{"name":"Office 365","is_default":false,"is_campaign_default":false,"last_test_ok":false,"campaigns":0}]}`,
 	},
 	"send_campaign": {
 		AR:      "إرسال حملة مصاغة كمسودة، بموضوعها الدقيق. تعود الأداة فور بدء الإرسال؛ تابع التقدّم عبر list_campaigns.",
 		Example: map[string]any{"subject": "What's new in October"},
-		Result:  `Sending "What's new in October" through the SMTP service "Postmark". Poll list_campaigns for progress.`,
+		Result:  `{"ok":true,"id":"c1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","channel":"email","subject":"What's new in October","smtp_service":"Postmark"}`,
 	},
 }
 

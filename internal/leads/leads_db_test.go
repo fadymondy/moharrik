@@ -282,15 +282,15 @@ func TestStatusRules(t *testing.T) {
 		t.Fatalf("a converted lead changed status: %v", err)
 	}
 
-	list, counts, err := List(f.ctx, a.SQLDB, f.wsID, Filter{Status: StatusConverted})
-	if err != nil || len(list) != 1 || counts[StatusConverted] != 1 || counts[StatusNew] != 0 {
-		t.Fatalf("list: %v %d %v", err, len(list), counts)
+	page, err := List(f.ctx, a.SQLDB, f.wsID, Filter{Status: StatusConverted})
+	if err != nil || len(page.Leads) != 1 || page.Counts[StatusConverted] != 1 || page.Counts[StatusNew] != 0 {
+		t.Fatalf("list: %v %d %v", err, len(page.Leads), page.Counts)
 	}
-	if list, _, _ := List(f.ctx, a.SQLDB, f.wsID, Filter{Q: "Q@Q"}); len(list) != 1 {
-		t.Fatalf("search by email found %d", len(list))
+	if page, _ := List(f.ctx, a.SQLDB, f.wsID, Filter{Q: "Q@Q"}); len(page.Leads) != 1 {
+		t.Fatalf("search by email found %d", len(page.Leads))
 	}
-	if list, _, _ := List(f.ctx, a.SQLDB, f.wsID, Filter{Q: "100%_nothing"}); len(list) != 0 {
-		t.Fatalf("LIKE wildcards in the query must be literal, found %d", len(list))
+	if page, _ := List(f.ctx, a.SQLDB, f.wsID, Filter{Q: "100%_nothing"}); len(page.Leads) != 0 {
+		t.Fatalf("LIKE wildcards in the query must be literal, found %d", len(page.Leads))
 	}
 }
 
@@ -314,8 +314,8 @@ func TestLeadsDoNotCrossWorkspaces(t *testing.T) {
 	if _, err := Get(fb.ctx, a.SQLDB, fa.wsID, idA); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("RLS let B's connection read A's lead: %v", err)
 	}
-	if list, _, err := List(fb.ctx, a.SQLDB, fb.wsID, Filter{}); err != nil || len(list) != 0 {
-		t.Fatalf("B's list shows %d leads: %v", len(list), err)
+	if page, err := List(fb.ctx, a.SQLDB, fb.wsID, Filter{}); err != nil || len(page.Leads) != 0 {
+		t.Fatalf("B's list shows %d leads: %v", len(page.Leads), err)
 	}
 	// And the app pool refuses to write a lead into another workspace.
 	_, err := intake(fb.ctx, a.SQLDB, fa.form, inquiryBody{Email: "x@x.test", Message: "cross"}, "")

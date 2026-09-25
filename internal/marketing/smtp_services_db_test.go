@@ -322,8 +322,16 @@ func TestSMTPNoCredentialInAnyResponse(t *testing.T) {
 		t.Fatal("list_smtp_services is missing")
 	}
 	text, err := tool.Run(f.ctx, f.a, json.RawMessage(`{}`))
-	if err != nil || !strings.Contains(text, "Only") || !strings.Contains(text, "last test worked") {
-		t.Fatalf("list_smtp_services: %v %s", err, text)
+	var listOut struct {
+		Count int `json:"count"`
+		Items []struct {
+			Name       string `json:"name"`
+			LastTestOK bool   `json:"last_test_ok"`
+		} `json:"items"`
+	}
+	if jsonErr := json.Unmarshal([]byte(text), &listOut); err != nil || jsonErr != nil || listOut.Count != 1 ||
+		listOut.Items[0].Name != "Only" || !listOut.Items[0].LastTestOK {
+		t.Fatalf("list_smtp_services: %v %v %s", err, jsonErr, text)
 	}
 	for _, secret := range []string{user, "127.0.0.1", "hi@acme.test"} {
 		if strings.Contains(text, secret) {

@@ -364,61 +364,60 @@ var docsCRM = map[string]ToolDoc{
 	"list_mail_lists": {
 		AR:      "القوائم البريدية لمساحة العمل مرتّبة أبجديًا، مع عدد المشتركين وعدد من ينتظرون التأكيد في كل قائمة، وتنبيه على القوائم التي تطلب الاشتراك المزدوج.",
 		Example: map[string]any{},
-		Result: "2 list(s):\n" +
-			"Customers — 214 subscribed, 0 pending\n" +
-			"Newsletter — 1380 subscribed, 42 pending (double opt-in)\n",
+		Result: `{"count":2,"items":[{"name":"Customers","double_opt_in":false,"subscribed":214,"pending":0},` +
+			`{"name":"Newsletter","double_opt_in":true,"subscribed":1380,"pending":42}]}`,
 	},
 }
 
 var docsLeads = map[string]ToolDoc{
 	"list_leads": {
-		AR: "العملاء المحتملون الواردون من نماذج الاستفسار على موقع مساحة العمل، الأحدث أولًا، مع عددهم لكل حالة. للتصفية استخدم status " +
-			"(new أو contacted أو qualified أو converted أو spam) وq (يطابق الاسم والبريد والشركة والرسالة).",
+		AR: "العملاء المحتملون الواردون من نماذج الاستفسار على موقع مساحة العمل، الأحدث أولًا، صفحة تلو الأخرى: كل عنصر يحمل id " +
+			"وstatus والاسم والبريد والشركة ومصدر الزيارة (UTM) ووقت الوصول ومقتطفًا من الرسالة. counts هو عدد العملاء المحتملين لكل " +
+			"حالة في مساحة العمل كلها (بلا تصفية)؛ أما total فهو عدد المطابقين لهذه التصفية. للتصفية استخدم status (new أو contacted " +
+			"أو qualified أو converted أو spam) وq (يطابق الاسم والبريد والشركة والرسالة). مرّر next_cursor من الرد كـcursor للصفحة " +
+			"التالية. تفاصيل عميل واحد كاملة عبر get_lead.",
 		Example: map[string]any{"status": "new", "limit": 10},
-		Result: "Counts: new 2, contacted 5, qualified 3, converted 11, spam 4\n" +
-			"2 lead(s):\n" +
-			"- [new] Youssef Kamal <youssef.kamal@mail.example> — Nile Couriers · google/cpc · 2026-09-23 16:42 · id=0e2a4c6e-8a0c-4e2a-9c4e-6a8c0e2a4c6e\n" +
-			"  We need live tracking for 40 trucks across Cairo and Alexandria.\n" +
-			"- [new] Hana Mostafa <hana.mostafa@mail.example> · newsletter/email · 2026-09-22 09:15 · id=f1a3c5e7-9b1d-4f3a-8c5e-7a9b1d3f5a7c\n" +
-			"  Do you offer the dashboard in Arabic?\n",
+		Result: `{"total":2,"count":2,"items":[{"id":"0e2a4c6e-8a0c-4e2a-9c4e-6a8c0e2a4c6e","status":"new",` +
+			`"name":"Youssef Kamal","email":"youssef.kamal@mail.example","company":"Nile Couriers","utm_source":"google",` +
+			`"utm_medium":"cpc","created_at":"2026-09-23T16:42:00Z","message":"We need live tracking for 40 trucks across Cairo and Alexandria."},` +
+			`{"id":"f1a3c5e7-9b1d-4f3a-8c5e-7a9b1d3f5a7c","status":"new","name":"Hana Mostafa","email":"hana.mostafa@mail.example",` +
+			`"company":"","utm_source":"newsletter","utm_medium":"email","created_at":"2026-09-22T09:15:00Z","message":"Do you offer the dashboard in Arabic?"}],` +
+			`"next_cursor":"","counts":{"contacted":5,"converted":11,"new":2,"qualified":3,"spam":4}}`,
 	},
 	"get_lead": {
 		AR: "عميل محتمل واحد بكامل تفاصيله: الرسالة والهاتف والشركة كما كتبها الزائر، والنموذج الذي أرسله، ومصدر الزيارة (UTM والمُحيل " +
 			"وgclid وصفحة الهبوط)، وما تحوّل إليه.",
 		Example: map[string]any{"id": "0e2a4c6e-8a0c-4e2a-9c4e-6a8c0e2a4c6e"},
-		Result: "Lead 0e2a4c6e-8a0c-4e2a-9c4e-6a8c0e2a4c6e — new\n" +
-			"name: Youssef Kamal\n" +
-			"email: youssef.kamal@mail.example\n" +
-			"phone: +20 122 345 6789\n" +
-			"company: Nile Couriers\n" +
-			"form: Request a demo\n" +
-			"site: https://acme.example\n" +
-			"received: 2026-09-23 16:42 UTC\n" +
-			"utm_source: google\n" +
-			"utm_medium: cpc\n" +
-			"utm_campaign: fleet-tracking-q3\n" +
-			"gclid: Cj0KCQjwfake0gclid\n" +
-			"referrer: https://search.example/\n" +
-			"landing_page: https://acme.example/fleet-tracking\n" +
-			"\nmessage:\n" +
-			"We need live tracking for 40 trucks across Cairo and Alexandria.\n" +
-			"Can you send pricing for a three-month pilot?\n",
+		Result: `{"lead":{"id":"0e2a4c6e-8a0c-4e2a-9c4e-6a8c0e2a4c6e","status":"new","name":"Youssef Kamal",` +
+			`"email":"youssef.kamal@mail.example","phone":"+20 122 345 6789","company":"Nile Couriers",` +
+			`"message":"We need live tracking for 40 trucks across Cairo and Alexandria. Can you send pricing for a three-month pilot?",` +
+			`"budget":"","locale":"en","form_id":null,"form_name":"Request a demo","origin":"https://acme.example",` +
+			`"attribution":{"utm_source":"google","utm_medium":"cpc","utm_campaign":"fleet-tracking-q3","utm_term":"",` +
+			`"utm_content":"","referrer":"https://search.example/","gclid":"Cj0KCQjwfake0gclid","landing_page":"https://acme.example/fleet-tracking"},` +
+			`"converted_contact":null,"converted_company":null,"converted_deal":null,"converted_at":null,"converted_by":null,` +
+			`"created_at":"2026-09-23T16:42:00Z","updated_at":"2026-09-23T16:42:00Z"}}`,
 	},
 	"update_lead": {
 		AR: "ضبط حالة عميل محتمل: new أو contacted أو qualified أو spam. أما الحالة converted فلا تُبلَغ إلا عبر convert_lead، " +
 			"والعميل المحتمل المحوَّل يحتفظ بحالته.",
 		Example: map[string]any{"id": "f1a3c5e7-9b1d-4f3a-8c5e-7a9b1d3f5a7c", "status": "contacted"},
-		Result:  "Lead f1a3c5e7-9b1d-4f3a-8c5e-7a9b1d3f5a7c is now contacted.",
+		Result: `{"ok":true,"lead":{"id":"f1a3c5e7-9b1d-4f3a-8c5e-7a9b1d3f5a7c","status":"contacted","name":"Hana Mostafa",` +
+			`"email":"hana.mostafa@mail.example","phone":"","company":"","message":"Do you offer the dashboard in Arabic?",` +
+			`"budget":"","locale":"ar","form_id":null,"form_name":"Newsletter signup","origin":"https://acme.example",` +
+			`"attribution":{"utm_source":"newsletter","utm_medium":"email","utm_campaign":"","utm_term":"","utm_content":"",` +
+			`"referrer":"","gclid":"","landing_page":""},"converted_contact":null,"converted_company":null,"converted_deal":null,` +
+			`"converted_at":null,"converted_by":null,"created_at":"2026-09-22T09:15:00Z","updated_at":"2026-09-25T10:03:00Z"}}`,
 	},
 	"convert_lead": {
 		AR: "تحويل عميل محتمل في خطوة واحدة: جهة الاتصال (يُعاد استخدامها إن كان البريد مسجّلًا من قبل)، والشركة من نطاق البريد (ولا " +
 			"شركة لعناوين البريد المجاني مثل gmail أو outlook)، وصفقة في أول مرحلة مفتوحة من مسار المبيعات، والرسالة كأول نشاط في سجلها " +
-			"الزمني. يتطلب contacts:write إلى جانب leads:write.",
+			"الزمني. يتطلب contacts:write إلى جانب leads:write. يعيد العميل المحتمل، ولكلٍّ من جهة الاتصال والشركة ما إذا أُنشئت أو أُعيد " +
+			"استخدام موجودة.",
 		Example: map[string]any{"id": "0e2a4c6e-8a0c-4e2a-9c4e-6a8c0e2a4c6e"},
-		Result: "Converted lead 0e2a4c6e-8a0c-4e2a-9c4e-6a8c0e2a4c6e.\n" +
-			"contact: youssef.kamal@mail.example (created) id=5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c3e\n" +
-			"company: Nile Couriers (created) id=e0a2c4e6-8a0c-4e2a-b4c6-e8a0c2e4a6c8\n" +
-			"deal: Nile Couriers — website inquiry id=c4e6a8c0-2e4a-4c6e-8a0c-2e4a6c8e0a2c (the message is its first activity)\n",
+		Result: `{"ok":true,"lead":{"id":"0e2a4c6e-8a0c-4e2a-9c4e-6a8c0e2a4c6e","status":"converted", "...":"..."},` +
+			`"contact_id":"5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c3e","contact_created":true,` +
+			`"company_id":"e0a2c4e6-8a0c-4e2a-b4c6-e8a0c2e4a6c8","company_created":true,"free_mail":false,` +
+			`"deal_id":"c4e6a8c0-2e4a-4c6e-8a0c-2e4a6c8e0a2c"}`,
 	},
 }
 

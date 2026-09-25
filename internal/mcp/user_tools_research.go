@@ -194,7 +194,8 @@ func ResearchTools(engine *research.Engine) []Tool {
 			Name: "find_evidence",
 			Description: "Search the evidence every research run in this workspace collected, across runs: verbatim quotes (and, " +
 				"when a model extracted them, one-line claims) with their source URL, the company named, the signal reported, " +
-				"and dates. Filter by text, company (name or domain), signal type, source domain, run and date. Returns JSON.",
+				"and dates. Filter by text, company (name or domain), signal type, source domain, run and date. Newest first, " +
+				"a page at a time: total is how many match the filter; pass next_cursor back as cursor for more.",
 			Scope: "research:read",
 			InputSchema: schema(nil, map[string]any{
 				"q":           prop("string", "Words in the quote, claim, page title or company name."),
@@ -204,8 +205,8 @@ func ResearchTools(engine *research.Engine) []Tool {
 				"run_id":      prop("string", "Only this run's evidence."),
 				"since":       prop("string", "YYYY-MM-DD — published or captured on or after."),
 				"until":       prop("string", "YYYY-MM-DD — captured on or before."),
-				"limit":       prop("integer", "Default 25, at most 100."),
-				"offset":      prop("integer", "For the next page."),
+				"limit":       prop("integer", "Page size, default 25, at most 100."),
+				"cursor":      prop("string", "next_cursor from the previous answer"),
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, err := need(ctx)
@@ -221,7 +222,7 @@ func ResearchTools(engine *research.Engine) []Tool {
 					Since      string `json:"since"`
 					Until      string `json:"until"`
 					Limit      int    `json:"limit"`
-					Offset     int    `json:"offset"`
+					Cursor     string `json:"cursor"`
 				}
 				if err := bind(args, &in); err != nil {
 					return "", err
@@ -234,23 +235,24 @@ func ResearchTools(engine *research.Engine) []Tool {
 				if err != nil {
 					return "", err
 				}
-				page, err := research.FindEvidence(ctx, a.SQLDB, s.WorkspaceID, research.EvidenceQuery{Q: in.Q, Company: in.Company,
-					SignalType: in.SignalType, Domain: in.Domain, RunID: in.RunID, Since: since, Until: until, Limit: in.Limit, Offset: in.Offset})
+				page, err := research.FindEvidencePage(ctx, a.SQLDB, s.WorkspaceID, research.EvidenceQuery{Q: in.Q, Company: in.Company,
+					SignalType: in.SignalType, Domain: in.Domain, RunID: in.RunID, Since: since, Until: until, Limit: in.Limit, Cursor: in.Cursor})
 				if err != nil {
 					return "", err
 				}
-				return jsonResult(map[string]any{"count": len(page.Evidence), "total": page.Total, "limit": page.Limit,
-					"offset": page.Offset, "evidence": page.Evidence})
+				return jsonResult(map[string]any{"total": page.Total, "count": len(page.Evidence), "items": page.Evidence, "next_cursor": page.NextCursor})
 			},
 		},
 		{
 			Name: "list_company_suggestions",
 			Description: "Companies research found in its evidence, waiting for a person to review them — never added to the CRM on their own. " +
-				"Each carries its strongest evidence. status: suggested (default), accepted, dismissed, linked (already in the CRM).",
+				"Each carries its strongest evidence. status: suggested (default), accepted, dismissed, linked (already in the CRM). " +
+				"Strongest first, a page at a time: pass next_cursor back as cursor for more.",
 			Scope: "research:read",
 			InputSchema: schema(nil, map[string]any{
 				"status": map[string]any{"type": "string", "enum": []string{"suggested", "accepted", "dismissed", "linked"}},
-				"limit":  prop("integer", "Default 25."),
+				"limit":  prop("integer", "Page size, default 25, at most 100."),
+				"cursor": prop("string", "next_cursor from the previous answer"),
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, err := need(ctx)
@@ -260,15 +262,16 @@ func ResearchTools(engine *research.Engine) []Tool {
 				var in struct {
 					Status string `json:"status"`
 					Limit  int    `json:"limit"`
+					Cursor string `json:"cursor"`
 				}
 				if err := bind(args, &in); err != nil {
 					return "", err
 				}
-				list, total, err := research.ListSuggestions(ctx, a.SQLDB, s.WorkspaceID, in.Status, in.Limit)
+				page, err := research.ListSuggestionsPage(ctx, a.SQLDB, s.WorkspaceID, in.Status, in.Cursor, in.Limit)
 				if err != nil {
 					return "", err
 				}
-				return jsonResult(map[string]any{"total": total, "suggestions": list})
+				return jsonResult(map[string]any{"total": page.Total, "count": len(page.Suggestions), "items": page.Suggestions, "next_cursor": page.NextCursor})
 			},
 		},
 		{

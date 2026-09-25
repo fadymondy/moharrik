@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/notifications"
+	"github.com/fadymondy/moharrik/internal/paging"
 	"github.com/fadymondy/moharrik/internal/realtime"
 )
 
@@ -413,15 +415,17 @@ type EvidenceQuery struct {
 	Since      *time.Time
 	Until      *time.Time
 	Limit      int
-	Offset     int
+	Offset     int    // FindEvidence (offset mode / REST).
+	Cursor     string // FindEvidencePage (keyset mode / MCP's find_evidence).
 }
 
 // EvidencePage is one page of results.
 type EvidencePage struct {
-	Evidence []Evidence `json:"evidence"`
-	Total    int        `json:"total"`
-	Limit    int        `json:"limit"`
-	Offset   int        `json:"offset"`
+	Evidence   []Evidence `json:"evidence"`
+	Total      int        `json:"total"`
+	Limit      int        `json:"limit"`
+	Offset     int        `json:"offset"`
+	NextCursor string     `json:"next_cursor,omitempty" doc:"Set by FindEvidencePage; empty in offset mode."`
 }
 
 const evidenceColumns = `e.id, e.run_id, coalesce(r.topic, ''), coalesce(e.source_id, ''), e.kind, e.quote, e.claim,
@@ -439,22 +443,18 @@ func scanEvidence(row interface{ Scan(...any) error }) (Evidence, error) {
 	return e, err
 }
 
-// FindEvidence searches the workspace's evidence across every run. db is the
-// app pool and ctx carries the workspace; every clause names workspace_id too.
-func FindEvidence(ctx context.Context, db *sql.DB, ws string, q EvidenceQuery) (*EvidencePage, error) {
-	if q.Limit <= 0 || q.Limit > 100 {
-		q.Limit = 25
-	}
-	if q.Offset < 0 {
-		q.Offset = 0
-	}
-	args := []any{ws}
+// evidenceFilter builds find_evidence's WHERE clause and its args (starting
+// with $1 = workspace_id), and the ORDER BY a text search ranks by relevance
+// — shared by the offset-paged FindEvidence (REST) and the keyset-paged
+// FindEvidencePage (MCP's find_evidence, MH-603).
+func evidenceFilter(ws string, q EvidenceQuery) (clause string, args []any, order string) {
+	args = []any{ws}
 	add := func(v any) string {
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
 	}
 	where := []string{"e.workspace_id = $1"}
-	order := "e.captured_at DESC, e.confidence DESC"
+	order = "e.captured_at DESC, e.confidence DESC"
 	if s := strings.TrimSpace(q.Q); s != "" {
 		// Full text first (every word, any order), with a plain substring as the
 		// fallback for a fragment the tokenizer splits differently.
@@ -486,17 +486,32 @@ func FindEvidence(ctx context.Context, db *sql.DB, ws string, q EvidenceQuery) (
 	if q.Until != nil {
 		where = append(where, "e.captured_at <= "+add(*q.Until))
 	}
-	clause := strings.Join(where, " AND ")
+	clause = strings.Join(where, " AND ")
+	return
+}
+
+// FindEvidence searches the workspace's evidence across every run, offset-paged
+// (REST). db is the app pool and ctx carries the workspace; every clause names
+// workspace_id too.
+func FindEvidence(ctx context.Context, db *sql.DB, ws string, q EvidenceQuery) (*EvidencePage, error) {
+	if q.Limit <= 0 || q.Limit > 100 {
+		q.Limit = 25
+	}
+	if q.Offset < 0 {
+		q.Offset = 0
+	}
+	clause, args, order := evidenceFilter(ws, q)
 
 	out := &EvidencePage{Evidence: []Evidence{}, Limit: q.Limit, Offset: q.Offset}
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM research_evidence e WHERE `+clause, args...).Scan(&out.Total); err != nil {
 		return nil, err
 	}
+	args = append(args, q.Limit, q.Offset)
 	rows, err := db.QueryContext(ctx, `
 		SELECT `+evidenceColumns+`
 		FROM research_evidence e
 		LEFT JOIN research_runs r ON r.workspace_id = e.workspace_id AND r.id = e.run_id
-		WHERE `+clause+` ORDER BY `+order+` LIMIT `+add(q.Limit)+` OFFSET `+add(q.Offset), args...)
+		WHERE `+clause+` ORDER BY `+order+` LIMIT $`+strconv.Itoa(len(args)-1)+` OFFSET $`+strconv.Itoa(len(args)), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -509,6 +524,65 @@ func FindEvidence(ctx context.Context, db *sql.DB, ws string, q EvidenceQuery) (
 		out.Evidence = append(out.Evidence, e)
 	}
 	return out, rows.Err()
+}
+
+// FindEvidencePage is FindEvidence for callers that page by cursor (MH-603):
+// newest first, tiebroken on id so the order (and so the page boundary) stays
+// stable across pages even when two rows share a captured_at. The relevance
+// ranking a text search gets in offset mode is dropped here on purpose — a
+// rank-ordered page cannot be resumed by a keyset cursor, only a page built
+// from columns present on every row can.
+func FindEvidencePage(ctx context.Context, db *sql.DB, ws string, q EvidenceQuery) (*EvidencePage, error) {
+	limit, err := paging.Limit(q.Limit, 25, 100)
+	if err != nil {
+		return nil, err
+	}
+	cur, err := paging.Decode(q.Cursor, 2)
+	if err != nil {
+		return nil, err
+	}
+	clause, args, _ := evidenceFilter(ws, q)
+
+	out := &EvidencePage{Evidence: []Evidence{}, Limit: limit}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM research_evidence e WHERE `+clause, args...).Scan(&out.Total); err != nil {
+		return nil, err
+	}
+
+	if cur != nil {
+		ts, err := time.Parse(time.RFC3339Nano, cur[0])
+		if err != nil {
+			return nil, paging.ErrBadCursor
+		}
+		args = append(args, ts, cur[1])
+		n := len(args)
+		clause += ` AND (e.captured_at, e.id) < ($` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
+	}
+	args = append(args, limit+1)
+	rows, err := db.QueryContext(ctx, `
+		SELECT `+evidenceColumns+`
+		FROM research_evidence e
+		LEFT JOIN research_runs r ON r.workspace_id = e.workspace_id AND r.id = e.run_id
+		WHERE `+clause+` ORDER BY e.captured_at DESC, e.id DESC LIMIT $`+strconv.Itoa(len(args)), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		e, err := scanEvidence(rows)
+		if err != nil {
+			return nil, err
+		}
+		out.Evidence = append(out.Evidence, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out.Evidence) > limit {
+		out.Evidence = out.Evidence[:limit]
+		last := out.Evidence[limit-1]
+		out.NextCursor = paging.Encode(last.CapturedAt.UTC().Format(time.RFC3339Nano), last.ID)
+	}
+	return out, nil
 }
 
 func likeEscape(s string) string {

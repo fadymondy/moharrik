@@ -150,15 +150,23 @@ func TestListCapsAreGone(t *testing.T) {
 				t.Fatalf("list_campaigns: %d %v %s", code, isErr, text)
 			}
 			pages++
-			if !strings.HasPrefix(text, "Showing ") || !strings.Contains(text, " of 501 campaign(s)") {
-				t.Fatalf("the reply must state the total: %.120s", text)
+			var page struct {
+				Total      int              `json:"total"`
+				NextCursor string           `json:"next_cursor"`
+				Items      []map[string]any `json:"items"`
 			}
-			seen += strings.Count(text, "Caps campaign ")
-			i := strings.Index(text, "cursor=")
-			if i < 0 {
+			if err := json.Unmarshal([]byte(text), &page); err != nil || page.Total != 501 {
+				t.Fatalf("the reply must state the total: %v %.120s", err, text)
+			}
+			for _, c := range page.Items {
+				if subj, _ := c["subject"].(string); strings.HasPrefix(subj, "Caps campaign ") {
+					seen++
+				}
+			}
+			if page.NextCursor == "" {
 				break
 			}
-			cursor = strings.TrimSpace(text[i+len("cursor="):])
+			cursor = page.NextCursor
 		}
 		if seen != 501 || pages != 3 {
 			t.Errorf("MCP paged %d campaigns over %d pages, want 501 over 3", seen, pages)
