@@ -1,7 +1,10 @@
 package inbox
 
 import (
+	"errors"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/fadymondy/moharrik/internal/contacts"
 	"github.com/fadymondy/moharrik/internal/tenant"
@@ -224,5 +227,23 @@ func TestUpdateConversationLinkAttachesSenderIdentity(t *testing.T) {
 	}
 	if contactIDAfter != contactID {
 		t.Fatalf("after a second message, conversation.contact_id = %q, want it to stay %q (the manual link must not be overridden)", contactIDAfter, contactID)
+	}
+}
+
+// The "a contact needs some identity" rule is a deferred trigger now, not a
+// CHECK — but it must still fail as the check_violation named
+// contacts_identity_chk, which crm.linkErr turns into a 422 naming the rule
+// rather than a 500.
+func TestContactWithNoIdentityIsACheckViolation(t *testing.T) {
+	a := testApp(t)
+	f := newMailboxWorkspace(t, a)
+
+	_, err := a.SQLDB.ExecContext(f.ctx, `INSERT INTO contacts (workspace_id, name) VALUES ($1, 'Nobody')`, f.wsID)
+	var pg *pgconn.PgError
+	if !errors.As(err, &pg) {
+		t.Fatalf("a contact with no identity was stored (err %v)", err)
+	}
+	if pg.Code != "23514" || pg.ConstraintName != "contacts_identity_chk" {
+		t.Fatalf("got %s on %q, want 23514 on contacts_identity_chk", pg.Code, pg.ConstraintName)
 	}
 }

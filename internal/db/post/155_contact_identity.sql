@@ -48,7 +48,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS contacts_workspace_phone_uniq ON contacts (wor
 CREATE UNIQUE INDEX IF NOT EXISTS contacts_workspace_handle_uniq ON contacts (workspace_id, handle) WHERE handle <> '';
 
 -- The "needs at least one identity" rule itself now lives in
--- 167_channel_contact_identity.sql as a deferred constraint trigger, not a
+-- 170_channel_contact_identity.sql as a deferred constraint trigger, not a
 -- plain CHECK: a bare CHECK cannot see contact_identities, so it rejected the
 -- one thing MH-583 needs — a contact created from a Telegram/Slack/Discord
 -- identity alone, with no legacy email/phone/handle. Since every file in this

@@ -29,7 +29,10 @@ BEGIN
     ) THEN
         RETURN NEW;
     END IF;
-    RAISE EXCEPTION 'a contact needs an email, a phone number, a handle or another identity';
+    -- Raised as the check_violation the old CHECK was, under its name, so
+    -- crm.linkErr keeps answering 422 with the rule instead of a 500.
+    RAISE EXCEPTION 'a contact needs an email, a phone number, a handle or another identity'
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'contacts_identity_chk';
 END;
 $$ LANGUAGE plpgsql;
 
