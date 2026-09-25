@@ -246,7 +246,7 @@ func NotificationTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				return jsonResult(map[string]any{"marked": n})
+				return jsonResult(map[string]any{"marked": n, "count": n})
 			},
 		},
 		{

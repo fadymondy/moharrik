@@ -423,7 +423,7 @@ func ResearchTools(engine *research.Engine) []Tool {
 				if err := research.DeleteSchedule(ctx, a.SQLDB, s.WorkspaceID, id); err != nil {
 					return "", err
 				}
-				return jsonResult(map[string]any{"ok": true, "deleted": id})
+				return jsonResult(map[string]any{"ok": true, "deleted": true, "id": id})
 			},
 		},
 		{

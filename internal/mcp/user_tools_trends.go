@@ -48,7 +48,7 @@ func newsPage(res *trends.NewsPage) (string, error) {
 		list = append(list, newsView(n))
 	}
 	return jsonResult(map[string]any{
-		"collected_total": res.Total, "count": len(list), "items": list,
+		"collected_total": res.Total, "total": res.Total, "count": len(list), "items": list,
 		"has_more": res.HasMore, "next_cursor": res.NextCursor, "note": untrusted,
 	})
 }

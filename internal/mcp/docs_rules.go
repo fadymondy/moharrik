@@ -133,7 +133,9 @@ var argsARRules = map[string]string{
 	"schedule trigger only, an IANA name":                                    "لمحفّز schedule فقط، اسم منطقة زمنية من IANA",
 	`The sample's fields, e.g. {"severity":"error","source_kind":"sentry"}.`: `حقول العيّنة، مثل {"severity":"error","source_kind":"sentry"}`,
 	"The record the sample is about, for once-per-record rules.":             "السجل الذي تدور العيّنة حوله، للقواعد التي تعمل مرة واحدة لكل سجل",
-	"Leave out tests.":            "استبعد الاختبارات",
-	"next from the previous page": "قيمة next من الصفحة السابقة",
-	"1–100, default 50":           "من 1 إلى 100، الافتراضي 50",
+	"Leave out tests.":                                    "استبعد الاختبارات",
+	"next from the previous page":                         "قيمة next من الصفحة السابقة",
+	"next (or next_cursor) from the previous page":        "قيمة next (أو next_cursor) من الصفحة السابقة",
+	"Same as before — next_cursor from the previous page": "نفس before — قيمة next_cursor من الصفحة السابقة",
+	"1–100, default 50":                                   "من 1 إلى 100، الافتراضي 50",
 }
