@@ -32,7 +32,8 @@ func ICPTools() []Tool {
 				"with a weight, and a weight per signal (open_deal, won_deal, lost_deal, inbound_lead, conversation, subscribed, " +
 				"whatsapp_opt_in, recent_activity). Every contact and company is scored 0-100 against it: score = the sum of " +
 				"weight × how much of each criterion is present, over the sum of the positive weights. configured is false while the " +
-				"defaults are in use; scored says how many contacts have a score.",
+				"defaults are in use; scored says how many contacts have a score. Prospect discovery (capability_profile, MH-514) reads " +
+				"its industries/sizes/regions/keywords from here too, so a change here also reaches it.",
 			Scope:       "contacts:read",
 			InputSchema: schema(nil, map[string]any{}),
 			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {

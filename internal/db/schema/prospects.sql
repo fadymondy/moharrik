@@ -8,13 +8,26 @@
 -- The workspace's ideal customer, as discovery searches for and scores it.
 -- One per workspace. (MH-395's lifecycle/ICP scoring of CONTACTS is a
 -- separate card; this one scores companies research found.)
+--
+-- MH-514: the *who* — industries, company sizes, regions, keywords — moved to
+-- the workspace's CRM ICP (icp_profiles, internal/icp) so it is described
+-- once. The link to icp_profiles is logical (same workspace_id), not a
+-- schema-level foreign key — see internal/db/post/514_prospect_icp_link.sql
+-- for why a hard FK would force an empty icp_profiles row into existence on
+-- prospect discovery's first read, wrongly flipping icp_profiles'
+-- "configured" flag on. internal/prospects.GetProfile/SaveProfile read/write
+-- the who through internal/icp, not the columns below. industries/keywords/
+-- regions are kept here — a rename, not a drop, so the pre-514 history is
+-- not lost — but nothing reads them anymore; do not add a new reader.
 CREATE TABLE IF NOT EXISTS prospect_profiles (
     workspace_id      text        PRIMARY KEY,
     -- What the workspace sells, in a sentence or two: the outreach draft's pitch.
     offer             text        NOT NULL DEFAULT '',
+    -- Dead since MH-514: read from icp_profiles.criteria instead.
     industries        text[]      NOT NULL DEFAULT '{}',
     keywords          text[]      NOT NULL DEFAULT '{}',
     regions           text[]      NOT NULL DEFAULT '{}',
+    -- Still live: discovery-only, not part of the CRM ICP.
     exclude_keywords  text[]      NOT NULL DEFAULT '{}',
     -- signal type -> weight 0..3 (0 ignores the signal).
     signal_weights    jsonb       NOT NULL DEFAULT '{}',

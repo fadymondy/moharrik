@@ -2,12 +2,14 @@
 
 import { useEffect, useState, type FormEvent } from "react"
 import { LoaderCircleIcon } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 
 import { PickSelect } from "@/components/crm/shared"
 import { useFormatDateTime } from "@/components/research/shared"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,15 +29,12 @@ const join = (l: string[]) => l.join(", ")
  * against. Saving rescores the prospects waiting for review.
  */
 export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSaved: () => void }) {
-  const { t, formatNumber } = useTranslations()
+  const { t, locale, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const fmt = useFormatDateTime()
   const canEdit = ws.can("research:run")
   const p = data.profile
   const [offer, setOffer] = useState(p.offer)
-  const [industries, setIndustries] = useState(join(p.industries))
-  const [keywords, setKeywords] = useState(join(p.keywords))
-  const [regions, setRegions] = useState(join(p.regions))
   const [exclude, setExclude] = useState(join(p.exclude_keywords))
   const [queries, setQueries] = useState(p.queries.join("\n"))
   const [weights, setWeights] = useState<Record<string, string>>(() => Object.fromEntries(SIGNAL_TYPES.map((s) => [s, String(p.signal_weights[s] ?? 1)])))
@@ -54,9 +53,6 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
         method: "PUT",
         json: {
           offer: offer.trim(),
-          industries: split(industries),
-          keywords: split(keywords),
-          regions: split(regions),
           exclude_keywords: split(exclude),
           queries: queries
             .split("\n")
@@ -88,25 +84,53 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
             <Textarea id="pp-offer" dir="auto" rows={2} maxLength={600} value={offer} onChange={(e) => setOffer(e.target.value)} />
             <FieldDescription>{t("prospects.offerHint")}</FieldDescription>
           </Field>
-          <FieldGroup className="sm:grid sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="pp-ind">{t("prospects.industries")}</FieldLabel>
-              <Input id="pp-ind" dir="auto" value={industries} onChange={(e) => setIndustries(e.target.value)} placeholder="fintech, logistics" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="pp-kw">{t("prospects.keywords")}</FieldLabel>
-              <Input id="pp-kw" dir="auto" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="payments, e-commerce" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="pp-reg">{t("prospects.regions")}</FieldLabel>
-              <Input id="pp-reg" dir="auto" value={regions} onChange={(e) => setRegions(e.target.value)} placeholder="Egypt, Saudi Arabia" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="pp-ex">{t("prospects.exclude")}</FieldLabel>
-              <Input id="pp-ex" dir="auto" value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="crypto" />
-            </Field>
-          </FieldGroup>
-          <p className="-mt-2 text-xs text-grid-muted">{t("prospects.listHint")}</p>
+          <div data-icp-who="" className="rounded-md border border-line p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">{t("prospects.icpWho")}</p>
+              <Link
+                href={`/${locale}/w/${ws.slug}/settings/icp`}
+                className="text-xs text-grid-brand hover:underline"
+                data-action="edit-icp"
+              >
+                {t("prospects.icpEdit")}
+              </Link>
+            </div>
+            <p className="mt-1 text-xs text-grid-muted">{t("prospects.icpWhoHint")}</p>
+            {p.icp_configured ? (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {(
+                  [
+                    ["industries", p.industries],
+                    ["sizes", p.sizes],
+                    ["regions", p.regions],
+                    ["keywords", p.keywords],
+                  ] as const
+                ).map(([key, values]) => (
+                  <div key={key}>
+                    <p className="text-xs font-medium text-grid-muted">{t(`prospects.${key}`)}</p>
+                    <div className="mt-1 flex flex-wrap gap-1" dir="auto">
+                      {values.length ? (
+                        values.map((v) => (
+                          <Badge key={v} variant="secondary">
+                            {v}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-grid-muted">{t("prospects.icpEmpty")}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-grid-warn-text">{t("prospects.icpNotConfigured")}</p>
+            )}
+          </div>
+          <Field>
+            <FieldLabel htmlFor="pp-ex">{t("prospects.exclude")}</FieldLabel>
+            <Input id="pp-ex" dir="auto" value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="crypto" />
+            <FieldDescription>{t("prospects.listHint")}</FieldDescription>
+          </Field>
           <Field>
             <FieldLabel htmlFor="pp-q">{t("prospects.queries")}</FieldLabel>
             <Textarea id="pp-q" dir="auto" rows={3} value={queries} onChange={(e) => setQueries(e.target.value)} />

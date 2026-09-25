@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,10 +16,28 @@ import (
 	"github.com/togo-framework/togo"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/db/migrate"
+	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/research"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/testdb"
 )
+
+// setICP sets the workspace's CRM ICP industries/regions/keywords (MH-514):
+// prospect discovery reads its "who" from here now, not from
+// ProspectProfileInput.
+func setICP(t *testing.T, f *fixture, industries, regions, keywords []string) {
+	t.Helper()
+	p := icp.Default()
+	p.Industries.Values, p.Regions.Values, p.Keywords.Values = industries, regions, keywords
+	n, err := p.Normalize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := icp.SaveProfile(f.ctx, f.a.SQLDB, f.ws, f.user, n); err != nil {
+		t.Fatal(err)
+	}
+}
 
 /*
 Prospect discovery against a real database (MH-397): a workspace with a
@@ -145,7 +164,8 @@ func (f *fixture) settle(t *testing.T, runID string) {
 func TestScheduledDiscoveryScoresReviewsAndDrafts(t *testing.T) {
 	f := newFixture(t)
 	on, industries, regions, offer := true, []string{"fintech"}, []string{"Egypt"}, "We build payment integrations for fintechs."
-	if _, err := SaveProfile(f.ctx, f.a.SQLDB, f.ws, f.user, ProspectProfileInput{Offer: &offer, Industries: &industries, Regions: &regions, Enabled: &on}); err != nil {
+	setICP(t, f, industries, regions, nil)
+	if _, err := SaveProfile(f.ctx, f.a.SQLDB, f.ws, f.user, ProspectProfileInput{Offer: &offer, Enabled: &on}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := research.SetBudget(f.ctx, f.a.SQLDB, f.ws, 1); err != nil {
@@ -297,12 +317,156 @@ func TestDiscoveryNeedsAProfileAndSearch(t *testing.T) {
 	if _, err := SaveProfile(f.ctx, f.a.SQLDB, f.ws, f.user, ProspectProfileInput{Enabled: &on}); err == nil {
 		t.Error("discovery turned on with nothing to look for")
 	}
-	kw := []string{"fintech"}
-	if _, err := SaveProfile(f.ctx, f.a.SQLDB, f.ws, f.user, ProspectProfileInput{Keywords: &kw}); err != nil {
-		t.Fatal(err)
-	}
+	setICP(t, f, nil, nil, []string{"fintech"})
 	noSearch := &research.Engine{Read: f.engine.Read, Log: f.engine.Log}
 	if _, _, err := Discover(f.ctx, f.a, noSearch, f.ws, f.user, false); err != research.ErrNoSearch {
 		t.Errorf("no search configured: %v", err)
 	}
+}
+
+// TestBackfillSeedsICPFromLegacyProspectProfile is the MH-514 migration's own
+// job: a workspace stuck in the pre-514 shape — industries/regions/keywords
+// written on prospect_profiles, no icp_profiles row at all — gets an
+// icp_profiles row built from those columns the next time the migration
+// runs, so it keeps finding what it already found. internal/db/post/514_
+// prospect_icp_link.sql only backfills WHERE NOT EXISTS, so this simulates
+// the pre-514 state on an already-migrated fixture database and re-runs
+// migrate.Run, which is idempotent and safe to call twice.
+func TestBackfillSeedsICPFromLegacyProspectProfile(t *testing.T) {
+	f := newFixture(t)
+	// A prospect_profiles row must exist before it can be updated — GetProfile
+	// creates one lazily (ensureProfile), like a workspace's first visit to
+	// the discovery page would.
+	if _, err := GetProfile(f.ctx, f.a.SQLDB, f.ws); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.SysDB.Exec(`UPDATE prospect_profiles SET industries = '{fintech,retail}', regions = '{Egypt}', keywords = '{payments}' WHERE workspace_id = $1`, f.ws); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.SysDB.Exec(`DELETE FROM icp_profiles WHERE workspace_id = $1`, f.ws); err != nil {
+		t.Fatal(err)
+	}
+
+	appURL := os.Getenv("APP_DATABASE_URL")
+	if appURL == "" {
+		t.Fatal("APP_DATABASE_URL not set by testApp")
+	}
+	if err := migrate.Run(context.Background(), f.a.SysDB, appURL, "../..", func(string, ...any) {}); err != nil {
+		t.Fatal(err)
+	}
+
+	sp, err := icp.LoadProfile(f.ctx, f.a.SQLDB, f.ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sp.Configured {
+		t.Fatal("backfill: expected an icp_profiles row to now exist for the workspace")
+	}
+	if got := sp.Profile.Industries.Values; !equalSet(got, []string{"fintech", "retail"}) {
+		t.Errorf("industries: %v", got)
+	}
+	if got := sp.Profile.Regions.Values; !equalSet(got, []string{"Egypt"}) {
+		t.Errorf("regions: %v", got)
+	}
+	if got := sp.Profile.Keywords.Values; !equalSet(got, []string{"payments"}) {
+		t.Errorf("keywords: %v", got)
+	}
+
+	// Re-running the migration again must not clobber the ICP a person might
+	// have since customized: the backfill only fires WHERE NOT EXISTS.
+	custom := icp.Default()
+	custom.Industries.Values = []string{"logistics"}
+	customN, err := custom.Normalize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := icp.SaveProfile(f.ctx, f.a.SQLDB, f.ws, f.user, customN); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrate.Run(context.Background(), f.a.SysDB, appURL, "../..", func(string, ...any) {}); err != nil {
+		t.Fatal(err)
+	}
+	sp2, err := icp.LoadProfile(f.ctx, f.a.SQLDB, f.ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !equalSet(sp2.Profile.Industries.Values, []string{"logistics"}) {
+		t.Errorf("a second migration run overwrote the customized ICP: %v", sp2.Profile.Industries.Values)
+	}
+}
+
+// TestEditingICPChangesDiscoverysView is the other half of MH-514: discovery
+// no longer keeps its own copy of the who, it reads the CRM ICP live, so
+// changing the ICP on its own settings page — never touching
+// prospect_profiles — changes what GetProfile reports and what discovery
+// would search and score against.
+func TestEditingICPChangesDiscoverysView(t *testing.T) {
+	f := newFixture(t)
+	before, err := GetProfile(f.ctx, f.a.SQLDB, f.ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.ICPConfigured || len(before.Industries) != 0 {
+		t.Fatalf("a fresh workspace should read the ICP default: %+v", before)
+	}
+
+	setICP(t, f, []string{"logistics", "retail"}, []string{"Egypt", "UAE"}, []string{"fleet", "warehouse"})
+
+	after, err := GetProfile(f.ctx, f.a.SQLDB, f.ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ICPConfigured {
+		t.Error("discovery did not see the ICP as configured")
+	}
+	if !equalSet(after.Industries, []string{"logistics", "retail"}) {
+		t.Errorf("industries: %v", after.Industries)
+	}
+	if !equalSet(after.Regions, []string{"Egypt", "UAE"}) {
+		t.Errorf("regions: %v", after.Regions)
+	}
+	if !equalSet(after.Keywords, []string{"fleet", "warehouse"}) {
+		t.Errorf("keywords: %v", after.Keywords)
+	}
+	if !after.Configured {
+		t.Error("discovery should now consider itself configured (industries/keywords came from the ICP)")
+	}
+	found := false
+	for _, q := range after.EffectiveQueries {
+		if strings.Contains(q, "logistics") || strings.Contains(q, "retail") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("effective queries did not pick up the new ICP industries: %v", after.EffectiveQueries)
+	}
+
+	// The change did not touch prospect_profiles' own (dead) columns.
+	var industriesText string
+	if err := f.a.SysDB.QueryRow(`SELECT industries::text FROM prospect_profiles WHERE workspace_id = $1`, f.ws).Scan(&industriesText); err != nil {
+		t.Fatal(err)
+	}
+	if industries := pgList(industriesText); len(industries) != 0 {
+		t.Errorf("SaveProfile via the ICP must not write prospect_profiles.industries, got %v", industries)
+	}
+}
+
+// equalSet compares two string slices ignoring order.
+func equalSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	ma := map[string]int{}
+	for _, s := range a {
+		ma[s]++
+	}
+	for _, s := range b {
+		ma[s]--
+	}
+	for _, n := range ma {
+		if n != 0 {
+			return false
+		}
+	}
+	return true
 }
