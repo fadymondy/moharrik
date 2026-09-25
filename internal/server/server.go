@@ -311,6 +311,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	leads.Register(api, a) // the public inquiry endpoint + the Leads API (MH-390)
 	crm.Register(api, a)
 	crm.RegisterAvatars(api, a)
+	crm.RegisterProviderPhotos(api, a) // MH-602: WhatsApp-cached photos, signed like an uploaded avatar
 	notifications.Register(api, a)
 	inbox.Register(api, a)
 	inbox.RegisterMailbox(api, a)

@@ -139,6 +139,16 @@ func classify(r *http.Request) tier {
 	if strings.HasPrefix(path, "/api/contact-avatars/") {
 		return tierPublic
 	}
+	// Downloading a WhatsApp-cached provider photo (MH-602 defect 2): the same
+	// signed-URL shape as /api/contact-avatars/ just above, and for the same
+	// reason — a bare <img src> in the inbox list/detail carries no cookies or
+	// headers, so the ws/exp/sig query params (crm.verifyProviderPhotoURL) are
+	// the whole authorization. Forgetting this line was caught by the manual
+	// browser check: the handler's own signature check never even ran, because
+	// the workspace tier's session requirement rejected the request first.
+	if strings.HasPrefix(path, "/api/provider-photos/") {
+		return tierPublic
+	}
 	// A visitor typing their address into an embedded subscribe form: no
 	// session, no X-Workspace-ID — the form key in the path plus the Origin
 	// allow-list are the authorization (internal/marketing/subscribe_routes.go),

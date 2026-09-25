@@ -40,7 +40,11 @@ const conversationSelect = `
 	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id),
 	       c.customer_phone, c.contact_link, ct.name, ct.email, ct.company_id, co.name, c.deal_id, d.title,
 	       c.snoozed_until, c.closed_at, c.mailbox_id, c.customer_handle, c.source_channel_id,
-	       ct.photo_attachment_id, ct.photo_url, c.photo_url
+	       ct.photo_attachment_id,
+	       (ct.photo_url LIKE 'data:%'), CASE WHEN ct.photo_url LIKE 'data:%' THEN '' ELSE coalesce(ct.photo_url, '') END,
+	       ct.photo_fetched_at,
+	       (c.photo_url LIKE 'data:%'), CASE WHEN c.photo_url LIKE 'data:%' THEN '' ELSE coalesce(c.photo_url, '') END,
+	       c.photo_fetched_at
 	FROM conversations c
 	LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
 	LEFT JOIN companies co ON co.workspace_id = ct.workspace_id AND co.id = ct.company_id
@@ -50,22 +54,46 @@ const conversationSelect = `
 func scanConversation(wsID string, row interface{ Scan(...any) error }) (ConversationOut, error) {
 	var c ConversationOut
 	var contactID, assignee, ctName, ctEmail, companyID, coName, dealID, dealTitle, mailboxID, sourceChannelID sql.NullString
-	var ctPhotoAttachmentID, ctPhotoURL, ownPhotoURL sql.NullString
+	var ctPhotoAttachmentID sql.NullString
+	// MH-602 defect 2: never select the photo_url blob itself in this list —
+	// a bool (from LIKE, not the value) plus any non-data: external URL, so
+	// the megabytes of base64 stay in Postgres instead of the response body.
+	var ctHasProviderPhoto, hasProviderPhoto sql.NullBool
+	var ctExternalPhotoURL, ownExternalPhotoURL sql.NullString
+	var ctPhotoFetchedAt, ownPhotoFetchedAt sql.NullTime
 	var snoozed, closed sql.NullTime
 	var preview string
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
 		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount,
 		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle, &snoozed, &closed,
 		&mailboxID, &c.CustomerHandle, &sourceChannelID,
-		&ctPhotoAttachmentID, &ctPhotoURL, &ownPhotoURL); err != nil {
+		&ctPhotoAttachmentID,
+		&ctHasProviderPhoto, &ctExternalPhotoURL, &ctPhotoFetchedAt,
+		&hasProviderPhoto, &ownExternalPhotoURL, &ownPhotoFetchedAt); err != nil {
 		return c, err
 	}
 	// MH-602: a linked contact's photo (uploaded or provider) wins; an
 	// unlinked WhatsApp conversation falls back to its OWN cached photo.
+	// AvatarURLLite never sees the actual data: URI — just whether one
+	// exists — and turns that into a signed /api/provider-photos/ link.
 	if contactID.Valid {
-		c.AvatarURL = crm.AvatarURL(wsID, ctPhotoAttachmentID.String, ctPhotoURL.String)
+		c.AvatarURL = crm.AvatarURLLite(wsID, "contact", contactID.String, ctPhotoAttachmentID.String, ctHasProviderPhoto.Bool, ctExternalPhotoURL.String)
 	} else {
-		c.AvatarURL = ownPhotoURL.String
+		c.AvatarURL = crm.AvatarURLLite(wsID, "conversation", c.ID, "", hasProviderPhoto.Bool, ownExternalPhotoURL.String)
+	}
+	// MH-602 defect 1: a WhatsApp row whose relevant photo (the linked
+	// contact's, else the conversation's own) has never been fetched or is
+	// past the refresh window gets queued here — the SAME select already
+	// read photo_fetched_at, so this costs nothing extra. ListConversations
+	// and GetConversation are what actually fire it, bounded and deduped.
+	if c.Channel == "whatsapp" {
+		if contactID.Valid {
+			if photoIsStale(ctPhotoFetchedAt) {
+				c.refreshPhoto = &photoRefreshCandidate{kind: "contact", id: contactID.String, phone: c.CustomerPhone}
+			}
+		} else if photoIsStale(ownPhotoFetchedAt) {
+			c.refreshPhoto = &photoRefreshCandidate{kind: "conversation", id: c.ID, phone: c.CustomerPhone}
+		}
 	}
 	if sourceChannelID.Valid {
 		c.SourceChannelID = &sourceChannelID.String

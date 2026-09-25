@@ -8,7 +8,7 @@ a contact when the conversation is linked, the conversation itself when it is
 not (so an unlinked customer's photo shows too).
 
 Both success AND failure are cached (photo_fetch_status), and neither is
-retried inside photoRefreshWindow — a customer with genuinely no photo, or a
+retried inside PhotoRefreshWindow — a customer with genuinely no photo, or a
 workspace whose Evolution is down, must not be re-fetched on every inbound
 message. Callers MUST run these in a goroutine: each one makes up to two
 outbound network calls and this package has no business blocking a webhook
@@ -28,7 +28,11 @@ import (
 )
 
 const (
-	photoRefreshWindow = 7 * 24 * time.Hour
+	// PhotoRefreshWindow is exported so internal/inbox can decide, from the
+	// same list/detail query that already read photo_fetched_at, whether a
+	// row is stale enough to queue for a background fetch (MH-602 defect 1) —
+	// without duplicating the window in two packages.
+	PhotoRefreshWindow = 7 * 24 * time.Hour
 	photoMaxBytes      = 2 << 20 // 2MB, the same ceiling as an uploaded avatar
 )
 
@@ -79,7 +83,7 @@ func fetchPhoto(ctx context.Context, cfg Config, link *Link, number string) (str
 }
 
 // RefreshContactPhoto fetches and caches a contact's WhatsApp photo, at most
-// once every photoRefreshWindow. Safe to call on every inbound message: it
+// once every PhotoRefreshWindow. Safe to call on every inbound message: it
 // is a no-op read until the window has passed.
 func RefreshContactPhoto(ctx context.Context, db *sql.DB, cfg Config, link *Link, workspaceID, contactID, number string) {
 	var fetchedAt sql.NullTime
@@ -88,7 +92,7 @@ func RefreshContactPhoto(ctx context.Context, db *sql.DB, cfg Config, link *Link
 		workspaceID, contactID).Scan(&fetchedAt); err != nil {
 		return
 	}
-	if fetchedAt.Valid && time.Since(fetchedAt.Time) < photoRefreshWindow {
+	if fetchedAt.Valid && time.Since(fetchedAt.Time) < PhotoRefreshWindow {
 		return
 	}
 	dataURL, err := fetchPhoto(ctx, cfg, link, number)
@@ -111,7 +115,7 @@ func RefreshConversationPhoto(ctx context.Context, db *sql.DB, cfg Config, link 
 		workspaceID, conversationID).Scan(&fetchedAt); err != nil {
 		return
 	}
-	if fetchedAt.Valid && time.Since(fetchedAt.Time) < photoRefreshWindow {
+	if fetchedAt.Valid && time.Since(fetchedAt.Time) < PhotoRefreshWindow {
 		return
 	}
 	dataURL, err := fetchPhoto(ctx, cfg, link, number)
