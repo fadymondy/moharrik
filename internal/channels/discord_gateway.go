@@ -3,6 +3,7 @@ package channels
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -199,7 +200,14 @@ func runGateway(ctx context.Context, workspaceID, id, token, allowedGuilds, allo
 			return
 		}
 		if err != nil {
-			recordDiscordError(workspaceID, id, err.Error())
+			msg, fatal := gatewayErrorReason(err)
+			recordDiscordError(workspaceID, id, msg)
+			// Discord will refuse again until someone changes a setting (a
+			// token, an intent): retry slowly rather than hammer it, so the
+			// connection still comes up by itself once the switch is flipped.
+			if fatal && backoff < 60*time.Second {
+				backoff = 60 * time.Second
+			}
 		}
 		setGatewayState(workspaceID, id, "disconnected")
 		select {
@@ -211,6 +219,29 @@ func runGateway(ctx context.Context, workspaceID, id, token, allowedGuilds, allo
 			backoff *= 2
 		}
 	}
+}
+
+// gatewayErrorReason turns a gateway failure into what the connection card
+// shows (MH-593): for the close codes that only a change on Discord's side can
+// fix, the reason in plain words and exactly where to fix it, instead of
+// "websocket: close 4014: Disallowed intent(s)". fatal reports that retrying
+// unchanged cannot succeed. The texts fit last_error's 300 characters.
+func gatewayErrorReason(err error) (msg string, fatal bool) {
+	var ce *websocket.CloseError
+	if !errors.As(err, &ce) {
+		return err.Error(), false
+	}
+	switch ce.Code {
+	case 4004:
+		return "Discord refused the bot token (4004). Reset the token in the Developer Portal under Bot, paste the new one here and save.", true
+	case 4013:
+		return "Discord refused the requested intents as invalid (4013). This is a Moharrik bug; please report it.", true
+	case 4014:
+		return "Discord refused the Message Content intent (4014), so no messages can arrive. In the Developer Portal open your app, go to Bot, turn on Message Content Intent under Privileged Gateway Intents and save. Moharrik reconnects within a minute.", true
+	case 4010, 4011, 4012:
+		return fmt.Sprintf("Discord closed the connection (%d: %s). Moharrik will keep retrying.", ce.Code, ce.Text), true
+	}
+	return fmt.Sprintf("Discord closed the connection (%d: %s). Reconnecting.", ce.Code, ce.Text), false
 }
 
 // connectOnce runs one connection attempt to completion (until the socket
