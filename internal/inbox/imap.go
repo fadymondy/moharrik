@@ -404,8 +404,22 @@ func File(ctx context.Context, a *app.App, workspaceID, mailboxID string, e *Ema
 	}
 	// A sender the CRM already knows by this exact address is linked to the
 	// thread (MH-379). Best effort: the message is filed either way.
+	var linkedContactID string
 	if err := autoLink(sctx, db, workspaceID, convID); err != nil {
 		a.Log.Warn("could not match an email to a contact", "workspace", workspaceID, "err", err)
+	} else {
+		_ = db.QueryRowContext(sctx, `SELECT contact_id FROM conversations WHERE workspace_id = $1 AND id = $2`,
+			workspaceID, convID).Scan(&linkedContactID)
+	}
+	// MH-588: Gravatar is the last-resort photo source (task spec: "only when
+	// nothing else exists") — every other channel's fetcher runs on ITS OWN
+	// inbound message, so an address that also messages on WhatsApp or has an
+	// uploaded photo keeps that one; queueGravatarRefresh below only ever
+	// writes when photo_source is still empty.
+	if linkedContactID != "" {
+		queueGravatarRefresh(a, workspaceID, "contact", linkedContactID, e.From)
+	} else {
+		queueGravatarRefresh(a, workspaceID, "conversation", convID, e.From)
 	}
 	// Email used to arrive in silence: nothing published, so an open inbox did
 	// not even refresh. Now it is announced like every other channel — once,

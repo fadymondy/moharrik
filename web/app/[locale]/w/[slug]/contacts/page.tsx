@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { SectionHeader } from "@/components/public-frame"
+import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { useDebounced } from "@/components/crm/contact-picker"
@@ -721,7 +722,8 @@ function ContactsTable({ items, canWrite, onChange }: { items: Contact[]; canWri
             return (
               <TableRow key={c.id} data-contact-row={contactIdentity(c)}>
                 <TableCell className="ps-6">
-                  <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
+                  <Link className="flex items-center gap-2 hover:underline" href={`${base}/contacts/${c.id}`}>
+                    <PersonAvatar id={c.id} name={c.name || contactIdentity(c)} photoUrl={c.avatar_url} size="sm" className="shrink-0" />
                     <Ltr>{contactIdentity(c)}</Ltr>
                   </Link>
                 </TableCell>

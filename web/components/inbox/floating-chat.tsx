@@ -8,9 +8,9 @@ import { toast } from "sonner"
 
 import { useMemberNames } from "@/components/crm/shared"
 import { hrefFor } from "@/components/alerts/notification-bell"
+import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { Bdi, BdiBlock } from "@/components/bidi"
 import { ChatThread } from "@/components/inbox/chat-thread"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorState, LoadingRows } from "@/components/states"
@@ -41,11 +41,6 @@ environment — catalog-listed, not installable/viewable here — so this is
 hand-built from Sheet/Avatar/ScrollArea/Badge, the same primitives the bell
 above already uses for its own popover.
 */
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  return (parts.length > 1 ? parts[0][0] + parts[1][0] : (parts[0] ?? "?").slice(0, 2)).toUpperCase()
-}
 
 function useRelative() {
   const { locale } = useTranslations()
@@ -82,9 +77,7 @@ function ConversationList({ items, onOpen }: { items: BellItem[]; onOpen: (id: s
               onClick={() => onOpen(item.id)}
               className="flex w-full items-start gap-3 px-4 py-3 text-start transition-colors hover:bg-grid-soft"
             >
-              <Avatar className="size-9 shrink-0">
-                <AvatarFallback className="text-xs">{initials(name)}</AvatarFallback>
-              </Avatar>
+              <PersonAvatar id={item.id} name={name} photoUrl={item.avatar_url} className="size-9 shrink-0" />
               <div className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <BdiBlock className="truncate text-sm font-medium">{name}</BdiBlock>

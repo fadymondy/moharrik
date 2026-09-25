@@ -2,23 +2,16 @@ package crm
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
-	"errors"
-	"fmt"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/photourl"
 )
 
 /*
@@ -45,10 +38,7 @@ text in a JSON field) — the upload endpoint below follows that same shape:
 base64 bytes in a JSON body, not a multipart form.
 */
 
-const (
-	avatarURLTTL  = 6 * time.Hour
-	avatarMaxSize = 2 << 20 // 2MB, per the task brief
-)
+const avatarMaxSize = 2 << 20 // 2MB, per the task brief
 
 var avatarContentTypes = map[string]bool{
 	"image/png":  true,
@@ -60,10 +50,14 @@ var avatarContentTypes = map[string]bool{
 // (internal/whatsapp/avatar.go's RefreshContactPhoto/RefreshConversationPhoto):
 // a linked contact, or an unlinked conversation. The map value is the table
 // the signed provider-photo endpoint re-reads photo_url from.
-var providerPhotoKinds = map[string]string{
-	"contact":      "contacts",
-	"conversation": "conversations",
-}
+var providerPhotoKinds = photourl.ProviderPhotoKinds
+
+// AvatarURLLite, AvatarURL, ContactAvatarURL and ProviderPhotoURL are thin
+// re-exports of internal/photourl (MH-588): that package holds the actual,
+// dependency-free signing logic now, so internal/marketing (the contacts
+// list) can build the same signed URLs without importing internal/crm, which
+// would cycle back (internal/crm already imports internal/marketing). Every
+// existing caller here (internal/inbox, internal/alerts) is untouched.
 
 // AvatarURLLite is AvatarURL's list-safe twin (MH-602 defect 2): it takes a
 // hasProviderPhoto flag instead of the actual photo_url, so a list query
@@ -72,130 +66,52 @@ var providerPhotoKinds = map[string]string{
 // selects a boolean instead. kind and id say which row (contact or
 // conversation) the signed endpoint should re-read photo_url from.
 func AvatarURLLite(workspaceID, kind, id, avatarID string, hasProviderPhoto bool, externalPhotoURL string) string {
-	if avatarID != "" {
-		return ContactAvatarURL(workspaceID, avatarID)
-	}
-	if hasProviderPhoto {
-		return ProviderPhotoURL(workspaceID, kind, id)
-	}
-	return externalPhotoURL
+	return photourl.AvatarURLLite(workspaceID, kind, id, avatarID, hasProviderPhoto, externalPhotoURL)
 }
 
 // AvatarURL is AvatarURLLite for a caller that already has photoURL in hand
 // (getContact reads one row, not a list, so the cost AvatarURLLite avoids
 // doesn't apply here) — it still never lets a data: URI itself out as JSON.
 func AvatarURL(workspaceID, kind, id, avatarID, photoURL string) string {
-	return AvatarURLLite(workspaceID, kind, id, avatarID, strings.HasPrefix(photoURL, "data:"), photoURL)
-}
-
-func signAvatar(workspaceID, avatarID string, exp int64) (string, error) {
-	secret := os.Getenv("AUTH_SECRET")
-	if len(secret) < 16 {
-		return "", errors.New("AUTH_SECRET is not set; cannot sign an avatar URL")
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	fmt.Fprintf(mac, "contact-avatar:%s:%s:%d", workspaceID, avatarID, exp)
-	return hex.EncodeToString(mac.Sum(nil)), nil
+	return photourl.AvatarURL(workspaceID, kind, id, avatarID, photoURL)
 }
 
 // ContactAvatarURL builds one uploaded avatar's signed download URL.
 func ContactAvatarURL(workspaceID, avatarID string) string {
-	exp := time.Now().Add(avatarURLTTL).Unix()
-	sig, err := signAvatar(workspaceID, avatarID, exp)
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf("/api/contact-avatars/%s?ws=%s&exp=%d&sig=%s", avatarID, workspaceID, exp, sig)
+	return photourl.ContactAvatarURL(workspaceID, avatarID)
 }
 
 func verifyAvatarURL(workspaceID, avatarID, expStr, sig string) error {
-	exp, err := strconv.ParseInt(expStr, 10, 64)
-	if err != nil {
-		return errors.New("bad expiry")
-	}
-	if time.Now().Unix() > exp {
-		return errors.New("this link has expired")
-	}
-	want, err := signAvatar(workspaceID, avatarID, exp)
-	if err != nil {
-		return err
-	}
-	if !hmac.Equal([]byte(strings.ToLower(sig)), []byte(want)) {
-		return errors.New("bad signature")
-	}
-	return nil
+	return photourl.VerifyAvatarURL(workspaceID, avatarID, expStr, sig)
+}
+
+// signAvatar/signProviderPhoto are test-only wrappers (avatar_db_test.go,
+// provider_photo_db_test.go mint raw signatures at an arbitrary exp to check
+// tamper/expiry/cross-domain rejection) — the real signing lives in
+// internal/photourl now.
+func signAvatar(workspaceID, avatarID string, exp int64) (string, error) {
+	return photourl.SignAvatar(workspaceID, avatarID, exp)
 }
 
 func signProviderPhoto(kind, workspaceID, id string, exp int64) (string, error) {
-	secret := os.Getenv("AUTH_SECRET")
-	if len(secret) < 16 {
-		return "", errors.New("AUTH_SECRET is not set; cannot sign a provider-photo URL")
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	// A distinct domain string from signAvatar's "contact-avatar:...": the two
-	// endpoints read different tables by id, so a contact-avatar signature
-	// must never be replayable here, or vice versa (MH-602 defect 2).
-	fmt.Fprintf(mac, "provider-photo:%s:%s:%s:%d", kind, workspaceID, id, exp)
-	return hex.EncodeToString(mac.Sum(nil)), nil
+	return photourl.SignProviderPhoto(kind, workspaceID, id, exp)
 }
 
 // ProviderPhotoURL builds a WhatsApp-cached photo's signed download URL —
 // AvatarURLLite's answer whenever a row's photo_url is a data: URI, so the
 // bytes never round-trip through a JSON response again (MH-602 defect 2).
 func ProviderPhotoURL(workspaceID, kind, id string) string {
-	if _, ok := providerPhotoKinds[kind]; !ok || id == "" {
-		return ""
-	}
-	exp := time.Now().Add(avatarURLTTL).Unix()
-	sig, err := signProviderPhoto(kind, workspaceID, id, exp)
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf("/api/provider-photos/%s/%s?ws=%s&exp=%d&sig=%s", kind, id, workspaceID, exp, sig)
+	return photourl.ProviderPhotoURL(workspaceID, kind, id)
 }
 
 func verifyProviderPhotoURL(kind, workspaceID, id, expStr, sig string) error {
-	if _, ok := providerPhotoKinds[kind]; !ok {
-		return errors.New("unknown provider-photo kind")
-	}
-	exp, err := strconv.ParseInt(expStr, 10, 64)
-	if err != nil {
-		return errors.New("bad expiry")
-	}
-	if time.Now().Unix() > exp {
-		return errors.New("this link has expired")
-	}
-	want, err := signProviderPhoto(kind, workspaceID, id, exp)
-	if err != nil {
-		return err
-	}
-	if !hmac.Equal([]byte(strings.ToLower(sig)), []byte(want)) {
-		return errors.New("bad signature")
-	}
-	return nil
+	return photourl.VerifyProviderPhotoURL(kind, workspaceID, id, expStr, sig)
 }
 
 // parseDataURI splits a data: URI (internal/whatsapp/avatar.go's cache
 // format, always base64) into its content type and decoded bytes.
 func parseDataURI(s string) (string, []byte, error) {
-	if !strings.HasPrefix(s, "data:") {
-		return "", nil, errors.New("not a data URI")
-	}
-	rest := s[len("data:"):]
-	comma := strings.IndexByte(rest, ',')
-	if comma < 0 {
-		return "", nil, errors.New("malformed data URI")
-	}
-	meta, payload := rest[:comma], rest[comma+1:]
-	if !strings.HasSuffix(meta, ";base64") {
-		return "", nil, errors.New("only base64 data URIs are supported")
-	}
-	contentType := strings.TrimSuffix(meta, ";base64")
-	data, err := base64.StdEncoding.DecodeString(payload)
-	if err != nil {
-		return "", nil, errors.New("bad base64 in a data URI")
-	}
-	return contentType, data, nil
+	return photourl.ParseDataURI(s)
 }
 
 // UploadContactAvatar validates and stores an uploaded photo, replacing any
