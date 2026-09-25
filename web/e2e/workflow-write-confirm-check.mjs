@@ -10,6 +10,7 @@
 //   - the canvas run control ("Test workflow") on a writes workflow opens
 //     "Publish with {name}?" before it runs, Cancel starts nothing, and the
 //     confirm actually starts a run
+//   - "run to here" on a step of a writes workflow asks the same question
 //   - the canvas run control on a non-writing workflow runs with no dialog
 //
 //   node e2e/workflow-write-confirm-check.mjs [webBase] [apiBase]
@@ -121,6 +122,17 @@ try {
   await page.waitForSelector("[data-confirm-run-dialog]", { state: "hidden", timeout: 10000 })
   await sleep(1000)
   out.cancelStartedNothing = (await runsFor(writes.id)).length === before.length
+
+  // ---- "run to here" on a step asks the same question ----
+  // The step toolbar (with "run to here") shows on a hovered or selected step.
+  await page.locator("[data-canvas-node]:not([data-canvas-node='trigger'])").first().click()
+  await page.locator("[data-run-to]:not([disabled])").first().click()
+  await page.waitForSelector("[data-confirm-run-dialog]", { timeout: 10000 })
+  out.runToAsksFirst = true
+  await page.click("[data-confirm-run-dialog] button:has-text('Cancel')")
+  await page.waitForSelector("[data-confirm-run-dialog]", { state: "hidden", timeout: 10000 })
+  await sleep(1000)
+  out.runToCancelStartedNothing = (await runsFor(writes.id)).length === before.length
 
   // ---- confirming actually starts the run ----
   await page.click("[data-test-run]")

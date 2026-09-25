@@ -288,7 +288,10 @@ function Editor({
   // A publishing workflow (MH-558) asks first: the run control opens this
   // instead of starting straight away, the same as the old /automation page
   // did before the canvas replaced it.
-  const [confirmRun, setConfirmRun] = useState(false)
+  // The steps a confirmed run goes up to; null while no confirmation is open.
+  const [confirmRun, setConfirmRun] = useState<number | null>(null)
+  // A publishing workflow asks first (MH-558), for a whole run and for "run to here" alike.
+  const askThenStart = (upTo: number) => (workflow?.writes ? setConfirmRun(upTo) : void start(upTo))
   // Test runs of a draft not saved yet: they become its first executions once
   // it is (POST …/executions/adopt).
   const draftRuns = useRef<string[]>([])
@@ -674,7 +677,7 @@ function Editor({
               onDelete={remove}
               onDuplicate={duplicate}
               onReorder={reorder}
-              onRunTo={(i) => void start(i + 1)}
+              onRunTo={(i) => askThenStart(i + 1)}
               runBlocked={browserBlocked || (live ? t("automation.editor.testing") : "")}
             />
 
@@ -690,7 +693,7 @@ function Editor({
                   ) : (
                     <Button
                       size="lg"
-                      onClick={() => (workflow?.writes ? setConfirmRun(true) : void start(steps.length))}
+                      onClick={() => askThenStart(steps.length)}
                       disabled={starting || steps.length === 0 || !!browserBlocked}
                       data-test-run
                     >
@@ -832,7 +835,7 @@ function Editor({
                   onChange={(s) => setSteps(steps.map((x, i) => (i === selected ? s : x)))}
                   onClose={() => select(null)}
                   onDelete={() => remove(selected)}
-                  onRunTo={() => void start(selected + 1)}
+                  onRunTo={() => askThenStart(selected + 1)}
                   runBlocked={browserBlocked || (live ? t("automation.editor.testing") : "")}
                   output={runs ? run.data?.steps.find((s) => s.position === selected) : undefined}
                   runId={runs ? test?.runId : undefined}
@@ -856,7 +859,7 @@ function Editor({
       </span>
 
       {/* A publishing workflow asks first (MH-558): only this confirm starts the run. */}
-      <AlertDialog open={confirmRun} onOpenChange={setConfirmRun}>
+      <AlertDialog open={confirmRun != null} onOpenChange={(open) => !open && setConfirmRun(null)}>
         <AlertDialogContent data-confirm-run-dialog>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -873,8 +876,8 @@ function Editor({
             <AlertDialogAction
               disabled={starting}
               onClick={async () => {
-                await start(steps.length)
-                setConfirmRun(false)
+                await start(confirmRun ?? steps.length)
+                setConfirmRun(null)
               }}
               data-confirm-run
             >
