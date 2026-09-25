@@ -88,6 +88,10 @@ type ContactOut struct {
 	CompanyName   string            `json:"company_name"`
 	CreatedAt     time.Time         `json:"created_at"`
 	Subscriptions []SubscriptionOut `json:"subscriptions"`
+	// MH-588: same signed-URL scheme as internal/inbox/internal/crm — an
+	// uploaded photo wins, then a provider-cached one, else empty (initials
+	// render client-side). Never a data: URI; see internal/photourl.
+	AvatarURL string `json:"avatar_url"`
 	// WhatsApp consent (MH-320), its own thing and never implied by a list.
 	// Both kept: "never agreed" and "asked us to stop" are different facts.
 	WhatsAppOptInAt  *time.Time `json:"whatsapp_opt_in_at"`

@@ -94,22 +94,40 @@ func FileChannelMessage(ctx context.Context, a *app.App, workspaceID, channel, s
 	// same contacts.Upsert path email and WhatsApp already resolve through
 	// (see internal/inbox/crm_link.go's autoLink), so a Telegram/Slack/Discord
 	// conversation shows who it's with instead of only a raw handle.
-	linkChannelContact(sctx, db, workspaceID, convID, channel, threadID, name)
+	contactID := linkChannelContact(sctx, db, workspaceID, convID, channel, threadID, name)
 
 	announceInbound(ctx, a, workspaceID, convID, text, time.Time{})
+
+	// MH-588: cache this sender's profile photo, in the background — the same
+	// "never block filing on a provider round trip" contract
+	// refreshWhatsAppPhoto (whatsapp.go) already has. photoUserID is the
+	// platform id a profile-photo lookup actually needs: for Telegram a
+	// private chat's id IS the sender (threadID); for Slack/Discord threadID
+	// is the channel, so it's handle (the sender's own user id) instead.
+	photoUserID := threadID
+	if channel == "slack" || channel == "discord" {
+		photoUserID = handle
+	}
+	queueChannelPhotoRefresh(a, workspaceID, channel, sourceChannelID, convID, contactID, photoUserID)
 	return nil
 }
 
 // linkChannelContact upserts a contact identity for a Telegram, Slack or
-// Discord sender and links it to the conversation. It runs on every inbound
-// message, not just the first: contacts.Upsert's identity match is what makes
-// a second message from the same platform id land on the SAME contact instead
-// of creating a duplicate, and the UPDATE below never overrides a link a
-// member set (or removed) by hand, mirroring autoLink's guard in crm_link.go.
-func linkChannelContact(ctx context.Context, db *sql.DB, workspaceID, convID, channel, externalID, name string) {
+// Discord sender and links it to the conversation, returning the resolved
+// contact id (or "" if none) so callers — the photo-fetch trigger below —
+// can cache the photo on whichever row (contact when linked, conversation
+// otherwise) crm.AvatarURLLite actually reads, the same choice
+// refreshWhatsAppPhoto makes for WhatsApp.
+//
+// It runs on every inbound message, not just the first: contacts.Upsert's
+// identity match is what makes a second message from the same platform id
+// land on the SAME contact instead of creating a duplicate, and the UPDATE
+// below never overrides a link a member set (or removed) by hand, mirroring
+// autoLink's guard in crm_link.go.
+func linkChannelContact(ctx context.Context, db *sql.DB, workspaceID, convID, channel, externalID, name string) string {
 	externalID = strings.TrimSpace(externalID)
 	if externalID == "" {
-		return
+		return ""
 	}
 	res, err := contacts.Upsert(ctx, db, workspaceID, contacts.Candidate{
 		Name:   strings.TrimSpace(name),
@@ -119,10 +137,14 @@ func linkChannelContact(ctx context.Context, db *sql.DB, workspaceID, convID, ch
 		},
 	})
 	if err != nil {
-		return
+		return ""
 	}
 	_, _ = db.ExecContext(ctx, `
 		UPDATE conversations SET contact_id = $3, contact_link = 'auto', updated_at = now()
 		WHERE workspace_id = $1 AND id = $2 AND contact_id IS NULL AND contact_link <> 'manual'`,
 		workspaceID, convID, res.ContactID)
+	var linkedContactID string
+	_ = db.QueryRowContext(ctx, `SELECT contact_id FROM conversations WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, convID).Scan(&linkedContactID)
+	return linkedContactID
 }

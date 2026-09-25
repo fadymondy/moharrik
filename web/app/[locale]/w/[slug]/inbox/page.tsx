@@ -610,7 +610,7 @@ function ConversationRow({
           data-conversation-unread={c.unread ? "true" : "false"}
           className={`flex w-full min-w-0 items-start gap-3 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
         >
-          <PersonAvatar name={who} photoUrl={c.avatar_url} className="mt-0.5 shrink-0" />
+          <PersonAvatar id={c.contact_id || c.id} name={who} photoUrl={c.avatar_url} className="mt-0.5 shrink-0" />
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="flex min-w-0 items-center gap-2">
               {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
@@ -810,7 +810,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   return (
     <section data-thread={id}>
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-6 py-4">
-        <PersonAvatar name={headerWho} photoUrl={c.avatar_url} size="lg" className="shrink-0" />
+        <PersonAvatar id={c.contact_id || c.id} name={headerWho} photoUrl={c.avatar_url} size="lg" className="shrink-0" />
         {/* Its own row on a phone: beside the assignee and snooze controls it was cut to one letter. */}
         <div className="min-w-0 flex-1 max-sm:basis-full">
           <BdiBlock as="p" className="truncate text-sm font-medium" data-thread-title>

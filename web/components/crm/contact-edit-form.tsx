@@ -150,7 +150,7 @@ function ContactAvatarControl({
 
   return (
     <div className="flex items-center gap-3" data-contact-avatar-control>
-      <PersonAvatar name={name} photoUrl={avatarUrl} size="lg" />
+      <PersonAvatar id={contactId} name={name} photoUrl={avatarUrl} size="lg" />
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <input

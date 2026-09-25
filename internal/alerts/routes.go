@@ -13,6 +13,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -74,6 +75,13 @@ type BellItem struct {
 	Unread         bool      `json:"unread"`
 	At             time.Time `json:"at"`
 	AssigneeUserID *string   `json:"assignee_user_id,omitempty"`
+	// AvatarURL is a conversation item's best-available photo (MH-588): the
+	// linked contact's, else the conversation's own — the same signed
+	// /api/provider-photos/ link inbox.ConversationOut already carries, so the
+	// floating chat launcher (web/components/inbox/floating-chat.tsx) can show
+	// the same avatar the full inbox list and thread do. Never set for a
+	// notification item.
+	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
 type Bell struct {
@@ -112,22 +120,37 @@ func Register(api huma.API, a *app.App) {
 				SELECT c.id, c.channel, coalesce(nullif(c.customer_name, ''), nullif(c.customer_email, ''), c.customer_phone, ''),
 				       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
 				                 ORDER BY m.created_at DESC LIMIT 1), c.subject),
-				       c.unread, c.last_message_at, c.assignee_user_id
-				FROM conversations c WHERE c.workspace_id = $1
+				       c.unread, c.last_message_at, c.assignee_user_id, c.contact_id,
+				       ct.photo_attachment_id,
+				       (ct.photo_url LIKE 'data:%'), CASE WHEN ct.photo_url LIKE 'data:%' THEN '' ELSE coalesce(ct.photo_url, '') END,
+				       (c.photo_url LIKE 'data:%'), CASE WHEN c.photo_url LIKE 'data:%' THEN '' ELSE coalesce(c.photo_url, '') END
+				FROM conversations c
+				LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
+				WHERE c.workspace_id = $1
 				ORDER BY c.last_message_at DESC LIMIT $2`, s.WorkspaceID, bellLimit)
 			if err != nil {
 				return nil, fail
 			}
 			for rows.Next() {
 				it := BellItem{Kind: "conversation"}
-				var assignee sql.NullString
-				if err := rows.Scan(&it.ID, &it.Channel, &it.Title, &it.Snippet, &it.Unread, &it.At, &assignee); err != nil {
+				var assignee, contactID, ctPhotoAttachmentID sql.NullString
+				var ctHasProviderPhoto, hasProviderPhoto sql.NullBool
+				var ctExternalPhotoURL, ownExternalPhotoURL sql.NullString
+				if err := rows.Scan(&it.ID, &it.Channel, &it.Title, &it.Snippet, &it.Unread, &it.At, &assignee, &contactID,
+					&ctPhotoAttachmentID, &ctHasProviderPhoto, &ctExternalPhotoURL, &hasProviderPhoto, &ownExternalPhotoURL); err != nil {
 					rows.Close()
 					return nil, fail
 				}
 				it.Snippet = clip(it.Snippet, 140)
 				if assignee.Valid {
 					it.AssigneeUserID = &assignee.String
+				}
+				// MH-588: same "linked contact's photo wins" precedence the full
+				// inbox list uses (internal/inbox/routes.go's scanConversation).
+				if contactID.Valid {
+					it.AvatarURL = crm.AvatarURLLite(s.WorkspaceID, "contact", contactID.String, ctPhotoAttachmentID.String, ctHasProviderPhoto.Bool, ctExternalPhotoURL.String)
+				} else {
+					it.AvatarURL = crm.AvatarURLLite(s.WorkspaceID, "conversation", it.ID, "", hasProviderPhoto.Bool, ownExternalPhotoURL.String)
 				}
 				b.Items = append(b.Items, it)
 			}

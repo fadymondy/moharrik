@@ -300,6 +300,8 @@ export type Contact = {
   lifecycle: Lifecycle
   score: number | null
   score_reasons: ScoreReason[] | null
+  /** MH-588: best-available photo (upload > provider-cached > none); empty means render initials. */
+  avatar_url: string
 }
 
 /** A contact's best display identity, email > phone > handle (MH-561: at least one is always present). */
@@ -2272,6 +2274,8 @@ export type BellItem = {
   unread: boolean
   at: string
   assignee_user_id?: string | null
+  /** MH-588: same signed photo link the inbox list/thread use; unset for a notification item. */
+  avatar_url?: string
 }
 
 export type Bell = {

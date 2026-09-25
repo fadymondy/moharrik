@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/icp"
+	"github.com/fadymondy/moharrik/internal/photourl"
 )
 
 // scoreOf decodes a stored ideal-customer score and its reasons (MH-395).
@@ -305,8 +306,14 @@ func contactRows(ctx context.Context, db *sql.DB, wsID string, f ContactFilter, 
 	// One more than the page, to know whether there is a next one without a
 	// second query.
 	args = append(args, limit+1)
+	// MH-588: photo_attachment_id (an uploaded avatar wins), whether photo_url
+	// is a provider-cached data: URI, and photo_url itself ONLY when it is
+	// something else (a plain external URL) — never the data: URI itself, to
+	// keep this list query cheap the same way inbox's conversationSelect does.
 	q := `SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.handle, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
-	             c.whatsapp_opt_in_at, c.whatsapp_opt_out_at, c.lifecycle, sc.score, coalesce(sc.reasons, '[]')::text` + contactFrom + `WHERE ` + where +
+	             c.whatsapp_opt_in_at, c.whatsapp_opt_out_at, c.lifecycle, sc.score, coalesce(sc.reasons, '[]')::text,
+	             coalesce(c.photo_attachment_id, ''), c.photo_url LIKE 'data:%', CASE WHEN c.photo_url LIKE 'data:%' THEN '' ELSE c.photo_url END` +
+		contactFrom + `WHERE ` + where +
 		` ORDER BY ` + order + ` LIMIT $` + strconv.Itoa(len(args))
 	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -319,12 +326,16 @@ func contactRows(ctx context.Context, db *sql.DB, wsID string, f ContactFilter, 
 		var c ContactOut
 		var score sql.NullInt64
 		var reasons string
+		var photoAttachmentID, externalPhotoURL string
+		var hasProviderPhoto bool
 		if err := rows.Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Handle, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
-			&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt, &c.Lifecycle, &score, &reasons); err != nil {
+			&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt, &c.Lifecycle, &score, &reasons,
+			&photoAttachmentID, &hasProviderPhoto, &externalPhotoURL); err != nil {
 			return nil, err
 		}
 		c.Score, c.ScoreReasons = scoreOf(score, reasons)
 		c.Subscriptions = []SubscriptionOut{}
+		c.AvatarURL = photourl.AvatarURLLite(wsID, "contact", c.ID, photoAttachmentID, hasProviderPhoto, externalPhotoURL)
 		page.Contacts = append(page.Contacts, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -421,16 +432,22 @@ func getContactOut(ctx context.Context, db *sql.DB, wsID, id string) (*ContactOu
 	var c ContactOut
 	var score sql.NullInt64
 	var reasons string
+	var photoAttachmentID, externalPhotoURL string
+	var hasProviderPhoto bool
 	err := db.QueryRowContext(ctx, `
 		SELECT c.id, c.email, c.name, c.locale, c.source, c.phone, c.handle, c.title, c.company_id, coalesce(co.name, ''), c.created_at,
-		       c.whatsapp_opt_in_at, c.whatsapp_opt_out_at, c.lifecycle, sc.score, coalesce(sc.reasons, '[]')::text`+contactFrom+`WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
+		       c.whatsapp_opt_in_at, c.whatsapp_opt_out_at, c.lifecycle, sc.score, coalesce(sc.reasons, '[]')::text,
+		       coalesce(c.photo_attachment_id, ''), c.photo_url LIKE 'data:%', CASE WHEN c.photo_url LIKE 'data:%' THEN '' ELSE c.photo_url END`+
+		contactFrom+`WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
 	).Scan(&c.ID, &c.Email, &c.Name, &c.Locale, &c.Source, &c.Phone, &c.Handle, &c.Title, &c.CompanyID, &c.CompanyName, &c.CreatedAt,
-		&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt, &c.Lifecycle, &score, &reasons)
+		&c.WhatsAppOptInAt, &c.WhatsAppOptOutAt, &c.Lifecycle, &score, &reasons,
+		&photoAttachmentID, &hasProviderPhoto, &externalPhotoURL)
 	if err != nil {
 		return nil, err
 	}
 	c.Score, c.ScoreReasons = scoreOf(score, reasons)
 	c.Subscriptions = []SubscriptionOut{}
+	c.AvatarURL = photourl.AvatarURLLite(wsID, "contact", c.ID, photoAttachmentID, hasProviderPhoto, externalPhotoURL)
 	list := []ContactOut{c}
 	if err := attachSubscriptions(ctx, db, wsID, list); err != nil {
 		return nil, err

@@ -65,7 +65,7 @@ export default function ContactDetailPage() {
         micro={t("nav.contacts")}
         title={
           <span className="flex items-center gap-2">
-            <PersonAvatar name={contact.name || identity(contact)} photoUrl={contact.avatar_url} />
+            <PersonAvatar id={contact.id} name={contact.name || identity(contact)} photoUrl={contact.avatar_url} />
             {contact.name ? <Bdi>{contact.name}</Bdi> : <Ltr>{identity(contact)}</Ltr>}
           </span>
         }
