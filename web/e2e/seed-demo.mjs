@@ -1868,7 +1868,7 @@ const FEEDS = [
     const r = await s.post(
       `/api/w/feed_sources/${src.id}/fetch`,
       {},
-      { allow: [409, 422, 502, 504] },
+      { allow: [409, 422, 424, 502, 504] },
     )
     log(`fetch ${src.name}: ${r?.added ?? "?"} new`)
   }
