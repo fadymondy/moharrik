@@ -337,11 +337,22 @@ func TestNotificationCollection(t *testing.T) {
 	if _, err := a.SysDB.Exec(`UPDATE notification_sources SET next_run_at = now() - interval '1 minute' WHERE id = $1`, rss["id"]); err != nil {
 		t.Fatal(err)
 	}
-	if n, _ := notifications.CollectDue(t.Context(), a, 10); n < 1 {
-		t.Errorf("CollectDue ran %d sources", n)
-	}
+	// The queue is shared by every test in this package's database, and other
+	// tests leave due sources behind, so one batch may not reach this one
+	// (MH-565). Run it until this source has moved on, a few batches at most.
 	var next time.Time
-	if err := a.SysDB.QueryRow(`SELECT next_run_at FROM notification_sources WHERE id = $1`, rss["id"]).Scan(&next); err != nil || time.Until(next) < 100*time.Minute {
+	var err error
+	for i := 0; i < 20; i++ {
+		if n, _ := notifications.CollectDue(t.Context(), a, 10); n < 1 {
+			t.Errorf("CollectDue ran %d sources with this one due", n)
+			break
+		}
+		err = a.SysDB.QueryRow(`SELECT next_run_at FROM notification_sources WHERE id = $1`, rss["id"]).Scan(&next)
+		if err != nil || time.Until(next) > 0 {
+			break
+		}
+	}
+	if err != nil || time.Until(next) < 100*time.Minute {
 		t.Errorf("after a run the next one is an interval away: %v %v", next, err)
 	}
 
