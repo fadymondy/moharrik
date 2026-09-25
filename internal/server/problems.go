@@ -25,11 +25,16 @@ reported with its stack by the SDK's Recover and answered 500; any other 5xx
 response is reported once per method+route+status per window, so an outage
 does not become a flood of issues.
 
-Configured from MAHAAM_URL / MAHAAM_FEEDBACK_KEY / MAHAAM_APP_URL. With no
-key it is a no-op apart from panic recovery.
+Configured from MAHAAM_URL / MAHAAM_FEEDBACK_KEY / MAHAAM_APP_URL, and only
+when APP_ENV=production. Otherwise, or with no key, it is a no-op apart from
+panic recovery.
 */
 func installProblemReports(k *togo.Kernel) {
-	c := feedback.New(feedback.Config{})
+	// Only production files to the board (MH-479). Worktrees copy the main
+	// .env with its feedback key, so a half-migrated local database or a
+	// branch mid-change used to land here as a high-priority production bug.
+	// Disabled still recovers panics; it only stops the report.
+	c := feedback.New(feedback.Config{Disabled: !problemReportsEnabled(os.Getenv("APP_ENV"))})
 	dedupe := newOnceWindow(10 * time.Minute)
 	// Which deployment answered. The report's page URL is MAHAAM_APP_URL, a
 	// fixed origin the feedback key allows, so every report read "on
@@ -67,6 +72,11 @@ func installProblemReports(k *togo.Kernel) {
 			}(context.WithoutCancel(r.Context()))
 		})
 	})
+}
+
+// problemReportsEnabled: only a production deployment files its failures.
+func problemReportsEnabled(appEnv string) bool {
+	return strings.EqualFold(strings.TrimSpace(appEnv), "production")
 }
 
 type panicKey struct{}
