@@ -40,12 +40,12 @@ const IFRAME_STYLE = `
   .inbox-quote-summary { cursor: pointer; font-size: 12px; color: light-dark(#6b7280, #9ca3af); user-select: none; }
 `
 
-function HtmlMessage({ html }: { html: string }) {
+function HtmlMessage({ html, attachments }: { html: string; attachments?: InboxAttachment[] }) {
   const { t } = useTranslations()
   const [blockImages, setBlockImages] = useState(true)
   const ref = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(40)
-  const rendered = renderEmailHtml(html, { blockImages })
+  const rendered = renderEmailHtml(html, { blockImages }, attachments)
 
   useEffect(() => {
     const el = ref.current
@@ -154,9 +154,9 @@ export function AttachmentList({ attachments }: { attachments?: InboxAttachment[
   )
 }
 
-export function MessageBody({ body, bodyHtml }: { body: string; bodyHtml?: string }) {
+export function MessageBody({ body, bodyHtml, attachments }: { body: string; bodyHtml?: string; attachments?: InboxAttachment[] }) {
   if (bodyHtml && bodyHtml.trim()) {
-    return <HtmlMessage html={bodyHtml} />
+    return <HtmlMessage html={bodyHtml} attachments={attachments} />
   }
   return (
     <p className="text-start break-words whitespace-pre-wrap" dir="auto">

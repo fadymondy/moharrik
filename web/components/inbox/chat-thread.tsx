@@ -142,7 +142,7 @@ function MessageGroup({
                 <Bdi>{conversation.subject}</Bdi>
               </p>
             ) : null}
-            <MessageBody body={m.body} bodyHtml={m.body_html} />
+            <MessageBody body={m.body} bodyHtml={m.body_html} attachments={m.attachments} />
             <AttachmentList attachments={m.attachments} />
           </div>
         ))}
