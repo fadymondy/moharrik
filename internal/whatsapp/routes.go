@@ -14,6 +14,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/recency"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -178,7 +179,7 @@ func RegisterHook(r chi.Router, a *app.App) {
 				break
 			}
 			in, ok := m.Read()
-			if !ok || in.FromMe {
+			if !ok || in.FromMe || l.tooOld(m.Timestamp) {
 				// Our own echo, a group, or nothing to show. Accepted and
 				// dropped: answering an error would make Evolution retry
 				// something that will never be wanted.
@@ -203,6 +204,16 @@ func RegisterHook(r chi.Router, a *app.App) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
+}
+
+// tooOld: a message sent before this number was linked (less the grace) is
+// history Evolution replayed on a reconnect or first sync, not new mail —
+// see internal/recency. Bringing history in is the import's job (MH-562).
+func (l *Link) tooOld(unix int64) bool {
+	if l.LinkedAt == nil || unix <= 0 {
+		return false
+	}
+	return recency.TooOld(time.Unix(unix, 0), *l.LinkedAt)
 }
 
 func evolutionErr(err error) error {

@@ -21,7 +21,22 @@ const workflowChannelEx = `{"allow_replies":false,"enabled":true,"id":"9f4a5b6d-
 	`"last_error":"","last_pushed_count":12,"last_run_at":"2026-09-24T12:00:00Z","name":"LinkedIn inbox",` +
 	`"network":"linkedin","workflow_id":"3a4b5c6d-7e8f-4a9b-0c1d-2e3f4a5b6c7d"}`
 
+const channelConnectionEx = `{"channels":[` +
+	`{"conversations_30d":4,"created_at":"2026-08-01T09:00:00Z","enabled":true,"id":"6c1f2e3a-8b4d-4e5f-9a0b-1c2d3e4f5a6b",` +
+	`"last_error":"delivery refused","last_error_at":"2026-09-24T11:02:19Z","last_message_at":"2026-09-24T11:00:00Z",` +
+	`"name":"Sales","status":"error","type":"telegram","unread":1},` +
+	`{"conversations_30d":19,"created_at":"2026-07-10T09:00:00Z","enabled":true,"id":"7d2e3f4b-9c5e-4f6a-8b1c-2d3e4f5a6b7c",` +
+	`"last_message_at":"2026-09-24T12:30:05Z","name":"Support","status":"connected","type":"email","unread":3}],` +
+	`"count":2,"next_cursor":""}`
+
 var docsChannels = map[string]ToolDoc{
+	"list_channels": {
+		AR: "صفحة القنوات الواحدة: كل اتصالات قنوات الوارد في مساحة العمل — البريد ونافذة المحادثة وواتساب وتيليجرام وSlack وديسكورد وقنوات سير العمل " +
+			"(لينكدإن/فيسبوك/إنستغرام/إكس) — في قائمة واحدة، بحالة كل قناة ونشاطها الأخير. القناة التي بها خطأ تظهر أولًا ثم البقية أبجديًا. " +
+			"صفِّ بالنوع (يمكن تكراره) أو الحالة (connected أو error أو paused) أو q (مطابقة جزئية غير حساسة لحالة الأحرف على اسم القناة، وعلى رقم الهاتف في حالة واتساب). " +
+			"لا يُعاد أي رمز أو سرّ مهما كان نوع القناة.",
+		Result: channelConnectionEx,
+	},
 	"list_telegram_channels": {
 		AR: "بوتات تيليجرام المتصلة بمساحة العمل، بحالتها وصحة الرابط Webhook. رمز البوت لا يُعاد أبدًا، بل has_token فقط. " +
 			"الرسائل الواردة تظهر في الوارد المشترك موسومة بهذه القناة، والرد عليها يمر عبر واجهة تيليجرام نفسها.",
@@ -97,4 +112,6 @@ var argsARChannels = map[string]string{
 	"Comma-separated channel ids; empty allows every channel in an allowed guild, plus DMs": "معرّفات قنوات مفصولة بفواصل؛ فارغة تعني كل قناة ضمن خادم مسموح به، إضافةً إلى المحادثات الخاصة",
 	"The workflow that reads this network's inbox; can be set later":        "سير العمل الذي يقرأ وارد هذه الشبكة؛ يمكن ضبطه لاحقًا",
 	"Reply through the network's reply preset, with confirmation (off by default)": "الرد عبر قالب الرد الجاهز لهذه الشبكة، مع تأكيد (معطّل افتراضيًا)",
+	"Only these types; empty means every type":                                     "هذه الأنواع فقط؛ تركها فارغة يعني كل الأنواع",
+	"Case-insensitive substring match on the connection's name (and, for WhatsApp, its phone)": "مطابقة جزئية غير حساسة لحالة الأحرف على اسم الاتصال (وعلى رقم الهاتف في حالة واتساب)",
 }

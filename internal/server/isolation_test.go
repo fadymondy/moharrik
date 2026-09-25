@@ -939,6 +939,48 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Errorf("A's Slack channel was deleted from B: %v", l)
 	}
 
+	// MH-571: the One Channels page aggregates mailboxes, chat widgets,
+	// Telegram/Slack/Discord and workflow channels into one list — it must not
+	// re-open the leak each per-type endpoint already closed. A's own answer
+	// carries every fixture created above (marker-named); B's answer, scoped to
+	// its own workspace, must carry none of A's names, ids or secrets, and the
+	// general route sweep above already proved B naming A gets a 404.
+	alice.ws = aID
+	if l := alice.must("GET", "/api/w/channels", nil, 200)["channels"].([]any); len(l) < 6 {
+		t.Errorf("A's aggregate channel list is missing fixtures: got %d rows: %v", len(l), l)
+	} else {
+		var sawMailbox, sawTelegram, sawSlack, sawDiscord, sawWorkflow, sawChat bool
+		for _, row := range l {
+			m := row.(map[string]any)
+			switch m["id"] {
+			case mailboxID:
+				sawMailbox = true
+			case tgID:
+				sawTelegram = true
+			case slackID:
+				sawSlack = true
+			case discordID:
+				sawDiscord = true
+			case workflowChannelID:
+				sawWorkflow = true
+			case widgetID:
+				sawChat = true
+			}
+		}
+		if !sawMailbox || !sawTelegram || !sawSlack || !sawDiscord || !sawWorkflow || !sawChat {
+			t.Errorf("A's aggregate channel list is missing a fixture: mailbox=%v telegram=%v slack=%v discord=%v workflow=%v chat=%v (%v)",
+				sawMailbox, sawTelegram, sawSlack, sawDiscord, sawWorkflow, sawChat, l)
+		}
+	}
+	bob.ws = bID
+	if code, b := bob.do("GET", "/api/w/channels", nil); code != 200 || leaks(b) != "" {
+		t.Errorf("B's aggregate channel list leaked A's %s (status %d): %s", leaks(b), code, b)
+	}
+	bob.ws = aID
+	if code, b := bob.do("GET", "/api/w/channels", nil); code != http.StatusNotFound || leaks(b) != "" {
+		t.Errorf("B naming A's workspace for /api/w/channels: got %d, want 404: %s", code, b)
+	}
+
 	// Inbox → CRM and canned replies (MH-379, MH-383), with VALID bodies from B:
 	// B cannot hang its contact on A's conversation, open a deal from it, snooze
 	// it, or change or delete A's canned reply.

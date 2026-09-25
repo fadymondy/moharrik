@@ -334,6 +334,179 @@ func markDiscordDelivery(workspaceID, id string) {
 	_, _ = globalApp.SQLDB.ExecContext(sctx, `UPDATE discord_channels SET last_delivery_at = now() WHERE workspace_id = $1 AND id = $2`, workspaceID, id)
 }
 
+// ---- history, for internal/imports (MH-562) -----------------------------
+//
+// internal/imports never opens a sealed token itself (internal/secret stays
+// inside this package); it calls these exported functions instead, which
+// mirror SendDiscordReply/discordCall's plumbing but read instead of write.
+
+const discordChannelTypeGuildText = 0 // Discord's own channel.type enum: GUILD_TEXT
+
+// DiscordGuildChannel is one text channel in a guild
+// (GET /guilds/{id}/channels), filtered to GUILD_TEXT and this connection's
+// AllowedChannelIDs.
+type DiscordGuildChannel struct {
+	ID      string
+	GuildID string
+	Name    string
+}
+
+// ListDiscordGuilds reports the guild ids this connection can read from:
+// its own AllowedGuildIDs allow-list when the admin set one, else every
+// guild the bot is currently a member of (GET /users/@me/guilds) — the
+// gateway session (discord_gateway.go) only tracks connection state, not a
+// guild roster, so this is a fresh REST call rather than reading gateway
+// state.
+func ListDiscordGuilds(ctx context.Context, a *app.App, workspaceID, connID string) ([]string, error) {
+	c, token, err := discordConnAndToken(ctx, a, workspaceID, connID)
+	if err != nil {
+		return nil, err
+	}
+	if allow := strings.TrimSpace(c.AllowedGuildIDs); allow != "" {
+		var ids []string
+		for _, id := range strings.Split(allow, ",") {
+			if id = strings.TrimSpace(id); id != "" {
+				ids = append(ids, id)
+			}
+		}
+		return ids, nil
+	}
+	raw, err := discordCall(ctx, token, http.MethodGet, "/users/@me/guilds", nil)
+	if err != nil {
+		return nil, err
+	}
+	var guilds []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &guilds); err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(guilds))
+	for _, g := range guilds {
+		ids = append(ids, g.ID)
+	}
+	return ids, nil
+}
+
+// ListDiscordChannels lists one guild's text channels this connection is
+// allowed to see (AllowedChannelIDs, when set).
+func ListDiscordChannels(ctx context.Context, a *app.App, workspaceID, connID, guildID string) ([]DiscordGuildChannel, error) {
+	c, token, err := discordConnAndToken(ctx, a, workspaceID, connID)
+	if err != nil {
+		return nil, err
+	}
+	if !isSnowflake(guildID) {
+		return nil, fmt.Errorf("invalid Discord server id")
+	}
+	raw, err := discordCall(ctx, token, http.MethodGet, "/guilds/"+guildID+"/channels", nil)
+	if err != nil {
+		return nil, err
+	}
+	var chans []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Type int    `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &chans); err != nil {
+		return nil, err
+	}
+	out := make([]DiscordGuildChannel, 0, len(chans))
+	for _, ch := range chans {
+		if ch.Type != discordChannelTypeGuildText {
+			continue
+		}
+		if !discordAllowed(c.AllowedChannelIDs, ch.ID) {
+			continue
+		}
+		out = append(out, DiscordGuildChannel{ID: ch.ID, GuildID: guildID, Name: ch.Name})
+	}
+	return out, nil
+}
+
+// DiscordHistoryMessage is one message read back by
+// GET /channels/{id}/messages.
+type DiscordHistoryMessage struct {
+	ID        string // Discord's own message id
+	AuthorID  string
+	Author    string
+	Content   string
+	Timestamp time.Time
+}
+
+// DiscordChannelHistory reads a channel's recent messages, newest first,
+// capped at limit (Discord's own per-call max is 100). Messages the bot
+// itself authored are left out — they are this workspace's own replies, not
+// customer history, the same simplification email.go's insertEmailHistory
+// makes for a mailbox's own sent mail never appearing in the browsed folder.
+func DiscordChannelHistory(ctx context.Context, a *app.App, workspaceID, connID, channelID string, limit int) ([]DiscordHistoryMessage, error) {
+	_, token, err := discordConnAndToken(ctx, a, workspaceID, connID)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	if !isSnowflake(channelID) {
+		return nil, fmt.Errorf("invalid Discord channel id")
+	}
+	raw, err := discordCall(ctx, token, http.MethodGet, fmt.Sprintf("/channels/%s/messages?limit=%d", channelID, limit), nil)
+	if err != nil {
+		return nil, err
+	}
+	var msgs []struct {
+		ID        string `json:"id"`
+		Content   string `json:"content"`
+		Timestamp string `json:"timestamp"`
+		Author    struct {
+			ID       string `json:"id"`
+			Bot      bool   `json:"bot"`
+			Username string `json:"username"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal(raw, &msgs); err != nil {
+		return nil, err
+	}
+	out := make([]DiscordHistoryMessage, 0, len(msgs))
+	for _, m := range msgs {
+		if m.Author.Bot || strings.TrimSpace(m.Content) == "" {
+			continue
+		}
+		t, _ := time.Parse(time.RFC3339, m.Timestamp)
+		out = append(out, DiscordHistoryMessage{ID: m.ID, AuthorID: m.Author.ID, Author: m.Author.Username, Content: m.Content, Timestamp: t})
+	}
+	return out, nil
+}
+
+// discordConnAndToken resolves one connection and opens its bot token — the
+// only place outside CreateDiscord/UpdateDiscord/TestDiscord/
+// SendDiscordReply/the gateway that touches discordBotBox.
+func discordConnAndToken(ctx context.Context, a *app.App, workspaceID, connID string) (DiscordChannel, string, error) {
+	c, botSealed, _, err := getDiscord(ctx, a.SQLDB, workspaceID, connID)
+	if err != nil {
+		return c, "", err
+	}
+	if botSealed == "" {
+		return c, "", fmt.Errorf("this Discord connection has no bot token configured")
+	}
+	token, err := discordBotBox.Open(botSealed)
+	return c, token, err
+}
+
+// isSnowflake reports whether id is a Discord snowflake (all digits). Ids from
+// the caller go into the request path, so anything else — "../", "?" — is
+// refused rather than letting it reach another endpoint with the bot token.
+func isSnowflake(id string) bool {
+	if id == "" || len(id) > 20 {
+		return false
+	}
+	for _, r := range id {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // ---- the Discord REST API client ----------------------------------------
 
 func discordCall(ctx context.Context, token, method, path string, params map[string]any) ([]byte, error) {

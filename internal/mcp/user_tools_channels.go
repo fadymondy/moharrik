@@ -52,8 +52,67 @@ func workflowChannelSummary(c channels.WorkflowChannel) map[string]any {
 	}
 }
 
+func channelSummary(c channels.ChannelConnection) map[string]any {
+	m := map[string]any{
+		"id": c.ID, "type": c.Type, "name": c.Name, "enabled": c.Enabled, "status": c.Status,
+		"last_error": c.LastError, "last_error_at": c.LastErrorAt, "last_message_at": c.LastMessageAt,
+		"conversations_30d": c.Conversations30d, "unread": c.Unread, "created_at": c.CreatedAt,
+	}
+	if c.Network != "" {
+		m["network"] = c.Network
+	}
+	if c.Phone != "" {
+		m["phone"] = c.Phone
+	}
+	return m
+}
+
 func ChannelTools() []Tool {
 	return []Tool{
+		{
+			Name: "list_channels",
+			Description: "The One Channels page: every inbox channel connection in this workspace — email, chat, WhatsApp, Telegram, Slack, " +
+				"Discord and workflow (LinkedIn/Facebook/Instagram/X) — in one list, with its status and recent activity. A channel in error " +
+				"is listed first, then alphabetically. Filter by type (repeatable), status (connected, error, paused) or q (a case-insensitive " +
+				"substring match on the connection's name, and for WhatsApp its phone). No token or secret is ever returned.",
+			Scope: "inbox:read",
+			InputSchema: schema(nil, map[string]any{
+				"type": map[string]any{"type": "array", "items": map[string]any{"type": "string",
+					"enum": []string{"email", "chat", "whatsapp", "telegram", "slack", "discord", "workflow"}},
+					"description": "Only these types; empty means every type"},
+				"status": map[string]any{"type": "string", "enum": []string{"connected", "error", "paused"}},
+				"q":      prop("string", "Case-insensitive substring match on the connection's name (and, for WhatsApp, its phone)"),
+				"cursor": prop("string", "next_cursor from a previous call, for the page after it"),
+				"limit":  prop("integer", "At most this many (default 50, max 200)"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				s, err := need(ctx)
+				if err != nil {
+					return "", err
+				}
+				var in struct {
+					Type   []string `json:"type"`
+					Status string   `json:"status"`
+					Q      string   `json:"q"`
+					Cursor string   `json:"cursor"`
+					Limit  int      `json:"limit"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				res, err := channels.ListChannels(ctx, a, s.WorkspaceID, channels.ChannelFilter{
+					Types: in.Type, Status: in.Status, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
+				})
+				if err != nil {
+					return "", err
+				}
+				out := make([]map[string]any, 0, len(res.Channels))
+				for _, c := range res.Channels {
+					out = append(out, channelSummary(c))
+				}
+				return jsonResult(map[string]any{"count": len(out), "channels": out, "next_cursor": res.NextCursor})
+			},
+		},
 		{
 			Name:        "list_telegram_channels",
 			Description: "This workspace's Telegram bot connections, with status and webhook health. Bot tokens are never returned.",

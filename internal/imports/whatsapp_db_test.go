@@ -161,13 +161,23 @@ func TestWhatsAppImportIdempotent(t *testing.T) {
 
 	ctx := tenant.With(context.Background(), &tenant.Scope{WorkspaceID: wsID, UserID: "u-test", Email: "owner@example.test", Role: "owner", Via: "session"})
 
-	// Sources: ready, since state is open.
+	// Sources: ready, since state is open. RegisterProvider is a
+	// process-wide registry (MH-562 added Slack/Discord/Telegram/workflow
+	// providers, each registered by their own test elsewhere in this
+	// package), so ListSources can return more than just whatsapp here —
+	// find whatsapp's own entry rather than assuming it is the only one.
 	sources, err := imports.ListSources(ctx, a, wsID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sources) != 1 || len(sources[0].Connections) != 1 || !sources[0].Connections[0].Ready {
-		t.Fatalf("sources not ready: %+v", sources)
+	var wa *imports.SourceInfo
+	for i := range sources {
+		if sources[i].Source == "whatsapp" {
+			wa = &sources[i]
+		}
+	}
+	if wa == nil || len(wa.Connections) != 1 || !wa.Connections[0].Ready {
+		t.Fatalf("whatsapp source not ready: %+v", sources)
 	}
 
 	// Preview: one direct chat, one Arabic group.

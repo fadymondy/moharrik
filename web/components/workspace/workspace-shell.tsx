@@ -32,6 +32,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { LiveAlerts } from "@/components/alerts/live-alerts"
 import { NotificationBell } from "@/components/alerts/notification-bell"
 import { CubeMark } from "@/components/brand/cube-mark"
+import { FloatingChat } from "@/components/inbox/floating-chat"
 import { LanguageSwitcher, ThemeToggle } from "@/components/header-controls"
 import { MahaamFeedbackWidget, openFeedback, useFeedbackReady } from "@/components/feedback/mahaam-widget"
 import { NotFoundState } from "@/components/not-found-state"
@@ -301,6 +302,26 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       </Sheet>
 
       {me.data ? <MahaamFeedbackWidget /> : null}
+
+      {/* Every workspace page except the inbox itself (FloatingChat hides
+          itself there — the inbox already IS the chat UI, MH-587). Its own
+          WorkspaceContext.Provider: this button is a sibling of `body`
+          above, not a descendant, so it needs the same context re-supplied
+          — CannedPicker (reused inside ChatThread) calls useWorkspace()
+          and throws outside one. */}
+      {summary && current.data ? (
+        <WorkspaceContext.Provider
+          value={{
+            summary,
+            current: current.data,
+            id: summary.id,
+            slug: summary.slug,
+            can: (p) => !!current.data?.can?.includes(p),
+          }}
+        >
+          <FloatingChat workspaceId={summary.id} slug={summary.slug} can={(p) => !!current.data?.can?.includes(p)} />
+        </WorkspaceContext.Provider>
+      ) : null}
     </div>
   )
 }
