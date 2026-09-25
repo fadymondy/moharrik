@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/contacts"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -89,6 +90,39 @@ func FileChannelMessage(ctx context.Context, a *app.App, workspaceID, channel, s
 		return err
 	}
 
+	// MH-583: resolve or create the CRM contact for this platform sender, the
+	// same contacts.Upsert path email and WhatsApp already resolve through
+	// (see internal/inbox/crm_link.go's autoLink), so a Telegram/Slack/Discord
+	// conversation shows who it's with instead of only a raw handle.
+	linkChannelContact(sctx, db, workspaceID, convID, channel, threadID, name)
+
 	announceInbound(ctx, a, workspaceID, convID, text, time.Time{})
 	return nil
+}
+
+// linkChannelContact upserts a contact identity for a Telegram, Slack or
+// Discord sender and links it to the conversation. It runs on every inbound
+// message, not just the first: contacts.Upsert's identity match is what makes
+// a second message from the same platform id land on the SAME contact instead
+// of creating a duplicate, and the UPDATE below never overrides a link a
+// member set (or removed) by hand, mirroring autoLink's guard in crm_link.go.
+func linkChannelContact(ctx context.Context, db *sql.DB, workspaceID, convID, channel, externalID, name string) {
+	externalID = strings.TrimSpace(externalID)
+	if externalID == "" {
+		return
+	}
+	res, err := contacts.Upsert(ctx, db, workspaceID, contacts.Candidate{
+		Name:   strings.TrimSpace(name),
+		Source: "inbox",
+		Identities: []contacts.Identity{
+			{Channel: channel, ExternalID: externalID, IsPrimary: true},
+		},
+	})
+	if err != nil {
+		return
+	}
+	_, _ = db.ExecContext(ctx, `
+		UPDATE conversations SET contact_id = $3, contact_link = 'auto', updated_at = now()
+		WHERE workspace_id = $1 AND id = $2 AND contact_id IS NULL AND contact_link <> 'manual'`,
+		workspaceID, convID, res.ContactID)
 }
