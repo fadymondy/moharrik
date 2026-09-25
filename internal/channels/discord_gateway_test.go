@@ -25,6 +25,7 @@ type fakeGateway struct {
 	mu         sync.Mutex
 	identify   map[string]any
 	heartbeats int
+	lastBeat   string // the last heartbeat's "d"
 }
 
 func startFakeGateway(t *testing.T) *fakeGateway {
@@ -63,8 +64,16 @@ func startFakeGateway(t *testing.T) *fakeGateway {
 					"content": "need help",
 				}})
 			case 1: // HEARTBEAT
+				// Like Discord: a heartbeat without "d" (the last sequence
+				// number, or null) is a malformed payload and ends the session.
+				if len(p.D) == 0 {
+					_ = conn.WriteMessage(websocket.CloseMessage,
+						websocket.FormatCloseMessage(4002, "Error while decoding payload."))
+					return
+				}
 				f.mu.Lock()
 				f.heartbeats++
+				f.lastBeat = string(p.D)
 				f.mu.Unlock()
 				_ = conn.WriteJSON(map[string]any{"op": 11})
 			}
@@ -137,6 +146,14 @@ func TestDiscordGatewayIdentifiesAndFilesAMessage(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	if fake.heartbeatCount() == 0 {
-		t.Error("no heartbeat was sent on the fake gateway's 200ms interval")
+		t.Fatal("no heartbeat was sent on the fake gateway's 200ms interval")
+	}
+	// The heartbeat carries the last sequence number the gateway sent (2, the
+	// MESSAGE_CREATE), as Discord requires.
+	fake.mu.Lock()
+	beat := fake.lastBeat
+	fake.mu.Unlock()
+	if beat != "2" {
+		t.Fatalf("heartbeat d = %q, want the last sequence number 2", beat)
 	}
 }
