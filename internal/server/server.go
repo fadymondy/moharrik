@@ -310,6 +310,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	marketing.RegisterWhatsAppConsent(api, a)
 	leads.Register(api, a) // the public inquiry endpoint + the Leads API (MH-390)
 	crm.Register(api, a)
+	crm.RegisterAvatars(api, a)
 	notifications.Register(api, a)
 	inbox.Register(api, a)
 	inbox.RegisterMailbox(api, a)

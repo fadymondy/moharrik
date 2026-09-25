@@ -84,14 +84,49 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 	}
 	// A number the CRM already knows (the same digits, MH-320's normalisation)
 	// is linked to the thread (MH-379). Best effort: the message is filed.
+	var linkedContactID string
 	if err := autoLink(sctx, db, workspaceID, convID); err != nil {
 		a.Log.Warn("could not match a WhatsApp number to a contact", "workspace", workspaceID, "err", err)
+	} else {
+		_ = db.QueryRowContext(sctx, `SELECT contact_id FROM conversations WHERE workspace_id = $1 AND id = $2`,
+			workspaceID, convID).Scan(&linkedContactID)
 	}
 
 	// The team is told at once, the same as a chat message — a customer on
 	// WhatsApp expects an answer in minutes, not on the next refresh.
 	announceInbound(ctx, a, workspaceID, convID, text, time.Time{})
+
+	// MH-602: cache the customer's WhatsApp photo, in the background — never
+	// block this webhook on Evolution, which is exactly what filing the
+	// message above must not wait on either.
+	refreshWhatsAppPhoto(a, workspaceID, convID, linkedContactID, phone)
 	return nil
+}
+
+// refreshWhatsAppPhoto fires the provider-photo fetch off the request's
+// goroutine. A fresh background context (still tenant-scoped, for RLS) is
+// used deliberately: the request's own ctx is cancelled the moment the
+// webhook handler returns, before a network round trip to Evolution could
+// ever finish.
+func refreshWhatsAppPhoto(a *app.App, workspaceID, conversationID, contactID, phone string) {
+	cfg := whatsapp.LoadConfig()
+	if !cfg.Configured() {
+		return
+	}
+	go func() {
+		bctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		bctx = tenant.WithWorkspace(bctx, workspaceID)
+		link, err := whatsapp.Load(bctx, a, workspaceID)
+		if err != nil || link == nil {
+			return
+		}
+		if contactID != "" {
+			whatsapp.RefreshContactPhoto(bctx, a.SQLDB, cfg, link, workspaceID, contactID, phone)
+		} else {
+			whatsapp.RefreshConversationPhoto(bctx, a.SQLDB, cfg, link, workspaceID, conversationID, phone)
+		}
+	}()
 }
 
 // whatsappError turns a send failure into a status the thread can explain.

@@ -222,7 +222,7 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	defer rows.Close()
 	list := []ConversationOut{}
 	for rows.Next() {
-		c, err := scanConversation(rows)
+		c, err := scanConversation(s.WorkspaceID, rows)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not list conversations")
 		}

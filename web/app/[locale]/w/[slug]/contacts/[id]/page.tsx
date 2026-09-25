@@ -6,6 +6,7 @@ import { useState } from "react"
 import { LogOutIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { DealsTable } from "@/components/crm/deals"
 import { LifecycleBadge, ScoreMeter, ScoreReasons } from "@/components/crm/icp"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
@@ -61,7 +62,12 @@ export default function ContactDetailPage() {
     <>
       <SectionHeader
         micro={t("nav.contacts")}
-        title={contact.name ? <Bdi>{contact.name}</Bdi> : <Ltr>{identity(contact)}</Ltr>}
+        title={
+          <span className="flex items-center gap-2">
+            <PersonAvatar name={contact.name || identity(contact)} photoUrl={contact.avatar_url} />
+            {contact.name ? <Bdi>{contact.name}</Bdi> : <Ltr>{identity(contact)}</Ltr>}
+          </span>
+        }
         description={contact.name ? <Ltr>{identity(contact)}</Ltr> : undefined}
         action={
           canWrite ? (

@@ -6,6 +6,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { ChevronUpIcon, PencilIcon, UserPlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { ChatThread } from "@/components/inbox/chat-thread"
 import { ConversationContactDialog } from "@/components/inbox/contact-row-dialog"
@@ -574,7 +575,10 @@ function ConversationRow({
 }) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
-  const who = c.customer_name || c.customer_email || phoneLabel(c.customer_phone) || t("inbox.anonymous")
+  // MH-602: a linked contact's own name wins over customer_name (which, for
+  // an unlinked WhatsApp thread, is often just the raw phone) — never the
+  // other way around.
+  const who = c.contact?.name || c.customer_name || c.customer_email || phoneLabel(c.customer_phone) || t("inbox.anonymous")
   const [contactOpen, setContactOpen] = useState(false)
 
   // The row's menu (MH-556, MH-596): right-click, a touch long-press and
@@ -604,20 +608,23 @@ function ConversationRow({
           aria-current={active ? "true" : undefined}
           data-conversation={c.id}
           data-conversation-unread={c.unread ? "true" : "false"}
-          className={`flex w-full min-w-0 flex-col gap-1 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
+          className={`flex w-full min-w-0 items-start gap-3 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
         >
-          <span className="flex min-w-0 items-center gap-2">
-            {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
-            <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
-            <Badge variant={statusVariant[c.status]} className="ms-auto shrink-0">
-              {t(`inbox.status.${c.status}`)}
-            </Badge>
-          </span>
-          <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
-            {c.preview || c.subject}
-          </BdiBlock>
-          <span className="text-xs text-grid-muted">
-            {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> · {t("inbox.messageCount", { n: c.message_count })}
+          <PersonAvatar name={who} photoUrl={c.avatar_url} className="mt-0.5 shrink-0" />
+          <span className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="flex min-w-0 items-center gap-2">
+              {c.unread ? <span className="size-2 shrink-0 rounded-full bg-grid-brand" aria-label={t("inbox.unread")} /> : null}
+              <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
+              <Badge variant={statusVariant[c.status]} className="ms-auto shrink-0">
+                {t(`inbox.status.${c.status}`)}
+              </Badge>
+            </span>
+            <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
+              {c.preview || c.subject}
+            </BdiBlock>
+            <span className="text-xs text-grid-muted">
+              {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> · {t("inbox.messageCount", { n: c.message_count })}
+            </span>
           </span>
         </button>
       </ContextMenuTrigger>
@@ -797,14 +804,17 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   }
 
   const assigneeOpts = members.options
+  // MH-602: same precedence as the list row — the linked contact's name wins.
+  const headerWho = c.contact?.name || c.customer_name || c.customer_email || c.customer_phone || t("inbox.anonymous")
 
   return (
     <section data-thread={id}>
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-6 py-4">
+        <PersonAvatar name={headerWho} photoUrl={c.avatar_url} size="lg" className="shrink-0" />
         {/* Its own row on a phone: beside the assignee and snooze controls it was cut to one letter. */}
         <div className="min-w-0 flex-1 max-sm:basis-full">
-          <BdiBlock as="p" className="truncate text-sm font-medium">
-            {c.customer_name || c.customer_email || c.customer_phone || t("inbox.anonymous")}
+          <BdiBlock as="p" className="truncate text-sm font-medium" data-thread-title>
+            {headerWho}
           </BdiBlock>
           {/* On an email thread the SUBJECT is what the thread is about, and it
               was nowhere on this page — the e2e caught that. Chat has no

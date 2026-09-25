@@ -265,6 +265,24 @@ func (c *Client) SendText(ctx context.Context, number, text string) (string, err
 	return out.Key.ID, nil
 }
 
+// ProfilePicture asks Evolution for one number's current WhatsApp photo URL
+// (MH-602). Empty string, nil error means WhatsApp has none for that number
+// or its privacy setting hides it from this instance — not a failure worth
+// caching as one.
+func (c *Client) ProfilePicture(ctx context.Context, number string) (string, error) {
+	var out struct {
+		ProfilePictureURL string `json:"profilePictureUrl"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/chat/fetchProfilePictureUrl/"+c.inst(),
+		map[string]any{"number": number}, &out); err != nil {
+		if isNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return out.ProfilePictureURL, nil
+}
+
 func isNotFound(err error) bool {
 	var e *Error
 	return errors.As(err, &e) && e.Status == http.StatusNotFound
