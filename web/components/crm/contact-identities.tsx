@@ -113,7 +113,9 @@ export function IdentitiesPanel({ contactId, identities, canWrite, onChanged }: 
               <FieldLabel htmlFor="identity-label">{t("contacts.identityLabel")}</FieldLabel>
               <Input id="identity-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={60} />
             </Field>
-            <Field className="flex flex-row items-center gap-2 self-end pb-2">
+            {/* Horizontal: the vertical default gives every child w-full, which
+                stretched the checkbox and pushed "Primary" off-screen at 390. */}
+            <Field orientation="horizontal" className="self-end pb-2">
               <Checkbox id="identity-primary" checked={primary} onCheckedChange={(v) => setPrimary(!!v)} />
               <FieldLabel htmlFor="identity-primary" className="font-normal">
                 {t("contacts.identityPrimary")}
