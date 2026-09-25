@@ -34,9 +34,12 @@ try {
     return !s || s.type !== "object" || s.properties === null || typeof s.properties !== "object" || Array.isArray(s.properties) ||
       Object.values(s.properties).some((p) => !p || typeof p !== "object") || (s.required && !Array.isArray(s.required)) }).map((t) => t.name)
   const raw = JSON.stringify(tools)
-  out = { status: res.status, tools: tools.length, bad, nullProperties: /"properties":null/.test(raw) }
+  // MH-528: browser_plugin_run says it waits and answers with the data, polling via browser_result.
+  const pr = tools.find((t) => t.name === "browser_plugin_run")?.description ?? ""
+  out = { status: res.status, tools: tools.length, bad, nullProperties: /"properties":null/.test(raw),
+    pluginRunDescribed: /25 seconds/.test(pr) && /browser_result/.test(pr) && !/get_browser_run/.test(pr) }
 } finally {
   const del = await rest("DELETE", `/api/w/mcp_tokens/${minted.token.id}`, null, ws); out.revoked = del.status < 300
 }
 console.log(JSON.stringify(out))
-console.log(out.status === 200 && out.tools > 0 && out.bad.length === 0 && !out.nullProperties && out.revoked ? "ALL OK" : "FAIL")
+console.log(out.status === 200 && out.tools > 0 && out.bad.length === 0 && !out.nullProperties && out.pluginRunDescribed && out.revoked ? "ALL OK" : "FAIL")
