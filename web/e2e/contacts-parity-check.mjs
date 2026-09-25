@@ -76,13 +76,14 @@ await page.fill("#edit-contact-biography", "Met at the Cairo meetup; prefers Wha
 
 // The birthday field is date-picker.tsx's <Button> + Calendar popover, not a
 // fillable <input> — there is no literal string to type. Opening it focuses
-// today's cell (nothing is selected yet), so Enter picks that cell without
-// needing to navigate the grid to a specific historical date; the ISO value
-// it produces (date-picker.tsx's toISO) lands on the button's data-value,
-// which is what round-trips through the API and is what we compare on reload.
+// the month navigation, not a day, so pick a day by clicking it as a person
+// does (the 15th of the shown month, always in the past or today's month and
+// never outside it). The ISO value it produces (date-picker.tsx's toISO)
+// lands on the button's data-value, which is what round-trips through the API
+// and is what we compare on reload.
 await page.click("#edit-contact-birthday")
 await page.waitForSelector("[data-day]", { timeout: 10000 })
-await page.keyboard.press("Enter")
+await page.locator("td:not([data-outside]) [data-day] , [data-day]:not([data-outside])").filter({ hasText: /^15$/ }).first().click()
 await page.waitForFunction(() => document.getElementById("edit-contact-birthday")?.getAttribute("data-value"), { timeout: 10000 })
 const birthdayPicked = await page.getAttribute("#edit-contact-birthday", "data-value")
 if (shots) await page.screenshot({ path: path.join(shots, "contact-person-fields.png") })
@@ -134,12 +135,19 @@ await page.locator("[data-meta-panel] button", { hasText: /save/i }).click()
 await page.waitForTimeout(700)
 await page.goto(`${W}/contacts/${contactId}`, { waitUntil: "load" })
 await page.waitForSelector("[data-meta-panel]", { timeout: 15000 })
-out.metaPersisted = await page.evaluate(() => document.body.innerText.includes("favorite_drink") && document.body.innerText.includes("Turkish coffee"))
+// The panel may show saved pairs as editable inputs, whose values are not in innerText.
+out.metaPersisted = await page.evaluate(() => {
+  const panel = document.querySelector("[data-meta-panel]")
+  const seen = (panel?.innerText ?? "") + " " + [...(panel?.querySelectorAll("input") ?? [])].map((i) => i.value).join(" ")
+  return seen.includes("favorite_drink") && seen.includes("Turkish coffee")
+})
 check("metaPersisted", out.metaPersisted)
 
 // ---- item 2: inbox "link to existing contact" also attaches the sender identity ----
 await page.goto(`${W}/inbox`, { waitUntil: "load" })
 await page.waitForSelector("[data-conversation]", { timeout: 30000 })
+// Let the list hydrate first: a click that lands before React attaches is lost.
+await page.waitForTimeout(1500)
 const threadCount = await page.locator("[data-conversation]").count()
 let linkable = -1
 for (let i = 0; i < threadCount && linkable < 0; i++) {
