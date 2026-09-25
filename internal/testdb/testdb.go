@@ -27,6 +27,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fadymondy/moharrik/internal/db/migrate"
 )
@@ -106,8 +107,18 @@ func Setup(t *testing.T, name, root string) (ownerURL, appURL string) {
 		t.Fatal(err)
 	}
 	defer owner.Close()
-	if err := migrate.Run(ctx, owner, appURL, root, func(string, ...any) {}); err != nil {
-		t.Fatalf("could not migrate %s: %v", mine, err)
+	// The app role is cluster-wide, so its ALTER ROLE / GRANTs can collide with
+	// another package's migration at the same instant ("tuple concurrently
+	// updated", MH-565). Migrations are idempotent: try again.
+	for attempt := 1; ; attempt++ {
+		err := migrate.Run(ctx, owner, appURL, root, func(string, ...any) {})
+		if err == nil {
+			break
+		}
+		if attempt >= 5 || !strings.Contains(err.Error(), "tuple concurrently updated") {
+			t.Fatalf("could not migrate %s: %v", mine, err)
+		}
+		time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
 	}
 
 	t.Setenv("TEST_DATABASE_URL", ownerURL)
