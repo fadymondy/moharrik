@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,35 @@ never reaches the internet.
 
 	TEST_DATABASE_URL=... TEST_APP_DATABASE_URL=... go test -count=1 ./internal/trends/ -v
 */
+
+// captured is just after the newest item in testdata/. Clustering only looks
+// at the last Window, so the feeds are served as if they were fetched now:
+// every date moves forward by the same amount and keeps its order and gaps.
+var (
+	captured  = time.Date(2026, 9, 23, 4, 0, 0, 0, time.UTC)
+	pubDateRE = regexp.MustCompile(`<pubDate>([^<]+)</pubDate>`)
+	dcDateRE  = regexp.MustCompile(`<dc:date>([^<]+)</dc:date>`)
+)
+
+func shiftDates(b []byte) []byte {
+	shift := time.Since(captured)
+	b = pubDateRE.ReplaceAllFunc(b, func(m []byte) []byte {
+		s := string(pubDateRE.FindSubmatch(m)[1])
+		for _, layout := range []string{time.RFC1123Z, time.RFC1123, "Mon, 2 Jan 2006 15:04:05 -0700", "Mon, 2 Jan 2006 15:04:05 MST"} {
+			if t, err := time.Parse(layout, s); err == nil {
+				return []byte("<pubDate>" + t.Add(shift).UTC().Format(time.RFC1123Z) + "</pubDate>")
+			}
+		}
+		return m
+	})
+	return dcDateRE.ReplaceAllFunc(b, func(m []byte) []byte {
+		t, err := time.Parse(time.RFC3339, string(dcDateRE.FindSubmatch(m)[1]))
+		if err != nil {
+			return m
+		}
+		return []byte("<dc:date>" + t.Add(shift).UTC().Format(time.RFC3339) + "</dc:date>")
+	})
+}
 
 type fixture struct {
 	a     *app.App
@@ -100,7 +130,7 @@ func setup(t *testing.T) *fixture {
 			return
 		}
 		w.Header().Set("Content-Type", "application/rss+xml")
-		_, _ = w.Write(b)
+		_, _ = w.Write(shiftDates(b))
 	}))
 	t.Cleanup(f.feeds.Close)
 	old := HNBase
