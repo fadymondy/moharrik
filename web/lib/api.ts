@@ -691,6 +691,19 @@ export type ConversationStatus = "open" | "snoozed" | "closed"
 /** One channel's conversation counts (MH-568) — ConversationPage.channel_counts. */
 export type ChannelCount = { channel: ConversationChannel; total: number; unread: number }
 
+/** One sender's rolled-up emails (MH-600) — GET /api/w/conversations/senders. */
+export type SenderGroup = {
+  /** Always lower-cased — the whole point is that two different cases group together. */
+  sender_email: string
+  sender_name: string
+  conversation_count: number
+  unread_count: number
+  latest_subject: string
+  latest_preview: string
+  latest_message_at: string
+  latest_conversation_id: string
+}
+
 export type Conversation = {
   id: string
   channel: ConversationChannel

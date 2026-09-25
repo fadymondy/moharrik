@@ -61,31 +61,34 @@ func InboxTools() []Tool {
 				"and channel_counts (MH-568: total and unread per channel, narrowed by status and q the same way this list is, so a caller can " +
 				"see what every channel holds before picking one). Filter by status (open, snoozed, closed), channel (any value channel_counts " +
 				"lists — the set grows as channels are connected, so it is not a fixed enum), unread, contact_id, mailbox_id (MH-555, email only), " +
-				"or q — a full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in each thread, " +
-				"not just its preview. A page holds at most limit; when next_cursor comes back non-empty, pass it as cursor to get the page after " +
-				"it — the same walk the inbox page's own infinite scroll does. Each conversation carries its id for get_conversation, reply, " +
-				"close_conversation and assign_conversation.",
+				"customer_email (MH-600: one sender, case-insensitive — the same filter clicking a row in the email tab's \"grouped by sender\" " +
+				"view applies; see list_conversations_by_sender), or q — a full-text search (MH-556) over the customer's name, email and phone, " +
+				"the subject, and every message in each thread, not just its preview. A page holds at most limit; when next_cursor comes back " +
+				"non-empty, pass it as cursor to get the page after it — the same walk the inbox page's own infinite scroll does. Each " +
+				"conversation carries its id for get_conversation, reply, close_conversation and assign_conversation.",
 			Scope: "inbox:read",
 			InputSchema: schema(nil, map[string]any{
-				"status":     map[string]any{"type": "string", "enum": []string{"open", "snoozed", "closed"}},
-				"channel":    prop("string", "chat, email, whatsapp, telegram, slack, discord, or any other channel this workspace has (channel_counts on the response lists them)"),
-				"unread":     map[string]any{"type": "boolean", "description": "Only conversations nobody has opened since the customer last wrote"},
-				"contact_id": prop("string", "Only conversations linked to this CRM contact"),
-				"mailbox_id": prop("string", "Only email conversations on this mailbox (list_mailboxes shows ids)"),
-				"q":          prop("string", "Full-text search over the customer's name, email and phone, the subject, and every message's body"),
-				"cursor":     prop("string", "next_cursor from a previous call, for the page after it"),
-				"limit":      prop("integer", "At most this many (default 50, max 200)"),
+				"status":         map[string]any{"type": "string", "enum": []string{"open", "snoozed", "closed"}},
+				"channel":        prop("string", "chat, email, whatsapp, telegram, slack, discord, or any other channel this workspace has (channel_counts on the response lists them)"),
+				"unread":         map[string]any{"type": "boolean", "description": "Only conversations nobody has opened since the customer last wrote"},
+				"contact_id":     prop("string", "Only conversations linked to this CRM contact"),
+				"mailbox_id":     prop("string", "Only email conversations on this mailbox (list_mailboxes shows ids)"),
+				"customer_email": prop("string", "MH-600: only conversations from this sender, case-insensitive"),
+				"q":              prop("string", "Full-text search over the customer's name, email and phone, the subject, and every message's body"),
+				"cursor":         prop("string", "next_cursor from a previous call, for the page after it"),
+				"limit":          prop("integer", "At most this many (default 50, max 200)"),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				var in struct {
-					Status    string `json:"status"`
-					Channel   string `json:"channel"`
-					ContactID string `json:"contact_id"`
-					MailboxID string `json:"mailbox_id"`
-					Q         string `json:"q"`
-					Cursor    string `json:"cursor"`
-					Unread    bool   `json:"unread"`
-					Limit     int    `json:"limit"`
+					Status        string `json:"status"`
+					Channel       string `json:"channel"`
+					ContactID     string `json:"contact_id"`
+					MailboxID     string `json:"mailbox_id"`
+					CustomerEmail string `json:"customer_email"`
+					Q             string `json:"q"`
+					Cursor        string `json:"cursor"`
+					Unread        bool   `json:"unread"`
+					Limit         int    `json:"limit"`
 				}
 				if err := bind(raw, &in); err != nil {
 					return "", err
@@ -95,7 +98,7 @@ func InboxTools() []Tool {
 				}
 				res, err := inbox.ListConversations(ctx, a, inbox.ConversationFilter{
 					Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID,
-					MailboxID: in.MailboxID, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
+					MailboxID: in.MailboxID, CustomerEmail: in.CustomerEmail, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
 				})
 				if err != nil {
 					return "", err
@@ -107,6 +110,45 @@ func InboxTools() []Tool {
 				return jsonResult(map[string]any{
 					"unread_count": res.UnreadCount, "count": len(list), "conversations": list, "next_cursor": res.NextCursor,
 					"channel_counts": res.ChannelCounts,
+				})
+			},
+		},
+		{
+			Name: "list_conversations_by_sender",
+			Description: "The email channel grouped by sender (MH-600): one row per customer_email (lower-cased), each with the sender's name, " +
+				"how many conversations they have, how many are unread, the subject/preview/time of their most recent message, and " +
+				"latest_conversation_id. Groups sort unread-first (any conversation from that sender unread) then by most recent activity. " +
+				"Filter by mailbox_id (MH-555) or q (the same full-text search list_conversations uses). Pass a group's sender_email as " +
+				"customer_email to list_conversations to see that sender's own conversations. A page holds at most limit; when next_cursor " +
+				"comes back non-empty, pass it as cursor for the next page of senders.",
+			Scope: "inbox:read",
+			InputSchema: schema(nil, map[string]any{
+				"mailbox_id": prop("string", "Only email conversations on this mailbox (list_mailboxes shows ids)"),
+				"q":          prop("string", "Full-text search over the customer's name, email and phone, the subject, and every message's body"),
+				"cursor":     prop("string", "next_cursor from a previous call, for the page after it"),
+				"limit":      prop("integer", "At most this many (default 50, max 200)"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					MailboxID string `json:"mailbox_id"`
+					Q         string `json:"q"`
+					Cursor    string `json:"cursor"`
+					Limit     int    `json:"limit"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				if in.Limit <= 0 {
+					in.Limit = 50
+				}
+				res, err := inbox.ListConversationsBySender(ctx, a, inbox.SenderGroupFilter{
+					MailboxID: in.MailboxID, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
+				})
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{
+					"count": len(res.Groups), "groups": res.Groups, "next_cursor": res.NextCursor,
 				})
 			},
 		},

@@ -43,6 +43,12 @@ type ConversationFilter struct {
 	Unread    bool
 	ContactID string
 	MailboxID string
+	// CustomerEmail (MH-600) narrows the list to one sender, case-insensitive —
+	// what clicking a row in the "grouped by sender" view (see
+	// ListConversationsBySender) does: the group's own email, lower-cased, so
+	// "Jane@x.com" and "jane@x.com" narrow to the same conversations they were
+	// grouped with.
+	CustomerEmail string
 	// Q is a full-text search (MH-556) over the customer's name, email and
 	// phone, the subject, AND every message's body (not just the preview) —
 	// conversations.search and messages.search, both generated tsvector
@@ -141,6 +147,9 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	}
 	if id := strings.TrimSpace(f.MailboxID); id != "" {
 		add(` AND c.mailbox_id = $?`, id)
+	}
+	if email := strings.ToLower(strings.TrimSpace(f.CustomerEmail)); email != "" {
+		add(` AND lower(c.customer_email) = $?`, email)
 	}
 	if term := strings.TrimSpace(f.Q); term != "" {
 		// Matches the conversation's own fields (customer, subject) OR any
@@ -298,6 +307,141 @@ func channelCounts(ctx context.Context, db *sql.DB, wsID, status, q string) ([]C
 		list = append(list, c)
 	}
 	return list, rows.Err()
+}
+
+// SenderGroupFilter narrows the sender-grouped email view (MH-600). It is
+// deliberately smaller than ConversationFilter: grouping only makes sense for
+// one channel (email — the only channel where "the same person, several
+// threads" is common enough to want this), so there is no Status/Unread/
+// ContactID/Order/Keep here.
+type SenderGroupFilter struct {
+	MailboxID string
+	Q         string
+	Cursor    string
+	Limit     int
+}
+
+// SenderGroup is one sender's emails, rolled up (MH-600): "group by sender"
+// on the inbox's email tab. sender_email is always lower-cased — the whole
+// point is that "Jane@x.com" and "jane@x.com" are the same group.
+type SenderGroup struct {
+	SenderEmail          string    `json:"sender_email"`
+	SenderName           string    `json:"sender_name" doc:"The customer name on the most recently active of this sender's conversations."`
+	ConversationCount    int64     `json:"conversation_count"`
+	UnreadCount          int64     `json:"unread_count"`
+	LatestSubject        string    `json:"latest_subject"`
+	LatestPreview        string    `json:"latest_preview" doc:"The most recent message across every conversation from this sender, trimmed."`
+	LatestMessageAt      time.Time `json:"latest_message_at"`
+	LatestConversationID string    `json:"latest_conversation_id" doc:"The conversation the preview/subject above came from."`
+}
+
+// SenderGroupList is a page of sender groups, unread-first then newest.
+type SenderGroupList struct {
+	Groups     []SenderGroup `json:"groups"`
+	NextCursor string        `json:"next_cursor,omitempty" doc:"Fetches the next page of groups. Empty when this page reaches the last sender."`
+}
+
+// ListConversationsBySender rolls the email channel's conversations up by
+// customer_email (MH-600): one row per sender, so a member can see at a
+// glance who has written several times before opening any of them. Every
+// group sorts unread-first (any conversation in the group unread) then by
+// its most recent activity, matching ListConversations' own unread_first
+// order so switching between the flat list and the grouped view feels like
+// the same list, reshaped.
+//
+// A conversation with no messages is excluded, the same as ListConversations
+// (MH-599) — a sender who has only ever had an empty thread filed for them
+// (the WhatsApp-import bug MH-599 fixed, in principle, for any channel)
+// should not appear as a group with nothing to open.
+func ListConversationsBySender(ctx context.Context, a *app.App, f SenderGroupFilter) (*SenderGroupList, error) {
+	s, err := scope(ctx, authz.InboxRead)
+	if err != nil {
+		return nil, err
+	}
+	wakeDue(ctx, a, s.WorkspaceID)
+	args := []any{s.WorkspaceID}
+	filtered := `
+		SELECT c.id, c.customer_email, c.customer_name, c.subject, c.unread, c.last_message_at,
+		       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
+		                 ORDER BY m.created_at DESC LIMIT 1), '') AS preview
+		FROM conversations c
+		WHERE c.workspace_id = $1 AND c.channel = 'email' AND c.customer_email <> ''
+		  AND EXISTS (SELECT 1 FROM messages em WHERE em.workspace_id = c.workspace_id AND em.conversation_id = c.id)`
+	if id := strings.TrimSpace(f.MailboxID); id != "" {
+		args = append(args, id)
+		filtered += ` AND c.mailbox_id = $` + strconv.Itoa(len(args))
+	}
+	if term := strings.TrimSpace(f.Q); term != "" {
+		args = append(args, term, term)
+		n1, n2 := strconv.Itoa(len(args)-1), strconv.Itoa(len(args))
+		filtered += ` AND (c.search @@ websearch_to_tsquery('simple', $` + n1 + `)
+		      OR EXISTS (SELECT 1 FROM messages sm WHERE sm.workspace_id = c.workspace_id AND sm.conversation_id = c.id
+		                 AND sm.search @@ websearch_to_tsquery('simple', $` + n2 + `)))`
+	}
+	q := `
+		WITH filtered AS (` + filtered + `),
+		ranked AS (
+			SELECT *, row_number() OVER (PARTITION BY lower(customer_email) ORDER BY last_message_at DESC, id DESC) AS rn
+			FROM filtered
+		)
+		SELECT lower(customer_email) AS sender_email,
+		       (array_agg(customer_name ORDER BY last_message_at DESC))[1] AS sender_name,
+		       count(*) AS conversation_count,
+		       count(*) FILTER (WHERE unread) AS unread_count,
+		       max(last_message_at) AS latest_message_at,
+		       max(subject) FILTER (WHERE rn = 1) AS latest_subject,
+		       max(preview) FILTER (WHERE rn = 1) AS latest_preview,
+		       max(id) FILTER (WHERE rn = 1) AS latest_conversation_id
+		FROM ranked
+		GROUP BY lower(customer_email)`
+	cur, err := paging.Decode(f.Cursor, 3)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+	if cur != nil {
+		at, perr := time.Parse(time.RFC3339Nano, cur[1])
+		if perr != nil {
+			return nil, huma.Error422UnprocessableEntity(paging.ErrBadCursor.Error())
+		}
+		args = append(args, cur[0] == "1", at, cur[2])
+		n := len(args)
+		q += ` HAVING (bool_or(unread)::int, max(last_message_at), lower(customer_email)) < ($` +
+			strconv.Itoa(n-2) + `::boolean::int, $` + strconv.Itoa(n-1) + `, $` + strconv.Itoa(n) + `)`
+	}
+	limit, lerr := paging.Limit(f.Limit, 50, 200)
+	if lerr != nil {
+		return nil, huma.Error422UnprocessableEntity(lerr.Error())
+	}
+	q += ` ORDER BY bool_or(unread) DESC, max(last_message_at) DESC, lower(customer_email) DESC LIMIT ` + strconv.Itoa(limit+1)
+	rows, err := a.SQLDB.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not list conversations by sender")
+	}
+	defer rows.Close()
+	list := []SenderGroup{}
+	for rows.Next() {
+		var g SenderGroup
+		if err := rows.Scan(&g.SenderEmail, &g.SenderName, &g.ConversationCount, &g.UnreadCount,
+			&g.LatestMessageAt, &g.LatestSubject, &g.LatestPreview, &g.LatestConversationID); err != nil {
+			return nil, huma.Error500InternalServerError("could not list conversations by sender")
+		}
+		g.LatestPreview = trim(g.LatestPreview, 140)
+		list = append(list, g)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, huma.Error500InternalServerError("could not list conversations by sender")
+	}
+	res := &SenderGroupList{Groups: list}
+	if len(list) > limit {
+		last := list[limit-1]
+		flag := "0"
+		if last.UnreadCount > 0 {
+			flag = "1"
+		}
+		res.NextCursor = paging.Encode(flag, last.LatestMessageAt.UTC().Format(time.RFC3339Nano), last.SenderEmail)
+		res.Groups = list[:limit]
+	}
+	return res, nil
 }
 
 // GetConversation reads one conversation and the newest page of its thread
