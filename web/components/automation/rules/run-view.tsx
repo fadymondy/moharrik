@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/sheet"
 import { useTranslations } from "@/lib/i18n"
 import { intlTag } from "@/lib/i18n-locale"
+import { actionErrorText, actionSummaryText, runReasonText } from "@/lib/rule-messages"
 import type { RuleActionResult, RuleRun, RuleRunStatus } from "@/lib/rules"
 import { cn } from "@/lib/utils"
 
@@ -123,7 +124,7 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
         ) : null}
         {run.reason ? (
           <p className="w-full text-xs text-grid-muted" data-run-reason>
-            <Bdi>{run.reason}</Bdi>
+            <Bdi>{runReasonText(t, run)}</Bdi>
           </p>
         ) : null}
       </div>
@@ -169,6 +170,8 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
           <ol className="space-y-2" data-run-actions>
             {run.actions.map((a, i) => {
               const Icon = actionIcon(a.type)
+              const summary = actionSummaryText(t, a)
+              const error = actionErrorText(t, a)
               return (
                 <li
                   key={i}
@@ -184,12 +187,12 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
                         · {t(`rules.actionStatus.${a.status}`)}
                       </span>
                     </p>
-                    {a.summary ? (
+                    {summary ? (
                       <p className="text-grid-muted" dir="auto">
-                        {a.summary}
+                        {summary}
                       </p>
                     ) : null}
-                    {a.error ? (
+                    {error ? (
                       <p
                         className={cn(
                           "text-xs",
@@ -197,7 +200,7 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
                         )}
                         dir="auto"
                       >
-                        {a.error}
+                        {error}
                       </p>
                     ) : null}
                   </div>
@@ -306,11 +309,12 @@ export function RunLog({
                 </td>
                 <td className="max-w-md px-6 py-3 text-grid-muted">
                   <span className="line-clamp-1" dir="auto">
-                    {r.reason ||
-                      r.actions
-                        .map((a) => a.summary)
-                        .filter(Boolean)
-                        .join(" · ")}
+                    {r.reason
+                      ? runReasonText(t, r)
+                      : r.actions
+                          .map((a) => actionSummaryText(t, a))
+                          .filter(Boolean)
+                          .join(" · ")}
                   </span>
                 </td>
               </tr>

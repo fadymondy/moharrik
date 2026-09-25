@@ -81,7 +81,14 @@ export type RuleActionResult = {
   type: string
   status: "ok" | "failed" | "skipped" | "would"
   summary: string
+  // MH-524: a stable code + values for the same outcome, translatable in a
+  // UI. '' on runs logged before this shipped, and on actions that wrap an
+  // arbitrary error from outside internal/rules — fall back to summary/error.
+  summary_code?: string
+  summary_args?: Record<string, string>
   error?: string
+  error_code?: string
+  error_args?: Record<string, string>
   ref?: string
 }
 export type RuleRunStatus =
@@ -96,6 +103,9 @@ export type RuleRun = {
   status: RuleRunStatus
   dry_run: boolean
   reason: string
+  // MH-524: reason as a stable code + values; '' on old runs (use reason).
+  reason_code?: string
+  reason_args?: Record<string, string>
   event: Record<string, unknown>
   conditions: RuleConditionResult[]
   actions: RuleActionResult[]

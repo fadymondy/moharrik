@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -202,8 +203,9 @@ func Execute(ctx context.Context, a *app.App, wsID string, r Rule, ev Event, tes
 	run := RuleRun{RuleID: r.ID, RuleName: r.Name, EventID: ev.ID, Trigger: ev.Type, SubjectID: ev.SubjectID, DryRun: dry,
 		Event: ev.Data, Conditions: []RuleConditionResult{}, Actions: []RuleActionResult{}, Depth: len(ev.Chain), TestedBy: testedBy,
 		StartedAt: time.Now().UTC()}
-	finish := func(status, reason string) RuleRun {
+	finish := func(status, reason string, rm msg) RuleRun {
 		run.Status, run.Reason = status, clip(reason, 500)
+		run.ReasonCode, run.ReasonArgs = rm.Code, rm.Args
 		t := time.Now().UTC()
 		run.FinishedAt = &t
 		return run
@@ -212,20 +214,22 @@ func Execute(ctx context.Context, a *app.App, wsID string, r Rule, ev Event, tes
 
 	// 1. The loop guard, before anything else is even read.
 	if !dry && slices.Contains(ev.Chain, r.ID) {
-		return finish("loop_blocked", "this event was caused by this rule's own action; a rule never re-triggers itself")
+		return finish("loop_blocked", "this event was caused by this rule's own action; a rule never re-triggers itself", m("loop_self"))
 	}
 	if !dry && len(ev.Chain) >= triggers.MaxDepth {
-		return finish("loop_blocked", fmt.Sprintf("this event is %d rules deep in a chain (the limit is %d)", len(ev.Chain), triggers.MaxDepth))
+		return finish("loop_blocked", fmt.Sprintf("this event is %d rules deep in a chain (the limit is %d)", len(ev.Chain), triggers.MaxDepth),
+			m("loop_depth", "depth", strconv.Itoa(len(ev.Chain)), "max", strconv.Itoa(triggers.MaxDepth)))
 	}
 
 	// 2. The conditions.
 	matched, results := Evaluate(r.Match, r.Conditions, data)
 	run.Conditions = results
 	if !matched {
-		return finish("skipped", "the conditions did not hold")
+		return finish("skipped", "the conditions did not hold", m("conditions_not_met"))
 	}
 
 	// 3. Once per record.
+	onceNote := msg{}
 	if r.OncePerSubject && ev.SubjectID != "" && r.ID != "" {
 		var done int
 		_ = a.SQLDB.QueryRowContext(sctx, `SELECT count(*) FROM automation_rule_runs
@@ -233,9 +237,10 @@ func Execute(ctx context.Context, a *app.App, wsID string, r Rule, ev Event, tes
 			wsID, r.ID, ev.SubjectID).Scan(&done)
 		if done > 0 {
 			if !dry {
-				return finish("skipped", "this rule already ran for this record, and runs once per record")
+				return finish("skipped", "this rule already ran for this record, and runs once per record", m("once_per_record"))
 			}
 			run.Reason = "note: a real event for this record would be skipped — this rule already ran for it"
+			onceNote = m("once_per_record_note")
 		}
 	}
 
@@ -248,22 +253,29 @@ func Execute(ctx context.Context, a *app.App, wsID string, r Rule, ev Event, tes
 			FROM automation_rule_runs WHERE workspace_id = $1 AND NOT dry_run AND status IN ('ok', 'partial', 'failed')
 			  AND started_at > now() - interval '1 hour'`, wsID, r.ID).Scan(&mine, &all)
 		if mine >= r.MaxRunsPerHour {
-			return finish("rate_limited", fmt.Sprintf("this rule already ran %d times in the last hour (its limit)", r.MaxRunsPerHour))
+			return finish("rate_limited", fmt.Sprintf("this rule already ran %d times in the last hour (its limit)", r.MaxRunsPerHour),
+				m("rate_limited_rule", "limit", strconv.Itoa(r.MaxRunsPerHour)))
 		}
 		if all >= WorkspaceHourlyCap {
-			return finish("rate_limited", fmt.Sprintf("this workspace's rules already ran %d times in the last hour", WorkspaceHourlyCap))
+			return finish("rate_limited", fmt.Sprintf("this workspace's rules already ran %d times in the last hour", WorkspaceHourlyCap),
+				m("rate_limited_workspace", "cap", strconv.Itoa(WorkspaceHourlyCap)))
 		}
 	}
 
 	// 5. Who it acts as, now.
 	rctx, s, err := runnerContext(ctx, a, wsID, r, ev.Chain)
 	if err != nil {
-		return finish("failed", err.Error())
+		code := "generic_error"
+		if errors.Is(err, ErrMemberGone) {
+			code = "member_gone"
+		}
+		return finish("failed", err.Error(), m(code, "detail", err.Error()))
 	}
 	def, _ := triggerDef(r.Trigger)
 	x := &execCtx{a: a, ctx: rctx, ws: wsID, s: s, rule: r, def: def, data: data, subjectID: ev.SubjectID, eventID: ev.ID, dry: dry}
 	failed, done := 0, 0
 	first := ""
+	var firstMsg msg
 	for i, act := range r.Actions {
 		res := x.run(i, act)
 		switch res.Status {
@@ -271,6 +283,7 @@ func Execute(ctx context.Context, a *app.App, wsID string, r Rule, ev Event, tes
 			failed++
 			if first == "" {
 				first = fmt.Sprintf("step %d (%s): %s", i+1, act.Type, res.Error)
+				firstMsg = m("step_error", "step", strconv.Itoa(i+1), "type", act.Type, "detail", res.Error)
 			}
 		case "ok", "would":
 			done++
@@ -280,13 +293,13 @@ func Execute(ctx context.Context, a *app.App, wsID string, r Rule, ev Event, tes
 	switch {
 	case failed == 0:
 		if run.Reason != "" {
-			return finish("ok", run.Reason)
+			return finish("ok", run.Reason, onceNote)
 		}
-		return finish("ok", "")
+		return finish("ok", "", msg{})
 	case done == 0:
-		return finish("failed", first)
+		return finish("failed", first, firstMsg)
 	default:
-		return finish("partial", first)
+		return finish("partial", first, firstMsg)
 	}
 }
 
@@ -325,12 +338,16 @@ func logRun(ctx context.Context, a *app.App, wsID string, r Rule, run RuleRun) (
 	ev, _ := json.Marshal(run.Event)
 	conds, _ := json.Marshal(run.Conditions)
 	acts, _ := json.Marshal(run.Actions)
+	reasonArgs, _ := json.Marshal(run.ReasonArgs)
+	if run.ReasonArgs == nil {
+		reasonArgs = []byte("{}")
+	}
 	var id string
 	err := a.SQLDB.QueryRowContext(ctx, `
 		INSERT INTO automation_rule_runs (workspace_id, rule_id, rule_name, event_id, trigger, subject_id, status, dry_run, reason,
-		                                  event, conditions, actions, depth, tested_by, started_at, finished_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15, $16) RETURNING id`,
-		wsID, r.ID, r.Name, run.EventID, run.Trigger, run.SubjectID, run.Status, run.DryRun, run.Reason,
+		                                  reason_code, reason_args, event, conditions, actions, depth, tested_by, started_at, finished_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15, $16, $17, $18) RETURNING id`,
+		wsID, r.ID, r.Name, run.EventID, run.Trigger, run.SubjectID, run.Status, run.DryRun, run.Reason, run.ReasonCode, string(reasonArgs),
 		string(ev), string(conds), string(acts), run.Depth, run.TestedBy, run.StartedAt, run.FinishedAt).Scan(&id)
 	if err != nil {
 		return "", err
