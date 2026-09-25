@@ -226,3 +226,36 @@ func TestFileChannelMessageQueuesPerSenderPhotoInGroupThread(t *testing.T) {
 		t.Fatalf("sender contact photo_source=%q photo_url=%q, want a cached telegram photo on the SENDER, not the conversation", source, url)
 	}
 }
+
+// TestDeletingGroupSenderContactKeepsTheMessage: messages_sender_contact_fk is
+// a composite (workspace_id, sender_contact_id) key, so its SET NULL must name
+// sender_contact_id alone — a bare SET NULL would null workspace_id too and the
+// contact delete would fail on its NOT NULL.
+func TestDeletingGroupSenderContactKeepsTheMessage(t *testing.T) {
+	a := testApp(t)
+	f := newMailboxWorkspace(t, a)
+
+	groupID := "grp-" + idSuffix()
+	if err := FileChannelMessage(f.ctx, a, f.wsID, "discord", "", groupID, "U-"+idSuffix(), "Nour", "hello", "dc:"+idSuffix(), true); err != nil {
+		t.Fatal(err)
+	}
+	var msgID, contactID string
+	if err := a.SQLDB.QueryRowContext(f.ctx, `
+		SELECT m.id, m.sender_contact_id FROM messages m
+		JOIN conversations c ON c.workspace_id = m.workspace_id AND c.id = m.conversation_id
+		WHERE m.workspace_id = $1 AND c.external_thread_id = $2`, f.wsID, groupID).Scan(&msgID, &contactID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SQLDB.ExecContext(f.ctx, `DELETE FROM contacts WHERE workspace_id = $1 AND id = $2`, f.wsID, contactID); err != nil {
+		t.Fatalf("deleting the sender contact failed: %v", err)
+	}
+	var sender *string
+	var name string
+	if err := a.SQLDB.QueryRowContext(f.ctx, `SELECT sender_contact_id, sender_name FROM messages WHERE workspace_id = $1 AND id = $2`,
+		f.wsID, msgID).Scan(&sender, &name); err != nil {
+		t.Fatalf("the message went with the contact: %v", err)
+	}
+	if sender != nil || name != "Nour" {
+		t.Fatalf("after delete: sender_contact_id=%v sender_name=%q, want nil and the name kept", sender, name)
+	}
+}

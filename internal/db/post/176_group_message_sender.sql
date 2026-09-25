@@ -17,10 +17,9 @@
 -- NULL/empty exactly as before, since the conversation-level contact already
 -- says who that is.
 --
--- Numbered 604 (the card's own number), same "not the next sequential slot"
--- reasoning 175_prospect_icp_link.sql's header explains — several branches
--- add post/ migrations off the same base, and a ticket number is one no
--- other card will also pick.
+-- ON DELETE SET NULL (sender_contact_id): the column list matters. A bare SET
+-- NULL on this composite key would also null workspace_id (NOT NULL), so
+-- deleting a contact that sent a group message would fail.
 
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_group boolean NOT NULL DEFAULT false;
 
@@ -32,7 +31,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'messages_sender_contact_fk') THEN
         ALTER TABLE messages ADD CONSTRAINT messages_sender_contact_fk
-            FOREIGN KEY (workspace_id, sender_contact_id) REFERENCES contacts (workspace_id, id) ON DELETE SET NULL;
+            FOREIGN KEY (workspace_id, sender_contact_id) REFERENCES contacts (workspace_id, id) ON DELETE SET NULL (sender_contact_id);
     END IF;
 END $$;
 
