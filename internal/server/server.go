@@ -32,6 +32,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
 	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/imports"
+	"github.com/fadymondy/moharrik/internal/vcard"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/leads"
 	"github.com/fadymondy/moharrik/internal/marketing"
@@ -327,6 +328,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	imports.RegisterProvider(imports.TelegramProvider{}) // MH-562: no history API — honestly not-ready
 	imports.RegisterProvider(imports.WorkflowProvider{}) // MH-562: no history source — honestly not-ready
 	imports.Register(api, a)                             // Contacts → "Import from a connection"
+	vcard.Register(api, a)                               // Contacts → import/export .vcf (MH-584)
 	trends.Register(api, a)
 	trends.RegisterDigest(api, a) // the trends digest (MH-389)
 	automation.Register(api, a, automation.Default())

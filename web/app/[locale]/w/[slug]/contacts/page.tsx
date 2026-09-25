@@ -91,9 +91,14 @@ export default function ContactsPage() {
         title={t("nav.contacts")}
         description={t("contacts.hint")}
         action={
-          <Link className="text-sm underline underline-offset-4" href={`/${locale}/w/${ws.slug}/contacts/import`} data-nav="import">
-            {t("import.title")}
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link className="text-sm underline underline-offset-4" href={`/${locale}/w/${ws.slug}/contacts/import`} data-nav="import">
+              {t("import.title")}
+            </Link>
+            <Link className="text-sm underline underline-offset-4" href={`/${locale}/w/${ws.slug}/contacts/vcard`} data-nav="vcard">
+              {t("vcard.navLink")}
+            </Link>
+          </div>
         }
       />
       <ListsSection lists={listItems} loading={lists.isLoading} error={lists.error} onChange={changed} />
