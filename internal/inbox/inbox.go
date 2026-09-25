@@ -60,6 +60,11 @@ type ConversationOut struct {
 	Locale          string    `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
 	CustomerPhone   string    `json:"customer_phone" doc:"A WhatsApp customer's number; empty for other channels."`
 	CustomerHandle  string    `json:"customer_handle" doc:"A Telegram/Slack/Discord handle or a workflow channel's profile URL; empty for other channels."`
+	// IsGroup (MH-604) marks a Telegram/Slack/Discord thread with more than
+	// one possible sender — a group chat/channel, never a 1:1 DM, and never
+	// true for chat/email/WhatsApp (WhatsApp groups are deliberately never
+	// filed). Drives the UI's per-message sender avatar: shown only here.
+	IsGroup         bool      `json:"is_group"`
 	// AvatarURL is MH-602's single answer for "what photo, if any" — a linked
 	// contact's uploaded/provider photo when there is one, else this
 	// conversation's own cached WhatsApp photo (set for an unlinked customer),
@@ -113,6 +118,13 @@ type MessageOut struct {
 	MailboxID    *string   `json:"mailbox_id,omitempty" doc:"Which mailbox this email arrived on or went out through; absent for chat/WhatsApp."`
 	Attachments  []AttachmentOut `json:"attachments,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
+	// Sender identity (MH-604), set only for an inbound message on a group
+	// thread (ConversationOut.IsGroup) — a 1:1 thread's sender is the
+	// conversation's own contact/customer_name, already surfaced there.
+	SenderName       string  `json:"sender_name,omitempty" doc:"The group-thread sender's display name; empty outside a group thread."`
+	SenderContactID  *string `json:"sender_contact_id,omitempty" doc:"The CRM contact resolved for this group-thread sender, if any."`
+	SenderExternalID string  `json:"-" doc:"The sender's raw platform id (Telegram/Slack/Discord handle); internal only, never serialized — SenderContactID/SenderAvatarURL are what the client renders from."`
+	SenderAvatarURL  string  `json:"sender_avatar_url,omitempty" doc:"MH-604's per-sender counterpart to ConversationOut.AvatarURL: the sender's photo if cached, else empty so the client renders initials."`
 }
 
 // AttachmentOut is one attachment's metadata — never the bytes; those are

@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDownIcon, SendIcon } from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
+import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { CannedPicker } from "@/components/inbox/canned-picker"
 import { AttachmentList, MessageBody } from "@/components/inbox/message-body"
 import { Button } from "@/components/ui/button"
@@ -67,8 +68,20 @@ function timeOf(iso: string, locale: string): string {
   return dateFormat(locale, { timeStyle: "short" }).format(new Date(iso))
 }
 
-/** Day separators + consecutive-same-sender grouping, in one pass over an already-ordered thread. */
-function buildItems(messages: InboxMessage[], t: (key: string) => string, locale: string): Item[] {
+/** MH-604: the identity a group thread's grouping compares consecutive
+ *  inbound messages on — the resolved sender contact when there is one, else
+ *  the raw sender name, so two different senders never collapse into one
+ *  bubble group even when contacts.Upsert couldn't resolve a contact for one
+ *  of them. */
+function senderKey(m: InboxMessage): string {
+  return m.sender_contact_id || m.sender_name || ""
+}
+
+/** Day separators + consecutive-same-sender grouping, in one pass over an already-ordered thread.
+ *  isGroup (Conversation.is_group, MH-604) makes an inbound message's SENDER part of "same sender"
+ *  too — a Telegram/Slack/Discord group thread has many senders sharing the "in" direction, unlike
+ *  a 1:1 thread where every inbound message is the same one customer. */
+function buildItems(messages: InboxMessage[], t: (key: string) => string, locale: string, isGroup: boolean): Item[] {
   const items: Item[] = []
   let lastDay = ""
   let group: InboxMessage[] = []
@@ -87,7 +100,10 @@ function buildItems(messages: InboxMessage[], t: (key: string) => string, locale
       lastDay = dk
     }
     const last = group[group.length - 1]
-    const sameSender = !!last && last.direction === m.direction && (m.direction !== "out" || last.author_user_id === m.author_user_id)
+    const sameSender =
+      !!last &&
+      last.direction === m.direction &&
+      (m.direction === "out" ? last.author_user_id === m.author_user_id : !isGroup || senderKey(last) === senderKey(m))
     const close = !!last && new Date(m.created_at).getTime() - new Date(last.created_at).getTime() < GROUP_GAP_MS
     if (last && sameSender && close) group.push(m)
     else {
@@ -119,7 +135,12 @@ function MessageGroup({
   const { t, locale } = useTranslations()
   const out = group[0].direction === "out"
   const Icon = channelIcon(conversation.channel)
-  const who = out ? (group[0].author_user_id ? memberName(group[0].author_user_id) : t("inbox.team")) : conversation.customer_name || t("inbox.customer")
+  // MH-604: a group thread's inbound "who" is whichever sender wrote THIS
+  // group, not the conversation's own customer_name — that name belongs to
+  // the thread as a whole and means nothing once several people write in it.
+  const groupSenderName = group[0].sender_name || t("inbox.customer")
+  const who = out ? (group[0].author_user_id ? memberName(group[0].author_user_id) : t("inbox.team")) : conversation.is_group ? groupSenderName : conversation.customer_name || t("inbox.customer")
+  const showSenderAvatar = !out && conversation.is_group
 
   // An email is a document, not a chat line (MH-592): each one is a
   // full-width card with its own sender and time, so a newsletter's layout,
@@ -169,22 +190,34 @@ function MessageGroup({
           {channelLabel(conversation.channel, t)}
         </span>
       </p>
-      <div className="flex w-full flex-col gap-0.5">
-        {group.map((m) => (
-          <div
-            key={m.id}
-            data-message={m.direction}
-            className={`max-w-[36rem] rounded-2xl px-3.5 py-2 text-sm ${out ? "self-end bg-primary text-primary-foreground" : "self-start border border-line bg-grid-card"}`}
-          >
-            {conversation.channel === "email" && conversation.subject ? (
-              <p className={`mb-1 truncate text-xs font-medium ${out ? "text-primary-foreground/80" : "text-grid-muted"}`} data-message-subject>
-                <Bdi>{conversation.subject}</Bdi>
-              </p>
-            ) : null}
-            <MessageBody body={m.body} bodyHtml={m.body_html} attachments={m.attachments} />
-            <AttachmentList attachments={m.attachments} />
+      <div className={`flex w-full items-end gap-2 ${out ? "flex-row-reverse" : ""}`}>
+        {showSenderAvatar ? (
+          <div className="shrink-0 self-end" data-group-sender-avatar>
+            <PersonAvatar
+              id={group[0].sender_contact_id || group[0].sender_name || undefined}
+              name={groupSenderName}
+              photoUrl={group[0].sender_avatar_url || null}
+              size="sm"
+            />
           </div>
-        ))}
+        ) : null}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {group.map((m) => (
+            <div
+              key={m.id}
+              data-message={m.direction}
+              className={`max-w-[36rem] rounded-2xl px-3.5 py-2 text-sm ${out ? "self-end bg-primary text-primary-foreground" : "self-start border border-line bg-grid-card"}`}
+            >
+              {conversation.channel === "email" && conversation.subject ? (
+                <p className={`mb-1 truncate text-xs font-medium ${out ? "text-primary-foreground/80" : "text-grid-muted"}`} data-message-subject>
+                  <Bdi>{conversation.subject}</Bdi>
+                </p>
+              ) : null}
+              <MessageBody body={m.body} bodyHtml={m.body_html} attachments={m.attachments} />
+              <AttachmentList attachments={m.attachments} />
+            </div>
+          ))}
+        </div>
       </div>
       <p className="px-1 text-xs text-grid-muted">
         <Ltr>{timeOf(group[group.length - 1].created_at, locale)}</Ltr>
@@ -222,7 +255,7 @@ export function ChatThread({
   fill?: boolean
 }) {
   const { t, locale } = useTranslations()
-  const items = buildItems(messages, t, locale)
+  const items = buildItems(messages, t, locale, conversation.is_group)
 
   const parentRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLFormElement>(null)

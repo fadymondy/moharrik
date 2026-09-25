@@ -27,7 +27,7 @@ func TestFileChannelMessageResolvesSameContactAcrossMessages(t *testing.T) {
 
 	chatID := "chat-" + idSuffix()
 
-	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", "", chatID, "@fady", "Fady", "First message", "tg:"+idSuffix()); err != nil {
+	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", "", chatID, "@fady", "Fady", "First message", "tg:"+idSuffix(), false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -59,7 +59,7 @@ func TestFileChannelMessageResolvesSameContactAcrossMessages(t *testing.T) {
 	// A SECOND message from the same chat id: it must resolve to the SAME
 	// contact (via the identity the first message wrote), not create a
 	// second contact or a second identity row.
-	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", "", chatID, "@fady", "Fady", "Second message", "tg:"+idSuffix()); err != nil {
+	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", "", chatID, "@fady", "Fady", "Second message", "tg:"+idSuffix(), false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -119,7 +119,7 @@ func TestFileChannelMessageReusesExistingIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := FileChannelMessage(f.ctx, a, f.wsID, "slack", "", externalID, "fady", "Fady", "Hello from Slack", "sl:"+idSuffix()); err != nil {
+	if err := FileChannelMessage(f.ctx, a, f.wsID, "slack", "", externalID, "fady", "Fady", "Hello from Slack", "sl:"+idSuffix(), false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -216,7 +216,7 @@ func TestUpdateConversationLinkAttachesSenderIdentity(t *testing.T) {
 
 	// A second message from the SAME chat id must now resolve to this same,
 	// already-linked contact — the point of attaching the identity at all.
-	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", "", chatID, "@fady", "Fady", "Follow-up", "tg:"+idSuffix()); err != nil {
+	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", "", chatID, "@fady", "Fady", "Follow-up", "tg:"+idSuffix(), false); err != nil {
 		t.Fatal(err)
 	}
 	var contactIDAfter string

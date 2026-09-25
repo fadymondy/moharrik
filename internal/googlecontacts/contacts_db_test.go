@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -490,5 +491,149 @@ func TestPreviewClassifiesWithoutWriting(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("Preview must never write; found %d contacts", count)
+	}
+}
+
+// ---- photos (MH-604) ---------------------------------------------------------
+
+// A tiny real PNG (1x1), the same fixture internal/crm's own tests and
+// web/e2e/mh588-avatars.mjs use.
+const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+// photoServer serves the tiny PNG above at /photo.png, standing in for
+// Google's People API photo CDN — internal/photocache.Download works against
+// any plain HTTP URL, no auth, exactly like Google's own photo URLs.
+func photoServer(t *testing.T) string {
+	t.Helper()
+	raw, err := base64.StdEncoding.DecodeString(tinyPNGBase64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(raw)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL + "/photo.png"
+}
+
+func contactPhoto(t *testing.T, f *fixture, ctx context.Context, wsID, resourceName string) (photoURL, photoSource string, avatarID sql.NullString) {
+	t.Helper()
+	err := f.a.SQLDB.QueryRowContext(ctx, `
+		SELECT c.photo_url, c.photo_source, c.photo_attachment_id
+		FROM contacts c
+		JOIN contact_identities ci ON ci.contact_id = c.id
+		WHERE c.workspace_id = $1 AND ci.channel = 'other' AND ci.external_id = $2`,
+		wsID, "google:"+resourceName).Scan(&photoURL, &photoSource, &avatarID)
+	if err != nil {
+		t.Fatalf("reading contact photo: %v", err)
+	}
+	return
+}
+
+func TestGooglePhotoLandsThroughPhotocache(t *testing.T) {
+	f := newFixture(t)
+	alice := f.newUser(t)
+	wsID := alice.workspace(t)
+	ctx := withWorkspace(context.Background(), wsID)
+	f.setAccount("sub-photo", "photo-owner@example.test")
+	connID := alice.connect(t, "product=contacts")
+
+	photoURL := photoServer(t)
+	f.fake.SetContact("sub-photo", "people/photo1", googletest.ContactFields{
+		"names":  []map[string]any{{"givenName": "Photo", "familyName": "Person"}},
+		"photos": []map[string]any{{"url": photoURL, "default": false, "metadata": map[string]any{"primary": true}}},
+	})
+
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+		t.Fatal(err)
+	}
+	url, source, avatarID := contactPhoto(t, f, ctx, wsID, "people/photo1")
+	if !strings.HasPrefix(url, "data:image/") {
+		t.Fatalf("expected a cached data: URI, got %q", url)
+	}
+	if source != "google" {
+		t.Fatalf("expected photo_source=google, got %q", source)
+	}
+	if avatarID.Valid && avatarID.String != "" {
+		t.Fatalf("no avatar was ever uploaded; photo_attachment_id should stay unset, got %q", avatarID.String)
+	}
+}
+
+func TestUploadedPhotoIsNeverOverwrittenByGoogle(t *testing.T) {
+	f := newFixture(t)
+	alice := f.newUser(t)
+	wsID := alice.workspace(t)
+	ctx := withWorkspace(context.Background(), wsID)
+	f.setAccount("sub-upl", "upl-owner@example.test")
+	connID := alice.connect(t, "product=contacts")
+
+	f.fake.SetContact("sub-upl", "people/upl1", googletest.ContactFields{
+		"names": []map[string]any{{"givenName": "Upload", "familyName": "Wins"}},
+	})
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate an uploaded avatar (internal/crm.UploadContactAvatar's own
+	// write shape): a contact_avatars row plus contacts.photo_attachment_id.
+	var contactID string
+	if err := f.a.SQLDB.QueryRowContext(ctx, `
+		SELECT c.id FROM contacts c
+		JOIN contact_identities ci ON ci.contact_id = c.id
+		WHERE c.workspace_id = $1 AND ci.channel = 'other' AND ci.external_id = 'google:people/upl1'`,
+		wsID).Scan(&contactID); err != nil {
+		t.Fatal(err)
+	}
+	var avatarID string
+	if err := f.a.SQLDB.QueryRowContext(ctx, `
+		INSERT INTO contact_avatars (workspace_id, contact_id, content_type, size_bytes, data)
+		VALUES ($1, $2, 'image/png', 4, '\x89504e47'::bytea) RETURNING id`,
+		wsID, contactID).Scan(&avatarID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.SQLDB.ExecContext(ctx, `UPDATE contacts SET photo_attachment_id = $1 WHERE workspace_id = $2 AND id = $3`,
+		avatarID, wsID, contactID); err != nil {
+		t.Fatal(err)
+	}
+
+	// The same person now has a Google photo too — a second sync must not
+	// touch photo_url/photo_source: the upload always wins.
+	photoURL := photoServer(t)
+	f.fake.SetContact("sub-upl", "people/upl1", googletest.ContactFields{
+		"names":  []map[string]any{{"givenName": "Upload", "familyName": "Wins"}},
+		"photos": []map[string]any{{"url": photoURL, "default": false, "metadata": map[string]any{"primary": true}}},
+	})
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+		t.Fatal(err)
+	}
+	url, source, gotAvatarID := contactPhoto(t, f, ctx, wsID, "people/upl1")
+	if url != "" || source != "" {
+		t.Fatalf("an uploaded photo must not be overwritten by Google: photo_url=%q photo_source=%q", url, source)
+	}
+	if !gotAvatarID.Valid || gotAvatarID.String != avatarID {
+		t.Fatalf("photo_attachment_id must remain the uploaded one, got %v", gotAvatarID)
+	}
+}
+
+func TestDefaultGooglePhotoIsSkipped(t *testing.T) {
+	f := newFixture(t)
+	alice := f.newUser(t)
+	wsID := alice.workspace(t)
+	ctx := withWorkspace(context.Background(), wsID)
+	f.setAccount("sub-def", "def-owner@example.test")
+	connID := alice.connect(t, "product=contacts")
+
+	photoURL := photoServer(t)
+	f.fake.SetContact("sub-def", "people/def1", googletest.ContactFields{
+		"names":  []map[string]any{{"givenName": "Default", "familyName": "Photo"}},
+		"photos": []map[string]any{{"url": photoURL, "default": true, "metadata": map[string]any{"primary": true}}},
+	})
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+		t.Fatal(err)
+	}
+	url, source, _ := contactPhoto(t, f, ctx, wsID, "people/def1")
+	if url != "" || source != "" {
+		t.Fatalf("a default (placeholder) Google photo must be ignored, got photo_url=%q photo_source=%q", url, source)
 	}
 }

@@ -324,7 +324,9 @@ func handleDiscordMessage(workspaceID, id string, m discordMessageCreate, allowe
 	}
 	markDiscordDelivery(workspaceID, id)
 	sctx := discordCtx(workspaceID)
-	if err := deliver(sctx, workspaceID, "discord", id, channelID, handle, name, text, "discord:"+msgID); err != nil {
+	// A guild channel (m.GuildID set) is a many-sender room; a DM has none.
+	isGroup := m.GuildID != ""
+	if err := deliver(sctx, workspaceID, "discord", id, channelID, handle, name, text, "discord:"+msgID, isGroup); err != nil {
 		recordDiscordError(workspaceID, id, "could not file a message: "+err.Error())
 	}
 }

@@ -74,7 +74,7 @@ func TestFileChannelMessageQueuesAPhotoFetchForTheLinkedContact(t *testing.T) {
 	}
 
 	chatID := "700" + numericIDSuffix()
-	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", created.ID, chatID, "@dana", "Dana", "hello", "tg:"+idSuffix()); err != nil {
+	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", created.ID, chatID, "@dana", "Dana", "hello", "tg:"+idSuffix(), false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,7 +118,7 @@ func TestFileChannelMessageWithNoConnectionNeverBlocksFiling(t *testing.T) {
 	f := newMailboxWorkspace(t, a)
 
 	chatID := "701" + numericIDSuffix()
-	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", "", chatID, "@dana", "Dana", "hello", "tg:"+idSuffix()); err != nil {
+	if err := FileChannelMessage(f.ctx, a, f.wsID, "telegram", "", chatID, "@dana", "Dana", "hello", "tg:"+idSuffix(), false); err != nil {
 		t.Fatal(err)
 	}
 	var count int

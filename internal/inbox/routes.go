@@ -39,7 +39,7 @@ const conversationSelect = `
 	                 ORDER BY m.created_at DESC LIMIT 1), ''),
 	       (SELECT count(*) FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id),
 	       c.customer_phone, c.contact_link, ct.name, ct.email, ct.company_id, co.name, c.deal_id, d.title,
-	       c.snoozed_until, c.closed_at, c.mailbox_id, c.customer_handle, c.source_channel_id,
+	       c.snoozed_until, c.closed_at, c.mailbox_id, c.customer_handle, c.source_channel_id, c.is_group,
 	       ct.photo_attachment_id,
 	       (ct.photo_url LIKE 'data:%'), CASE WHEN ct.photo_url LIKE 'data:%' THEN '' ELSE coalesce(ct.photo_url, '') END,
 	       ct.photo_fetched_at,
@@ -66,7 +66,7 @@ func scanConversation(wsID string, row interface{ Scan(...any) error }) (Convers
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
 		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount,
 		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle, &snoozed, &closed,
-		&mailboxID, &c.CustomerHandle, &sourceChannelID,
+		&mailboxID, &c.CustomerHandle, &sourceChannelID, &c.IsGroup,
 		&ctPhotoAttachmentID,
 		&ctHasProviderPhoto, &ctExternalPhotoURL, &ctPhotoFetchedAt,
 		&hasProviderPhoto, &ownExternalPhotoURL, &ownPhotoFetchedAt); err != nil {

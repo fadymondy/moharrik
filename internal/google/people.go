@@ -29,7 +29,7 @@ contact groups a person is in, mapped to tags by internal/google/contacts.go).
 // PersonFields is what every people.connections.list / people.get call asks
 // for. Exported so a caller building its own request (none does today) stays
 // in sync with what Person below can decode.
-const PersonFields = "names,nicknames,birthdays,biographies,phoneNumbers,emailAddresses,addresses,organizations,urls,relations,events,userDefined,memberships,metadata"
+const PersonFields = "names,nicknames,birthdays,biographies,phoneNumbers,emailAddresses,addresses,organizations,urls,relations,events,userDefined,memberships,metadata,photos"
 
 // PersonName is one entry in Person.Names (People API returns an array —
 // several sources can each contribute a name; the first, or the one flagged
@@ -151,6 +151,35 @@ type PersonMembership struct {
 	ContactGroupMembership *ContactGroupMembership `json:"contactGroupMembership"`
 }
 
+// PersonPhoto is one entry in Person.Photos (MH-604: the People API's own
+// profile photo, fed into the same internal/photocache pipeline the
+// Telegram/Slack/Discord fetchers use). Default is true for Google's own
+// generated placeholder (a grey silhouette or monogram tile) — that is not a
+// real photo of the person, so it is skipped rather than cached.
+type PersonPhoto struct {
+	URL      string        `json:"url"`
+	Default  bool          `json:"default"`
+	Metadata FieldMetadata `json:"metadata"`
+}
+
+// PrimaryPhoto picks the URL to import: the primary-flagged, non-default
+// entry, else the first non-default entry, else "" (nothing worth caching).
+func (p Person) PrimaryPhoto() string {
+	var first string
+	for _, ph := range p.Photos {
+		if ph.Default || ph.URL == "" {
+			continue
+		}
+		if first == "" {
+			first = ph.URL
+		}
+		if ph.Metadata.Primary {
+			return ph.URL
+		}
+	}
+	return first
+}
+
 type PersonMetadata struct {
 	// Deleted (MH-585): true on an incremental (syncToken) page means the
 	// person was removed at Google since the last sync. This app never
@@ -177,6 +206,7 @@ type Person struct {
 	Events         []PersonEvent        `json:"events"`
 	UserDefined    []PersonUserDefined  `json:"userDefined"`
 	Memberships    []PersonMembership   `json:"memberships"`
+	Photos         []PersonPhoto        `json:"photos"`
 }
 
 // PrimaryName picks the name to import: the one flagged primary, else the
@@ -255,7 +285,7 @@ func ListConnectionsPage(ctx context.Context, src *Source, pageToken, syncToken 
 		// otherContacts.list has its own, smaller field mask (no
 		// memberships/organizations/relations/events/userDefined — Google
 		// never associates those with an inferred, unsaved contact).
-		q.Set("readMask", "names,emailAddresses,phoneNumbers,metadata")
+		q.Set("readMask", "names,emailAddresses,phoneNumbers,metadata,photos")
 	}
 	if pageToken != "" {
 		q.Set("pageToken", pageToken)

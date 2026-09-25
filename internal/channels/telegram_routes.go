@@ -167,7 +167,7 @@ func RegisterTelegramHook(r chi.Router, a *app.App) {
 		}
 		in, ok := u.Read()
 		if ok && telegramAllowed(wf.allowedChatIDs, in.ChatID) {
-			if err := deliver(ctx, wf.workspaceID, "telegram", wf.id, in.ChatID, in.Handle, in.Name, in.Text, "tg:"+in.MessageID); err != nil {
+			if err := deliver(ctx, wf.workspaceID, "telegram", wf.id, in.ChatID, in.Handle, in.Name, in.Text, "tg:"+in.MessageID, in.IsGroup); err != nil {
 				http.Error(w, "could not file", http.StatusInternalServerError)
 				return
 			}

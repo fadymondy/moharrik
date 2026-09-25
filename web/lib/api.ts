@@ -745,6 +745,10 @@ export type Conversation = {
   closed_at: string | null
   /** Which mailbox (MH-555) an email thread arrived on; null for chat/WhatsApp or a pre-MH-555 thread. */
   mailbox_id: string | null
+  /** MH-604: a Telegram/Slack/Discord group thread with more than one possible
+   *  sender — never true for chat/email/WhatsApp. Drives the per-message
+   *  sender avatar; a 1:1 thread never shows one. */
+  is_group: boolean
 }
 
 export type VisitorGuess = { name: string; email: string; phone: string; locale: "en" | "ar" }
@@ -836,6 +840,13 @@ export type InboxMessage = {
   mailbox_id?: string | null
   attachments?: InboxAttachment[]
   created_at: string
+  /** MH-604: who wrote THIS message in a group thread (Conversation.is_group);
+   *  empty outside a group thread, where the conversation's own customer_name
+   *  already says who it's with. */
+  sender_name?: string
+  sender_contact_id?: string | null
+  /** The sender's cached photo, if any; "" so the client renders initials. */
+  sender_avatar_url?: string
 }
 
 export type ChatWidget = {

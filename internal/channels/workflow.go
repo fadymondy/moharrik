@@ -244,7 +244,9 @@ func PushMessages(ctx context.Context, a *app.App, workspaceID, channelID string
 			return res, err
 		}
 		handle := linkContactByHandle(ctx, a, workspaceID, it.ProfileURL)
-		if err := deliver(sctx, workspaceID, c.Network, channelID, threadID, handle, it.Name, text, c.Network+":"+msgID); err != nil {
+		// Every browser-workflow channel (LinkedIn/Facebook/Instagram/X) is a
+		// 1:1 DM thread with one profile — never a group.
+		if err := deliver(sctx, workspaceID, c.Network, channelID, threadID, handle, it.Name, text, c.Network+":"+msgID, false); err != nil {
 			return res, err
 		}
 		res.Pushed++

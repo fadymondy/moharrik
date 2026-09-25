@@ -52,8 +52,13 @@ func scope(ctx context.Context, action string) (*tenant.Scope, error) {
 // "telegram", "slack" or "discord"; sourceChannelID is the specific
 // connection's own id (a workspace can have several of one kind);
 // externalThreadID is the platform's own identity for the conversation (a
-// Telegram chat id, a Slack channel/DM id, a Discord channel id).
-type Filer func(ctx context.Context, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID string) error
+// Telegram chat id, a Slack channel/DM id, a Discord channel id). isGroup
+// (MH-604) says whether that thread is a many-sender room (a Discord guild
+// channel, a non-private Telegram chat, a Slack channel/group id) rather than
+// a 1:1 DM — handle/name still identify THIS message's own sender either way,
+// but only a group thread needs that identity recorded per message (see
+// internal/inbox/channel.go's FileChannelMessage).
+type Filer func(ctx context.Context, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID string, isGroup bool) error
 
 var file Filer
 
@@ -61,11 +66,11 @@ var file Filer
 // package and internal/inbox stay unaware of each other.
 func SetFiler(f Filer) { file = f }
 
-func deliver(ctx context.Context, workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID string) error {
+func deliver(ctx context.Context, workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID string, isGroup bool) error {
 	if file == nil {
 		return nil
 	}
-	return file(ctx, workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID)
+	return file(ctx, workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID, isGroup)
 }
 
 // newWebhookID mints the unguessable id used in a public delivery URL — a

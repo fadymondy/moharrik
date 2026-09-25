@@ -333,6 +333,10 @@ type TelegramInbound struct {
 	Handle    string
 	Text      string
 	MessageID string
+	// IsGroup (MH-604) is true for anything but a private 1:1 chat with the
+	// bot — a Telegram group, supergroup or channel, where Handle/Name still
+	// identify THIS message's own sender, not the room.
+	IsGroup bool
 }
 
 // Read flattens an update; ok is false for anything the inbox has nothing to
@@ -348,6 +352,7 @@ func (u TelegramUpdate) Read() (TelegramInbound, bool) {
 	}
 	in.ChatID = fmt.Sprintf("%d", m.Chat.ID)
 	in.MessageID = fmt.Sprintf("%d", m.MessageID)
+	in.IsGroup = m.Chat.Type != "" && m.Chat.Type != "private"
 	in.Handle = strings.TrimSpace(m.From.Username)
 	in.Name = strings.TrimSpace(strings.TrimSpace(m.From.FirstName + " " + m.From.LastName))
 	in.Text = strings.TrimSpace(firstNonEmptyStr(m.Text, m.Caption))

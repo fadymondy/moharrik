@@ -291,6 +291,10 @@ type SlackInbound struct {
 	UserID    string
 	Text      string
 	Ts        string
+	// IsGroup (MH-604) is true for a channel or private group id, false for
+	// a DM — Slack's own convention: a DM's id always starts with "D", a
+	// public channel's with "C" and a private group's with "G".
+	IsGroup bool
 }
 
 // Read flattens an event; ok is false for a bot's own message, a message
@@ -307,6 +311,7 @@ func (e SlackEnvelope) Read() (SlackInbound, bool) {
 	in.UserID = e.Event.User
 	in.Text = strings.TrimSpace(e.Event.Text)
 	in.Ts = e.Event.Ts
+	in.IsGroup = !strings.HasPrefix(in.ChannelID, "D")
 	if in.Text == "" || in.ChannelID == "" {
 		return in, false
 	}
