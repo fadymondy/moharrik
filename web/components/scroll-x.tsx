@@ -8,10 +8,9 @@ import { cn } from "@/lib/utils"
  * A horizontal scroller that SHOWS it scrolls (MH-463). Wide tables and the deal board scroll
  * inside their own box so the page never grows wider than the viewport, but a bare
  * `overflow-x-auto` gives no hint on a Mac (overlay scrollbars) or a phone: the last columns
- * just looked cut off. Two affordances, so neither depends on the platform:
- *   - a fade on whichever edge still has content past it (tracked on scroll and resize, and
- *     correct in RTL, where scrollLeft runs negative), and
- *   - a thin scrollbar that stays visible (`.scroll-x` in globals.css).
+ * just looked cut off. Scrollbars are hidden app-wide (MH-601), so the hint is a fade on
+ * whichever edge still has content past it (tracked on scroll and resize, and correct in RTL,
+ * where scrollLeft runs negative).
  * When it does overflow the box becomes focusable, so the keyboard can scroll it too.
  */
 export function ScrollX({ className, innerClassName, children, ...props }: ComponentProps<"div"> & { innerClassName?: string }) {

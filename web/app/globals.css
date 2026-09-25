@@ -89,28 +89,16 @@
   background-size: 8px 8px;
 }
 
-/* ScrollX (components/scroll-x.tsx): a thin scrollbar that stays visible, so a wide table
-   reads as scrollable on a Mac or phone too, where the native bar hides until you scroll.
-   (In Chrome, setting scrollbar-width would switch these pseudo-elements off, so only
-   browsers without them — Firefox — get the standard property.) */
-.scroll-x::-webkit-scrollbar {
-  height: 8px;
+/* Scrollbars are hidden everywhere (MH-601): every list, pane and page still scrolls by
+   wheel, touch, keyboard and drag, but no bar is drawn. Wide tables keep their edge fades
+   (ScrollX, components/scroll-x.tsx) as the hint that there is more to the side. */
+* {
+  scrollbar-width: none;
 }
-.scroll-x::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scroll-x::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--grid-muted) 65%, transparent);
-  border-radius: 9999px;
-}
-.scroll-x::-webkit-scrollbar-thumb:hover {
-  background: var(--grid-muted);
-}
-@supports not selector(::-webkit-scrollbar) {
-  .scroll-x {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklab, var(--grid-muted) 65%, transparent) transparent;
-  }
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* <BdiBlock> (components/bidi.tsx): user text whose direction follows its content (dir="auto")
