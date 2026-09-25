@@ -228,6 +228,10 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 		}
 		list = append(list, c)
 	}
+	// MH-602 defect 1: fetch stale/never-fetched WhatsApp photos in the
+	// background the moment a conversation is first listed, not only on its
+	// next inbound message.
+	triggerPhotoRefreshes(a, s.WorkspaceID, list)
 	res := &ConversationList{Conversations: list}
 	if len(list) > limit {
 		last := list[limit-1]
@@ -461,6 +465,10 @@ func GetConversation(ctx context.Context, a *app.App, id string) (*conversationD
 	} else if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the conversation")
 	}
+	// MH-602 defect 1: the same "first shown" trigger as the list, for a
+	// conversation opened directly (a permalink, a notification) without
+	// ever appearing in a list response first.
+	triggerPhotoRefreshes(a, s.WorkspaceID, []ConversationOut{c})
 	page, err := threadPage(ctx, a.SQLDB, s.WorkspaceID, id, "", threadPageDefault)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the thread")

@@ -8,6 +8,7 @@ package inbox
 // photo, else empty (client renders initials).
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/fadymondy/moharrik/internal/crm"
@@ -92,8 +93,15 @@ func TestConversationAvatarURLPriority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out2.AvatarURL != "data:image/png;base64,xx" {
-		t.Errorf("an unlinked conversation should fall back to its OWN cached photo, got %q", out2.AvatarURL)
+	// MH-602 defect 2: the JSON must never carry the data: URI itself — the
+	// conversation's own cached photo comes back as a signed provider-photo
+	// link the client can use as a bare <img src>.
+	wantPrefix := "/api/provider-photos/conversation/" + convID2 + "?"
+	if !strings.HasPrefix(out2.AvatarURL, wantPrefix) {
+		t.Errorf("an unlinked conversation's photo should be a signed provider-photo URL starting with %q, got %q", wantPrefix, out2.AvatarURL)
+	}
+	if strings.Contains(out2.AvatarURL, "data:") {
+		t.Errorf("avatar_url must never contain a data: URI, got %q", out2.AvatarURL)
 	}
 
 	// Case 3: nothing at all — empty, so the client renders initials.

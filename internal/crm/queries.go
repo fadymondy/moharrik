@@ -223,7 +223,13 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 	if err != nil {
 		return nil, err
 	}
-	c.AvatarURL = AvatarURL(wsID, photoAttachmentID.String, c.PhotoURL)
+	c.AvatarURL = AvatarURL(wsID, "contact", c.ID, photoAttachmentID.String, c.PhotoURL)
+	// MH-602 defect 2: photo_url can be a data: URI (WhatsApp-cached, or an
+	// embedded vcard photo) — AvatarURL above already turned that into a
+	// signed link, so the raw field must never carry the bytes out too.
+	if strings.HasPrefix(c.PhotoURL, "data:") {
+		c.PhotoURL = ""
+	}
 	c.LifecycleAt = timep(lifecycleAt)
 	c.Birthday = datep(birthday)
 	c.Score, c.ScoreReasons = scoreOf(score, reasons)

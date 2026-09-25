@@ -67,6 +67,13 @@ type ConversationOut struct {
 	// Contact.* directly; crm.AvatarURL already picked the right source.
 	AvatarURL       string    `json:"avatar_url"`
 	SourceChannelID *string   `json:"source_channel_id" doc:"Which of this workspace's connections of that kind this conversation came from; null for chat/email/WhatsApp."`
+	// refreshPhoto is set by scanConversation when this is a WhatsApp row
+	// whose photo has never been fetched or is past the refresh window
+	// (MH-602 defect 1). It never reaches JSON (unexported); ListConversations
+	// and GetConversation consume it to queue a bounded, deduped background
+	// fetch right after listing/opening, instead of waiting for the next
+	// inbound message.
+	refreshPhoto *photoRefreshCandidate
 	// The CRM side (MH-379).
 	Contact  *LinkedContact `json:"contact" doc:"The CRM contact this conversation is linked to, if any."`
 	LinkedBy string         `json:"contact_link" enum:",auto,manual" doc:"How the contact was linked: auto (an exact email or phone match when the message was filed) or manual (by a member). manual with no contact means a member unlinked it, and no automatic match will relink it."`
