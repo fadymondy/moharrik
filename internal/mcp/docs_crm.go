@@ -110,6 +110,17 @@ var docsCRM = map[string]ToolDoc{
 		Result: `{"contact":{"id":"3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23","email":"layla.nasser@mail.example","name":"Layla Nasser",` +
 			`"identities":[],"meta":{}}}`,
 	},
+	"merge_contact": {
+		AR: "دمج جهة اتصال مكرّرة (source_id) في أخرى (id) وحذف source_id: كل ما كان مرتبطًا بها — الحسابات المرتبطة والصفقات " +
+			"والأنشطة والمحادثات والرسائل (بما فيها مرسل رسائل المجموعات) وملاحظات السياق وسجل مراحل دورة الحياة والصورة والاشتراكات " +
+			"بالقوائم — ينتقل إلى id، وتُملأ حقول id الفارغة ووسومها من source_id. جهة الاتصال نفسها (id = source_id)، أو معرّف غير " +
+			"موجود، أو جهة اتصال في مساحة عمل أخرى، كلها تُرفض بخطأ 4xx بلا تعديل. تُعيد جهة الاتصال الناجية كاملة.",
+		Example: map[string]any{"id": "3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23", "source_id": "9a1c3e5f-7b0d-4f2a-8c4e-0d1f3a5b7c9e"},
+		Result: `{"contact":{"id":"3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23","email":"layla.nasser@mail.example","name":"Layla Nasser",` +
+			`"locale":"en","source":"lead","phone":"+20 101 234 5678","title":"Head of Operations","tags":["vip","renewal-q4"],` +
+			`"company":{"id":"5b7c9d1e-2f3a-4b5c-8d6e-7f8091a2b3c4","name":"Delta Freight"},"owner_user_id":"c21d4b8e-0a9f-4e3c-b7d6-5f8a2e1c9b30",` +
+			`"created_at":"2026-08-14T09:12:00Z","identities":[],"meta":{}}}`,
+	},
 
 	// ---- companies ----------------------------------------------------------
 	"list_companies": {
@@ -426,6 +437,8 @@ var argsARCRM = map[string]string{
 	"Make this the primary account on that channel":          "اجعله الحساب الأساسي على تلك القناة",
 	"A short label, e.g. \"work\" or \"personal\"":           "تسمية قصيرة، مثل \"العمل\" أو \"شخصي\"",
 	"The identity's id (from get_contact's identities list)": "معرّف الهوية (من قائمة الهويات في get_contact)",
+	"The contact that survives":                              "جهة الاتصال الناجية",
+	"The contact that is merged in and deleted":              "جهة الاتصال التي تُدمج وتُحذف",
 	"YYYY-MM-DD. Empty string clears it.":                    "بصيغة YYYY-MM-DD. نص فارغ يمسحه.",
 	"Replaces the whole key/value map":                       "يستبدل خريطة المفاتيح والقيم كلها",
 	// contacts

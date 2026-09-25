@@ -420,6 +420,27 @@ func moveChildRows(ctx context.Context, tx *sql.Tx, wsID, survivor, loser string
 		`UPDATE activities SET contact_id = $2 WHERE workspace_id = $1 AND contact_id = $3`,
 		`UPDATE conversations SET contact_id = $2, updated_at = now() WHERE workspace_id = $1 AND contact_id = $3`,
 
+		// A group thread's sender identity per message (176_group_message_
+		// sender.sql) — separate from the conversation-level contact_id above.
+		`UPDATE messages SET sender_contact_id = $2 WHERE workspace_id = $1 AND sender_contact_id = $3`,
+
+		// Context notes/files (174_contact_context.sql). Imports and generated
+		// reports are left on the loser and cascade-delete with it: they are
+		// history of one import run, not something the survivor should inherit.
+		`UPDATE contact_context_notes SET contact_id = $2 WHERE workspace_id = $1 AND contact_id = $3`,
+
+		// Lifecycle history (106_lifecycle_icp.sql) — kept so the survivor's
+		// timeline still shows how the merged-in contact got here.
+		`UPDATE contact_lifecycle_events SET contact_id = $2 WHERE workspace_id = $1 AND contact_id = $3`,
+
+		// contact_avatars is UNIQUE per (workspace_id, contact_id) (171_
+		// contact_avatars.sql), so only move the loser's upload when the
+		// survivor has none; otherwise the survivor's own upload wins and the
+		// loser's is dropped below.
+		`UPDATE contact_avatars a SET contact_id = $2, updated_at = now()
+		   WHERE a.workspace_id = $1 AND a.contact_id = $3
+		     AND NOT EXISTS (SELECT 1 FROM contact_avatars s WHERE s.workspace_id = $1 AND s.contact_id = $2)`,
+
 		`UPDATE list_subscriptions ls SET contact_id = $2, updated_at = now()
 		   WHERE ls.workspace_id = $1 AND ls.contact_id = $3
 		     AND NOT EXISTS (SELECT 1 FROM list_subscriptions s WHERE s.workspace_id = $1 AND s.contact_id = $2 AND s.list_id = ls.list_id)`,
@@ -434,6 +455,7 @@ func moveChildRows(ctx context.Context, tx *sql.Tx, wsID, survivor, loser string
 	cleanup := []string{
 		`DELETE FROM contact_identities WHERE workspace_id = $1 AND contact_id = $2`,
 		`DELETE FROM list_subscriptions WHERE workspace_id = $1 AND contact_id = $2`,
+		`DELETE FROM contact_avatars WHERE workspace_id = $1 AND contact_id = $2`,
 	}
 	for i, q := range cleanup {
 		if _, err := tx.ExecContext(ctx, q, wsID, loser); err != nil {
@@ -556,12 +578,21 @@ func MergeContacts(ctx context.Context, db *sql.DB, wsID, dst, src string) error
 	var srcRow struct {
 		email, phone, handle, name, companyID sql.NullString
 		meta                                  []byte
+		tags                                  []byte
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT email, phone, handle, name, company_id, meta::text FROM contacts WHERE workspace_id = $1 AND id = $2`,
-		wsID, src).Scan(&srcRow.email, &srcRow.phone, &srcRow.handle, &srcRow.name, &srcRow.companyID, &srcRow.meta); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT email, phone, handle, name, company_id, meta::text, to_jsonb(tags)::text FROM contacts WHERE workspace_id = $1 AND id = $2`,
+		wsID, src).Scan(&srcRow.email, &srcRow.phone, &srcRow.handle, &srcRow.name, &srcRow.companyID, &srcRow.meta, &srcRow.tags); err != nil {
 		return err
 	}
 	if err := moveChildRows(ctx, tx, wsID, dst, src); err != nil {
+		return err
+	}
+	// src must be gone before dst's blank fields are filled from its values:
+	// email/phone/handle each carry a per-workspace UNIQUE constraint, and
+	// filling dst's blank phone with src's phone while src's row still holds
+	// that same phone number trips contacts_workspace_phone_uniq (and the
+	// email/handle equivalents).
+	if _, err := tx.ExecContext(ctx, `DELETE FROM contacts WHERE workspace_id = $1 AND id = $2`, wsID, src); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -571,12 +602,10 @@ func MergeContacts(ctx context.Context, db *sql.DB, wsID, dst, src string) error
 		  phone  = CASE WHEN phone = ''  THEN $5 ELSE phone END,
 		  handle = CASE WHEN handle = '' THEN $6 ELSE handle END,
 		  meta = $7::jsonb || meta,
+		  tags = ARRAY(SELECT DISTINCT unnest(tags || ARRAY(SELECT jsonb_array_elements_text($8::jsonb))::text[])),
 		  updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`,
-		wsID, dst, srcRow.name.String, srcRow.email.String, srcRow.phone.String, srcRow.handle.String, string(srcRow.meta)); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM contacts WHERE workspace_id = $1 AND id = $2`, wsID, src); err != nil {
+		wsID, dst, srcRow.name.String, srcRow.email.String, srcRow.phone.String, srcRow.handle.String, string(srcRow.meta), string(srcRow.tags)); err != nil {
 		return err
 	}
 	return tx.Commit()

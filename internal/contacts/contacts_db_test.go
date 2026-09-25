@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/contacts"
+	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/testdb"
 	"github.com/togo-framework/togo"
 
@@ -187,5 +188,238 @@ func TestLinkIdentityAddsAChannel(t *testing.T) {
 	}
 	if _, err := contacts.LinkIdentity(ctx, db, wsID, r2.ContactID, contacts.ChannelHandle, "@nour_tg", "telegram", false); err == nil {
 		t.Errorf("linking an identity already on another contact should have been refused")
+	}
+}
+
+// TestMergeContactsMovesEverything is MH-647's DB coverage: every child row a
+// contact can own — a linked identity, a conversation, a group message's
+// sender identity, a context note, a lifecycle event and an uploaded
+// avatar — must land on the survivor, and the survivor's tags must gain the
+// loser's.
+func TestMergeContactsMovesEverything(t *testing.T) {
+	db, owner := appDB(t)
+	wsID := workspaceIn(t, owner)
+	ctx := withWS(context.Background(), db, wsID)
+
+	dst, err := contacts.Upsert(ctx, db, wsID, contacts.Candidate{Email: "dst@example.test", Name: "Destination", Source: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := contacts.Upsert(ctx, db, wsID, contacts.Candidate{Phone: "+201099999999", Name: "Source", Source: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.ContactID == dst.ContactID {
+		t.Fatalf("email and phone should not have matched the same contact up front")
+	}
+
+	// A Telegram handle only on src.
+	if _, err := contacts.LinkIdentity(ctx, db, wsID, src.ContactID, contacts.ChannelHandle, "@src_tg", "telegram", false); err != nil {
+		t.Fatalf("linking a Telegram handle to src: %v", err)
+	}
+
+	// Tags on src that dst does not have.
+	if _, err := db.ExecContext(ctx, `UPDATE contacts SET tags = ARRAY['vip','beta'] WHERE workspace_id = $1 AND id = $2`, wsID, src.ContactID); err != nil {
+		t.Fatal(err)
+	}
+
+	// A conversation and a group message whose sender is src.
+	var convID string
+	if err := db.QueryRowContext(ctx, `
+		INSERT INTO conversations (workspace_id, channel, contact_id, is_group) VALUES ($1, 'chat', $2, true) RETURNING id`,
+		wsID, src.ContactID).Scan(&convID); err != nil {
+		t.Fatal(err)
+	}
+	var msgID string
+	if err := db.QueryRowContext(ctx, `
+		INSERT INTO messages (workspace_id, conversation_id, direction, body, sender_contact_id, sender_name)
+		VALUES ($1, $2, 'in', 'hello from the group', $3, 'Source') RETURNING id`,
+		wsID, convID, src.ContactID).Scan(&msgID); err != nil {
+		t.Fatal(err)
+	}
+
+	// A context note on src.
+	var noteID string
+	if err := db.QueryRowContext(ctx, `
+		INSERT INTO contact_context_notes (workspace_id, contact_id, content) VALUES ($1, $2, 'met at a conference') RETURNING id`,
+		wsID, src.ContactID).Scan(&noteID); err != nil {
+		t.Fatal(err)
+	}
+
+	// A lifecycle event on src.
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO contact_lifecycle_events (workspace_id, contact_id, from_stage, to_stage, source) VALUES ($1, $2, '', 'lead', 'manual')`,
+		wsID, src.ContactID); err != nil {
+		t.Fatal(err)
+	}
+
+	// An uploaded avatar on src (dst has none, so it should move).
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO contact_avatars (workspace_id, contact_id, content_type, size_bytes, data) VALUES ($1, $2, 'image/png', 3, '\x010203')`,
+		wsID, src.ContactID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := contacts.MergeContacts(ctx, db, wsID, dst.ContactID, src.ContactID); err != nil {
+		t.Fatalf("MergeContacts: %v", err)
+	}
+
+	// src is gone.
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM contacts WHERE workspace_id = $1 AND id = $2`, wsID, src.ContactID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("src should have been deleted after the merge")
+	}
+
+	// Identities: dst carries both.
+	ids, err := contacts.ListIdentities(ctx, db, wsID, dst.ContactID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hasEmail, hasPhone, hasTelegram bool
+	for _, id := range ids {
+		switch {
+		case id.Channel == contacts.ChannelEmail && id.ExternalID == "dst@example.test":
+			hasEmail = true
+		case id.Channel == contacts.ChannelPhone && id.ExternalID == "+201099999999":
+			hasPhone = true
+		case id.Channel == contacts.ChannelHandle && id.ExternalID == "@src_tg":
+			hasTelegram = true
+		}
+	}
+	if !hasEmail || !hasPhone || !hasTelegram {
+		t.Errorf("survivor should carry all three identities after the merge: %+v", ids)
+	}
+
+	// Tags: unioned.
+	var tags pgtext.Array
+	if err := db.QueryRowContext(ctx, `SELECT tags FROM contacts WHERE workspace_id = $1 AND id = $2`, wsID, dst.ContactID).Scan(&tags); err != nil {
+		t.Fatal(err)
+	}
+	tagSet := map[string]bool{}
+	for _, tg := range tags {
+		tagSet[tg] = true
+	}
+	if !tagSet["vip"] || !tagSet["beta"] {
+		t.Errorf("survivor should have gained src's tags, got %v", tags)
+	}
+
+	// Conversation moved.
+	var convContact string
+	if err := db.QueryRowContext(ctx, `SELECT contact_id FROM conversations WHERE workspace_id = $1 AND id = $2`, wsID, convID).Scan(&convContact); err != nil {
+		t.Fatal(err)
+	}
+	if convContact != dst.ContactID {
+		t.Errorf("conversation should have moved to dst, got contact_id=%q", convContact)
+	}
+
+	// Message's group-sender identity moved.
+	var senderContact string
+	if err := db.QueryRowContext(ctx, `SELECT sender_contact_id FROM messages WHERE workspace_id = $1 AND id = $2`, wsID, msgID).Scan(&senderContact); err != nil {
+		t.Fatal(err)
+	}
+	if senderContact != dst.ContactID {
+		t.Errorf("message.sender_contact_id should have moved to dst, got %q", senderContact)
+	}
+
+	// Context note moved.
+	var noteContact string
+	if err := db.QueryRowContext(ctx, `SELECT contact_id FROM contact_context_notes WHERE workspace_id = $1 AND id = $2`, wsID, noteID).Scan(&noteContact); err != nil {
+		t.Fatal(err)
+	}
+	if noteContact != dst.ContactID {
+		t.Errorf("context note should have moved to dst, got %q", noteContact)
+	}
+
+	// Lifecycle event moved.
+	var lifecycleCount int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM contact_lifecycle_events WHERE workspace_id = $1 AND contact_id = $2 AND source = 'manual'`,
+		wsID, dst.ContactID).Scan(&lifecycleCount); err != nil {
+		t.Fatal(err)
+	}
+	if lifecycleCount != 1 {
+		t.Errorf("lifecycle event should have moved to dst, found %d matching rows", lifecycleCount)
+	}
+
+	// Avatar moved (dst had none).
+	var avatarContact string
+	if err := db.QueryRowContext(ctx, `SELECT contact_id FROM contact_avatars WHERE workspace_id = $1`, wsID).Scan(&avatarContact); err != nil {
+		t.Fatal(err)
+	}
+	if avatarContact != dst.ContactID {
+		t.Errorf("avatar should have moved to dst, got contact_id=%q", avatarContact)
+	}
+}
+
+// TestMergeContactsKeepsSurvivorsAvatar: when BOTH contacts already have an
+// uploaded avatar, the survivor's own upload wins (contact_avatars is unique
+// per contact) and the loser's is simply dropped, not left orphaned.
+func TestMergeContactsKeepsSurvivorsAvatar(t *testing.T) {
+	db, owner := appDB(t)
+	wsID := workspaceIn(t, owner)
+	ctx := withWS(context.Background(), db, wsID)
+
+	dst, err := contacts.Upsert(ctx, db, wsID, contacts.Candidate{Email: "keepavatar@example.test", Name: "Dst", Source: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := contacts.Upsert(ctx, db, wsID, contacts.Candidate{Phone: "+201088888888", Name: "Src", Source: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO contact_avatars (workspace_id, contact_id, content_type, size_bytes, data) VALUES ($1, $2, 'image/png', 3, '\x0a0b0c')`,
+		wsID, dst.ContactID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO contact_avatars (workspace_id, contact_id, content_type, size_bytes, data) VALUES ($1, $2, 'image/png', 3, '\x0d0e0f')`,
+		wsID, src.ContactID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := contacts.MergeContacts(ctx, db, wsID, dst.ContactID, src.ContactID); err != nil {
+		t.Fatalf("MergeContacts: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM contact_avatars WHERE workspace_id = $1`, wsID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("exactly one avatar should remain, found %d", count)
+	}
+	var data []byte
+	if err := db.QueryRowContext(ctx, `SELECT data FROM contact_avatars WHERE workspace_id = $1 AND contact_id = $2`, wsID, dst.ContactID).Scan(&data); err != nil {
+		t.Fatalf("dst's own avatar should have survived: %v", err)
+	}
+	if len(data) != 3 || data[0] != 0x0a {
+		t.Errorf("dst's avatar bytes should be its own upload, got %v", data)
+	}
+}
+
+// TestMergeContactsRefusesSelfMerge: MergeContacts must never delete the only
+// copy of a contact.
+func TestMergeContactsRefusesSelfMerge(t *testing.T) {
+	db, owner := appDB(t)
+	wsID := workspaceIn(t, owner)
+	ctx := withWS(context.Background(), db, wsID)
+
+	r, err := contacts.Upsert(ctx, db, wsID, contacts.Candidate{Email: "solo@example.test", Name: "Solo", Source: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := contacts.MergeContacts(ctx, db, wsID, r.ContactID, r.ContactID); err == nil {
+		t.Errorf("merging a contact into itself should have been refused")
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM contacts WHERE workspace_id = $1 AND id = $2`, wsID, r.ContactID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("the contact should still exist after a refused self-merge")
 	}
 }
