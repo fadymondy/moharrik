@@ -1,6 +1,6 @@
 // Read-only production check for MH-603: the leads, marketing, research and browser/workflow
 // MCP tools answer JSON in the shared shape instead of prose. Signs in as the demo user, mints a
-// short-lived token on the demo workspace, calls only list_* tools with no arguments, and revokes
+// short-lived token on the demo workspace, calls only read-only list/get tools with no arguments, and revokes
 // the token. The token is never printed.
 //   DEMO_EMAIL=... DEMO_PASSWORD=... node e2e/mh603-mcp-json-live.mjs https://app.moharrik.com
 const base = process.argv[2] ?? "https://app.moharrik.com"
@@ -51,6 +51,11 @@ const TOOLS = [
   "list_research",
   "list_workflows",
   "list_browsers",
+  // Read-only with no arguments: lists, or {"ok":false,"reason":...} for a missing id.
+  "get_research",
+  "browser_agents",
+  "browser_allowed_sites",
+  "browser_plugins",
 ]
 let out = {}
 try {
