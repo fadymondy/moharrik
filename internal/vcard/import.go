@@ -31,33 +31,36 @@ type row struct {
 // PreviewRow is one card's classification, returned to a caller (the web
 // import dialog or the MCP preview tool) before anything is written.
 type PreviewRow struct {
-	Index      int      `json:"index"`
-	Name       string   `json:"name"`
-	Phones     []string `json:"phones"`
-	Emails     []string `json:"emails"`
-	Status     string   `json:"status"` // "new", "merge" or "invalid"
-	Invalid    string   `json:"invalid,omitempty"`
-	MatchIDs   []string `json:"match_contact_ids,omitempty"`
-	LocalPhone bool     `json:"local_phone,omitempty"` // a TEL had no country code and used the workspace default
+	Index        int      `json:"index"`
+	Name         string   `json:"name"`
+	Phones       []string `json:"phones"`
+	Emails       []string `json:"emails"`
+	Status       string   `json:"status"` // "new", "merge" or "invalid"
+	Invalid      string   `json:"invalid,omitempty"`
+	MatchIDs     []string `json:"match_contact_ids,omitempty"`
+	LocalPhone   bool     `json:"local_phone,omitempty"`    // a TEL had no country code and used the workspace default
+	NeedsCountry bool     `json:"needs_country,omitempty"`  // a TEL had no country code and none could be resolved — kept raw, not converted
 }
 
 // Preview is the full result of parsing a file without writing anything.
 type VcardPreview struct {
-	CardCount    int          `json:"card_count"`
-	NewCount     int          `json:"new_count"`
-	MergeCount   int          `json:"merge_count"`
-	InvalidCount int          `json:"invalid_count"`
-	Rows         []PreviewRow `json:"rows"`
-	FileHash     string       `json:"file_hash"`
+	CardCount         int          `json:"card_count"`
+	NewCount          int          `json:"new_count"`
+	MergeCount        int          `json:"merge_count"`
+	InvalidCount      int          `json:"invalid_count"`
+	NeedsCountryCount int          `json:"needs_country_count"` // cards with at least one phone that has no country and none could be resolved
+	Rows              []PreviewRow `json:"rows"`
+	FileHash          string       `json:"file_hash"`
 }
 
 // CommitResult is what actually happened when a previewed file was written.
 type CommitResult struct {
-	CardCount    int      `json:"card_count"`
-	CreatedCount int      `json:"created_count"`
-	MergedCount  int      `json:"merged_count"`
-	InvalidCount int      `json:"invalid_count"`
-	ContactIDs   []string `json:"contact_ids"`
+	CardCount         int      `json:"card_count"`
+	CreatedCount      int      `json:"created_count"`
+	MergedCount       int      `json:"merged_count"`
+	InvalidCount      int      `json:"invalid_count"`
+	NeedsCountryCount int      `json:"needs_country_count"` // contacts written with a phone kept raw (meta phone_raw/phones_raw) because no country could be resolved
+	ContactIDs        []string `json:"contact_ids"`
 }
 
 // ErrTooLarge is returned by Preview/Commit when data exceeds MaxFileSize.
@@ -71,14 +74,18 @@ func fileHash(data []byte) string {
 // classify turns a parsed Card into a Candidate plus warnings, resolving its
 // phones to E.164 with defaultCountry. It never touches the database — used
 // by both Preview (read-only matching) and Commit (which then calls
-// contacts.Upsert with the same Candidate).
-func classify(c Card, defaultCountry string) (contacts.Candidate, []string) {
-	var warnings []string
+// contacts.Upsert with the same Candidate). needsCountry reports whether at
+// least one phone had no country code and none could be resolved — MH-646:
+// such a number is never simply dropped any more; it is kept raw in
+// cand.Meta ("phone_raw", and "phones_raw" for any further ones) so a later
+// ReparseRawPhones (once the workspace gets a default_country) can still
+// recover it.
+func classify(c Card, defaultCountry string) (cand contacts.Candidate, warnings []string, needsCountry bool) {
 	source := c.ImportSource
 	if source == "" {
 		source = "vcard_import"
 	}
-	cand := contacts.Candidate{
+	cand = contacts.Candidate{
 		Name:   c.FN,
 		Source: source,
 		Meta:   map[string]string{},
@@ -113,10 +120,20 @@ func classify(c Card, defaultCountry string) (contacts.Candidate, []string) {
 		}
 		cand.Identities = append(cand.Identities, contacts.Identity{Channel: "email", ExternalID: v, Label: e.Label})
 	}
+	var rawPhones []string
 	for _, ph := range c.Phones {
 		e164, wasLocal, err := ToE164(ph.Value, defaultCountry)
 		if err != nil {
 			warnings = append(warnings, err.Error())
+			var lpErr *LocalPhoneError
+			if errors.As(err, &lpErr) {
+				// No country code and none resolvable: keep the raw value
+				// rather than dropping the number entirely (MH-646).
+				raw := strings.TrimSpace(ph.Value)
+				if raw != "" {
+					rawPhones = append(rawPhones, raw)
+				}
+			}
 			continue
 		}
 		if e164 == "" {
@@ -131,6 +148,15 @@ func classify(c Card, defaultCountry string) (contacts.Candidate, []string) {
 			continue
 		}
 		cand.Identities = append(cand.Identities, contacts.Identity{Channel: "phone", ExternalID: e164, Label: ph.Label})
+	}
+	if len(rawPhones) > 0 {
+		needsCountry = true
+		cand.Meta["phone_raw"] = rawPhones[0]
+		if len(rawPhones) > 1 {
+			if b, err := json.Marshal(rawPhones[1:]); err == nil {
+				cand.Meta["phones_raw"] = string(b)
+			}
+		}
 	}
 	for _, im := range c.IMPPs {
 		channel := "other"
@@ -158,7 +184,7 @@ func classify(c Card, defaultCountry string) (contacts.Candidate, []string) {
 		cand.Meta["title"] = c.Title
 	}
 
-	return cand, warnings
+	return cand, warnings, needsCountry
 }
 
 // matchIDs duplicates contacts' own (unexported) matching query — it cannot
@@ -268,7 +294,7 @@ func PreviewCards(ctx context.Context, db *sql.DB, wsID string, cards []Card, pe
 		out.InvalidCount++
 	}
 	for i, c := range cards {
-		cand, warnings := classify(c, defaultCountry)
+		cand, warnings, needsCountry := classify(c, defaultCountry)
 		pr := PreviewRow{
 			Index:  i,
 			Name:   cardLabel(c),
@@ -279,6 +305,10 @@ func PreviewCards(ctx context.Context, db *sql.DB, wsID string, cards []Card, pe
 			if strings.Contains(w, "assumed to be") {
 				pr.LocalPhone = true
 			}
+		}
+		if needsCountry {
+			pr.NeedsCountry = true
+			out.NeedsCountryCount++
 		}
 		if cand.Email == "" && cand.Phone == "" && cand.Handle == "" && len(cand.Identities) == 0 {
 			pr.Status = "invalid"
@@ -325,7 +355,7 @@ func CommitCards(ctx context.Context, db *sql.DB, wsID, actorID string, cards []
 	res := &CommitResult{CardCount: len(cards) + len(perrs), InvalidCount: len(perrs)}
 
 	for _, c := range cards {
-		cand, _ := classify(c, defaultCountry)
+		cand, _, needsCountry := classify(c, defaultCountry)
 		if cand.Email == "" && cand.Phone == "" && cand.Handle == "" && len(cand.Identities) == 0 {
 			res.InvalidCount++
 			continue
@@ -353,6 +383,9 @@ func CommitCards(ctx context.Context, db *sql.DB, wsID, actorID string, cards []
 			res.CreatedCount++
 		} else {
 			res.MergedCount++
+		}
+		if needsCountry {
+			res.NeedsCountryCount++
 		}
 	}
 

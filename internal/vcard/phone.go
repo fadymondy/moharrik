@@ -1,6 +1,9 @@
 package vcard
 
 import (
+	"context"
+	"database/sql"
+	"sort"
 	"strings"
 
 	"github.com/fadymondy/moharrik/internal/marketing"
@@ -90,4 +93,130 @@ func (e *LocalPhoneError) Error() string {
 		return "\"" + e.Raw + "\" has no country code and this workspace has no default country set"
 	}
 	return "\"" + e.Raw + "\" has no country code and \"" + e.Country + "\" is not a country this app knows the calling code for"
+}
+
+/*
+MH-646: 867 of a real workspace's Google-imported contacts had a name, but
+only 112 kept a phone — every local-format number silently dropped because
+default_country was empty. ResolveCountry/InferDefaultCountry fix the two
+sides of that: a workspace can now set default_country explicitly (the REST
+route in internal/workspaces), and when it hasn't, InferDefaultCountry makes
+a deterministic guess from the phones the workspace already has, so a local
+number stands a chance of resolving even before anyone visits settings.
+*/
+
+// allDialCodes is every distinct calling code in dialCodes, longest first
+// (a 3-digit code must be tried before a 1-digit one that would otherwise
+// match as a false-positive prefix of the same digits), then lexically for a
+// deterministic order between codes of the same length.
+var allDialCodes = func() []string {
+	seen := map[string]bool{}
+	var codes []string
+	for _, code := range dialCodes {
+		if !seen[code] {
+			seen[code] = true
+			codes = append(codes, code)
+		}
+	}
+	sort.Slice(codes, func(i, j int) bool {
+		if len(codes[i]) != len(codes[j]) {
+			return len(codes[i]) > len(codes[j])
+		}
+		return codes[i] < codes[j]
+	})
+	return codes
+}()
+
+// matchDialCode finds the longest known calling code that prefixes phone's
+// digits (phone may be E.164, with or without the leading '+').
+func matchDialCode(phone string) (string, bool) {
+	digits := marketing.OnlyDigits(phone)
+	for _, code := range allDialCodes {
+		if strings.HasPrefix(digits, code) {
+			return code, true
+		}
+	}
+	return "", false
+}
+
+// canonicalCountry returns the alphabetically-first ISO country in dialCodes
+// using code — deterministic when several countries share a calling code
+// (e.g. "1" for both US and CA).
+func canonicalCountry(code string) string {
+	best := ""
+	for country, c := range dialCodes {
+		if c == code && (best == "" || country < best) {
+			best = country
+		}
+	}
+	return best
+}
+
+// InferDefaultCountry guesses a workspace's default_country from the calling
+// codes already present in its contacts' E.164 phones (contacts.phone and
+// contact_identities with channel='phone'), when nothing has been set
+// explicitly. It picks the most common calling code, ties broken by the
+// lowest code then the alphabetically-first country using it — simple and
+// deterministic, not a geolocation service. Returns "" when the workspace has
+// no E.164 phone to learn from yet.
+func InferDefaultCountry(ctx context.Context, db *sql.DB, wsID string) (string, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT phone FROM contacts WHERE workspace_id = $1 AND phone LIKE '+%'
+		UNION ALL
+		SELECT external_id FROM contact_identities WHERE workspace_id = $1 AND channel = 'phone' AND external_id LIKE '+%'`,
+		wsID)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	counts := map[string]int{}
+	for rows.Next() {
+		var phone string
+		if err := rows.Scan(&phone); err != nil {
+			return "", err
+		}
+		if code, ok := matchDialCode(phone); ok {
+			counts[code]++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+
+	bestCode, bestCount := "", -1
+	for code, n := range counts {
+		if n > bestCount || (n == bestCount && code < bestCode) {
+			bestCode, bestCount = code, n
+		}
+	}
+	if bestCode == "" {
+		return "", nil
+	}
+	return canonicalCountry(bestCode), nil
+}
+
+// ResolveCountry is the one place every caller (vCard import, Google
+// sync/CSV, the MCP import tools) resolves which country to use for local
+// phone numbers: an explicit override first, then the workspace's stored
+// default_country, then a deterministic guess from InferDefaultCountry.
+// Errors reading the workspace row or inferring are swallowed (returns "",
+// nil) — an unresolvable country is ToE164's problem to report per number,
+// not this helper's to fail on.
+func ResolveCountry(ctx context.Context, db *sql.DB, wsID, override string) (string, error) {
+	if override != "" {
+		return strings.ToUpper(strings.TrimSpace(override)), nil
+	}
+	var country string
+	if err := db.QueryRowContext(ctx, `SELECT default_country FROM workspaces WHERE id = $1`, wsID).Scan(&country); err != nil {
+		return "", nil //nolint:nilerr // no resolvable workspace row is not this helper's problem to report
+	}
+	if country != "" {
+		return country, nil
+	}
+	inferred, err := InferDefaultCountry(ctx, db, wsID)
+	if err != nil {
+		return "", nil //nolint:nilerr // best-effort inference; ToE164 reports per-number errors either way
+	}
+	return inferred, nil
 }

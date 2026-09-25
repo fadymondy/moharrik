@@ -230,7 +230,7 @@ func TestPersonToCardFieldMappingThroughSync(t *testing.T) {
 	})
 
 	ctx := withWorkspace(context.Background(), wsID)
-	res, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id)
+	res, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +304,7 @@ func TestMatchesExistingContactByPhoneBeforeCreatingNew(t *testing.T) {
 		"phoneNumbers": []map[string]any{{"value": "+201009998888"}},
 	})
 
-	res, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id)
+	res, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func TestIncrementalSyncOnlyAddsChangedPeople(t *testing.T) {
 	f.fake.SetContact("sub-inc", "people/a", googletest.ContactFields{
 		"names": []map[string]any{{"givenName": "Amir"}},
 	})
-	res1, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id)
+	res1, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +345,7 @@ func TestIncrementalSyncOnlyAddsChangedPeople(t *testing.T) {
 	f.fake.SetContact("sub-inc", "people/b", googletest.ContactFields{
 		"names": []map[string]any{{"givenName": "Bella"}},
 	})
-	res2, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id)
+	res2, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,14 +372,14 @@ func TestExpiredSyncTokenTriggersFullResync(t *testing.T) {
 	f.fake.SetContact("sub-exp", "people/x", googletest.ContactFields{
 		"names": []map[string]any{{"givenName": "Xena"}},
 	})
-	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false); err != nil {
 		t.Fatal(err)
 	}
 	f.fake.ExpireContactsSyncToken("sub-exp")
 	f.fake.SetContact("sub-exp", "people/y", googletest.ContactFields{
 		"names": []map[string]any{{"givenName": "Yara"}},
 	})
-	res, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id)
+	res, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,11 +407,11 @@ func TestDeletedAtGoogleIsFlaggedNotHardDeleted(t *testing.T) {
 	f.fake.SetContact("sub-del", "people/gone", googletest.ContactFields{
 		"names": []map[string]any{{"givenName": "Ghost"}},
 	})
-	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false); err != nil {
 		t.Fatal(err)
 	}
 	f.fake.DeleteContact("sub-del", "people/gone")
-	res, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id)
+	res, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +450,7 @@ func TestWorkspaceIsolation(t *testing.T) {
 		"names": []map[string]any{{"givenName": "OnlyA"}},
 	})
 	ctxA := withWorkspace(context.Background(), wsA)
-	if _, err := googlecontacts.Sync(ctxA, f.a, wsA, connA, alice.id); err != nil {
+	if _, err := googlecontacts.Sync(ctxA, f.a, wsA, connA, alice.id, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -545,7 +545,7 @@ func TestGooglePhotoLandsThroughPhotocache(t *testing.T) {
 		"photos": []map[string]any{{"url": photoURL, "default": false, "metadata": map[string]any{"primary": true}}},
 	})
 
-	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false); err != nil {
 		t.Fatal(err)
 	}
 	url, source, avatarID := contactPhoto(t, f, ctx, wsID, "people/photo1")
@@ -571,7 +571,7 @@ func TestUploadedPhotoIsNeverOverwrittenByGoogle(t *testing.T) {
 	f.fake.SetContact("sub-upl", "people/upl1", googletest.ContactFields{
 		"names": []map[string]any{{"givenName": "Upload", "familyName": "Wins"}},
 	})
-	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -604,7 +604,7 @@ func TestUploadedPhotoIsNeverOverwrittenByGoogle(t *testing.T) {
 		"names":  []map[string]any{{"givenName": "Upload", "familyName": "Wins"}},
 		"photos": []map[string]any{{"url": photoURL, "default": false, "metadata": map[string]any{"primary": true}}},
 	})
-	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false); err != nil {
 		t.Fatal(err)
 	}
 	url, source, gotAvatarID := contactPhoto(t, f, ctx, wsID, "people/upl1")
@@ -629,7 +629,7 @@ func TestDefaultGooglePhotoIsSkipped(t *testing.T) {
 		"names":  []map[string]any{{"givenName": "Default", "familyName": "Photo"}},
 		"photos": []map[string]any{{"url": photoURL, "default": true, "metadata": map[string]any{"primary": true}}},
 	})
-	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id); err != nil {
+	if _, err := googlecontacts.Sync(ctx, f.a, wsID, connID, alice.id, false); err != nil {
 		t.Fatal(err)
 	}
 	url, source, _ := contactPhoto(t, f, ctx, wsID, "people/def1")

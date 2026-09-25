@@ -45,6 +45,11 @@ const (
 		"or \"google\" (a connected Google account — fetches live via the People API; commit here runs a full sync, same as google_contacts_sync)."
 	descGoogleCSV    = "Raw Google Contacts CSV export text (the \"Google CSV\" option under contacts.google.com → Export). Required when source is \"google_csv\"."
 	descGoogleConnID = "A google_connections id from w-google-connections, with Contacts access granted. Required when source is \"google\"."
+	// descFullResync (MH-646) is shared by google_contacts_sync and
+	// import_contacts_commit{source:"google"} — the exact same "full"
+	// argument on the exact same underlying Sync call — so one Arabic
+	// translation covers both (see docs_vcard.go/argsARVcard).
+	descFullResync = "Ignore the stored sync token and re-import every contact (MH-646: fills in phones a newly-set default country can now resolve). Never duplicates or overwrites a hand-set phone."
 )
 
 func VcardTools() []Tool {
@@ -84,7 +89,7 @@ func VcardTools() []Tool {
 					if err != nil {
 						return "", err
 					}
-					country, err := vcardCountry(ctx, a, s.WorkspaceID, str(m, "default_country"))
+					country, err := vcard.ResolveCountry(ctx, a.SQLDB, s.WorkspaceID, str(m, "default_country"))
 					if err != nil {
 						return "", err
 					}
@@ -104,7 +109,7 @@ func VcardTools() []Tool {
 					if len(text) > vcard.MaxFileSize {
 						return "", vcard.ErrTooLarge
 					}
-					country, err := vcardCountry(ctx, a, s.WorkspaceID, str(m, "default_country"))
+					country, err := vcard.ResolveCountry(ctx, a.SQLDB, s.WorkspaceID, str(m, "default_country"))
 					if err != nil {
 						return "", err
 					}
@@ -130,6 +135,7 @@ func VcardTools() []Tool {
 				"csv":             prop("string", descGoogleCSV),
 				"connection_id":   prop("string", descGoogleConnID),
 				"default_country": prop("string", descVcardCountry),
+				"full": prop("boolean", descFullResync),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, err := need(ctx)
@@ -139,7 +145,8 @@ func VcardTools() []Tool {
 				m := decodeArgs(raw)
 				switch importSource(str(m, "source")) {
 				case sourceGoogle:
-					res, err := googlecontacts.Sync(ctx, a, s.WorkspaceID, str(m, "connection_id"), s.UserID)
+					full, _ := m["full"].(bool)
+					res, err := googlecontacts.Sync(ctx, a, s.WorkspaceID, str(m, "connection_id"), s.UserID, full)
 					if err != nil {
 						return "", err
 					}
@@ -152,7 +159,7 @@ func VcardTools() []Tool {
 					if err != nil {
 						return "", err
 					}
-					country, err := vcardCountry(ctx, a, s.WorkspaceID, str(m, "default_country"))
+					country, err := vcard.ResolveCountry(ctx, a.SQLDB, s.WorkspaceID, str(m, "default_country"))
 					if err != nil {
 						return "", err
 					}
@@ -172,7 +179,7 @@ func VcardTools() []Tool {
 					if len(text) > vcard.MaxFileSize {
 						return "", vcard.ErrTooLarge
 					}
-					country, err := vcardCountry(ctx, a, s.WorkspaceID, str(m, "default_country"))
+					country, err := vcard.ResolveCountry(ctx, a.SQLDB, s.WorkspaceID, str(m, "default_country"))
 					if err != nil {
 						return "", err
 					}
@@ -218,15 +225,6 @@ var errMissingGoogleCSV = &toolError{`"csv" is required when source is "google_c
 type toolError struct{ msg string }
 
 func (e *toolError) Error() string { return e.msg }
-
-func vcardCountry(ctx context.Context, a *app.App, wsID, override string) (string, error) {
-	if override != "" {
-		return override, nil
-	}
-	var country string
-	_ = a.SQLDB.QueryRowContext(ctx, `SELECT default_country FROM workspaces WHERE id = $1`, wsID).Scan(&country)
-	return country, nil
-}
 
 // parseGoogleCSVArg reads the "csv" argument and parses it with
 // vcard.ParseGoogleCSV, returning a run identifier (not a real file hash —

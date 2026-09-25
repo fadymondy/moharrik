@@ -27,6 +27,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/tenant"
+	"github.com/fadymondy/moharrik/internal/vcard"
 )
 
 // InviteTTL is how long an invitation link stays valid.
@@ -287,12 +288,13 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, _ *wsHeader) (*struct {
 		Body struct {
 			Workspace struct {
-				ID       string `json:"id"`
-				Slug     string `json:"slug"`
-				Name     string `json:"name"`
-				Locale   string `json:"locale"`
-				Timezone string `json:"timezone"`
-				Currency string `json:"currency"`
+				ID             string `json:"id"`
+				Slug           string `json:"slug"`
+				Name           string `json:"name"`
+				Locale         string `json:"locale"`
+				Timezone       string `json:"timezone"`
+				Currency       string `json:"currency"`
+				DefaultCountry string `json:"default_country,omitempty" doc:"ISO 3166-1 alpha-2 country used to resolve local-format phone numbers on import/sync (MH-646). Empty if never set."`
 			} `json:"workspace"`
 			Role string   `json:"role"`
 			Can  []string `json:"can"`
@@ -305,12 +307,13 @@ func Register(api huma.API, a *app.App) {
 		out := &struct {
 			Body struct {
 				Workspace struct {
-					ID       string `json:"id"`
-					Slug     string `json:"slug"`
-					Name     string `json:"name"`
-					Locale   string `json:"locale"`
-					Timezone string `json:"timezone"`
-					Currency string `json:"currency"`
+					ID             string `json:"id"`
+					Slug           string `json:"slug"`
+					Name           string `json:"name"`
+					Locale         string `json:"locale"`
+					Timezone       string `json:"timezone"`
+					Currency       string `json:"currency"`
+					DefaultCountry string `json:"default_country,omitempty" doc:"ISO 3166-1 alpha-2 country used to resolve local-format phone numbers on import/sync (MH-646). Empty if never set."`
 				} `json:"workspace"`
 				Role string   `json:"role"`
 				Can  []string `json:"can"`
@@ -319,13 +322,55 @@ func Register(api huma.API, a *app.App) {
 		w := &out.Body.Workspace
 		// App pool: RLS allows exactly the current workspace's row.
 		err = a.SQLDB.QueryRowContext(ctx,
-			`SELECT id, slug, name, locale, timezone, currency FROM workspaces WHERE id = $1`, s.WorkspaceID,
-		).Scan(&w.ID, &w.Slug, &w.Name, &w.Locale, &w.Timezone, &w.Currency)
+			`SELECT id, slug, name, locale, timezone, currency, default_country FROM workspaces WHERE id = $1`, s.WorkspaceID,
+		).Scan(&w.ID, &w.Slug, &w.Name, &w.Locale, &w.Timezone, &w.Currency, &w.DefaultCountry)
 		if err != nil {
 			return nil, huma.Error404NotFound("workspace not found")
 		}
 		out.Body.Role = s.Role
 		out.Body.Can = authz.Allowed(s.Role)
+		return out, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-update-default-country", Method: http.MethodPut, Path: "/api/w/settings/default-country",
+		Summary: "Set (or clear) the workspace's default country, used to resolve local-format phone numbers on vCard import and " +
+			"Google Contacts sync when a number carries no country code (MH-646). Admin/owner only.",
+		Tags: []string{"Tenancy"},
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Body struct {
+			Country string `json:"country" doc:"ISO 3166-1 alpha-2 (e.g. \"EG\"), or empty to clear it and fall back to inference."`
+		}
+	}) (*struct {
+		Body struct {
+			DefaultCountry string `json:"default_country"`
+		}
+	}, error) {
+		s, err := scope(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !authz.Can(s.Role, authz.WorkspaceUpdate) {
+			return nil, huma.Error403Forbidden("only owners and admins can change workspace settings")
+		}
+		country := strings.ToUpper(strings.TrimSpace(in.Body.Country))
+		if country != "" {
+			if _, ok := vcard.DialCode(country); !ok {
+				return nil, huma.Error422UnprocessableEntity("unrecognised country code: " + country)
+			}
+		}
+		if _, err := a.SQLDB.ExecContext(ctx,
+			`UPDATE workspaces SET default_country = $2, updated_at = now() WHERE id = $1`, s.WorkspaceID, country,
+		); err != nil {
+			return nil, huma.Error500InternalServerError("could not update the workspace")
+		}
+		out := &struct {
+			Body struct {
+				DefaultCountry string `json:"default_country"`
+			}
+		}{}
+		out.Body.DefaultCountry = country
 		return out, nil
 	})
 

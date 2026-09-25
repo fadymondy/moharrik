@@ -1,12 +1,22 @@
 "use client"
 
 import Link from "next/link"
-import { RefreshCwIcon, UploadIcon } from "lucide-react"
+import { RefreshCwIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -29,6 +39,7 @@ import {
   type GoogleContactsConnection,
   type GoogleContactsSyncResult,
   type GoogleDisconnected,
+  type ReparsePhonesResult,
 } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import {
@@ -55,6 +66,7 @@ type PreviewRow = {
   invalid?: string
   match_contact_ids?: string[]
   local_phone?: boolean
+  needs_country?: boolean
 }
 
 type VcardPreview = {
@@ -62,6 +74,7 @@ type VcardPreview = {
   new_count: number
   merge_count: number
   invalid_count: number
+  needs_country_count: number
   rows: PreviewRow[]
   file_hash: string
 }
@@ -71,7 +84,33 @@ type CommitResult = {
   created_count: number
   merged_count: number
   invalid_count: number
+  needs_country_count: number
   contact_ids: string[]
+}
+
+/**
+ * NeedsCountryBanner (MH-646): every place a preview/commit/sync result
+ * reports phones kept raw because no country could be resolved — shared so
+ * the vCard flow and the Google panel say the same thing the same way, with
+ * a link to Settings → General to fix it.
+ */
+function NeedsCountryBanner({ count, settingsHref }: { count: number; settingsHref: string }) {
+  const { t } = useTranslations()
+  if (count <= 0) return null
+  return (
+    <p
+      className="mb-4 flex items-start gap-2 rounded-lg border border-grid-warn/40 bg-grid-warn/10 p-3 text-sm"
+      data-testid="needs-country-banner"
+    >
+      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+      <span>
+        {t("vcard.needsCountry", { count })}{" "}
+        <Link className="underline underline-offset-4" href={settingsHref}>
+          {t("vcard.needsCountry.link")}
+        </Link>
+      </span>
+    </p>
+  )
 }
 
 // MH-585: a Google Contacts CSV export (contacts.google.com -> Export) needs
@@ -100,6 +139,7 @@ export default function VcardPage() {
   const [result, setResult] = useState<CommitResult | null>(null)
   const [exporting, setExporting] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
+  const [reparsing, setReparsing] = useState(false)
 
   async function onFilePicked(f: File | null) {
     setFileName(f?.name ?? null)
@@ -142,6 +182,23 @@ export default function VcardPage() {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
       setCommitting(false)
+    }
+  }
+
+  async function runReparse() {
+    setReparsing(true)
+    try {
+      const res = await api<ReparsePhonesResult>("/api/w/contacts/vcard/reparse-phones", {
+        method: "POST",
+        workspaceId: ws.id,
+      })
+      toast.success(
+        res.resolved > 0 ? t("vcard.reparseDone", { count: res.resolved }) : t("vcard.reparseNone"),
+      )
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setReparsing(false)
     }
   }
 
@@ -190,6 +247,18 @@ export default function VcardPage() {
             {exporting ? t("vcard.exporting") : t("vcard.exportAll")}
           </Button>
           <FieldDescription>{t("vcard.exportHint")}</FieldDescription>
+          {canWrite ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={runReparse}
+              disabled={reparsing}
+              data-action="reparse-vcard-phones"
+            >
+              {reparsing ? t("vcard.reparsing") : t("vcard.reparse")}
+            </Button>
+          ) : null}
         </div>
 
         <GoogleContactsPanel />
@@ -323,6 +392,18 @@ export default function VcardPage() {
           >
             {t("vcard.commitDone", { created: result.created_count, merged: result.merged_count })}
           </div>
+        ) : null}
+
+        {result ? (
+          <NeedsCountryBanner
+            count={result.needs_country_count}
+            settingsHref={`${base}/settings/general`}
+          />
+        ) : preview ? (
+          <NeedsCountryBanner
+            count={preview.needs_country_count}
+            settingsHref={`${base}/settings/general`}
+          />
         ) : null}
 
         {preview ? (
@@ -476,16 +557,18 @@ function GoogleContactsConnectionRow({
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const [syncing, setSyncing] = useState(false)
+  const [fullConfirmOpen, setFullConfirmOpen] = useState(false)
   const [result, setResult] = useState<GoogleContactsSyncResult | null>(null)
   const status = useGoogleContactsSyncStatus(ws.id, c.id, { refreshWhileSyncing: syncing })
   const reauth = c.status === "reauth"
 
-  async function sync() {
+  async function sync(full = false) {
     setSyncing(true)
     setResult(null)
     try {
+      const q = full ? "?full=true" : ""
       const res = await api<GoogleContactsSyncResult>(
-        `/api/w/google/contacts/${encodeURIComponent(c.id)}/sync`,
+        `/api/w/google/contacts/${encodeURIComponent(c.id)}/sync${q}`,
         {
           method: "POST",
           workspaceId: ws.id,
@@ -505,6 +588,11 @@ function GoogleContactsConnectionRow({
     } finally {
       setSyncing(false)
     }
+  }
+
+  async function fullResync() {
+    setFullConfirmOpen(false)
+    await sync(true)
   }
 
   async function disconnect() {
@@ -556,19 +644,47 @@ function GoogleContactsConnectionRow({
             })}
           </p>
         ) : null}
+        <NeedsCountryBanner
+          count={result?.needs_country ?? 0}
+          settingsHref={`/${locale}/w/${ws.slug}/settings/general`}
+        />
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={sync}
+          onClick={() => void sync()}
           disabled={syncing || reauth}
           data-action="sync-google-contacts"
         >
           <RefreshCwIcon />
           {syncing ? t("vcard.google.syncing") : t("vcard.google.sync")}
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setFullConfirmOpen(true)}
+          disabled={syncing || reauth}
+          data-action="full-resync-google-contacts"
+        >
+          {t("vcard.google.fullResync")}
+        </Button>
+        <AlertDialog open={fullConfirmOpen} onOpenChange={setFullConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("vcard.google.fullResyncTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>{t("vcard.google.fullResyncBody")}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction disabled={syncing} onClick={() => void fullResync()}>
+                {syncing ? t("vcard.google.fullResyncing") : t("vcard.google.fullResync")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {canManage ? (
           <ConfirmButton
             label={t("vcard.google.disconnect")}

@@ -16,6 +16,10 @@ var argsARVcard = map[string]string{
 		"أو \"google\" (حساب Google متصل — يجلب البيانات مباشرة عبر People API؛ الالتزام هنا يشغّل مزامنة كاملة، تمامًا مثل google_contacts_sync).",
 	descGoogleCSV:    "نص خام لملف تصدير جهات اتصال Google (خيار \"Google CSV\" ضمن contacts.google.com ← تصدير). مطلوب عندما يكون المصدر \"google_csv\".",
 	descGoogleConnID: "معرّف google_connections من w-google-connections، بصلاحية الوصول إلى جهات الاتصال. مطلوب عندما يكون المصدر \"google\".",
+	// MH-646: shared verbatim by google_contacts_sync and
+	// import_contacts_commit{source:"google"} — see descFullResync.
+	descFullResync: "تجاهل رمز المزامنة المخزَّن وإعادة استيراد كل جهة اتصال (MH-646: يملأ الهواتف التي يمكن الآن لدولة افتراضية جديدة حلّها). " +
+		"لا يُنشئ تكرارًا أبدًا ولا يستبدل هاتفًا أدخله أحد يدويًا.",
 }
 
 const vcardExFixture = `BEGIN:VCARD\nVERSION:3.0\nFN:Rana Fathy\nTEL;TYPE=CELL:+201015550101\nEMAIL:rana@example.test\nEND:VCARD`

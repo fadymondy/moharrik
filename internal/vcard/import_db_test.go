@@ -221,4 +221,8 @@ func TestLocalPhoneWithNoDefaultCountryIsAWarningNotAFailure(t *testing.T) {
 	if pv.NewCount != 1 {
 		t.Fatalf("a card with a UID and email should still preview as new even if its phone cannot be resolved: %+v", pv)
 	}
+	// MH-646: an unresolvable phone is flagged, not silently dropped.
+	if pv.NeedsCountryCount != 1 || len(pv.Rows) != 1 || !pv.Rows[0].NeedsCountry {
+		t.Fatalf("preview must flag the row needing a country: %+v", pv)
+	}
 }
