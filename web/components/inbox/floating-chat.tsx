@@ -141,6 +141,7 @@ function LauncherThread({ workspaceId, id, canWrite, onChanged }: { workspaceId:
 
   return (
     <ChatThread
+      fill
       conversation={conversation}
       messages={messages}
       memberName={members.name}
@@ -221,7 +222,7 @@ export function FloatingChat({ workspaceId, slug, can }: { workspaceId: string; 
           </SheetTitle>
 
           {selected ? (
-            <div className="min-h-0 flex-1">
+            <div className="flex min-h-0 flex-1 flex-col">
               <LauncherThread workspaceId={workspaceId} id={selected} canWrite={canWrite} onChanged={() => void bell.mutate()} />
             </div>
           ) : (

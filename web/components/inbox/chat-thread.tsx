@@ -166,6 +166,7 @@ export function ChatThread({
   busy,
   error,
   onInsertCanned,
+  fill = false,
 }: {
   conversation: Conversation
   messages: InboxMessage[]
@@ -178,6 +179,8 @@ export function ChatThread({
   busy: boolean
   error: string | null
   onInsertCanned: (text: string) => void
+  /** Fill the parent's height (the launcher panel) instead of the inbox page's fixed one. */
+  fill?: boolean
 }) {
   const { t, locale } = useTranslations()
   const items = buildItems(messages, t, locale)
@@ -273,7 +276,11 @@ export function ChatThread({
   }
 
   return (
-    <div className="relative flex min-h-0 flex-col" style={{ height: "min(68vh, 40rem)" }} data-chat-thread>
+    <div
+      className={`relative flex min-h-0 flex-col ${fill ? "h-full" : ""}`}
+      style={fill ? undefined : { height: "min(68vh, 40rem)" }}
+      data-chat-thread
+    >
       <div
         ref={parentRef}
         onScroll={onScroll}
