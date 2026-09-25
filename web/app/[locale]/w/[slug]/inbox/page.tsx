@@ -217,10 +217,14 @@ export default function InboxPage() {
     return () => window.removeEventListener("keydown", onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, cursorIdx])
+  // Follow the cursor only when the cursor moves (MH-597). `items` is a fresh
+  // array on every render and scrolling the virtual list renders, so keying
+  // this on `items` too snapped the list back to row 0 on every wheel tick —
+  // the list could not be scrolled at all.
   useEffect(() => {
     if (items[cursorIdx]) virtualizer.scrollToIndex(cursorIdx, { align: "auto" })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cursorIdx, items])
+  }, [cursorIdx])
 
   const statusOpts = [
     { value: "open", label: t("inbox.status.open") },

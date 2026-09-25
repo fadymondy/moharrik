@@ -254,23 +254,81 @@ export function ChatThread({
     setNewCount(0)
   }
 
+  // An email is read from its first line, not its last (MH-598): the pane
+  // lands on the newest email's header, not the bottom of its body. The group
+  // holding it is brought into the window first, then the card itself is
+  // lined up with the top of the pane.
+  const isEmail = conversation.channel === "email"
+  function scrollToNewestEmail(behavior: ScrollBehavior = "auto") {
+    const el = parentRef.current
+    if (!el || items.length === 0) return
+    // Not scrollToIndex: it keeps re-scrolling for several frames while sizes
+    // settle, which undoes the card alignment below.
+    const group = virtualizer.measurementsCache[items.length - 1]
+    if (group) el.scrollTop = group.start
+    requestAnimationFrame(() => {
+      const cards = el.querySelectorAll<HTMLElement>("[data-message-layout=email]")
+      const card = cards[cards.length - 1]
+      if (card) {
+        const offset = card.getBoundingClientRect().top - el.getBoundingClientRect().top - parseFloat(getComputedStyle(el).paddingTop)
+        el.scrollTo({ top: el.scrollTop + offset, behavior })
+      }
+      setNewCount(0)
+    })
+  }
+  const jumpToLatest = (behavior: ScrollBehavior) => (isEmail ? scrollToNewestEmail(behavior) : scrollToBottom(behavior))
+
+  // Messages grow after the first paint (an email's frame, an image grid), so
+  // one scroll lands short. While the thread's height settles, the pane stays
+  // on the latest — the newest email's top, or a chat's bottom — until the
+  // reader scrolls or touches it themselves, or a few seconds pass.
+  const sizerRef = useRef<HTMLDivElement>(null)
+  const anchorRef = useRef(false)
+  useEffect(() => {
+    const el = parentRef.current
+    const sizer = sizerRef.current
+    if (!el || !sizer) return
+    const release = () => {
+      anchorRef.current = false
+    }
+    const ro = new ResizeObserver(() => {
+      if (anchorRef.current) jumpToLatest("auto")
+    })
+    ro.observe(sizer)
+    const stop = window.setTimeout(release, 4000)
+    const events = ["wheel", "touchstart", "pointerdown", "keydown"] as const
+    events.forEach((e) => el.addEventListener(e, release, { passive: true }))
+    return () => {
+      ro.disconnect()
+      window.clearTimeout(stop)
+      events.forEach((e) => el.removeEventListener(e, release))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEmail])
+
   // New page of messages (a fresh send, a "Load earlier", or a realtime push):
   // stick to the bottom if we were already there, otherwise surface a "new
   // messages" counter instead of yanking the reader's scroll position.
   useEffect(() => {
     const last = messages[messages.length - 1]?.id ?? null
+    // The first load that has messages lands the pane — not the first render,
+    // which can be before they arrive.
     if (firstRenderRef.current) {
+      if (!last) return
       firstRenderRef.current = false
       lastIdRef.current = last
+      anchorRef.current = true
       // A second pass once real heights (an email's iframe, an image grid)
       // have settled — the first paints against `estimateSize`, which can
       // land short of the true bottom for a thread with rich messages.
-      requestAnimationFrame(() => scrollToBottom("auto"))
-      const settle = window.setTimeout(() => scrollToBottom("auto"), 350)
+      requestAnimationFrame(() => jumpToLatest("auto"))
+      const settle = window.setTimeout(() => jumpToLatest("auto"), 350)
       return () => window.clearTimeout(settle)
     }
     if (last && last !== lastIdRef.current) {
-      if (isNearBottom()) {
+      // A new email never moves the pane — someone may be halfway down the
+      // one above it. The counter says it is there.
+      if (!isEmail && isNearBottom()) {
         lastIdRef.current = last
         requestAnimationFrame(() => scrollToBottom("smooth"))
       } else {
@@ -325,8 +383,9 @@ export function ChatThread({
         onScroll={onScroll}
         className="relative min-h-0 flex-1 overflow-y-auto bg-[image:var(--grid-hatch)] bg-grid-bg px-4 py-2"
         data-messages
+        data-anchor={isEmail ? "newest-email" : "bottom"}
       >
-        <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        <div ref={sizerRef} style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
           {virtualizer.getVirtualItems().map((vi) => {
             const item = items[vi.index]!
             return (
@@ -347,14 +406,14 @@ export function ChatThread({
         </div>
       </div>
 
-      {!atBottom ? (
+      {(isEmail ? newCount > 0 : !atBottom) ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-24 flex justify-center">
           <Button
             type="button"
             size="sm"
             variant="secondary"
             className="pointer-events-auto shadow-md"
-            onClick={() => scrollToBottom("smooth")}
+            onClick={() => jumpToLatest("smooth")}
             data-action="scroll-to-bottom"
           >
             <ArrowDownIcon />

@@ -56,9 +56,16 @@ for (const scheme of ["light", "dark"]) {
     check(`${k}-search`, searchInColumn)
 
     // Infinite scroll: reaching the bottom of the list asks for the next page.
+    // Scrolled with the wheel, as a person does, and read after it settles: a
+    // render that snapped the list back to the top (MH-597) passed a one-shot
+    // scrollTo() check.
+    const box = await (await page.$("[data-conversation-list]")).boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 200))
+    for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, 400); await page.waitForTimeout(120) }
+    await page.waitForTimeout(1500)
+    const scroll = await page.$eval("[data-conversation-list]", (el) => ({ top: el.scrollTop, room: el.scrollHeight - el.clientHeight }))
+    check(`${k}-wheel`, scroll.room <= 0 || scroll.top > 0, scroll)
     if (first?.next) {
-      await page.$eval("[data-conversation-list]", (el) => el.scrollTo({ top: el.scrollHeight }))
-      await page.waitForTimeout(2500)
       const more = lists.find((l) => l.q.cursor)
       check(`${k}-scroll`, !!more && more.q.order === "unread_first", { requests: lists.length })
     }
