@@ -425,7 +425,7 @@ var docsLeads = map[string]ToolDoc{
 var argsARCRM = map[string]string{
 	"The address/number/handle/id on that channel":           "العنوان أو الرقم أو المعرّف على تلك القناة",
 	"Make this the primary account on that channel":          "اجعله الحساب الأساسي على تلك القناة",
-	"A short label, e.g. \"work\" or \"personal\"":          "تسمية قصيرة، مثل \"العمل\" أو \"شخصي\"",
+	"A short label, e.g. \"work\" or \"personal\"":           "تسمية قصيرة، مثل \"العمل\" أو \"شخصي\"",
 	"The identity's id (from get_contact's identities list)": "معرّف الهوية (من قائمة الهويات في get_contact)",
 	"YYYY-MM-DD. Empty string clears it.":                    "بصيغة YYYY-MM-DD. نص فارغ يمسحه.",
 	"Replaces the whole key/value map":                       "يستبدل خريطة المفاتيح والقيم كلها",

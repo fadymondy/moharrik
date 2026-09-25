@@ -28,11 +28,11 @@ import (
 	"github.com/fadymondy/moharrik/internal/conversions"
 	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/google"
+	"github.com/fadymondy/moharrik/internal/googlecontacts"
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
 	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/imports"
-	"github.com/fadymondy/moharrik/internal/vcard"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/leads"
 	"github.com/fadymondy/moharrik/internal/marketing"
@@ -49,6 +49,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/searchconsole"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
+	"github.com/fadymondy/moharrik/internal/vcard"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
 	"github.com/fadymondy/moharrik/internal/workspaces"
 	"github.com/fadymondy/moharrik/internal/youtube"
@@ -346,6 +347,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	mcp.RegisterTokenRoutes(api, a)
 	mcp.RegisterGrantRoutes(api, a) // connected apps over OAuth (MH-391)
 	google.Register(api, a)
+	googlecontacts.Register(api, a) // Google Contacts import/sync REST (MH-585)
 	alerts.Register(api, a)
 	overview.Register(api, a)      // the workspace front page (MH-462)
 	reports.Register(api, a)       // CRM reporting (MH-394)

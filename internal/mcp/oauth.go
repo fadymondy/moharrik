@@ -251,7 +251,7 @@ func protectedResourceBody(resource string) map[string]any {
 		"bearer_methods_supported": []string{"header"},
 		"resource_name":            "Moharrik",
 		// The tool reference (MH-428): what an OAuth client's user reads to learn the tools.
-		"resource_documentation":   OAuthIssuer() + "/en/docs/mcp",
+		"resource_documentation": OAuthIssuer() + "/en/docs/mcp",
 	}
 }
 

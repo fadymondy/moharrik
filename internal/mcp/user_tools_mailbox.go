@@ -97,7 +97,9 @@ func MailboxTools() []Tool {
 				"is_primary":      map[string]any{"type": "boolean", "description": ""},
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
-				var idIn struct{ ID string `json:"id"` }
+				var idIn struct {
+					ID string `json:"id"`
+				}
 				if err := bind(raw, &idIn); err != nil {
 					return "", err
 				}
@@ -122,7 +124,9 @@ func MailboxTools() []Tool {
 			Scope:       "inbox:manage",
 			InputSchema: schema([]string{"id"}, map[string]any{"id": prop("string", "Mailbox id")}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
-				var in struct{ ID string `json:"id"` }
+				var in struct {
+					ID string `json:"id"`
+				}
 				if err := bind(raw, &in); err != nil {
 					return "", err
 				}
@@ -143,7 +147,9 @@ func MailboxTools() []Tool {
 			Scope:       "inbox:manage",
 			InputSchema: schema([]string{"id"}, map[string]any{"id": prop("string", "Mailbox id")}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
-				var in struct{ ID string `json:"id"` }
+				var in struct {
+					ID string `json:"id"`
+				}
 				if err := bind(raw, &in); err != nil {
 					return "", err
 				}
@@ -164,7 +170,9 @@ func MailboxTools() []Tool {
 			Scope:       "inbox:manage",
 			InputSchema: schema([]string{"id"}, map[string]any{"id": prop("string", "Mailbox id")}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
-				var in struct{ ID string `json:"id"` }
+				var in struct {
+					ID string `json:"id"`
+				}
 				if err := bind(raw, &in); err != nil {
 					return "", err
 				}

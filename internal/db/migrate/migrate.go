@@ -68,6 +68,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"vcard_imports",
 	// uploaded contact avatars (MH-602)
 	"contact_avatars",
+	// Google Contacts sync bookkeeping (MH-585)
+	"google_contacts_sync",
 }
 
 /*

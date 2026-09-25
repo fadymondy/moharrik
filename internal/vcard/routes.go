@@ -7,6 +7,8 @@ package vcard
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"time"
 
@@ -54,29 +56,67 @@ func userID(ctx context.Context) string {
 	return ""
 }
 
+// importBody is shared by preview and commit: source defaults to "vcard"
+// (unchanged MH-584 behaviour); "google_csv" parses csv with ParseGoogleCSV
+// instead (MH-585 — the web UI's Google CSV upload, no OAuth). "google" (a
+// connected account) is NOT handled here — that goes through
+// internal/googlecontacts's own /api/w/google/contacts/{id}/preview|sync,
+// since it needs a connection id and a live People API call, not pasted text.
+type importBody struct {
+	Source         string `json:"source,omitempty" doc:"\"vcard\" (default) or \"google_csv\". A connected Google account uses /api/w/google/contacts instead."`
+	VCard          string `json:"vcard,omitempty" doc:"Raw vCard 2.1/3.0/4.0 text, one or more cards. Required when source is \"vcard\" (the default)."`
+	CSV            string `json:"csv,omitempty" doc:"Raw Google Contacts CSV export text. Required when source is \"google_csv\"."`
+	DefaultCountry string `json:"default_country,omitempty" doc:"ISO 3166-1 alpha-2 country to resolve local phone numbers against, if the workspace has none set."`
+}
+
+// googleCSVCards parses in.CSV with ParseGoogleCSV and derives the same kind
+// of stable run identifier the vCard path gets from hashing its raw text
+// (PreviewCards/CommitCards only use it for vcard_imports bookkeeping, not
+// as a real file digest).
+func googleCSVCards(in importBody) (cards []Card, perrs []ParseError, hash string, err error) {
+	if in.CSV == "" {
+		return nil, nil, "", huma.Error422UnprocessableEntity(`"csv" is required when source is "google_csv"`)
+	}
+	if len(in.CSV) > MaxFileSize {
+		return nil, nil, "", huma.Error422UnprocessableEntity(ErrTooLarge.Error())
+	}
+	cards, perrs = ParseGoogleCSV([]byte(in.CSV))
+	sum := sha256.Sum256([]byte(in.CSV))
+	return cards, perrs, hex.EncodeToString(sum[:]), nil
+}
+
 // Register mounts the vCard import/export REST routes. `a` may be nil during
 // OpenAPI export.
 func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-vcard-preview", Method: http.MethodPost, Path: "/api/w/contacts/vcard/preview",
-		Summary: "Preview a .vcf file: which cards are new, which merge into an existing contact, which are invalid", Tags: restTags,
+		Summary: "Preview a .vcf file (or a Google CSV export): which cards are new, which merge into an existing contact, which are invalid",
+		Tags:    restTags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Body struct {
-			VCard          string `json:"vcard" doc:"Raw vCard 2.1/3.0/4.0 text, one or more cards."`
-			DefaultCountry string `json:"default_country,omitempty" doc:"ISO 3166-1 alpha-2 country to resolve local phone numbers against, if the workspace has none set."`
-		}
+		Body importBody
 	}) (*body[VcardPreview], error) {
 		ws := wsID(ctx)
 		if !CheckRateLimit(ws) {
 			return nil, huma.Error429TooManyRequests("too many vCard imports for this workspace in the last minute — try again shortly")
 		}
-		if len(in.Body.VCard) > MaxFileSize {
-			return nil, huma.Error422UnprocessableEntity(ErrTooLarge.Error())
-		}
 		country, err := resolveCountry(ctx, a, ws, in.Body.DefaultCountry)
 		if err != nil {
 			return nil, err
+		}
+		if in.Body.Source == "google_csv" {
+			cards, perrs, hash, err := googleCSVCards(in.Body)
+			if err != nil {
+				return nil, err
+			}
+			pv, err := PreviewCards(ctx, a.SQLDB, ws, cards, perrs, hash, country)
+			if err != nil {
+				return nil, huma.Error422UnprocessableEntity(err.Error())
+			}
+			return out(*pv), nil
+		}
+		if len(in.Body.VCard) > MaxFileSize {
+			return nil, huma.Error422UnprocessableEntity(ErrTooLarge.Error())
 		}
 		pv, err := PreviewImport(ctx, a.SQLDB, ws, []byte(in.Body.VCard), country)
 		if err != nil {
@@ -87,24 +127,33 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-vcard-commit", Method: http.MethodPost, Path: "/api/w/contacts/vcard/commit",
-		Summary: "Import a previewed .vcf file: create new contacts, merge into existing ones, never overwrite a filled field", Tags: restTags,
+		Summary: "Import a previewed .vcf file (or Google CSV export): create new contacts, merge into existing ones, never overwrite a filled field",
+		Tags:    restTags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Body struct {
-			VCard          string `json:"vcard" doc:"The same raw vCard text passed to preview."`
-			DefaultCountry string `json:"default_country,omitempty" doc:"ISO 3166-1 alpha-2 country to resolve local phone numbers against, if the workspace has none set."`
-		}
+		Body importBody
 	}) (*body[CommitResult], error) {
 		ws := wsID(ctx)
 		if !CheckRateLimit(ws) {
 			return nil, huma.Error429TooManyRequests("too many vCard imports for this workspace in the last minute — try again shortly")
 		}
-		if len(in.Body.VCard) > MaxFileSize {
-			return nil, huma.Error422UnprocessableEntity(ErrTooLarge.Error())
-		}
 		country, err := resolveCountry(ctx, a, ws, in.Body.DefaultCountry)
 		if err != nil {
 			return nil, err
+		}
+		if in.Body.Source == "google_csv" {
+			cards, perrs, hash, err := googleCSVCards(in.Body)
+			if err != nil {
+				return nil, err
+			}
+			res, err := CommitCards(ctx, a.SQLDB, ws, userID(ctx), cards, perrs, hash, country)
+			if err != nil {
+				return nil, huma.Error422UnprocessableEntity(err.Error())
+			}
+			return out(*res), nil
+		}
+		if len(in.Body.VCard) > MaxFileSize {
+			return nil, huma.Error422UnprocessableEntity(ErrTooLarge.Error())
 		}
 		res, err := CommitImport(ctx, a.SQLDB, ws, userID(ctx), []byte(in.Body.VCard), country)
 		if err != nil {

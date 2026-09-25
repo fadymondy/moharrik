@@ -8,7 +8,14 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { EmptyState, ErrorState } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
@@ -53,6 +60,14 @@ type CommitResult = {
   contact_ids: string[]
 }
 
+// MH-585: a Google Contacts CSV export (contacts.google.com -> Export) needs
+// no OAuth, so it rides the same preview -> commit flow as pasted vCard text
+// -- only the request's "source"/"csv" vs "vcard" field differs (see
+// internal/vcard/routes.go's importBody). A connected Google account (OAuth +
+// People API, sync-now) is a separate, still-outstanding piece of MH-585 --
+// not shipped here, so no dead "Connect Google" button appears on this page.
+type ImportSource = "vcard" | "google_csv"
+
 export default function VcardPage() {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
@@ -60,6 +75,7 @@ export default function VcardPage() {
   const base = `/${locale}/w/${ws.slug}`
   const canWrite = ws.can("contacts:write")
 
+  const [source, setSource] = useState<ImportSource>("vcard")
   const fileInput = useRef<HTMLInputElement>(null)
   const [text, setText] = useState("")
   const [preview, setPreview] = useState<VcardPreview | null>(null)
@@ -86,7 +102,7 @@ export default function VcardPage() {
     setResult(null)
     try {
       const res = await api<VcardPreview>("/api/w/contacts/vcard/preview", {
-        json: { vcard: text },
+        json: source === "google_csv" ? { source, csv: text } : { vcard: text },
         workspaceId: ws.id,
       })
       setPreview(res)
@@ -102,7 +118,7 @@ export default function VcardPage() {
     setCommitting(true)
     try {
       const res = await api<CommitResult>("/api/w/contacts/vcard/commit", {
-        json: { vcard: text },
+        json: source === "google_csv" ? { source, csv: text } : { vcard: text },
         workspaceId: ws.id,
       })
       setResult(res)
@@ -117,7 +133,10 @@ export default function VcardPage() {
   async function runExportAll() {
     setExporting(true)
     try {
-      await downloadFile("/api/w/contacts/vcard/export", { workspaceId: ws.id, fallbackName: "contacts.vcf" })
+      await downloadFile("/api/w/contacts/vcard/export", {
+        workspaceId: ws.id,
+        fallbackName: "contacts.vcf",
+      })
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -146,16 +165,65 @@ export default function VcardPage() {
 
       <div className="px-6 pb-4">
         <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-line pb-6">
-          <Button type="button" variant="outline" onClick={runExportAll} disabled={exporting} data-action="export-vcard">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={runExportAll}
+            disabled={exporting}
+            data-action="export-vcard"
+          >
             {exporting ? t("vcard.exporting") : t("vcard.exportAll")}
           </Button>
           <FieldDescription>{t("vcard.exportHint")}</FieldDescription>
         </div>
 
-        {!canWrite ? <FieldDescription className="pb-4">{t("contacts.readOnly")}</FieldDescription> : null}
+        {!canWrite ? (
+          <FieldDescription className="pb-4">{t("contacts.readOnly")}</FieldDescription>
+        ) : null}
 
         <Field className="mb-4">
-          <FieldLabel htmlFor="vcard-file">{t("vcard.pickFile")}</FieldLabel>
+          <FieldLabel>{t("vcard.source")}</FieldLabel>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("vcard.source")}>
+            <Button
+              type="button"
+              variant={source === "vcard" ? "default" : "outline"}
+              aria-pressed={source === "vcard"}
+              onClick={() => {
+                setSource("vcard")
+                setText("")
+                setFileName(null)
+                setPreview(null)
+                setResult(null)
+              }}
+              data-action="source-vcard"
+            >
+              {t("vcard.source.vcard")}
+            </Button>
+            <Button
+              type="button"
+              variant={source === "google_csv" ? "default" : "outline"}
+              aria-pressed={source === "google_csv"}
+              onClick={() => {
+                setSource("google_csv")
+                setText("")
+                setFileName(null)
+                setPreview(null)
+                setResult(null)
+              }}
+              data-action="source-google-csv"
+            >
+              {t("vcard.source.googleCsv")}
+            </Button>
+          </div>
+          {source === "google_csv" ? (
+            <FieldDescription>{t("vcard.source.googleCsvHint")}</FieldDescription>
+          ) : null}
+        </Field>
+
+        <Field className="mb-4">
+          <FieldLabel htmlFor="vcard-file">
+            {source === "google_csv" ? t("vcard.pickFile.googleCsv") : t("vcard.pickFile")}
+          </FieldLabel>
           {/* The native picker's own button and "no file chosen" are in the
               browser's language, not the page's — keep the input for the
               file dialog and drive it from a translated button. */}
@@ -163,7 +231,7 @@ export default function VcardPage() {
             ref={fileInput}
             id="vcard-file"
             type="file"
-            accept=".vcf,text/vcard"
+            accept={source === "google_csv" ? ".csv,text/csv" : ".vcf,text/vcard"}
             className="sr-only"
             disabled={!canWrite}
             onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
@@ -187,7 +255,9 @@ export default function VcardPage() {
         </Field>
 
         <Field className="mb-4">
-          <FieldLabel htmlFor="vcard-text">{t("vcard.orPaste")}</FieldLabel>
+          <FieldLabel htmlFor="vcard-text">
+            {source === "google_csv" ? t("vcard.orPaste.googleCsv") : t("vcard.orPaste")}
+          </FieldLabel>
           <Textarea
             id="vcard-text"
             rows={8}
@@ -198,13 +268,18 @@ export default function VcardPage() {
               setPreview(null)
               setResult(null)
             }}
-            placeholder="BEGIN:VCARD..."
+            placeholder={source === "google_csv" ? "Name,Given Name,...," : "BEGIN:VCARD..."}
             data-testid="vcard-text-input"
           />
         </Field>
 
         <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Button type="button" onClick={runPreview} disabled={!canWrite || !text.trim() || previewing} data-action="preview-vcard">
+          <Button
+            type="button"
+            onClick={runPreview}
+            disabled={!canWrite || !text.trim() || previewing}
+            data-action="preview-vcard"
+          >
             {previewing ? t("vcard.previewing") : t("vcard.preview")}
           </Button>
           {preview ? (
@@ -215,7 +290,9 @@ export default function VcardPage() {
               disabled={!canWrite || committing || preview.card_count === 0}
               data-action="commit-vcard"
             >
-              {committing ? t("vcard.committing") : t("vcard.commit", { count: preview.new_count + preview.merge_count })}
+              {committing
+                ? t("vcard.committing")
+                : t("vcard.commit", { count: preview.new_count + preview.merge_count })}
             </Button>
           ) : null}
         </div>
@@ -223,7 +300,10 @@ export default function VcardPage() {
         {previewError ? <ErrorState error={previewError} /> : null}
 
         {result ? (
-          <div className="mb-6 rounded-lg border border-line p-4 text-sm" data-testid="vcard-commit-result">
+          <div
+            className="mb-6 rounded-lg border border-line p-4 text-sm"
+            data-testid="vcard-commit-result"
+          >
             {t("vcard.commitDone", { created: result.created_count, merged: result.merged_count })}
           </div>
         ) : null}
@@ -234,9 +314,15 @@ export default function VcardPage() {
           ) : (
             <div className="border-y border-line" data-testid="vcard-preview-table">
               <div className="flex flex-wrap gap-4 py-4 text-sm text-grid-muted">
-                <span data-testid="vcard-new-count">{t("vcard.newCount", { count: preview.new_count })}</span>
-                <span data-testid="vcard-merge-count">{t("vcard.mergeCount", { count: preview.merge_count })}</span>
-                <span data-testid="vcard-invalid-count">{t("vcard.invalidCount", { count: preview.invalid_count })}</span>
+                <span data-testid="vcard-new-count">
+                  {t("vcard.newCount", { count: preview.new_count })}
+                </span>
+                <span data-testid="vcard-merge-count">
+                  {t("vcard.mergeCount", { count: preview.merge_count })}
+                </span>
+                <span data-testid="vcard-invalid-count">
+                  {t("vcard.invalidCount", { count: preview.invalid_count })}
+                </span>
               </div>
               <Table>
                 <TableHeader>
@@ -257,7 +343,9 @@ export default function VcardPage() {
                       <TableCell className="text-grid-muted">{row.emails.join(", ")}</TableCell>
                       <TableCell className="pe-6">
                         <Badge variant={statusVariant[row.status]} data-vcard-status={row.status}>
-                          {row.status === "invalid" ? row.invalid || t(`vcard.status.${row.status}`) : t(`vcard.status.${row.status}`)}
+                          {row.status === "invalid"
+                            ? row.invalid || t(`vcard.status.${row.status}`)
+                            : t(`vcard.status.${row.status}`)}
                         </Badge>
                       </TableCell>
                     </TableRow>

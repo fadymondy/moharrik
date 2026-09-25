@@ -93,6 +93,8 @@ type Server struct {
 	APIKey string
 	// jobs are the YouTube Reporting jobs per account (ytreporting.go).
 	jobs map[string][]*fakeJob
+	// contacts is the People API's fake state per account (contacts.go, MH-585).
+	contacts map[string]*contactsState
 	// DataFor, when set, picks an account's data the first time it is seen
 	// (the dev check: "many@…" sees several of each). nil or a nil answer: Demo.
 	DataFor  func(Account) *AccountData
@@ -132,6 +134,7 @@ func build() (*Server, http.Handler) {
 		codes:   map[string]codeGrant{}, access: map[string]accessGrant{}, refresh: map[string]*refreshGrant{},
 		granted: map[string]map[string]bool{}, calls: map[string]int{}, lastForm: map[string]url.Values{},
 		data: map[string]*AccountData{}, failures: map[string]*failSpec{}, APIKey: "fake-api-key", jobs: map[string][]*fakeJob{},
+		contacts: map[string]*contactsState{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/o/oauth2/v2/auth", s.authorize)

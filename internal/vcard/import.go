@@ -74,18 +74,30 @@ func fileHash(data []byte) string {
 // contacts.Upsert with the same Candidate).
 func classify(c Card, defaultCountry string) (contacts.Candidate, []string) {
 	var warnings []string
+	source := c.ImportSource
+	if source == "" {
+		source = "vcard_import"
+	}
 	cand := contacts.Candidate{
 		Name:   c.FN,
-		Source: "vcard_import",
+		Source: source,
 		Meta:   map[string]string{},
 	}
 
-	// The vCard UID becomes a synthetic identity so the existing matching
-	// engine (contacts.Upsert / matchingContacts) treats "same UID" as "same
-	// person" for free, and re-importing the same file is idempotent: the
-	// second run matches on this identity and fills nothing new.
+	// The vCard UID (or, for a Google-sourced Card, its resourceName)
+	// becomes a synthetic identity so the existing matching engine
+	// (contacts.Upsert / matchingContacts) treats "same UID/resourceName" as
+	// "same person" for free, and re-importing/re-syncing is idempotent: the
+	// second run matches on this identity and fills nothing new. A plain
+	// vCard UID is namespaced "vcarduid:"; a Card built by another importer
+	// sets ImportSource and is expected to have already namespaced UID
+	// itself (see Card.ImportSource).
 	if c.UID != "" {
-		cand.Identities = append(cand.Identities, contacts.Identity{Channel: "other", ExternalID: "vcarduid:" + strings.TrimSpace(c.UID)})
+		id := strings.TrimSpace(c.UID)
+		if c.ImportSource == "" {
+			id = "vcarduid:" + id
+		}
+		cand.Identities = append(cand.Identities, contacts.Identity{Channel: "other", ExternalID: id})
 	}
 
 	firstEmail, firstPhone, firstHandle := true, true, true
@@ -236,7 +248,18 @@ func PreviewImport(ctx context.Context, db *sql.DB, wsID string, data []byte, de
 		return nil, ErrTooLarge
 	}
 	cards, perrs := ParseCards(data)
-	out := &VcardPreview{FileHash: fileHash(data)}
+	return PreviewCards(ctx, db, wsID, cards, perrs, fileHash(data), defaultCountry)
+}
+
+// PreviewCards is PreviewImport's engine, exposed directly (MH-585) for an
+// importer that builds Cards itself instead of parsing vCard text — the
+// Google People and Google CSV importers (internal/google/contacts.go,
+// internal/vcard/googlecsv.go) both classify/match through this, so a Google
+// contact previews and commits exactly like a vCard one. fileHash is
+// whatever the caller wants recorded in vcard_imports (a real file hash for
+// vCard/CSV; a sync-run identifier for a Google sync).
+func PreviewCards(ctx context.Context, db *sql.DB, wsID string, cards []Card, perrs []ParseError, fileHash, defaultCountry string) (*VcardPreview, error) {
+	out := &VcardPreview{FileHash: fileHash}
 	total := len(cards) + len(perrs)
 	out.CardCount = total
 
@@ -292,6 +315,13 @@ func CommitImport(ctx context.Context, db *sql.DB, wsID, actorID string, data []
 		return nil, ErrTooLarge
 	}
 	cards, perrs := ParseCards(data)
+	return CommitCards(ctx, db, wsID, actorID, cards, perrs, fileHash(data), defaultCountry)
+}
+
+// CommitCards is CommitImport's engine, exposed directly (MH-585) — see
+// PreviewCards. hash is recorded in vcard_imports for bookkeeping/rate-limit
+// purposes; it need not be a real file hash for a non-file importer.
+func CommitCards(ctx context.Context, db *sql.DB, wsID, actorID string, cards []Card, perrs []ParseError, hash, defaultCountry string) (*CommitResult, error) {
 	res := &CommitResult{CardCount: len(cards) + len(perrs), InvalidCount: len(perrs)}
 
 	for _, c := range cards {
@@ -329,7 +359,7 @@ func CommitImport(ctx context.Context, db *sql.DB, wsID, actorID string, data []
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO vcard_imports (workspace_id, file_hash, card_count, created_count, merged_count, invalid_count, created_by)
 		VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		wsID, fileHash(data), res.CardCount, res.CreatedCount, res.MergedCount, res.InvalidCount, actorID); err != nil {
+		wsID, hash, res.CardCount, res.CreatedCount, res.MergedCount, res.InvalidCount, actorID); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -357,7 +387,21 @@ func findOrCreateCompany(ctx context.Context, db *sql.DB, wsID, name string) (st
 // the array fields (tags, addresses, urls) so a re-import never duplicates
 // or drops what is already there.
 func applyExtraFields(ctx context.Context, db *sql.DB, wsID, id string, c Card) error {
-	_, err := db.ExecContext(ctx, `
+	// externalIDKey/externalIDValue: a plain vCard keys external_ids on
+	// "vcard" with the raw UID (unchanged MH-584 behaviour); a Card from
+	// another importer (ImportSource set) keys it on that source's name
+	// instead, so a Google sync and a vCard import of the same person never
+	// collide on the same jsonb key.
+	externalIDKey := "vcard"
+	externalIDValue := firstNonEmpty(c.UID)
+	if c.ImportSource != "" {
+		externalIDKey = c.ImportSource
+	}
+	metaJSON, err := json.Marshal(fillableMeta(c.Meta))
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, `
 		UPDATE contacts SET
 		  given_name              = CASE WHEN given_name = '' AND $3 <> '' THEN $3 ELSE given_name END,
 		  family_name             = CASE WHEN family_name = '' AND $4 <> '' THEN $4 ELSE family_name END,
@@ -372,10 +416,13 @@ func applyExtraFields(ctx context.Context, db *sql.DB, wsID, id string, c Card) 
 		  anniversary             = CASE WHEN anniversary IS NULL AND $13 <> '' THEN NULLIF($13,'')::date ELSE anniversary END,
 		  photo_url               = CASE WHEN photo_url = '' AND $14 <> '' THEN $14 ELSE photo_url END,
 		  photo_source            = CASE WHEN photo_url = '' AND $14 <> '' THEN 'vcard' ELSE photo_source END,
-		  external_ids            = CASE WHEN NOT (external_ids ? 'vcard') AND $15 <> '' THEN jsonb_set(external_ids, ARRAY['vcard'], to_jsonb($15::text), true) ELSE external_ids END,
+		  external_ids            = CASE WHEN NOT (external_ids ? $22::text) AND $15 <> '' THEN jsonb_set(external_ids, ARRAY[$22::text], to_jsonb($15::text), true) ELSE external_ids END,
 		  tags                    = CASE WHEN $16::text[] = '{}' THEN tags ELSE (SELECT array_agg(DISTINCT t) FROM unnest(tags || $16::text[]) t) END,
 		  addresses               = CASE WHEN jsonb_array_length(addresses) = 0 AND $17::jsonb <> '[]'::jsonb THEN $17::jsonb ELSE addresses END,
 		  urls                    = CASE WHEN $18::jsonb = '[]'::jsonb THEN urls ELSE (SELECT jsonb_agg(DISTINCT v) FROM jsonb_array_elements_text(urls || $18::jsonb) v) END,
+		  phonetic_given_name     = CASE WHEN phonetic_given_name = '' AND $19 <> '' THEN $19 ELSE phonetic_given_name END,
+		  phonetic_family_name    = CASE WHEN phonetic_family_name = '' AND $20 <> '' THEN $20 ELSE phonetic_family_name END,
+		  meta                    = meta || (SELECT COALESCE(jsonb_object_agg(key, value), '{}'::jsonb) FROM jsonb_each($21::jsonb) WHERE NOT (meta ? key)),
 		  updated_at              = now()
 		WHERE workspace_id = $1 AND id = $2`,
 		wsID, id,
@@ -383,12 +430,25 @@ func applyExtraFields(ctx context.Context, db *sql.DB, wsID, id string, c Card) 
 		c.Nickname, c.Title, c.Role, c.Note,
 		safeDate(c.BDay), safeDate(c.Anniv),
 		c.PhotoURL,
-		firstNonEmpty(c.UID),
+		externalIDValue,
 		emptyToNilStrings(c.Categories),
 		addressesJSON(c.Addresses),
 		urlsJSON(c.URLs),
+		c.PhoneticGiven, c.PhoneticFamily,
+		string(metaJSON),
+		externalIDKey,
 	)
 	return err
+}
+
+// fillableMeta never returns a Go nil map (a NULL jsonb parameter would make
+// the "meta || ..." merge a no-op via Postgres's NULL propagation instead of
+// the intended "nothing to add").
+func fillableMeta(m map[string]string) map[string]string {
+	if m == nil {
+		return map[string]string{}
+	}
+	return m
 }
 
 func safeDate(v string) string {

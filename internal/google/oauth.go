@@ -105,7 +105,9 @@ func StartConnect(ctx context.Context, a *app.App, s *tenant.Scope, product Prod
 	if err != nil {
 		return nil, err
 	}
-	need := product.Scopes(monetary && product == YouTube)
+	// monetary is overloaded per product: YouTube revenue reporting, or
+	// (MH-585) Contacts' "Other contacts" scope. Any other product ignores it.
+	need := product.Scopes(monetary && (product == YouTube || product == Contacts))
 	now := time.Now().UTC()
 	wctx := tenant.WithWorkspace(ctx, s.WorkspaceID)
 	hint := ""

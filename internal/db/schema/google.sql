@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS google_oauth_states (
     verifier_sealed text        NOT NULL,
     workspace_id    text        NOT NULL,
     user_id         text        NOT NULL,
-    -- analytics | search_console | youtube
+    -- analytics | search_console | youtube | contacts (MH-585)
     product         text        NOT NULL,
     -- The scopes this attempt needs granted; a grant missing any is refused.
     scopes          text[]      NOT NULL DEFAULT '{}',
@@ -57,5 +57,5 @@ CREATE TABLE IF NOT EXISTS google_oauth_states (
     return_to       text        NOT NULL DEFAULT '',
     created_at      timestamptz NOT NULL DEFAULT now(),
     expires_at      timestamptz NOT NULL,
-    CHECK (product IN ('analytics', 'search_console', 'youtube'))
+    CHECK (product IN ('analytics', 'search_console', 'youtube', 'contacts'))
 );
