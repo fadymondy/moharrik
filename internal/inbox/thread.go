@@ -11,6 +11,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/paging"
 )
 
@@ -56,7 +57,8 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 		where = ` AND (created_at, id) < ($4, $5)`
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, direction, author_user_id, body, body_html, mailbox_id, created_at
+		SELECT id, direction, author_user_id, body, body_html, mailbox_id, created_at,
+		       sender_contact_id, sender_name, sender_external_id
 		FROM messages WHERE workspace_id = $1 AND conversation_id = $2`+where+`
 		ORDER BY created_at DESC, id DESC LIMIT $3`, args...)
 	if err != nil {
@@ -66,12 +68,14 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 	newestFirst := []MessageOut{}
 	for rows.Next() {
 		var m MessageOut
-		var author, mailboxID sql.NullString
-		if err := rows.Scan(&m.ID, &m.Direction, &author, &m.Body, &m.BodyHTML, &mailboxID, &m.CreatedAt); err != nil {
+		var author, mailboxID, senderContactID sql.NullString
+		if err := rows.Scan(&m.ID, &m.Direction, &author, &m.Body, &m.BodyHTML, &mailboxID, &m.CreatedAt,
+			&senderContactID, &m.SenderName, &m.SenderExternalID); err != nil {
 			return nil, err
 		}
 		m.AuthorUserID = strp(author)
 		m.MailboxID = strp(mailboxID)
+		m.SenderContactID = strp(senderContactID)
 		newestFirst = append(newestFirst, m)
 	}
 	if err := rows.Err(); err != nil {
@@ -87,6 +91,9 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 		page.Messages = append(page.Messages, newestFirst[i])
 	}
 	if err := attachMessages(ctx, db, wsID, page.Messages); err != nil {
+		return nil, err
+	}
+	if err := attachSenderPhotos(ctx, db, wsID, page.Messages); err != nil {
 		return nil, err
 	}
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM messages WHERE workspace_id = $1 AND conversation_id = $2`,
@@ -109,6 +116,52 @@ func attachMessages(ctx context.Context, db *sql.DB, wsID string, msgs []Message
 	}
 	for i := range msgs {
 		msgs[i].Attachments = byMsg[msgs[i].ID]
+	}
+	return nil
+}
+
+// attachSenderPhotos fills in each group-thread message's SenderAvatarURL —
+// MH-604's per-message counterpart to scanConversation's own AvatarURL — one
+// query for the whole page, batched by the distinct sender contact ids on it
+// rather than one lookup per message.
+func attachSenderPhotos(ctx context.Context, db *sql.DB, wsID string, msgs []MessageOut) error {
+	ids := make([]string, 0, len(msgs))
+	seen := map[string]bool{}
+	for _, m := range msgs {
+		if m.SenderContactID == nil || *m.SenderContactID == "" || seen[*m.SenderContactID] {
+			continue
+		}
+		seen[*m.SenderContactID] = true
+		ids = append(ids, *m.SenderContactID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, photo_attachment_id, (photo_url LIKE 'data:%'), CASE WHEN photo_url LIKE 'data:%' THEN '' ELSE coalesce(photo_url, '') END
+		FROM contacts WHERE workspace_id = $1 AND id = ANY($2)`, wsID, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	urls := map[string]string{}
+	for rows.Next() {
+		var id string
+		var photoAttachmentID sql.NullString
+		var hasProviderPhoto bool
+		var externalPhotoURL string
+		if err := rows.Scan(&id, &photoAttachmentID, &hasProviderPhoto, &externalPhotoURL); err != nil {
+			return err
+		}
+		urls[id] = crm.AvatarURLLite(wsID, "contact", id, photoAttachmentID.String, hasProviderPhoto, externalPhotoURL)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range msgs {
+		if msgs[i].SenderContactID != nil {
+			msgs[i].SenderAvatarURL = urls[*msgs[i].SenderContactID]
+		}
 	}
 	return nil
 }

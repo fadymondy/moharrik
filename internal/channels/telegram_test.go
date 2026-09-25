@@ -17,6 +17,7 @@ import (
 // filedCall is one delivery channels.SetFiler received.
 type filedCall struct {
 	WorkspaceID, Channel, SourceChannelID, ThreadID, Handle, Name, Text, ExternalID string
+	IsGroup                                                                        bool
 }
 
 // captureFiler wires a Filer that records every delivery, and restores the
@@ -26,10 +27,10 @@ func captureFiler(t *testing.T) *[]filedCall {
 	t.Helper()
 	var mu sync.Mutex
 	got := []filedCall{}
-	channels.SetFiler(func(_ context.Context, workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID string) error {
+	channels.SetFiler(func(_ context.Context, workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID string, isGroup bool) error {
 		mu.Lock()
 		defer mu.Unlock()
-		got = append(got, filedCall{workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID})
+		got = append(got, filedCall{workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID, isGroup})
 		return nil
 	})
 	t.Cleanup(func() { channels.SetFiler(nil) })

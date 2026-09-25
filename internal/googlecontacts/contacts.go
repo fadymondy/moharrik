@@ -17,6 +17,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/google"
 	"github.com/fadymondy/moharrik/internal/pgtext"
+	"github.com/fadymondy/moharrik/internal/photocache"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/vcard"
 )
@@ -323,7 +324,7 @@ func Preview(ctx context.Context, a *app.App, wsID, connID string) (*vcard.Vcard
 		return nil, err
 	}
 	if other {
-		opage, operr := collectOther(ctx, src)
+		opage, _, operr := collectOther(ctx, src)
 		if operr == nil {
 			cards.cards = append(cards.cards, opage...)
 		}
@@ -374,9 +375,12 @@ func Sync(ctx context.Context, a *app.App, wsID, connID, actorID string) (*SyncR
 	nextToken := cards.nextSyncToken
 
 	if other {
-		opage, operr := collectOther(ctx, src)
+		opage, ophotos, operr := collectOther(ctx, src)
 		if operr == nil {
 			cards.cards = append(cards.cards, opage...)
+			for uid, url := range ophotos {
+				cards.photos[uid] = url
+			}
 		}
 		// Other-contacts failures never fail the whole sync: it is the
 		// optional half of the grant.
@@ -393,6 +397,7 @@ func Sync(ctx context.Context, a *app.App, wsID, connID, actorID string) (*SyncR
 		res.Added = cr.CreatedCount
 		res.Updated = cr.MergedCount
 		res.Invalid = cr.InvalidCount
+		applyGooglePhotos(ctx, a, wsID, cards.photos)
 	}
 	for _, rn := range deletedResourceNames {
 		if err := FlagDeleted(ctx, a, wsID, rn); err != nil {
@@ -410,33 +415,99 @@ func Sync(ctx context.Context, a *app.App, wsID, connID, actorID string) (*SyncR
 type collected struct {
 	cards         []vcard.Card
 	nextSyncToken string
+	// photos maps a card's UID ("google:<resourceName>") to a non-default
+	// profile photo URL Google returned for it — kept OUT of vcard.Card
+	// itself, since vcard's own generic photo_url fill-blank path
+	// (applyExtraFields) is for vCard-sourced photos, tags photo_source
+	// 'vcard' and never resizes/caches. Sync applies this map separately,
+	// through internal/photocache, after CommitCards has run (see applyPhotos).
+	photos map[string]string
 }
 
 func collect(ctx context.Context, src *google.Source, token string, groups map[string]google.ContactGroup) (collected, []string, error) {
-	var out collected
+	out := collected{photos: map[string]string{}}
 	var deleted []string
 	next, err := google.ListAllConnections(ctx, src, token, false, func(p google.Person) error {
 		if p.Metadata.Deleted {
 			deleted = append(deleted, p.ResourceName)
 			return nil
 		}
-		out.cards = append(out.cards, personToCard(p, groups))
+		card := personToCard(p, groups)
+		out.cards = append(out.cards, card)
+		if url := p.PrimaryPhoto(); url != "" {
+			out.photos[card.UID] = url
+		}
 		return nil
 	})
 	out.nextSyncToken = next
 	return out, deleted, err
 }
 
-func collectOther(ctx context.Context, src *google.Source) ([]vcard.Card, error) {
+func collectOther(ctx context.Context, src *google.Source) ([]vcard.Card, map[string]string, error) {
 	var out []vcard.Card
+	photos := map[string]string{}
 	_, err := google.ListAllConnections(ctx, src, "", true, func(p google.Person) error {
 		if p.Metadata.Deleted {
 			return nil
 		}
-		out = append(out, otherContactCard(p))
+		card := otherContactCard(p)
+		out = append(out, card)
+		if url := p.PrimaryPhoto(); url != "" {
+			photos[card.UID] = url
+		}
 		return nil
 	})
-	return out, err
+	return out, photos, err
+}
+
+// applyGooglePhotos caches each just-committed contact's Google profile photo
+// through internal/photocache, the same download-resize-data:URI pipeline
+// MH-588's Telegram/Slack/Discord fetchers use (internal/channels/avatar.go),
+// tagged photo_source='google'. It runs AFTER CommitCards, outside vcard's own
+// generic photo_url fill-blank path (vcard's applyExtraFields, which is for
+// vCard PHOTO properties and would tag the wrong source) — each entry is
+// re-resolved by external_ids->>'google', since CommitResult.ContactIDs is
+// not reliably aligned with the input cards once invalid/skipped ones are in
+// the mix. An uploaded avatar (photo_attachment_id set) always wins per
+// internal/photourl's priority order, so those contacts are skipped rather
+// than overwritten. Best-effort throughout: any one contact's fetch failing
+// (a dead URL, a network error) is cached as a failed status and never fails
+// the sync that triggered it.
+func applyGooglePhotos(ctx context.Context, a *app.App, wsID string, photos map[string]string) {
+	if len(photos) == 0 {
+		return
+	}
+	wctx := tenant.WithWorkspace(ctx, wsID)
+	for uid, photoURL := range photos {
+		if photoURL == "" {
+			continue
+		}
+		var contactID string
+		var avatarID sql.NullString
+		err := a.SQLDB.QueryRowContext(wctx, `
+			SELECT id, photo_attachment_id FROM contacts
+			WHERE workspace_id = $1 AND external_ids->>'google' = $2`, wsID, uid).Scan(&contactID, &avatarID)
+		if err != nil || contactID == "" {
+			continue // not committed this run (invalid card), or already gone
+		}
+		if avatarID.Valid && avatarID.String != "" {
+			continue // an uploaded photo always wins — never overwrite it
+		}
+		var fetchedAt sql.NullTime
+		if err := a.SQLDB.QueryRowContext(wctx, `SELECT photo_fetched_at FROM contacts WHERE workspace_id = $1 AND id = $2`,
+			wsID, contactID).Scan(&fetchedAt); err != nil {
+			continue
+		}
+		if !photocache.IsStale(fetchedAt, photocache.RefreshWindow) {
+			continue
+		}
+		raw, ct, derr := photocache.Download(ctx, photoURL, nil)
+		var dataURI string
+		if derr == nil {
+			dataURI, derr = photocache.EncodeDataURI(raw, ct)
+		}
+		_ = photocache.UpdatePhoto(ctx, a.SQLDB, "contacts", wsID, contactID, "google", dataURI, derr)
+	}
 }
 
 func grantedScopes(ctx context.Context, a *app.App, wsID, connID string) ([]string, error) {

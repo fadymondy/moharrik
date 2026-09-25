@@ -186,8 +186,8 @@ func Boot() *app.App {
 	channels.RegisterTelegramHook(k.Router, a)
 	channels.RegisterSlackHook(k.Router, a)
 	channels.RegisterDiscordHook(k.Router, a)
-	channels.SetFiler(func(ctx context.Context, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID string) error {
-		return inbox.FileChannelMessage(ctx, a, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID)
+	channels.SetFiler(func(ctx context.Context, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID string, isGroup bool) error {
+		return inbox.FileChannelMessage(ctx, a, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID, isGroup)
 	})
 	// Reconnects every enabled Discord connection's gateway session on boot.
 	// DISCORD_GATEWAY=off turns it off for the tests and the OpenAPI export —

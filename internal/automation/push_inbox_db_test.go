@@ -36,7 +36,7 @@ type filedPush struct {
 func captureAutomationFiler(t *testing.T) *[]filedPush {
 	t.Helper()
 	got := []filedPush{}
-	channels.SetFiler(func(_ context.Context, workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID string) error {
+	channels.SetFiler(func(_ context.Context, workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID string, isGroup bool) error {
 		got = append(got, filedPush{workspaceID, channel, sourceChannelID, threadID, handle, name, text, externalID})
 		return nil
 	})

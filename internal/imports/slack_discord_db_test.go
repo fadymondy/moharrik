@@ -136,7 +136,7 @@ func TestSlackImportKeysAndDedupesLikeALiveDelivery(t *testing.T) {
 	// A live delivery on the exact same channel, keyed exactly the way
 	// RegisterSlackHook's deliver() call keys it, must land in the SAME
 	// conversation the import created, not a second one.
-	if err := inbox.FileChannelMessage(ctx, a, wsID, "slack", conn.ID, "C1", "U-CUST", "", "one more thing", "slack:1700000003.000400"); err != nil {
+	if err := inbox.FileChannelMessage(ctx, a, wsID, "slack", conn.ID, "C1", "U-CUST", "", "one more thing", "slack:1700000003.000400", false); err != nil {
 		t.Fatal(err)
 	}
 	var convCount int
@@ -217,7 +217,7 @@ func TestDiscordImportKeysAndDedupesLikeALiveDelivery(t *testing.T) {
 
 	// A live delivery keyed exactly the way handleDiscordMessage's deliver()
 	// call keys it must land in the SAME conversation.
-	if err := inbox.FileChannelMessage(ctx, a, wsID, "discord", conn.ID, "2222222222", "U-CUST", "customer", "one more thing", "discord:997"); err != nil {
+	if err := inbox.FileChannelMessage(ctx, a, wsID, "discord", conn.ID, "2222222222", "U-CUST", "customer", "one more thing", "discord:997", false); err != nil {
 		t.Fatal(err)
 	}
 	var convCount int

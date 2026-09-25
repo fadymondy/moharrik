@@ -175,7 +175,7 @@ func RegisterSlackHook(r chi.Router, a *app.App) {
 		markSlackDelivery(ctx, a, wf.workspaceID, wf.id)
 		in, ok := e.Read()
 		if ok && slackAllowed(wf.allowedChannelIDs, in.ChannelID) {
-			if err := deliver(ctx, wf.workspaceID, "slack", wf.id, in.ChannelID, in.UserID, "", in.Text, "slack:"+in.Ts); err != nil {
+			if err := deliver(ctx, wf.workspaceID, "slack", wf.id, in.ChannelID, in.UserID, "", in.Text, "slack:"+in.Ts, in.IsGroup); err != nil {
 				http.Error(w, "could not file", http.StatusInternalServerError)
 				return
 			}
