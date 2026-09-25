@@ -447,18 +447,9 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		ID string `path:"id"`
 	}) (*struct{}, error) {
-		s, err := scope(ctx, authz.ContactsWrite)
-		if err != nil {
+		if err := DeleteContact(ctx, a, in.ID); err != nil {
 			return nil, err
 		}
-		res, err := a.SQLDB.ExecContext(ctx, `DELETE FROM contacts WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, in.ID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not delete the contact")
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, huma.Error404NotFound("contact not found")
-		}
-		PublishContacts(a, s.WorkspaceID)
 		return &struct{}{}, nil
 	})
 
@@ -1011,6 +1002,26 @@ type AddContactResult struct {
 	Status       string     `json:"status"`
 	Confirmation string     `json:"confirmation" doc:"sent | not_needed | not_sent"`
 	Error        string     `json:"error,omitempty"`
+}
+
+// DeleteContact removes a contact and all its subscriptions. MH-591:
+// extracted out of the w-delete-contact REST handler so the GraphQL
+// deleteContact mutation reuses the exact same authz/validation/RLS instead
+// of a second copy of this SQL.
+func DeleteContact(ctx context.Context, a *app.App, id string) error {
+	s, err := scope(ctx, authz.ContactsWrite)
+	if err != nil {
+		return err
+	}
+	res, err := a.SQLDB.ExecContext(ctx, `DELETE FROM contacts WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, id)
+	if err != nil {
+		return huma.Error500InternalServerError("could not delete the contact")
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return huma.Error404NotFound("contact not found")
+	}
+	PublishContacts(a, s.WorkspaceID)
+	return nil
 }
 
 // AddContact adds a contact — or finds the one with that email — and, given a
