@@ -471,10 +471,7 @@ func insertHistory(ctx context.Context, a *app.App, wsID, convID string, msgs []
 		}
 	}
 	if !lastAt.IsZero() {
-		_, err := a.SQLDB.ExecContext(ctx, `
-			UPDATE conversations SET last_message_at = GREATEST(last_message_at, $3), updated_at = now()
-			WHERE workspace_id = $1 AND id = $2`, wsID, convID, lastAt)
-		if err != nil {
+		if err := syncConversationTimes(ctx, a, wsID, convID); err != nil {
 			return n, err
 		}
 	}

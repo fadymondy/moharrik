@@ -104,11 +104,25 @@ func insertChannelHistory(ctx context.Context, a *app.App, wsID, convID string, 
 		}
 	}
 	if !lastAt.IsZero() {
-		if _, err := a.SQLDB.ExecContext(ctx, `
-			UPDATE conversations SET last_message_at = GREATEST(last_message_at, $3), updated_at = now()
-			WHERE workspace_id = $1 AND id = $2`, wsID, convID, lastAt); err != nil {
+		if err := syncConversationTimes(ctx, a, wsID, convID); err != nil {
 			return n, err
 		}
 	}
 	return n, nil
+}
+
+// syncConversationTimes dates a conversation by its messages once history has
+// been imported into it (MH-590). A thread the import creates is inserted at
+// now(), so raising last_message_at with GREATEST kept the import time: a
+// chat last active weeks ago sorted as brand new. The newest message is the
+// last-message time, and the oldest one bounds created_at, so imported history
+// is never counted as a conversation that started today.
+func syncConversationTimes(ctx context.Context, a *app.App, wsID, convID string) error {
+	_, err := a.SQLDB.ExecContext(ctx, `
+		UPDATE conversations c
+		   SET last_message_at = m.newest, created_at = LEAST(c.created_at, m.oldest), updated_at = now()
+		  FROM (SELECT max(created_at) AS newest, min(created_at) AS oldest
+		          FROM messages WHERE workspace_id = $1 AND conversation_id = $2) m
+		 WHERE c.workspace_id = $1 AND c.id = $2 AND m.newest IS NOT NULL`, wsID, convID)
+	return err
 }

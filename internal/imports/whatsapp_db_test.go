@@ -235,6 +235,8 @@ func TestWhatsAppImportIdempotent(t *testing.T) {
 		t.Fatalf("messages_imported: got %d, want 3", job.MessagesImported)
 	}
 
+	assertDatedByMessages(t, ctx, a, wsID)
+
 	// No opt-in implied (MH-410): importing history must never set consent.
 	var optIns int
 	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM contacts WHERE workspace_id = $1 AND whatsapp_opt_in_at IS NOT NULL`, wsID).Scan(&optIns); err != nil {
@@ -388,5 +390,26 @@ func TestWhatsAppImportMergesPrivacyChatsIntoTheLiveThread(t *testing.T) {
 	}
 	if len(again) != 1 || !again[0].AlreadyImported {
 		t.Fatalf("preview after import: %+v", again)
+	}
+}
+
+// assertDatedByMessages fails when an imported conversation is dated by the
+// import rather than by its messages (MH-590): its last-message time must be
+// its newest message, it must not start after its oldest one, and — every
+// fake's history being at least 30 minutes old — neither may read as "now".
+func assertDatedByMessages(t *testing.T, ctx context.Context, a *app.App, wsID string) {
+	t.Helper()
+	var misdated int
+	if err := a.SQLDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM conversations c
+		  JOIN LATERAL (SELECT max(created_at) AS newest, min(created_at) AS oldest
+		                  FROM messages m WHERE m.conversation_id = c.id) m ON true
+		 WHERE c.workspace_id = $1
+		   AND (c.last_message_at <> m.newest OR c.created_at > m.oldest OR c.last_message_at > now() - interval '20 minutes')`,
+		wsID).Scan(&misdated); err != nil {
+		t.Fatal(err)
+	}
+	if misdated != 0 {
+		t.Fatalf("%d imported conversations are dated by the import, not by their messages", misdated)
 	}
 }

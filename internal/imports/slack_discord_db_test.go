@@ -120,6 +120,7 @@ func TestSlackImportKeysAndDedupesLikeALiveDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	job = waitJob(t, ctx, a, wsID, job.ID)
+	assertDatedByMessages(t, ctx, a, wsID)
 	if job.Status != "done" {
 		t.Fatalf("job failed: %+v", job)
 	}
@@ -202,6 +203,7 @@ func TestDiscordImportKeysAndDedupesLikeALiveDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	job = waitJob(t, ctx, a, wsID, job.ID)
+	assertDatedByMessages(t, ctx, a, wsID)
 	if job.Status != "done" {
 		t.Fatalf("job failed: %+v", job)
 	}
