@@ -42,6 +42,9 @@ for (const scheme of ["light", "dark"]) {
     }, slug)
     out.api = api
     check("sourcesListed", api.status === 200 && api.sources.length > 0, api)
+    // Every connection kind is an import source, even with nothing connected yet (MH-562).
+    const kinds = api.sources.map((s) => s.source)
+    check("everyKindListed", ["whatsapp", "email", "slack", "discord", "telegram", "workflow"].every((k) => kinds.includes(k)), kinds)
     check("previewsOk", Object.values(api.previews).every((p) => p.status === 200), api.previews)
   }
 
