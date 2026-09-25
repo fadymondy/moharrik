@@ -295,6 +295,9 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 		Body struct {
 			AgentID string            `json:"agent_id"`
 			Values  map[string]string `json:"values,omitempty"`
+			// Required when the workflow publishes, sends or submits (MH-558):
+			// the confirmation the UI shows before this route is ever reached.
+			Confirm bool `json:"confirm,omitempty" doc:"Required when the workflow publishes, sends or submits."`
 		}
 	}) (*body[struct {
 		RunID string `json:"run_id"`
@@ -303,7 +306,19 @@ func RegisterWorkflows(api huma.API, a *app.App, hub *Hub) {
 		if err != nil {
 			return nil, err
 		}
-		runID, err := RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, in.ID, in.Body.AgentID, "manual", in.Body.Values)
+		// A write always asks first: refused here too, not only in the UI that
+		// normally asks, so a client that skips the dialog still cannot run one
+		// blind (MH-558).
+		w, err := FindWorkflow(ctx, a, s.WorkspaceID, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		if w.Writes && !in.Body.Confirm {
+			return nil, huma.Error409Conflict(fmt.Sprintf(
+				"%s publishes, sends or submits as the signed-in account on %s. Pass confirm: true to run it.",
+				w.Name, strings.Join(w.Hosts, ", ")))
+		}
+		runID, err := RunWorkflow(ctx, a, hub, s.WorkspaceID, s.UserID, w.ID, in.Body.AgentID, "manual", in.Body.Values)
 		if err != nil {
 			// Logged as well as answered: a 500 here used to say only "could not
 			// start that run", which is no help at all when something in the

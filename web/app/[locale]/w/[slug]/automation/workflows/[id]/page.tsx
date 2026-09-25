@@ -58,8 +58,19 @@ import { NodePicker } from "@/components/automation/canvas/node-picker"
 import { StepPanel, TriggerPanel, type PanelTab } from "@/components/automation/canvas/node-panel"
 import { VersionsPanel } from "@/components/automation/canvas/versions-panel"
 import { WorkflowCanvas, type Selection } from "@/components/automation/canvas/workflow-canvas"
+import { isolate } from "@/components/bidi"
 import { PickSelect } from "@/components/crm/shared"
 import { ErrorState, LoadingRows } from "@/components/states"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -274,6 +285,10 @@ function Editor({
   const [test, setTest] = useState<{ runId: string; steps: string; upTo: number } | null>(null)
   const [starting, setStarting] = useState(false)
   const [runErr, setRunErr] = useState<string | null>(null)
+  // A publishing workflow (MH-558) asks first: the run control opens this
+  // instead of starting straight away, the same as the old /automation page
+  // did before the canvas replaced it.
+  const [confirmRun, setConfirmRun] = useState(false)
   // Test runs of a draft not saved yet: they become its first executions once
   // it is (POST …/executions/adopt).
   const draftRuns = useRef<string[]>([])
@@ -675,7 +690,7 @@ function Editor({
                   ) : (
                     <Button
                       size="lg"
-                      onClick={() => void start(steps.length)}
+                      onClick={() => (workflow?.writes ? setConfirmRun(true) : void start(steps.length))}
                       disabled={starting || steps.length === 0 || !!browserBlocked}
                       data-test-run
                     >
@@ -839,6 +854,35 @@ function Editor({
             })
           : ""}
       </span>
+
+      {/* A publishing workflow asks first (MH-558): only this confirm starts the run. */}
+      <AlertDialog open={confirmRun} onOpenChange={setConfirmRun}>
+        <AlertDialogContent data-confirm-run-dialog>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("presets.confirmTitle", { name: isolate(draft.name || t("canvas.newTitle")) })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("presets.confirmBody", {
+                hosts: (requiredHere.length ? requiredHere : (workflow?.hosts ?? [])).join(", "),
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={starting}
+              onClick={async () => {
+                await start(steps.length)
+                setConfirmRun(false)
+              }}
+              data-confirm-run
+            >
+              {starting ? t("common.working") : t("presets.runAndPublish")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
