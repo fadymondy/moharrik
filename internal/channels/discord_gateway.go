@@ -283,14 +283,18 @@ func connectOnce(ctx context.Context, workspaceID, id, token, allowedGuilds, all
 		return fmt.Errorf("could not send IDENTIFY: %w", err)
 	}
 
+	gw := &gatewayWriter{conn: conn}
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	defer hbCancel()
-	go heartbeatLoop(hbCtx, conn, time.Duration(hello.HeartbeatInterval)*time.Millisecond)
+	go heartbeatLoop(hbCtx, gw, time.Duration(hello.HeartbeatInterval)*time.Millisecond)
 
 	for {
 		var p gatewayPayload
 		if err := conn.ReadJSON(&p); err != nil {
 			return err
+		}
+		if p.S != nil {
+			gw.setSeq(*p.S)
 		}
 		switch p.Op {
 		case opDispatch:
@@ -302,6 +306,12 @@ func connectOnce(ctx context.Context, workspaceID, id, token, allowedGuilds, all
 				if json.Unmarshal(p.D, &m) == nil {
 					handleDiscordMessage(workspaceID, id, m, allowedGuilds, allowedChannels)
 				}
+			}
+		case opHeartbeat:
+			// Discord may ask for a heartbeat right away instead of waiting
+			// for the interval.
+			if err := gw.heartbeat(); err != nil {
+				return err
 			}
 		case opInvalidSession:
 			return fmt.Errorf("invalid session")
@@ -331,7 +341,41 @@ func handleDiscordMessage(workspaceID, id string, m discordMessageCreate, allowe
 	}
 }
 
-func heartbeatLoop(ctx context.Context, conn *websocket.Conn, interval time.Duration) {
+// gatewayWriter serialises writes to the socket (the heartbeat loop and the
+// read loop both send) and remembers the last sequence number the gateway
+// sent, which every heartbeat must carry.
+type gatewayWriter struct {
+	mu   sync.Mutex
+	conn *websocket.Conn
+	seq  *int
+}
+
+func (w *gatewayWriter) setSeq(s int) {
+	w.mu.Lock()
+	w.seq = &s
+	w.mu.Unlock()
+}
+
+// heartbeat sends {"op":1,"d":<last seq or null>}. Discord closes the
+// session with 4002 ("Error while decoding payload") when "d" is missing.
+func (w *gatewayWriter) heartbeat() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	d := json.RawMessage("null")
+	if w.seq != nil {
+		d = mustJSON(*w.seq)
+	}
+	return w.conn.WriteJSON(heartbeatPayload{Op: opHeartbeat, D: d})
+}
+
+// heartbeatPayload differs from gatewayPayload in that "d" is always sent,
+// even when it is null.
+type heartbeatPayload struct {
+	Op int             `json:"op"`
+	D  json.RawMessage `json:"d"`
+}
+
+func heartbeatLoop(ctx context.Context, w *gatewayWriter, interval time.Duration) {
 	if interval <= 0 {
 		return
 	}
@@ -342,7 +386,7 @@ func heartbeatLoop(ctx context.Context, conn *websocket.Conn, interval time.Dura
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := conn.WriteJSON(gatewayPayload{Op: opHeartbeat}); err != nil {
+			if err := w.heartbeat(); err != nil {
 				return
 			}
 		}
