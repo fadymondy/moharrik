@@ -11,6 +11,11 @@ var argsARVcard = map[string]string{
 	descVcardText:    "نص vCard خام بإصدار 2.1 أو 3.0 أو 4.0 (كتلة BEGIN:VCARD…END:VCARD واحدة لكل جهة اتصال، بأي عدد)",
 	descVcardCountry: "رمز دولة بمعيار ISO 3166-1 alpha-2 (مثل \"EG\") لتحويل الأرقام بلا رمز دولة؛ اتركه لاستخدام الدولة الافتراضية لمساحة العمل",
 	descVcardIDs:     "معرّفات جهات الاتصال المراد تصديرها؛ اتركه لتصدير كل جهات الاتصال في مساحة العمل",
+	// MH-585: Google People import/sync joins the same preview -> commit flow.
+	descContactSource: "مصدر البطاقات: \"vcard\" (الافتراضي، نص vCard ملصوق)، أو \"google_csv\" (ملف تصدير جهات اتصال Google، بلا OAuth)، " +
+		"أو \"google\" (حساب Google متصل — يجلب البيانات مباشرة عبر People API؛ الالتزام هنا يشغّل مزامنة كاملة، تمامًا مثل google_contacts_sync).",
+	descGoogleCSV:    "نص خام لملف تصدير جهات اتصال Google (خيار \"Google CSV\" ضمن contacts.google.com ← تصدير). مطلوب عندما يكون المصدر \"google_csv\".",
+	descGoogleConnID: "معرّف google_connections من w-google-connections، بصلاحية الوصول إلى جهات الاتصال. مطلوب عندما يكون المصدر \"google\".",
 }
 
 const vcardExFixture = `BEGIN:VCARD\nVERSION:3.0\nFN:Rana Fathy\nTEL;TYPE=CELL:+201015550101\nEMAIL:rana@example.test\nEND:VCARD`
@@ -42,5 +47,14 @@ var docsVcard = map[string]ToolDoc{
 		Example: map[string]any{"ids": []any{"c_3f9a..."}},
 		Group:   "crm",
 		Result:  vcardExFixture,
+	},
+	// MH-585
+	"google_contacts_sync": {
+		AR: "مزامنة الآن: سحب كل جهة اتصال أو تغيير من People API الخاص بحساب Google متصل إلى جهات اتصال مساحة العمل. تدريجية بعد أول " +
+			"مزامنة (فقط ما تغيّر منذ آخر مرة)، وتعود تلقائيًا إلى مزامنة كاملة إذا أبلغت Google بانتهاء صلاحية رمز المزامنة المخزَّن. " +
+			"جهة اتصال أبلغت Google بحذفها تُعلَّم (google_deleted_at) ولا تُحذف أبدًا.",
+		Example: map[string]any{"connection_id": "conn_9a3f..."},
+		Group:   "crm",
+		Result:  `{"added":2,"updated":1,"flagged_deleted":0,"invalid":0,"full_resync":false}`,
 	},
 }

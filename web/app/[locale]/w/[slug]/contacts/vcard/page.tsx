@@ -1,22 +1,39 @@
 "use client"
 
 import Link from "next/link"
-import { UploadIcon } from "lucide-react"
+import { RefreshCwIcon, UploadIcon } from "lucide-react"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { ConfirmButton } from "@/components/confirm-button"
+import { Ltr } from "@/components/copy-field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { EmptyState, ErrorState } from "@/components/states"
+import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, downloadFile } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  downloadFile,
+  type GoogleContactsConnection,
+  type GoogleContactsSyncResult,
+  type GoogleDisconnected,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { useGoogleConnections, useGoogleContactsConnections, useGoogleContactsSyncStatus } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
+import { Bdi, isolate } from "@/components/bidi"
 
 /*
 Contacts → import/export vCard (MH-584): upload or paste a .vcf, preview
@@ -53,6 +70,15 @@ type CommitResult = {
   contact_ids: string[]
 }
 
+// MH-585: a Google Contacts CSV export (contacts.google.com -> Export) needs
+// no OAuth, so it rides the same preview -> commit flow as pasted vCard text
+// -- only the request's "source"/"csv" vs "vcard" field differs (see
+// internal/vcard/routes.go's importBody). A connected Google account (OAuth +
+// People API, sync-now) is the GoogleContactsPanel below -- its own flow, not
+// a third ImportSource, since a sync writes straight in with no
+// preview/paste step.
+type ImportSource = "vcard" | "google_csv"
+
 export default function VcardPage() {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
@@ -60,6 +86,7 @@ export default function VcardPage() {
   const base = `/${locale}/w/${ws.slug}`
   const canWrite = ws.can("contacts:write")
 
+  const [source, setSource] = useState<ImportSource>("vcard")
   const fileInput = useRef<HTMLInputElement>(null)
   const [text, setText] = useState("")
   const [preview, setPreview] = useState<VcardPreview | null>(null)
@@ -86,7 +113,7 @@ export default function VcardPage() {
     setResult(null)
     try {
       const res = await api<VcardPreview>("/api/w/contacts/vcard/preview", {
-        json: { vcard: text },
+        json: source === "google_csv" ? { source, csv: text } : { vcard: text },
         workspaceId: ws.id,
       })
       setPreview(res)
@@ -102,7 +129,7 @@ export default function VcardPage() {
     setCommitting(true)
     try {
       const res = await api<CommitResult>("/api/w/contacts/vcard/commit", {
-        json: { vcard: text },
+        json: source === "google_csv" ? { source, csv: text } : { vcard: text },
         workspaceId: ws.id,
       })
       setResult(res)
@@ -117,7 +144,10 @@ export default function VcardPage() {
   async function runExportAll() {
     setExporting(true)
     try {
-      await downloadFile("/api/w/contacts/vcard/export", { workspaceId: ws.id, fallbackName: "contacts.vcf" })
+      await downloadFile("/api/w/contacts/vcard/export", {
+        workspaceId: ws.id,
+        fallbackName: "contacts.vcf",
+      })
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -146,16 +176,67 @@ export default function VcardPage() {
 
       <div className="px-6 pb-4">
         <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-line pb-6">
-          <Button type="button" variant="outline" onClick={runExportAll} disabled={exporting} data-action="export-vcard">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={runExportAll}
+            disabled={exporting}
+            data-action="export-vcard"
+          >
             {exporting ? t("vcard.exporting") : t("vcard.exportAll")}
           </Button>
           <FieldDescription>{t("vcard.exportHint")}</FieldDescription>
         </div>
 
-        {!canWrite ? <FieldDescription className="pb-4">{t("contacts.readOnly")}</FieldDescription> : null}
+        <GoogleContactsPanel />
+
+        {!canWrite ? (
+          <FieldDescription className="pb-4">{t("contacts.readOnly")}</FieldDescription>
+        ) : null}
 
         <Field className="mb-4">
-          <FieldLabel htmlFor="vcard-file">{t("vcard.pickFile")}</FieldLabel>
+          <FieldLabel>{t("vcard.source")}</FieldLabel>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("vcard.source")}>
+            <Button
+              type="button"
+              variant={source === "vcard" ? "default" : "outline"}
+              aria-pressed={source === "vcard"}
+              onClick={() => {
+                setSource("vcard")
+                setText("")
+                setFileName(null)
+                setPreview(null)
+                setResult(null)
+              }}
+              data-action="source-vcard"
+            >
+              {t("vcard.source.vcard")}
+            </Button>
+            <Button
+              type="button"
+              variant={source === "google_csv" ? "default" : "outline"}
+              aria-pressed={source === "google_csv"}
+              onClick={() => {
+                setSource("google_csv")
+                setText("")
+                setFileName(null)
+                setPreview(null)
+                setResult(null)
+              }}
+              data-action="source-google-csv"
+            >
+              {t("vcard.source.googleCsv")}
+            </Button>
+          </div>
+          {source === "google_csv" ? (
+            <FieldDescription>{t("vcard.source.googleCsvHint")}</FieldDescription>
+          ) : null}
+        </Field>
+
+        <Field className="mb-4">
+          <FieldLabel htmlFor="vcard-file">
+            {source === "google_csv" ? t("vcard.pickFile.googleCsv") : t("vcard.pickFile")}
+          </FieldLabel>
           {/* The native picker's own button and "no file chosen" are in the
               browser's language, not the page's — keep the input for the
               file dialog and drive it from a translated button. */}
@@ -163,7 +244,7 @@ export default function VcardPage() {
             ref={fileInput}
             id="vcard-file"
             type="file"
-            accept=".vcf,text/vcard"
+            accept={source === "google_csv" ? ".csv,text/csv" : ".vcf,text/vcard"}
             className="sr-only"
             disabled={!canWrite}
             onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
@@ -187,7 +268,9 @@ export default function VcardPage() {
         </Field>
 
         <Field className="mb-4">
-          <FieldLabel htmlFor="vcard-text">{t("vcard.orPaste")}</FieldLabel>
+          <FieldLabel htmlFor="vcard-text">
+            {source === "google_csv" ? t("vcard.orPaste.googleCsv") : t("vcard.orPaste")}
+          </FieldLabel>
           <Textarea
             id="vcard-text"
             rows={8}
@@ -198,13 +281,18 @@ export default function VcardPage() {
               setPreview(null)
               setResult(null)
             }}
-            placeholder="BEGIN:VCARD..."
+            placeholder={source === "google_csv" ? "Name,Given Name,...," : "BEGIN:VCARD..."}
             data-testid="vcard-text-input"
           />
         </Field>
 
         <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Button type="button" onClick={runPreview} disabled={!canWrite || !text.trim() || previewing} data-action="preview-vcard">
+          <Button
+            type="button"
+            onClick={runPreview}
+            disabled={!canWrite || !text.trim() || previewing}
+            data-action="preview-vcard"
+          >
             {previewing ? t("vcard.previewing") : t("vcard.preview")}
           </Button>
           {preview ? (
@@ -215,7 +303,9 @@ export default function VcardPage() {
               disabled={!canWrite || committing || preview.card_count === 0}
               data-action="commit-vcard"
             >
-              {committing ? t("vcard.committing") : t("vcard.commit", { count: preview.new_count + preview.merge_count })}
+              {committing
+                ? t("vcard.committing")
+                : t("vcard.commit", { count: preview.new_count + preview.merge_count })}
             </Button>
           ) : null}
         </div>
@@ -223,7 +313,10 @@ export default function VcardPage() {
         {previewError ? <ErrorState error={previewError} /> : null}
 
         {result ? (
-          <div className="mb-6 rounded-lg border border-line p-4 text-sm" data-testid="vcard-commit-result">
+          <div
+            className="mb-6 rounded-lg border border-line p-4 text-sm"
+            data-testid="vcard-commit-result"
+          >
             {t("vcard.commitDone", { created: result.created_count, merged: result.merged_count })}
           </div>
         ) : null}
@@ -234,9 +327,15 @@ export default function VcardPage() {
           ) : (
             <div className="border-y border-line" data-testid="vcard-preview-table">
               <div className="flex flex-wrap gap-4 py-4 text-sm text-grid-muted">
-                <span data-testid="vcard-new-count">{t("vcard.newCount", { count: preview.new_count })}</span>
-                <span data-testid="vcard-merge-count">{t("vcard.mergeCount", { count: preview.merge_count })}</span>
-                <span data-testid="vcard-invalid-count">{t("vcard.invalidCount", { count: preview.invalid_count })}</span>
+                <span data-testid="vcard-new-count">
+                  {t("vcard.newCount", { count: preview.new_count })}
+                </span>
+                <span data-testid="vcard-merge-count">
+                  {t("vcard.mergeCount", { count: preview.merge_count })}
+                </span>
+                <span data-testid="vcard-invalid-count">
+                  {t("vcard.invalidCount", { count: preview.invalid_count })}
+                </span>
               </div>
               <Table>
                 <TableHeader>
@@ -257,7 +356,9 @@ export default function VcardPage() {
                       <TableCell className="text-grid-muted">{row.emails.join(", ")}</TableCell>
                       <TableCell className="pe-6">
                         <Badge variant={statusVariant[row.status]} data-vcard-status={row.status}>
-                          {row.status === "invalid" ? row.invalid || t(`vcard.status.${row.status}`) : t(`vcard.status.${row.status}`)}
+                          {row.status === "invalid"
+                            ? row.invalid || t(`vcard.status.${row.status}`)
+                            : t(`vcard.status.${row.status}`)}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -269,5 +370,172 @@ export default function VcardPage() {
         ) : null}
       </div>
     </>
+  )
+}
+
+/**
+ * "Import from Google" (MH-585): connect a Google account with Contacts
+ * access (admin only, reusing the MH-439 connect flow with product=contacts)
+ * and sync it in. Listing + "Sync now" are member-visible, same as the
+ * REST routes in internal/googlecontacts/routes.go -- a member who did not
+ * connect the account can still run the sync it feeds. Connect/disconnect
+ * stay admin-only because they reuse internal/google's integrations:manage
+ * routes as-is (MH-439), unchanged here.
+ */
+function GoogleContactsPanel() {
+  const { t, locale } = useTranslations()
+  const ws = useWorkspace()
+  const canManage = ws.can("integrations:manage")
+  // Only an admin needs "configured" (whether this server even has a Google
+  // OAuth client) -- it drives the connect button, which only an admin sees.
+  const admin = useGoogleConnections(ws.id, canManage)
+  const contacts = useGoogleContactsConnections(ws.id)
+  const [connecting, setConnecting] = useState(false)
+
+  const list = contacts.data?.connections ?? []
+
+  async function connect() {
+    setConnecting(true)
+    try {
+      const q = new URLSearchParams({ product: "contacts", locale })
+      const res = await api<{ url: string }>(`/api/w/google/connect?${q}`, { workspaceId: ws.id })
+      // A full navigation: Google's consent screen, then back to this page.
+      window.location.assign(res.url)
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+      setConnecting(false)
+    }
+  }
+
+  return (
+    <div className="mb-6 border-y border-line py-4" data-testid="google-contacts-panel">
+      <h2 className="text-base font-medium">{t("vcard.google.title")}</h2>
+      <p className="mt-1 max-w-3xl text-sm text-grid-muted">{t("vcard.google.hint")}</p>
+
+      {canManage ? (
+        admin.data && !admin.data.configured ? (
+          <p className="mt-3 text-sm text-grid-danger-text" data-testid="google-contacts-not-configured">
+            {t("vcard.google.notConfigured")}
+          </p>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3"
+            onClick={connect}
+            disabled={connecting || (admin.data ? !admin.data.configured : false)}
+            data-action="connect-google-contacts"
+          >
+            {connecting ? t("vcard.google.connecting") : t("vcard.google.connect")}
+          </Button>
+        )
+      ) : null}
+
+      {!contacts.data ? (
+        contacts.error ? <ErrorState error={contacts.error} /> : <LoadingRows rows={1} />
+      ) : list.length === 0 ? (
+        <p className="mt-3 text-sm text-grid-muted" data-testid="google-contacts-empty">
+          {canManage ? t("vcard.google.none") : t("vcard.google.adminOnly")}
+        </p>
+      ) : (
+        <ul className="mt-4 divide-y divide-line border-y border-line">
+          {list.map((c) => (
+            <GoogleContactsConnectionRow key={c.id} connection={c} canManage={canManage} onChange={() => contacts.mutate()} />
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function GoogleContactsConnectionRow({
+  connection: c,
+  canManage,
+  onChange,
+}: {
+  connection: GoogleContactsConnection
+  canManage: boolean
+  onChange: () => void
+}) {
+  const { t, locale } = useTranslations()
+  const ws = useWorkspace()
+  const [syncing, setSyncing] = useState(false)
+  const [result, setResult] = useState<GoogleContactsSyncResult | null>(null)
+  const status = useGoogleContactsSyncStatus(ws.id, c.id, { refreshWhileSyncing: syncing })
+  const reauth = c.status === "reauth"
+
+  async function sync() {
+    setSyncing(true)
+    setResult(null)
+    try {
+      const res = await api<GoogleContactsSyncResult>(`/api/w/google/contacts/${encodeURIComponent(c.id)}/sync`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
+      setResult(res)
+      status.mutate()
+      toast.success(t("vcard.google.syncResult", { added: res.added, updated: res.updated, deleted: res.flagged_deleted }))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  async function disconnect() {
+    const res = await api<GoogleDisconnected>(`/api/w/google/connections/${encodeURIComponent(c.id)}`, {
+      method: "DELETE",
+      workspaceId: ws.id,
+    })
+    if (res.revoked) toast.success(t("integrations.disconnected"))
+    else if (res.shared) toast.success(t("integrations.disconnectedShared"))
+    else toast.warning(t("integrations.disconnectedNoRevoke"))
+    onChange()
+  }
+
+  return (
+    <li
+      className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+      data-google-contacts-connection={c.email}
+      data-status={c.status || "ok"}
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-medium">
+          <Ltr>{c.email || "—"}</Ltr>
+        </p>
+        <p className="mt-1 text-xs text-grid-muted">
+          {reauth ? (
+            <Badge variant="destructive">{t("vcard.google.statusReauth")}</Badge>
+          ) : status.data?.last_synced_at ? (
+            t("vcard.google.lastSynced", { when: new Date(status.data.last_synced_at).toLocaleString(locale) })
+          ) : (
+            t("vcard.google.neverSynced")
+          )}
+        </p>
+        {status.data?.last_error ? (
+          <p className="mt-1 text-xs text-grid-danger-text">{t("vcard.google.lastError", { error: status.data.last_error })}</p>
+        ) : null}
+        {result ? (
+          <p className="mt-1 text-xs text-grid-muted" data-testid="google-contacts-sync-result">
+            {t("vcard.google.syncResult", { added: result.added, updated: result.updated, deleted: result.flagged_deleted })}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={sync} disabled={syncing || reauth} data-action="sync-google-contacts">
+          <RefreshCwIcon />
+          {syncing ? t("vcard.google.syncing") : t("vcard.google.sync")}
+        </Button>
+        {canManage ? (
+          <ConfirmButton
+            label={t("vcard.google.disconnect")}
+            title={t("vcard.google.disconnectTitle", { email: isolate(c.email) })}
+            description={t("vcard.google.disconnectBody")}
+            confirmLabel={t("vcard.google.disconnect")}
+            onConfirm={disconnect}
+          />
+        ) : null}
+      </div>
+    </li>
   )
 }

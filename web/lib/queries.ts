@@ -83,6 +83,8 @@ import {
   type InboxMessage,
   type FeedSource,
   type GoogleConnections,
+  type GoogleContactsConnections,
+  type GoogleContactsSyncStatus,
   type FeedCatalogEntry,
   type NewsPage,
   type TrendSettings,
@@ -823,6 +825,27 @@ export const useProspect = (id: string | null | undefined, prospectId?: string) 
 
 export const useGoogleConnections = (id?: string | null, enabled = true) =>
   useScoped<GoogleConnections>("/api/w/google/connections", id, enabled)
+
+/**
+ * Connected Google accounts that have granted Contacts (MH-585), for the "Import from Google"
+ * panel. Unlike useGoogleConnections, this is visible to any workspace member, not just an
+ * admin — trimmed accordingly (no scopes, no connected-by identity).
+ */
+export const useGoogleContactsConnections = (id?: string | null, enabled = true) =>
+  useScoped<GoogleContactsConnections>("/api/w/google/contacts/connections", id, enabled)
+
+/** Last sync time/error for one Google Contacts connection, polled while a sync is running. */
+export function useGoogleContactsSyncStatus(
+  workspaceId: string | null | undefined,
+  connectionId: string | null | undefined,
+  opts: { refreshWhileSyncing?: boolean } = {},
+) {
+  return useSWR<GoogleContactsSyncStatus>(
+    workspaceId && connectionId ? [`/api/w/google/contacts/${encodeURIComponent(connectionId)}/status`, workspaceId] : null,
+    ([p, id]: [string, string]) => api<GoogleContactsSyncStatus>(p, { workspaceId: id }),
+    { ...noRetryOn4xx, refreshInterval: opts.refreshWhileSyncing ? 3000 : 0 },
+  )
+}
 
 /**
  * The properties, sites and channels (MH-440). An admin gets all of them; a reader the enabled

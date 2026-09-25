@@ -318,6 +318,10 @@ func needScope(api string) []string {
 		return []string{"https://www.googleapis.com/auth/youtube.force-ssl"}
 	case "ytReporting":
 		return []string{"https://www.googleapis.com/auth/yt-analytics.readonly", "https://www.googleapis.com/auth/yt-analytics-monetary.readonly"}
+	case "connections", "contactGroups":
+		return []string{"https://www.googleapis.com/auth/contacts.readonly"}
+	case "otherContacts":
+		return []string{"https://www.googleapis.com/auth/contacts.other.readonly"}
 	}
 	return []string{"https://www.googleapis.com/auth/youtube.readonly"}
 }

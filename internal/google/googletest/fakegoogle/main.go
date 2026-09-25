@@ -24,10 +24,24 @@ import (
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:18439", "listen address")
+	// MH-585: seed one Google Contact for an account before the browser ever
+	// reaches consent, so an e2e check (contacts-google-import.mjs) can
+	// connect that account for Contacts and immediately "Sync now" against
+	// something real instead of an always-empty address book.
+	seedAccount := flag.String("seed-contacts-account", "", "if set, seed one fake contact for this account email (matches the consent screen's email)")
+	seedName := flag.String("seed-contacts-name", "Fake Sync", "given name of the seeded contact")
+	seedEmail := flag.String("seed-contacts-email", "fake-sync@example.test", "email of the seeded contact")
 	flag.Parse()
 	f, err := googletest.NewAt(*addr)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if *seedAccount != "" {
+		f.SetContact(googletest.SubOf(*seedAccount), "people/e2e1", googletest.ContactFields{
+			"names":          []map[string]any{{"givenName": *seedName}},
+			"emailAddresses": []map[string]any{{"value": *seedEmail}},
+		})
+		fmt.Printf("seeded one contact for %s (%s <%s>)\n", *seedAccount, *seedName, *seedEmail)
 	}
 	f.Set(func(s *googletest.Server) {
 		s.Interactive = true

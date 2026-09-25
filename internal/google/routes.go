@@ -113,8 +113,8 @@ func Register(api huma.API, a *app.App) {
 		Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		Product  string `query:"product" enum:"analytics,search_console,youtube" required:"true"`
-		Monetary bool   `query:"monetary" doc:"YouTube only: also ask for revenue reporting (yt-analytics-monetary.readonly)."`
+		Product  string `query:"product" enum:"analytics,search_console,youtube,contacts" required:"true"`
+		Monetary bool   `query:"monetary" doc:"YouTube: also ask for revenue reporting (yt-analytics-monetary.readonly). Contacts: also ask for Other contacts (contacts.other.readonly)."`
 		Locale   string `query:"locale" enum:",en,ar" doc:"The page to come back to."`
 		// A connection being repaired: its other products are asked for again,
 		// and its account is pre-selected.

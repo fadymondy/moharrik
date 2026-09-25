@@ -100,6 +100,13 @@ const (
 	ScopeYouTube      = "https://www.googleapis.com/auth/youtube.readonly"
 	ScopeYTAnalytics  = "https://www.googleapis.com/auth/yt-analytics.readonly"
 	ScopeYTMonetary   = "https://www.googleapis.com/auth/yt-analytics-monetary.readonly"
+	// ScopeContacts / ScopeContactsOther (MH-585): the People API's own
+	// contacts, and "Other contacts" (people Google inferred from mail/chat
+	// history but the user never explicitly saved). Deliberately NOT
+	// contacts (read/write) or contacts.readonly's write sibling: this is an
+	// import feature, never a write-back to the person's Google account.
+	ScopeContacts      = "https://www.googleapis.com/auth/contacts.readonly"
+	ScopeContactsOther = "https://www.googleapis.com/auth/contacts.other.readonly"
 )
 
 // Product is what a connect is for.
@@ -109,10 +116,15 @@ const (
 	Analytics     Product = "analytics"
 	SearchConsole Product = "search_console"
 	YouTube       Product = "youtube"
+	// Contacts (MH-585): import from Google Contacts (People API). Unlike
+	// the other three, it has no "resource" to pick (no property/site/
+	// channel) — one connection is the whole account's address book — so it
+	// never appears in internal/google/resources.go's Kind list.
+	Contacts Product = "contacts"
 )
 
 // Products lists every product, in the order the page shows them.
-var Products = []Product{Analytics, SearchConsole, YouTube}
+var Products = []Product{Analytics, SearchConsole, YouTube, Contacts}
 
 // ParseProduct validates a product name.
 func ParseProduct(s string) (Product, bool) {
@@ -137,6 +149,14 @@ func (p Product) Scopes(monetary bool) []string {
 			return []string{ScopeYouTube, ScopeYTAnalytics, ScopeYTMonetary}
 		}
 		return []string{ScopeYouTube, ScopeYTAnalytics}
+	case Contacts:
+		// monetary has no meaning here; reused as "also request Other
+		// contacts" so Contacts.Scopes keeps the same one-bool shape as
+		// every other product instead of a bespoke signature.
+		if monetary {
+			return []string{ScopeContacts, ScopeContactsOther}
+		}
+		return []string{ScopeContacts}
 	}
 	return nil
 }
@@ -145,6 +165,7 @@ func (p Product) Scopes(monetary bool) []string {
 var productScopes = map[string]bool{
 	ScopeAnalytics: true, ScopeWebmasters: true, ScopeWebmastersRO: true,
 	ScopeYouTube: true, ScopeYTAnalytics: true, ScopeYTMonetary: true,
+	ScopeContacts: true, ScopeContactsOther: true,
 }
 
 // ProductsOf derives what a connection can serve from what Google granted.
@@ -160,6 +181,9 @@ func ProductsOf(granted []string) []Product {
 	}
 	if has[ScopeYouTube] && has[ScopeYTAnalytics] {
 		out = append(out, YouTube)
+	}
+	if has[ScopeContacts] {
+		out = append(out, Contacts)
 	}
 	return out
 }

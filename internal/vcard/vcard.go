@@ -29,9 +29,9 @@ type Email struct {
 
 // Address is one ADR.
 type Address struct {
-	Types                                                    []string
+	Types                                                      []string
 	POBox, Extended, Street, Locality, Region, Postal, Country string
-	Label                                                    string // LABEL param/property or an X-ABLabel item group
+	Label                                                      string // LABEL param/property or an X-ABLabel item group
 }
 
 // IMPP is one instant-messaging/SIP URI (IMPP, or a well-known X-* IM property).
@@ -54,6 +54,18 @@ type Card struct {
 	N        Name
 	Nickname string
 
+	// PhoneticGiven/PhoneticFamily and Meta exist for importers that have no
+	// vCard property to decode them from (MH-585's Google People/CSV
+	// importers set them directly; ParseCards never does — vCard 4.0's own
+	// phonetic params are rare enough in the wild that decoding them was out
+	// of scope for MH-584 and stays that way here). Meta is fill-blank
+	// key/value data merged into contacts.meta (Google's userDefined
+	// fields, plus organizations/relations/events this app has no dedicated
+	// repeatable columns for — see contacts.go's metaJSON for the encoding).
+	PhoneticGiven  string
+	PhoneticFamily string
+	Meta           map[string]string
+
 	Phones     []Phone
 	Emails     []Email
 	Addresses  []Address
@@ -69,6 +81,15 @@ type Card struct {
 	Note     string
 	UID      string
 	PhotoURL string // an http(s) PHOTO value, or a data: URI for an embedded (BASE64) one
+
+	// ImportSource (MH-585) overrides the "vcard_import" Candidate.Source and
+	// the "vcard" external_ids/meta key classify()/applyExtraFields default
+	// to, so a Card built from Google People or a Google CSV row is
+	// attributed and keyed correctly through the exact same commit path.
+	// Empty means "a real vCard file" (unchanged MH-584 behaviour). When
+	// set, UID is expected already namespaced as "<ImportSource>:<id>"
+	// (e.g. "google:people/c123") rather than a bare vCard UID.
+	ImportSource string
 
 	// Unknown X-* properties this package does not otherwise understand, so
 	// nothing an import sees is silently dropped. Keyed by the lower-cased
