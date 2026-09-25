@@ -19,6 +19,7 @@ import {
   CableIcon,
   ChartLineIcon,
   ClipboardListIcon,
+  GlobeIcon,
   HandshakeIcon,
   InboxIcon,
   KeyRoundIcon,
@@ -313,6 +314,13 @@ export const NAV: NavEntry[] = [
       labelKey: "nav.settings",
       icon: SettingsIcon,
       items: [
+        {
+          key: "settings-general",
+          labelKey: "nav.general",
+          icon: GlobeIcon,
+          path: "settings/general",
+          can: "workspace:update",
+        },
         { key: "settings-email", labelKey: "nav.email", icon: ServerIcon, path: "settings/email" },
         {
           key: "settings-icp",

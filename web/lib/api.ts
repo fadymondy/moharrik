@@ -163,10 +163,15 @@ export type CurrentWorkspace = {
     locale?: string
     timezone?: string
     currency?: string
+    /** ISO 3166-1 alpha-2, or "" if unset (MH-646). */
+    default_country?: string
   }
   role: Role
   can: string[]
 }
+
+/** PUT /api/w/settings/default-country's response (MH-646). */
+export type DefaultCountryOut = { default_country: string }
 
 export type Member = {
   user_id: string
@@ -2057,7 +2062,14 @@ export type GoogleContactsSyncResult = {
   flagged_deleted: number
   invalid: number
   full_resync: boolean
+  /** Country actually used to resolve local phones, stored or inferred (MH-646). */
+  default_country?: string
+  /** Contacts synced with a phone kept raw because no country could be resolved (MH-646). */
+  needs_country: number
 }
+
+/** POST /api/w/contacts/vcard/reparse-phones's response (MH-646). */
+export type ReparsePhonesResult = { default_country: string; resolved: number }
 
 // ── Google resources (MH-440) ────────────────────────────────────────────
 

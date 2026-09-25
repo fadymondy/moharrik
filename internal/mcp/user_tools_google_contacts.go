@@ -25,6 +25,7 @@ func GoogleContactsTools() []Tool {
 			Scope: "contacts:write",
 			InputSchema: schema([]string{"connection_id"}, map[string]any{
 				"connection_id": prop("string", descGoogleConnID),
+				"full":          prop("boolean", descFullResync),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, err := need(ctx)
@@ -36,7 +37,8 @@ func GoogleContactsTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				res, err := googlecontacts.Sync(ctx, a, s.WorkspaceID, connID, s.UserID)
+				full, _ := m["full"].(bool)
+				res, err := googlecontacts.Sync(ctx, a, s.WorkspaceID, connID, s.UserID, full)
 				if err != nil {
 					return "", err
 				}

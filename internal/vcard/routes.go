@@ -187,6 +187,30 @@ func Register(api huma.API, a *app.App) {
 			},
 		}, nil
 	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-contacts-reparse-raw-phones", Method: http.MethodPost, Path: "/api/w/contacts/vcard/reparse-phones",
+		Summary: "Re-parse phones kept raw because no country was resolvable at import/sync time (MH-646), against the " +
+			"workspace's current default country (stored or inferred). Only fills a phone still blank; never overwrites one already set.",
+		Tags: restTags,
+	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[reparseResult], error) {
+		ws := wsID(ctx)
+		country, err := resolveCountry(ctx, a, ws, "")
+		if err != nil {
+			return nil, err
+		}
+		resolved, err := ReparseRawPhones(ctx, a.SQLDB, ws, country)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("re-parsing raw phones failed", err)
+		}
+		return out(reparseResult{DefaultCountry: country, Resolved: resolved}), nil
+	})
+}
+
+// reparseResult is w-contacts-reparse-raw-phones's response.
+type reparseResult struct {
+	DefaultCountry string `json:"default_country"`
+	Resolved       int    `json:"resolved"`
 }
 
 func splitCSV(s string) []string {
@@ -204,16 +228,10 @@ func splitCSV(s string) []string {
 }
 
 // resolveCountry prefers an explicit override, then the workspace's stored
-// default_country, then "" (ToE164 then returns a per-number error the
-// preview/commit surface instead of guessing).
+// default_country, then a deterministic guess from its existing contacts
+// (ResolveCountry/InferDefaultCountry in phone.go — MH-646), then "" (ToE164
+// then returns a per-number error the preview/commit surface instead of
+// silently dropping the phone).
 func resolveCountry(ctx context.Context, a *app.App, wsID, override string) (string, error) {
-	if override != "" {
-		return override, nil
-	}
-	var country string
-	err := a.SQLDB.QueryRowContext(ctx, `SELECT default_country FROM workspaces WHERE id = $1`, wsID).Scan(&country)
-	if err != nil {
-		return "", nil //nolint:nilerr // no workspace row resolvable here is not this route's problem to report
-	}
-	return country, nil
+	return ResolveCountry(ctx, a.SQLDB, wsID, override)
 }

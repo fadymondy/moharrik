@@ -81,12 +81,13 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-google-contacts-sync", Method: http.MethodPost, Path: "/api/w/google/contacts/{connection_id}/sync",
-		Summary: "Sync now: import every contact/change from this Google connection (incremental once it has synced before)", Tags: restTags,
+		Summary: "Sync now: import every contact/change from this Google connection (incremental once it has synced before, or set full=true to re-import everything and ignore the stored sync token)", Tags: restTags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ConnectionID string `path:"connection_id"`
+		Full         bool   `query:"full" doc:"Ignore the stored sync token and re-import every contact (MH-646: fills in phones a newly-set default country can now resolve). Never duplicates or overwrites a hand-set phone."`
 	}) (*body[SyncResult], error) {
-		res, err := Sync(ctx, a, wsID(ctx), in.ConnectionID, userID(ctx))
+		res, err := Sync(ctx, a, wsID(ctx), in.ConnectionID, userID(ctx), in.Full)
 		if err != nil {
 			return nil, mapErr(err)
 		}

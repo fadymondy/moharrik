@@ -58,11 +58,13 @@ as a full resync — see Sync below.
 
 // SyncResult is what a sync (manual or, one day, scheduled) did.
 type SyncResult struct {
-	Added          int  `json:"added"`
-	Updated        int  `json:"updated"`
-	FlaggedDeleted int  `json:"flagged_deleted"`
-	Invalid        int  `json:"invalid"`
-	FullResync     bool `json:"full_resync"`
+	Added          int    `json:"added"`
+	Updated        int    `json:"updated"`
+	FlaggedDeleted int    `json:"flagged_deleted"`
+	Invalid        int    `json:"invalid"`
+	FullResync     bool   `json:"full_resync"`
+	DefaultCountry string `json:"default_country,omitempty"` // country actually used to resolve local phones (stored or inferred, MH-646)
+	NeedsCountry   int    `json:"needs_country"`              // contacts synced with a phone kept raw because no country could be resolved
 }
 
 // personToCard converts one Person into a vcard.Card. groups maps a contact
@@ -284,11 +286,14 @@ func FlagDeleted(ctx context.Context, a *app.App, wsID, resourceName string) err
 	return err
 }
 
+// defaultCountry resolves the country to use for this workspace's local
+// phone numbers — its stored default_country if set, otherwise a
+// deterministic guess from its existing contacts (vcard.ResolveCountry,
+// MH-646) so a Google sync fills in as many phones as it can even before
+// anyone visits workspace settings.
 func defaultCountry(ctx context.Context, a *app.App, wsID string) string {
-	var c string
-	_ = a.SQLDB.QueryRowContext(tenant.WithWorkspace(ctx, wsID),
-		`SELECT default_country FROM workspaces WHERE id = $1`, wsID).Scan(&c)
-	return c
+	country, _ := vcard.ResolveCountry(tenant.WithWorkspace(ctx, wsID), a.SQLDB, wsID, "")
+	return country
 }
 
 // Preview fetches every People connection (+ Other contacts, when granted)
@@ -336,8 +341,14 @@ func Preview(ctx context.Context, a *app.App, wsID, connID string) (*vcard.Vcard
 // Sync imports every connections + (when granted) "Other contacts" person
 // for connID into wsID's contacts, through vcard's PreviewCards/CommitCards
 // engine. It is incremental when a sync token is stored and full otherwise
-// (first sync, or after EXPIRED_SYNC_TOKEN below).
-func Sync(ctx context.Context, a *app.App, wsID, connID, actorID string) (*SyncResult, error) {
+// (first sync, after EXPIRED_SYNC_TOKEN below, or when full is requested).
+// full (MH-646's "re-import everything") ignores any stored sync token so
+// every connection is re-listed and re-committed — CommitCards' own
+// match-by-identity/phone/email keeps this idempotent (never duplicates a
+// contact) and fill-blank-only (never overwrites a phone a member set by
+// hand), so it is safe to re-run purely to pick up phones that a newly-set
+// or newly-inferred default_country can now resolve.
+func Sync(ctx context.Context, a *app.App, wsID, connID, actorID string, full bool) (*SyncResult, error) {
 	src, err := google.TokenSource(ctx, a, wsID, connID)
 	if err != nil {
 		return nil, err
@@ -356,9 +367,12 @@ func Sync(ctx context.Context, a *app.App, wsID, connID, actorID string) (*SyncR
 		groups = nil // memberships just won't become tags this run
 	}
 
-	token, err := loadSyncToken(ctx, a, wsID, connID)
-	if err != nil {
-		return nil, err
+	token := ""
+	if !full {
+		token, err = loadSyncToken(ctx, a, wsID, connID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	fullResync := token == ""
 
@@ -389,6 +403,7 @@ func Sync(ctx context.Context, a *app.App, wsID, connID, actorID string) (*SyncR
 	res := &SyncResult{FullResync: fullResync}
 	if len(cards.cards) > 0 {
 		country := defaultCountry(ctx, a, wsID)
+		res.DefaultCountry = country
 		runID := fmt.Sprintf("google-sync:%s:%d", connID, len(cards.cards))
 		cr, err := vcard.CommitCards(ctx, a.SQLDB, wsID, actorID, cards.cards, nil, runID, country)
 		if err != nil {
@@ -397,6 +412,7 @@ func Sync(ctx context.Context, a *app.App, wsID, connID, actorID string) (*SyncR
 		res.Added = cr.CreatedCount
 		res.Updated = cr.MergedCount
 		res.Invalid = cr.InvalidCount
+		res.NeedsCountry = cr.NeedsCountryCount
 		applyGooglePhotos(ctx, a, wsID, cards.photos)
 	}
 	for _, rn := range deletedResourceNames {
