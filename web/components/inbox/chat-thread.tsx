@@ -689,7 +689,15 @@ export function ChatThread({
         </div>
       ) : null}
 
-      {canWrite ? (
+      {canWrite && conversation.blocked ? (
+        // MH-657: the API refuses replies to a blocked customer, so no composer.
+        <p
+          className="shrink-0 border-t border-line px-4 py-3 text-center text-sm text-grid-muted"
+          data-blocked-note
+        >
+          {t("inbox.org.blockedComposer")}
+        </p>
+      ) : canWrite ? (
         <form
           ref={formRef}
           onSubmit={onSubmit}

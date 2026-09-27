@@ -778,7 +778,26 @@ export type Conversation = {
    *  sender — never true for chat/email/WhatsApp. Drives the per-message
    *  sender avatar; a 1:1 thread never shows one. */
   is_group: boolean
+  /** MH-657 — the signed-in member's own view of the chat. */
+  pinned: boolean
+  archived: boolean
+  /** Alerts are muted until then; null when not muted. "always" is 9999-12-31. */
+  muted_until: string | null
+  favourite: boolean
+  /** MH-657 — the team's: a tag colour name ("" for none), a lucide icon name ("" for none), its labels. */
+  color: TagColor | ""
+  icon: string
+  labels: ConversationLabelRef[]
+  /** The customer is blocked: their messages are dropped and the chat cannot be answered. */
+  blocked: boolean
+  cleared_at: string | null
 }
+
+/** MH-657: the tag palette a chat's colour and a label's colour come from. */
+export const TAG_COLORS = ["gray", "red", "orange", "amber", "green", "teal", "blue", "violet", "pink"] as const
+export type TagColor = (typeof TAG_COLORS)[number]
+export type ConversationLabelRef = { id: string; name: string; color: TagColor }
+export type ConversationLabel = ConversationLabelRef & { count: number; created_at: string }
 
 export type VisitorGuess = { name: string; email: string; phone: string; locale: "en" | "ar" }
 

@@ -3,11 +3,21 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { ChevronUpIcon, PencilIcon, UserPlusIcon } from "lucide-react"
+import {
+  ArchiveIcon,
+  ArrowLeftIcon,
+  BanIcon,
+  BellOffIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  PinIcon,
+  StarIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
+import { ChatIcon, ChatRowMenu, isMuted, LabelChip } from "@/components/inbox/chat-row-menu"
 import { ChatThread } from "@/components/inbox/chat-thread"
 import { ConversationContactDialog } from "@/components/inbox/contact-row-dialog"
 import { SnoozeControl, SnoozedNote } from "@/components/inbox/snooze-control"
@@ -17,13 +27,7 @@ import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -44,6 +48,7 @@ import {
   fetchOlderMessages,
   mergeMessages,
   useConversation,
+  useConversationLabels,
   useConversationPages,
   useMailboxes,
 } from "@/lib/queries"
@@ -80,7 +85,14 @@ export default function InboxPage() {
   // count covers every status (MH-462), so both widen the status filter.
   const linkedUnread = params.get("unread") === "1"
   const [status, setStatus] = useState(() => (params.get("c") || linkedUnread ? "" : "open"))
-  const [unread, setUnread] = useState(linkedUnread)
+  // Filter chips (MH-657): All, Unread, Favourites, Groups and one per label —
+  // one at a time, like WhatsApp's. "label:<id>" for a label.
+  const [chip, setChip] = useState(linkedUnread ? "unread" : "")
+  const unread = chip === "unread"
+  const labelFilter = chip.startsWith("label:") ? chip.slice(6) : ""
+  // The member's archived chats replace the list while this is on (MH-657).
+  const [archived, setArchived] = useState(false)
+  const labels = useConversationLabels(ws.id)
 
   // Channel tabs (MH-568): kept in the URL (?channel=) like ?c= and ?q=, so a
   // reload or a shared link keeps the tab you were on. Choosing a channel other
@@ -131,6 +143,10 @@ export default function InboxPage() {
     {
       status: status || undefined,
       unread,
+      favourites: chip === "favourites" || undefined,
+      groups: chip === "groups" || undefined,
+      label_id: labelFilter || undefined,
+      archived: archived || undefined,
       q: params.get("q") ?? undefined,
       channel: channel || undefined,
       // Only meaningful under Email (MH-555); dropped everywhere else so a
@@ -144,7 +160,11 @@ export default function InboxPage() {
     () => keepRef.current,
   )
   const list = { error: pages.error, data: pages.data?.[0], mutate: pages.mutate }
-  const items = (pages.data ?? []).flatMap((p) => p.conversations)
+  // Pinned chats (MH-657) arrive apart, on the first page only, and go on top.
+  const pinned = pages.data?.[0]?.pinned ?? []
+  const items = [...pinned, ...(pages.data ?? []).flatMap((p) => p.conversations)]
+  const archivedCount = list.data?.archived_count ?? 0
+  const archivedUnread = list.data?.archived_unread ?? 0
   const hasMore = !!pages.data?.[pages.data.length - 1]?.next_cursor
   if (
     selected &&
@@ -354,17 +374,51 @@ export default function InboxPage() {
             />
           </div>
         ) : null}
-        <Button
-          type="button"
-          size="sm"
-          variant={unread ? "default" : "outline"}
-          aria-pressed={unread}
-          onClick={() => setUnread((v) => !v)}
-          data-filter="unread"
-        >
-          {t("inbox.filterUnread")}
-          {list.data?.unread_count ? ` (${list.data.unread_count})` : ""}
-        </Button>
+        {(
+          [
+            ["", t("inbox.org.filter.all")],
+            [
+              "unread",
+              t("inbox.filterUnread") +
+                (list.data?.unread_count ? ` (${list.data.unread_count})` : ""),
+            ],
+            ["favourites", t("inbox.org.filter.favourites")],
+            ["groups", t("inbox.org.filter.groups")],
+          ] as const
+        ).map(([key, label]) => (
+          <Button
+            key={key || "all"}
+            type="button"
+            size="sm"
+            variant={chip === key ? "default" : "outline"}
+            aria-pressed={chip === key}
+            onClick={() => setChip(chip === key ? "" : key)}
+            data-filter={key || "all"}
+            className="rounded-full"
+          >
+            {label}
+          </Button>
+        ))}
+        {(labels.data?.labels ?? []).map((l) => {
+          const key = `label:${l.id}`
+          return (
+            <Button
+              key={key}
+              type="button"
+              size="sm"
+              variant={chip === key ? "default" : "outline"}
+              aria-pressed={chip === key}
+              onClick={() => setChip(chip === key ? "" : key)}
+              data-filter="label"
+              data-label-filter={l.id}
+              data-tag={l.color}
+              className="rounded-full"
+            >
+              <span className="size-2 rounded-full bg-(--tag)" aria-hidden />
+              <Bdi>{l.name}</Bdi>
+            </Button>
+          )
+        })}
       </div>
 
       <div className="grid grid-cols-1 border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
@@ -390,6 +444,34 @@ export default function InboxPage() {
               className="h-8 w-full border border-line bg-grid-card px-3 text-sm placeholder:text-grid-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grid-brand"
             />
           </div>
+          {archived ? (
+            <button
+              type="button"
+              onClick={() => setArchived(false)}
+              className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-2 text-sm font-medium hover:bg-grid-soft"
+              data-archived-back
+            >
+              <ArrowLeftIcon className="size-4 rtl:rotate-180" aria-hidden />
+              {t("inbox.org.archivedTitle")}
+            </button>
+          ) : archivedCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setArchived(true)}
+              className="flex shrink-0 items-center gap-3 border-b border-line px-6 py-2.5 text-sm hover:bg-grid-soft"
+              data-archived-entry
+            >
+              <ArchiveIcon className="size-4 text-grid-muted" aria-hidden />
+              <span className="flex-1 text-start">{t("inbox.org.archivedTitle")}</span>
+              <span className="text-xs text-grid-muted" data-archived-count>
+                {archivedUnread > 0 ? (
+                  <Badge variant="default">{archivedUnread}</Badge>
+                ) : (
+                  archivedCount
+                )}
+              </span>
+            </button>
+          ) : null}
           {list.error ? (
             <ErrorState error={list.error} />
           ) : !list.data ? (
@@ -425,6 +507,9 @@ export default function InboxPage() {
                       rowRefs.current[c.id] = el
                     }}
                     onChanged={() => void pages.mutate()}
+                    onDeleted={() => {
+                      if (c.id === selected) select(null)
+                    }}
                     measureRef={virtualizer.measureElement}
                     dataIndex={vi.index}
                     style={{
@@ -485,6 +570,7 @@ function ConversationRow({
   onSelect,
   buttonRef,
   onChanged,
+  onDeleted,
   measureRef,
   dataIndex,
   style,
@@ -495,6 +581,7 @@ function ConversationRow({
   onSelect: () => void
   buttonRef?: (el: HTMLButtonElement | null) => void
   onChanged?: () => void
+  onDeleted?: () => void
   /** Virtualizer's own ref (MH-556): remeasures this row's real height so variable-height rows don't drift out of sync with the estimate. */
   measureRef?: (el: HTMLElement | null) => void
   dataIndex?: number
@@ -512,6 +599,8 @@ function ConversationRow({
     phoneLabel(c.customer_phone) ||
     t("inbox.anonymous")
   const [contactOpen, setContactOpen] = useState(false)
+  const liRef = useRef<HTMLLIElement | null>(null)
+  const muted = isMuted(c)
 
   // The row's menu (MH-556, MH-596): right-click, a touch long-press and
   // Shift+F10 / the keyboard Menu key on the focused row all open the SAME
@@ -537,11 +626,16 @@ function ConversationRow({
       <ContextMenuTrigger
         render={
           <li
-            ref={measureRef}
+            ref={(el) => {
+              liRef.current = el
+              measureRef?.(el)
+            }}
             data-index={dataIndex}
             className="group relative"
             style={style}
             data-row-menu="context"
+            data-pinned={c.pinned ? "true" : undefined}
+            data-tag={c.color || undefined}
           />
         }
       >
@@ -554,12 +648,25 @@ function ConversationRow({
           data-conversation-unread={c.unread ? "true" : "false"}
           className={`flex w-full min-w-0 items-start gap-3 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
         >
-          <PersonAvatar
-            id={c.contact_id || c.id}
-            name={who}
-            photoUrl={c.avatar_url}
-            className="mt-0.5 shrink-0"
-          />
+          {/* The chat's colour (MH-657): a stripe on the inline-start edge. */}
+          {c.color ? (
+            <span
+              aria-hidden
+              className="absolute inset-y-0 start-0 w-1 bg-(--tag)"
+              data-row-color={c.color}
+            />
+          ) : null}
+          <span className="relative mt-0.5 shrink-0">
+            <PersonAvatar id={c.contact_id || c.id} name={who} photoUrl={c.avatar_url} />
+            {c.icon ? (
+              <span
+                className="absolute -bottom-1 -end-1 flex size-5 items-center justify-center rounded-full border border-line bg-grid-card text-grid-fg"
+                data-row-icon={c.icon}
+              >
+                <ChatIcon name={c.icon} className="size-3" />
+              </span>
+            ) : null}
+          </span>
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="flex min-w-0 items-center gap-2">
               {c.unread ? (
@@ -569,9 +676,37 @@ function ConversationRow({
                 />
               ) : null}
               <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
-              <Badge variant={statusVariant[c.status]} className="ms-auto shrink-0">
-                {t(`inbox.status.${c.status}`)}
-              </Badge>
+              <span className="ms-auto flex shrink-0 items-center gap-1 text-grid-muted">
+                {c.blocked ? (
+                  <BanIcon
+                    className="size-3.5 text-destructive"
+                    aria-label={t("inbox.org.isBlocked")}
+                    data-row-blocked
+                  />
+                ) : null}
+                {c.favourite ? (
+                  <StarIcon
+                    className="size-3.5 fill-current"
+                    aria-label={t("inbox.org.isFavourite")}
+                    data-row-favourite
+                  />
+                ) : null}
+                {muted ? (
+                  <BellOffIcon
+                    className="size-3.5"
+                    aria-label={t("inbox.org.isMuted")}
+                    data-row-muted
+                  />
+                ) : null}
+                {c.pinned ? (
+                  <PinIcon
+                    className="size-3.5"
+                    aria-label={t("inbox.org.isPinned")}
+                    data-row-pinned
+                  />
+                ) : null}
+                <Badge variant={statusVariant[c.status]}>{t(`inbox.status.${c.status}`)}</Badge>
+              </span>
             </span>
             <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
               {c.preview || c.subject}
@@ -580,36 +715,54 @@ function ConversationRow({
               {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> ·{" "}
               {t("inbox.messageCount", { n: c.message_count })}
             </span>
+            {c.labels?.length ? (
+              <span className="flex min-w-0 flex-wrap gap-1" data-row-labels>
+                {c.labels.map((l) => (
+                  <LabelChip key={l.id} name={l.name} color={l.color} />
+                ))}
+              </span>
+            ) : null}
           </span>
+        </button>
+        {/* The hover chevron (MH-657) opens the same menu right-click does, by
+            firing the same contextmenu event on the row — one menu, one place. */}
+        <button
+          type="button"
+          aria-label={t("inbox.org.menu")}
+          data-row-menu-button
+          onClick={(e) => {
+            e.stopPropagation()
+            const r = e.currentTarget.getBoundingClientRect()
+            liRef.current?.dispatchEvent(
+              new MouseEvent("contextmenu", {
+                bubbles: true,
+                cancelable: true,
+                clientX: r.left + r.width / 2,
+                clientY: r.bottom,
+              }),
+            )
+          }}
+          className="absolute end-2 bottom-2 flex size-6 items-center justify-center rounded-full border border-line bg-grid-card text-grid-muted opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-lg:opacity-100"
+        >
+          <ChevronDownIcon className="size-4" aria-hidden />
         </button>
       </ContextMenuTrigger>
 
-      <ContextMenuContent className="min-w-48">
-        <ContextMenuItem
-          onClick={() =>
-            act({ unread: !c.unread }, c.unread ? t("inbox.markedRead") : t("inbox.markedUnread"))
-          }
-          data-action="toggle-unread"
-        >
-          {c.unread ? t("inbox.markRead") : t("inbox.markUnread")}
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() =>
-            act(
-              { status: c.status === "closed" ? "open" : "closed" },
-              c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"),
-            )
-          }
-          data-action="toggle-status"
-        >
-          {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onClick={() => setContactOpen(true)} data-contact-edit>
-          {c.contact_id ? <PencilIcon /> : <UserPlusIcon />}
-          {c.contact_id ? t("inbox.crm.editContact") : t("inbox.crm.addContact")}
-        </ContextMenuItem>
-      </ContextMenuContent>
+      <ChatRowMenu
+        c={c}
+        onChanged={() => onChanged?.()}
+        onDeleted={onDeleted}
+        onContactEdit={() => setContactOpen(true)}
+        onUnread={() =>
+          act({ unread: !c.unread }, c.unread ? t("inbox.markedRead") : t("inbox.markedUnread"))
+        }
+        onStatus={() =>
+          act(
+            { status: c.status === "closed" ? "open" : "closed" },
+            c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"),
+          )
+        }
+      />
 
       <ConversationContactDialog
         c={c}
