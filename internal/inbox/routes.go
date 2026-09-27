@@ -3,6 +3,7 @@ package inbox
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"os"
 	"strings"
@@ -44,8 +45,16 @@ const conversationSelect = `
 	       (ct.photo_url LIKE 'data:%'), CASE WHEN ct.photo_url LIKE 'data:%' THEN '' ELSE coalesce(ct.photo_url, '') END,
 	       ct.photo_fetched_at,
 	       (c.photo_url LIKE 'data:%'), CASE WHEN c.photo_url LIKE 'data:%' THEN '' ELSE coalesce(c.photo_url, '') END,
-	       c.photo_fetched_at
+	       c.photo_fetched_at,
+	       p.pinned_at IS NOT NULL, p.archived_at IS NOT NULL,
+	       CASE WHEN p.muted_until > now() THEN p.muted_until END, coalesce(p.favourite, false),
+	       c.color, c.icon, c.blocked_at IS NOT NULL, c.cleared_at,
+	       coalesce((SELECT json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color) ORDER BY lower(l.name))
+	                 FROM conversation_label_links ll JOIN conversation_labels l ON l.workspace_id = ll.workspace_id AND l.id = ll.label_id
+	                 WHERE ll.workspace_id = c.workspace_id AND ll.conversation_id = c.id), '[]')
 	FROM conversations c
+	-- $2 is the signed-in member (MH-657): their own pin/archive/mute/favourite.
+	LEFT JOIN conversation_prefs p ON p.workspace_id = c.workspace_id AND p.conversation_id = c.id AND p.user_id = $2
 	LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
 	LEFT JOIN companies co ON co.workspace_id = ct.workspace_id AND co.id = ct.company_id
 	LEFT JOIN deals d ON d.workspace_id = c.workspace_id AND d.id = c.deal_id
@@ -61,7 +70,8 @@ func scanConversation(wsID string, row interface{ Scan(...any) error }) (Convers
 	var ctHasProviderPhoto, hasProviderPhoto sql.NullBool
 	var ctExternalPhotoURL, ownExternalPhotoURL sql.NullString
 	var ctPhotoFetchedAt, ownPhotoFetchedAt sql.NullTime
-	var snoozed, closed sql.NullTime
+	var snoozed, closed, mutedUntil, cleared sql.NullTime
+	var labels []byte
 	var preview string
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
 		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount,
@@ -69,7 +79,8 @@ func scanConversation(wsID string, row interface{ Scan(...any) error }) (Convers
 		&mailboxID, &c.CustomerHandle, &sourceChannelID, &c.IsGroup,
 		&ctPhotoAttachmentID,
 		&ctHasProviderPhoto, &ctExternalPhotoURL, &ctPhotoFetchedAt,
-		&hasProviderPhoto, &ownExternalPhotoURL, &ownPhotoFetchedAt); err != nil {
+		&hasProviderPhoto, &ownExternalPhotoURL, &ownPhotoFetchedAt,
+		&c.Pinned, &c.Archived, &mutedUntil, &c.Favourite, &c.Color, &c.Icon, &c.Blocked, &cleared, &labels); err != nil {
 		return c, err
 	}
 	// MH-602: a linked contact's photo (uploaded or provider) wins; an
@@ -119,12 +130,28 @@ func scanConversation(wsID string, row interface{ Scan(...any) error }) (Convers
 		t := closed.Time
 		c.ClosedAt = &t
 	}
+	if mutedUntil.Valid {
+		t := mutedUntil.Time
+		c.MutedUntil = &t
+	}
+	if cleared.Valid {
+		t := cleared.Time
+		c.ClearedAt = &t
+	}
+	c.Labels = []LabelRef{}
+	if len(labels) > 0 {
+		if err := json.Unmarshal(labels, &c.Labels); err != nil {
+			return c, err
+		}
+	}
 	return c, nil
 }
 
 // readConversation is one conversation by id, in the list's shape.
+// The signed-in member's own prefs come with it; a context with no member (a
+// webhook, the waker) reads none.
 func readConversation(ctx context.Context, db *sql.DB, wsID, id string) (ConversationOut, error) {
-	return scanConversation(wsID, db.QueryRowContext(ctx, conversationSelect+` AND c.id = $2`, wsID, id))
+	return scanConversation(wsID, db.QueryRowContext(ctx, conversationSelect+` AND c.id = $3`, wsID, memberOf(ctx), id))
 }
 
 // Register mounts the inbox endpoints. `a` may be nil (OpenAPI export).
@@ -132,6 +159,7 @@ func Register(api huma.API, a *app.App) {
 	db := func() *sql.DB { return a.SQLDB }
 	registerContactWhatsApp(api, a) // MH-410
 	registerLinkPreview(api, a)     // MH-656
+	registerOrganise(api, a)        // MH-657
 
 	// ---- conversations -----------------------------------------------------
 
@@ -150,11 +178,16 @@ func Register(api huma.API, a *app.App) {
 		Cursor        string `query:"cursor" doc:"next_cursor from the page before this one; empty for the newest page."`
 		Limit         int    `query:"limit" minimum:"0" maximum:"200"`
 		Order         string `query:"order" enum:",recent,unread_first" doc:"recent (the default): newest first. unread_first (MH-592): every unread conversation, newest first, then the read ones."`
+		Archived      bool   `query:"archived" doc:"MH-657: only YOUR archived chats. Without it archived chats are left out (unless contact_id or customer_email narrows the list)."`
+		Favourites    bool   `query:"favourites" doc:"MH-657: only YOUR favourites."`
+		Groups        bool   `query:"groups" doc:"MH-657: only group threads."`
+		LabelID       string `query:"label_id" doc:"MH-657: only chats carrying this label."`
 		Keep          string `query:"keep" maxLength:"4000" doc:"unread_first only (MH-599): comma-separated conversation ids to keep sorted among the unread ones (the ones this tab opened while unread), so opening a thread does not move it."`
 	}) (*body[ConversationList], error) {
 		res, err := ListConversations(ctx, a, ConversationFilter{
 			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, MailboxID: in.MailboxID,
 			CustomerEmail: in.CustomerEmail, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit, Order: in.Order, Keep: strings.Split(in.Keep, ","),
+			Archived: in.Archived, Favourites: in.Favourites, Groups: in.Groups, LabelID: in.LabelID,
 		})
 		if err != nil {
 			return nil, err
@@ -574,6 +607,10 @@ func registerPublicChat(api huma.API, a *app.App) {
 			).Scan(&convID); err != nil {
 				return nil, huma.Error500InternalServerError("could not start the conversation")
 			}
+		}
+		// A blocked visitor is told no more than a closed door (MH-657).
+		if isBlocked(sctx, a.SQLDB, wsID, convID) {
+			return nil, huma.Error403Forbidden("this conversation is not accepting messages")
 		}
 		if _, err := a.SQLDB.ExecContext(sctx, `
 			INSERT INTO messages (workspace_id, conversation_id, direction, body) VALUES ($1, $2, 'in', $3)`,

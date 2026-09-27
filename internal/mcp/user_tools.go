@@ -68,6 +68,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, MarketingTools()...)
 	tools = append(tools, NotificationTools()...)
 	tools = append(tools, InboxTools()...)
+	tools = append(tools, OrganiseTools()...) // MH-657
 	tools = append(tools, MailboxTools()...) // several IMAP mailboxes (MH-555)
 	tools = append(tools, WhatsAppTools()...)
 	tools = append(tools, ChannelTools()...)        // Telegram, Slack, Discord and workflow channels (MH-563, MH-564)

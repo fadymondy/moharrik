@@ -35,6 +35,9 @@ func conversationSummary(c inbox.ConversationOut) map[string]any {
 		"assignee_user_id": c.AssigneeUserID, "unread": c.Unread, "snoozed_until": c.SnoozedUntil, "closed_at": c.ClosedAt,
 		"message_count": c.MessageCount, "last_message_at": c.LastMessageAt, "preview": c.Preview,
 		"mailbox_id": c.MailboxID, // MH-555: which of the workspace's mailboxes an email thread arrived on
+		// MH-657: the caller's own pin/archive/mute/favourite, and the team's colour, icon, labels and block.
+		"pinned": c.Pinned, "archived": c.Archived, "muted_until": c.MutedUntil, "favourite": c.Favourite,
+		"color": c.Color, "icon": c.Icon, "labels": c.Labels, "blocked": c.Blocked,
 	}
 }
 
@@ -75,6 +78,10 @@ func InboxTools() []Tool {
 				"mailbox_id":     prop("string", "Only email conversations on this mailbox (list_mailboxes shows ids)"),
 				"customer_email": prop("string", "MH-600: only conversations from this sender, case-insensitive"),
 				"q":              prop("string", "Full-text search over the customer's name, email and phone, the subject, and every message's body"),
+				"archived":       map[string]any{"type": "boolean", "description": "MH-657: your archived conversations instead of the rest"},
+				"favourites":     map[string]any{"type": "boolean", "description": "MH-657: only your favourites"},
+				"groups":         map[string]any{"type": "boolean", "description": "MH-657: only group chats"},
+				"label_id":       prop("string", "MH-657: only conversations carrying this label (list_conversation_labels)"),
 				"cursor":         prop("string", "next_cursor from a previous call, for the page after it"),
 				"limit":          prop("integer", "At most this many (default 50, max 200)"),
 			}),
@@ -89,6 +96,10 @@ func InboxTools() []Tool {
 					Cursor        string `json:"cursor"`
 					Unread        bool   `json:"unread"`
 					Limit         int    `json:"limit"`
+					Archived      bool   `json:"archived"`
+					Favourites    bool   `json:"favourites"`
+					Groups        bool   `json:"groups"`
+					LabelID       string `json:"label_id"`
 				}
 				if err := bind(raw, &in); err != nil {
 					return "", err
@@ -99,6 +110,7 @@ func InboxTools() []Tool {
 				res, err := inbox.ListConversations(ctx, a, inbox.ConversationFilter{
 					Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID,
 					MailboxID: in.MailboxID, CustomerEmail: in.CustomerEmail, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit,
+					Archived: in.Archived, Favourites: in.Favourites, Groups: in.Groups, LabelID: in.LabelID,
 				})
 				if err != nil {
 					return "", err
@@ -107,9 +119,15 @@ func InboxTools() []Tool {
 				for _, c := range res.Conversations {
 					list = append(list, conversationSummary(c))
 				}
+				pinned := make([]map[string]any, 0, len(res.Pinned))
+				for _, c := range res.Pinned {
+					pinned = append(pinned, conversationSummary(c))
+				}
 				return jsonResult(map[string]any{
 					"unread_count": res.UnreadCount, "count": len(list), "conversations": list, "next_cursor": res.NextCursor,
 					"channel_counts": res.ChannelCounts,
+					// MH-657: your pinned chats come first (first page only); archived ones are counted, not listed.
+					"pinned": pinned, "archived_count": res.ArchivedCount, "archived_unread": res.ArchivedUnread,
 				})
 			},
 		},

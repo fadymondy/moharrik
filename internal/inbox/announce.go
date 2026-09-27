@@ -52,6 +52,7 @@ func announceInbound(ctx context.Context, a *app.App, workspaceID, convID, text 
 	if assignee.Valid && assignee.String != "" {
 		ev.AlertOnly = assignee.String
 	}
+	ev.Muted = inboundPrefs(sctx, a.SQLDB, workspaceID, convID)
 	alerts.Emit(ctx, a, workspaceID, ev)
 }
 

@@ -69,6 +69,10 @@ func FileChannelMessage(ctx context.Context, a *app.App, workspaceID, channel, s
 	} else if err != nil {
 		return err
 	}
+	// A blocked customer's message is dropped at the door (MH-657).
+	if isBlocked(sctx, db, workspaceID, convID) {
+		return nil
+	}
 
 	// MH-604: a group thread (Telegram/Slack/Discord "channels" only — WhatsApp
 	// groups are deliberately never filed) has many senders sharing one
