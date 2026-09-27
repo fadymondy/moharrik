@@ -166,8 +166,10 @@ export default function InboxPage() {
   // affected thread is revalidated by key so an open conversation updates too.
   const { mutate } = useSWRConfig()
   useWorkspaceEvents(ws.id, (e) => {
-    if (e.kind !== "message" && e.kind !== "conversation") return
-    void pages.mutate()
+    // A delivery receipt (MH-656) only moves a tick in the open thread; the
+    // list has nothing to redraw.
+    if (e.kind !== "message" && e.kind !== "conversation" && e.kind !== "message_status") return
+    if (e.kind !== "message_status") void pages.mutate()
     if (e.conversation_id)
       void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, ws.id])
   })
@@ -714,7 +716,13 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   if (!detail.data) return <LoadingRows rows={4} />
   const { conversation: c, visitor, reply_language: replyLang } = detail.data
   const total = detail.data.messages_total ?? detail.data.messages.length
-  const messages = mergeMessages(earlier?.messages ?? [], detail.data.messages)
+  // `earlier` also holds a copy of the newest page from when it was loaded;
+  // the live copy wins, so a tick that moved since (MH-656) moves here too.
+  const fresh = new Map(detail.data.messages.map((m) => [m.id, m]))
+  const messages = mergeMessages(
+    (earlier?.messages ?? []).map((m) => fresh.get(m.id) ?? m),
+    detail.data.messages,
+  )
   const cursor = earlier ? earlier.cursor : detail.data.messages_next_cursor
 
   async function loadEarlier() {

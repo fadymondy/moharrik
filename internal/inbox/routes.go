@@ -131,6 +131,7 @@ func readConversation(ctx context.Context, db *sql.DB, wsID, id string) (Convers
 func Register(api huma.API, a *app.App) {
 	db := func() *sql.DB { return a.SQLDB }
 	registerContactWhatsApp(api, a) // MH-410
+	registerLinkPreview(api, a)     // MH-656
 
 	// ---- conversations -----------------------------------------------------
 

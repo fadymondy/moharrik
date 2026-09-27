@@ -68,7 +68,7 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 	}
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, direction, author_user_id, body, body_html, mailbox_id, created_at,
-		       sender_contact_id, sender_name, sender_external_id, subject
+		       sender_contact_id, sender_name, sender_external_id, subject, status
 		FROM messages WHERE workspace_id = $1 AND conversation_id = $2`+where+`
 		ORDER BY created_at DESC, id DESC LIMIT $3`, args...)
 	if err != nil {
@@ -80,7 +80,7 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 		var m MessageOut
 		var author, mailboxID, senderContactID sql.NullString
 		if err := rows.Scan(&m.ID, &m.Direction, &author, &m.Body, &m.BodyHTML, &mailboxID, &m.CreatedAt,
-			&senderContactID, &m.SenderName, &m.SenderExternalID, &m.Subject); err != nil {
+			&senderContactID, &m.SenderName, &m.SenderExternalID, &m.Subject, &m.Status); err != nil {
 			return nil, err
 		}
 		m.AuthorUserID = strp(author)

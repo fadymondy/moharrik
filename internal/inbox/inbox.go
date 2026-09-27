@@ -123,7 +123,11 @@ type MessageOut struct {
 	// same subject shows it once.
 	Subject      string          `json:"subject,omitempty" doc:"The email's own subject line (email channel only); empty for chat/WhatsApp."`
 	Attachments  []AttachmentOut `json:"attachments,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	// Status (MH-656) is an outbound message's delivery tick: sent, delivered,
+	// read. Empty for inbound messages and for anything sent before ticks
+	// were recorded; only WhatsApp reports delivered/read.
+	Status    string    `json:"status,omitempty" doc:"Outbound delivery state: sent, delivered or read (WhatsApp receipts). Empty for inbound messages."`
+	CreatedAt time.Time `json:"created_at"`
 	// Sender identity (MH-604), set only for an inbound message on a group
 	// thread (ConversationOut.IsGroup) — a 1:1 thread's sender is the
 	// conversation's own contact/customer_name, already surfaced there.

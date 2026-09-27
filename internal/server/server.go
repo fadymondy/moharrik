@@ -145,6 +145,10 @@ func Boot() *app.App {
 	// The WhatsApp webhook, and the inbox's own "file this message" handed to
 	// it: neither package imports the other, so the wiring happens here.
 	whatsapp.RegisterHook(k.Router, a)
+	// Delivery receipts (MH-656): the ticks on a sent WhatsApp message.
+	whatsapp.SetStatusSink(func(ctx context.Context, workspaceID, externalID, status string) error {
+		return inbox.MarkStatus(ctx, a, workspaceID, externalID, status)
+	})
 	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string) error {
 		// "trends" / "ترندات" from a member's verified number is a question to
 		// the workspace, answered with its top trend stories (MH-389) — not a

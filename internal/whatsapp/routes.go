@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -160,6 +161,7 @@ func RegisterHook(r chi.Router, a *app.App) {
 
 		// A delivery with the right token is what "the webhook works" means.
 		MarkHook(ctx, a, l.WorkspaceID)
+		refreshEvents(a, l)
 
 		raw, err := io.ReadAll(io.LimitReader(r.Body, maxBody))
 		if err != nil {
@@ -191,6 +193,21 @@ func RegisterHook(r chi.Router, a *app.App) {
 					// it means losing a customer's words.
 					http.Error(w, "could not file", http.StatusInternalServerError)
 					return
+				}
+			}
+		case "messages.update":
+			// Delivery receipts (MH-656). A receipt for a message this app
+			// never stored (sent from the phone itself) updates nothing,
+			// which is fine; a failed write is logged, not retried — a
+			// missed tick is not worth Evolution redelivering.
+			if statusSink == nil {
+				break
+			}
+			for _, r := range receipts(p.Data) {
+				if id, status, ok := r.Read(); ok {
+					if err := statusSink(ctx, l.WorkspaceID, id, status); err != nil {
+						slog.Warn("whatsapp: hook: could not record a receipt", "workspace", l.WorkspaceID, "err", err)
+					}
 				}
 			}
 		case "connection.update":

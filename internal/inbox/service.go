@@ -452,8 +452,8 @@ func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID
 	// same formatting on every channel, not just the one that was actually sent
 	// multipart (email).
 	if err := a.SQLDB.QueryRowContext(ctx, `
-		INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body, body_html, mailbox_id, external_id)
-		VALUES ($1, $2, 'out', $3, $4, $5, $6, $7) RETURNING id, created_at`,
+		INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body, body_html, mailbox_id, external_id, status)
+		VALUES ($1, $2, 'out', $3, $4, $5, $6, $7, 'sent') RETURNING id, created_at`,
 		wsID, convID, userID, text, RenderMarkdown(text), nullable(mailboxID), sentID,
 	).Scan(&msgID, &createdAt); err != nil {
 		return nil, huma.Error500InternalServerError("could not send the reply")
@@ -476,7 +476,7 @@ func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID
 	// tab is never alerted by it (replies never alert anyone).
 	changed(ctx, a, wsID, realtime.Event{Kind: "message", Direction: "out", ConversationID: convID, AuthorUserID: userID})
 	uid := userID
-	return &MessageOut{ID: msgID, Direction: "out", AuthorUserID: &uid, AuthorEmail: email, Body: text, CreatedAt: createdAt}, nil
+	return &MessageOut{ID: msgID, Direction: "out", AuthorUserID: &uid, AuthorEmail: email, Body: text, Status: "sent", CreatedAt: createdAt}, nil
 }
 
 // UpdateConversation assigns, closes, reopens, snoozes or retitles a

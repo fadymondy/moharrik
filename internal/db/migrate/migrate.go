@@ -23,7 +23,7 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"mail_lists", "contacts", "list_subscriptions", "campaigns", "smtp_settings",
 	"companies", "pipeline_stages", "deals", "activities",
 	"webhook_sources", "notification_items",
-	"chat_widgets", "conversations", "messages", "message_attachments",
+	"chat_widgets", "conversations", "messages", "message_attachments", "link_previews",
 	"feed_sources", "topics", "news_items", "trend_clusters", "trend_settings",
 	"browser_agents", "agent_pairings", "automation_runs", "automation_run_steps", "automation_settings",
 	"mailboxes", "whatsapp_links", "automation_schedules", "automation_workflows", "automation_workflow_versions", "automation_workflow_layouts",

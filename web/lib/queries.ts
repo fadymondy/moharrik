@@ -21,6 +21,7 @@ import {
   type WorkflowVersion,
   type BrowserAgent,
   type Mailbox,
+  type LinkPreview,
   type ImportSourceInfo,
   type ImportItem,
   type ImportJob,
@@ -570,6 +571,16 @@ export function useConversation(workspaceId: string | null | undefined, id?: str
     workspaceId && id ? [`/api/w/conversations/${encodeURIComponent(id)}`, workspaceId] : null,
     ([p, ws]: [string, string]) => api<ConversationDetail>(p, { workspaceId: ws }),
     noRetryOn4xx,
+  )
+}
+
+/** MH-656: one URL's preview card. The server caches it for a week, so this
+ *  never revalidates on its own — a card does not change while it is on screen. */
+export function useLinkPreview(workspaceId: string | null | undefined, url: string | null) {
+  return useSWR<LinkPreview>(
+    workspaceId && url ? [`/api/w/link_preview?url=${encodeURIComponent(url)}`, workspaceId] : null,
+    ([p, ws]: [string, string]) => api<LinkPreview>(p, { workspaceId: ws }),
+    { ...noRetryOn4xx, revalidateOnFocus: false, revalidateIfStale: false, revalidateOnReconnect: false },
   )
 }
 
