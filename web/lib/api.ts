@@ -880,6 +880,20 @@ export type InboxMessage = {
   sender_contact_id?: string | null
   /** The sender's cached photo, if any; "" so the client renders initials. */
   sender_avatar_url?: string
+  /** MH-656: an outbound message's delivery tick — "sent" when the channel
+   *  took it, then "delivered" / "read" as WhatsApp's receipts arrive. Empty
+   *  for inbound messages and for channels that report no receipts. */
+  status?: "" | "sent" | "delivered" | "read" | "failed"
+}
+
+/** MH-656: the card under a message that carries a URL. Only "ok" is shown. */
+export type LinkPreview = {
+  url: string
+  status: "ok" | "none" | "error"
+  title?: string
+  description?: string
+  image_url?: string
+  site_name?: string
 }
 
 export type ChatWidget = {

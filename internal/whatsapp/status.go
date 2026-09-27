@@ -186,8 +186,9 @@ func startOfDay(ctx context.Context, a *app.App, workspaceID string) time.Time {
 
 // WebhookConfig is what Evolution says the instance's webhook is.
 type WebhookConfig struct {
-	Enabled bool   `json:"enabled"`
-	URL     string `json:"url"`
+	Enabled bool     `json:"enabled"`
+	URL     string   `json:"url"`
+	Events  []string `json:"events"`
 }
 
 // Webhook reads the instance's webhook. Evolution answers null when none is set.

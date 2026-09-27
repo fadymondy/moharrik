@@ -234,7 +234,7 @@ func (c *Client) Delete(ctx context.Context) error {
 // Events are the only ones the webhook is registered for. Narrow on purpose:
 // Evolution can send a firehose, and everything not listed here is noise this
 // app would have to parse and ignore.
-var Events = []string{"MESSAGES_UPSERT", "CONNECTION_UPDATE"}
+var Events = []string{"MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE"}
 
 // SetWebhook points the instance at this app.
 func (c *Client) SetWebhook(ctx context.Context, hookURL, token string) error {

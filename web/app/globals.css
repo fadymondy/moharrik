@@ -89,6 +89,22 @@
   background-size: 8px 8px;
 }
 
+/* The inbox thread (MH-656): WhatsApp's bubble colours and wallpaper, from the theme's own
+   tokens so both themes and every product brand follow. Declared on the thread, not :root, so
+   --primary resolves against the brand in force where the thread is. */
+[data-chat-thread] {
+  --bubble-in: var(--grid-elevated);
+  --bubble-out: color-mix(in oklab, var(--primary) 15%, var(--grid-elevated));
+}
+.chat-wallpaper {
+  background-color: var(--grid-bg);
+  background-image:
+    radial-gradient(color-mix(in oklab, var(--grid-line) 80%, transparent) 1px, transparent 1.6px),
+    radial-gradient(color-mix(in oklab, var(--grid-line) 50%, transparent) 1px, transparent 1.6px);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
 /* Scrollbars are hidden everywhere (MH-601): every list, pane and page still scrolls by
    wheel, touch, keyboard and drag, but no bar is drawn. Wide tables keep their edge fades
    (ScrollX, components/scroll-x.tsx) as the hint that there is more to the side. */

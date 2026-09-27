@@ -9,17 +9,25 @@ import {
   type KeyboardEvent,
 } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { ArrowDownIcon, SendIcon } from "lucide-react"
+import {
+  AlertCircleIcon,
+  ArrowDownIcon,
+  CheckCheckIcon,
+  CheckIcon,
+  SendIcon,
+} from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { CannedPicker } from "@/components/inbox/canned-picker"
+import { ChatText, firstUrl } from "@/components/inbox/chat-text"
+import { LinkPreviewCard } from "@/components/inbox/link-preview"
 import { AttachmentList, MessageBody } from "@/components/inbox/message-body"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { Ltr } from "@/components/copy-field"
-import { channelIcon, channelLabel } from "@/lib/inbox-channels"
+import { channelIcon } from "@/lib/inbox-channels"
 import { type Conversation, type InboxMessage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
@@ -38,15 +46,18 @@ the composer and bubbles below are hand-built from primitives already in the
 system (Textarea, Button, CannedPicker) rather than a literal port of those
 two items.
 
-Deliberately NOT here, because the backend cannot back them (no dead
-controls, CLAUDE.md non-negotiable):
-- delivery ticks — InboxMessage carries no per-message status/delivery field.
-- an attach button — Reply(id, text) takes no upload/attachment parameter.
+MH-656 made the bubbles WhatsApp's: a tail on the first of a run, the time
+and delivery tick inside each bubble (ticks from WhatsApp's own receipts,
+messages.status), the sender named inside the bubble in a group, WhatsApp's
+*bold* _italic_ ~strike~ formatting with links, and a preview card for the
+first URL (components/inbox/link-preview.tsx). Email keeps its card layout.
+
+Not here yet, because the backend cannot back them (no dead controls,
+CLAUDE.md non-negotiable) — each is its own card:
+- an attach button, emoji and voice notes — the composer, MH-659.
+- reactions and reply quotes — MH-664.
 - an editable reply-channel or subject picker — Reply() always answers
   through the conversation's own channel; see the read-only note instead.
-The per-message channel badge uses the CONVERSATION's channel (every message
-in a thread shares it today) — true per-message channels need the unified-
-identity work tracked separately as MH-583, not yet built.
 */
 
 const GROUP_GAP_MS = 5 * 60 * 1000
@@ -232,56 +243,132 @@ function MessageGroup({
 
   return (
     <div
-      className={`flex flex-col gap-1 py-1.5 ${out ? "items-end" : "items-start"}`}
+      className={`flex gap-2 py-1 ${out ? "flex-row-reverse" : ""}`}
       data-message-group={out ? "out" : "in"}
     >
-      <p
-        className={`flex items-center gap-1 px-1 text-xs text-grid-muted ${out ? "flex-row-reverse" : ""}`}
-      >
-        {out ? null : <Bdi>{who}</Bdi>}
-        <span
-          className="inline-flex items-center gap-1"
-          data-message-channel={conversation.channel}
-        >
-          <Icon className="size-3" />
-          {channelLabel(conversation.channel, t)}
-        </span>
-      </p>
-      <div className={`flex w-full items-end gap-2 ${out ? "flex-row-reverse" : ""}`}>
-        {showSenderAvatar ? (
-          <div className="shrink-0 self-end" data-group-sender-avatar>
-            <PersonAvatar
-              id={group[0].sender_contact_id || group[0].sender_name || undefined}
-              name={groupSenderName}
-              photoUrl={group[0].sender_avatar_url || null}
-              size="sm"
-            />
-          </div>
-        ) : null}
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {group.map((m) => (
-            <div
-              key={m.id}
-              data-message={m.direction}
-              className={`max-w-[36rem] rounded-2xl px-3.5 py-2 text-sm ${out ? "self-end bg-primary text-primary-foreground" : "self-start border border-line bg-grid-card"}`}
-            >
-              {conversation.channel === "email" && showSubject(m.id) ? (
-                <p
-                  className={`mb-1 truncate text-xs font-medium ${out ? "text-primary-foreground/80" : "text-grid-muted"}`}
-                  data-message-subject
-                >
-                  <Bdi>{m.subject}</Bdi>
-                </p>
-              ) : null}
-              <MessageBody body={m.body} bodyHtml={m.body_html} attachments={m.attachments} />
-              <AttachmentList attachments={m.attachments} />
-            </div>
-          ))}
+      {showSenderAvatar ? (
+        <div className="shrink-0 self-start" data-group-sender-avatar>
+          <PersonAvatar
+            id={group[0].sender_contact_id || group[0].sender_name || undefined}
+            name={groupSenderName}
+            photoUrl={group[0].sender_avatar_url || null}
+            size="sm"
+          />
         </div>
+      ) : null}
+      <div className={`flex min-w-0 flex-1 flex-col gap-0.5 ${out ? "items-end" : "items-start"}`}>
+        {group.map((m, i) => (
+          <ChatBubble
+            key={m.id}
+            m={m}
+            out={out}
+            first={i === 0}
+            senderName={i === 0 && showSenderAvatar ? who : null}
+          />
+        ))}
       </div>
-      <p className="px-1 text-xs text-grid-muted">
-        <Ltr>{timeOf(group[group.length - 1].created_at, locale)}</Ltr>
-      </p>
+    </div>
+  )
+}
+
+/** WhatsApp's bubble tail: the first bubble of a run gets one, on the side it
+ *  was sent from, and loses that top corner's rounding. */
+function BubbleTail({ out }: { out: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 8 13"
+      width="8"
+      height="13"
+      aria-hidden
+      className={`absolute top-0 rtl:-scale-x-100 ${out ? "-end-2" : "-start-2"}`}
+      style={{ fill: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
+    >
+      <path
+        d={
+          out
+            ? "M5.188 1H0v11.193l6.467-8.625C7.526 2.156 6.958 1 5.188 1z"
+            : "M2.812 1H8v11.193L1.533 3.568C.474 2.156 1.042 1 2.812 1z"
+        }
+        transform="translate(0 -1)"
+      />
+    </svg>
+  )
+}
+
+/** The delivery tick on an outbound bubble (MH-656), from WhatsApp's own
+ *  receipts: one grey tick sent, two delivered, two in the brand colour read. */
+function Ticks({ status }: { status: InboxMessage["status"] }) {
+  const { t } = useTranslations()
+  if (!status) return null
+  const label = t(`inbox.thread.status.${status}`)
+  if (status === "failed")
+    return <AlertCircleIcon className="size-3.5 text-grid-danger-text" aria-label={label} />
+  const Icon = status === "sent" ? CheckIcon : CheckCheckIcon
+  return (
+    <Icon
+      className={`size-3.5 ${status === "read" ? "text-primary" : ""}`}
+      aria-label={label}
+      data-tick={status}
+    />
+  )
+}
+
+function ChatBubble({
+  m,
+  out,
+  first,
+  senderName,
+}: {
+  m: InboxMessage
+  out: boolean
+  first: boolean
+  /** A group thread's sender, named inside the first bubble of their run. */
+  senderName: string | null
+}) {
+  const { locale } = useTranslations()
+  const url = firstUrl(m.body)
+  // A chat line is the text it was written as. An outbound reply also has
+  // body_html (its Markdown rendered for email), but a bubble shows the
+  // source with WhatsApp's own formatting instead of framing an iframe.
+  const text = m.body.trim()
+  const files = (m.attachments ?? []).filter((x) => !x.inline).length > 0
+  // WhatsApp's time-and-tick: floated to the end of the LAST line, so it
+  // shares that line when there is room and drops under it when there is not
+  // — whichever way the text runs. An absolute corner badge overlapped the
+  // text whenever its direction was not the page's (Arabic in the English UI).
+  const meta = (
+    <span
+      className="relative top-1.5 float-end ms-2 flex items-center gap-1 text-[0.6875rem] leading-4 text-grid-muted"
+      data-message-meta
+    >
+      <Ltr>{timeOf(m.created_at, locale)}</Ltr>
+      {out ? <Ticks status={m.status} /> : null}
+    </span>
+  )
+  return (
+    <div
+      data-message={m.direction}
+      data-message-status={m.status || undefined}
+      className={`relative flow-root max-w-[min(36rem,85%)] rounded-lg px-2.5 pt-1.5 pb-2 text-sm text-grid-fg shadow-[0_1px_0.5px_color-mix(in_oklab,var(--grid-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`}
+      style={{ background: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
+    >
+      {first ? <BubbleTail out={out} /> : null}
+      {senderName ? (
+        <p className="mb-0.5 truncate text-xs font-medium text-primary" data-bubble-sender>
+          <Bdi>{senderName}</Bdi>
+        </p>
+      ) : null}
+      {url ? <LinkPreviewCard url={url} /> : null}
+      {text || !m.body_html ? (
+        <div className="text-start break-words whitespace-pre-wrap" dir="auto">
+          <ChatText text={m.body} />
+          {files ? null : meta}
+        </div>
+      ) : (
+        <MessageBody body={m.body} bodyHtml={m.body_html} attachments={m.attachments} />
+      )}
+      <AttachmentList attachments={m.attachments} />
+      {files || (!text && m.body_html) ? meta : null}
     </div>
   )
 }
@@ -537,7 +624,7 @@ export function ChatThread({
       <div
         ref={parentRef}
         onScroll={onScroll}
-        className="relative min-h-0 flex-1 overflow-y-auto bg-[image:var(--grid-hatch)] bg-grid-bg px-4 py-2"
+        className="chat-wallpaper relative min-h-0 flex-1 overflow-y-auto px-4 py-2"
         data-messages
         data-anchor={isEmail ? "newest-email" : "bottom"}
       >
