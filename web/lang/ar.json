@@ -716,6 +716,8 @@
   "inbox.launcher.title": "المحادثة",
   "inbox.launcher.empty": "لا توجد محادثات بعد.",
   "inbox.launcher.openFullInbox": "فتح البريد الوارد الكامل",
+  "inbox.dock.search": "بحث في المحادثات",
+  "inbox.dock.minimize": "تصغير",
   "inbox.write": "كتابة",
   "inbox.preview": "معاينة",
   "inbox.previewEmpty": "لا يوجد شيء للمعاينة بعد.",

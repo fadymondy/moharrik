@@ -38,7 +38,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { LiveAlerts } from "@/components/alerts/live-alerts"
 import { NotificationBell } from "@/components/alerts/notification-bell"
 import { CubeMark } from "@/components/brand/cube-mark"
-import { FloatingChat } from "@/components/inbox/floating-chat"
+import { ChatDock } from "@/components/inbox/chat-dock"
 import { LanguageSwitcher, ThemeToggle } from "@/components/header-controls"
 import {
   MahaamFeedbackWidget,
@@ -226,6 +226,7 @@ function NavGroupButton({
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const { slug } = useParams<{ slug: string }>()
   const { t, locale } = useTranslations()
+  const pathname = usePathname()
   const me = useRequireAuth()
   // "Report a problem" shows only once the widget can actually send (MH-464): a deployment with
   // no Mahaam key, or a widget script that failed to load, gets no button rather than a dead one.
@@ -377,7 +378,10 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             ) : null}
           </div>
         </header>
-        <main className="min-w-0 flex-1">{body}</main>
+        {/* MH-663: reserve room for the chat dock's launcher pill so it never
+            sits over the last row of page content — the dock itself hides on
+            the inbox route, so no padding is needed there either. */}
+        <main className={`min-w-0 flex-1 ${pathname?.includes("/inbox") ? "" : "pb-16"}`}>{body}</main>
       </div>
 
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
@@ -393,12 +397,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
       {me.data ? <MahaamFeedbackWidget /> : null}
 
-      {/* Every workspace page except the inbox itself (FloatingChat hides
-          itself there — the inbox already IS the chat UI, MH-587). Its own
-          WorkspaceContext.Provider: this button is a sibling of `body`
-          above, not a descendant, so it needs the same context re-supplied
-          — CannedPicker (reused inside ChatThread) calls useWorkspace()
-          and throws outside one. */}
+      {/* Every workspace page except the inbox itself (ChatDock hides itself
+          there — the inbox already IS the chat UI, MH-587/MH-663). Its own
+          WorkspaceContext.Provider: this dock is a sibling of `body` above,
+          not a descendant, so it needs the same context re-supplied —
+          CannedPicker (reused inside ChatThread) calls useWorkspace() and
+          throws outside one. */}
       {summary && current.data ? (
         <WorkspaceContext.Provider
           value={{
@@ -409,7 +413,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             can: (p) => !!current.data?.can?.includes(p),
           }}
         >
-          <FloatingChat
+          <ChatDock
             workspaceId={summary.id}
             slug={summary.slug}
             can={(p) => !!current.data?.can?.includes(p)}

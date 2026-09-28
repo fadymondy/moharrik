@@ -716,6 +716,8 @@
   "inbox.launcher.title": "Chat",
   "inbox.launcher.empty": "No conversations yet.",
   "inbox.launcher.openFullInbox": "Open full inbox",
+  "inbox.dock.search": "Search conversations",
+  "inbox.dock.minimize": "Minimise",
   "inbox.write": "Write",
   "inbox.preview": "Preview",
   "inbox.previewEmpty": "Nothing to preview yet.",
