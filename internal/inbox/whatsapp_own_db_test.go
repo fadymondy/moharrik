@@ -64,7 +64,7 @@ func TestFileWhatsAppOwn(t *testing.T) {
 
 	// The echo of an inbox reply: already here under the same id, nothing added.
 	replyID := "WAREPLY" + idSuffix()
-	if _, err := recordOutbound(f.ctx, a, f.wsID, f.userID, "owner@x.test", conv, "", "from the inbox", replyID); err != nil {
+	if _, err := recordOutbound(f.ctx, a, f.wsID, f.userID, "owner@x.test", conv, "", "from the inbox", replyID, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := FileWhatsAppOwn(f.ctx, a, f.wsID, phone, "from the inbox", replyID, nil, nil); err != nil {
@@ -80,7 +80,7 @@ func TestFileWhatsAppOwn(t *testing.T) {
 	if err := FileWhatsAppOwn(f.ctx, a, f.wsID, phone, "raced", raceID, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := recordOutbound(f.ctx, a, f.wsID, f.userID, "owner@x.test", conv, "", "raced", raceID); err != nil {
+	if _, err := recordOutbound(f.ctx, a, f.wsID, f.userID, "owner@x.test", conv, "", "raced", raceID, nil); err != nil {
 		t.Fatalf("the reply failed after its echo landed first: %v", err)
 	}
 	if n := count(`SELECT count(*) FROM messages WHERE workspace_id = $1 AND external_id = $2 AND author_user_id = $3`,

@@ -266,6 +266,74 @@ func (c *Client) SendText(ctx context.Context, number, text string) (string, err
 	return out.Key.ID, nil
 }
 
+// SendMedia sends an image, video, document or sticker (MH-659: the inbox
+// composer's attach button), base64-encoded the same way GetMediaBase64
+// decodes an inbound one. mediaType is Evolution's own vocabulary
+// (image|video|document); caption rides on the same call, since Evolution has
+// no separate "send a caption after" step.
+func (c *Client) SendMedia(ctx context.Context, number, mediaType, mimeType string, data []byte, fileName, caption string) (string, error) {
+	var out struct {
+		Key struct {
+			ID string `json:"id"`
+		} `json:"key"`
+	}
+	body := map[string]any{
+		"number":    number,
+		"mediatype": mediaType,
+		"mimetype":  mimeType,
+		"media":     base64.StdEncoding.EncodeToString(data),
+		"fileName":  fileName,
+	}
+	if caption != "" {
+		body["caption"] = caption
+	}
+	if err := c.do(ctx, http.MethodPost, "/message/sendMedia/"+c.inst(), body, &out); err != nil {
+		return "", err
+	}
+	return out.Key.ID, nil
+}
+
+// SendWhatsAppAudio sends a voice note (MH-659) as a "push to talk" (ptt)
+// message — the waveform bubble WhatsApp itself gives a voice note, as
+// opposed to sendMedia with mediatype "audio", which renders as an ordinary
+// audio file attachment instead.
+func (c *Client) SendWhatsAppAudio(ctx context.Context, number string, data []byte) (string, error) {
+	var out struct {
+		Key struct {
+			ID string `json:"id"`
+		} `json:"key"`
+	}
+	body := map[string]any{
+		"number": number,
+		"audio":  base64.StdEncoding.EncodeToString(data),
+	}
+	if err := c.do(ctx, http.MethodPost, "/message/sendWhatsAppAudio/"+c.inst(), body, &out); err != nil {
+		return "", err
+	}
+	return out.Key.ID, nil
+}
+
+// SendLocation sends a pin (MH-659: the composer's "send my location" and
+// manual lat/lng entry).
+func (c *Client) SendLocation(ctx context.Context, number string, lat, lng float64, name, address string) (string, error) {
+	var out struct {
+		Key struct {
+			ID string `json:"id"`
+		} `json:"key"`
+	}
+	body := map[string]any{
+		"number":    number,
+		"latitude":  lat,
+		"longitude": lng,
+		"name":      name,
+		"address":   address,
+	}
+	if err := c.do(ctx, http.MethodPost, "/message/sendLocation/"+c.inst(), body, &out); err != nil {
+		return "", err
+	}
+	return out.Key.ID, nil
+}
+
 // ProfilePicture asks Evolution for one number's current WhatsApp photo URL
 // (MH-602). Empty string, nil error means WhatsApp has none for that number
 // or its privacy setting hides it from this instance — not a failure worth
