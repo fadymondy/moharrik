@@ -1,6 +1,7 @@
-// Read-only production check for MH-587: the inbox thread renders as WhatsApp-style
-// bubbles, and the floating launcher sits on every workspace page except the inbox,
-// opening a panel that lists conversations and opens one — en/ar × light/dark × 1440/390.
+// Read-only production check for MH-587/MH-663: the inbox thread renders as
+// WhatsApp-style bubbles, and the docked chat launcher pill sits on every
+// workspace page except the inbox, opening a compact list that docks a chat
+// as a small window at the bottom — en/ar × light/dark × 1440/390.
 // Nothing is sent.
 //   DEMO_EMAIL=... DEMO_PASSWORD=... node e2e/chat-ui-live.mjs https://app.moharrik.com [shots]
 import { chromium } from "playwright-core"
@@ -81,7 +82,7 @@ for (const scheme of ["light", "dark"]) {
           rounded: cs
             ? parseFloat(cs.borderTopLeftRadius) > 4 || parseFloat(cs.borderTopRightRadius) > 4
             : false,
-          launcher: !!document.querySelector("[data-floating-chat]"),
+          launcher: !!document.querySelector("[data-chat-dock-launcher]"),
           dir: document.documentElement.dir,
           dark: document.documentElement.classList.contains("dark"),
           overflow: document.documentElement.scrollWidth - window.innerWidth,
@@ -101,71 +102,48 @@ for (const scheme of ["light", "dark"]) {
         inbox,
       )
       await shot(page, `${k}-inbox`)
-      // Another page: the launcher is there, opens a panel, and opens a conversation in it.
+      // Another page: the dock launcher is there, opens a compact list, and
+      // opening a conversation from it docks a small window at the bottom.
       await page.goto(`${base}/${loc}/w/${slug}/inbox/channels`, { waitUntil: "domcontentloaded" })
       await page.goto(`${base}/${loc}/w/${slug}`, { waitUntil: "domcontentloaded" })
-      await page.waitForSelector("[data-floating-chat]", { timeout: 30000 }).catch(() => {})
+      await page.waitForSelector("[data-chat-dock-launcher]", { timeout: 30000 }).catch(() => {})
       await page
-        .locator("[data-floating-chat]")
+        .locator("[data-chat-dock-launcher]")
         .first()
         .click()
         .catch(() => {})
-      await page.waitForSelector("[data-floating-chat-panel]", { timeout: 15000 }).catch(() => {})
-      await page.waitForSelector("[data-launcher-conversation]", { timeout: 15000 }).catch(() => {})
-      const panel = await page.evaluate(() => {
-        const p = document.querySelector("[data-floating-chat-panel]")
-        const r = p?.getBoundingClientRect()
-        return {
-          panel: !!p,
-          rows: document.querySelectorAll("[data-launcher-conversation]").length,
-          left: r ? Math.round(r.left) : null,
-          right: r ? Math.round(window.innerWidth - r.right) : null,
-        }
+      await page.waitForSelector("[data-dock-list]", { timeout: 15000 }).catch(() => {})
+      await page.waitForSelector("[data-dock-list-item]", { timeout: 15000 }).catch(() => {})
+      const list = await page.evaluate(() => {
+        const p = document.querySelector("[data-dock-list]")
+        return { list: !!p, rows: document.querySelectorAll("[data-dock-list-item]").length }
       })
-      // The panel docks to the inline-end edge: right in LTR, left in RTL.
-      const docked =
-        panel.panel && (w === 390 || (loc === "ar" ? panel.left <= 2 : panel.right <= 2))
-      check(`${k}-launcher`, panel.panel && panel.rows > 0 && docked, panel)
+      check(`${k}-launcher`, list.list && list.rows > 0, list)
       await shot(page, `${k}-launcher`)
       await page
-        .locator("[data-launcher-conversation]")
+        .locator("[data-dock-list-item]")
         .first()
         .click()
         .catch(() => {})
-      await page
-        .waitForSelector("[data-floating-chat-panel] [data-message]", { timeout: 20000 })
-        .catch(() => {})
-      const opened = await page.evaluate(() => ({
-        bubbles: document.querySelectorAll("[data-floating-chat-panel] [data-message]").length,
-        back: !!document.querySelector("[data-floating-chat-back]"),
-        // The thread fills the panel: its bottom meets the "open the full inbox" footer.
-        gap: (() => {
-          const t = document
-            .querySelector("[data-floating-chat-panel] [data-chat-thread]")
-            ?.getBoundingClientRect()
-          const f = document
-            .querySelector("[data-floating-chat-open-inbox]")
-            ?.parentElement?.getBoundingClientRect()
-          return t && f ? Math.round(f.top - t.bottom) : null
-        })(),
-        // The reply box is usable in the narrow panel, not squeezed beside the actions.
-        replyShare: (() => {
-          const ta = document
-            .querySelector("[data-floating-chat-panel] [data-form=reply] textarea")
-            ?.getBoundingClientRect()
-          const p = document.querySelector("[data-floating-chat-panel]")?.getBoundingClientRect()
-          return ta && p ? Math.round((ta.width / p.width) * 100) : null
-        })(),
-      }))
-      check(
-        `${k}-launcher-thread`,
-        opened.bubbles > 0 &&
-          opened.back &&
-          opened.gap !== null &&
-          Math.abs(opened.gap) <= 2 &&
-          opened.replyShare >= 70,
-        opened,
-      )
+      const windowSel = w === 390 ? "[data-dock-sheet]" : "[data-dock-window]"
+      await page.waitForSelector(`${windowSel} [data-message]`, { timeout: 20000 }).catch(() => {})
+      const opened = await page.evaluate((sel) => {
+        const win = document.querySelector(sel)
+        const r = win?.getBoundingClientRect()
+        return {
+          bubbles: document.querySelectorAll(`${sel} [data-message]`).length,
+          window: !!win,
+          // Desktop: the window docks toward the inline-end edge, above the
+          // launcher bar. Mobile: it's a full-width sheet.
+          fullWidth: r ? Math.round(window.innerWidth - r.width) <= 4 : false,
+          right: r ? Math.round(window.innerWidth - r.right) : null,
+          left: r ? Math.round(r.left) : null,
+        }
+      }, windowSel)
+      const docked =
+        opened.window &&
+        (w === 390 ? opened.fullWidth : loc === "ar" ? opened.left <= 40 : opened.right <= 40)
+      check(`${k}-launcher-thread`, opened.bubbles > 0 && docked, opened)
       await shot(page, `${k}-launcher-thread`)
       await page.keyboard.press("Escape").catch(() => {})
     }
