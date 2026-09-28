@@ -843,6 +843,19 @@ export type CannedReply = {
   updated_at: string
 }
 
+/** An email reply template (MH-661): bilingual subject + Markdown body, with placeholders. */
+export type EmailTemplate = {
+  id: string
+  name: string
+  subject_en: string
+  subject_ar: string
+  body_en: string
+  body_ar: string
+  position: number
+  created_at: string
+  updated_at: string
+}
+
 export type ChannelStats = {
   channel: ConversationChannel | "all"
   conversations: number

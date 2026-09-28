@@ -213,12 +213,13 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		ID   string `path:"id"`
 		Body struct {
-			Body string `json:"body" minLength:"1" maxLength:"8000"`
+			Body    string `json:"body" minLength:"1" maxLength:"8000"`
+			Subject string `json:"subject,omitempty" maxLength:"500" doc:"Email only: overrides the default Re: <original subject>. Ignored on other channels."`
 		}
 	}) (*body[struct {
 		Message MessageOut `json:"message"`
 	}], error) {
-		m, err := Reply(ctx, a, in.ID, in.Body.Body)
+		m, err := Reply(ctx, a, in.ID, in.Body.Body, in.Body.Subject)
 		if err != nil {
 			return nil, err
 		}
@@ -428,6 +429,7 @@ func Register(api huma.API, a *app.App) {
 
 	registerCRM(api, a)
 	registerCanned(api, a)
+	registerEmailTemplates(api, a)
 	registerStats(api, a)
 	registerPublicChat(api, a)
 	registerThread(api, a)

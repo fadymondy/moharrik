@@ -353,6 +353,8 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"contact_id": ctID}, 200)
 	convDealID := alice.must("POST", "/api/w/conversations/"+convID+"/deal", map[string]any{"title": marker + " chat deal"}, 201)["deal_id"].(string)
 	cannedID := alice.must("POST", "/api/w/canned_replies", map[string]any{"title": marker + " canned", "body_en": marker, "body_ar": marker}, 201)["reply"].(map[string]any)["id"].(string)
+	// MH-661: an email template carrying the marker, the canned-reply's bilingual sibling.
+	emailTemplateID := alice.must("POST", "/api/w/email_templates", map[string]any{"name": marker + " template", "body_en": marker, "body_ar": marker}, 201)["template"].(map[string]any)["id"].(string)
 	// MH-384: a collected source in A, run once so it has items.
 	notifSrcID := alice.must("POST", "/api/w/notification_sources", map[string]any{"kind": "bluesky", "target": "shop.bsky.social", "name": marker + " Bluesky"}, 201)["source"].(map[string]any)["id"].(string)
 	alice.must("POST", "/api/w/notification_sources/"+notifSrcID+"/collect", nil, 200)
@@ -667,7 +669,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, smtpID, mailboxID, notifSrcID, ruleID, ruleRunID, ruleSecret, tgID, slackID, discordID, workflowChannelID, importJobID, convPartID}
+	aIDs := []string{autoRunID, prospectID, pfbID, pdraftID, runID, rsrcID, evID, suggID, rschedID, aID, grantID, invID, tokID, memberID, coID, ctID, stageID, dealID, actID, srcID, itemID, widgetID, convID, formID, leadID, googleID, googleEmail, listID, pushID, kwID, feedID, newsID, trendID, googleResID, googleResExt, agentID, wfID, schedID, scheduleSecret, convDealID, cannedID, emailTemplateID, smtpID, mailboxID, notifSrcID, ruleID, ruleRunID, ruleSecret, tgID, slackID, discordID, workflowChannelID, importJobID, convPartID}
 	idFor := map[string]string{
 		"workspaces": aID, "workspace_members": memberID, "invitations": invID, "mcp_tokens": tokID,
 		"companies": coID, "contacts": ctID, "deals": dealID, "activities": actID, "pipeline": stageID,
@@ -681,6 +683,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		"topics": kwID, "feed_sources": feedID, "news": newsID, "trends": trendID,
 		"browsers": agentID, "workflows": wfID, "schedules": schedID, "runs": autoRunID,
 		"canned_replies":       cannedID,
+		"email_templates":      emailTemplateID,
 		"oauth_grants":         grantID,
 		"smtp-services":        smtpID,
 		"mailboxes":            mailboxID,
@@ -1000,6 +1003,10 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		{"POST", "/api/w/contacts/" + ctID + "/identities", map[string]any{"channel": "telegram", "external_id": "@bob-steals-" + rnd()}},
 		{"PATCH", "/api/w/canned_replies/" + cannedID, map[string]any{"title": "bob owns this"}},
 		{"DELETE", "/api/w/canned_replies/" + cannedID, nil},
+		// MH-661: same for email templates.
+		{"PATCH", "/api/w/email_templates/" + emailTemplateID, map[string]any{"name": "bob owns this"}},
+		{"DELETE", "/api/w/email_templates/" + emailTemplateID, nil},
+		{"POST", "/api/w/email_templates/" + emailTemplateID + "/render", map[string]any{}},
 		// Editing a schedule (MH-471): B can neither re-time A's schedule nor
 		// replace the secret it runs with.
 		{"PATCH", "/api/w/schedules/" + schedID, map[string]any{"cron": "* * * * *", "name": "bob owns this"}},
@@ -1040,6 +1047,9 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	}
 	if r := alice.must("GET", "/api/w/canned_replies", nil, 200)["replies"].([]any); len(r) != 1 || r[0].(map[string]any)["title"] != marker+" canned" {
 		t.Errorf("A's canned reply was changed from B: %+v", r)
+	}
+	if r := alice.must("GET", "/api/w/email_templates", nil, 200)["templates"].([]any); len(r) != 1 || r[0].(map[string]any)["name"] != marker+" template" {
+		t.Errorf("A's email template was changed from B: %+v", r)
 	}
 	if st := alice.must("GET", "/api/w/inbox/stats", nil, 200)["total"].(map[string]any); st["conversations"].(float64) != 1 {
 		t.Errorf("A's stats: %+v", st)

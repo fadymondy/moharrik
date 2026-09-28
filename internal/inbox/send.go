@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"html"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -47,11 +48,18 @@ func SendEmailReply(ctx context.Context, a *app.App, workspaceID, convID, mailbo
 	msgID := newMessageID(svc.FromEmail)
 	headers["Message-Id"] = "<" + msgID + ">"
 
+	var wsName, wsLocale string
+	_ = a.SQLDB.QueryRowContext(ctx, `SELECT name, locale FROM workspaces WHERE id = $1`, workspaceID).Scan(&wsName, &wsLocale)
+	// The branded layout (MH-661): the workspace has no logo field, so the
+	// only branding is its name in the shell's footer, the same wrapper
+	// marketing.RenderCampaign/ConfirmEmail already use for outbound mail.
+	htmlBody := marketing.Shell(wsLocale, replySubject(subject), RenderMarkdown(text), html.EscapeString(wsName))
+
 	if err := marketing.Send(ctx, svc, marketing.Message{
 		To:      to,
 		Subject: replySubject(subject),
 		Text:    text,
-		HTML:    RenderMarkdown(text),
+		HTML:    htmlBody,
 		Headers: headers,
 	}); err != nil {
 		return "", err

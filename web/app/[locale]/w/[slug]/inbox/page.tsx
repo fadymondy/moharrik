@@ -858,6 +858,8 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   const [reply, setReply] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // MH-661: overrides the default "Re: <original subject>" on an email reply.
+  const [subject, setSubject] = useState("")
   // Earlier pages (MH-471). Opening a thread shows its newest page; "Load
   // earlier" walks back with the cursor. What was on screen when a page was
   // loaded is kept here too, so a new message arriving (which shifts the newest
@@ -904,10 +906,11 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
     setErr(null)
     try {
       await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, {
-        json: { body: text },
+        json: { body: text, ...(subject.trim() ? { subject: subject.trim() } : {}) },
         workspaceId: ws.id,
       })
       setReply("")
+      setSubject("")
       refresh()
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -1051,6 +1054,8 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
         busy={busy}
         error={err}
         onInsertCanned={insert}
+        subject={subject}
+        onSubjectChange={setSubject}
         hasOlder={!!cursor}
         loadingOlder={loadingEarlier}
         onLoadOlder={loadEarlier}
