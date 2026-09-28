@@ -105,6 +105,22 @@
   background-position: 0 0, 12px 12px;
 }
 
+/* MH-662: find-in-chat "jump to match" — a brief highlight flash on the bubble
+   the reader searched for, so landing on it reads as intentional, not a jump. */
+[data-message-id].mh-search-hit {
+  animation: mh-search-hit-flash 1.6s ease-out;
+  border-radius: 0.75rem;
+}
+@keyframes mh-search-hit-flash {
+  0%,
+  35% {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
 /* Chat colours and label colours (MH-657): one palette, named the way the API stores it
    (gray … pink). --tag-X is the swatch (a row's stripe, a label's dot); --tag-X-soft and
    --tag-X-text are a label chip's fill and its text, which clear 4.5:1 on that fill. */

@@ -928,6 +928,34 @@ export type InboxMessage = {
    *  took it, then "delivered" / "read" as WhatsApp's receipts arrive. Empty
    *  for inbound messages and for channels that report no receipts. */
   status?: "" | "sent" | "delivered" | "read" | "failed"
+  /** MH-662: starred by the SIGNED-IN member, not the team — the same
+   *  per-member shape as pinned/archived/muted on a conversation. */
+  starred?: boolean
+}
+
+/** MH-662: one page of find-in-chat matches, oldest first — the same
+ *  "load older" cursor shape as ThreadPage. */
+export type SearchResult = { messages: InboxMessage[]; next_cursor: string }
+
+/** MH-662: the Contact info panel's "Media, links and docs" tab counts. */
+export type GalleryCounts = { media: number; links: number; docs: number }
+
+/** MH-662: one row in a Media/Links/Docs tab — an attachment in the first
+ *  two, a bare URL in the third. */
+export type GalleryItem = {
+  message_id: string
+  created_at: string
+  attachment?: InboxAttachment
+  link?: string
+}
+
+/** MH-662: the whole gallery in one call — counts plus the newest rows of
+ *  each kind, capped at the request's limit (default 60 per tab). */
+export type GalleryPage = {
+  counts: GalleryCounts
+  media: GalleryItem[]
+  links: GalleryItem[]
+  docs: GalleryItem[]
 }
 
 /** MH-656: the card under a message that carries a URL. Only "ok" is shown. */

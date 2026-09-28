@@ -20,8 +20,13 @@ import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { ChatIcon, ChatRowMenu, isMuted, LabelChip } from "@/components/inbox/chat-row-menu"
 import { ChatThread } from "@/components/inbox/chat-thread"
 import { ConversationContactDialog } from "@/components/inbox/contact-row-dialog"
+import { ContactInfoPanel } from "@/components/inbox/contact-info-panel"
 import { SnoozeControl, SnoozedNote } from "@/components/inbox/snooze-control"
 import { ThreadCRM } from "@/components/inbox/thread-crm"
+import { ThreadHeaderMenu } from "@/components/inbox/thread-header-menu"
+import { ThreadSearch } from "@/components/inbox/thread-search"
+import { ThreadSelectBar } from "@/components/inbox/thread-select-bar"
+import { SearchIcon } from "lucide-react"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge } from "@/components/ui/badge"
@@ -866,6 +871,26 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   // page) can never open a gap between the two.
   const [earlier, setEarlier] = useState<{ messages: InboxMessage[]; cursor: string } | null>(null)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
+  // MH-662: thread header menu — search, select-messages and the Contact info panel.
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [contactInfoOpen, setContactInfoOpen] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
+
+  function exitSelectMode() {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   if (detail.error) return <ErrorState error={detail.error} />
   if (!detail.data) return <LoadingRows rows={4} />
@@ -1016,7 +1041,48 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
           </>
         ) : null}
         <VisitorContext c={c} />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("inbox.menu.search")}
+          onClick={() => setSearchOpen((v) => !v)}
+          data-thread-search-trigger
+        >
+          <SearchIcon />
+        </Button>
+        <ThreadHeaderMenu
+          c={c}
+          onChanged={refresh}
+          onContactInfo={() => setContactInfoOpen(true)}
+          onSearch={() => setSearchOpen(true)}
+          onSelectMessages={() => setSelectMode(true)}
+          onToggleStatus={() =>
+            patch(
+              { status: c.status === "closed" ? "open" : "closed" },
+              c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"),
+            )
+          }
+        />
       </header>
+
+      {searchOpen ? (
+        <ThreadSearch
+          conversationId={id}
+          onClose={() => setSearchOpen(false)}
+          onJump={setScrollToMessageId}
+        />
+      ) : null}
+
+      {selectMode ? (
+        <ThreadSelectBar
+          messages={messages}
+          selectedIds={selectedIds}
+          onExit={exitSelectMode}
+          onChanged={refresh}
+        />
+      ) : null}
+
+      <ContactInfoPanel c={c} open={contactInfoOpen} onOpenChange={setContactInfoOpen} onChanged={refresh} />
 
       <ThreadCRM c={c} visitor={visitor} onChanged={refresh} />
 
@@ -1059,6 +1125,10 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
         hasOlder={!!cursor}
         loadingOlder={loadingEarlier}
         onLoadOlder={loadEarlier}
+        selectMode={selectMode}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelected}
+        scrollToMessageId={scrollToMessageId}
       />
     </section>
   )

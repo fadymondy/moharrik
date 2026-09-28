@@ -17,6 +17,9 @@ import { hrefFor } from "@/components/alerts/notification-bell"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { Bdi, BdiBlock } from "@/components/bidi"
 import { ChatThread } from "@/components/inbox/chat-thread"
+import { ContactInfoPanel } from "@/components/inbox/contact-info-panel"
+import { ThreadHeaderMenu } from "@/components/inbox/thread-header-menu"
+import { ThreadSearch } from "@/components/inbox/thread-search"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorState, LoadingRows } from "@/components/states"
@@ -218,6 +221,11 @@ function DockThread({
   const [err, setErr] = useState<string | null>(null)
   const [earlier, setEarlier] = useState<{ messages: InboxMessage[]; cursor: string } | null>(null)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
+  // MH-662: the docked window gets the thread ⋮ menu and search too — at
+  // minimum, per the card. Select-messages and Contact info stay full-inbox-only.
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [contactInfoOpen, setContactInfoOpen] = useState(false)
+  const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
 
   if (detail.error) return <ErrorState error={detail.error} />
   if (!detail.data) return <LoadingRows rows={3} />
@@ -265,25 +273,78 @@ function DockThread({
   }
 
   return (
-    <ChatThread
-      fill
-      conversation={conversation}
-      messages={messages}
-      memberName={members.name}
-      replyLanguage={replyLang}
-      canWrite={canWrite}
-      reply={reply}
-      onReplyChange={setReply}
-      subject={subject}
-      onSubjectChange={setSubject}
-      onSubmit={send}
-      busy={busy}
-      error={err}
-      onInsertCanned={insert}
-      hasOlder={!!cursor}
-      loadingOlder={loadingEarlier}
-      onLoadOlder={loadEarlier}
-    />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center justify-end gap-1 border-b border-line px-2 py-1" data-dock-thread-actions>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("inbox.menu.search")}
+          onClick={() => setSearchOpen((v) => !v)}
+          data-thread-search-trigger
+        >
+          <SearchIcon />
+        </Button>
+        <ThreadHeaderMenu
+          c={conversation}
+          onChanged={() => {
+            detail.mutate()
+            onChanged()
+          }}
+          onContactInfo={() => setContactInfoOpen(true)}
+          onSearch={() => setSearchOpen(true)}
+          onSelectMessages={() => {}}
+          onToggleStatus={() =>
+            api(`/api/w/conversations/${encodeURIComponent(id)}`, {
+              method: "PATCH",
+              json: { status: conversation.status === "closed" ? "open" : "closed" },
+              workspaceId,
+            })
+              .then(() => {
+                detail.mutate()
+                onChanged()
+              })
+              .catch((e) => toast.error(e instanceof ApiError ? e.message : t("common.networkError")))
+          }
+        />
+      </div>
+
+      {searchOpen ? (
+        <ThreadSearch
+          conversationId={id}
+          onClose={() => setSearchOpen(false)}
+          onJump={setScrollToMessageId}
+        />
+      ) : null}
+
+      <ContactInfoPanel
+        c={conversation}
+        open={contactInfoOpen}
+        onOpenChange={setContactInfoOpen}
+        onChanged={() => detail.mutate()}
+      />
+
+      <ChatThread
+        fill
+        conversation={conversation}
+        messages={messages}
+        memberName={members.name}
+        replyLanguage={replyLang}
+        canWrite={canWrite}
+        reply={reply}
+        onReplyChange={setReply}
+        subject={subject}
+        onSubjectChange={setSubject}
+        onSubmit={send}
+        busy={busy}
+        error={err}
+        onInsertCanned={insert}
+        hasOlder={!!cursor}
+        loadingOlder={loadingEarlier}
+        onLoadOlder={loadEarlier}
+        scrollToMessageId={scrollToMessageId}
+      />
+    </div>
   )
 }
 
