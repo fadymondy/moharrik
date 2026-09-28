@@ -501,6 +501,21 @@ func ReplyWithAttachments(ctx context.Context, a *app.App, id, text, subject str
 	if len(attachments) > 0 && attachmentUnsupported[channel] {
 		return nil, huma.Error422UnprocessableEntity(channel + " does not support attachments yet")
 	}
+	// MH-664: a reply can quote an earlier message of THIS conversation. The
+	// quote rides on the send — WhatsApp's `quoted`, email's In-Reply-To —
+	// and recordOutbound stores it on the row.
+	if rid := replyToFrom(ctx); rid != "" {
+		q, qerr := quotedMessage(ctx, a.SQLDB, s.WorkspaceID, id, rid)
+		if qerr != nil {
+			return nil, qerr
+		}
+		switch channel {
+		case "whatsapp":
+			ctx = whatsapp.WithOutboundQuote(ctx, whatsapp.OutboundQuote{ExternalID: q.ExternalID, Text: trimTo(q.Body, 1000)})
+		case "email":
+			ctx = withEmailQuote(ctx, q.ExternalID)
+		}
+	}
 
 	// An email thread is answered by EMAIL, and the send happens before the
 	// row is written: a reply the customer never received must not sit in
@@ -629,6 +644,18 @@ func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID
 		}
 		insertAttachment(ctx, a, a.SQLDB, wsID, msgID, at.Kind, at.Filename, at.ContentType, "ready", at.Data, []byte(`{}`))
 	}
+	// MH-664: the quote this reply went out with (validated before the send).
+	var replyTo *ReplyToOut
+	if rid := replyToFrom(ctx); rid != "" {
+		if q, err := quotedMessage(ctx, a.SQLDB, wsID, convID, rid); err == nil {
+			if err := setReplyTo(ctx, a.SQLDB, wsID, msgID, q.ID, q.ExternalID, q.Body); err != nil {
+				a.Log.Warn("could not record a reply's quote", "workspace", wsID, "err", err)
+			} else {
+				qid := q.ID
+				replyTo = &ReplyToOut{MessageID: &qid, Body: trimTo(strings.TrimSpace(q.Body), replySnippet), Direction: q.Direction}
+			}
+		}
+	}
 	// A reply is the team's answer: the thread stops being unread, and it
 	// reopens a closed conversation rather than replying into a closed one.
 	_, _ = a.SQLDB.ExecContext(ctx, `
@@ -647,7 +674,7 @@ func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID
 	// tab is never alerted by it (replies never alert anyone).
 	changed(ctx, a, wsID, realtime.Event{Kind: "message", Direction: "out", ConversationID: convID, AuthorUserID: userID})
 	uid := userID
-	return &MessageOut{ID: msgID, Direction: "out", AuthorUserID: &uid, AuthorEmail: email, Body: text, Status: "sent", CreatedAt: createdAt}, nil
+	return &MessageOut{ID: msgID, Direction: "out", AuthorUserID: &uid, AuthorEmail: email, Body: text, Status: "sent", CreatedAt: createdAt, ReplyTo: replyTo}, nil
 }
 
 // UpdateConversation assigns, closes, reopens, snoozes or retitles a

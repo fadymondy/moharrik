@@ -153,6 +153,11 @@ type MessageOut struct {
 	// thread, not the team's. False (never populated) on paths with no
 	// signed-in member, e.g. thread() in routes.go.
 	Starred bool `json:"starred,omitempty" doc:"Starred by the signed-in member (MH-662)."`
+	// ReplyTo (MH-664) is the earlier message this one quotes; nil when it
+	// quotes nothing.
+	ReplyTo *ReplyToOut `json:"reply_to,omitempty" doc:"The message this one replies to (MH-664)."`
+	// Reactions (MH-664) are the emoji on this message, grouped by emoji.
+	Reactions []ReactionOut `json:"reactions,omitempty" doc:"Emoji reactions, grouped by emoji (MH-664)."`
 }
 
 // AttachmentOut is one attachment's metadata — never the bytes; those are

@@ -157,10 +157,13 @@ export async function replyWithAttachment(
   body: string,
   subject: string,
   attachment: ReplyAttachmentInput,
+  /** MH-664: quote this earlier message of the same conversation. */
+  replyToMessageId?: string | null,
 ): Promise<{ message: InboxMessage }> {
   const form = new FormData()
   if (body) form.set("body", body)
   if (subject) form.set("subject", subject)
+  if (replyToMessageId) form.set("reply_to_message_id", replyToMessageId)
   form.set("kind", attachment.kind)
   if (attachment.kind === "location") {
     form.set("lat", String(attachment.lat))
@@ -973,6 +976,36 @@ export type InboxMessage = {
   /** MH-662: starred by the SIGNED-IN member, not the team — the same
    *  per-member shape as pinned/archived/muted on a conversation. */
   starred?: boolean
+  /** MH-664: the message this one quotes (a reply-to), when it quotes one. */
+  reply_to?: InboxReplyTo
+  /** MH-664: emoji reactions, one chip per emoji; omitted when there are none. */
+  reactions?: InboxReaction[]
+}
+
+/** MH-664: what a reply quotes. message_id is null when the quoted message
+ *  never reached Moharrik (an old WhatsApp message quoted on the phone). */
+export type InboxReplyTo = {
+  message_id: string | null
+  body: string
+  direction?: "in" | "out"
+  author_user_id?: string | null
+  attachment?: boolean
+}
+
+/** MH-664: one emoji chip under a bubble. `mine` = clicking it takes it back
+ *  (on WhatsApp the number's reaction — one per number — not only this member's). */
+export type InboxReaction = {
+  emoji: string
+  count: number
+  mine: boolean
+  reactors: { kind: "customer" | "member" | "phone"; user_id?: string }[]
+}
+
+export type ReactionResult = {
+  emoji: string
+  /** true when it went out on the channel (WhatsApp); false = shown in Moharrik only. */
+  delivered: boolean
+  reactions: InboxReaction[]
 }
 
 /** MH-662: one page of find-in-chat matches, oldest first — the same

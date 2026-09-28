@@ -122,6 +122,9 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 			return nil, err
 		}
 	}
+	if err := attachThreadExtras(ctx, db, wsID, convID, userID, page.Messages); err != nil {
+		return nil, err
+	}
 	countWhere := ""
 	countArgs := []any{wsID, convID}
 	if userID != "" {

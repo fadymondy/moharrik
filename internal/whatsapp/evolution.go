@@ -260,7 +260,7 @@ func (c *Client) SendText(ctx context.Context, number, text string) (string, err
 		} `json:"key"`
 	}
 	if err := c.do(ctx, http.MethodPost, "/message/sendText/"+c.inst(),
-		map[string]any{"number": number, "text": text}, &out); err != nil {
+		withQuoted(ctx, map[string]any{"number": number, "text": text}), &out); err != nil {
 		return "", err
 	}
 	return out.Key.ID, nil
@@ -287,7 +287,7 @@ func (c *Client) SendMedia(ctx context.Context, number, mediaType, mimeType stri
 	if caption != "" {
 		body["caption"] = caption
 	}
-	if err := c.do(ctx, http.MethodPost, "/message/sendMedia/"+c.inst(), body, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/message/sendMedia/"+c.inst(), withQuoted(ctx, body), &out); err != nil {
 		return "", err
 	}
 	return out.Key.ID, nil
@@ -307,7 +307,7 @@ func (c *Client) SendWhatsAppAudio(ctx context.Context, number string, data []by
 		"number": number,
 		"audio":  base64.StdEncoding.EncodeToString(data),
 	}
-	if err := c.do(ctx, http.MethodPost, "/message/sendWhatsAppAudio/"+c.inst(), body, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/message/sendWhatsAppAudio/"+c.inst(), withQuoted(ctx, body), &out); err != nil {
 		return "", err
 	}
 	return out.Key.ID, nil
@@ -328,7 +328,7 @@ func (c *Client) SendLocation(ctx context.Context, number string, lat, lng float
 		"name":      name,
 		"address":   address,
 	}
-	if err := c.do(ctx, http.MethodPost, "/message/sendLocation/"+c.inst(), body, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/message/sendLocation/"+c.inst(), withQuoted(ctx, body), &out); err != nil {
 		return "", err
 	}
 	return out.Key.ID, nil

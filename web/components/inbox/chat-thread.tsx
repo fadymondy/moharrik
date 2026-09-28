@@ -29,6 +29,13 @@ import { EmailTemplatePicker } from "@/components/inbox/email-template-picker"
 import { EmojiPicker } from "@/components/inbox/emoji-picker"
 import { LinkPreviewCard } from "@/components/inbox/link-preview"
 import { AttachmentList, MessageBody, isStickerOnly } from "@/components/inbox/message-body"
+import {
+  MessageActions,
+  QuoteBlock,
+  ReactionChips,
+  ReplyPreview,
+  quoteAuthor,
+} from "@/components/inbox/message-reactions"
 import { VoiceRecorder } from "@/components/inbox/voice-recorder"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
@@ -36,7 +43,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Ltr } from "@/components/copy-field"
 import { channelIcon } from "@/lib/inbox-channels"
-import { type Conversation, type InboxMessage, type ReplyAttachmentInput } from "@/lib/api"
+import {
+  type Conversation,
+  type InboxMessage,
+  type InboxReaction,
+  type ReactionResult,
+  type ReplyAttachmentInput,
+} from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
 
@@ -73,9 +86,14 @@ attach-menu.tsx, emoji-picker.tsx and voice-recorder.tsx. Attachments and
 voice notes disable themselves with a reason on telegram/slack/discord, which
 the backend's ReplyWithAttachments also refuses (no dead controls).
 
-Not here yet, because the backend cannot back them (no dead controls,
-CLAUDE.md non-negotiable) — each is its own card:
-- reactions and reply quotes — MH-664.
+MH-664 added emoji reactions and reply-to-message quotes: hovering (or
+tapping) a bubble shows React and Reply beside it, reactions sit as chips
+under it, and a quoted message heads the bubble that answers it — clicking
+the quote jumps to the original. See message-reactions.tsx. Both are
+optional props (onReact / onReplyToChange): without them nothing appears.
+
+Not here yet, because the backend cannot back it (no dead controls,
+CLAUDE.md non-negotiable):
 - an editable reply CHANNEL picker — Reply() always answers through the
   conversation's own channel; see the read-only note instead. The SUBJECT is
   editable on an email conversation (MH-661): `subject`/`onSubjectChange` are
@@ -194,6 +212,18 @@ function DaySeparator({ label }: { label: string }) {
   )
 }
 
+/** MH-664: what a message can do beyond being read — react, be replied to,
+ *  and have its quote jump to the original. Any handler omitted hides that
+ *  control; reactionsOf applies a just-returned reaction set before the
+ *  thread refetches. */
+type MessageExtras = {
+  customerName: string
+  reactionsOf: (m: InboxMessage) => InboxReaction[]
+  onReact?: (m: InboxMessage, emoji: string) => void
+  onReply?: (m: InboxMessage) => void
+  onJump: (id: string) => void
+}
+
 function MessageGroup({
   group,
   conversation,
@@ -202,6 +232,7 @@ function MessageGroup({
   selectMode = false,
   selectedIds,
   onToggleSelect,
+  extras,
 }: {
   group: InboxMessage[]
   conversation: Conversation
@@ -214,6 +245,7 @@ function MessageGroup({
   selectMode?: boolean
   selectedIds?: Set<string>
   onToggleSelect?: (id: string) => void
+  extras: MessageExtras
 }) {
   const { t, locale } = useTranslations()
   const out = group[0].direction === "out"
@@ -241,8 +273,9 @@ function MessageGroup({
           <article
             key={m.id}
             data-message={m.direction}
+            data-message-id={m.id}
             data-message-layout="email"
-            className={`w-full min-w-0 border border-line bg-grid-card text-sm ${out ? "border-s-2 border-s-primary" : ""}`}
+            className={`group/msg w-full min-w-0 border border-line bg-grid-card text-sm ${out ? "border-s-2 border-s-primary" : ""}`}
           >
             <header className="flex min-w-0 items-center gap-2 border-b border-line px-4 py-2 text-xs text-grid-muted">
               <Icon className="size-3 shrink-0" />
@@ -258,14 +291,43 @@ function MessageGroup({
               ) : (
                 <span className="flex-1" />
               )}
+              {!selectMode && (extras.onReact || extras.onReply) ? (
+                <div className="-my-1 shrink-0 opacity-0 transition-opacity group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 has-[[aria-expanded=true]]:opacity-100 [@media(hover:none)]:opacity-100">
+                  <MessageActions
+                    out={false}
+                    onReact={extras.onReact ? (e) => extras.onReact!(m, e) : undefined}
+                    onReply={extras.onReply ? () => extras.onReply!(m) : undefined}
+                  />
+                </div>
+              ) : null}
               <span className="shrink-0">
                 <Ltr>{timeOf(m.created_at, locale)}</Ltr>
               </span>
             </header>
             <div className="px-4 py-3">
+              {m.reply_to ? (
+                <QuoteBlock
+                  q={m.reply_to}
+                  author={quoteAuthor(m.reply_to, memberName, extras.customerName, t)}
+                  onJump={extras.onJump}
+                  className="mb-2"
+                />
+              ) : null}
               <MessageBody body={m.body} bodyHtml={m.body_html} attachments={m.attachments} />
               <AttachmentList attachments={m.attachments} />
             </div>
+            {extras.reactionsOf(m).length ? (
+              <div className="px-2 pb-2">
+                <ReactionChips
+                  reactions={extras.reactionsOf(m)}
+                  channel={conversation.channel}
+                  out={false}
+                  memberName={memberName}
+                  customerName={extras.customerName}
+                  onReact={extras.onReact ? (e) => extras.onReact!(m, e) : undefined}
+                />
+              </div>
+            ) : null}
           </article>
         ))}
       </div>
@@ -298,6 +360,9 @@ function MessageGroup({
             selectMode={selectMode}
             selected={selectedIds?.has(m.id) ?? false}
             onToggleSelect={onToggleSelect}
+            channel={conversation.channel}
+            memberName={memberName}
+            extras={extras}
           />
         ))}
       </div>
@@ -355,6 +420,9 @@ function ChatBubble({
   selectMode = false,
   selected = false,
   onToggleSelect,
+  channel,
+  memberName,
+  extras,
 }: {
   m: InboxMessage
   out: boolean
@@ -365,8 +433,15 @@ function ChatBubble({
   selectMode?: boolean
   selected?: boolean
   onToggleSelect?: (id: string) => void
+  channel: Conversation["channel"]
+  memberName: (id: string | null | undefined) => string
+  extras: MessageExtras
 }) {
-  const { locale } = useTranslations()
+  const { t, locale } = useTranslations()
+  // MH-664: a tap shows the React/Reply buttons on a phone, where there is
+  // no hover; the next tap elsewhere hides them again.
+  const [active, setActive] = useState(false)
+  const reactions = extras.reactionsOf(m)
   const url = firstUrl(m.body)
   // A chat line is the text it was written as. An outbound reply also has
   // body_html (its Markdown rendered for email), but a bubble shows the
@@ -404,7 +479,7 @@ function ChatBubble({
           : `relative flow-root max-w-[min(36rem,85%)] rounded-[0.5rem] px-2.5 pt-1.5 pb-2 text-sm text-grid-fg shadow-[0_1px_0.5px_color-mix(in_oklab,var(--grid-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`
       }
       style={stickerOnly ? undefined : { background: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
-      onClick={selectMode ? () => onToggleSelect?.(m.id) : undefined}
+      onClick={selectMode ? () => onToggleSelect?.(m.id) : () => setActive((v) => !v)}
       role={selectMode ? "checkbox" : undefined}
       aria-checked={selectMode ? selected : undefined}
     >
@@ -413,6 +488,14 @@ function ChatBubble({
         <p className="mb-0.5 truncate text-xs font-medium text-primary" data-bubble-sender>
           <Bdi>{senderName}</Bdi>
         </p>
+      ) : null}
+      {m.reply_to ? (
+        <QuoteBlock
+          q={m.reply_to}
+          author={quoteAuthor(m.reply_to, memberName, extras.customerName, t)}
+          onJump={selectMode ? undefined : extras.onJump}
+          className="mb-1"
+        />
       ) : null}
       {url ? <LinkPreviewCard url={url} /> : null}
       {text || !m.body_html ? (
@@ -430,7 +513,43 @@ function ChatBubble({
   // MH-662: select-messages mode adds a checkbox beside the bubble rather
   // than inside it — the bubble's own onClick above still toggles it too, so
   // either target works.
-  if (!selectMode) return bubble
+  if (!selectMode) {
+    const hasActions = !!(extras.onReact || extras.onReply)
+    const chips = reactions.length ? (
+      <ReactionChips
+        reactions={reactions}
+        channel={channel}
+        out={out}
+        memberName={memberName}
+        customerName={extras.customerName}
+        onReact={extras.onReact ? (e) => extras.onReact!(m, e) : undefined}
+      />
+    ) : null
+    if (!hasActions && !chips) return bubble
+    return (
+      <div
+        className={`flex w-full flex-col ${out ? "items-end" : "items-start"}`}
+        data-message-row={m.id}
+        onMouseLeave={() => setActive(false)}
+      >
+        <div className={`group/msg flex w-full items-center gap-1 ${out ? "flex-row-reverse" : ""}`}>
+          {bubble}
+          {hasActions ? (
+            <div
+              className={`shrink-0 transition-opacity group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 has-[[aria-expanded=true]]:opacity-100 ${active ? "opacity-100" : "opacity-0"}`}
+            >
+              <MessageActions
+                out={out}
+                onReact={extras.onReact ? (e) => extras.onReact!(m, e) : undefined}
+                onReply={extras.onReply ? () => extras.onReply!(m) : undefined}
+              />
+            </div>
+          ) : null}
+        </div>
+        {chips}
+      </div>
+    )
+  }
   return (
     <label
       className={`flex w-full max-w-[min(36rem,85%)] cursor-pointer items-center gap-2 ${out ? "flex-row-reverse self-end" : "self-start"}`}
@@ -473,6 +592,9 @@ export function ChatThread({
   selectedIds,
   onToggleSelect,
   scrollToMessageId,
+  onReact,
+  replyTo = null,
+  onReplyToChange,
 }: {
   conversation: Conversation
   messages: InboxMessage[]
@@ -515,9 +637,51 @@ export function ChatThread({
    *  to the same id again still re-triggers (the caller bumps a counter via key
    *  if the reader hits "next" on the same match twice, e.g. after a resize). */
   scrollToMessageId?: string | null
+  /** MH-664: react to a message (the same emoji again takes it back). Omitted
+   *  hides the React button. The returned set is shown at once; the realtime
+   *  "reaction" event's refetch replaces it. */
+  onReact?: (messageId: string, emoji: string) => Promise<ReactionResult>
+  /** MH-664: the message the next reply quotes, or null. */
+  replyTo?: InboxMessage | null
+  /** MH-664: pick / clear the quoted message. Omitted hides the Reply button. */
+  onReplyToChange?: (m: InboxMessage | null) => void
 }) {
   const { t, locale } = useTranslations()
   const items = buildItems(messages, t, locale, conversation.is_group)
+  // MH-664: the reaction set a PUT just returned, kept only while the message
+  // object it was computed against is still the one on screen — a refetch
+  // brings a new `reactions` array and the server's answer wins again.
+  const [reacted, setReacted] = useState<
+    Record<string, { base: InboxReaction[] | undefined; reactions: InboxReaction[] }>
+  >({})
+  const reactionsOf = (m: InboxMessage): InboxReaction[] => {
+    const o = reacted[m.id]
+    if (o && o.base === m.reactions) return o.reactions
+    return m.reactions ?? []
+  }
+  async function react(m: InboxMessage, emoji: string) {
+    if (!onReact) return
+    try {
+      const r = await onReact(m.id, emoji)
+      setReacted((prev) => ({ ...prev, [m.id]: { base: m.reactions, reactions: r.reactions } }))
+    } catch {
+      setAttachError(t("inbox.reactions.failed"))
+    }
+  }
+  const composerOpen = canWrite && !conversation.blocked
+  const extras: MessageExtras = {
+    customerName: conversation.customer_name || t("inbox.customer"),
+    reactionsOf,
+    onReact: onReact && canWrite ? react : undefined,
+    onReply:
+      onReplyToChange && composerOpen
+        ? (m) => {
+            onReplyToChange(m)
+            requestAnimationFrame(() => textareaRef.current?.focus())
+          }
+        : undefined,
+    onJump: (id) => jumpTo(id),
+  }
   const subjectShown = subjectVisibility(messages)
   const showSubject = (id: string) => subjectShown.get(id) ?? false
 
@@ -677,24 +841,43 @@ export function ChatThread({
   // MH-662: find-in-chat "jump to match" — scroll the virtualized group
   // holding the target message into view, then, once its real DOM node
   // exists, nudge to center it and flash a highlight.
-  useEffect(() => {
-    if (!scrollToMessageId) return
+  // MH-664 reuses the same jump for a quote: jumpTo() scrolls to a loaded
+  // message, and when the original is older than what is loaded it pulls
+  // earlier pages (pendingJumpRef) until it arrives or there are none left.
+  const pendingJumpRef = useRef<string | null>(null)
+  function jumpTo(targetId: string): boolean {
     const idx = items.findIndex(
-      (it) => it.kind === "group" && it.group.some((m) => m.id === scrollToMessageId),
+      (it) => it.kind === "group" && it.group.some((m) => m.id === targetId),
     )
-    if (idx < 0) return
+    if (idx < 0) {
+      if (hasOlder && onLoadOlder) {
+        pendingJumpRef.current = targetId
+        if (!loadingOlder) onLoadOlder()
+      }
+      return false
+    }
+    pendingJumpRef.current = null
+    anchorRef.current = false
     virtualizer.scrollToIndex(idx, { align: "center" })
-    const targetId = scrollToMessageId
-    const raf = requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
       const el = parentRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(targetId)}"]`)
       if (!el) return
       el.scrollIntoView({ block: "center", behavior: "smooth" })
       el.classList.add("mh-search-hit")
       window.setTimeout(() => el.classList.remove("mh-search-hit"), 1600)
     })
-    return () => cancelAnimationFrame(raf)
+    return true
+  }
+  useEffect(() => {
+    if (scrollToMessageId) jumpTo(scrollToMessageId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToMessageId])
+  useEffect(() => {
+    const pending = pendingJumpRef.current
+    if (!pending || loadingOlder) return
+    if (!jumpTo(pending) && !hasOlder) pendingJumpRef.current = null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, loadingOlder, hasOlder])
 
   function triggerLoadOlder() {
     if (!hasOlder || loadingOlder || !onLoadOlder) return
@@ -743,6 +926,11 @@ export function ChatThread({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       formRef.current?.requestSubmit()
+      return
+    }
+    if (e.key === "Escape" && replyTo && onReplyToChange) {
+      e.preventDefault()
+      onReplyToChange(null)
       return
     }
     if (e.key === "/" && reply.trim() === "") {
@@ -869,6 +1057,7 @@ export function ChatThread({
                     selectMode={selectMode}
                     selectedIds={selectedIds}
                     onToggleSelect={onToggleSelect}
+                    extras={extras}
                   />
                 )}
               </div>
@@ -958,6 +1147,22 @@ export function ChatThread({
                 <XIcon />
               </Button>
             </div>
+          ) : null}
+          {replyTo && onReplyToChange ? (
+            <ReplyPreview
+              m={replyTo}
+              author={
+                replyTo.direction === "in"
+                  ? conversation.is_group
+                    ? replyTo.sender_name || t("inbox.customer")
+                    : extras.customerName
+                  : replyTo.author_user_id
+                    ? memberName(replyTo.author_user_id)
+                    : t("inbox.team")
+              }
+              onCancel={() => onReplyToChange(null)}
+              onJump={(id) => jumpTo(id)}
+            />
           ) : null}
           {/* The reply box takes the full width; under it, the action bar (MH-595):
               quick replies at the start, Send at the end. MH-659 added the

@@ -100,6 +100,17 @@ var typingSink TypingSink
 // SetTypingSink wires the inbox's typing handler in at boot.
 func SetTypingSink(f TypingSink) { typingSink = f }
 
+// ReactionSink files an emoji reaction against the message it reacts to
+// (MH-664), found by WhatsApp's id for it. emoji "" removes the reaction.
+// fromMe is the linked number reacting — from this app (the echo of its own
+// sendReaction) or typed on the phone. A reaction is never a message row.
+type ReactionSink func(ctx context.Context, workspaceID, phone, targetExternalID, emoji string, fromMe bool) error
+
+var reactionSink ReactionSink
+
+// SetReactionSink wires the inbox's reaction handler in at boot.
+func SetReactionSink(f ReactionSink) { reactionSink = f }
+
 // OwnDelay is how long a fromMe message waits before it is filed. The echo of
 // a reply sent from the inbox can beat the reply's own row to the database —
 // Evolution answers the send and fires the webhook at nearly the same moment
@@ -218,6 +229,20 @@ func RegisterHook(r chi.Router, a *app.App) {
 			if json.Unmarshal(p.Data, &m) != nil {
 				break
 			}
+			if rx, ok := m.Reaction(); ok {
+				// An emoji on an earlier message (MH-664), the customer's or
+				// the linked number's own (from the phone, or the echo of this
+				// app's send — setting the same emoji again changes nothing).
+				// Filed against the target, never as a message; a target this
+				// app never stored is dropped by the sink.
+				if reactionSink != nil && !l.tooOld(m.Timestamp) {
+					if err := reactionSink(ctx, l.WorkspaceID, rx.Phone, rx.TargetID, rx.Emoji, rx.FromMe); err != nil {
+						http.Error(w, "could not file", http.StatusInternalServerError)
+						return
+					}
+				}
+				break
+			}
 			in, ok := m.Read()
 			if !ok || l.tooOld(m.Timestamp) {
 				// A group, or nothing to show. Accepted and dropped: answering
@@ -240,7 +265,7 @@ func RegisterHook(r chi.Router, a *app.App) {
 					})
 					go func() {
 						time.Sleep(OwnDelay)
-						if err := fileOwn(bg, ws, in.Phone, in.Text, in.ID, in.Media, download); err != nil {
+						if err := fileOwn(WithQuote(bg, in.Quote), ws, in.Phone, in.Text, in.ID, in.Media, download); err != nil {
 							slog.Warn("whatsapp: hook: could not file a message sent from the phone", "workspace", ws, "err", err)
 						}
 					}()
@@ -252,7 +277,7 @@ func RegisterHook(r chi.Router, a *app.App) {
 				download := MediaDownloader(func(dctx context.Context) (MediaFile, error) {
 					return ClientFor(cfg, l).GetMediaBase64(dctx, raw)
 				})
-				if err := file(ctx, l.WorkspaceID, in.Phone, in.Name, in.Text, in.ID, in.Media, download); err != nil {
+				if err := file(WithQuote(ctx, in.Quote), l.WorkspaceID, in.Phone, in.Name, in.Text, in.ID, in.Media, download); err != nil {
 					// 500 so Evolution retries: the message is real and losing
 					// it means losing a customer's words.
 					http.Error(w, "could not file", http.StatusInternalServerError)

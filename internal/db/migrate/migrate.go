@@ -77,6 +77,8 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	// the thread ⋮ menu's own storage: per-member starred messages and
 	// per-member "delete for us" hides (MH-662)
 	"message_stars", "message_hides",
+	// emoji reactions on messages, customer and team (MH-664)
+	"message_reactions",
 }
 
 /*

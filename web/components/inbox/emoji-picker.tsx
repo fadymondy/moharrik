@@ -124,22 +124,9 @@ export function EmojiPicker({
 }) {
   const { t } = useTranslations()
   const [open, setOpen] = useState(false)
-  const [q, setQ] = useState("")
-
-  const results = useMemo(() => {
-    const query = q.trim().toLowerCase()
-    if (!query) return null
-    return ALL.filter((e) => e.name.includes(query))
-  }, [q])
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v)
-        if (!v) setQ("")
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
@@ -155,6 +142,31 @@ export function EmojiPicker({
         <SmilePlusIcon />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-2" data-emoji-picker>
+        <EmojiGrid
+          onPick={(e) => {
+            onInsert(e)
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** The picker's search + categories, on their own so MH-664's reaction bar
+ *  can open the same full set from its "+" button. */
+export function EmojiGrid({ onPick }: { onPick: (emoji: string) => void }) {
+  const { t } = useTranslations()
+  const [q, setQ] = useState("")
+
+  const results = useMemo(() => {
+    const query = q.trim().toLowerCase()
+    if (!query) return null
+    return ALL.filter((e) => e.name.includes(query))
+  }, [q])
+
+  return (
+    <>
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -173,7 +185,7 @@ export function EmojiPicker({
             ) : (
               <div className="grid grid-cols-8 gap-0.5" data-emoji-results>
                 {results.map((e) => (
-                  <EmojiButton key={e.char} entry={e} onPick={onInsert} setOpen={setOpen} />
+                  <EmojiButton key={e.char} entry={e} onPick={onPick} />
                 ))}
               </div>
             )
@@ -183,26 +195,23 @@ export function EmojiPicker({
                 <p className="mb-1 px-1 text-xs font-medium text-grid-muted">{cat.label}</p>
                 <div className="grid grid-cols-8 gap-0.5">
                   {cat.items.map((e) => (
-                    <EmojiButton key={e.char} entry={e} onPick={onInsert} setOpen={setOpen} />
+                    <EmojiButton key={e.char} entry={e} onPick={onPick} />
                   ))}
                 </div>
               </div>
             ))
           )}
         </div>
-      </PopoverContent>
-    </Popover>
+    </>
   )
 }
 
 function EmojiButton({
   entry,
   onPick,
-  setOpen,
 }: {
   entry: Entry
   onPick: (emoji: string) => void
-  setOpen: (open: boolean) => void
 }) {
   return (
     <button
@@ -212,7 +221,6 @@ function EmojiButton({
       data-emoji={entry.char}
       onClick={() => {
         onPick(entry.char)
-        setOpen(false)
       }}
     >
       {entry.char}
