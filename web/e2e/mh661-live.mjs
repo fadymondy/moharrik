@@ -39,8 +39,11 @@ for (const scheme of ["light", "dark"]) {
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
   await page.evaluate((s) => localStorage.setItem("theme", s), scheme)
+  await page.waitForLoadState("networkidle").catch(() => {})
+  await page.waitForTimeout(1500)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -94,6 +97,8 @@ for (const scheme of ["light", "dark"]) {
       check(`${k}-subject-field`, ok)
       const trigger = page.locator('[data-action="email-templates"]').first()
       check(`${k}-picker`, (await trigger.count()) === 1)
+      if ((await trigger.count()) === 1) await page.waitForFunction(() => !document.querySelector('[data-action="email-templates"]')?.disabled, null, { timeout: 10000 }).catch(() => {})
+      check(`${k}-picker-enabled`, (await trigger.count()) === 1 && (await trigger.isEnabled()))
       if ((await trigger.count()) === 1 && (await trigger.isEnabled())) {
         await trigger.click()
         await page.waitForTimeout(500)
