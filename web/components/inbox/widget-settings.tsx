@@ -68,6 +68,23 @@ function inkOn(hex: string): string {
   return (L + 0.05) / 0.0575 >= 1.05 / (L + 0.05) ? "#0B1429" : "#ffffff"
 }
 
+/**
+ * The allowed origins as typed (comma separated) → the list the API stores,
+ * or null when an entry is not a bare origin. The widget matches the browser's
+ * Origin header exactly, so "example.com" or "https://example.com/contact"
+ * would never match and silently block every visitor (MH-687).
+ */
+export function parseOrigins(raw: string): string[] | null {
+  const out: string[] = []
+  for (const part of raw.split(",")) {
+    const v = part.trim().replace(/\/+$/, "")
+    if (!v) continue
+    if (!/^https?:\/\/[^/\s?#]+$/i.test(v)) return null
+    out.push(v)
+  }
+  return out
+}
+
 function settingsOf(w: ChatWidget): ChatWidgetSettings {
   return {
     greeting: w.greeting ?? "",
@@ -134,6 +151,10 @@ function SettingsForm({
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const [s, setS] = useState<ChatWidgetSettings>(() => settingsOf(widget))
+  // Who the widget is and where it may run live beside the settings: the
+  // same PATCH takes them, and they were only settable at creation (MH-687).
+  const [name, setName] = useState(widget.name)
+  const [origins, setOrigins] = useState((widget.allowed_origins ?? []).join(", "))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const set = <K extends keyof ChatWidgetSettings>(k: K, v: ChatWidgetSettings[K]) =>
@@ -158,6 +179,15 @@ function SettingsForm({
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    if (!name.trim()) {
+      setErr(t("inbox.widgetNameRequired"))
+      return
+    }
+    const allowed = parseOrigins(origins)
+    if (!allowed) {
+      setErr(t("inbox.originsInvalid"))
+      return
+    }
     if (!accentOk) {
       setErr(t("inbox.accentInvalid"))
       return
@@ -170,6 +200,8 @@ function SettingsForm({
         workspaceId: ws.id,
         json: {
           ...s,
+          name: name.trim(),
+          allowed_origins: allowed,
           quick_actions: s.quick_actions.map((q) => ({
             label: q.label.trim(),
             message: q.message.trim(),
@@ -220,6 +252,32 @@ function SettingsForm({
           ) : null}
         </div>
       </div>
+
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="ws-name">{t("inbox.widgetName")}</FieldLabel>
+          <Input
+            id="ws-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+            dir="auto"
+            required
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="ws-origins">{t("inbox.allowedOrigins")}</FieldLabel>
+          <Input
+            id="ws-origins"
+            dir="ltr"
+            value={origins}
+            onChange={(e) => setOrigins(e.target.value)}
+            placeholder="https://example.com"
+            data-widget-origins
+          />
+          <FieldDescription>{t("inbox.allowedOriginsHint")}</FieldDescription>
+        </Field>
+      </FieldGroup>
 
       <Field>
         <FieldLabel>{t("inbox.embed")}</FieldLabel>

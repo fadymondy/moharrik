@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
+import { parseOrigins } from "@/components/inbox/widget-settings"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -32,7 +33,7 @@ const WIDGET_GUIDE_STEPS: SetupGuideStep[] = [
 
 /**
  * The chat widget's create form (extracted from inbox/widgets for MH-571).
- * Create-only: editing an existing widget's look/behaviour already has its
+ * Create-only: editing an existing widget — name, allowed origins, look, behaviour — has its
  * own full settings sheet (`WidgetSettingsSheet`, `@/components/inbox/widget-settings`)
  * which the Channels page's row "edit" action opens directly instead of
  * duplicating that form here.
@@ -56,16 +57,18 @@ export function WidgetChannelForm({
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    const allowed = parseOrigins(origins)
+    if (!allowed) {
+      setErr(t("inbox.originsInvalid"))
+      return
+    }
     setBusy(true)
     setErr(null)
     try {
       await api("/api/w/chat_widgets", {
         json: {
           name: name.trim(),
-          allowed_origins: origins
-            .split(",")
-            .map((o) => o.trim())
-            .filter(Boolean),
+          allowed_origins: allowed,
           greeting: greeting.trim(),
         },
         workspaceId: ws.id,
