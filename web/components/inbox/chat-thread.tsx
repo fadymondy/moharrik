@@ -14,25 +14,37 @@ import {
   ArrowDownIcon,
   CheckCheckIcon,
   CheckIcon,
+  FileIcon,
   SendIcon,
+  XIcon,
 } from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
+import { AttachMenu, type PickedFile } from "@/components/inbox/attach-menu"
 import { CannedPicker } from "@/components/inbox/canned-picker"
 import { ChatText, firstUrl } from "@/components/inbox/chat-text"
 import { EmailTemplatePicker } from "@/components/inbox/email-template-picker"
+import { EmojiPicker } from "@/components/inbox/emoji-picker"
 import { LinkPreviewCard } from "@/components/inbox/link-preview"
 import { AttachmentList, MessageBody, isStickerOnly } from "@/components/inbox/message-body"
+import { VoiceRecorder } from "@/components/inbox/voice-recorder"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Ltr } from "@/components/copy-field"
 import { channelIcon } from "@/lib/inbox-channels"
-import { type Conversation, type InboxMessage } from "@/lib/api"
+import { type Conversation, type InboxMessage, type ReplyAttachmentInput } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
+
+// MH-659: the same set service.go's ReplyWithAttachments rejects an
+// attachment for server-side (attachmentUnsupported) — mirrored here so the
+// attach/mic controls disable themselves with a reason instead of letting a
+// send round-trip just to fail (CLAUDE.md's "don't ship dead controls").
+const ATTACHMENT_UNSUPPORTED_CHANNELS = new Set(["telegram", "slack", "discord"])
+const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
 
 /*
 The WhatsApp-style thread (MH-587): grouped bubbles, day separators and a
@@ -54,9 +66,14 @@ messages.status), the sender named inside the bubble in a group, WhatsApp's
 *bold* _italic_ ~strike~ formatting with links, and a preview card for the
 first URL (components/inbox/link-preview.tsx). Email keeps its card layout.
 
+MH-659 added the composer's attach button (photo/video, document, location),
+an emoji picker and a mic button (MediaRecorder voice notes) — see
+attach-menu.tsx, emoji-picker.tsx and voice-recorder.tsx. Attachments and
+voice notes disable themselves with a reason on telegram/slack/discord, which
+the backend's ReplyWithAttachments also refuses (no dead controls).
+
 Not here yet, because the backend cannot back them (no dead controls,
 CLAUDE.md non-negotiable) — each is its own card:
-- an attach button, emoji and voice notes — the composer, MH-659.
 - reactions and reply quotes — MH-664.
 - an editable reply CHANNEL picker — Reply() always answers through the
   conversation's own channel; see the read-only note instead. The SUBJECT is
@@ -405,6 +422,7 @@ export function ChatThread({
   hasOlder = false,
   loadingOlder = false,
   onLoadOlder,
+  onSendAttachment,
 }: {
   conversation: Conversation
   messages: InboxMessage[]
@@ -429,6 +447,10 @@ export function ChatThread({
   loadingOlder?: boolean
   /** MH-648: load the page before whatever is currently the oldest loaded message. */
   onLoadOlder?: () => void
+  /** MH-659: send one attachment (file or location), with the current reply
+   *  text as its caption. Omitted keeps the composer exactly as before — no
+   *  attach button, emoji or mic (e.g. a caller with nowhere to send one). */
+  onSendAttachment?: (attachment: ReplyAttachmentInput, caption: string) => Promise<void>
 }) {
   const { t, locale } = useTranslations()
   const items = buildItems(messages, t, locale, conversation.is_group)
@@ -437,7 +459,15 @@ export function ChatThread({
 
   const parentRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [cannedOpen, setCannedOpen] = useState(false)
+  // MH-659: a picked photo/video/document waits here for Send (it goes out
+  // with whatever the reply box holds as its caption); a voice note or a
+  // location has no "waiting" state — VoiceRecorder's own send bar and
+  // LocationPicker's "use this location" button send immediately.
+  const [pendingFile, setPendingFile] = useState<PickedFile | null>(null)
+  const [attachBusy, setAttachBusy] = useState(false)
+  const [attachError, setAttachError] = useState<string | null>(null)
   const [atBottom, setAtBottom] = useState(true)
   const [newCount, setNewCount] = useState(0)
   const lastIdRef = useRef<string | null>(null)
@@ -635,6 +665,73 @@ export function ChatThread({
     }
   }
 
+  function insertEmoji(emoji: string) {
+    const el = textareaRef.current
+    if (!el) {
+      onReplyChange(reply + emoji)
+      return
+    }
+    const start = el.selectionStart ?? reply.length
+    const end = el.selectionEnd ?? reply.length
+    const next = reply.slice(0, start) + emoji + reply.slice(end)
+    onReplyChange(next)
+    requestAnimationFrame(() => {
+      el.focus()
+      const caret = start + emoji.length
+      el.setSelectionRange(caret, caret)
+    })
+  }
+
+  function onPickFile(picked: PickedFile) {
+    setAttachError(null)
+    if (picked.file.size > MAX_ATTACHMENT_SIZE) {
+      setAttachError(t("inbox.composer.attachTooLarge"))
+      return
+    }
+    setPendingFile(picked)
+  }
+
+  async function sendAttachment(attachment: ReplyAttachmentInput) {
+    if (!onSendAttachment) return
+    setAttachBusy(true)
+    setAttachError(null)
+    try {
+      await onSendAttachment(attachment, reply)
+      setPendingFile(null)
+      onReplyChange("")
+    } catch {
+      setAttachError(t("inbox.composer.sendFailed"))
+    } finally {
+      setAttachBusy(false)
+    }
+  }
+
+  async function onPickLocation(lat: number, lng: number, name: string) {
+    await sendAttachment({ kind: "location", lat, lng, name: name || undefined })
+  }
+
+  async function onVoiceRecorded(blob: Blob, mimeType: string) {
+    const ext = mimeType.includes("ogg") ? "ogg" : "webm"
+    await sendAttachment({ kind: "voice", file: blob, filename: `voice-note.${ext}` })
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    if (pendingFile) {
+      e.preventDefault()
+      await sendAttachment({ kind: pendingFile.kind, file: pendingFile.file })
+      return
+    }
+    onSubmit(e)
+  }
+
+  const attachDisabled = ATTACHMENT_UNSUPPORTED_CHANNELS.has(conversation.channel)
+  const attachDisabledReason = attachDisabled
+    ? t("inbox.composer.attachUnsupported", { channel: t(`inbox.channel.${conversation.channel}`) })
+    : undefined
+  const micDisabledReason = attachDisabled
+    ? t("inbox.composer.micUnsupported", { channel: t(`inbox.channel.${conversation.channel}`) })
+    : undefined
+
   return (
     <div
       className={`relative flex min-h-0 flex-col ${fill ? "h-full" : ""}`}
@@ -720,7 +817,7 @@ export function ChatThread({
       ) : canWrite ? (
         <form
           ref={formRef}
-          onSubmit={onSubmit}
+          onSubmit={handleSubmit}
           noValidate
           className="@container shrink-0 border-t border-line px-4 py-3"
           data-form="reply"
@@ -746,10 +843,34 @@ export function ChatThread({
               <Bdi>{emailNote}</Bdi>
             </p>
           ) : null}
+          {pendingFile ? (
+            <div
+              className="mb-2 flex items-center gap-2 rounded-md border border-line bg-grid-elevated px-2 py-1.5 text-sm"
+              data-pending-attachment
+              data-pending-attachment-kind={pendingFile.kind}
+            >
+              <FileIcon className="size-4 shrink-0 text-grid-muted" />
+              <span className="min-w-0 flex-1 truncate" dir="auto">
+                {pendingFile.file.name}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setPendingFile(null)}
+                aria-label={t("inbox.composer.attachRemove")}
+                data-action="attach-remove"
+              >
+                <XIcon />
+              </Button>
+            </div>
+          ) : null}
           {/* The reply box takes the full width; under it, the action bar (MH-595):
-              quick replies at the start, Send at the end. */}
+              quick replies at the start, Send at the end. MH-659 added the
+              attach/emoji/mic controls to the same bar. */}
           <Textarea
             id="reply-body"
+            ref={textareaRef}
             value={reply}
             onChange={(e) => onReplyChange(e.target.value)}
             onKeyDown={onComposerKeyDown}
@@ -759,7 +880,7 @@ export function ChatThread({
             className="max-h-40 min-w-0 resize-none"
             aria-label={t("inbox.replyLabel")}
           />
-          <div className="mt-2 flex items-center gap-2" data-composer-actions>
+          <div className="mt-2 flex items-center gap-1" data-composer-actions>
             <CannedPicker
               lang={replyLanguage}
               onInsert={onInsertCanned}
@@ -776,18 +897,43 @@ export function ChatThread({
                 }}
               />
             ) : null}
+            {onSendAttachment ? (
+              <>
+                <AttachMenu
+                  disabled={attachDisabled || attachBusy || !!pendingFile}
+                  disabledReason={attachDisabledReason}
+                  onPickFile={onPickFile}
+                  onPickLocation={onPickLocation}
+                />
+                <EmojiPicker onInsert={insertEmoji} />
+              </>
+            ) : null}
+            {onSendAttachment && !pendingFile && !reply.trim() ? (
+              <VoiceRecorder
+                disabled={attachDisabled || attachBusy}
+                disabledReason={micDisabledReason}
+                onRecorded={onVoiceRecorded}
+              />
+            ) : null}
             <Button
               type="submit"
               size="sm"
               className="ms-auto"
-              disabled={busy || !reply.trim()}
+              disabled={busy || attachBusy || (!reply.trim() && !pendingFile)}
               data-action="send"
+              aria-label={t("inbox.send")}
             >
               <SendIcon />
-              {t("inbox.send")}
+              {/* MH-659 added attach/emoji/mic to this bar; with all five
+                  controls plus the label, "Send reply" no longer fits at
+                  narrow widths (measured: 2px short at 390px) — drop the
+                  label under the @lg container breakpoint and rely on the
+                  icon + aria-label instead. */}
+              <span className="hidden @lg:inline">{t("inbox.send")}</span>
             </Button>
           </div>
           {error ? <FieldError>{error}</FieldError> : null}
+          {attachError ? <FieldError data-attach-error>{attachError}</FieldError> : null}
         </form>
       ) : (
         <p className="shrink-0 border-t border-line px-4 py-4 text-sm text-grid-muted">

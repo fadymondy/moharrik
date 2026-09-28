@@ -34,10 +34,12 @@ import {
   api,
   ApiError,
   phoneLabel,
+  replyWithAttachment,
   type ChannelCount,
   type Conversation,
   type ConversationStatus,
   type InboxMessage,
+  type ReplyAttachmentInput,
 } from "@/lib/api"
 import { channelIcon, channelLabel } from "@/lib/inbox-channels"
 import { useTranslations } from "@/lib/i18n"
@@ -939,6 +941,15 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
     document.getElementById("reply-body")?.focus()
   }
 
+  // MH-659: the composer's attach/mic controls send through the multipart
+  // endpoint instead of the plain-text one `send()` above uses.
+  async function sendAttachment(attachment: ReplyAttachmentInput, caption: string) {
+    await replyWithAttachment(ws.id, id, caption, subject.trim(), attachment)
+    setReply("")
+    setSubject("")
+    refresh()
+  }
+
   const assigneeOpts = members.options
   // MH-602: same precedence as the list row — the linked contact's name wins.
   const headerWho =
@@ -1059,6 +1070,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
         hasOlder={!!cursor}
         loadingOlder={loadingEarlier}
         onLoadOlder={loadEarlier}
+        onSendAttachment={sendAttachment}
       />
     </section>
   )

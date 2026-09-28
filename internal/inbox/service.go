@@ -3,6 +3,8 @@ package inbox
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/mail"
 	"strconv"
 	"strings"
@@ -426,23 +428,67 @@ func GetConversation(ctx context.Context, a *app.App, id string) (*conversationD
 // channel: chat is picked up by the widget, email goes out over the
 // workspace's SMTP, WhatsApp through its linked number.
 func Reply(ctx context.Context, a *app.App, id, text string, subjectOverride ...string) (*MessageOut, error) {
+	subject := ""
+	if len(subjectOverride) > 0 {
+		subject = subjectOverride[0]
+	}
+	return ReplyWithAttachments(ctx, a, id, text, subject, nil)
+}
+
+// ReplyAttachment is one file (or a location) an outbound reply carries
+// (MH-659: the composer's attach button/mic/location control). Exactly one of
+// Data (a file) or Kind == "location" is set — the composer sends one
+// attachment per reply, the same way WhatsApp itself sends one per message.
+type ReplyAttachment struct {
+	// Kind: image, video, document, voice or location.
+	Kind        string
+	Filename    string
+	ContentType string
+	Data        []byte
+	Lat, Lng    float64
+	LocationName, LocationAddress string
+}
+
+// maxAttachmentSize bounds one file a composer send may carry (MH-659) —
+// generous enough for a real photo or a short clip, bounded enough that a
+// mis-click can't choke a request or the database row it lands in.
+const maxAttachmentSize = 20 << 20 // 20MB
+
+// attachmentUnsupported names the channels Reply cannot yet carry a file or
+// location on (MH-659's "done when": say so instead of failing silently —
+// the UI disables the control for these channels using the same list via
+// GET /api/w/conversations, so this is the server-side backstop).
+var attachmentUnsupported = map[string]bool{"telegram": true, "slack": true, "discord": true}
+
+// Reply answers a conversation as the caller, through the conversation's own
+// channel, optionally carrying one attachment (MH-659). subject overrides the
+// default "Re: <original subject>" on an email reply; "" leaves it alone.
+func ReplyWithAttachments(ctx context.Context, a *app.App, id, text, subject string, attachments []ReplyAttachment) (*MessageOut, error) {
 	s, err := scope(ctx, authz.InboxWrite)
 	if err != nil {
 		return nil, err
 	}
 	text = strings.TrimSpace(text)
-	if text == "" {
-		return nil, huma.Error422UnprocessableEntity("a message is required")
+	if text == "" && len(attachments) == 0 {
+		return nil, huma.Error422UnprocessableEntity("a message or an attachment is required")
 	}
 	if len(text) > maxMessage {
 		return nil, huma.Error422UnprocessableEntity("that message is too long (at most 8000 characters)")
 	}
-	var channel, customerEmail, customerPhone, subject, sourceChannelID, externalThreadID string
+	if len(attachments) > 1 {
+		return nil, huma.Error422UnprocessableEntity("only one attachment can be sent at a time")
+	}
+	for _, at := range attachments {
+		if at.Kind != "location" && len(at.Data) > maxAttachmentSize {
+			return nil, huma.Error422UnprocessableEntity("attachments are limited to 20MB")
+		}
+	}
+	var channel, customerEmail, customerPhone, convSubject, sourceChannelID, externalThreadID string
 	var mailboxID sql.NullString
 	if err := a.SQLDB.QueryRowContext(ctx, `
 		SELECT channel, customer_email, customer_phone, subject, mailbox_id, coalesce(source_channel_id, ''), external_thread_id
 		FROM conversations WHERE workspace_id = $1 AND id = $2`,
-		s.WorkspaceID, id).Scan(&channel, &customerEmail, &customerPhone, &subject, &mailboxID, &sourceChannelID, &externalThreadID); err != nil {
+		s.WorkspaceID, id).Scan(&channel, &customerEmail, &customerPhone, &convSubject, &mailboxID, &sourceChannelID, &externalThreadID); err != nil {
 		if notFound(err) {
 			return nil, huma.Error404NotFound("conversation not found")
 		}
@@ -451,6 +497,9 @@ func Reply(ctx context.Context, a *app.App, id, text string, subjectOverride ...
 	// MH-657: a blocked customer cannot be written to either.
 	if isBlocked(ctx, a.SQLDB, s.WorkspaceID, id) {
 		return nil, huma.Error409Conflict("this customer is blocked; unblock them to reply")
+	}
+	if len(attachments) > 0 && attachmentUnsupported[channel] {
+		return nil, huma.Error422UnprocessableEntity(channel + " does not support attachments yet")
 	}
 
 	// An email thread is answered by EMAIL, and the send happens before the
@@ -470,22 +519,45 @@ func Reply(ctx context.Context, a *app.App, id, text string, subjectOverride ...
 			return nil, huma.Error500InternalServerError("could not find the message to reply to")
 		}
 		if msgSubject == "" {
-			msgSubject = subject
+			msgSubject = convSubject
 		}
 		if msgMailboxID == "" {
 			msgMailboxID = mailboxID.String
 		}
-		if len(subjectOverride) > 0 && strings.TrimSpace(subjectOverride[0]) != "" {
-			msgSubject = strings.TrimSpace(subjectOverride[0])
+		if strings.TrimSpace(subject) != "" {
+			msgSubject = strings.TrimSpace(subject)
 		}
-		sentID, err = SendEmailReply(ctx, a, s.WorkspaceID, id, msgMailboxID, customerEmail, msgSubject, text)
+		// MH-659: a location has no file to attach to an email — it goes out
+		// as a plain link in the body instead of a MIME part.
+		var mailAtts []marketing.Attachment
+		mailText := text
+		for _, at := range attachments {
+			if at.Kind == "location" {
+				mailText = strings.TrimSpace(mailText + "\n\n" + locationLink(at))
+				continue
+			}
+			mailAtts = append(mailAtts, marketing.Attachment{Filename: at.Filename, ContentType: at.ContentType, Data: at.Data})
+		}
+		sentID, err = SendEmailReply(ctx, a, s.WorkspaceID, id, msgMailboxID, customerEmail, msgSubject, mailText, mailAtts...)
 		if err != nil {
 			return nil, mailError(err)
 		}
 		mailboxID = sql.NullString{String: msgMailboxID, Valid: msgMailboxID != ""}
 	case "whatsapp":
 		// Same rule as email: send first, write the row after.
-		sentID, err = whatsapp.SendAs(ctx, a, s.WorkspaceID, customerPhone, text, whatsapp.KindReply)
+		if len(attachments) == 0 {
+			sentID, err = whatsapp.SendAs(ctx, a, s.WorkspaceID, customerPhone, text, whatsapp.KindReply)
+		} else {
+			at := attachments[0]
+			switch at.Kind {
+			case "location":
+				sentID, err = whatsapp.SendLocationAs(ctx, a, s.WorkspaceID, customerPhone, at.Lat, at.Lng, at.LocationName, at.LocationAddress, whatsapp.KindReply)
+			case "voice":
+				sentID, err = whatsapp.SendAudioAs(ctx, a, s.WorkspaceID, customerPhone, at.Data, whatsapp.KindReply)
+			default: // image, video, document
+				sentID, err = whatsapp.SendMediaAs(ctx, a, s.WorkspaceID, customerPhone, at.Kind, at.ContentType, at.Data, at.Filename, text, whatsapp.KindReply)
+			}
+		}
 		if err != nil {
 			return nil, whatsappError(err)
 		}
@@ -505,13 +577,24 @@ func Reply(ctx context.Context, a *app.App, id, text string, subjectOverride ...
 			return nil, channelError(err)
 		}
 	}
-	return recordOutbound(ctx, a, s.WorkspaceID, s.UserID, s.Email, id, mailboxID.String, text, sentID)
+	return recordOutbound(ctx, a, s.WorkspaceID, s.UserID, s.Email, id, mailboxID.String, text, sentID, attachments)
+}
+
+// locationLink renders a location attachment as a plain OpenStreetMap link,
+// since a mail body carries no interactive card the way the thread's own
+// LocationCard does.
+func locationLink(at ReplyAttachment) string {
+	label := at.LocationName
+	if label == "" {
+		label = "Location"
+	}
+	return fmt.Sprintf("%s: https://www.openstreetmap.org/?mlat=%v&mlon=%v#map=16/%v/%v", label, at.Lat, at.Lng, at.Lat, at.Lng)
 }
 
 // recordOutbound writes the team's message to the thread after it has gone
 // out, and moves the conversation on: read, and reopened (with no close time)
 // if it was closed.
-func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID, mailboxID, text, sentID string) (*MessageOut, error) {
+func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID, mailboxID, text, sentID string, attachments []ReplyAttachment) (*MessageOut, error) {
 	var msgID string
 	var createdAt time.Time
 	// sentID is the Message-ID this reply went out with: storing it is what
@@ -532,6 +615,19 @@ func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID
 		wsID, convID, userID, text, RenderMarkdown(text), nullable(mailboxID), sentID,
 	).Scan(&msgID, &createdAt); err != nil {
 		return nil, huma.Error500InternalServerError("could not send the reply")
+	}
+	// MH-659: the attachment the composer sent rides on this same message row
+	// — the same message_attachments table and signed-URL rendering path an
+	// inbound WhatsApp/email attachment already uses (MH-556/658), so a sent
+	// photo, voice note or location renders in the thread exactly like a
+	// received one.
+	for _, at := range attachments {
+		if at.Kind == "location" {
+			meta, _ := json.Marshal(map[string]any{"lat": at.Lat, "lng": at.Lng, "name": at.LocationName, "address": at.LocationAddress})
+			insertAttachment(ctx, a, a.SQLDB, wsID, msgID, "location", "location", "application/geo+json", "ready", nil, meta)
+			continue
+		}
+		insertAttachment(ctx, a, a.SQLDB, wsID, msgID, at.Kind, at.Filename, at.ContentType, "ready", at.Data, []byte(`{}`))
 	}
 	// A reply is the team's answer: the thread stops being unread, and it
 	// reopens a closed conversation rather than replying into a closed one.

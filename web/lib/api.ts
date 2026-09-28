@@ -140,6 +140,48 @@ function fileNameFrom(header: string | null): string | null {
   return plain ? plain[1] : null
 }
 
+/**
+ * MH-659: reply to a conversation with one attachment — a file (image/video/
+ * document/voice note) or a location — via the multipart endpoint added for
+ * the composer. Text-only replies keep using the plain JSON `/reply` above;
+ * this is only reached once there is a file/blob or a location to send.
+ */
+export type ReplyAttachmentInput =
+  | { kind: "image" | "video" | "document"; file: File | Blob; filename?: string }
+  | { kind: "voice"; file: Blob; filename: string }
+  | { kind: "location"; lat: number; lng: number; name?: string; address?: string }
+
+export async function replyWithAttachment(
+  workspaceId: string,
+  conversationId: string,
+  body: string,
+  subject: string,
+  attachment: ReplyAttachmentInput,
+): Promise<{ message: InboxMessage }> {
+  const form = new FormData()
+  if (body) form.set("body", body)
+  if (subject) form.set("subject", subject)
+  form.set("kind", attachment.kind)
+  if (attachment.kind === "location") {
+    form.set("lat", String(attachment.lat))
+    form.set("lng", String(attachment.lng))
+    if (attachment.name) form.set("location_name", attachment.name)
+    if (attachment.address) form.set("location_address", attachment.address)
+  } else {
+    const filename =
+      "filename" in attachment && attachment.filename
+        ? attachment.filename
+        : attachment.file instanceof File
+          ? attachment.file.name
+          : "attachment"
+    form.set("file", attachment.file, filename)
+  }
+  return api(`/api/w/conversations/${encodeURIComponent(conversationId)}/reply/attachment`, {
+    form,
+    workspaceId,
+  })
+}
+
 // ── Contract types ───────────────────────────────────────────────────────
 
 export type User = { id: string | number; email: string; roles?: string[] | null }

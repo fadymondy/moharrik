@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -220,6 +222,87 @@ func Register(api huma.API, a *app.App) {
 		Message MessageOut `json:"message"`
 	}], error) {
 		m, err := Reply(ctx, a, in.ID, in.Body.Body, in.Body.Subject)
+		if err != nil {
+			return nil, err
+		}
+		return out(struct {
+			Message MessageOut `json:"message"`
+		}{*m}), nil
+	})
+
+	// MH-659: the composer's attach button, mic button and location control —
+	// one multipart endpoint alongside the plain-text one above, since a file
+	// or a recorded voice note cannot ride in a JSON body. At most one
+	// attachment per send (the same limit WhatsApp itself has), matching
+	// message_attachments and the kinds migration 181 already defined.
+	huma.Register(api, huma.Operation{
+		OperationID: "w-reply-conversation-attachment", Method: http.MethodPost, Path: "/api/w/conversations/{id}/reply/attachment",
+		DefaultStatus: http.StatusCreated,
+		// A 20MB video on a slow line takes longer than huma's 5s default.
+		BodyReadTimeout: 2 * time.Minute,
+		Summary:         "Reply to a conversation with one attachment: an image, video, document, voice note or location",
+		Tags:            tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID      string `path:"id"`
+		RawBody huma.MultipartFormFiles[struct {
+			File huma.FormFile `form:"file" required:"false" doc:"The image, video, document or voice-note recording to send."`
+		}]
+	}) (*body[struct {
+		Message MessageOut `json:"message"`
+	}], error) {
+		data := in.RawBody.Data()
+		form := in.RawBody.Form
+		val := func(k string) string {
+			if form != nil {
+				if v := form.Value[k]; len(v) > 0 {
+					return strings.TrimSpace(v[0])
+				}
+			}
+			return ""
+		}
+		text := val("body")
+		subject := val("subject")
+		kind := val("kind") // image, video, document, voice or location
+
+		var attachments []ReplyAttachment
+		switch {
+		case kind == "location":
+			lat, latErr := strconv.ParseFloat(val("lat"), 64)
+			lng, lngErr := strconv.ParseFloat(val("lng"), 64)
+			if latErr != nil || lngErr != nil {
+				return nil, huma.Error422UnprocessableEntity("a location needs a valid lat and lng")
+			}
+			attachments = append(attachments, ReplyAttachment{
+				Kind: "location", Lat: lat, Lng: lng,
+				LocationName: val("location_name"), LocationAddress: val("location_address"),
+			})
+		case data.File.IsSet:
+			b, rerr := io.ReadAll(data.File)
+			if rerr != nil {
+				return nil, huma.Error400BadRequest("could not read the attached file")
+			}
+			if int64(len(b)) > maxAttachmentSize {
+				return nil, huma.Error422UnprocessableEntity("attachments are limited to 20MB")
+			}
+			if kind == "" {
+				kind = "document"
+			}
+			if kind != "image" && kind != "video" && kind != "document" && kind != "voice" {
+				return nil, huma.Error422UnprocessableEntity("kind must be image, video, document, voice or location")
+			}
+			filename := data.File.Filename
+			if filename == "" {
+				filename = val("filename")
+			}
+			attachments = append(attachments, ReplyAttachment{
+				Kind: kind, Filename: filename, ContentType: data.File.ContentType, Data: b,
+			})
+		default:
+			return nil, huma.Error422UnprocessableEntity("an attachment (file or location) is required")
+		}
+
+		m, err := ReplyWithAttachments(ctx, a, in.ID, text, subject, attachments)
 		if err != nil {
 			return nil, err
 		}

@@ -69,6 +69,40 @@ func Send(ctx context.Context, a *app.App, workspaceID, phone, text string) (str
 // SendAs is Send with the kind recorded in the log. It waits its turn in the
 // workspace's lane (see Pace) before sending.
 func SendAs(ctx context.Context, a *app.App, workspaceID, phone, text, kind string) (string, error) {
+	return sendVia(ctx, a, workspaceID, phone, kind, func(c *Client) (string, error) {
+		return c.SendText(ctx, phone, text)
+	})
+}
+
+// SendMediaAs sends an image, video or document as this workspace's number
+// (MH-659: the inbox composer's attach button) — same pacing and logging lane
+// as an ordinary text reply, since it is still one message from one number.
+func SendMediaAs(ctx context.Context, a *app.App, workspaceID, phone, mediaType, mimeType string, data []byte, fileName, caption, kind string) (string, error) {
+	return sendVia(ctx, a, workspaceID, phone, kind, func(c *Client) (string, error) {
+		return c.SendMedia(ctx, phone, mediaType, mimeType, data, fileName, caption)
+	})
+}
+
+// SendAudioAs sends a voice note (MH-659: the composer's mic button).
+func SendAudioAs(ctx context.Context, a *app.App, workspaceID, phone string, data []byte, kind string) (string, error) {
+	return sendVia(ctx, a, workspaceID, phone, kind, func(c *Client) (string, error) {
+		return c.SendWhatsAppAudio(ctx, phone, data)
+	})
+}
+
+// SendLocationAs sends a location pin (MH-659: the composer's "send my
+// location" and manual lat/lng entry).
+func SendLocationAs(ctx context.Context, a *app.App, workspaceID, phone string, lat, lng float64, name, address, kind string) (string, error) {
+	return sendVia(ctx, a, workspaceID, phone, kind, func(c *Client) (string, error) {
+		return c.SendLocation(ctx, phone, lat, lng, name, address)
+	})
+}
+
+// sendVia is every send's one door (MH-409, extended MH-659 for kinds other
+// than plain text): the pacing, the client lookup, and the whatsapp_sends log
+// row all happen exactly once here, regardless of what "action" actually
+// calls on the client.
+func sendVia(ctx context.Context, a *app.App, workspaceID, phone, kind string, action func(c *Client) (string, error)) (string, error) {
 	cfg := LoadConfig()
 	if !cfg.Configured() {
 		return "", ErrNotConfigured
@@ -88,7 +122,7 @@ func SendAs(ctx context.Context, a *app.App, workspaceID, phone, text, kind stri
 		case <-time.After(wait):
 		}
 	}
-	id, sendErr := ClientFor(cfg, l).SendText(ctx, phone, text)
+	id, sendErr := action(ClientFor(cfg, l))
 	ln.last = time.Now()
 
 	errText := ""

@@ -24,7 +24,7 @@ import (
 // sent with. text is Markdown (MH-556): it goes out multipart, the rendered
 // HTML alongside the plain text, the same shape marketing.Send already builds
 // for a campaign.
-func SendEmailReply(ctx context.Context, a *app.App, workspaceID, convID, mailboxID, to, subject, text string) (string, error) {
+func SendEmailReply(ctx context.Context, a *app.App, workspaceID, convID, mailboxID, to, subject, text string, attachments ...marketing.Attachment) (string, error) {
 	to = strings.TrimSpace(to)
 	if to == "" {
 		return "", errors.New("this conversation has no email address to answer")
@@ -56,11 +56,12 @@ func SendEmailReply(ctx context.Context, a *app.App, workspaceID, convID, mailbo
 	htmlBody := marketing.Shell(wsLocale, replySubject(subject), RenderMarkdown(text), html.EscapeString(wsName))
 
 	if err := marketing.Send(ctx, svc, marketing.Message{
-		To:      to,
-		Subject: replySubject(subject),
-		Text:    text,
-		HTML:    htmlBody,
-		Headers: headers,
+		To:          to,
+		Subject:     replySubject(subject),
+		Text:        text,
+		HTML:        htmlBody,
+		Headers:     headers,
+		Attachments: attachments,
 	}); err != nil {
 		return "", err
 	}

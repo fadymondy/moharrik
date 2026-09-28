@@ -23,7 +23,14 @@ import { ErrorState, LoadingRows } from "@/components/states"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { api, ApiError, type BellItem, type InboxMessage } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  replyWithAttachment,
+  type BellItem,
+  type InboxMessage,
+  type ReplyAttachmentInput,
+} from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { relativeTimeFormat } from "@/lib/i18n-locale"
@@ -264,6 +271,16 @@ function DockThread({
     setReply((cur) => (cur.trim() ? `${cur.trimEnd()}\n${text}` : text))
   }
 
+  // MH-659: the composer's attach/mic controls send through the multipart
+  // endpoint instead of the plain-text one `send()` above uses.
+  async function sendAttachment(attachment: ReplyAttachmentInput, caption: string) {
+    await replyWithAttachment(workspaceId, id, caption, subject.trim(), attachment)
+    setReply("")
+    setSubject("")
+    detail.mutate()
+    onChanged()
+  }
+
   return (
     <ChatThread
       fill
@@ -283,6 +300,7 @@ function DockThread({
       hasOlder={!!cursor}
       loadingOlder={loadingEarlier}
       onLoadOlder={loadEarlier}
+      onSendAttachment={sendAttachment}
     />
   )
 }

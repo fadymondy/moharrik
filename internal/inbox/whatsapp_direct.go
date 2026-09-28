@@ -174,7 +174,7 @@ func SendWhatsAppToContact(ctx context.Context, a *app.App, contactID, text, cod
 			return nil, huma.Error500InternalServerError("the message was sent, but its thread could not be opened")
 		}
 	}
-	m, err := recordOutbound(ctx, a, s.WorkspaceID, s.UserID, s.Email, convID, "", text, sentID)
+	m, err := recordOutbound(ctx, a, s.WorkspaceID, s.UserID, s.Email, convID, "", text, sentID, nil)
 	if err != nil {
 		return nil, err
 	}

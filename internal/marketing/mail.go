@@ -10,6 +10,7 @@ package marketing
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html"
@@ -65,10 +66,21 @@ func IsHardBounce(err error) bool {
 // ErrNoService: the workspace has not configured SMTP.
 var ErrNoService = errors.New("this workspace has no SMTP service configured")
 
+// Attachment is one file riding along with a Message (MH-659: an inbox
+// reply's attach button). Sent as a base64 MIME part under a multipart/mixed
+// envelope, the plain/HTML alternative nested inside it as the first part —
+// the standard shape every mail client expects an attachment in.
+type Attachment struct {
+	Filename    string
+	ContentType string
+	Data        []byte
+}
+
 // Message is one email.
 type Message struct {
 	To, Subject, Text, HTML string
 	Headers                 map[string]string
+	Attachments             []Attachment
 }
 
 // Send delivers one message. Errors are returned verbatim: the mail server's own
@@ -157,17 +169,69 @@ func build(svc *SMTP, msg Message) string {
 	for k, v := range msg.Headers {
 		fmt.Fprintf(&b, "%s: %s\r\n", k, v)
 	}
+	altBoundary := fmt.Sprintf("mhr-alt-%d", time.Now().UnixNano())
+	var alt strings.Builder
 	if msg.HTML == "" {
-		b.WriteString("Content-Type: text/plain; charset=utf-8\r\n\r\n")
-		b.WriteString(msg.Text)
+		alt.WriteString("Content-Type: text/plain; charset=utf-8\r\n\r\n")
+		alt.WriteString(msg.Text)
+	} else {
+		fmt.Fprintf(&alt, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", altBoundary)
+		// Plain text first: clients pick the LAST part they can render.
+		fmt.Fprintf(&alt, "--%s\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s\r\n", altBoundary, msg.Text)
+		fmt.Fprintf(&alt, "--%s\r\nContent-Type: text/html; charset=utf-8\r\n\r\n%s\r\n", altBoundary, msg.HTML)
+		fmt.Fprintf(&alt, "--%s--\r\n", altBoundary)
+	}
+	if len(msg.Attachments) == 0 {
+		b.WriteString(alt.String())
 		return b.String()
 	}
-	boundary := fmt.Sprintf("mhr-alt-%d", time.Now().UnixNano())
-	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", boundary)
-	// Plain text first: clients pick the LAST part they can render.
-	fmt.Fprintf(&b, "--%s\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s\r\n", boundary, msg.Text)
-	fmt.Fprintf(&b, "--%s\r\nContent-Type: text/html; charset=utf-8\r\n\r\n%s\r\n", boundary, msg.HTML)
-	fmt.Fprintf(&b, "--%s--\r\n", boundary)
+	// An attachment (MH-659): the text/HTML alternative becomes the FIRST part
+	// of an outer multipart/mixed, each attachment a base64 part after it —
+	// the shape every mail client expects "download" vs "body" to come in.
+	mixedBoundary := fmt.Sprintf("mhr-mix-%d", time.Now().UnixNano())
+	fmt.Fprintf(&b, "Content-Type: multipart/mixed; boundary=%q\r\n\r\n", mixedBoundary)
+	fmt.Fprintf(&b, "--%s\r\n%s\r\n", mixedBoundary, alt.String())
+	for _, at := range msg.Attachments {
+		ct := at.ContentType
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+		name := at.Filename
+		if name == "" {
+			name = "attachment"
+		}
+		fmt.Fprintf(&b, "--%s\r\n", mixedBoundary)
+		// Both come from the uploader: re-format rather than interpolate, so a
+		// stray quote or line break can't leak into the headers and a
+		// non-ASCII name goes out RFC 2231-encoded.
+		if mt, _, err := mime.ParseMediaType(ct); err == nil {
+			ct = mt
+		} else {
+			ct = "application/octet-stream"
+		}
+		fmt.Fprintf(&b, "Content-Type: %s\r\n", mime.FormatMediaType(ct, map[string]string{"name": name}))
+		fmt.Fprintf(&b, "Content-Disposition: %s\r\n", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
+		b.WriteString("Content-Transfer-Encoding: base64\r\n\r\n")
+		b.WriteString(chunkBase64(at.Data))
+		b.WriteString("\r\n")
+	}
+	fmt.Fprintf(&b, "--%s--\r\n", mixedBoundary)
+	return b.String()
+}
+
+// chunkBase64 wraps a base64 body at 76 columns, per RFC 2045 — some mail
+// servers reject or mangle an unwrapped line.
+func chunkBase64(data []byte) string {
+	enc := base64.StdEncoding.EncodeToString(data)
+	var b strings.Builder
+	for i := 0; i < len(enc); i += 76 {
+		end := i + 76
+		if end > len(enc) {
+			end = len(enc)
+		}
+		b.WriteString(enc[i:end])
+		b.WriteString("\r\n")
+	}
 	return b.String()
 }
 
