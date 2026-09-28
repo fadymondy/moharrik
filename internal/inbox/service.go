@@ -403,7 +403,7 @@ func GetConversation(ctx context.Context, a *app.App, id string) (*conversationD
 	// conversation opened directly (a permalink, a notification) without
 	// ever appearing in a list response first.
 	triggerPhotoRefreshes(a, s.WorkspaceID, []ConversationOut{c})
-	page, err := threadPage(ctx, a.SQLDB, s.WorkspaceID, id, "", threadPageDefault)
+	page, err := threadPage(ctx, a.SQLDB, s.WorkspaceID, id, "", threadPageDefault, s.UserID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the thread")
 	}

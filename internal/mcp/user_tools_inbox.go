@@ -443,6 +443,65 @@ func InboxTools() []Tool {
 			},
 		},
 		{
+			Name: "star_message",
+			Description: "Star or unstar one message (MH-662) — the same as the thread's own ⋮ menu / Contact info panel does, for you " +
+				"(the token's member) only: a teammate's inbox is unaffected either way.",
+			Scope: "inbox:read",
+			InputSchema: schema([]string{"message_id", "starred"}, map[string]any{
+				"message_id": prop("string", "A message id from get_conversation's messages"),
+				"starred":    map[string]any{"type": "boolean", "description": "true to star, false to unstar"},
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					MessageID string `json:"message_id"`
+					Starred   *bool  `json:"starred"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("message_id", in.MessageID)
+				if err != nil {
+					return "", err
+				}
+				if in.Starred == nil {
+					return "", fmt.Errorf("starred is required")
+				}
+				if *in.Starred {
+					err = inbox.StarMessage(ctx, a, id)
+				} else {
+					err = inbox.UnstarMessage(ctx, a, id)
+				}
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"message_id": id, "starred": *in.Starred})
+			},
+		},
+		{
+			Name: "export_conversation",
+			Description: "Export a chat as a WhatsApp-format .txt transcript (MH-662): the same text the inbox page's Export chat " +
+				"downloads. Returns the transcript inline (not a .zip of attachments — that download is web-only).",
+			Scope: "inbox:read",
+			InputSchema: schema([]string{"id"}, map[string]any{
+				"id": prop("string", "Conversation id"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct{ ID string }
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("id", in.ID)
+				if err != nil {
+					return "", err
+				}
+				filename, data, err := inbox.ExportChat(ctx, a, id)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"filename": filename, "transcript": string(data)})
+			},
+		},
+		{
 			Name: "list_canned_replies",
 			Description: "The workspace's canned replies, in picker order: each with its id, title, English and Arabic text. " +
 				"Answer in the conversation's reply_language (get_conversation), and add the context the customer needs: " +

@@ -74,6 +74,9 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"contact_context_imports", "contact_context_notes", "contact_context_reports",
 	// Google Contacts sync bookkeeping (MH-585)
 	"google_contacts_sync",
+	// the thread ⋮ menu's own storage: per-member starred messages and
+	// per-member "delete for us" hides (MH-662)
+	"message_stars", "message_hides",
 }
 
 /*

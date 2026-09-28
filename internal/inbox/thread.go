@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -50,8 +51,13 @@ type ThreadPage struct {
 }
 
 // threadPage reads up to limit messages older than cursor (the newest when the
-// cursor is empty), returned oldest first.
-func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, limit int) (*ThreadPage, error) {
+// cursor is empty), returned oldest first. userID is the signed-in member
+// reading the thread (MH-662): it hides messages that member deleted "for
+// us" (message_hides — never touches WhatsApp, just Moharrik's own copy) and
+// marks which remaining messages that member starred (message_stars). Pass
+// "" for internal/no-member reads (routes.go's thread() helper, tests): no
+// hide-filtering, no stars.
+func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, limit int, userID string) (*ThreadPage, error) {
 	cur, err := paging.Decode(cursor, 2)
 	if err != nil {
 		return nil, err
@@ -66,10 +72,15 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 		args = append(args, at, cur[1])
 		where = ` AND (created_at, id) < ($4, $5)`
 	}
+	hideWhere := ""
+	if userID != "" {
+		args = append(args, userID)
+		hideWhere = fmt.Sprintf(` AND NOT EXISTS (SELECT 1 FROM message_hides h WHERE h.workspace_id = messages.workspace_id AND h.message_id = messages.id AND h.user_id = $%d)`, len(args))
+	}
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, direction, author_user_id, body, body_html, mailbox_id, created_at,
 		       sender_contact_id, sender_name, sender_external_id, subject, status
-		FROM messages WHERE workspace_id = $1 AND conversation_id = $2`+where+`
+		FROM messages WHERE workspace_id = $1 AND conversation_id = $2`+where+hideWhere+`
 		ORDER BY created_at DESC, id DESC LIMIT $3`, args...)
 	if err != nil {
 		return nil, err
@@ -106,11 +117,55 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 	if err := attachSenderPhotos(ctx, db, wsID, page.Messages); err != nil {
 		return nil, err
 	}
-	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM messages WHERE workspace_id = $1 AND conversation_id = $2`,
-		wsID, convID).Scan(&page.Total); err != nil {
+	if userID != "" {
+		if err := attachStars(ctx, db, wsID, userID, page.Messages); err != nil {
+			return nil, err
+		}
+	}
+	countWhere := ""
+	countArgs := []any{wsID, convID}
+	if userID != "" {
+		countArgs = append(countArgs, userID)
+		countWhere = ` AND NOT EXISTS (SELECT 1 FROM message_hides h WHERE h.workspace_id = messages.workspace_id AND h.message_id = messages.id AND h.user_id = $3)`
+	}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM messages WHERE workspace_id = $1 AND conversation_id = $2`+countWhere,
+		countArgs...).Scan(&page.Total); err != nil {
 		return nil, err
 	}
 	return page, nil
+}
+
+// attachStars fills in each message's Starred flag for one member, one query
+// for the whole page (MH-662).
+func attachStars(ctx context.Context, db *sql.DB, wsID, userID string, msgs []MessageOut) error {
+	if len(msgs) == 0 {
+		return nil
+	}
+	ids := make([]string, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+	}
+	rows, err := db.QueryContext(ctx, `SELECT message_id FROM message_stars WHERE workspace_id = $1 AND user_id = $2 AND message_id = ANY($3)`,
+		wsID, userID, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	starred := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		starred[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range msgs {
+		msgs[i].Starred = starred[msgs[i].ID]
+	}
+	return nil
 }
 
 // attachMessages fills in each message's Attachments, one query for the
@@ -193,7 +248,7 @@ func ThreadMessages(ctx context.Context, a *app.App, id, cursor string, limit in
 	} else if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the conversation")
 	}
-	page, err := threadPage(ctx, a.SQLDB, s.WorkspaceID, id, cursor, n)
+	page, err := threadPage(ctx, a.SQLDB, s.WorkspaceID, id, cursor, n, s.UserID)
 	if errors.Is(err, paging.ErrBadCursor) {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}

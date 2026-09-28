@@ -183,6 +183,10 @@ type ContactDetail struct {
 	AvatarURL          string            `json:"avatar_url"`
 	Meta               map[string]string `json:"meta" doc:"Free-form key/value pairs on this contact."`
 	Identities         []ContactIdentity `json:"identities" doc:"Every linked account: email, phone, whatsapp, telegram, slack, discord, messenger, instagram, linkedin, x, widget, sip, other."`
+	// Notes (MH-662): the team's own free text on this contact, shown in the
+	// inbox's Contact info panel — separate from Biography, which is what the
+	// CONTACT said about themselves.
+	Notes string `json:"notes"`
 }
 
 // ContactIdentity is one linked account (internal/contacts.Identity on the wire).

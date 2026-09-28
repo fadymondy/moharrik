@@ -616,6 +616,9 @@ export type ContactDetail = {
   meta: Record<string, string>
   /** Every linked account on every channel, including the ones denormalised above. */
   identities: ContactIdentity[]
+  /** MH-662: the team's own free text on this contact — separate from
+   *  biography, which is what the contact said about themselves. */
+  notes: string
 }
 
 // ── Notification center ─────────────────────────────────────────────────

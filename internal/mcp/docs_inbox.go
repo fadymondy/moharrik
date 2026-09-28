@@ -145,6 +145,19 @@ var docsInbox = map[string]ToolDoc{
 			`"preview":"Yes, we deliver to Alexandria within 2 working days.","snoozed_until":null,"status":"open",` +
 			`"subject":"Hello, I saw your catalogue","unread":false},"deal_id":"d3e5f7a9-2b4c-4d6e-9f8a-1c3e5b7d9f20"}`,
 	},
+	"star_message": {
+		AR: "تمييز رسالة بنجمة أو إزالتها (MH-662) — نفس ما تفعله قائمة ⋮ في المحادثة أو لوحة معلومات جهة الاتصال، لك أنت " +
+			"(صاحب الرمز) فقط: لا يتأثر صندوق وارد زميلك في أي الحالتين.",
+		Example: map[string]any{"message_id": "9b1d3f5a-7c2e-4a6b-8d0f-1e3c5a7b9d21", "starred": true},
+		Result:  `{"message_id":"9b1d3f5a-7c2e-4a6b-8d0f-1e3c5a7b9d21","starred":true}`,
+	},
+	"export_conversation": {
+		AR: "تصدير محادثة كنصّ بصيغة تصدير واتساب (MH-662): نفس النص الذي يُنزّله زر \"تصدير المحادثة\" في صفحة صندوق الوارد. " +
+			"يُعاد النص المفرغ مباشرة (وليس ملف .zip للمرفقات — ذلك التنزيل متاح على الويب فقط).",
+		Example: map[string]any{"id": "3c9a7e21-4b6d-4f80-a2c5-9e1d7b3f6a04"},
+		Result: `{"filename":"WhatsApp Chat with Mona Adel.txt",` +
+			`"transcript":"9/24/26, 9:15 AM - Mona Adel: Hello, I saw your catalogue\n9/24/26, 9:16 AM - You: Yes, we deliver to Alexandria within 2 working days.\n"}`,
+	},
 	"list_canned_replies": {
 		AR: "الردود الجاهزة في مساحة العمل بترتيب ظهورها في أداة الاختيار: لكلٍّ منها معرّفها وعنوانها ونصّاها الإنجليزي والعربي. " +
 			"أجب بلغة reply_language الخاصة بالمحادثة (من get_conversation)، وأضف ما يحتاجه العميل من سياق: " +
@@ -347,4 +360,8 @@ var argsARInbox = map[string]string{
 	"The Arabic Markdown body":                                 "النص العربي بصيغة Markdown",
 	"The English Markdown body":                                "النص الإنجليزي بصيغة Markdown",
 	"Lower comes first in the picker":                          "الأصغر يظهر أولًا في القائمة",
+
+	// MH-662: thread ⋮ menu — star/unstar and export
+	"A message id from get_conversation's messages": "معرّف رسالة من ضمن رسائل get_conversation",
+	"true to star, false to unstar":                  "true لتمييزها بنجمة، وfalse لإزالة التمييز",
 }

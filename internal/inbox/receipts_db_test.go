@@ -53,7 +53,7 @@ func TestMarkStatusMovesTicksForwardOnly(t *testing.T) {
 		t.Errorf("a receipt for a message we never stored errored: %v", err)
 	}
 
-	page, err := threadPage(f.ctx, a.SQLDB, f.wsID, convID, "", 30)
+	page, err := threadPage(f.ctx, a.SQLDB, f.wsID, convID, "", 30, "")
 	if err != nil {
 		t.Fatal(err)
 	}

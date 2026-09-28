@@ -210,7 +210,7 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 		       c.company_id, co.name, c.owner_user_id, c.created_at, c.updated_at, c.lifecycle, c.lifecycle_at, sc.score, coalesce(sc.reasons, '[]')::text,
 		       c.given_name, c.family_name, c.middle_name, c.name_prefix, c.name_suffix,
 		       c.phonetic_given_name, c.phonetic_family_name, c.nickname, c.birthday, c.biography, c.photo_url, c.photo_attachment_id,
-		       coalesce(c.meta, '{}'::jsonb)::text
+		       coalesce(c.meta, '{}'::jsonb)::text, c.notes
 		FROM contacts c
 		LEFT JOIN companies co ON co.workspace_id = c.workspace_id AND co.id = c.company_id
 		LEFT JOIN icp_scores sc ON sc.workspace_id = c.workspace_id AND sc.contact_id = c.id
@@ -219,7 +219,7 @@ func getContact(ctx context.Context, db *sql.DB, wsID, id string) (*ContactDetai
 		&c.Lifecycle, &lifecycleAt, &score, &reasons,
 		&c.GivenName, &c.FamilyName, &c.MiddleName, &c.NamePrefix, &c.NameSuffix,
 		&c.PhoneticGivenName, &c.PhoneticFamilyName, &c.Nickname, &birthday, &c.Biography, &c.PhotoURL, &photoAttachmentID,
-		&metaJSON)
+		&metaJSON, &c.Notes)
 	if err != nil {
 		return nil, err
 	}
