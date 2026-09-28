@@ -266,27 +266,15 @@ func asHuma(ctx context.Context, err error, what string) error {
 }
 
 type workspaceOut struct {
-	Body struct {
-		ID        string `json:"id"`
-		Slug      string `json:"slug"`
-		Name      string `json:"name"`
-		AvatarURL string `json:"avatar_url"`
-	}
+	Body Info
 }
 
 func readWorkspace(ctx context.Context, sys *sql.DB, workspaceID string) (*workspaceOut, error) {
-	out := &workspaceOut{}
-	b := &out.Body
-	var at sql.NullTime
-	err := sys.QueryRowContext(ctx, `
-		SELECT w.id, w.slug, w.name, a.updated_at
-		FROM workspaces w LEFT JOIN workspace_avatars a ON a.workspace_id = w.id
-		WHERE w.id = $1`, workspaceID).Scan(&b.ID, &b.Slug, &b.Name, &at)
+	b, err := Read(ctx, sys, workspaceID)
 	if err != nil {
-		return nil, huma.Error404NotFound("workspace not found")
+		return nil, err
 	}
-	b.AvatarURL = AvatarURL(b.ID, at)
-	return out, nil
+	return &workspaceOut{Body: *b}, nil
 }
 
 func registerManage(api huma.API, a *app.App) {
@@ -305,14 +293,7 @@ func registerManage(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if !authz.Can(s.Role, authz.WorkspaceUpdate) {
-			return nil, huma.Error403Forbidden("only owners and admins can change the workspace")
-		}
-		name := strings.TrimSpace(in.Body.Name)
-		if name == "" {
-			return nil, huma.Error422UnprocessableEntity("a name is required")
-		}
-		if _, err := a.SQLDB.ExecContext(ctx, `UPDATE workspaces SET name = $2, updated_at = now() WHERE id = $1`, s.WorkspaceID, name); err != nil {
+		if err := Rename(ctx, a.SQLDB, s.WorkspaceID, s.Role, in.Body.Name); err != nil {
 			return nil, asHuma(ctx, err, "update the workspace")
 		}
 		return readWorkspace(ctx, a.SysDB, s.WorkspaceID)
@@ -335,29 +316,11 @@ func registerManage(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if !authz.Can(s.Role, authz.WorkspaceUpdate) {
-			return nil, huma.Error403Forbidden("only owners and admins can change the workspace")
-		}
-		ct := strings.ToLower(strings.TrimSpace(in.Body.ContentType))
-		if !avatarContentTypes[ct] {
-			return nil, huma.Error422UnprocessableEntity("only PNG, JPEG or WEBP images are allowed")
-		}
 		raw, err := base64.StdEncoding.DecodeString(in.Body.Data)
 		if err != nil {
 			return nil, huma.Error422UnprocessableEntity("the image data is not valid base64")
 		}
-		if len(raw) == 0 {
-			return nil, huma.Error422UnprocessableEntity("the image is empty")
-		}
-		if len(raw) > avatarMaxSize {
-			return nil, huma.Error422UnprocessableEntity("images are limited to 2MB")
-		}
-		if _, err := a.SysDB.ExecContext(ctx, `
-			INSERT INTO workspace_avatars (workspace_id, content_type, size_bytes, data)
-			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (workspace_id) DO UPDATE SET content_type = EXCLUDED.content_type,
-				size_bytes = EXCLUDED.size_bytes, data = EXCLUDED.data, updated_at = clock_timestamp()`,
-			s.WorkspaceID, ct, len(raw), raw); err != nil {
+		if err := SetAvatar(ctx, a.SysDB, s.WorkspaceID, s.Role, in.Body.ContentType, raw); err != nil {
 			return nil, asHuma(ctx, err, "save the picture")
 		}
 		return readWorkspace(ctx, a.SysDB, s.WorkspaceID)
@@ -371,10 +334,7 @@ func registerManage(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if !authz.Can(s.Role, authz.WorkspaceUpdate) {
-			return nil, huma.Error403Forbidden("only owners and admins can change the workspace")
-		}
-		if _, err := a.SysDB.ExecContext(ctx, `DELETE FROM workspace_avatars WHERE workspace_id = $1`, s.WorkspaceID); err != nil {
+		if err := RemoveAvatar(ctx, a.SysDB, s.WorkspaceID, s.Role); err != nil {
 			return nil, asHuma(ctx, err, "remove the picture")
 		}
 		return readWorkspace(ctx, a.SysDB, s.WorkspaceID)

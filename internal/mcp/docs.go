@@ -49,12 +49,12 @@ type docGroup struct {
 
 var docGroups = []docGroup{
 	{"workspace", [2]string{"Workspace", "مساحة العمل"},
-		[2]string{"Who the token acts as, and the members an agent can assign work to.",
-			"من يمثّله الرمز، والأعضاء الذين يمكن للوكيل إسناد العمل إليهم."},
-		[]string{"members:read"}},
+		[2]string{"Who the token acts as and the members an agent can assign work to; the workspace's name and picture; inviting people and managing members.",
+			"من يمثّله الرمز والأعضاء الذين يمكن للوكيل إسناد العمل إليهم؛ واسم مساحة العمل وصورتها؛ ودعوة الأشخاص وإدارة الأعضاء."},
+		[]string{"members:read", "workspace:update", "members:manage"}},
 	{"crm", [2]string{"CRM", "إدارة العملاء"},
-		[2]string{"Contacts, companies, deals, the timeline, mailing lists, the CRM report and the ideal-customer profile every record is scored against.",
-			"جهات الاتصال والشركات والصفقات والسجل الزمني والقوائم البريدية وتقرير إدارة العملاء، وملف العميل المثالي الذي يُقيَّم كل سجل على أساسه."},
+		[2]string{"Contacts, companies, deals and the pipeline's stages, the timeline, mailing lists, the CRM report and the ideal-customer profile every record is scored against.",
+			"جهات الاتصال والشركات والصفقات ومراحل مسار المبيعات، والسجل الزمني والقوائم البريدية وتقرير إدارة العملاء، وملف العميل المثالي الذي يُقيَّم كل سجل على أساسه."},
 		[]string{"contacts:read", "contacts:write", "crm:manage"}},
 	{"leads", [2]string{"Leads", "العملاء المحتملون"},
 		[2]string{"Inquiries from your website forms, with their attribution, and turning one into a contact, a company and a deal.",
@@ -65,9 +65,9 @@ var docGroups = []docGroup{
 			"صندوق وارد واحد لنافذة المحادثة والبريد وواتساب: القراءة والرد والإسناد والتأجيل والربط بإدارة العملاء، ومراسلة جهات الاتصال الموافِقة على واتساب."},
 		[]string{"inbox:read", "inbox:write", "inbox:manage", "whatsapp:send"}},
 	{"campaigns", [2]string{"Campaigns", "الحملات"},
-		[2]string{"Email and WhatsApp campaigns to your mailing lists: draft, preview, send and follow their delivery.",
-			"حملات البريد وواتساب إلى قوائمك البريدية: الصياغة والمعاينة والإرسال ومتابعة التسليم."},
-		[]string{"campaigns:read", "campaigns:write"}},
+		[2]string{"Email and WhatsApp campaigns to your mailing lists: draft, preview, send and follow their delivery; and the SMTP services mail goes out through.",
+			"حملات البريد وواتساب إلى قوائمك البريدية: الصياغة والمعاينة والإرسال ومتابعة التسليم؛ وخدمات SMTP التي يُرسل البريد عبرها."},
+		[]string{"campaigns:read", "campaigns:write", "mail:settings"}},
 	{"notifications", [2]string{"Notification center", "مركز الإشعارات"},
 		[2]string{"The feed of everything collected for the workspace, the webhook sources that post into it, and the sources it polls.",
 			"موجز كل ما جُمع لمساحة العمل، ومصادر Webhook التي ترسل إليه، والمصادر التي يستطلعها دوريًا."},
@@ -85,21 +85,23 @@ var docGroups = []docGroup{
 			"اطرح سؤالًا، فيبحث محرّك في الويب ويقرأ النتائج في متصفّح حقيقي ويجيب مع مصادره. ويحوّل الاستكشاف نتائج البحث إلى عملاء مرتقبين مقيَّمين مع أدلتهم، ويصوغ رسائل تواصل لا تُرسل من تلقاء نفسها."},
 		[]string{"research:read", "research:run"}},
 	{"google", [2]string{"Google Analytics, Search Console and YouTube", "Google Analytics وSearch Console ويوتيوب"},
-		[2]string{"The GA4 properties, Search Console sites and YouTube channels connected to the workspace.",
-			"خصائص GA4 ومواقع Search Console وقنوات يوتيوب المتصلة بمساحة العمل."},
-		[]string{"analytics:read", "search_console:write"}},
+		[2]string{"The GA4 properties, Search Console sites and YouTube channels connected to the workspace, and the Google accounts they are read through.",
+			"خصائص GA4 ومواقع Search Console وقنوات يوتيوب المتصلة بمساحة العمل، وحسابات Google التي تُقرأ عبرها."},
+		[]string{"analytics:read", "search_console:write", "integrations:manage"}},
 	{"audit", [2]string{"Audit log", "سجل التدقيق"},
 		[2]string{"Every change in the workspace: who made it — a member, a token, a connected app or a browser — what changed and from where.",
 			"كل تغيير في مساحة العمل: من أجراه — عضو أو رمز أو تطبيق متصل أو متصفّح — وما الذي تغيّر ومن أين."},
-		[]string{"audit:read"}},
+		[]string{"audit:read", "audit:manage"}},
 }
 
 // scopeAR is each user scope's description in Arabic (UserScopes has the English).
 var scopeAR = map[string]string{
 	"members:read":         "رؤية مساحة العمل ودورك وأعضائها (whoami وlist_members)",
+	"workspace:update":     "تغيير اسم مساحة العمل وصورتها",
+	"members:manage":       "دعوة الأشخاص وإلغاء الدعوات وتغيير أدوار الأعضاء وإزالتهم",
 	"contacts:read":        "قراءة جهات الاتصال والشركات والصفقات والسجل الزمني في إدارة العملاء",
 	"contacts:write":       "إنشاء جهات الاتصال والشركات والصفقات وتعديلها والإضافة إلى السجل الزمني",
-	"crm:manage":           "تغيير ملف العميل المثالي الذي تُقيَّم على أساسه كل جهة اتصال وشركة",
+	"crm:manage":           "تغيير مراحل مسار المبيعات وملف العميل المثالي الذي تُقيَّم على أساسه كل جهة اتصال وشركة",
 	"leads:read":           "قراءة العملاء المحتملين الواردين من نماذج الاستفسار على موقعك، مع رسائلهم ومصادرهم",
 	"leads:write":          "تغيير حالة العميل المحتمل وتحويله (التحويل يحتاج contacts:write أيضًا)",
 	"inbox:read":           "قراءة المحادثات عبر نافذة المحادثة والبريد وواتساب، وحالة رقم واتساب",
@@ -108,6 +110,7 @@ var scopeAR = map[string]string{
 	"whatsapp:send":        "مراسلة جهة اتصال وافقت على واتساب (المحادثة الجديدة تحتاج رمز تأكيد)",
 	"campaigns:read":       "قراءة حملات البريد وواتساب ونتائجها",
 	"campaigns:write":      "صياغة الحملات وتعديلها وإرسالها",
+	"mail:settings":        "إضافة خدمات SMTP التي يُرسل البريد عبرها وتغييرها وإزالتها، واختيار الافتراضية",
 	"automation:read":      "قراءة الأتمتة ووكلاء المتصفّح وعمليات تشغيلها",
 	"automation:run":       "بدء عمليات الأتمتة وإلغاؤها",
 	"automation:manage":    "تغيير المواقع التي يحق لمتصفّح قيادتها",
@@ -121,7 +124,9 @@ var scopeAR = map[string]string{
 	"trends:manage":        "إضافة المصادر وتغييرها، والجمع الآن (يستهلك الميزانية اليومية)",
 	"analytics:read":       "قراءة بيانات Google Analytics وSearch Console ويوتيوب الخاصة بمساحة العمل",
 	"search_console:write": "فحص عناوين URL وإرسال خرائط الموقع في Search Console",
+	"integrations:manage":  "رؤية حسابات Google المتصلة وفصلها، وتشغيل خصائصها ومواقعها وقنواتها أو إيقافها",
 	"audit:read":           "قراءة سجل التدقيق: من غيّر ماذا، ومتى، ومن أين",
+	"audit:manage":         "تغيير مدة الاحتفاظ بسجل التدقيق",
 }
 
 // toolDocs is every tool's hand-written half, merged from the docs_*.go files.
@@ -130,7 +135,7 @@ func toolDocs() map[string]ToolDoc {
 	for _, set := range []map[string]ToolDoc{
 		docsWorkspace, docsCRM, docsLeads, docsInbox, docsImports, docsVcard, docsContactContext, docsCampaigns,
 		docsNotifications, docsTrends, docsAutomation, docsRules, docsBrowserRun, docsResearch, docsProspects, docsGoogle, docsAudit,
-		docsMailbox, docsChannels, docsOrganise,
+		docsMailbox, docsChannels, docsOrganise, docsSettings,
 	} {
 		for k, v := range set {
 			out[k] = v
@@ -146,7 +151,7 @@ func argAR() map[string]string {
 	out := map[string]string{}
 	for _, set := range []map[string]string{
 		argsARCommon, argsARCRM, argsARInbox, argsARImports, argsARVcard, argsARContactContext, argsARNotifications, argsARTools, argsARProspects,
-		argsARRules, argsARBrowserRun, argsARMailbox, argsARChannels, argsAROrganise,
+		argsARRules, argsARBrowserRun, argsARMailbox, argsARChannels, argsAROrganise, argsARSettings,
 	} {
 		for k, v := range set {
 			out[k] = v

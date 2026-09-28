@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -139,6 +141,27 @@ func TestInitializeNegotiatesVersion(t *testing.T) {
 		got := res.Result.(map[string]any)["protocolVersion"]
 		if got != want {
 			t.Errorf("initialize(%q) = %v, want %v", requested, got, want)
+		}
+	}
+}
+
+// MH-680: the Create token dialog and the OAuth consent page label every scope
+// from web/lang ("oauth.scope.<scope>"); one without a label shows the API's
+// English on the Arabic page. Every scope a token can carry has both.
+func TestEveryScopeHasALabel(t *testing.T) {
+	for _, lang := range []string{"en", "ar"} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "web", "lang", lang+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var strs map[string]string
+		if err := json.Unmarshal(raw, &strs); err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range UserScopes {
+			if strings.TrimSpace(strs["oauth.scope."+d.Scope]) == "" {
+				t.Errorf("%s: no label for scope %q: add \"oauth.scope.%s\" to web/lang/%s.json", lang, d.Scope, d.Scope, lang)
+			}
 		}
 	}
 }

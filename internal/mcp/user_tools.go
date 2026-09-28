@@ -69,8 +69,8 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, NotificationTools()...)
 	tools = append(tools, InboxTools()...)
 	tools = append(tools, EmailTemplateTools()...) // MH-661
-	tools = append(tools, OrganiseTools()...) // MH-657
-	tools = append(tools, MailboxTools()...) // several IMAP mailboxes (MH-555)
+	tools = append(tools, OrganiseTools()...)      // MH-657
+	tools = append(tools, MailboxTools()...)       // several IMAP mailboxes (MH-555)
 	tools = append(tools, WhatsAppTools()...)
 	tools = append(tools, ChannelTools()...)        // Telegram, Slack, Discord and workflow channels (MH-563, MH-564)
 	tools = append(tools, ImportTools()...)         // import a connection's chats into contacts + inbox (MH-562)
@@ -87,6 +87,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, ProspectTools(researchEngine)...) // prospect discovery (MH-397)
 	tools = append(tools, GoogleTools()...)                 // GA4, Search Console, YouTube (MH-447)
 	tools = append(tools, AuditTools()...)                  // the audit log (MH-392)
+	tools = append(tools, SettingsTools()...)               // workspace, members, pipeline, mail, Google, audit settings (MH-680)
 	return tools
 }
 

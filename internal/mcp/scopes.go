@@ -20,12 +20,19 @@ ahead of the phases that add tools — they grant nothing until a tool declares 
 */
 var UserScopes = []ScopeDef{
 	{"members:read", "See the workspace, your role and its members (whoami, list_members)", authz.Member},
+	// The workspace's own settings (MH-680), each on its authz line: renaming
+	// it or changing its picture is authz.WorkspaceUpdate; inviting, revoking,
+	// changing a role and removing a member is authz.MembersManage. Deleting
+	// the workspace has no scope: it cannot be undone, so it stays on the page.
+	{"workspace:update", "Rename the workspace and change its picture", authz.Admin},
+	{"members:manage", "Invite people, revoke invitations, change members' roles and remove members", authz.Admin},
 	{"contacts:read", "Read CRM contacts, companies, deals and the timeline", authz.Member},
 	{"contacts:write", "Create and change CRM contacts, companies, deals and the timeline", authz.Member},
 	// crm:manage is authz.PipelineManage's line (MH-395): the ideal-customer
 	// profile decides how every contact in the workspace is ranked, the same
 	// weight as reshaping the pipeline, so it is a manager's.
-	{"crm:manage", "Change the ideal-customer profile every contact and company is scored against", authz.Manager},
+	// The pipeline's stages are the same line (MH-680).
+	{"crm:manage", "Change the pipeline's stages and the ideal-customer profile every contact and company is scored against", authz.Manager},
 	// Leads have their own pair (MH-390): a lead is unverified text from a
 	// stranger's browser, and an agent that triages the inbound queue should
 	// not need the whole CRM to do it. convert_lead needs contacts:write as
@@ -46,6 +53,9 @@ var UserScopes = []ScopeDef{
 	{"whatsapp:send", "Message an opted-in CRM contact on WhatsApp (a new thread needs a confirmation code)", authz.Member},
 	{"campaigns:read", "Read email and WhatsApp campaigns and their results", authz.Member},
 	{"campaigns:write", "Draft, edit and send campaigns", authz.Manager},
+	// mail:settings is authz.MailSettings (MH-680): the SMTP services every
+	// email leaves through, credentials included, so an admin's.
+	{"mail:settings", "Add, change and remove the SMTP services mail is sent through, and choose the defaults", authz.Admin},
 	{"automation:read", "Read automations, browser agents and their runs", authz.Member},
 	{"automation:run", "Start and cancel automation runs", authz.Manager},
 	// automation:manage is authz.AutomationManage (MH-478): changing where a
@@ -73,9 +83,13 @@ var UserScopes = []ScopeDef{
 	// search_console:write in internal/authz.
 	{"analytics:read", "Read the workspace's Google Analytics, Search Console and YouTube data", authz.Member},
 	{"search_console:write", "Inspect URLs and submit sitemaps in Search Console", authz.Manager},
+	// integrations:manage is authz.IntegrationsManage (MH-680): which Google
+	// accounts stay connected and what the workspace reads through them.
+	{"integrations:manage", "See and disconnect connected Google accounts, and switch their properties, sites and channels on or off", authz.Admin},
 	// The audit log (MH-392): every member's changes with their addresses, so
 	// the owners' and admins' — authz.AuditRead.
 	{"audit:read", "Read the workspace's audit log: who changed what, when and from where", authz.Admin},
+	{"audit:manage", "Change how long the audit log is kept", authz.Admin},
 }
 
 // AdminScopes is the closed list for the platform admin MCP. Admin tokens are

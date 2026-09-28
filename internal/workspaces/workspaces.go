@@ -15,7 +15,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/mail"
 	"regexp"
 	"strings"
 	"time"
@@ -100,13 +99,8 @@ type memberOut struct {
 	JoinedAt time.Time `json:"joined_at"`
 }
 
-type invitationOut struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Role      string    `json:"role"`
-	ExpiresAt time.Time `json:"expires_at"`
-	CreatedAt time.Time `json:"created_at"`
-}
+// invitationOut keeps the REST schema's name.
+type invitationOut = Invitation
 
 type wsHeader struct {
 	WorkspaceID string `header:"X-Workspace-ID" doc:"Workspace id or slug. Non-members get 404."`
@@ -423,29 +417,16 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if !authz.Can(s.Role, authz.InvitationsManage) {
-			return nil, huma.Error403Forbidden("only owners and admins manage invitations")
-		}
-		rows, err := a.SQLDB.QueryContext(ctx, `
-			SELECT id, email, role, expires_at, created_at FROM invitations
-			WHERE workspace_id = $1 AND accepted_at IS NULL ORDER BY created_at DESC`, s.WorkspaceID)
+		list, err := Invitations(ctx, a.SQLDB, s.WorkspaceID, s.Role)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list invitations")
+			return nil, asHuma(ctx, err, "list invitations")
 		}
-		defer rows.Close()
 		out := &struct {
 			Body struct {
 				Invitations []invitationOut `json:"invitations"`
 			}
 		}{}
-		out.Body.Invitations = []invitationOut{}
-		for rows.Next() {
-			var i invitationOut
-			if err := rows.Scan(&i.ID, &i.Email, &i.Role, &i.ExpiresAt, &i.CreatedAt); err != nil {
-				return nil, huma.Error500InternalServerError("could not list invitations")
-			}
-			out.Body.Invitations = append(out.Body.Invitations, i)
-		}
+		out.Body.Invitations = list
 		return out, nil
 	})
 
@@ -469,46 +450,18 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if !authz.Can(s.Role, authz.MembersInvite) {
-			return nil, huma.Error403Forbidden("only owners and admins can invite")
-		}
-		// You cannot hand out more than you hold.
-		if !authz.Role(s.Role).AtLeast(authz.Role(in.Body.Role)) {
-			return nil, huma.Error403Forbidden("you cannot invite someone to a role above your own")
-		}
-		addr, err := mail.ParseAddress(strings.TrimSpace(in.Body.Email))
+		inv, link, err := Invite(ctx, a.SQLDB, a.SysDB, s.WorkspaceID, s.Role, s.UserID, in.Body.Email, in.Body.Role)
 		if err != nil {
-			return nil, huma.Error422UnprocessableEntity("that is not a valid email address")
+			return nil, asHuma(ctx, err, "create the invitation")
 		}
-		email := strings.ToLower(addr.Address)
-
-		var already bool
-		_ = a.SysDB.QueryRowContext(ctx, `
-			SELECT EXISTS (SELECT 1 FROM workspace_members m JOIN users u ON u.id = m.user_id
-			               WHERE m.workspace_id = $1 AND lower(u.email) = $2)`, s.WorkspaceID, email,
-		).Scan(&already)
-		if already {
-			return nil, huma.Error409Conflict("that person is already a member")
-		}
-
-		token := newToken()
 		out := &struct {
 			Body struct {
 				Invitation invitationOut `json:"invitation"`
 				AcceptURL  string        `json:"accept_url"`
 			}
 		}{}
-		inv := &out.Body.Invitation
-		err = a.SQLDB.QueryRowContext(ctx, `
-			INSERT INTO invitations (workspace_id, email, role, token_hash, invited_by, expires_at)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			RETURNING id, email, role, expires_at, created_at`,
-			s.WorkspaceID, email, in.Body.Role, HashToken(token), s.UserID, time.Now().Add(InviteTTL).UTC(),
-		).Scan(&inv.ID, &inv.Email, &inv.Role, &inv.ExpiresAt, &inv.CreatedAt)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not create the invitation")
-		}
-		out.Body.AcceptURL = "/invite/" + token
+		out.Body.Invitation = *inv
+		out.Body.AcceptURL = link
 		return out, nil
 	})
 
@@ -523,16 +476,8 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if !authz.Can(s.Role, authz.InvitationsManage) {
-			return nil, huma.Error403Forbidden("only owners and admins manage invitations")
-		}
-		res, err := a.SQLDB.ExecContext(ctx,
-			`DELETE FROM invitations WHERE workspace_id = $1 AND id = $2 AND accepted_at IS NULL`, s.WorkspaceID, in.ID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not revoke the invitation")
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, huma.Error404NotFound("invitation not found")
+		if err := RevokeInvitation(ctx, a.SQLDB, s.WorkspaceID, s.Role, in.ID); err != nil {
+			return nil, asHuma(ctx, err, "revoke the invitation")
 		}
 		return &struct{}{}, nil
 	})

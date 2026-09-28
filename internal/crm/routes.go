@@ -64,7 +64,8 @@ type idPath struct {
 	ID string `path:"id"`
 }
 
-type stageIn struct {
+// StageIn is one stage of a pipeline being saved.
+type StageIn struct {
 	ID   string `json:"id,omitempty" doc:"Existing stage id; omit to add a stage."`
 	Name string `json:"name" minLength:"1" maxLength:"40"`
 	Kind string `json:"kind" enum:"open,won,lost"`
@@ -105,92 +106,14 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body struct {
-			Stages []stageIn `json:"stages" minItems:"1" maxItems:"20"`
+			Stages []StageIn `json:"stages" minItems:"1" maxItems:"20"`
 		}
 	}) (*body[struct {
 		Stages []StageOut `json:"stages"`
 	}], error) {
-		s, err := scope(ctx, authz.PipelineManage)
+		st, err := SaveStages(ctx, db(), in.Body.Stages)
 		if err != nil {
 			return nil, err
-		}
-		open := false
-		for _, st := range in.Body.Stages {
-			if strings.TrimSpace(st.Name) == "" {
-				return nil, huma.Error422UnprocessableEntity("every stage needs a name")
-			}
-			open = open || st.Kind == "open"
-		}
-		if !open {
-			return nil, huma.Error422UnprocessableEntity("the pipeline needs at least one open stage")
-		}
-		if err := EnsureStages(ctx, db(), s.WorkspaceID); err != nil {
-			return nil, huma.Error500InternalServerError("could not prepare the pipeline")
-		}
-		tx, err := db().BeginTx(ctx, nil)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not save the pipeline")
-		}
-		defer tx.Rollback() //nolint:errcheck
-		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "crm-stages:"+s.WorkspaceID); err != nil {
-			return nil, huma.Error500InternalServerError("could not save the pipeline")
-		}
-		keep := map[string]bool{}
-		for i, st := range in.Body.Stages {
-			name := strings.TrimSpace(st.Name)
-			if st.ID != "" {
-				res, err := tx.ExecContext(ctx, `UPDATE pipeline_stages SET name = $3, kind = $4, position = $5, updated_at = now()
-					WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, st.ID, name, st.Kind, i)
-				if err != nil {
-					return nil, huma.Error500InternalServerError("could not save the pipeline")
-				}
-				if n, _ := res.RowsAffected(); n == 0 {
-					return nil, huma.Error422UnprocessableEntity("stage " + st.ID + " is not in this pipeline")
-				}
-				keep[st.ID] = true
-				continue
-			}
-			var id string
-			if err := tx.QueryRowContext(ctx, `INSERT INTO pipeline_stages (workspace_id, name, position, kind) VALUES ($1, $2, $3, $4) RETURNING id`,
-				s.WorkspaceID, name, i, st.Kind).Scan(&id); err != nil {
-				return nil, huma.Error500InternalServerError("could not save the pipeline")
-			}
-			keep[id] = true
-		}
-		rows, err := tx.QueryContext(ctx, `SELECT id, name FROM pipeline_stages WHERE workspace_id = $1`, s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not save the pipeline")
-		}
-		var drop [][2]string
-		for rows.Next() {
-			var id, name string
-			if err := rows.Scan(&id, &name); err == nil && !keep[id] {
-				drop = append(drop, [2]string{id, name})
-			}
-		}
-		rows.Close()
-		for _, d := range drop {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM pipeline_stages WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, d[0]); err != nil {
-				if pgCode(err) == "23503" {
-					return nil, huma.Error409Conflict("move the deals out of \"" + d[1] + "\" before removing it")
-				}
-				return nil, huma.Error500InternalServerError("could not save the pipeline")
-			}
-		}
-		// A stage that changed kind opens or closes the deals in it.
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE deals d SET closed_at = CASE WHEN st.kind = 'open' THEN NULL ELSE coalesce(d.closed_at, now()) END
-			FROM pipeline_stages st
-			WHERE d.workspace_id = $1 AND st.workspace_id = $1 AND st.id = d.stage_id
-			  AND (st.kind = 'open') = (d.closed_at IS NOT NULL)`, s.WorkspaceID); err != nil {
-			return nil, huma.Error500InternalServerError("could not save the pipeline")
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, huma.Error500InternalServerError("could not save the pipeline")
-		}
-		st, err := listStages(ctx, db(), s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list stages")
 		}
 		return out(struct {
 			Stages []StageOut `json:"stages"`
@@ -635,4 +558,102 @@ func deleteRow(ctx context.Context, db *sql.DB, table, id, noun string) (*struct
 		return nil, huma.Error404NotFound(noun + " not found")
 	}
 	return &struct{}{}, nil
+}
+
+// SaveStages replaces the pipeline: rename, reorder, add and remove stages.
+// A stage holding deals cannot be removed, and one must stay open. Shared by
+// PUT /api/w/pipeline/stages and the set_pipeline_stages tool (MH-680).
+func SaveStages(ctx context.Context, db *sql.DB, stages []StageIn) ([]StageOut, error) {
+	if len(stages) == 0 || len(stages) > 20 {
+		return nil, huma.Error422UnprocessableEntity("a pipeline has 1 to 20 stages")
+	}
+	s, err := scope(ctx, authz.PipelineManage)
+	if err != nil {
+		return nil, err
+	}
+	open := false
+	for _, st := range stages {
+		if strings.TrimSpace(st.Name) == "" {
+			return nil, huma.Error422UnprocessableEntity("every stage needs a name")
+		}
+		if len([]rune(strings.TrimSpace(st.Name))) > 40 {
+			return nil, huma.Error422UnprocessableEntity("a stage name is at most 40 characters")
+		}
+		if st.Kind != "open" && st.Kind != "won" && st.Kind != "lost" {
+			return nil, huma.Error422UnprocessableEntity("a stage's kind is open, won or lost")
+		}
+		open = open || st.Kind == "open"
+	}
+	if !open {
+		return nil, huma.Error422UnprocessableEntity("the pipeline needs at least one open stage")
+	}
+	if err := EnsureStages(ctx, db, s.WorkspaceID); err != nil {
+		return nil, huma.Error500InternalServerError("could not prepare the pipeline")
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not save the pipeline")
+	}
+	defer tx.Rollback() //nolint:errcheck
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "crm-stages:"+s.WorkspaceID); err != nil {
+		return nil, huma.Error500InternalServerError("could not save the pipeline")
+	}
+	keep := map[string]bool{}
+	for i, st := range stages {
+		name := strings.TrimSpace(st.Name)
+		if st.ID != "" {
+			res, err := tx.ExecContext(ctx, `UPDATE pipeline_stages SET name = $3, kind = $4, position = $5, updated_at = now()
+				WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, st.ID, name, st.Kind, i)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not save the pipeline")
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return nil, huma.Error422UnprocessableEntity("stage " + st.ID + " is not in this pipeline")
+			}
+			keep[st.ID] = true
+			continue
+		}
+		var id string
+		if err := tx.QueryRowContext(ctx, `INSERT INTO pipeline_stages (workspace_id, name, position, kind) VALUES ($1, $2, $3, $4) RETURNING id`,
+			s.WorkspaceID, name, i, st.Kind).Scan(&id); err != nil {
+			return nil, huma.Error500InternalServerError("could not save the pipeline")
+		}
+		keep[id] = true
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id, name FROM pipeline_stages WHERE workspace_id = $1`, s.WorkspaceID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not save the pipeline")
+	}
+	var drop [][2]string
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err == nil && !keep[id] {
+			drop = append(drop, [2]string{id, name})
+		}
+	}
+	rows.Close()
+	for _, d := range drop {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM pipeline_stages WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, d[0]); err != nil {
+			if pgCode(err) == "23503" {
+				return nil, huma.Error409Conflict("move the deals out of \"" + d[1] + "\" before removing it")
+			}
+			return nil, huma.Error500InternalServerError("could not save the pipeline")
+		}
+	}
+	// A stage that changed kind opens or closes the deals in it.
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE deals d SET closed_at = CASE WHEN st.kind = 'open' THEN NULL ELSE coalesce(d.closed_at, now()) END
+		FROM pipeline_stages st
+		WHERE d.workspace_id = $1 AND st.workspace_id = $1 AND st.id = d.stage_id
+		  AND (st.kind = 'open') = (d.closed_at IS NOT NULL)`, s.WorkspaceID); err != nil {
+		return nil, huma.Error500InternalServerError("could not save the pipeline")
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, huma.Error500InternalServerError("could not save the pipeline")
+	}
+	st, err := listStages(ctx, db, s.WorkspaceID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not list stages")
+	}
+	return st, nil
 }
