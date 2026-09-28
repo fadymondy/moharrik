@@ -15,6 +15,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -47,6 +48,20 @@ func wsID(ctx context.Context) string {
 		return s.WorkspaceID
 	}
 	return ""
+}
+
+// permitted is the caller's workspace once their role holds perm. Importing is
+// contacts:write (a client may not); exporting the list as a file is
+// contacts:export, a manager's call (MH-690: these routes checked no role).
+func permitted(ctx context.Context, perm string) (string, error) {
+	s, ok := tenant.From(ctx)
+	if !ok {
+		return "", huma.Error404NotFound("workspace not found")
+	}
+	if !authz.Can(s.Role, perm) {
+		return "", huma.Error403Forbidden("your role cannot do this")
+	}
+	return s.WorkspaceID, nil
 }
 
 func userID(ctx context.Context) string {
@@ -96,7 +111,10 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		Body importBody
 	}) (*body[VcardPreview], error) {
-		ws := wsID(ctx)
+		ws, denied := permitted(ctx, authz.ContactsWrite)
+		if denied != nil {
+			return nil, denied
+		}
 		if !CheckRateLimit(ws) {
 			return nil, huma.Error429TooManyRequests("too many vCard imports for this workspace in the last minute — try again shortly")
 		}
@@ -133,7 +151,10 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		Body importBody
 	}) (*body[CommitResult], error) {
-		ws := wsID(ctx)
+		ws, denied := permitted(ctx, authz.ContactsWrite)
+		if denied != nil {
+			return nil, denied
+		}
 		if !CheckRateLimit(ws) {
 			return nil, huma.Error429TooManyRequests("too many vCard imports for this workspace in the last minute — try again shortly")
 		}
@@ -169,7 +190,10 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		IDs string `query:"ids" doc:"Comma-separated contact ids. Omit to export the whole workspace."`
 	}) (*huma.StreamResponse, error) {
-		ws := wsID(ctx)
+		ws, denied := permitted(ctx, authz.ContactsExport)
+		if denied != nil {
+			return nil, denied
+		}
 		var ids []string
 		if in.IDs != "" {
 			ids = splitCSV(in.IDs)
@@ -194,7 +218,10 @@ func Register(api huma.API, a *app.App) {
 			"workspace's current default country (stored or inferred). Only fills a phone still blank; never overwrites one already set.",
 		Tags: restTags,
 	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[reparseResult], error) {
-		ws := wsID(ctx)
+		ws, denied := permitted(ctx, authz.ContactsWrite)
+		if denied != nil {
+			return nil, denied
+		}
 		country, err := resolveCountry(ctx, a, ws, "")
 		if err != nil {
 			return nil, err

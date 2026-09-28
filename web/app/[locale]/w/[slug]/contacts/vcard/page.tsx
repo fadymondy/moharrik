@@ -128,6 +128,9 @@ export default function VcardPage() {
   useDocumentTitle(`${t("vcard.title")} · ${ws.summary.name}`)
   const base = `/${locale}/w/${ws.slug}`
   const canWrite = ws.can("contacts:write")
+  // Exporting the list is a manager's call, as on Contacts (MH-690); the API
+  // refuses anyone below, so the button is not offered to them.
+  const canExport = ws.can("contacts:export")
 
   const [source, setSource] = useState<ImportSource>("vcard")
   const fileInput = useRef<HTMLInputElement>(null)
@@ -236,17 +239,24 @@ export default function VcardPage() {
       />
 
       <div className="px-6 pb-4">
-        <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-line pb-6">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={runExportAll}
-            disabled={exporting}
-            data-action="export-vcard"
-          >
-            {exporting ? t("vcard.exporting") : t("vcard.exportAll")}
-          </Button>
-          <FieldDescription>{t("vcard.exportHint")}</FieldDescription>
+        <div
+          className="mb-6 flex flex-wrap items-center gap-4 border-b border-line pb-6"
+          hidden={!canExport && !canWrite}
+        >
+          {canExport ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={runExportAll}
+                disabled={exporting}
+                data-action="export-vcard"
+              >
+                {exporting ? t("vcard.exporting") : t("vcard.exportAll")}
+              </Button>
+              <FieldDescription>{t("vcard.exportHint")}</FieldDescription>
+            </>
+          ) : null}
           {canWrite ? (
             <Button
               type="button"
@@ -261,7 +271,8 @@ export default function VcardPage() {
           ) : null}
         </div>
 
-        <GoogleContactsPanel />
+        {/* Import only, and it reads the connected Google account's address book. */}
+        {canWrite ? <GoogleContactsPanel /> : null}
 
         {!canWrite ? (
           <FieldDescription className="pb-4">{t("contacts.readOnly")}</FieldDescription>

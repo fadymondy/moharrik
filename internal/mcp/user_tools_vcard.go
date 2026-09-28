@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/googlecontacts"
 	"github.com/fadymondy/moharrik/internal/vcard"
 )
@@ -72,6 +74,9 @@ func VcardTools() []Tool {
 				s, err := need(ctx)
 				if err != nil {
 					return "", err
+				}
+				if !authz.Can(s.Role, authz.ContactsWrite) {
+					return "", errors.New("your role cannot import contacts")
 				}
 				m := decodeArgs(raw)
 				switch importSource(str(m, "source")) {
@@ -142,6 +147,9 @@ func VcardTools() []Tool {
 				if err != nil {
 					return "", err
 				}
+				if !authz.Can(s.Role, authz.ContactsWrite) {
+					return "", errors.New("your role cannot import contacts")
+				}
 				m := decodeArgs(raw)
 				switch importSource(str(m, "source")) {
 				case sourceGoogle:
@@ -202,6 +210,9 @@ func VcardTools() []Tool {
 				s, err := need(ctx)
 				if err != nil {
 					return "", err
+				}
+				if !authz.Can(s.Role, authz.ContactsExport) {
+					return "", errors.New("exporting contacts needs a manager or above, as on the page")
 				}
 				var in struct {
 					IDs []string `json:"ids"`

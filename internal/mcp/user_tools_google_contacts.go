@@ -3,8 +3,10 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/googlecontacts"
 )
 
@@ -31,6 +33,9 @@ func GoogleContactsTools() []Tool {
 				s, err := need(ctx)
 				if err != nil {
 					return "", err
+				}
+				if !authz.Can(s.Role, authz.ContactsWrite) {
+					return "", errors.New("your role cannot import contacts")
 				}
 				m := decodeArgs(raw)
 				connID, err := required("connection_id", str(m, "connection_id"))

@@ -13,6 +13,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/google"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/vcard"
@@ -25,6 +26,20 @@ type wsHeader struct {
 }
 
 type body[T any] struct{ Body T }
+
+// canImport: every route here is part of importing contacts, so each needs
+// contacts:write. The preview lists the connected Google account's address
+// book, so a client must not reach it either (MH-690: no role was checked).
+func canImport(ctx context.Context) error {
+	s, ok := tenant.From(ctx)
+	if !ok {
+		return huma.Error404NotFound("workspace not found")
+	}
+	if !authz.Can(s.Role, authz.ContactsWrite) {
+		return huma.Error403Forbidden("your role cannot import contacts")
+	}
+	return nil
+}
 
 func wsID(ctx context.Context) string {
 	if s, ok := tenant.From(ctx); ok {
@@ -58,6 +73,9 @@ func Register(api huma.API, a *app.App) {
 		OperationID: "w-google-contacts-connections", Method: http.MethodGet, Path: "/api/w/google/contacts/connections",
 		Summary: "Connected Google accounts that have granted Contacts, for the Import from Google panel (any workspace member)", Tags: restTags,
 	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[ContactsConnectionsOut], error) {
+		if err := canImport(ctx); err != nil {
+			return nil, err
+		}
 		list, err := ListConnections(ctx, a, wsID(ctx))
 		if err != nil {
 			return nil, mapErr(err)
@@ -72,6 +90,9 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		ConnectionID string `path:"connection_id"`
 	}) (*body[vcard.VcardPreview], error) {
+		if err := canImport(ctx); err != nil {
+			return nil, err
+		}
 		pv, err := Preview(ctx, a, wsID(ctx), in.ConnectionID)
 		if err != nil {
 			return nil, mapErr(err)
@@ -87,6 +108,9 @@ func Register(api huma.API, a *app.App) {
 		ConnectionID string `path:"connection_id"`
 		Full         bool   `query:"full" doc:"Ignore the stored sync token and re-import every contact (MH-646: fills in phones a newly-set default country can now resolve). Never duplicates or overwrites a hand-set phone."`
 	}) (*body[SyncResult], error) {
+		if err := canImport(ctx); err != nil {
+			return nil, err
+		}
 		res, err := Sync(ctx, a, wsID(ctx), in.ConnectionID, userID(ctx), in.Full)
 		if err != nil {
 			return nil, mapErr(err)
@@ -101,6 +125,9 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		ConnectionID string `path:"connection_id"`
 	}) (*body[SyncStatus], error) {
+		if err := canImport(ctx); err != nil {
+			return nil, err
+		}
 		st, err := Status(ctx, a, wsID(ctx), in.ConnectionID)
 		if err != nil {
 			return nil, mapErr(err)
