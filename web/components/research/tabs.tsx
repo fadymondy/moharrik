@@ -274,7 +274,7 @@ function LiveNotice({ run }: { run: ResearchRun }) {
   )
 }
 
-function RunRow({ run }: { run: ResearchRun }) {
+export function RunRow({ run }: { run: ResearchRun }) {
   const { t, locale, formatNumber } = useTranslations()
   const ws = useWorkspace()
   const fmt = useFormatDateTime()

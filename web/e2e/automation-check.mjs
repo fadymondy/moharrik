@@ -97,7 +97,7 @@ const { slug } = await signUpAndEnterWorkspace(page, "AU " + Date.now())
 out.slug = slug
 
 // ---- the page loads and says there is nothing yet ----
-await page.goto(`${base}/en/w/${slug}/automation`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/automation/browsers`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-form="approve"]', { timeout: 20000 })
 out.navHasAutomation = await page.evaluate(() =>
   [...document.querySelectorAll("nav a")].some((a) =>
@@ -222,7 +222,7 @@ out.resultVerbatim = await page.evaluate(() =>
 )
 
 // ---- a failing step stops the run and the rest are skipped ----
-await page.goto(`${base}/en/w/${slug}/automation`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/automation/browsers`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-form="run"]', { timeout: 15000 })
 await page.fill(
   "#run-steps",
@@ -243,7 +243,7 @@ out.skippedAfterFailure = await page.evaluate(() =>
 
 // ---- the kill switch: stops runs, drops sockets, refuses new ones ----
 const closed = new Promise((resolve) => sock.on("close", (code) => resolve(code)))
-await page.goto(`${base}/en/w/${slug}/automation`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/automation/browsers`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-form="run"]', { timeout: 15000 })
 await page.click('button:has-text("Stop everything")')
 await page.waitForSelector('[role="alertdialog"] button:has-text("Stop everything")', {
@@ -288,7 +288,7 @@ await ctx.close()
 const ctxAr = await newCtx({ width: 390, height: 844 })
 const pageAr = ctxAr.pages()[0]
 const { slug: slugAr } = await signUpAndEnterWorkspace(pageAr, "AU AR " + Date.now())
-await pageAr.goto(`${base}/ar/w/${slugAr}/automation`, { waitUntil: "domcontentloaded" })
+await pageAr.goto(`${base}/ar/w/${slugAr}/automation/browsers`, { waitUntil: "domcontentloaded" })
 await pageAr.waitForTimeout(2000)
 out.ar390_overflow = await pageAr.evaluate(() => document.documentElement.scrollWidth > 390)
 out.ar390_rawKeys = await pageAr.evaluate(() =>

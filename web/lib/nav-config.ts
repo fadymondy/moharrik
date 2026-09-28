@@ -1,9 +1,11 @@
 /*
 The workspace sidebar's structure (MH-526), as one table instead of one long flat
-list: a handful of top-level links plus a handful of GROUPS. Opening a group
-drills the sidebar down into that group's own pages, with a back arrow to
-return to the group list — so a crowded area (Automation, Research, Inbox,
-Notifications) reads as one screen at a time instead of forty rows.
+list: a handful of top-level links plus a handful of GROUPS. Each group is a
+section with its own page at `home` (MH-673): opening it shows that section's
+dashboard, and the sidebar — derived from the URL alone — shows only that
+section's pages, with a back link to the workspace overview. A crowded area
+(Automation, Research, Inbox, Notifications) reads as one screen at a time
+instead of forty rows.
 
 Every entry here owns exactly one route. A page that used to live at a since-
 moved URL gets a redirect (see the old route's page.tsx), not a duplicate nav
@@ -69,6 +71,8 @@ export type NavGroup = {
   key: string
   labelKey: string
   icon: LucideIcon
+  /** The section's own page (MH-673): its dashboard, and where the sidebar row links. */
+  home: string
   /** Capability required for the group to appear at all. */
   can?: string
   items: NavItem[]
@@ -91,6 +95,7 @@ export const NAV: NavEntry[] = [
     type: "group",
     group: {
       key: "crm",
+      home: "crm",
       labelKey: "nav.group.crm",
       icon: HandshakeIcon,
       items: [
@@ -112,6 +117,7 @@ export const NAV: NavEntry[] = [
     type: "group",
     group: {
       key: "marketing",
+      home: "marketing",
       labelKey: "nav.group.marketing",
       icon: SendIcon,
       items: [
@@ -129,6 +135,7 @@ export const NAV: NavEntry[] = [
     type: "group",
     group: {
       key: "inbox",
+      home: "inbox/overview",
       labelKey: "nav.inbox",
       icon: InboxIcon,
       items: [
@@ -170,6 +177,7 @@ export const NAV: NavEntry[] = [
     type: "group",
     group: {
       key: "automation",
+      home: "automation",
       labelKey: "nav.automation",
       icon: BotIcon,
       items: [
@@ -217,6 +225,7 @@ export const NAV: NavEntry[] = [
     type: "group",
     group: {
       key: "research",
+      home: "research",
       labelKey: "nav.research",
       icon: SearchCheckIcon,
       can: "research:read",
@@ -247,6 +256,7 @@ export const NAV: NavEntry[] = [
     type: "group",
     group: {
       key: "insights",
+      home: "insights",
       labelKey: "nav.group.insights",
       icon: TrendingUpIcon,
       items: [
@@ -291,6 +301,7 @@ export const NAV: NavEntry[] = [
     type: "group",
     group: {
       key: "notifications",
+      home: "notifications/overview",
       labelKey: "nav.notifications",
       icon: BellIcon,
       items: [
@@ -318,6 +329,7 @@ export const NAV: NavEntry[] = [
     type: "group",
     group: {
       key: "settings",
+      home: "settings",
       labelKey: "nav.settings",
       icon: SettingsIcon,
       items: [
@@ -390,6 +402,9 @@ export function visibleEntries(can: string[] | undefined) {
 
 /** Whether `pathname` (already stripped of the workspace base) is inside this item's path. */
 export function itemActive(item: NavItem, rest: string): boolean {
+  // A section's own dashboard belongs to no page inside it (MH-673): /notifications/overview
+  // must not light up the Notifications page row that owns /notifications.
+  if (groupForHome(rest) && item.path !== rest) return false
   const p = item.path
   // A research run's own page (/research/<id>) has no "/runs" segment, but it is
   // that run's evidence, so it belongs under "Runs" like any other item there.
@@ -406,8 +421,16 @@ export function itemActive(item: NavItem, rest: string): boolean {
   return true
 }
 
-/** Which group (if any) owns the current path, so a deep link opens drilled into it. */
+/** The group whose section dashboard is exactly this path, if any. */
+export function groupForHome(rest: string): NavGroup | null {
+  for (const e of NAV) if (e.type === "group" && e.group.home === rest) return e.group
+  return null
+}
+
+/** Which group (if any) owns the current path — its dashboard or any page in it — so the sidebar shows that section. */
 export function groupForPath(rest: string): NavGroup | null {
+  const home = groupForHome(rest)
+  if (home) return home
   for (const e of NAV) {
     if (e.type !== "group") continue
     if (e.group.items.some((i) => itemActive(i, rest))) return e.group

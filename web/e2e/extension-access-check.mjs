@@ -213,7 +213,7 @@ try {
   out.siteAddedOnTheWebsiteWorksAtOnce =
     atOnce.run.status === "ok" && JSON.parse(atOnce.steps[1].result).value === "420"
 
-  await page.goto(`${base}/en/w/${slug}/automation`, { waitUntil: "load" })
+  await page.goto(`${base}/en/w/${slug}/automation/browsers`, { waitUntil: "load" })
   openRows = async (p) => {
     // Set up, the browsers fold into one status row; "Manage" opens them.
     const manage = await p.waitForSelector("[data-manage-browsers], [data-browser-list]", {
@@ -487,7 +487,7 @@ try {
             colorScheme: theme,
           })
           const p = await c.newPage()
-          await p.goto(`${base}/${locale}/w/${slug}/automation`, { waitUntil: "load" })
+          await p.goto(`${base}/${locale}/w/${slug}/automation/browsers`, { waitUntil: "load" })
           await openRows(p)
           await p.waitForSelector("[data-site-access]", { timeout: 30000 })
           await p.locator("[data-site-access]").first().scrollIntoViewIfNeeded()

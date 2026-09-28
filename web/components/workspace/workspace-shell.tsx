@@ -9,6 +9,7 @@ import {
   CheckIcon,
   ChevronRightIcon,
   ChevronsUpDownIcon,
+  LayoutDashboardIcon,
   MenuIcon,
   MessageSquarePlusIcon,
   PanelLeftCloseIcon,
@@ -180,34 +181,31 @@ function NavLink({
   )
 }
 
-/** A group row on the root screen: not a link — pressing it drills the sidebar into that group. */
-function NavGroupButton({
+/** A group row on the root screen: a link to that section's own page (MH-673), whose dashboard it opens. */
+function NavGroupLink({
   group,
-  active,
-  onOpen,
+  href,
+  onNavigate,
   mini = false,
 }: {
   group: NavGroup
-  active: boolean
-  onOpen: () => void
+  href: string
+  onNavigate?: () => void
   mini?: boolean
 }) {
   const { t } = useTranslations()
   const Icon = group.icon
   const label = t(group.labelKey)
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <Link
+      href={href}
+      onClick={onNavigate}
       title={mini ? label : undefined}
-      aria-expanded={active}
       data-nav-group={group.key}
       className={cn(
         "flex w-full items-center gap-2.5 border-s-2 px-3 py-2 text-sm transition-colors [&_svg]:size-4 [&_svg]:shrink-0",
         mini && "justify-center px-0 py-2.5",
-        active
-          ? "border-grid-action bg-grid-soft font-medium text-grid-fg"
-          : "border-transparent text-grid-body hover:bg-grid-soft hover:text-grid-fg",
+        "border-transparent text-grid-body hover:bg-grid-soft hover:text-grid-fg",
       )}
     >
       <Icon />
@@ -219,7 +217,7 @@ function NavGroupButton({
           <ChevronRightIcon className="size-3.5 shrink-0 text-grid-muted rtl:rotate-180" />
         </>
       )}
-    </button>
+    </Link>
   )
 }
 
@@ -441,13 +439,13 @@ function ShellSkeleton() {
  *   ROOT: Overview, then every group button (CRM, Marketing, Inbox, Automation,
  *   Research, Insights, Notifications), then Members, then Settings.
  *
- *   DRILLED: a back arrow, the group's name, and only that group's pages.
+ *   SECTION: a back link to the workspace overview, the section's name, its
+ *   dashboard, and only that section's pages.
  *
- * Which screen shows is derived from the URL (a deep link into a group's page
- * opens straight into that group, drilled), with a `manual` override so
- * pressing a group button or the back arrow doesn't have to navigate to
- * change what the sidebar shows. `manual` is cleared on every real navigation,
- * so once a page is picked, the URL is back in charge.
+ * Every row is a real link and which screen shows comes from the URL alone
+ * (MH-673): a group row opens the section's own page (its dashboard), and the
+ * sidebar follows because that page — like every page inside it — belongs to
+ * the section. There is no client-only "drilled" state to get out of step.
  */
 function ShellNav({
   base,
@@ -463,20 +461,12 @@ function ShellNav({
   const { t, locale } = useTranslations()
   const pathname = usePathname()
   const rest = pathname.startsWith(base) ? pathname.slice(base.length).replace(/^\//, "") : ""
-  const [manual, setManual] = useState<string | null>(null)
-  useEffect(() => setManual(null), [pathname])
-
   const entries = visibleEntries(can)
   const derivedGroup = groupForPath(rest)
-  const openGroup =
-    manual === null
-      ? derivedGroup
-      : manual === ""
-        ? null
-        : ((
-            entries.find((e) => e.type === "group" && e.group.key === manual) as
-              { type: "group"; group: NavGroup } | undefined
-          )?.group ?? null)
+  // A section this role cannot see does not take over the sidebar.
+  const openGroup = entries.some((e) => e.type === "group" && e.group.key === derivedGroup?.key)
+    ? derivedGroup
+    : null
 
   if (openGroup) {
     const items = visibleItems(openGroup.items, can)
@@ -486,9 +476,9 @@ function ShellNav({
         aria-label={t("shell.navigation")}
         data-nav-drilled={openGroup.key}
       >
-        <button
-          type="button"
-          onClick={() => setManual("")}
+        <Link
+          href={base}
+          onClick={onNavigate}
           title={mini ? t("nav.back") : undefined}
           data-nav-back
           className={cn(
@@ -498,10 +488,20 @@ function ShellNav({
         >
           <ArrowLeftIcon className="rtl:rotate-180" />
           {mini ? <span className="sr-only">{t("nav.back")}</span> : t("nav.back")}
-        </button>
+        </Link>
         {mini ? null : (
           <p className="grid-micro px-4 pt-2 pb-1 text-grid-fg">{t(openGroup.labelKey)}</p>
         )}
+        <NavLink
+          href={`${base}/${openGroup.home}`}
+          icon={<LayoutDashboardIcon />}
+          active={rest === openGroup.home}
+          onNavigate={onNavigate}
+          mini={mini}
+          dataNav={`${openGroup.key}-home`}
+        >
+          {t("nav.sectionOverview")}
+        </NavLink>
         {items.map((item) => {
           const Icon = item.icon
           return (
@@ -554,10 +554,10 @@ function ShellNav({
         return (
           <span key={e.group.key} className="contents">
             {divider}
-            <NavGroupButton
+            <NavGroupLink
               group={e.group}
-              active={derivedGroup?.key === e.group.key}
-              onOpen={() => setManual(e.group.key)}
+              href={`${base}/${e.group.home}`}
+              onNavigate={onNavigate}
               mini={mini}
             />
           </span>

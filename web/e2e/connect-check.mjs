@@ -306,7 +306,7 @@ try {
   await recPage.close()
 
   // ---- rename on the site ----
-  await page.goto(`${base}/en/w/${slug}/automation`, { waitUntil: "load" })
+  await page.goto(`${base}/en/w/${slug}/automation/browsers`, { waitUntil: "load" })
   await page.waitForSelector("[data-manage-browsers], [data-browser]", { timeout: 60000 })
   const manage = await page.$("[data-manage-browsers]")
   if (manage) await manage.click()

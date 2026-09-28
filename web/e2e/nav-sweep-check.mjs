@@ -1,6 +1,6 @@
-// The drill-down sidebar (MH-526): every group's sub-sidebar and every page it
-// owns, deep links that open the right group, old URLs that redirect instead
-// of 404ing, and no horizontal overflow at 390.
+// The section sidebar (MH-526, pages since MH-673): every group row opens that
+// section's own dashboard page, every page it owns, deep links that open the right
+// section, old URLs that redirect instead of 404ing, and no horizontal overflow at 390.
 //
 //   node e2e/nav-sweep-check.mjs [base] [--shots <card>]
 import { chromium } from "playwright-core"
@@ -75,9 +75,20 @@ const GROUPS = [
 ]
 const TOP_LEVEL = ["", "members"] // "" = Overview
 
+// Each group's own page (MH-673): its dashboard, and where its sidebar row links.
+const HOMES = {
+  crm: "crm",
+  marketing: "marketing",
+  inbox: "inbox/overview",
+  automation: "automation",
+  research: "research",
+  insights: "insights",
+  notifications: "notifications/overview",
+  settings: "settings",
+}
+
+// /automation and /research are section dashboards now (MH-673); only the old tab links redirect.
 const OLD_REDIRECTS = [
-  { from: "automation", to: "automation/browsers" },
-  { from: "research", to: "research/runs" },
   { from: "research?tab=evidence", to: "research/evidence" },
   { from: "research?tab=schedules", to: "research/schedules" },
 ]
@@ -119,18 +130,24 @@ try {
     out[`root:${item || "overview"}`] = drilled === ""
   }
 
-  // ---- each group: opening it shows a back arrow and only that group's pages;
-  //      each item is a real link with the expected href; visiting the item
-  //      directly (a deep link) opens the sidebar drilled into that same group ----
+  // ---- each group: its row is a link to the section's own page (MH-673), which
+  //      shows that section's dashboard and a sidebar with a back link, the section
+  //      overview and only that group's pages; each item is a real link with the
+  //      expected href; visiting the item directly (a deep link) opens the sidebar
+  //      in that same group ----
   for (const g of GROUPS) {
     await page.goto(w(), { waitUntil: "load" })
     await page.click(`[data-nav-group="${g.key}"]`)
+    await page.waitForURL(w(HOMES[g.key]), { timeout: 15000 }).catch(() => {})
+    out[`home:${g.key}:navigates`] = page.url() === w(HOMES[g.key]) ? "ok" : page.url()
     await page.waitForSelector(`[data-nav-drilled="${g.key}"]`)
+    out[`home:${g.key}:dashboard`] =
+      (await page.waitForSelector(`[data-section-home="${g.key}"] [data-section-pages]`, { timeout: 15000 }).catch(() => null)) !== null
     out[`drill:${g.key}:hasBack`] = (await page.$("[data-nav-back]")) !== null
-    const hrefs = await page.$$eval("[data-nav-drilled] a[data-nav-item]", (as) =>
+    const hrefs = await page.$eval("[data-nav-drilled] a[data-nav-item]", (as) =>
       as.map((a) => a.getAttribute("href")),
     )
-    const want = g.items.map((i) => `/en/w/${slug}/${i}`)
+    const want = [HOMES[g.key], ...g.items].map((i) => `/en/w/${slug}/${i}`)
     out[`drill:${g.key}:items`] =
       hrefs.join(",") === want.join(",") ? "match" : `got ${hrefs.join(",")}`
 
@@ -145,11 +162,11 @@ try {
     }
   }
 
-  // ---- back arrow: from a drilled group, it returns to the root list without navigating ----
+  // ---- back link: from a section, it goes to the workspace overview and the root list ----
   await page.goto(w("automation/browsers"), { waitUntil: "load" })
   await page.click("[data-nav-back]")
   await page.waitForSelector('[data-nav-drilled=""]')
-  out["backArrow:staysOnPage"] = page.url() === w("automation/browsers")
+  out["backLink:toOverview"] = page.url() === w() || page.url() === w("") ? "ok" : page.url()
 
   // ---- old URLs redirect (client-side replace, since a server redirect() does not
   //      turn into an HTTP redirect under this shell's client layout boundary in this
@@ -172,7 +189,13 @@ try {
   await page.click("[data-mobile-nav-toggle]")
   await page.waitForSelector("[data-mobile-nav]")
   out["mobileSheet:opens"] = (await page.$("[data-mobile-nav] [data-nav-group]")) !== null
+  // A section row is a page (MH-673): it opens the CRM dashboard and closes the sheet;
+  // reopening the sheet shows the CRM section.
   await page.click('[data-mobile-nav] [data-nav-group="crm"]')
+  await page.waitForURL(w("crm"), { timeout: 10000 })
+  await page.waitForSelector("[data-mobile-nav]", { state: "detached", timeout: 10000 }).catch(() => {})
+  out["mobileSheet:sectionOpensPage"] = (await page.$("[data-mobile-nav]")) === null
+  await page.click("[data-mobile-nav-toggle]")
   await page.waitForSelector('[data-mobile-nav] [data-nav-drilled="crm"]')
   out["mobileSheet:drillsDown"] = true
   await page.click('[data-mobile-nav] a[data-nav-item="leads"]')
@@ -194,7 +217,8 @@ try {
           })
           const p = await c.newPage()
           for (const g of GROUPS) {
-            await p.goto(`${base}/${locale}/w/${slug}/${g.items[0]}`, { waitUntil: "load" })
+            await p.goto(`${base}/${locale}/w/${slug}/${HOMES[g.key]}`, { waitUntil: "load" })
+            await p.waitForSelector("[data-section-pages]", { timeout: 15000 }).catch(() => {})
             await p
               .waitForSelector(`[data-nav-drilled="${g.key}"]`, { timeout: 15000 })
               .catch(() => {})
