@@ -207,7 +207,7 @@ func TestBlockDropsInboundAndRefusesReplies(t *testing.T) {
 		VALUES ($1, 'whatsapp', $2, 'Blocked One', 'hi', now()) RETURNING id`, f.wsID, phone).Scan(&c); err != nil {
 		t.Fatal(err)
 	}
-	if err := FileWhatsApp(f.ctx, a, f.wsID, phone, "Blocked One", "first", "WA"+idSuffix()); err != nil {
+	if err := FileWhatsApp(f.ctx, a, f.wsID, phone, "Blocked One", "first", "WA"+idSuffix(), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	before := f.messageCount(t, c)
@@ -225,7 +225,7 @@ func TestBlockDropsInboundAndRefusesReplies(t *testing.T) {
 	if !got.Blocked || len(calls) != 1 || !calls[0] {
 		t.Fatalf("blocked %v, WhatsApp calls %v", got.Blocked, calls)
 	}
-	if err := FileWhatsApp(f.ctx, a, f.wsID, phone, "Blocked One", "second", "WA"+idSuffix()); err != nil {
+	if err := FileWhatsApp(f.ctx, a, f.wsID, phone, "Blocked One", "second", "WA"+idSuffix(), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n := f.messageCount(t, c); n != before {

@@ -872,8 +872,17 @@ export type InboxAttachment = {
   size_bytes: number
   inline: boolean
   content_id?: string
-  /** A signed, time-limited download URL — usable directly as <img src> or a link (MH-556). */
-  url: string
+  /** A signed, time-limited download URL — usable directly as <img src> or a link (MH-556). Absent for a location (renders from meta) or a failed download. */
+  url?: string
+  /** MH-658: how to render this attachment. Missing/"" on rows filed before this
+   *  column existed — the client treats that the same as "document". */
+  kind?: "image" | "video" | "audio" | "voice" | "document" | "sticker" | "location" | "contact" | ""
+  /** MH-658: "failed" when Evolution's media download didn't come back in time
+   *  or over the size cap — the message still filed, just with no bytes. */
+  status?: "ready" | "failed" | ""
+  /** MH-658: kind-specific data carried outside the file bytes — lat/lng/name/address
+   *  for a location, name/number for a contact card. */
+  meta?: { lat?: number; lng?: number; name?: string; address?: string; number?: string }
 }
 
 export type InboxMessage = {

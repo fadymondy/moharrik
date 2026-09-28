@@ -63,7 +63,17 @@ func scope(ctx context.Context, action string) (*tenant.Scope, error) {
 // Inbound delivery is a function the inbox provides, so this package never
 // imports it: internal/inbox already imports nothing from here either, and one
 // of the two had to stay unaware of the other.
-type Filer func(ctx context.Context, workspaceID, phone, name, text, externalID string) error
+//
+// media is nil for a plain text message; set (MH-658), it is the inbox's cue
+// to download it (via a *Client this package hands it, since only this
+// package knows the workspace's Evolution instance/link) and file it as a
+// message_attachments row alongside the message.
+type Filer func(ctx context.Context, workspaceID, phone, name, text, externalID string, media *Media, download MediaDownloader) error
+
+// MediaDownloader downloads one message's media, bound to the workspace's own
+// Evolution instance — the inbox package files attachments but has no
+// business knowing an instance name or a webhook token.
+type MediaDownloader func(ctx context.Context) (MediaFile, error)
 
 var file Filer
 
@@ -145,6 +155,7 @@ func Register(api huma.API, a *app.App) {
 // tier; the unguessable id in the path plus the token header are the
 // authorization, exactly like /api/hooks/ and /api/chat/.
 func RegisterHook(r chi.Router, a *app.App) {
+	cfg := LoadConfig()
 	r.Post("/api/whatsapp/hook/{id}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		l, err := ByHookID(ctx, a, chi.URLParam(r, "id"))
@@ -188,7 +199,11 @@ func RegisterHook(r chi.Router, a *app.App) {
 				break
 			}
 			if file != nil {
-				if err := file(ctx, l.WorkspaceID, in.Phone, in.Name, in.Text, in.ID); err != nil {
+				raw := in.Raw()
+				download := MediaDownloader(func(dctx context.Context) (MediaFile, error) {
+					return ClientFor(cfg, l).GetMediaBase64(dctx, raw)
+				})
+				if err := file(ctx, l.WorkspaceID, in.Phone, in.Name, in.Text, in.ID, in.Media, download); err != nil {
 					// 500 so Evolution retries: the message is real and losing
 					// it means losing a customer's words.
 					http.Error(w, "could not file", http.StatusInternalServerError)

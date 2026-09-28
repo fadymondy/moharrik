@@ -22,6 +22,7 @@ package whatsapp
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -281,6 +282,118 @@ func (c *Client) ProfilePicture(ctx context.Context, number string) (string, err
 		return "", err
 	}
 	return out.ProfilePictureURL, nil
+}
+
+// MediaFile is one downloaded attachment's bytes plus what Evolution says
+// about it. Base64-decoded already — GetMediaBase64's caller wants bytes, not
+// another encoding step repeated at every call site.
+type MediaFile struct {
+	Data     []byte
+	MimeType string
+	FileName string
+}
+
+// mediaMaxBytes caps a downloaded attachment (MH-658's "done when": a bounded
+// size cap). Base64 inflates by about a third, so the raw HTTP response is
+// allowed a bit more than this before it is cut off outright.
+const mediaMaxBytes = 25 << 20
+
+// mediaTimeout bounds how long one download from Evolution may take, so a
+// slow or hanging media server never turns "file this message" into a stuck
+// webhook request.
+const mediaTimeout = 15 * time.Second
+
+// GetMediaBase64 downloads one inbound message's media through Evolution's
+// POST /chat/getBase64FromMediaMessage/{instance} (MH-658). raw is the exact
+// row Evolution's own webhook delivered — key + message together
+// (Inbound.Raw()) — since Evolution needs the mediaKey/fileEncSha256/
+// directPath fields on the message to decrypt media it does not still have
+// cached, and the key to know which chat/message it belongs to. Forwarded
+// byte-for-byte rather than reconstructed from the fields this app happens to
+// read elsewhere, so nothing Evolution needs is ever silently dropped.
+//
+// This does NOT go through Client.do: that helper caps a response at 2 MiB,
+// fine for the small JSON everything else here exchanges but far too small
+// for a base64-encoded video. This has its own cap (mediaMaxBytes, inflated
+// for base64) and its own timeout (mediaTimeout), bounded independently of
+// the caller's context so one slow download cannot outlive the webhook
+// request that triggered it.
+func (c *Client) GetMediaBase64(ctx context.Context, raw json.RawMessage) (MediaFile, error) {
+	if !c.Cfg.Configured() {
+		return MediaFile{}, ErrNotConfigured
+	}
+	reqBody, err := json.Marshal(map[string]any{"message": raw})
+	if err != nil {
+		return MediaFile{}, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, mediaTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.Cfg.URL+"/chat/getBase64FromMediaMessage/"+c.inst(), bytes.NewReader(reqBody))
+	if err != nil {
+		return MediaFile{}, &Error{Unreachable: true, Message: "EVOLUTION_API_URL is not a usable URL"}
+	}
+	req.Header.Set("apikey", c.Cfg.Key)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	hc := c.HTTP
+	if hc == nil {
+		hc = &http.Client{Timeout: mediaTimeout}
+	}
+	res, err := hc.Do(req)
+	if err != nil {
+		msg := "connection failed"
+		if errors.Is(err, context.DeadlineExceeded) {
+			msg = "timed out"
+		}
+		return MediaFile{}, &Error{Unreachable: true, Message: msg}
+	}
+	defer res.Body.Close()
+
+	// base64 inflates the original by ~4/3, plus JSON framing overhead.
+	rawLim := int64(mediaMaxBytes)*4/3 + 4096
+	body, err := io.ReadAll(io.LimitReader(res.Body, rawLim+1))
+	if err != nil {
+		return MediaFile{}, &Error{Message: "could not read Evolution's response"}
+	}
+	if int64(len(body)) > rawLim {
+		return MediaFile{}, &Error{Message: "the attachment is larger than this deployment allows"}
+	}
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		return MediaFile{}, &Error{Status: res.StatusCode, Message: errorText(body)}
+	}
+	var out struct {
+		Base64   string `json:"base64"`
+		Mimetype string `json:"mimetype"`
+		FileName string `json:"fileName"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return MediaFile{}, &Error{Status: res.StatusCode, Message: "its answer was not readable JSON"}
+	}
+	if out.Base64 == "" {
+		return MediaFile{}, &Error{Message: "Evolution returned no media"}
+	}
+	data, err := base64.StdEncoding.DecodeString(stripDataURLPrefix(out.Base64))
+	if err != nil {
+		return MediaFile{}, &Error{Message: "Evolution's media was not valid base64"}
+	}
+	if len(data) > mediaMaxBytes {
+		return MediaFile{}, &Error{Message: "the attachment is larger than this deployment allows"}
+	}
+	return MediaFile{Data: data, MimeType: out.Mimetype, FileName: out.FileName}, nil
+}
+
+// stripDataURLPrefix drops a "data:<mime>;base64," prefix some Evolution
+// versions include and some don't, so DecodeString sees plain base64 either way.
+func stripDataURLPrefix(s string) string {
+	if i := strings.Index(s, ",base64,"); i >= 0 {
+		return s[i+8:]
+	}
+	if i := strings.Index(s, "base64,"); i >= 0 && strings.HasPrefix(s, "data:") {
+		return s[i+7:]
+	}
+	return s
 }
 
 func isNotFound(err error) bool {

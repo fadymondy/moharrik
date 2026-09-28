@@ -22,7 +22,7 @@ import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { CannedPicker } from "@/components/inbox/canned-picker"
 import { ChatText, firstUrl } from "@/components/inbox/chat-text"
 import { LinkPreviewCard } from "@/components/inbox/link-preview"
-import { AttachmentList, MessageBody } from "@/components/inbox/message-body"
+import { AttachmentList, MessageBody, isStickerOnly } from "@/components/inbox/message-body"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
@@ -332,6 +332,10 @@ function ChatBubble({
   // source with WhatsApp's own formatting instead of framing an iframe.
   const text = m.body.trim()
   const files = (m.attachments ?? []).filter((x) => !x.inline).length > 0
+  // MH-658: WhatsApp shows a lone sticker with no bubble at all — no
+  // background, no padding, no tail — the same way it never boxes a photo
+  // frame around one on the phone itself.
+  const stickerOnly = isStickerOnly(m.attachments, m.body)
   // WhatsApp's time-and-tick: floated to the end of the LAST line, so it
   // shares that line when there is room and drops under it when there is not
   // — whichever way the text runs. An absolute corner badge overlapped the
@@ -349,10 +353,15 @@ function ChatBubble({
     <div
       data-message={m.direction}
       data-message-status={m.status || undefined}
-      className={`relative flow-root max-w-[min(36rem,85%)] rounded-lg px-2.5 pt-1.5 pb-2 text-sm text-grid-fg shadow-[0_1px_0.5px_color-mix(in_oklab,var(--grid-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`}
-      style={{ background: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
+      data-sticker-only={stickerOnly || undefined}
+      className={
+        stickerOnly
+          ? "relative flow-root max-w-[min(36rem,85%)] text-sm text-grid-fg"
+          : `relative flow-root max-w-[min(36rem,85%)] rounded-lg px-2.5 pt-1.5 pb-2 text-sm text-grid-fg shadow-[0_1px_0.5px_color-mix(in_oklab,var(--grid-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`
+      }
+      style={stickerOnly ? undefined : { background: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
     >
-      {first ? <BubbleTail out={out} /> : null}
+      {first && !stickerOnly ? <BubbleTail out={out} /> : null}
       {senderName ? (
         <p className="mb-0.5 truncate text-xs font-medium text-primary" data-bubble-sender>
           <Bdi>{senderName}</Bdi>

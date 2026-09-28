@@ -61,24 +61,62 @@ func TestReadKeepsOurOwnEchoRecognisable(t *testing.T) {
 	}
 }
 
+// TestReadDescribesAttachments used to assert that a caption-less attachment
+// became a synthetic "[file: …]" / "[voice message]" text placeholder.
+// MH-658 replaces that: the attachment is now a REAL, renderable Media (a
+// file chip, a voice player) instead of a string standing in for one, so an
+// attachment with no caption is still described — via in.Media, not in.Text.
 func TestReadDescribesAttachments(t *testing.T) {
 	in, ok := read(t, `{"key":{"remoteJid":"201234567890@s.whatsapp.net","fromMe":false,"id":"E"},
-	  "message":{"documentMessage":{"fileName":"receipt.pdf"}}}`)
-	if !ok || in.Text != "[file: receipt.pdf]" {
-		t.Errorf("got %q — an attachment with no caption is described, not dropped", in.Text)
+	  "message":{"documentMessage":{"fileName":"receipt.pdf","mimetype":"application/pdf"}}}`)
+	if !ok || in.Text != "" || in.Media == nil || in.Media.Kind != "document" || in.Media.FileName != "receipt.pdf" {
+		t.Errorf("got text=%q media=%+v — an attachment with no caption is described via Media, not dropped", in.Text, in.Media)
 	}
 
 	in, ok = read(t, `{"key":{"remoteJid":"201234567890@s.whatsapp.net","fromMe":false,"id":"F"},
-	  "message":{"audioMessage":{"seconds":7}}}`)
-	if !ok || in.Text != "[voice message]" {
-		t.Errorf("got %q", in.Text)
+	  "message":{"audioMessage":{"seconds":7,"ptt":true}}}`)
+	if !ok || in.Text != "" || in.Media == nil || in.Media.Kind != "voice" || in.Media.Seconds != 7 {
+		t.Errorf("got text=%q media=%+v", in.Text, in.Media)
 	}
 
 	// A caption is the message when there is one.
 	in, _ = read(t, `{"key":{"remoteJid":"201234567890@s.whatsapp.net","fromMe":false,"id":"G"},
-	  "message":{"imageMessage":{"caption":"this arrived broken"}}}`)
-	if in.Text != "this arrived broken" {
-		t.Errorf("got %q", in.Text)
+	  "message":{"imageMessage":{"caption":"this arrived broken","mimetype":"image/jpeg"}}}`)
+	if in.Text != "this arrived broken" || in.Media == nil || in.Media.Kind != "image" {
+		t.Errorf("got text=%q media=%+v", in.Text, in.Media)
+	}
+}
+
+// TestReadDetectsEveryMediaKind (MH-658): a message-only-no-caption webhook
+// for each of WhatsApp's media/location/contact shapes is filed as Media,
+// never dropped for having no text — the bug this card fixes.
+func TestReadDetectsEveryMediaKind(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		kind    string
+	}{
+		{"image", `{"imageMessage":{"mimetype":"image/jpeg"}}`, "image"},
+		{"video", `{"videoMessage":{"mimetype":"video/mp4"}}`, "video"},
+		{"sticker", `{"stickerMessage":{"mimetype":"image/webp"}}`, "sticker"},
+		{"voice", `{"audioMessage":{"ptt":true,"seconds":3,"mimetype":"audio/ogg"}}`, "voice"},
+		{"audio", `{"audioMessage":{"seconds":30,"mimetype":"audio/mp4"}}`, "audio"},
+		{"document", `{"documentMessage":{"fileName":"x.pdf","mimetype":"application/pdf"}}`, "document"},
+		{"location", `{"locationMessage":{"degreesLatitude":30.1,"degreesLongitude":31.2,"name":"HQ"}}`, "location"},
+		{"contact", `{"contactMessage":{"displayName":"Dana","vcard":"BEGIN:VCARD\nTEL:+201234567890\nEND:VCARD"}}`, "contact"},
+		{"contactsArray", `{"contactsArrayMessage":{"contacts":[{"displayName":"Sam","vcard":"BEGIN:VCARD\nTEL:+201111111111\nEND:VCARD"}]}}`, "contact"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			in, ok := read(t, `{"key":{"remoteJid":"201234567890@s.whatsapp.net","fromMe":false,"id":"`+c.name+`"},
+			  "message":`+c.message+`}`)
+			if !ok {
+				t.Fatalf("dropped a media-only message (this is the bug MH-658 fixes)")
+			}
+			if in.Media == nil || in.Media.Kind != c.kind {
+				t.Fatalf("got media=%+v, want kind %q", in.Media, c.kind)
+			}
+		})
 	}
 }
 

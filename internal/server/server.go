@@ -149,7 +149,7 @@ func Boot() *app.App {
 	whatsapp.SetStatusSink(func(ctx context.Context, workspaceID, externalID, status string) error {
 		return inbox.MarkStatus(ctx, a, workspaceID, externalID, status)
 	})
-	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string) error {
+	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string, media *whatsapp.Media, download whatsapp.MediaDownloader) error {
 		// "trends" / "ترندات" from a member's verified number is a question to
 		// the workspace, answered with its top trend stories (MH-389) — not a
 		// customer writing in. From anyone else it is filed like any message.
@@ -181,7 +181,7 @@ func Boot() *app.App {
 				a.Log.Warn("could not confirm a WhatsApp opt-out", "workspace", workspaceID, "err", err)
 			}
 		}
-		return inbox.FileWhatsApp(ctx, a, workspaceID, phone, name, text, externalID)
+		return inbox.FileWhatsApp(ctx, a, workspaceID, phone, name, text, externalID, media, download)
 	})
 
 	// Telegram, Slack and Discord inbox channels (MH-563), and browser-workflow
