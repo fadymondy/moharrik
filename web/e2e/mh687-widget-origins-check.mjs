@@ -132,7 +132,7 @@ try {
   }
 
   await name.fill("MH-687 renamed")
-  await origins.fill("https://one.example, https://two.example/ ,https://www.two.example")
+  await origins.fill("https://one.example, https://two.example/ ,https://*.two.example")
   await page.locator("[data-widget-settings-form] button[type=submit]").click()
   await page.getByText("Widget settings saved").waitFor({ timeout: 10000 })
   const after = (await api(page, "GET", "/api/w/chat_widgets", ws.id)).body.widgets.find(
@@ -141,11 +141,23 @@ try {
   check(after.name === "MH-687 renamed", `the new name is saved (${after.name})`)
   check(
     JSON.stringify(after.allowed_origins) ===
-      JSON.stringify(["https://one.example", "https://two.example", "https://www.two.example"]),
+      JSON.stringify(["https://one.example", "https://two.example", "https://*.two.example"]),
     `the new origins are saved (${JSON.stringify(after.allowed_origins)})`,
   )
   await page.locator(`${channelRow}`).getByText("MH-687 renamed").waitFor({ timeout: 10000 })
   check(true, "the Channels list shows the new name")
+
+  // The server refuses what the form refuses, so the API and MCP cannot store
+  // an origin that matches nothing either.
+  for (const bad of ["fadymondy.com", "https://two.example/contact", "https://a.*.test"]) {
+    const r = await api(page, "PATCH", `/api/w/chat_widgets/${widget.id}`, ws.id, { allowed_origins: [bad] })
+    check(r.status === 422, `the API refuses "${bad}" (${r.status})`)
+  }
+  // A wildcard entry lets a subdomain in and keeps the apex out.
+  const cfg = (origin) =>
+    fetch(`${base}/api/chat/${widget.public_key}/config`, { headers: { Origin: origin } }).then((r) => r.status)
+  check((await cfg("https://www.two.example")) === 200, "https://*.two.example lets www.two.example in")
+  check((await cfg("https://evil.example")) === 403, "and still refuses other origins")
 
   // Emptying the list is allowed (the hint says the widget is then blocked).
   await page.locator(`${channelRow} [data-edit-channel]`).click()

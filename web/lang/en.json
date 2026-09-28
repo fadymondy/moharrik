@@ -809,7 +809,7 @@
   "inbox.widgetNamePlaceholder": "e.g. Marketing site",
   "inbox.greeting": "Greeting",
   "inbox.allowedOrigins": "Allowed origins",
-  "inbox.allowedOriginsHint": "Comma separated, e.g. https://example.com. With none set the widget is blocked.",
+  "inbox.allowedOriginsHint": "Comma separated, e.g. https://example.com. https://*.example.com covers its subdomains but not example.com itself. With none set the widget is blocked.",
   "inbox.widgetNameRequired": "A name is required.",
   "inbox.originsInvalid": "Each origin must be a scheme and host only, like https://example.com — no path.",
   "inbox.noOrigins": "No origins set — this widget is blocked",

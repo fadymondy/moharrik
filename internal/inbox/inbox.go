@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -272,17 +273,52 @@ func token(prefix string) (string, error) {
 // originAllowed checks a browser Origin against a widget's comma-separated
 // allow-list. An empty list allows nothing — a widget with no origins set is
 // blocked rather than open, the same default the Mahaam feedback key uses.
+// "https://*.example.com" allows every subdomain of example.com over https,
+// but not example.com itself — list that as well to allow it.
 func originAllowed(list, origin string) bool {
 	origin = strings.TrimRight(strings.TrimSpace(strings.ToLower(origin)), "/")
 	if origin == "" {
 		return false
 	}
 	for _, raw := range strings.Split(list, ",") {
-		if a := strings.TrimRight(strings.TrimSpace(strings.ToLower(raw)), "/"); a != "" && a == origin {
+		if a := strings.TrimRight(strings.TrimSpace(strings.ToLower(raw)), "/"); a != "" && (a == origin || subdomainOf(a, origin)) {
 			return true
 		}
 	}
 	return false
+}
+
+func subdomainOf(pattern, origin string) bool {
+	scheme, host, ok := strings.Cut(pattern, "://*.")
+	if !ok || host == "" {
+		return false
+	}
+	rest, ok := strings.CutPrefix(origin, scheme+"://")
+	if !ok {
+		return false
+	}
+	sub, ok := strings.CutSuffix(rest, "."+host)
+	return ok && sub != "" && !strings.ContainsAny(sub, "/:@")
+}
+
+// originShape is what an allow-list entry may be: a scheme and a host (a
+// leading "*." for every subdomain), with no path, query or fragment.
+var originShape = regexp.MustCompile(`(?i)^https?://(\*\.)?[^/\s?#*@]+$`)
+
+// badOrigin returns the first entry that could never match a browser Origin,
+// or "" when the list is fine. "fadymondy.com" or "https://site.com/contact"
+// used to be stored as typed and silently block the widget everywhere.
+func badOrigin(list []string) string {
+	for _, o := range splitOrigins(strings.Join(list, ",")) {
+		if !originShape.MatchString(o) {
+			return o
+		}
+	}
+	return ""
+}
+
+func originError(bad string) error {
+	return huma.Error422UnprocessableEntity(`"` + bad + `" is not an origin: use a scheme and host only, like https://example.com, or https://*.example.com for its subdomains`)
 }
 
 func splitOrigins(s string) []string {

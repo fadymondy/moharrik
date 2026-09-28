@@ -398,6 +398,9 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not generate a key")
 		}
+		if bad := badOrigin(in.Body.AllowedOrigins); bad != "" {
+			return nil, originError(bad)
+		}
 		origins := strings.Join(splitOrigins(strings.Join(in.Body.AllowedOrigins, ",")), ",")
 		var id string
 		if err := db().QueryRowContext(ctx, `
@@ -448,6 +451,9 @@ func Register(api huma.API, a *app.App) {
 			u.set("name", n)
 		}
 		if in.Body.AllowedOrigins != nil {
+			if bad := badOrigin(*in.Body.AllowedOrigins); bad != "" {
+				return nil, originError(bad)
+			}
 			u.set("allowed_origins", strings.Join(splitOrigins(strings.Join(*in.Body.AllowedOrigins, ",")), ","))
 		}
 		// The settings are read, patched and validated as a whole, so a patch

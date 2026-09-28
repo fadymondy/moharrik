@@ -118,6 +118,26 @@ func TestChatWidgetParity(t *testing.T) {
 	if r := publicCall(t, "GET", cfgURL, "https://evil.test", nil); r.code != 403 {
 		t.Fatalf("config from an origin not on the list: got %d want 403: %s", r.code, r.raw)
 	}
+
+	// MH-687: an entry that could never match a browser Origin is refused on
+	// create and on edit, and "*." covers the subdomains (not the apex).
+	for _, bad := range []string{"shop-a.test", "https://shop-a.test/contact", "https://a.*.test"} {
+		if code, b := alice.do("POST", "/api/w/chat_widgets", map[string]any{"name": "Bad", "allowed_origins": []string{bad}}); code != 422 {
+			t.Errorf("create with origin %q: got %d want 422: %s", bad, code, b)
+		}
+		if code, b := alice.do("PATCH", "/api/w/chat_widgets/"+widgetA, map[string]any{"allowed_origins": []string{originA, bad}}); code != 422 {
+			t.Errorf("edit to origin %q: got %d want 422: %s", bad, code, b)
+		}
+	}
+	alice.must("PATCH", "/api/w/chat_widgets/"+widgetA, map[string]any{"allowed_origins": []string{originA, "https://*.shop-a.test"}}, 200)
+	if r := publicCall(t, "GET", cfgURL, "https://www.shop-a.test", nil); r.code != 200 {
+		t.Errorf("config from a subdomain under a *. entry: got %d want 200: %s", r.code, r.raw)
+	}
+	if r := publicCall(t, "GET", cfgURL, "https://shop-a.test.evil.test", nil); r.code != 403 {
+		t.Errorf("config from a look-alike host: got %d want 403", r.code)
+	}
+	alice.must("PATCH", "/api/w/chat_widgets/"+widgetA, map[string]any{"allowed_origins": []string{originA}}, 200)
+	presence.Reset() // the calls above counted as visits
 	if r := publicCall(t, "GET", srv.URL+"/api/chat/cwk_nope/config", originA, nil); r.code != 404 {
 		t.Fatalf("config for an unknown key: got %d want 404", r.code)
 	}

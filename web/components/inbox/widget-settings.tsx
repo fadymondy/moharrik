@@ -79,7 +79,8 @@ export function parseOrigins(raw: string): string[] | null {
   for (const part of raw.split(",")) {
     const v = part.trim().replace(/\/+$/, "")
     if (!v) continue
-    if (!/^https?:\/\/[^/\s?#]+$/i.test(v)) return null
+    // A scheme and host; a leading "*." covers every subdomain (not the apex).
+    if (!/^https?:\/\/(\*\.)?[^/\s?#*@]+$/i.test(v)) return null
     out.push(v)
   }
   return out

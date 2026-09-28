@@ -809,7 +809,7 @@
   "inbox.widgetNamePlaceholder": "مثال: الموقع التسويقي",
   "inbox.greeting": "رسالة الترحيب",
   "inbox.allowedOrigins": "النطاقات المسموح بها",
-  "inbox.allowedOriginsHint": "مفصولة بفواصل، مثل https://example.com. بلا أي نطاق تكون الأداة محجوبة.",
+  "inbox.allowedOriginsHint": "مفصولة بفواصل، مثل https://example.com. ‏https://*.example.com يشمل نطاقاته الفرعية وليس example.com نفسه. بلا أي نطاق تكون الأداة محجوبة.",
   "inbox.widgetNameRequired": "الاسم مطلوب.",
   "inbox.originsInvalid": "كل نطاق يجب أن يكون بروتوكولًا ومضيفًا فقط، مثل https://example.com — بدون مسار.",
   "inbox.noOrigins": "لا نطاقات مضبوطة — هذه الأداة محجوبة",
