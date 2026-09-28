@@ -1012,6 +1012,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		{"GET", "/api/w/conversations/" + convID + "/search?q=" + marker},
 		{"GET", "/api/w/conversations/" + convID + "/export.txt"},
 		{"GET", "/api/w/conversations/" + convID + "/export.zip"},
+		{"GET", "/api/w/conversations/" + convID + "/media"},
 	} {
 		if code, b := bob.do(w.method, w.path, nil); code != http.StatusNotFound || leaks(b) != "" {
 			t.Errorf("B %s %s: got %d, want 404: %s", w.method, w.path, code, b)

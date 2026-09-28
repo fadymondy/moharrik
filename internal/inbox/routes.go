@@ -161,6 +161,7 @@ func Register(api huma.API, a *app.App) {
 	registerLinkPreview(api, a)     // MH-656
 	registerOrganise(api, a)        // MH-657
 	registerThreadMenu(api, a)      // MH-662
+	registerMediaGallery(api, a)    // MH-662
 
 	// ---- conversations -----------------------------------------------------
 
