@@ -86,6 +86,18 @@ type ConversationOut struct {
 	// Snooze and resolution (MH-383).
 	SnoozedUntil *time.Time `json:"snoozed_until" doc:"When a snoozed conversation wakes up; null when it is not snoozed, or is snoozed until the customer writes again."`
 	ClosedAt     *time.Time `json:"closed_at" doc:"When it was closed; null while open or snoozed."`
+	// How the inbox is organised (MH-657). Pinned, Archived, MutedUntil and
+	// Favourite are the SIGNED-IN member's own; Color, Icon, Labels and
+	// Blocked are the team's, the same for everyone.
+	Pinned     bool           `json:"pinned" doc:"Pinned to the top of YOUR inbox."`
+	Archived   bool           `json:"archived" doc:"Archived in YOUR inbox: out of the list until archived=true is asked for, or the customer writes again (unless it is muted)."`
+	MutedUntil *time.Time     `json:"muted_until" doc:"YOUR mute ends then (9999-12-31 is always); null when not muted. A muted chat never alerts you."`
+	Favourite  bool           `json:"favourite" doc:"In YOUR favourites."`
+	Color      string         `json:"color" enum:",gray,red,orange,amber,green,teal,blue,violet,pink" doc:"The chat's colour, from the tag palette; empty for none."`
+	Icon       string         `json:"icon" doc:"The chat's icon name; empty for none."`
+	Labels     []LabelRef     `json:"labels" doc:"The workspace labels on this chat."`
+	Blocked    bool           `json:"blocked" doc:"The customer is blocked: their messages are dropped and nobody can reply until it is unblocked."`
+	ClearedAt  *time.Time     `json:"cleared_at" doc:"When the chat's messages were cleared; null if never."`
 }
 
 // LinkedContact is the CRM contact on a conversation.

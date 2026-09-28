@@ -23,6 +23,7 @@ package realtime
 
 import (
 	"encoding/json"
+	"slices"
 	"sync"
 
 	"github.com/fadymondy/moharrik/internal/authz"
@@ -72,6 +73,9 @@ type Event struct {
 	// AlertOnly, when set, restricts the alert to that one user: an assigned
 	// conversation alerts its assignee, and everyone else just sees the badge.
 	AlertOnly string `json:"-"`
+	// Muted are the members who muted this conversation (MH-657): it still
+	// refreshes their lists, and never pops, chimes or pushes for them.
+	Muted []string `json:"-"`
 }
 
 // For renders the event as one viewer should see it, and reports whether they
@@ -89,7 +93,7 @@ func (e Event) For(v Viewer) (Event, bool) {
 		out.Sender, out.Snippet = "", ""
 	}
 	out.Alert = e.Alerting && v.UserID != "" && v.UserID != e.AuthorUserID &&
-		(e.AlertOnly == "" || e.AlertOnly == v.UserID)
+		(e.AlertOnly == "" || e.AlertOnly == v.UserID) && !slices.Contains(e.Muted, v.UserID)
 	return out, true
 }
 

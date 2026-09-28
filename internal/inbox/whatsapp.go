@@ -64,6 +64,10 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 	} else if err != nil {
 		return err
 	}
+	// A blocked customer's message is dropped at the door (MH-657).
+	if isBlocked(sctx, db, workspaceID, convID) {
+		return nil
+	}
 
 	ins, err := db.ExecContext(sctx, `
 		INSERT INTO messages (workspace_id, conversation_id, direction, body, external_id)

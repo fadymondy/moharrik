@@ -105,6 +105,46 @@
   background-position: 0 0, 12px 12px;
 }
 
+/* Chat colours and label colours (MH-657): one palette, named the way the API stores it
+   (gray … pink). --tag-X is the swatch (a row's stripe, a label's dot); --tag-X-soft and
+   --tag-X-text are a label chip's fill and its text, which clear 4.5:1 on that fill. */
+:root {
+  --tag-gray: #8a8577;
+  --tag-red: #d9455f;
+  --tag-orange: #e2661c;
+  --tag-amber: #c9a227;
+  --tag-green: #4e9a3e;
+  --tag-teal: #1f8a80;
+  --tag-blue: #2f6fd0;
+  --tag-violet: #7a4cc2;
+  --tag-pink: #c7428f;
+}
+.dark,
+[data-theme="dark"] {
+  --tag-gray: #a7b0c6;
+  --tag-red: #ef6f86;
+  --tag-orange: #f08a4b;
+  --tag-amber: #e0bb45;
+  --tag-green: #74c263;
+  --tag-teal: #4cc2b6;
+  --tag-blue: #6ea2f0;
+  --tag-violet: #a684e6;
+  --tag-pink: #ec7fbd;
+}
+[data-tag] {
+  --tag: var(--tag-gray);
+  --tag-soft: color-mix(in oklab, var(--tag) 16%, transparent);
+  --tag-text: color-mix(in oklab, var(--tag) 62%, var(--grid-fg));
+}
+[data-tag="red"] { --tag: var(--tag-red); }
+[data-tag="orange"] { --tag: var(--tag-orange); }
+[data-tag="amber"] { --tag: var(--tag-amber); }
+[data-tag="green"] { --tag: var(--tag-green); }
+[data-tag="teal"] { --tag: var(--tag-teal); }
+[data-tag="blue"] { --tag: var(--tag-blue); }
+[data-tag="violet"] { --tag: var(--tag-violet); }
+[data-tag="pink"] { --tag: var(--tag-pink); }
+
 /* Scrollbars are hidden everywhere (MH-601): every list, pane and page still scrolls by
    wheel, touch, keyboard and drag, but no bar is drawn. Wide tables keep their edge fades
    (ScrollX, components/scroll-x.tsx) as the hint that there is more to the side. */

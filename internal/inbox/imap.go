@@ -367,6 +367,10 @@ func File(ctx context.Context, a *app.App, workspaceID, mailboxID string, e *Ema
 	if err != nil {
 		return err
 	}
+	// A blocked sender's mail is dropped at the door (MH-657).
+	if convID != "" && isBlocked(sctx, db, workspaceID, convID) {
+		return nil
+	}
 
 	if convID == "" {
 		if err := db.QueryRowContext(sctx, `

@@ -26,6 +26,7 @@ import {
   type ImportItem,
   type ImportJob,
   type ChannelCount,
+  type ConversationLabel,
   type WhatsAppLink,
   type ContactWhatsApp,
   type ContextSummary,
@@ -491,6 +492,11 @@ export type ConversationFilter = {
   limit?: number
   /** "unread_first" (MH-592): unread conversations, newest first, then the read ones. */
   order?: "recent" | "unread_first"
+  /** MH-657: the member's archived chats instead of the rest. */
+  archived?: boolean
+  favourites?: boolean
+  groups?: boolean
+  label_id?: string
 }
 
 type ConversationPage = {
@@ -499,6 +505,10 @@ type ConversationPage = {
   next_cursor?: string
   /** One row per channel this workspace has a conversation on or a connection for (MH-568). */
   channel_counts: ChannelCount[]
+  /** MH-657: the member's pinned chats matching the filter — on the first page only, never in conversations. */
+  pinned?: Conversation[]
+  archived_count?: number
+  archived_unread?: number
 }
 
 function conversationsBase(filter: ConversationFilter) {
@@ -510,6 +520,10 @@ function conversationsBase(filter: ConversationFilter) {
   if (filter.customer_email) qs.set("customer_email", filter.customer_email)
   if (filter.q) qs.set("q", filter.q)
   if (filter.order) qs.set("order", filter.order)
+  if (filter.archived) qs.set("archived", "true")
+  if (filter.favourites) qs.set("favourites", "true")
+  if (filter.groups) qs.set("groups", "true")
+  if (filter.label_id) qs.set("label_id", filter.label_id)
   qs.set("limit", String(filter.limit ?? 50))
   return "/api/w/conversations?" + qs.toString()
 }
@@ -562,6 +576,15 @@ export function useConversationPages(
       )
     },
     { ...noRetryOn4xx, revalidateFirstPage: true },
+  )
+}
+
+/** MH-657: the workspace's chat labels, with how many chats carry each. */
+export function useConversationLabels(workspaceId: string | null | undefined) {
+  return useSWR<{ labels: ConversationLabel[] }>(
+    workspaceId ? ["/api/w/conversation_labels", workspaceId] : null,
+    ([p, id]: [string, string]) => api<{ labels: ConversationLabel[] }>(p, { workspaceId: id }),
+    noRetryOn4xx,
   )
 }
 

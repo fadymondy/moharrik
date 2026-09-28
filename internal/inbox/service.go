@@ -38,6 +38,14 @@ are, and MCP hands back their message.
 
 // ConversationFilter narrows the inbox list. Every field is optional.
 type ConversationFilter struct {
+	// MH-657: Archived lists only the signed-in member's archived chats;
+	// otherwise they are left out (unless the list is narrowed to one contact
+	// or sender, which should find the chat wherever it was filed).
+	// Favourites, Groups and LabelID are the list's filter chips.
+	Archived   bool
+	Favourites bool
+	Groups     bool
+	LabelID    string
 	Status    string
 	Channel   string
 	Unread    bool
@@ -84,6 +92,14 @@ type ConversationList struct {
 	// channel this build has never heard of (telegram, slack, a workflow feed)
 	// still gets counted and a tab, the moment a row names it.
 	ChannelCounts []ChannelCount `json:"channel_counts"`
+	// Pinned (MH-657) are the signed-in member's pinned chats that match the
+	// same filters, most recently pinned first — on the first page only, and
+	// never repeated in Conversations.
+	Pinned []ConversationOut `json:"pinned"`
+	// ArchivedCount and ArchivedUnread are the signed-in member's archived
+	// chats, for the list's "Archived" entry.
+	ArchivedCount  int64 `json:"archived_count"`
+	ArchivedUnread int64 `json:"archived_unread"`
 }
 
 // ChannelCount is one channel's conversation counts (MH-568). See
@@ -127,7 +143,7 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	f.Channel = strings.TrimSpace(f.Channel)
 	wakeDue(ctx, a, s.WorkspaceID)
 	q := conversationSelect
-	args := []any{s.WorkspaceID}
+	args := []any{s.WorkspaceID, s.UserID}
 	add := func(clause string, v any) {
 		args = append(args, v)
 		q += strings.ReplaceAll(clause, "$?", "$"+strconv.Itoa(len(args)))
@@ -160,10 +176,34 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 		      OR EXISTS (SELECT 1 FROM messages sm WHERE sm.workspace_id = c.workspace_id AND sm.conversation_id = c.id
 		                 AND sm.search @@ websearch_to_tsquery('simple', $` + n2 + `)))`
 	}
+	if f.Favourites {
+		q += ` AND p.favourite`
+	}
+	if f.Groups {
+		q += ` AND c.is_group`
+	}
+	if id := strings.TrimSpace(f.LabelID); id != "" {
+		add(` AND EXISTS (SELECT 1 FROM conversation_label_links fl WHERE fl.workspace_id = c.workspace_id AND fl.conversation_id = c.id AND fl.label_id = $?)`, id)
+	}
+	if f.Archived {
+		q += ` AND p.archived_at IS NOT NULL`
+	} else if strings.TrimSpace(f.ContactID) == "" && strings.TrimSpace(f.CustomerEmail) == "" {
+		q += ` AND p.archived_at IS NULL`
+	}
 	// A conversation with no messages has nothing to open (MH-599): the
 	// WhatsApp import used to file one for every chat the phone listed, even
 	// one with no history, and it read as a thread whose messages had gone.
-	q += ` AND EXISTS (SELECT 1 FROM messages em WHERE em.workspace_id = c.workspace_id AND em.conversation_id = c.id)`
+	// A chat a member cleared (MH-657) stays listed, the way WhatsApp keeps it.
+	q += ` AND (c.cleared_at IS NOT NULL OR EXISTS (SELECT 1 FROM messages em WHERE em.workspace_id = c.workspace_id AND em.conversation_id = c.id))`
+	// Pinned chats (MH-657) come first, on the first page, in their own list.
+	pinnedQ, pinnedArgs := "", []any(nil)
+	if !f.Archived {
+		if f.Cursor == "" {
+			pinnedQ = q + ` AND p.pinned_at IS NOT NULL ORDER BY p.pinned_at DESC LIMIT ` + strconv.Itoa(maxPinned)
+			pinnedArgs = append([]any{}, args...)
+		}
+		q += ` AND p.pinned_at IS NULL`
+	}
 	unreadFirst := f.Order == "unread_first"
 	// unreadKey is what unread_first sorts and pages on: unread, or kept.
 	unreadKey := `c.unread`
@@ -231,7 +271,28 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	// background the moment a conversation is first listed, not only on its
 	// next inbound message.
 	triggerPhotoRefreshes(a, s.WorkspaceID, list)
-	res := &ConversationList{Conversations: list}
+	res := &ConversationList{Conversations: list, Pinned: []ConversationOut{}}
+	if pinnedQ != "" {
+		prows, err := a.SQLDB.QueryContext(ctx, pinnedQ, pinnedArgs...)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not list pinned conversations")
+		}
+		defer prows.Close()
+		for prows.Next() {
+			c, err := scanConversation(s.WorkspaceID, prows)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not list pinned conversations")
+			}
+			res.Pinned = append(res.Pinned, c)
+		}
+	}
+	if err := a.SQLDB.QueryRowContext(ctx, `
+		SELECT count(*), count(*) FILTER (WHERE c.unread) FROM conversation_prefs p
+		JOIN conversations c ON c.workspace_id = p.workspace_id AND c.id = p.conversation_id
+		WHERE p.workspace_id = $1 AND p.user_id = $2 AND p.archived_at IS NOT NULL`,
+		s.WorkspaceID, s.UserID).Scan(&res.ArchivedCount, &res.ArchivedUnread); err != nil {
+		return nil, huma.Error500InternalServerError("could not count archived conversations")
+	}
 	if len(list) > limit {
 		last := list[limit-1]
 		at := last.LastMessageAt.UTC().Format(time.RFC3339Nano)
@@ -386,6 +447,10 @@ func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error
 			return nil, huma.Error404NotFound("conversation not found")
 		}
 		return nil, huma.Error500InternalServerError("could not read the conversation")
+	}
+	// MH-657: a blocked customer cannot be written to either.
+	if isBlocked(ctx, a.SQLDB, s.WorkspaceID, id) {
+		return nil, huma.Error409Conflict("this customer is blocked; unblock them to reply")
 	}
 
 	// An email thread is answered by EMAIL, and the send happens before the

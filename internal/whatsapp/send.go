@@ -118,3 +118,17 @@ func CountSince(ctx context.Context, a *app.App, workspaceID string, t time.Time
 		FROM whatsapp_sends WHERE workspace_id = $1 AND created_at >= $2`, workspaceID, t).Scan(&c.Sent, &c.Failed)
 	return c, err
 }
+
+// SetBlocked blocks (or unblocks) a customer's number on the workspace's
+// linked phone (MH-657: the inbox's "Block").
+func SetBlocked(ctx context.Context, a *app.App, workspaceID, phone string, block bool) error {
+	cfg := LoadConfig()
+	if !cfg.Configured() {
+		return ErrNotConfigured
+	}
+	l, err := Load(ctx, a, workspaceID)
+	if err != nil {
+		return err
+	}
+	return ClientFor(cfg, l).UpdateBlockStatus(ctx, phone, block)
+}

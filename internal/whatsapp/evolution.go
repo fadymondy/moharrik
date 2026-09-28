@@ -304,3 +304,14 @@ func clip(s string, n int) string {
 	}
 	return s
 }
+
+// UpdateBlockStatus blocks or unblocks one number on the linked phone
+// (MH-657), the same as blocking them in WhatsApp itself.
+func (c *Client) UpdateBlockStatus(ctx context.Context, number string, block bool) error {
+	status := "unblock"
+	if block {
+		status = "block"
+	}
+	return c.do(ctx, http.MethodPost, "/message/updateBlockStatus/"+c.inst(),
+		map[string]any{"number": number, "status": status}, nil)
+}
