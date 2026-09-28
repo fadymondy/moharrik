@@ -90,6 +90,16 @@ var fileOwn OwnFiler
 // SetOwnFiler wires the inbox's "file our own message" in at boot.
 func SetOwnFiler(f OwnFiler) { fileOwn = f }
 
+// TypingSink hands a contact's presence (composing, recording, paused, …) to
+// the inbox (MH-660). Never stored — the inbox turns it straight into a
+// realtime event and nothing else.
+type TypingSink func(ctx context.Context, workspaceID, phone, state string) error
+
+var typingSink TypingSink
+
+// SetTypingSink wires the inbox's typing handler in at boot.
+func SetTypingSink(f TypingSink) { typingSink = f }
+
 // OwnDelay is how long a fromMe message waits before it is filed. The echo of
 // a reply sent from the inbox can beat the reply's own row to the database —
 // Evolution answers the send and fires the webhook at nearly the same moment
@@ -261,6 +271,19 @@ func RegisterHook(r chi.Router, a *app.App) {
 				if id, status, ok := r.Read(); ok {
 					if err := statusSink(ctx, l.WorkspaceID, id, status); err != nil {
 						slog.Warn("whatsapp: hook: could not record a receipt", "workspace", l.WorkspaceID, "err", err)
+					}
+				}
+			}
+		case "presence.update":
+			// Typing indicators (MH-660). Ephemeral — never a retry-worthy
+			// failure, so a bad or missing sink is just skipped.
+			if typingSink != nil {
+				var pr Presence
+				if json.Unmarshal(p.Data, &pr) == nil {
+					if phone, state, ok := pr.Read(); ok {
+						if err := typingSink(ctx, l.WorkspaceID, phone, state); err != nil {
+							slog.Warn("whatsapp: hook: could not record a presence update", "workspace", l.WorkspaceID, "err", err)
+						}
 					}
 				}
 			}

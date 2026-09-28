@@ -103,6 +103,23 @@ func SendAs(ctx context.Context, a *app.App, workspaceID, phone, text, kind stri
 	return id, sendErr
 }
 
+// SendPresenceFor tells the contact the workspace's number is composing,
+// recording, or paused (MH-660). Deliberately lighter than SendAs: presence
+// is high-frequency and ephemeral by nature, so it skips both the pacing lane
+// (the caller already throttles "composing") and the whatsapp_sends log — a
+// failed presence call is not a message that needs a retry or a count.
+func SendPresenceFor(ctx context.Context, a *app.App, workspaceID, phone, presence string) error {
+	cfg := LoadConfig()
+	if !cfg.Configured() {
+		return ErrNotConfigured
+	}
+	l, err := Load(ctx, a, workspaceID)
+	if err != nil {
+		return err
+	}
+	return ClientFor(cfg, l).SendPresence(ctx, phone, presence)
+}
+
 // SendCounts is what one workspace's number sent since a moment.
 type SendCounts struct {
 	Sent   int64 `json:"sent"`

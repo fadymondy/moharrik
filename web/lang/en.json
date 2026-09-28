@@ -701,6 +701,8 @@
   "inbox.thread.yesterday": "Yesterday",
   "inbox.thread.scrollToBottom": "Scroll to latest",
   "inbox.thread.newMessages": "{n} new message(s)",
+  "inbox.thread.typing": "typing…",
+  "inbox.thread.recordingAudio": "recording audio…",
   "inbox.thread.loadingOlder": "Loading earlier messages…",
   "inbox.thread.windowOpen": "WhatsApp's 24-hour reply window closes in about {hours}h.",
   "inbox.thread.windowClosed": "WhatsApp's 24-hour reply window has closed — this reply may need a template message.",

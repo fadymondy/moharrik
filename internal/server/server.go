@@ -153,6 +153,10 @@ func Boot() *app.App {
 	whatsapp.SetOwnFiler(func(ctx context.Context, workspaceID, phone, text, externalID string, media *whatsapp.Media, download whatsapp.MediaDownloader) error {
 		return inbox.FileWhatsAppOwn(ctx, a, workspaceID, phone, text, externalID, media, download)
 	})
+	// Typing / recording indicators (MH-660): PRESENCE_UPDATE from a contact.
+	whatsapp.SetTypingSink(func(ctx context.Context, workspaceID, phone, state string) error {
+		return inbox.FileWhatsAppTyping(ctx, a, workspaceID, phone, state)
+	})
 	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string, media *whatsapp.Media, download whatsapp.MediaDownloader) error {
 		// "trends" / "ترندات" from a member's verified number is a question to
 		// the workspace, answered with its top trend stories (MH-389) — not a

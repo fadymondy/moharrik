@@ -44,6 +44,7 @@ import { useTranslations } from "@/lib/i18n"
 import { useSWRConfig } from "swr"
 
 import { useWorkspaceEvents } from "@/lib/events"
+import { useAgentTyping, useTypingByConversation } from "@/lib/typing"
 import {
   fetchOlderMessages,
   mergeMessages,
@@ -66,6 +67,10 @@ export default function InboxPage() {
   const ws = useWorkspace()
   useDocumentTitle(`${t("nav.inbox")} · ${ws.summary.name}`)
   const canManage = ws.can("inbox:manage")
+  // Typing/recording indicators (MH-660): one conversation id -> presence map
+  // for the whole page, read by both the list row and the open thread's
+  // header, off the same realtime stream everything else here already uses.
+  const typingByConversation = useTypingByConversation(ws.id)
 
   // The open thread lives in the URL (?c=<conversation id>), so an alert, a push,
   // the bell or the Overview can link straight to it, and a reload keeps it open (MH-378).
@@ -499,6 +504,7 @@ export default function InboxPage() {
                     c={c}
                     active={c.id === selected}
                     highlighted={vi.index === cursorIdx}
+                    typing={typingByConversation[c.id]}
                     onSelect={() => {
                       setCursorIdx(vi.index)
                       select(c.id)
@@ -552,7 +558,12 @@ export default function InboxPage() {
         </div>
         <div className="min-w-0">
           {selected ? (
-            <Thread key={selected} id={selected} onChanged={() => list.mutate()} />
+            <Thread
+              key={selected}
+              id={selected}
+              onChanged={() => list.mutate()}
+              typing={typingByConversation[selected]}
+            />
           ) : (
             <p className="px-6 py-10 text-center text-sm text-grid-muted">{t("inbox.pickOne")}</p>
           )}
@@ -574,6 +585,7 @@ function ConversationRow({
   measureRef,
   dataIndex,
   style,
+  typing,
 }: {
   c: Conversation
   active: boolean
@@ -586,6 +598,8 @@ function ConversationRow({
   measureRef?: (el: HTMLElement | null) => void
   dataIndex?: number
   style?: CSSProperties
+  /** MH-660: "composing" | "recording" | undefined, from the page's shared typing map. */
+  typing?: string
 }) {
   const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
@@ -708,9 +722,22 @@ function ConversationRow({
                 <Badge variant={statusVariant[c.status]}>{t(`inbox.status.${c.status}`)}</Badge>
               </span>
             </span>
-            <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
-              {c.preview || c.subject}
-            </BdiBlock>
+            {typing ? (
+              <p
+                className="block animate-pulse truncate text-xs text-primary"
+                data-typing-indicator
+              >
+                <Bdi>
+                  {typing === "recording"
+                    ? t("inbox.thread.recordingAudio")
+                    : t("inbox.thread.typing")}
+                </Bdi>
+              </p>
+            ) : (
+              <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
+                {c.preview || c.subject}
+              </BdiBlock>
+            )}
             <span className="text-xs text-grid-muted">
               {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> ·{" "}
               {t("inbox.messageCount", { n: c.message_count })}
@@ -849,11 +876,21 @@ function VisitorContext({ c }: { c: Conversation }) {
   )
 }
 
-function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
+function Thread({
+  id,
+  onChanged,
+  typing,
+}: {
+  id: string
+  onChanged: () => void
+  /** MH-660: "composing" | "recording" | undefined, from the page's shared typing map. */
+  typing?: string
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const canWrite = ws.can("inbox:write")
   const detail = useConversation(ws.id, id)
+  const agentTyping = useAgentTyping(id, ws.id)
   const members = useMemberNames(ws.id)
   const [reply, setReply] = useState("")
   const [busy, setBusy] = useState(false)
@@ -911,6 +948,7 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
       })
       setReply("")
       setSubject("")
+      agentTyping.notifyStopped()
       refresh()
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -971,8 +1009,15 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
               {c.subject}
             </BdiBlock>
           ) : null}
-          <p className="truncate text-xs text-grid-muted">
-            {t(`inbox.channel.${c.channel}`)}
+          {typing ? (
+            <p className="truncate text-xs text-primary" data-typing-indicator>
+              <Bdi>
+                {typing === "recording" ? t("inbox.thread.recordingAudio") : t("inbox.thread.typing")}
+              </Bdi>
+            </p>
+          ) : (
+            <p className="truncate text-xs text-grid-muted">
+              {t(`inbox.channel.${c.channel}`)}
             {c.customer_email ? (
               <>
                 {" · "}
@@ -985,7 +1030,8 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
                 <Ltr>{c.customer_phone}</Ltr>
               </>
             ) : null}
-          </p>
+            </p>
+          )}
           <SnoozedNote c={c} />
         </div>
         {canWrite ? (
@@ -1059,6 +1105,12 @@ function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
         hasOlder={!!cursor}
         loadingOlder={loadingEarlier}
         onLoadOlder={loadEarlier}
+        typing={
+          typing
+            ? { label: t(typing === "recording" ? "inbox.thread.recordingAudio" : "inbox.thread.typing") }
+            : null
+        }
+        onTyping={agentTyping.notifyTyping}
       />
     </section>
   )

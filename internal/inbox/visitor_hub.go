@@ -43,8 +43,18 @@ func (h *visitorHub) subscribe(convID string) (<-chan string, func()) {
 	}
 }
 
+// publishTyping tells the conversation's visitor stream a member is typing
+// (MH-660). presence is "composing", "recording", or "" to clear it. Encoded
+// onto the same string channel as publish (typing:<presence>) rather than
+// widening the channel's type, so every other kind and its callers are
+// untouched.
+func (h *visitorHub) publishTyping(convID, presence string) {
+	h.publish(convID, "typing:"+presence)
+}
+
 // publish tells the conversation's visitor streams something changed: kind is
-// "message" (a team reply) or "status" (closed, reopened).
+// "message" (a team reply), "status" (closed, reopened), or "typing:<presence>"
+// (see publishTyping).
 func (h *visitorHub) publish(convID, kind string) {
 	if convID == "" {
 		return

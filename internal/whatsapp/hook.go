@@ -301,6 +301,45 @@ func PhoneOf(jids ...string) string {
 	return ""
 }
 
+// Presence is a presence.update payload. Evolution/Baileys shapes this as
+// either a single presence keyed by the chat id, or a map of jid -> presence
+// for a group; only the single-chat shape matters here since a customer's DM
+// is what this app files.
+//
+//	{"id": "201234567890@s.whatsapp.net",
+//	 "presences": {"201234567890@s.whatsapp.net": {"lastKnownPresence": "composing"}}}
+type Presence struct {
+	ID        string `json:"id"`
+	Presences map[string]struct {
+		LastKnownPresence string `json:"lastKnownPresence"`
+	} `json:"presences"`
+	// Some builds send it flat instead of nested under presences.
+	LastKnownPresence string `json:"lastKnownPresence"`
+}
+
+// Read turns a presence update into (phone, state), where state is one of
+// composing, recording, paused, available, unavailable. ok is false when
+// there is no phone to attribute it to.
+func (p Presence) Read() (phone, state string, ok bool) {
+	phone = PhoneOf(p.ID)
+	if phone == "" {
+		return "", "", false
+	}
+	state = p.LastKnownPresence
+	if state == "" {
+		if v, ok := p.Presences[p.ID]; ok {
+			state = v.LastKnownPresence
+		}
+	}
+	if state == "" {
+		for _, v := range p.Presences {
+			state = v.LastKnownPresence
+			break
+		}
+	}
+	return phone, state, state != ""
+}
+
 func Number(jid string) string {
 	jid = strings.TrimSpace(jid)
 	if i := strings.IndexByte(jid, '@'); i >= 0 {

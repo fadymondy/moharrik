@@ -405,6 +405,8 @@ export function ChatThread({
   hasOlder = false,
   loadingOlder = false,
   onLoadOlder,
+  typing = null,
+  onTyping,
 }: {
   conversation: Conversation
   messages: InboxMessage[]
@@ -429,6 +431,11 @@ export function ChatThread({
   loadingOlder?: boolean
   /** MH-648: load the page before whatever is currently the oldest loaded message. */
   onLoadOlder?: () => void
+  /** MH-660: the customer's live typing/recording indicator, or null to show nothing. */
+  typing?: { label: string } | null
+  /** MH-660: fired as the agent edits the reply, so the caller can tell the
+   *  customer "composing" (throttled) — this component does no throttling itself. */
+  onTyping?: () => void
 }) {
   const { t, locale } = useTranslations()
   const items = buildItems(messages, t, locale, conversation.is_group)
@@ -730,6 +737,11 @@ export function ChatThread({
               {windowNote}
             </p>
           ) : null}
+          {typing ? (
+            <p className="mb-2 animate-pulse text-xs text-primary" data-typing-indicator>
+              <Bdi>{typing.label}</Bdi>
+            </p>
+          ) : null}
           {isEmail && onSubjectChange ? (
             <Input
               id="reply-subject"
@@ -751,7 +763,10 @@ export function ChatThread({
           <Textarea
             id="reply-body"
             value={reply}
-            onChange={(e) => onReplyChange(e.target.value)}
+            onChange={(e) => {
+              onReplyChange(e.target.value)
+              onTyping?.()
+            }}
             onKeyDown={onComposerKeyDown}
             placeholder={t("inbox.replyPlaceholder")}
             rows={2}
