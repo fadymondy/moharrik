@@ -53,11 +53,34 @@ for (const scheme of ["light", "dark"]) {
       const k = `${loc}-${scheme}-${w}`
       await page.setViewportSize({ width: w, height: 900 })
       await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${conv}`, { waitUntil: "domcontentloaded" })
-      const shown = await page.waitForSelector("[data-attachment-voice]", { timeout: 30000 }).then(() => true, () => false)
+      // The thread is virtualised and anchors to the newest message once link previews settle, so
+      // the voice note can unmount; scroll up until it is rendered and stays rendered for a second.
+      await page.waitForSelector("[data-messages]", { timeout: 30000 }).catch(() => {})
+      await page.waitForLoadState("networkidle").catch(() => {})
+      await page.waitForTimeout(1500)
+      const shown = await page.evaluate(async () => {
+        const pane = document.querySelector("[data-messages]")
+        const sleep = (ms) => new Promise((z) => setTimeout(z, ms))
+        for (let i = 0; pane && i < 60; i++) {
+          const el = document.querySelector("[data-attachment-voice]")
+          if (el) {
+            el.scrollIntoView({ block: "center" })
+            await sleep(1000)
+            if (document.querySelector("[data-attachment-voice] audio")) return true
+          } else {
+            pane.scrollBy(0, -pane.clientHeight * 0.6)
+            await sleep(300)
+          }
+        }
+        return false
+      })
       check(`${k}-voice-player`, shown)
       if (!shown) continue
       const meta = await page.evaluate(async () => {
-        const box = document.querySelector("[data-attachment-voice]")
+        // The player can re-render after hydration; look it up again until it is attached.
+        let box
+        for (let i = 0; i < 100 && !(box = document.querySelector("[data-attachment-voice]"))?.querySelector("audio"); i++)
+          await new Promise((z) => setTimeout(z, 100))
         const au = box.querySelector("audio")
         for (let i = 0; i < 100 && !(au.duration > 0); i++) await new Promise((z) => setTimeout(z, 100))
         const r = await fetch(au.currentSrc || au.src)
@@ -78,7 +101,17 @@ for (const scheme of ["light", "dark"]) {
       check(`${k}-dir`, meta.dir === (loc === "ar" ? "rtl" : "ltr"), meta.dir)
       check(`${k}-theme`, meta.dark === (scheme === "dark"), meta.dark)
       check(`${k}-no-overflow`, !meta.overflowX)
-      await page.locator("[data-attachment-voice] button").first().click()
+      const played = await page.locator("[data-attachment-voice] button").first().click({ timeout: 15000 }).then(() => true, async (e) => {
+        out[`${k}-click-state`] = await page.evaluate(() => ({
+          url: location.pathname + location.search,
+          players: document.querySelectorAll("[data-attachment-voice]").length,
+          buttons: document.querySelectorAll("[data-attachment-voice] button").length,
+        }))
+        if (shots) await page.screenshot({ path: `${shots}/mh658-voice-${k}-noclick.png` })
+        return false
+      })
+      check(`${k}-play-button`, played)
+      if (!played) continue
       await page.waitForTimeout(1500)
       const t = await page.evaluate(() => document.querySelector("[data-attachment-voice] audio").currentTime)
       check(`${k}-plays`, t > 0, t)
