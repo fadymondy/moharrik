@@ -49,7 +49,7 @@ export function AttachMenu({
         >
           <PaperclipIcon />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
+        <DropdownMenuContent align="start" className="w-auto min-w-44 whitespace-nowrap">
           <DropdownMenuItem onClick={() => mediaInputRef.current?.click()} data-attach="media">
             <ImageIcon />
             {t("inbox.composer.attachPhotoVideo")}
