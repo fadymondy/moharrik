@@ -5,6 +5,7 @@ import useSWRInfinite from "swr/infinite"
 
 import {
   type Ga4ConversionsPage,
+  type ReactionResult,
   type CollectedSourceList,
   type NotificationPage,
   api,
@@ -652,6 +653,16 @@ export function starMessage(workspaceId: string, messageId: string) {
 export function unstarMessage(workspaceId: string, messageId: string) {
   return api(`/api/w/messages/${encodeURIComponent(messageId)}/star`, {
     method: "DELETE",
+    workspaceId,
+  })
+}
+
+/** MH-664: react with an emoji. The same emoji again takes it back; a different
+ *  one replaces it. On WhatsApp it is sent to the customer first. */
+export function reactMessage(workspaceId: string, messageId: string, emoji: string) {
+  return api<ReactionResult>(`/api/w/messages/${encodeURIComponent(messageId)}/reaction`, {
+    method: "PUT",
+    json: { emoji },
     workspaceId,
   })
 }

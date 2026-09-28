@@ -40,6 +40,18 @@ type fakeEvolution struct {
 	mu      sync.Mutex
 	hookURL string
 	sent    []evoSend
+	bodies  []evoBody // every sendText/sendReaction body as sent (MH-664)
+}
+
+type evoBody struct {
+	Path string
+	Body map[string]any
+}
+
+func (f *fakeEvolution) sentBodies() []evoBody {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]evoBody(nil), f.bodies...)
 }
 
 type evoSend struct {
@@ -81,10 +93,20 @@ func (f *fakeEvolution) handler() http.Handler {
 		case strings.HasPrefix(r.URL.Path, "/instance/connectionState/"):
 			_, _ = w.Write([]byte(`{"instance":{"state":"open"}}`))
 		case strings.HasPrefix(r.URL.Path, "/message/sendText/"):
-			var body map[string]string
+			// map[string]any: a reply that quotes a message (MH-664) carries a
+			// nested "quoted" object, and a string map would drop the whole body.
+			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			f.sent = append(f.sent, evoSend{Number: body["number"], Text: body["text"], At: time.Now()})
+			number, _ := body["number"].(string)
+			text, _ := body["text"].(string)
+			f.sent = append(f.sent, evoSend{Number: number, Text: text, At: time.Now()})
+			f.bodies = append(f.bodies, evoBody{Path: r.URL.Path, Body: body})
 			_ = json.NewEncoder(w).Encode(map[string]any{"key": map[string]string{"id": "WA-" + strconv.Itoa(len(f.sent))}})
+		case strings.HasPrefix(r.URL.Path, "/message/sendReaction/"):
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			f.bodies = append(f.bodies, evoBody{Path: r.URL.Path, Body: body})
+			_ = json.NewEncoder(w).Encode(map[string]any{"key": map[string]string{"id": "WA-R-" + strconv.Itoa(len(f.bodies))}})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"message":"not found"}`))

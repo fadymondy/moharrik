@@ -98,6 +98,8 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 		// function was handed.
 		fileWhatsAppMedia(sctx, a, db, workspaceID, msgID, media, download)
 	}
+	// MH-664: a reply to an earlier message keeps its quote.
+	fileInboundQuote(sctx, a, db, workspaceID, msgID)
 
 	if _, err := db.ExecContext(sctx, `
 		UPDATE conversations SET last_message_at = now(), unread = true, updated_at = now(),
@@ -211,6 +213,8 @@ func FileWhatsAppOwn(ctx context.Context, a *app.App, workspaceID, phone, text, 
 	if media != nil {
 		fileWhatsAppMedia(sctx, a, db, workspaceID, msgID, media, download)
 	}
+	// MH-664: a reply typed on the phone keeps its quote too.
+	fileInboundQuote(sctx, a, db, workspaceID, msgID)
 	if _, err := db.ExecContext(sctx, `
 		UPDATE conversations SET last_message_at = now(), unread = false, updated_at = now()
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, convID); err != nil {

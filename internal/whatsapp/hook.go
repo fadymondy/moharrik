@@ -1,6 +1,7 @@
 package whatsapp
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"strings"
@@ -47,7 +48,11 @@ type Message struct {
 	PushName  string          `json:"pushName"`
 	Timestamp int64           `json:"messageTimestamp"`
 	Message   json.RawMessage `json:"message"`
-	body      messageBody
+	// ContextInfo is where Evolution v2 hoists a message's contextInfo (the
+	// quoted reply, MH-664); older builds leave it inside the message's own
+	// shape, which quoteOf also reads.
+	ContextInfo *contextInfo `json:"contextInfo"`
+	body        messageBody
 	// raw is the WHOLE delivered object (key + message + pushName + …), the
 	// exact shape GetMediaBase64 (evolution.go) forwards to Evolution's
 	// getBase64FromMediaMessage — which needs the key alongside the message,
@@ -105,6 +110,23 @@ type messageBody struct {
 			Vcard       string `json:"vcard"`
 		} `json:"contacts"`
 	} `json:"contactsArrayMessage"`
+	// Reaction is an emoji reaction to an EARLIER message (MH-664) — never a
+	// message of its own. Text "" is the reaction being taken back.
+	Reaction *struct {
+		Key struct {
+			RemoteJID string `json:"remoteJid"`
+			FromMe    bool   `json:"fromMe"`
+			ID        string `json:"id"`
+		} `json:"key"`
+		Text string `json:"text"`
+	} `json:"reactionMessage"`
+}
+
+// contextInfo is WhatsApp's "this message replies to that one" (MH-664):
+// stanzaId is the quoted message's id, quotedMessage a copy of what it said.
+type contextInfo struct {
+	StanzaID      string          `json:"stanzaId"`
+	QuotedMessage json.RawMessage `json:"quotedMessage"`
 }
 
 // UnmarshalJSON keeps both the raw bytes (Message.Message, forwarded whole to
@@ -143,6 +165,9 @@ type Inbound struct {
 	// Media describes a downloadable/renderable attachment (MH-658). Nil for
 	// a plain text message.
 	Media *Media
+	// Quote is the earlier message this one replies to (MH-664), nil when it
+	// is not a reply.
+	Quote *Quote
 	// raw is the exact upstream "message" object, forwarded byte-for-byte to
 	// Evolution's getBase64FromMediaMessage when Media != nil.
 	raw json.RawMessage
@@ -197,7 +222,107 @@ func (m Message) Read() (Inbound, bool) {
 	if in.Text == "" && in.Media == nil {
 		return in, false
 	}
+	in.Quote = quoteOf(m)
 	return in, true
+}
+
+// Quote is the message a reply quotes (MH-664): WhatsApp's id for it, and
+// the text it carried as the replying phone saw it. Body is "" for a quoted
+// photo/voice note/… with no caption.
+type Quote struct {
+	ExternalID string
+	Body       string
+}
+
+// quoteOf reads the contextInfo of a reply. Evolution v2 hoists it to the
+// top of the delivery; older builds leave it inside whichever shape the
+// message has (extendedTextMessage, imageMessage, …), so both are read.
+func quoteOf(m Message) *Quote {
+	ci := m.ContextInfo
+	if ci == nil || strings.TrimSpace(ci.StanzaID) == "" {
+		ci = nil
+		var shapes map[string]json.RawMessage
+		if json.Unmarshal(m.Message, &shapes) == nil {
+			for _, raw := range shapes {
+				var inner struct {
+					ContextInfo *contextInfo `json:"contextInfo"`
+				}
+				if len(raw) > 0 && raw[0] == '{' && json.Unmarshal(raw, &inner) == nil &&
+					inner.ContextInfo != nil && strings.TrimSpace(inner.ContextInfo.StanzaID) != "" {
+					ci = inner.ContextInfo
+					break
+				}
+			}
+		}
+	}
+	if ci == nil {
+		return nil
+	}
+	q := &Quote{ExternalID: strings.TrimSpace(ci.StanzaID)}
+	if len(ci.QuotedMessage) > 0 {
+		var qm Message
+		if json.Unmarshal(ci.QuotedMessage, &qm.body) == nil {
+			q.Body = messageText(qm)
+		}
+	}
+	return q
+}
+
+// Reaction is an emoji reaction read off a messages.upsert (MH-664).
+type Reaction struct {
+	// Phone is the chat it happened in.
+	Phone string
+	// TargetID is WhatsApp's id of the message reacted to.
+	TargetID string
+	// Emoji is "" when the reaction is being removed.
+	Emoji string
+	// FromMe: the linked number reacted (from this app or from the phone),
+	// rather than the customer.
+	FromMe bool
+}
+
+// Reaction reads a reactionMessage. ok is false for anything else, and for a
+// group chat — the same reason Read drops groups.
+func (m Message) Reaction() (Reaction, bool) {
+	r := m.body.Reaction
+	if r == nil {
+		return Reaction{}, false
+	}
+	jid := firstNonEmpty(m.Key.RemoteJID, m.Key.RemoteJIDAlt, r.Key.RemoteJID)
+	if strings.Contains(jid, "@g.us") {
+		return Reaction{}, false
+	}
+	phone := PhoneOf(m.Key.RemoteJID, m.Key.RemoteJIDAlt, r.Key.RemoteJID)
+	if phone == "" {
+		phone = Number(jid)
+	}
+	out := Reaction{
+		Phone:    phone,
+		TargetID: strings.TrimSpace(r.Key.ID),
+		Emoji:    strings.TrimSpace(r.Text),
+		FromMe:   m.Key.FromMe,
+	}
+	if out.Phone == "" || out.TargetID == "" {
+		return Reaction{}, false
+	}
+	return out, true
+}
+
+type quoteKey struct{}
+
+// WithQuote carries an inbound reply's quote to the inbox's filer (MH-664)
+// without widening the Filer/OwnFiler signatures every other caller shares.
+func WithQuote(ctx context.Context, q *Quote) context.Context {
+	if q == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, quoteKey{}, q)
+}
+
+// QuoteFrom is the quote WithQuote attached, or nil.
+func QuoteFrom(ctx context.Context) *Quote {
+	q, _ := ctx.Value(quoteKey{}).(*Quote)
+	return q
 }
 
 // messageText reads the CAPTION out of the several shapes WhatsApp uses.

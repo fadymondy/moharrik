@@ -37,7 +37,13 @@ import {
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { relativeTimeFormat } from "@/lib/i18n-locale"
-import { fetchOlderMessages, mergeMessages, useBell, useConversation } from "@/lib/queries"
+import {
+  fetchOlderMessages,
+  mergeMessages,
+  reactMessage,
+  useBell,
+  useConversation,
+} from "@/lib/queries"
 import { useAgentTyping, useTypingByConversation } from "@/lib/typing"
 
 /*
@@ -238,6 +244,8 @@ function DockThread({
   const [searchOpen, setSearchOpen] = useState(false)
   const [contactInfoOpen, setContactInfoOpen] = useState(false)
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
+  // MH-664: the message the next reply quotes.
+  const [replyTo, setReplyTo] = useState<InboxMessage | null>(null)
 
   if (detail.error) return <ErrorState error={detail.error} />
   if (!detail.data) return <LoadingRows rows={3} />
@@ -266,11 +274,16 @@ function DockThread({
     setErr(null)
     try {
       await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, {
-        json: { body: text, ...(subject.trim() ? { subject: subject.trim() } : {}) },
+        json: {
+          body: text,
+          ...(subject.trim() ? { subject: subject.trim() } : {}),
+          ...(replyTo ? { reply_to_message_id: replyTo.id } : {}),
+        },
         workspaceId,
       })
       setReply("")
       setSubject("")
+      setReplyTo(null)
       agentTyping.notifyStopped()
       detail.mutate()
       onChanged()
@@ -288,9 +301,10 @@ function DockThread({
   // MH-659: the composer's attach/mic controls send through the multipart
   // endpoint instead of the plain-text one `send()` above uses.
   async function sendAttachment(attachment: ReplyAttachmentInput, caption: string) {
-    await replyWithAttachment(workspaceId, id, caption, subject.trim(), attachment)
+    await replyWithAttachment(workspaceId, id, caption, subject.trim(), attachment, replyTo?.id)
     setReply("")
     setSubject("")
+    setReplyTo(null)
     detail.mutate()
     onChanged()
   }
@@ -365,6 +379,9 @@ function DockThread({
         loadingOlder={loadingEarlier}
         onLoadOlder={loadEarlier}
         scrollToMessageId={scrollToMessageId}
+        onReact={(messageId, emoji) => reactMessage(workspaceId, messageId, emoji)}
+        replyTo={replyTo}
+        onReplyToChange={setReplyTo}
         onSendAttachment={sendAttachment}
         typing={
           typing
@@ -493,8 +510,15 @@ export function ChatDock({
   }
 
   useWorkspaceEvents(workspaceId, (e) => {
-    if (e.kind !== "message" && e.kind !== "conversation" && e.kind !== "message_status") return
-    if (e.kind !== "message_status") void bell.mutate()
+    // A tick (MH-656) or a reaction (MH-664) only changes the thread itself.
+    if (
+      e.kind !== "message" &&
+      e.kind !== "conversation" &&
+      e.kind !== "message_status" &&
+      e.kind !== "reaction"
+    )
+      return
+    if (e.kind !== "message_status" && e.kind !== "reaction") void bell.mutate()
     if (e.conversation_id) {
       void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, workspaceId])
     }

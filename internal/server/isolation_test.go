@@ -1022,6 +1022,9 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		method, path string
 		body         map[string]any
 	}{
+		// MH-664: B cannot react to A's message, nor take a reaction off it.
+		{"PUT", "/api/w/messages/" + msgID + "/reaction", map[string]any{"emoji": "👍"}},
+		{"DELETE", "/api/w/messages/" + msgID + "/reaction", nil},
 		{"PATCH", "/api/w/conversations/" + convID, map[string]any{"contact_id": bobContact}},
 		{"PATCH", "/api/w/conversations/" + convID, map[string]any{"snoozed_until": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}},
 		{"POST", "/api/w/conversations/" + convID + "/contact", map[string]any{"email": "bob-steals-" + rnd() + "@example.test"}},

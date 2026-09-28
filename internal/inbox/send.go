@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"slices"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -93,6 +94,15 @@ func threadHeadersFor(ctx context.Context, a *app.App, workspaceID, convID strin
 			return "", nil, err
 		}
 		ids = append(ids, id)
+	}
+	// MH-664: a reply that quotes one message answers THAT message — its
+	// Message-ID is In-Reply-To, and it is in References even when it is not
+	// among the customer's own (it can be one of the team's earlier replies).
+	if q := emailQuoteFrom(ctx); q != "" {
+		if !slices.Contains(ids, q) {
+			ids = append(ids, q)
+		}
+		return q, ids, nil
 	}
 	if len(ids) == 0 {
 		// Nothing to answer (a thread that started here). The reply is a new

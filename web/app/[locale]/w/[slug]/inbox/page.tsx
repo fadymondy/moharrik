@@ -55,6 +55,7 @@ import { useAgentTyping, useTypingByConversation } from "@/lib/typing"
 import {
   fetchOlderMessages,
   mergeMessages,
+  reactMessage,
   useConversation,
   useConversationLabels,
   useConversationPages,
@@ -198,10 +199,16 @@ export default function InboxPage() {
   // affected thread is revalidated by key so an open conversation updates too.
   const { mutate } = useSWRConfig()
   useWorkspaceEvents(ws.id, (e) => {
-    // A delivery receipt (MH-656) only moves a tick in the open thread; the
-    // list has nothing to redraw.
-    if (e.kind !== "message" && e.kind !== "conversation" && e.kind !== "message_status") return
-    if (e.kind !== "message_status") void pages.mutate()
+    // A delivery receipt (MH-656) or a reaction (MH-664) only changes the
+    // open thread; the list has nothing to redraw.
+    if (
+      e.kind !== "message" &&
+      e.kind !== "conversation" &&
+      e.kind !== "message_status" &&
+      e.kind !== "reaction"
+    )
+      return
+    if (e.kind !== "message_status" && e.kind !== "reaction") void pages.mutate()
     if (e.conversation_id)
       void mutate([`/api/w/conversations/${encodeURIComponent(e.conversation_id)}`, ws.id])
   })
@@ -916,6 +923,8 @@ function Thread({
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
+  // MH-664: the message the next reply quotes.
+  const [replyTo, setReplyTo] = useState<InboxMessage | null>(null)
 
   function exitSelectMode() {
     setSelectMode(false)
@@ -970,11 +979,16 @@ function Thread({
     setErr(null)
     try {
       await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, {
-        json: { body: text, ...(subject.trim() ? { subject: subject.trim() } : {}) },
+        json: {
+          body: text,
+          ...(subject.trim() ? { subject: subject.trim() } : {}),
+          ...(replyTo ? { reply_to_message_id: replyTo.id } : {}),
+        },
         workspaceId: ws.id,
       })
       setReply("")
       setSubject("")
+      setReplyTo(null)
       agentTyping.notifyStopped()
       refresh()
     } catch (e) {
@@ -1007,11 +1021,16 @@ function Thread({
   // MH-659: the composer's attach/mic controls send through the multipart
   // endpoint instead of the plain-text one `send()` above uses.
   async function sendAttachment(attachment: ReplyAttachmentInput, caption: string) {
-    await replyWithAttachment(ws.id, id, caption, subject.trim(), attachment)
+    await replyWithAttachment(ws.id, id, caption, subject.trim(), attachment, replyTo?.id)
     setReply("")
     setSubject("")
+    setReplyTo(null)
     refresh()
   }
+
+  // MH-664: the realtime "reaction" event refetches the thread for everyone
+  // else; this tab shows the returned set straight away (ChatThread).
+  const react = (messageId: string, emoji: string) => reactMessage(ws.id, messageId, emoji)
 
   const assigneeOpts = members.options
   // MH-602: same precedence as the list row — the linked contact's name wins.
@@ -1193,6 +1212,9 @@ function Thread({
         selectedIds={selectedIds}
         onToggleSelect={toggleSelected}
         scrollToMessageId={scrollToMessageId}
+        onReact={react}
+        replyTo={replyTo}
+        onReplyToChange={setReplyTo}
       />
     </section>
   )

@@ -157,6 +157,11 @@ func Boot() *app.App {
 	whatsapp.SetTypingSink(func(ctx context.Context, workspaceID, phone, state string) error {
 		return inbox.FileWhatsAppTyping(ctx, a, workspaceID, phone, state)
 	})
+	// Emoji reactions (MH-664): the customer's, and the number's own from the
+	// phone — filed against the message reacted to, never as a message.
+	whatsapp.SetReactionSink(func(ctx context.Context, workspaceID, phone, targetExternalID, emoji string, fromMe bool) error {
+		return inbox.FileWhatsAppReaction(ctx, a, workspaceID, phone, targetExternalID, emoji, fromMe)
+	})
 	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string, media *whatsapp.Media, download whatsapp.MediaDownloader) error {
 		// "trends" / "ترندات" from a member's verified number is a question to
 		// the workspace, answered with its top trend stories (MH-389) — not a

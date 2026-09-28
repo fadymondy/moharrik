@@ -163,6 +163,7 @@ func Register(api huma.API, a *app.App) {
 	registerLinkPreview(api, a)     // MH-656
 	registerOrganise(api, a)        // MH-657
 	registerThreadMenu(api, a)      // MH-662
+	registerReactions(api, a)     // MH-664
 	registerMediaGallery(api, a)    // MH-662
 
 	// ---- conversations -----------------------------------------------------
@@ -219,11 +220,12 @@ func Register(api huma.API, a *app.App) {
 		Body struct {
 			Body    string `json:"body" minLength:"1" maxLength:"8000"`
 			Subject string `json:"subject,omitempty" maxLength:"500" doc:"Email only: overrides the default Re: <original subject>. Ignored on other channels."`
+			ReplyToMessageID string `json:"reply_to_message_id,omitempty" maxLength:"64" doc:"MH-664: quote this earlier message of the same conversation. WhatsApp shows it as a quoted reply; email answers it (In-Reply-To)."`
 		}
 	}) (*body[struct {
 		Message MessageOut `json:"message"`
 	}], error) {
-		m, err := Reply(ctx, a, in.ID, in.Body.Body, in.Body.Subject)
+		m, err := Reply(WithReplyTo(ctx, in.Body.ReplyToMessageID), a, in.ID, in.Body.Body, in.Body.Subject)
 		if err != nil {
 			return nil, err
 		}
@@ -304,7 +306,7 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error422UnprocessableEntity("an attachment (file or location) is required")
 		}
 
-		m, err := ReplyWithAttachments(ctx, a, in.ID, text, subject, attachments)
+		m, err := ReplyWithAttachments(WithReplyTo(ctx, val("reply_to_message_id")), a, in.ID, text, subject, attachments)
 		if err != nil {
 			return nil, err
 		}
