@@ -110,7 +110,10 @@ func RegisterMailbox(api huma.API, a *app.App) {
 		OperationID: "w-save-mailbox", Method: http.MethodPut, Path: "/api/w/mailboxes/{id}",
 		Summary: "Update a mailbox (MH-555)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
-		idPath
+		// Declared here, not through idPath: huma does not bind a path field
+		// two embeddings deep, so in.ID arrived empty and every edit 404ed (MH-669).
+		wsHeader
+		ID   string `path:"id"`
 		Body MailboxIn
 	}) (*body[mailboxResp], error) {
 		s, err := scope(ctx, authz.InboxManage)
@@ -133,7 +136,7 @@ func RegisterMailbox(api huma.API, a *app.App) {
 		OperationID: "w-delete-mailbox", Method: http.MethodDelete, Path: "/api/w/mailboxes/{id}",
 		DefaultStatus: http.StatusNoContent,
 		Summary:       "Stop collecting email on this mailbox (MH-555)", Tags: tags,
-	}, func(ctx context.Context, in *struct{ idPath }) (*struct{}, error) {
+	}, func(ctx context.Context, in *idPath) (*struct{}, error) {
 		s, err := scope(ctx, authz.InboxManage)
 		if err != nil {
 			return nil, err
@@ -154,7 +157,7 @@ func RegisterMailbox(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-test-mailbox", Method: http.MethodPost, Path: "/api/w/mailboxes/{id}/test",
 		Summary: "Check the mailbox's credentials without collecting anything (MH-555)", Tags: tags,
-	}, func(ctx context.Context, in *struct{ idPath }) (*body[mailboxResp], error) {
+	}, func(ctx context.Context, in *idPath) (*body[mailboxResp], error) {
 		s, err := scope(ctx, authz.InboxManage)
 		if err != nil {
 			return nil, err
@@ -177,7 +180,7 @@ func RegisterMailbox(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-check-mailbox", Method: http.MethodPost, Path: "/api/w/mailboxes/{id}/check",
 		Summary: "Collect from this mailbox now (the same code path as the collector)", Tags: tags,
-	}, func(ctx context.Context, in *struct{ idPath }) (*body[struct {
+	}, func(ctx context.Context, in *idPath) (*body[struct {
 		Filed   int        `json:"filed"`
 		Error   string     `json:"error,omitempty"`
 		Mailbox MailboxOut `json:"mailbox"`
