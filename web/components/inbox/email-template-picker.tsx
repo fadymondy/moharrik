@@ -69,12 +69,14 @@ export function EmailTemplatePicker({
             variant="ghost"
             size="sm"
             data-action="email-templates"
+            aria-label={t("inbox.emailTemplates.insert")}
+            title={t("inbox.emailTemplates.insert")}
             disabled={!templates.data}
           />
         }
       >
         <MailIcon />
-        {t("inbox.emailTemplates.insert")}
+        <span className="hidden @xl:inline">{t("inbox.emailTemplates.insert")}</span>
         <ChevronDownIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-80 max-w-[calc(100vw-2rem)]">

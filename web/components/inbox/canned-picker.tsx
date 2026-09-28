@@ -58,13 +58,15 @@ export function CannedPicker({
             variant="ghost"
             size="sm"
             data-action="canned"
+            aria-label={t("inbox.canned.insert")}
+            title={t("inbox.canned.insert")}
             data-quick-replies
             disabled={!canned.data}
           />
         }
       >
         <MessageSquareQuoteIcon />
-        {t("inbox.canned.insert")}
+        <span className="hidden @xl:inline">{t("inbox.canned.insert")}</span>
         <ChevronDownIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-80 max-w-[calc(100vw-2rem)]">
