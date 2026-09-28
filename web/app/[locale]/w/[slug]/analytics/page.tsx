@@ -282,7 +282,7 @@ function Filled({ rep }: { rep: GaReport }) {
 }
 
 /** 95 → "1m 35s", in the page's language. */
-export function duration(
+function duration(
   sec: number,
   t: (k: string, v?: Record<string, string | number>) => string,
   n: (v: number) => string,
