@@ -16,6 +16,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -159,6 +160,16 @@ type AttachmentOut struct {
 	Inline      bool   `json:"inline"`
 	ContentID   string `json:"content_id,omitempty"`
 	URL         string `json:"url" doc:"A signed, time-limited download URL. Not authenticated any other way, so it can be used directly as an <img src> or a download link."`
+	// Kind (MH-658) is how the UI should render this attachment: image, video,
+	// audio, voice, document, sticker, location or contact. Defaults to
+	// "document" for anything filed before this column existed.
+	Kind string `json:"kind,omitempty" doc:"image | video | audio | voice | document | sticker | location | contact"`
+	// Status is "ready" or "failed" — a failed WhatsApp media download still
+	// files the message, with a placeholder attachment rather than dropping it.
+	Status string `json:"status,omitempty" doc:"ready | failed"`
+	// Meta carries kind-specific data that isn't file bytes: lat/lng/name/address
+	// for a location, name/number for a contact card.
+	Meta json.RawMessage `json:"meta,omitempty"`
 }
 
 type WidgetOut struct {

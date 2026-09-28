@@ -181,7 +181,7 @@ func TestInboxCRM(t *testing.T) {
 	if err := inbox.File(ctx, a, wsID, "", &inbox.Email{MessageID: "m2-" + rnd() + "@x.test", From: "stranger-" + rnd() + "@x.test", Subject: "Hi", Body: "Hello", Date: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
-	if err := inbox.FileWhatsApp(ctx, a, wsID, "966512345678", "Omar", "مرحبا، أريد طلبية", "wa-"+rnd()); err != nil {
+	if err := inbox.FileWhatsApp(ctx, a, wsID, "966512345678", "Omar", "مرحبا، أريد طلبية", "wa-"+rnd(), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	byChannel := map[string][]map[string]any{}
@@ -212,7 +212,7 @@ func TestInboxCRM(t *testing.T) {
 	}
 	// A member who unlinks a match keeps it unlinked through the next message.
 	alice.must("PATCH", "/api/w/conversations/"+waID, map[string]any{"contact_id": ""}, 200)
-	if err := inbox.FileWhatsApp(ctx, a, wsID, "966512345678", "Omar", "again", "wa-"+rnd()); err != nil {
+	if err := inbox.FileWhatsApp(ctx, a, wsID, "966512345678", "Omar", "again", "wa-"+rnd(), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if cv := obj(alice.must("GET", "/api/w/conversations/"+waID, nil, 200)["conversation"]); cv["contact_id"] != nil || cv["contact_link"] != "manual" {

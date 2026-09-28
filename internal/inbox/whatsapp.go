@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -26,9 +27,9 @@ import (
 //
 // It is wired into internal/whatsapp at boot rather than imported there, so
 // neither package depends on the other.
-func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, text, externalID string) error {
+func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, text, externalID string, media *whatsapp.Media, download whatsapp.MediaDownloader) error {
 	phone = strings.TrimSpace(phone)
-	if phone == "" || strings.TrimSpace(text) == "" {
+	if phone == "" || (strings.TrimSpace(text) == "" && media == nil) {
 		return nil
 	}
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
@@ -70,17 +71,32 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 		return nil
 	}
 
-	ins, err := db.ExecContext(sctx, `
+	var msgID string
+	err = db.QueryRowContext(sctx, `
 		INSERT INTO messages (workspace_id, conversation_id, direction, body, external_id)
 		VALUES ($1, $2, 'in', $3, $4)
-		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING`,
-		workspaceID, convID, trimTo(text, maxBody), externalID)
+		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING
+		RETURNING id`,
+		workspaceID, convID, trimTo(text, maxBody), externalID).Scan(&msgID)
+	if errors.Is(err, sql.ErrNoRows) {
+		// A redelivery that raced the check above wrote nothing, and alerts nobody.
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	// A redelivery that raced the check above wrote nothing, and alerts nobody.
-	if n, _ := ins.RowsAffected(); n == 0 {
-		return nil
+
+	// MH-658: an image, video, voice note, document, sticker, location or
+	// contact card rides alongside — or instead of — a caption. Filed on the
+	// SAME message_attachments table and signed-URL path an email attachment
+	// already uses (internal/inbox/attachment.go), so the client renders both
+	// through one component regardless of channel.
+	if media != nil {
+		// sctx, not ctx: message_attachments carries the same tenant_isolation
+		// RLS policy as every other table here, keyed off app.workspace_id —
+		// set on sctx by tenant.WithWorkspace above, never on the bare ctx this
+		// function was handed.
+		fileWhatsAppMedia(sctx, a, db, workspaceID, msgID, media, download)
 	}
 
 	if _, err := db.ExecContext(sctx, `
@@ -132,9 +148,9 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 // It is stamped on arrival by the database clock, exactly like an inbound
 // message: WhatsApp's whole-second timestamp, or this process's clock, would
 // sort a quick answer before the question it answers.
-func FileWhatsAppOwn(ctx context.Context, a *app.App, workspaceID, phone, text, externalID string) error {
+func FileWhatsAppOwn(ctx context.Context, a *app.App, workspaceID, phone, text, externalID string, media *whatsapp.Media, download whatsapp.MediaDownloader) error {
 	phone = strings.TrimSpace(phone)
-	if phone == "" || strings.TrimSpace(text) == "" || externalID == "" {
+	if phone == "" || (strings.TrimSpace(text) == "" && media == nil) || externalID == "" {
 		return nil
 	}
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
@@ -177,16 +193,23 @@ func FileWhatsAppOwn(ctx context.Context, a *app.App, workspaceID, phone, text, 
 		return err
 	}
 
-	ins, err := db.ExecContext(sctx, `
+	var msgID string
+	err = db.QueryRowContext(sctx, `
 		INSERT INTO messages (workspace_id, conversation_id, direction, body, body_html, external_id, status)
 		VALUES ($1, $2, 'out', $3, $4, $5, 'sent')
-		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING`,
-		workspaceID, convID, trimTo(text, maxBody), RenderMarkdown(text), externalID)
+		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING
+		RETURNING id`,
+		workspaceID, convID, trimTo(text, maxBody), RenderMarkdown(text), externalID).Scan(&msgID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	if n, _ := ins.RowsAffected(); n == 0 {
-		return nil
+	// A photo, voice note or file sent from the phone rides along exactly as
+	// a customer's does (MH-658).
+	if media != nil {
+		fileWhatsAppMedia(sctx, a, db, workspaceID, msgID, media, download)
 	}
 	if _, err := db.ExecContext(sctx, `
 		UPDATE conversations SET last_message_at = now(), unread = false, updated_at = now()
@@ -201,6 +224,86 @@ func FileWhatsAppOwn(ctx context.Context, a *app.App, workspaceID, phone, text, 
 	}
 	changed(ctx, a, workspaceID, realtime.Event{Kind: "message", Direction: "out", ConversationID: convID})
 	return nil
+}
+
+// fileWhatsAppMedia stores one message's attachment (MH-658): a location or
+// contact card renders from data it already carried in the webhook (no
+// download needed), everything else is downloaded from Evolution with the
+// bounded timeout and size cap GetMediaBase64 itself enforces. A failed
+// download still files a placeholder row (status 'failed') rather than the
+// message losing its attachment silently — the thread is what must never be
+// dropped, and it isn't: the message row is already committed by the time
+// this runs.
+func fileWhatsAppMedia(ctx context.Context, a *app.App, db *sql.DB, workspaceID, messageID string, media *whatsapp.Media, download whatsapp.MediaDownloader) {
+	switch media.Kind {
+	case "location":
+		meta, _ := json.Marshal(map[string]any{
+			"lat": media.Lat, "lng": media.Lng, "name": media.LocationName, "address": media.Address,
+		})
+		insertAttachment(ctx, a, db, workspaceID, messageID, "location", "location", "application/geo+json", "ready", nil, meta)
+		return
+	case "contact":
+		meta, _ := json.Marshal(map[string]any{"name": media.ContactName, "number": vcardNumber(media.ContactVC)})
+		insertAttachment(ctx, a, db, workspaceID, messageID, "contact", "contact.vcf", "text/vcard", "ready", []byte(media.ContactVC), meta)
+		return
+	}
+	filename := media.FileName
+	mimeType := media.MimeType
+	if download == nil {
+		insertAttachment(ctx, a, db, workspaceID, messageID, media.Kind, filename, mimeType, "failed", nil, []byte(`{}`))
+		return
+	}
+	mf, err := download(ctx)
+	if err == nil && mf.FileName != "" {
+		filename = mf.FileName
+	}
+	if err == nil && mf.MimeType != "" {
+		mimeType = mf.MimeType
+	}
+	if err != nil || len(mf.Data) == 0 {
+		if err != nil {
+			a.Log.Warn("could not download a WhatsApp attachment", "workspace", workspaceID, "kind", media.Kind, "err", err)
+		}
+		insertAttachment(ctx, a, db, workspaceID, messageID, media.Kind, filename, mimeType, "failed", nil, []byte(`{}`))
+		return
+	}
+	insertAttachment(ctx, a, db, workspaceID, messageID, media.Kind, filename, mimeType, "ready", mf.Data, []byte(`{}`))
+}
+
+// insertAttachment writes one message_attachments row. Best-effort: a failure
+// here is logged, never returned — the message it belongs to is already
+// filed, and an attachment write failing must not look like the whole
+// message never arrived.
+func insertAttachment(ctx context.Context, a *app.App, db *sql.DB, workspaceID, messageID, kind, filename, contentType, status string, data []byte, meta []byte) {
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	if filename == "" {
+		filename = "attachment"
+	}
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO message_attachments (workspace_id, message_id, filename, content_type, size_bytes, data, is_inline, content_id, kind, status, meta)
+		VALUES ($1, $2, $3, $4, $5, $6, false, '', $7, $8, $9)`,
+		workspaceID, messageID, filename, contentType, len(data), data, kind, status, meta)
+	if err != nil {
+		a.Log.Warn("could not file a WhatsApp attachment", "workspace", workspaceID, "message", messageID, "err", err)
+	}
+}
+
+// vcardNumber pulls the first phone number out of a vCard's TEL line(s),
+// e.g. "TEL;TYPE=CELL:+20123456789" -> "+20123456789". "" if the card somehow
+// has none — the contact card still renders, just with only a name.
+func vcardNumber(vcard string) string {
+	for _, line := range strings.Split(vcard, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(strings.ToUpper(line), "TEL") {
+			continue
+		}
+		if i := strings.LastIndex(line, ":"); i >= 0 {
+			return strings.TrimSpace(line[i+1:])
+		}
+	}
+	return ""
 }
 
 // refreshWhatsAppPhoto fires the provider-photo fetch for one conversation

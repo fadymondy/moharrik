@@ -87,7 +87,7 @@ func attachmentsFor(ctx context.Context, db *sql.DB, workspaceID string, message
 		return out, nil
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, message_id, filename, content_type, size_bytes, is_inline, content_id
+		SELECT id, message_id, filename, content_type, size_bytes, is_inline, content_id, kind, status, meta
 		FROM message_attachments WHERE workspace_id = $1 AND message_id = ANY($2)
 		ORDER BY created_at`, workspaceID, messageIDs)
 	if err != nil {
@@ -97,10 +97,18 @@ func attachmentsFor(ctx context.Context, db *sql.DB, workspaceID string, message
 	for rows.Next() {
 		var a AttachmentOut
 		var msgID string
-		if err := rows.Scan(&a.ID, &msgID, &a.Filename, &a.ContentType, &a.SizeBytes, &a.Inline, &a.ContentID); err != nil {
+		var meta []byte
+		if err := rows.Scan(&a.ID, &msgID, &a.Filename, &a.ContentType, &a.SizeBytes, &a.Inline, &a.ContentID, &a.Kind, &a.Status, &meta); err != nil {
 			return nil, err
 		}
-		a.URL = AttachmentURL(workspaceID, a.ID)
+		if len(meta) > 0 && string(meta) != "{}" {
+			a.Meta = meta
+		}
+		// A location/contact row carries no bytes, and a failed download has
+		// none either — the signed download URL would only 404/empty for them.
+		if a.Status != "failed" && a.Kind != "location" {
+			a.URL = AttachmentURL(workspaceID, a.ID)
+		}
 		out[msgID] = append(out[msgID], a)
 	}
 	return out, rows.Err()
