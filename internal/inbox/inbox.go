@@ -148,6 +148,11 @@ type MessageOut struct {
 	SenderContactID  *string `json:"sender_contact_id,omitempty" doc:"The CRM contact resolved for this group-thread sender, if any."`
 	SenderExternalID string  `json:"-" doc:"The sender's raw platform id (Telegram/Slack/Discord handle); internal only, never serialized — SenderContactID/SenderAvatarURL are what the client renders from."`
 	SenderAvatarURL  string  `json:"sender_avatar_url,omitempty" doc:"MH-604's per-sender counterpart to ConversationOut.AvatarURL: the sender's photo if cached, else empty so the client renders initials."`
+	// Starred (MH-662) is this signed-in member's own star on the message —
+	// like conversation_prefs, a member's star is their own view of the
+	// thread, not the team's. False (never populated) on paths with no
+	// signed-in member, e.g. thread() in routes.go.
+	Starred bool `json:"starred,omitempty" doc:"Starred by the signed-in member (MH-662)."`
 }
 
 // AttachmentOut is one attachment's metadata — never the bytes; those are

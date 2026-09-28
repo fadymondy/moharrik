@@ -17,6 +17,7 @@ import {
   FileIcon,
   SendIcon,
   XIcon,
+  StarIcon,
 } from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
@@ -198,6 +199,9 @@ function MessageGroup({
   conversation,
   memberName,
   showSubject,
+  selectMode = false,
+  selectedIds,
+  onToggleSelect,
 }: {
   group: InboxMessage[]
   conversation: Conversation
@@ -205,6 +209,11 @@ function MessageGroup({
   /** MH-600: does THIS message's own subject differ from the one before it
    *  in the whole thread — see subjectVisibility(). */
   showSubject: (id: string) => boolean
+  /** MH-662: select-messages mode — a checkbox appears on every bubble and a
+   *  click toggles instead of doing nothing. Omitted/false changes nothing. */
+  selectMode?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }) {
   const { t, locale } = useTranslations()
   const out = group[0].direction === "out"
@@ -286,6 +295,9 @@ function MessageGroup({
             out={out}
             first={i === 0}
             senderName={i === 0 && showSenderAvatar ? who : null}
+            selectMode={selectMode}
+            selected={selectedIds?.has(m.id) ?? false}
+            onToggleSelect={onToggleSelect}
           />
         ))}
       </div>
@@ -340,12 +352,19 @@ function ChatBubble({
   out,
   first,
   senderName,
+  selectMode = false,
+  selected = false,
+  onToggleSelect,
 }: {
   m: InboxMessage
   out: boolean
   first: boolean
   /** A group thread's sender, named inside the first bubble of their run. */
   senderName: string | null
+  /** MH-662: select-messages mode (see MessageGroup). Omitted/false changes nothing. */
+  selectMode?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }) {
   const { locale } = useTranslations()
   const url = firstUrl(m.body)
@@ -367,21 +386,27 @@ function ChatBubble({
       className="relative top-1.5 float-end ms-2 flex items-center gap-1 text-[0.6875rem] leading-4 text-grid-muted"
       data-message-meta
     >
+      {m.starred ? <StarIcon className="size-3 fill-current text-amber-500" aria-hidden /> : null}
       <Ltr>{timeOf(m.created_at, locale)}</Ltr>
       {out ? <Ticks status={m.status} /> : null}
     </span>
   )
-  return (
+  const bubble = (
     <div
       data-message={m.direction}
+      data-message-id={m.id}
       data-message-status={m.status || undefined}
       data-sticker-only={stickerOnly || undefined}
+      data-starred={m.starred || undefined}
       className={
         stickerOnly
           ? "relative flow-root max-w-[min(36rem,85%)] text-sm text-grid-fg"
           : `relative flow-root max-w-[min(36rem,85%)] rounded-[0.5rem] px-2.5 pt-1.5 pb-2 text-sm text-grid-fg shadow-[0_1px_0.5px_color-mix(in_oklab,var(--grid-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`
       }
       style={stickerOnly ? undefined : { background: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
+      onClick={selectMode ? () => onToggleSelect?.(m.id) : undefined}
+      role={selectMode ? "checkbox" : undefined}
+      aria-checked={selectMode ? selected : undefined}
     >
       {first && !stickerOnly ? <BubbleTail out={out} /> : null}
       {senderName ? (
@@ -401,6 +426,25 @@ function ChatBubble({
       <AttachmentList attachments={m.attachments} />
       {files || (!text && m.body_html) ? meta : null}
     </div>
+  )
+  // MH-662: select-messages mode adds a checkbox beside the bubble rather
+  // than inside it — the bubble's own onClick above still toggles it too, so
+  // either target works.
+  if (!selectMode) return bubble
+  return (
+    <label
+      className={`flex w-full max-w-[min(36rem,85%)] cursor-pointer items-center gap-2 ${out ? "flex-row-reverse self-end" : "self-start"}`}
+      data-message-select-row
+    >
+      <input
+        type="checkbox"
+        className="size-4 shrink-0 accent-(--primary)"
+        checked={selected}
+        onChange={() => onToggleSelect?.(m.id)}
+        aria-label={m.id}
+      />
+      {bubble}
+    </label>
   )
 }
 
@@ -425,6 +469,10 @@ export function ChatThread({
   onSendAttachment,
   typing = null,
   onTyping,
+  selectMode = false,
+  selectedIds,
+  onToggleSelect,
+  scrollToMessageId,
 }: {
   conversation: Conversation
   messages: InboxMessage[]
@@ -458,6 +506,15 @@ export function ChatThread({
   /** MH-660: fired as the agent edits the reply, so the caller can tell the
    *  customer "composing" (throttled) — this component does no throttling itself. */
   onTyping?: () => void
+  /** MH-662: select-messages mode — every bubble grows a checkbox. Omitted/false changes nothing. */
+  selectMode?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
+  /** MH-662: in-chat search "jump to match" — set to a message id to scroll the
+   *  group containing it into view and flash-highlight the bubble. Changing it
+   *  to the same id again still re-triggers (the caller bumps a counter via key
+   *  if the reader hits "next" on the same match twice, e.g. after a resize). */
+  scrollToMessageId?: string | null
 }) {
   const { t, locale } = useTranslations()
   const items = buildItems(messages, t, locale, conversation.is_group)
@@ -616,6 +673,28 @@ export function ChatThread({
     firstIdRef.current = first
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length])
+
+  // MH-662: find-in-chat "jump to match" — scroll the virtualized group
+  // holding the target message into view, then, once its real DOM node
+  // exists, nudge to center it and flash a highlight.
+  useEffect(() => {
+    if (!scrollToMessageId) return
+    const idx = items.findIndex(
+      (it) => it.kind === "group" && it.group.some((m) => m.id === scrollToMessageId),
+    )
+    if (idx < 0) return
+    virtualizer.scrollToIndex(idx, { align: "center" })
+    const targetId = scrollToMessageId
+    const raf = requestAnimationFrame(() => {
+      const el = parentRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(targetId)}"]`)
+      if (!el) return
+      el.scrollIntoView({ block: "center", behavior: "smooth" })
+      el.classList.add("mh-search-hit")
+      window.setTimeout(() => el.classList.remove("mh-search-hit"), 1600)
+    })
+    return () => cancelAnimationFrame(raf)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToMessageId])
 
   function triggerLoadOlder() {
     if (!hasOlder || loadingOlder || !onLoadOlder) return
@@ -787,6 +866,9 @@ export function ChatThread({
                     conversation={conversation}
                     memberName={memberName}
                     showSubject={showSubject}
+                    selectMode={selectMode}
+                    selectedIds={selectedIds}
+                    onToggleSelect={onToggleSelect}
                   />
                 )}
               </div>

@@ -162,6 +162,8 @@ func Register(api huma.API, a *app.App) {
 	registerContactWhatsApp(api, a) // MH-410
 	registerLinkPreview(api, a)     // MH-656
 	registerOrganise(api, a)        // MH-657
+	registerThreadMenu(api, a)      // MH-662
+	registerMediaGallery(api, a)    // MH-662
 
 	// ---- conversations -----------------------------------------------------
 
@@ -530,7 +532,10 @@ func Register(api huma.API, a *app.App) {
 // stopped showing new messages at all (MH-471). The member's thread pages
 // through all of it (thread.go).
 func thread(ctx context.Context, db *sql.DB, wsID, convID string) ([]MessageOut, error) {
-	page, err := threadPage(ctx, db, wsID, convID, "", threadPageMax)
+	// "" (MH-662): this helper reads for search/context/export/AI, not for a
+	// signed-in member's own view, so there is no member to hide-filter or
+	// star against.
+	page, err := threadPage(ctx, db, wsID, convID, "", threadPageMax, "")
 	if err != nil {
 		return nil, err
 	}

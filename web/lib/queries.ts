@@ -110,6 +110,8 @@ import {
   type User,
   type WebhookSource,
   type WorkspaceSummary,
+  type SearchResult,
+  type GalleryPage,
 } from "@/lib/api"
 
 const noRetryOn4xx = {
@@ -633,6 +635,72 @@ export function fetchOlderMessages(
   return api<ThreadPage>(
     `/api/w/conversations/${encodeURIComponent(conversationId)}/messages?${qs.toString()}`,
     { workspaceId },
+  )
+}
+
+// ── Thread ⋮ menu (MH-662): star/hide, in-chat search, the gallery ────────
+
+/** Stars a message for the SIGNED-IN member only (idempotent). */
+export function starMessage(workspaceId: string, messageId: string) {
+  return api(`/api/w/messages/${encodeURIComponent(messageId)}/star`, {
+    method: "PUT",
+    workspaceId,
+  })
+}
+
+/** Unstars a message for the SIGNED-IN member only (idempotent). */
+export function unstarMessage(workspaceId: string, messageId: string) {
+  return api(`/api/w/messages/${encodeURIComponent(messageId)}/star`, {
+    method: "DELETE",
+    workspaceId,
+  })
+}
+
+/** "Delete for us": hides a message from the SIGNED-IN member's own view of
+ *  the thread. Never sent to WhatsApp, never removes it for a teammate. */
+export function hideMessage(workspaceId: string, messageId: string) {
+  return api(`/api/w/messages/${encodeURIComponent(messageId)}/hide`, {
+    method: "POST",
+    workspaceId,
+  })
+}
+
+/** Every message the signed-in member starred in one conversation, newest first. */
+export function useStarredMessages(workspaceId: string | null | undefined, conversationId: string | null) {
+  return useScoped<{ messages: InboxMessage[] }>(
+    conversationId ? `/api/w/conversations/${encodeURIComponent(conversationId)}/starred` : "",
+    workspaceId,
+    !!conversationId,
+  )
+}
+
+/** Find-in-chat (MH-662): a page of matches, oldest first, walking back with
+ *  `cursor` for "load older matches" — not a hook, since a search box calls
+ *  this from a keystroke/click handler, the same shape as fetchOlderMessages. */
+export function searchConversation(
+  workspaceId: string,
+  conversationId: string,
+  q: string,
+  cursor = "",
+  limit = 30,
+) {
+  const qs = new URLSearchParams({ q, limit: String(limit) })
+  if (cursor) qs.set("cursor", cursor)
+  return api<SearchResult>(
+    `/api/w/conversations/${encodeURIComponent(conversationId)}/search?${qs.toString()}`,
+    { workspaceId },
+  )
+}
+
+/** The Contact info panel's Media/Links/Docs gallery, with tab counts. */
+export function useConversationGallery(
+  workspaceId: string | null | undefined,
+  conversationId: string | null,
+) {
+  return useScoped<GalleryPage>(
+    conversationId ? `/api/w/conversations/${encodeURIComponent(conversationId)}/media` : "",
+    workspaceId,
+    !!conversationId,
   )
 }
 

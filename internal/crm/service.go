@@ -89,6 +89,9 @@ type ContactFields struct {
 	Nickname           *string `json:"nickname,omitempty" maxLength:"120"`
 	Birthday           *string `json:"birthday,omitempty" doc:"YYYY-MM-DD. Empty string clears it."`
 	Biography          *string `json:"biography,omitempty" maxLength:"5000"`
+	// Notes (MH-662): the team's own free text, edited from the inbox's
+	// Contact info panel as well as the contact page.
+	Notes *string `json:"notes,omitempty" maxLength:"5000"`
 	// Meta replaces the whole key/value map when set (the page sends the map
 	// it just edited back whole, the same way Tags does).
 	Meta *map[string]string `json:"meta,omitempty" doc:"Replaces the whole key/value map. At most 50 keys, each key and value at most 200 characters."`
@@ -509,6 +512,9 @@ func UpdateContact(ctx context.Context, db *sql.DB, id string, b ContactFields) 
 	}
 	if b.Biography != nil {
 		u.set("biography", strings.TrimSpace(*b.Biography))
+	}
+	if b.Notes != nil {
+		u.set("notes", strings.TrimSpace(*b.Notes))
 	}
 	if b.Meta != nil {
 		if len(*b.Meta) > 50 {

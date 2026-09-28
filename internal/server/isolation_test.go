@@ -986,11 +986,38 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		t.Errorf("B naming A's workspace for /api/w/channels: got %d, want 404: %s", code, b)
 	}
 
+	// MH-662: a message id off A's own conversation, for the star/hide/search/
+	// export cross-tenant checks below.
+	alice.ws = aID
+	aliceMsgs := alice.must("GET", "/api/w/conversations/"+convID+"/messages", nil, 200)["messages"].([]any)
+	if len(aliceMsgs) == 0 {
+		t.Fatal("A's conversation should have at least one message to star/hide")
+	}
+	msgID := aliceMsgs[0].(map[string]any)["id"].(string)
+
 	// Inbox → CRM and canned replies (MH-379, MH-383), with VALID bodies from B:
 	// B cannot hang its contact on A's conversation, open a deal from it, snooze
 	// it, or change or delete A's canned reply.
 	bob.ws = bID
 	bobContact := bob.must("POST", "/api/w/contacts", map[string]any{"email": "bob-ct-" + rnd() + "@example.test"}, 201)["contact"].(map[string]any)["id"].(string)
+	// MH-662: B cannot star, hide, search or export anything on A's chat —
+	// not the conversation-scoped reads, and not a message id borrowed from A.
+	for _, w := range []struct {
+		method, path string
+	}{
+		{"PUT", "/api/w/messages/" + msgID + "/star"},
+		{"DELETE", "/api/w/messages/" + msgID + "/star"},
+		{"POST", "/api/w/messages/" + msgID + "/hide"},
+		{"GET", "/api/w/conversations/" + convID + "/starred"},
+		{"GET", "/api/w/conversations/" + convID + "/search?q=" + marker},
+		{"GET", "/api/w/conversations/" + convID + "/export.txt"},
+		{"GET", "/api/w/conversations/" + convID + "/export.zip"},
+		{"GET", "/api/w/conversations/" + convID + "/media"},
+	} {
+		if code, b := bob.do(w.method, w.path, nil); code != http.StatusNotFound || leaks(b) != "" {
+			t.Errorf("B %s %s: got %d, want 404: %s", w.method, w.path, code, b)
+		}
+	}
 	for _, w := range []struct {
 		method, path string
 		body         map[string]any

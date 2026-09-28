@@ -389,7 +389,9 @@ export function LabelChip({ name, color }: { name: string; color: TagColor }) {
 Labels… — tick the workspace's labels this chat carries, or make a new one
 (a name and a colour) and tick it in the same step.
 */
-function LabelsDialog({
+// Exported so ThreadHeaderMenu (MH-662) reuses this instead of a second
+// implementation of "labels" management for the same conversation.
+export function LabelsDialog({
   c,
   open,
   onOpenChange,
