@@ -70,6 +70,23 @@ var file Filer
 // SetFiler wires the inbox's own "file this message" in at boot.
 func SetFiler(f Filer) { file = f }
 
+// OwnFiler files a message the linked number itself sent (MH-665): a reply
+// typed on the phone, or the echo of something this app sent. The inbox
+// tells the two apart by the WhatsApp message id.
+type OwnFiler func(ctx context.Context, workspaceID, phone, text, externalID string) error
+
+var fileOwn OwnFiler
+
+// SetOwnFiler wires the inbox's "file our own message" in at boot.
+func SetOwnFiler(f OwnFiler) { fileOwn = f }
+
+// OwnDelay is how long a fromMe message waits before it is filed. The echo of
+// a reply sent from the inbox can beat the reply's own row to the database —
+// Evolution answers the send and fires the webhook at nearly the same moment
+// — and waiting a beat lets the reply claim its id first, so the echo finds
+// it and adds nothing. A variable so the tests need not wait.
+var OwnDelay = 4 * time.Second
+
 // Register mounts the workspace-facing endpoints. `a` may be nil (OpenAPI
 // export).
 func Register(api huma.API, a *app.App) {
@@ -181,10 +198,28 @@ func RegisterHook(r chi.Router, a *app.App) {
 				break
 			}
 			in, ok := m.Read()
-			if !ok || in.FromMe || l.tooOld(m.Timestamp) {
-				// Our own echo, a group, or nothing to show. Accepted and
-				// dropped: answering an error would make Evolution retry
-				// something that will never be wanted.
+			if !ok || l.tooOld(m.Timestamp) {
+				// A group, or nothing to show. Accepted and dropped: answering
+				// an error would make Evolution retry something that will
+				// never be wanted.
+				break
+			}
+			if in.FromMe {
+				// Sent by the linked number (MH-665). Typed on the phone, it is
+				// the team's reply and belongs in the thread; the echo of this
+				// app's own send is already there and adds nothing. Filed after
+				// a beat, off the request, so that echo can never beat the
+				// reply's own row (see OwnDelay) — and never retried, since
+				// nothing is lost that the phone does not still show.
+				if fileOwn != nil {
+					ws, bg := l.WorkspaceID, context.WithoutCancel(ctx)
+					go func() {
+						time.Sleep(OwnDelay)
+						if err := fileOwn(bg, ws, in.Phone, in.Text, in.ID); err != nil {
+							slog.Warn("whatsapp: hook: could not file a message sent from the phone", "workspace", ws, "err", err)
+						}
+					}()
+				}
 				break
 			}
 			if file != nil {

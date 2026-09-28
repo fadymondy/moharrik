@@ -518,7 +518,14 @@ func recordOutbound(ctx context.Context, a *app.App, wsID, userID, email, convID
 	// multipart (email).
 	if err := a.SQLDB.QueryRowContext(ctx, `
 		INSERT INTO messages (workspace_id, conversation_id, direction, author_user_id, body, body_html, mailbox_id, external_id, status)
-		VALUES ($1, $2, 'out', $3, $4, $5, $6, $7, 'sent') RETURNING id, created_at`,
+		VALUES ($1, $2, 'out', $3, $4, $5, $6, $7, 'sent')
+		-- The WhatsApp echo of this very send can land first (MH-665): the
+		-- reply then claims that row, adding its author, instead of failing
+		-- on the id and reporting a sent message as not sent.
+		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO UPDATE
+		  SET author_user_id = EXCLUDED.author_user_id, body_html = EXCLUDED.body_html,
+		      mailbox_id = EXCLUDED.mailbox_id
+		RETURNING id, created_at`,
 		wsID, convID, userID, text, RenderMarkdown(text), nullable(mailboxID), sentID,
 	).Scan(&msgID, &createdAt); err != nil {
 		return nil, huma.Error500InternalServerError("could not send the reply")
