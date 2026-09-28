@@ -245,6 +245,50 @@ var docsCampaigns = map[string]ToolDoc{
 		Example: map[string]any{"subject": "What's new in October"},
 		Result:  `{"ok":true,"id":"c1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","channel":"email","subject":"What's new in October","smtp_service":"Postmark"}`,
 	},
+	"list_email_templates": {
+		AR: "قوالب البريد في مساحة العمل بترتيب القائمة: لكل منها معرّفها واسمها وموضوعها ونصّها بالإنجليزية والعربية. قد تحتوي " +
+			"النصوص على عناصر نائبة — {{contact.first_name}} و{{contact.email}} و{{contact.name}} و{{workspace.name}} و{{agent.name}} — " +
+			"تملؤها render_email_template؛ أي {{...}} آخر ليس عنصرًا نائبًا معروفًا ويبقى كما كُتب عند التعبئة.",
+		Example: map[string]any{},
+		Result: `{"count":1,"templates":[{"id":"e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","name":"Delivery follow-up",` +
+			`"subject_en":"Re: your order","subject_ar":"","body_en":"Hi {{contact.first_name}}, thanks for writing to {{workspace.name}}.",` +
+			`"body_ar":"","position":0,"created_at":"2026-09-20T09:00:00Z","updated_at":"2026-09-20T09:00:00Z"}]}`,
+	},
+	"get_email_template": {
+		AR:      "قالب بريد واحد بمعرّفه.",
+		Example: map[string]any{"id": "e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a"},
+		Result: `{"template":{"id":"e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","name":"Delivery follow-up",` +
+			`"subject_en":"Re: your order","subject_ar":"","body_en":"Hi {{contact.first_name}}, thanks for writing to {{workspace.name}}.",` +
+			`"body_ar":"","position":0,"created_at":"2026-09-20T09:00:00Z","updated_at":"2026-09-20T09:00:00Z"}}`,
+	},
+	"create_email_template": {
+		AR: "إضافة قالب بريد: اسم (يظهر في القائمة، لا يُرسَل أبدًا)، وموضوع ونص بالإنجليزية أو العربية أو كلتيهما " +
+			"(subject_en وsubject_ar وbody_en وbody_ar — نص واحد على الأقل مطلوب). النصوص بصيغة Markdown ويمكنها استخدام " +
+			"العناصر النائبة التي تصفها list_email_templates.",
+		Example: map[string]any{"name": "Delivery follow-up", "body_en": "Hi {{contact.first_name}}, thanks for writing to {{workspace.name}}."},
+		Result: `{"template":{"id":"e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","name":"Delivery follow-up",` +
+			`"subject_en":"","subject_ar":"","body_en":"Hi {{contact.first_name}}, thanks for writing to {{workspace.name}}.",` +
+			`"body_ar":"","position":0,"created_at":"2026-09-24T09:15:44Z","updated_at":"2026-09-24T09:15:44Z"}}`,
+	},
+	"update_email_template": {
+		AR:      "تغيير قالب بريد. أرسِل ما تغيّر فقط؛ ورفض الطلب إن أصبح body_en وbody_ar فارغَين معًا (يجب أن يبقى أحدهما).",
+		Example: map[string]any{"id": "e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a", "name": "Delivery follow-up (updated)"},
+		Result: `{"template":{"id":"e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","name":"Delivery follow-up (updated)",` +
+			`"subject_en":"","subject_ar":"","body_en":"Hi {{contact.first_name}}, thanks for writing to {{workspace.name}}.",` +
+			`"body_ar":"","position":0,"created_at":"2026-09-20T09:00:00Z","updated_at":"2026-09-24T09:20:00Z"}}`,
+	},
+	"delete_email_template": {
+		AR:      "حذف قالب بريد من مساحة العمل نهائيًا.",
+		Example: map[string]any{"id": "e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a"},
+		Result:  `{"deleted":"e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a"}`,
+	},
+	"render_email_template": {
+		AR: "تعبئة العناصر النائبة لقالب بريد — لجهة اتصال محادثة حقيقية (conversation_id) أو، إن حُذف، ببيانات نموذجية — " +
+			"وإعادة الموضوع والنص الناتجَين. أي {{...}} ليس أحد العناصر النائبة الخمسة المعروفة يبقى كما كُتب تمامًا ولا يُفرَّغ أبدًا، " +
+			"فيظل الخطأ ظاهرًا بدل أن يختفي بصمت.",
+		Example: map[string]any{"id": "e1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a"},
+		Result:  `{"subject":"Re: your order","body":"Hi Jamie, thanks for writing to Acme."}`,
+	},
 }
 
 var argsARInbox = map[string]string{
@@ -293,4 +337,14 @@ var argsARInbox = map[string]string{
 	"The message, at most 4096 characters":                                       "نص الرسالة، 4096 حرفًا على الأكثر",
 	// MH-600: one email conversation per sender.
 	"MH-600: only conversations from this sender, case-insensitive": "MH-600: محادثات هذا المُرسِل فقط، بلا تفريق بين حروف كبيرة وصغيرة",
+
+	// MH-661: email templates
+	"The template id (list_email_templates)":                  "معرّف القالب (list_email_templates)",
+	"What the picker shows; never sent":                        "ما تعرضه القائمة؛ لا يُرسَل أبدًا",
+	"The English subject line":                                 "سطر الموضوع بالإنجليزية",
+	"The Arabic subject line":                                  "سطر الموضوع بالعربية",
+	"The English Markdown body. One of body_en and body_ar is required": "النص الإنجليزي بصيغة Markdown. أحد body_en وbody_ar مطلوب",
+	"The Arabic Markdown body":                                 "النص العربي بصيغة Markdown",
+	"The English Markdown body":                                "النص الإنجليزي بصيغة Markdown",
+	"Lower comes first in the picker":                          "الأصغر يظهر أولًا في القائمة",
 }

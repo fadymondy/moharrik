@@ -21,10 +21,12 @@ import { Bdi } from "@/components/bidi"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { CannedPicker } from "@/components/inbox/canned-picker"
 import { ChatText, firstUrl } from "@/components/inbox/chat-text"
+import { EmailTemplatePicker } from "@/components/inbox/email-template-picker"
 import { LinkPreviewCard } from "@/components/inbox/link-preview"
 import { AttachmentList, MessageBody, isStickerOnly } from "@/components/inbox/message-body"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Ltr } from "@/components/copy-field"
 import { channelIcon } from "@/lib/inbox-channels"
@@ -56,8 +58,11 @@ Not here yet, because the backend cannot back them (no dead controls,
 CLAUDE.md non-negotiable) — each is its own card:
 - an attach button, emoji and voice notes — the composer, MH-659.
 - reactions and reply quotes — MH-664.
-- an editable reply-channel or subject picker — Reply() always answers
-  through the conversation's own channel; see the read-only note instead.
+- an editable reply CHANNEL picker — Reply() always answers through the
+  conversation's own channel; see the read-only note instead. The SUBJECT is
+  editable on an email conversation (MH-661): `subject`/`onSubjectChange` are
+  optional props so floating-chat.tsx, which has no subject state, keeps
+  compiling and simply shows no subject field.
 */
 
 const GROUP_GAP_MS = 5 * 60 * 1000
@@ -394,6 +399,8 @@ export function ChatThread({
   busy,
   error,
   onInsertCanned,
+  subject,
+  onSubjectChange,
   fill = false,
   hasOlder = false,
   loadingOlder = false,
@@ -410,6 +417,10 @@ export function ChatThread({
   busy: boolean
   error: string | null
   onInsertCanned: (text: string) => void
+  /** MH-661: the Subject override for an email reply. Omitted (floating-chat.tsx)
+   *  keeps the composer exactly as before — no subject field, no template picker. */
+  subject?: string
+  onSubjectChange?: (value: string) => void
   /** Fill the parent's height (the launcher panel) instead of the inbox page's fixed one. */
   fill?: boolean
   /** MH-648: is there an older page left to load — omit/false hides the top loader entirely. */
@@ -719,7 +730,18 @@ export function ChatThread({
               {windowNote}
             </p>
           ) : null}
-          {emailNote ? (
+          {isEmail && onSubjectChange ? (
+            <Input
+              id="reply-subject"
+              value={subject ?? ""}
+              onChange={(e) => onSubjectChange(e.target.value)}
+              placeholder={emailNote ?? t("inbox.emailTemplates.subjectPlaceholder")}
+              dir="auto"
+              className="mb-2"
+              aria-label={t("inbox.emailTemplates.subjectLabel")}
+              data-reply-subject
+            />
+          ) : emailNote ? (
             <p className="mb-2 truncate text-xs text-grid-muted" data-email-reply-note>
               <Bdi>{emailNote}</Bdi>
             </p>
@@ -744,6 +766,16 @@ export function ChatThread({
               open={cannedOpen}
               onOpenChange={setCannedOpen}
             />
+            {isEmail && onSubjectChange ? (
+              <EmailTemplatePicker
+                conversationId={conversation.id}
+                lang={replyLanguage}
+                onInsert={({ subject: s, body }) => {
+                  onInsertCanned(body)
+                  onSubjectChange(s)
+                }}
+              />
+            ) : null}
             <Button
               type="submit"
               size="sm"

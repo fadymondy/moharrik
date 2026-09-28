@@ -81,6 +81,7 @@ import {
   type ThreadPage,
   type ConversationRef,
   type CannedReply,
+  type EmailTemplate,
   type InboxStats,
   type InboxMessage,
   type FeedSource,
@@ -641,6 +642,10 @@ export const useChatWidgets = (id?: string | null) =>
 /** The workspace's canned replies (MH-383), in picker order. */
 export const useCannedReplies = (id?: string | null) =>
   useScoped<{ replies: CannedReply[] | null }>("/api/w/canned_replies", id)
+
+/** Email reply templates (MH-661), canned replies' bilingual, subject-carrying sibling. */
+export const useEmailTemplates = (id?: string | null) =>
+  useScoped<{ templates: EmailTemplate[] | null }>("/api/w/email_templates", id)
 
 /** Per-channel inbox stats over the last `days` days (MH-383). */
 export const useInboxStats = (id: string | null | undefined, days: number) =>

@@ -147,6 +147,13 @@ export const NAV: NavEntry[] = [
           path: "inbox/canned",
           can: "inbox:manage",
         },
+        {
+          key: "inbox-email-templates",
+          labelKey: "inbox.emailTemplates.title",
+          icon: MailIcon,
+          path: "inbox/email-templates",
+          can: "inbox:manage",
+        },
         // MH-571: the seven per-type setup pages (email/whatsapp/widgets/telegram/slack/discord/
         // workflow-channels) collapsed into this one list+filter page; each old path now redirects here.
         {

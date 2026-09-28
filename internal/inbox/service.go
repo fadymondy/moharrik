@@ -425,7 +425,7 @@ func GetConversation(ctx context.Context, a *app.App, id string) (*conversationD
 // Reply answers a conversation as the caller, through the conversation's own
 // channel: chat is picked up by the widget, email goes out over the
 // workspace's SMTP, WhatsApp through its linked number.
-func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error) {
+func Reply(ctx context.Context, a *app.App, id, text string, subjectOverride ...string) (*MessageOut, error) {
 	s, err := scope(ctx, authz.InboxWrite)
 	if err != nil {
 		return nil, err
@@ -474,6 +474,9 @@ func Reply(ctx context.Context, a *app.App, id, text string) (*MessageOut, error
 		}
 		if msgMailboxID == "" {
 			msgMailboxID = mailboxID.String
+		}
+		if len(subjectOverride) > 0 && strings.TrimSpace(subjectOverride[0]) != "" {
+			msgSubject = strings.TrimSpace(subjectOverride[0])
 		}
 		sentID, err = SendEmailReply(ctx, a, s.WorkspaceID, id, msgMailboxID, customerEmail, msgSubject, text)
 		if err != nil {
