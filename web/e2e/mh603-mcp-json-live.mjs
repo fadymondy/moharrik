@@ -1,6 +1,6 @@
 // Read-only production check for MH-603: the leads, marketing, research and browser/workflow
 // MCP tools answer JSON in the shared shape instead of prose. Signs in as the demo user, mints a
-// short-lived token on the demo workspace, calls only read-only list/get tools with no arguments, and revokes
+// short-lived token on the demo workspace, calls only read-only list/get tools, and revokes
 // the token. The token is never printed.
 //   DEMO_EMAIL=... DEMO_PASSWORD=... node e2e/mh603-mcp-json-live.mjs https://app.moharrik.com
 const base = process.argv[2] ?? "https://app.moharrik.com"
@@ -51,8 +51,6 @@ const TOOLS = [
   "list_research",
   "list_workflows",
   "list_browsers",
-  // Read-only with no arguments: lists, or {"ok":false,"reason":...} for a missing id.
-  "get_research",
   "browser_agents",
   "browser_allowed_sites",
   "browser_plugins",
@@ -84,12 +82,35 @@ try {
     } catch {}
     out[name] = { status: res.status, isError: !!r.isError, json: !!keys, keys }
   }
+  // A run id that cannot exist is a plain "not found" / "no such" error, the same answer as another
+  // workspace's id, never a database message.
+  const res = await fetch(`${base}/api/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${minted.plaintext}`,
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 99,
+      method: "tools/call",
+      params: { name: "get_research", arguments: { run_id: crypto.randomUUID() } },
+    }),
+  })
+  const r = (await res.json()).result ?? {}
+  const text = r.content?.find((c) => c.type === "text")?.text ?? ""
+  out.get_research_unknown = { status: res.status, isError: !!r.isError, text: text.slice(0, 80) }
 } finally {
   const del = await rest("DELETE", `/api/w/mcp_tokens/${minted.token.id}`, null, ws)
   out.revoked = del.status < 300
 }
 console.log(JSON.stringify(out, null, 1))
 const ok =
-  TOOLS.every((n) => out[n].status === 200 && !out[n].isError && out[n].json) && out.revoked
+  TOOLS.every((n) => out[n].status === 200 && !out[n].isError && out[n].json) &&
+  out.get_research_unknown?.isError &&
+  /not found|no such/i.test(out.get_research_unknown.text) &&
+  !/sql|rows|pq:|pgx/i.test(out.get_research_unknown.text) &&
+  out.revoked
 console.log(ok ? "ALL OK" : "FAIL")
 process.exit(ok ? 0 : 1)

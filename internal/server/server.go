@@ -149,6 +149,10 @@ func Boot() *app.App {
 	whatsapp.SetStatusSink(func(ctx context.Context, workspaceID, externalID, status string) error {
 		return inbox.MarkStatus(ctx, a, workspaceID, externalID, status)
 	})
+	// What the linked number sent itself — a reply typed on the phone (MH-665).
+	whatsapp.SetOwnFiler(func(ctx context.Context, workspaceID, phone, text, externalID string) error {
+		return inbox.FileWhatsAppOwn(ctx, a, workspaceID, phone, text, externalID)
+	})
 	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string) error {
 		// "trends" / "ترندات" from a member's verified number is a question to
 		// the workspace, answered with its top trend stories (MH-389) — not a

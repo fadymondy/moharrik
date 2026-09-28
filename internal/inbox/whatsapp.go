@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
 
@@ -106,6 +107,99 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 	// block this webhook on Evolution, which is exactly what filing the
 	// message above must not wait on either.
 	refreshWhatsAppPhoto(a, workspaceID, convID, linkedContactID, phone)
+	return nil
+}
+
+// FileWhatsAppOwn files a message the linked number itself sent (MH-665) as
+// the team's outbound message.
+//
+// Most of them are typed on the phone: the owner answers from WhatsApp as
+// often as from the inbox, and a thread that only showed the customer's side
+// read as a customer talking to nobody. The rest are echoes of what this app
+// sent, which it tells apart by WhatsApp's message id:
+//
+//   - already a message here (an inbox reply, an import) — nothing to add
+//   - in whatsapp_sends (a campaign, a STOP confirmation, a workflow) — filed
+//     on the customer's thread if they have one, but never starts one: a
+//     broadcast to five hundred numbers is not five hundred conversations
+//   - anything else was typed on the phone — filed, starting the thread if
+//     the team wrote first
+//
+// It is the team's own message, so it never marks the chat unread or alerts
+// anyone; like a reply from the inbox it marks the chat read, since answering
+// on the phone means the owner saw it.
+//
+// It is stamped on arrival by the database clock, exactly like an inbound
+// message: WhatsApp's whole-second timestamp, or this process's clock, would
+// sort a quick answer before the question it answers.
+func FileWhatsAppOwn(ctx context.Context, a *app.App, workspaceID, phone, text, externalID string) error {
+	phone = strings.TrimSpace(phone)
+	if phone == "" || strings.TrimSpace(text) == "" || externalID == "" {
+		return nil
+	}
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	db := a.SQLDB
+
+	var exists string
+	err := db.QueryRowContext(sctx, `
+		SELECT id FROM messages WHERE workspace_id = $1 AND external_id = $2`,
+		workspaceID, externalID).Scan(&exists)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	var sentHere bool
+	if err := db.QueryRowContext(sctx, `
+		SELECT EXISTS (SELECT 1 FROM whatsapp_sends WHERE workspace_id = $1 AND external_id = $2)`,
+		workspaceID, externalID).Scan(&sentHere); err != nil {
+		return err
+	}
+
+	var convID string
+	err = db.QueryRowContext(sctx, `
+		SELECT id FROM conversations
+		WHERE workspace_id = $1 AND channel = 'whatsapp' AND customer_phone = $2`,
+		workspaceID, phone).Scan(&convID)
+	if errors.Is(err, sql.ErrNoRows) {
+		if sentHere {
+			return nil
+		}
+		if err := db.QueryRowContext(sctx, `
+			INSERT INTO conversations (workspace_id, channel, customer_name, customer_phone, subject, last_message_at, unread)
+			VALUES ($1, 'whatsapp', '', $2, $3, now(), false) RETURNING id`,
+			workspaceID, phone, trimTo(text, 80),
+		).Scan(&convID); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	ins, err := db.ExecContext(sctx, `
+		INSERT INTO messages (workspace_id, conversation_id, direction, body, body_html, external_id, status)
+		VALUES ($1, $2, 'out', $3, $4, $5, 'sent')
+		ON CONFLICT (workspace_id, external_id) WHERE external_id <> '' DO NOTHING`,
+		workspaceID, convID, trimTo(text, maxBody), RenderMarkdown(text), externalID)
+	if err != nil {
+		return err
+	}
+	if n, _ := ins.RowsAffected(); n == 0 {
+		return nil
+	}
+	if _, err := db.ExecContext(sctx, `
+		UPDATE conversations SET last_message_at = now(), unread = false, updated_at = now()
+		WHERE workspace_id = $1 AND id = $2`, workspaceID, convID); err != nil {
+		return err
+	}
+	if !sentHere {
+		// A contact the CRM already knows is linked, as for an inbound thread.
+		if err := autoLink(sctx, db, workspaceID, convID); err != nil {
+			a.Log.Warn("could not match a WhatsApp number to a contact", "workspace", workspaceID, "err", err)
+		}
+	}
+	changed(ctx, a, workspaceID, realtime.Event{Kind: "message", Direction: "out", ConversationID: convID})
 	return nil
 }
 
