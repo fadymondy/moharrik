@@ -15,6 +15,7 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PlusIcon,
+  Settings2Icon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { WorkspaceMark } from "@/components/workspace/workspace-mark"
 import { LiveAlerts } from "@/components/alerts/live-alerts"
 import { NotificationBell } from "@/components/alerts/notification-bell"
 import { CubeMark } from "@/components/brand/cube-mark"
@@ -105,9 +107,7 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
             />
           }
         >
-          <span className="flex size-6 shrink-0 items-center justify-center border border-line bg-grid-card text-xs font-medium text-grid-brand">
-            {active.name.slice(0, 1).toUpperCase()}
-          </span>
+          <WorkspaceMark name={active.name} avatarUrl={active.avatar_url} size="sm" />
           <BdiBlock className="truncate text-sm font-medium">{active.name}</BdiBlock>
           <ChevronsUpDownIcon className="text-grid-muted" />
         </DropdownMenuTrigger>
@@ -116,6 +116,7 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
             <DropdownMenuLabel>{t("shell.workspaces")}</DropdownMenuLabel>
             {all.map((w) => (
               <DropdownMenuItem key={w.id} onClick={() => router.push(hrefFor(w.slug))}>
+                <WorkspaceMark name={w.name} avatarUrl={w.avatar_url} size="sm" />
                 <BdiBlock className="min-w-0 flex-1 truncate">{w.name}</BdiBlock>
                 <span className="text-xs text-grid-muted">{t(`role.${w.role}`)}</span>
                 {w.id === active.id ? <CheckIcon /> : null}
@@ -126,6 +127,13 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
           <DropdownMenuItem onClick={() => setCreating(true)}>
             <PlusIcon />
             {t("workspaces.create")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => router.push(`/${locale}/workspaces`)}
+            data-manage-workspaces
+          >
+            <Settings2Icon />
+            {t("workspaces.manageAll")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -379,7 +387,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         {/* MH-663: reserve room for the chat dock's launcher pill so it never
             sits over the last row of page content — the dock itself hides on
             the inbox route, so no padding is needed there either. */}
-        <main className={`min-w-0 flex-1 ${pathname?.includes("/inbox") ? "" : "pb-16"}`}>{body}</main>
+        <main className={`min-w-0 flex-1 ${pathname?.includes("/inbox") ? "" : "pb-16"}`}>
+          {body}
+        </main>
       </div>
 
       <Sheet open={navOpen} onOpenChange={setNavOpen}>

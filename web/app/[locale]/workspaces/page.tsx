@@ -1,14 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import { ChevronRightIcon } from "lucide-react"
+import { ChevronRightIcon, Settings2Icon, UsersIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { UserMenu } from "@/components/workspace/user-menu"
+import { WorkspaceMark } from "@/components/workspace/workspace-mark"
 import { Ltr } from "@/components/copy-field"
 import { useTranslations } from "@/lib/i18n"
 import { useMyWorkspaces } from "@/lib/queries"
@@ -53,25 +55,55 @@ export default function WorkspacesPage() {
         ) : workspaces.length === 0 ? (
           <EmptyState title={t("workspaces.emptyTitle")} body={t("workspaces.emptyBody")} />
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-line" data-workspace-list>
             {workspaces.map((w) => (
-              <li key={w.id}>
+              <li
+                key={w.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4"
+                data-workspace-row={w.slug}
+              >
                 <Link
                   href={`/${locale}/w/${w.slug}`}
-                  className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-grid-soft"
+                  className="flex min-w-0 flex-1 basis-56 items-center gap-4 outline-none focus-visible:underline"
                 >
-                  <span className="flex size-9 shrink-0 items-center justify-center border border-line bg-grid-card text-sm font-medium text-grid-brand">
-                    {w.name.slice(0, 1).toUpperCase()}
-                  </span>
+                  <WorkspaceMark name={w.name} avatarUrl={w.avatar_url} />
                   <span className="min-w-0 flex-1">
                     <BdiBlock className="block truncate text-sm font-medium">{w.name}</BdiBlock>
-                    <Ltr mono className="text-xs text-grid-muted">
-                      /{w.slug}
-                    </Ltr>
+                    <span className="flex flex-wrap items-center gap-x-2 text-xs text-grid-muted">
+                      <Ltr mono>/{w.slug}</Ltr>
+                      <span aria-hidden>·</span>
+                      <span className="inline-flex items-center gap-1" data-member-count>
+                        <UsersIcon className="size-3" />
+                        {w.member_count === 1
+                          ? t("workspaces.memberCountOne")
+                          : t("workspaces.memberCount", { count: w.member_count ?? 0 })}
+                      </span>
+                    </span>
                   </span>
-                  <Badge variant="outline">{t(`role.${w.role}`)}</Badge>
-                  <ChevronRightIcon className="size-4 text-grid-muted rtl:rotate-180" />
                 </Link>
+                <div className="flex items-center gap-2 max-sm:w-full max-sm:ps-13">
+                  <Badge variant="outline">{t(`role.${w.role}`)}</Badge>
+                  <span className="flex-1 sm:hidden" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href={`/${locale}/w/${w.slug}/settings/general`} />}
+                    data-workspace-manage
+                  >
+                    <Settings2Icon />
+                    {t("workspaces.manage")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href={`/${locale}/w/${w.slug}`} />}
+                    data-workspace-open
+                  >
+                    {t("workspaces.open")}
+                    <ChevronRightIcon className="rtl:rotate-180" />
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

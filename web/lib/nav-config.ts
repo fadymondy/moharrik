@@ -337,8 +337,8 @@ export const NAV: NavEntry[] = [
           key: "settings-general",
           labelKey: "nav.general",
           icon: GlobeIcon,
+          // Everyone: members come here to leave the workspace (MH-679).
           path: "settings/general",
-          can: "workspace:update",
         },
         { key: "settings-email", labelKey: "nav.email", icon: ServerIcon, path: "settings/email" },
         {

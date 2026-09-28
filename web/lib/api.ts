@@ -198,7 +198,14 @@ export type WorkspaceSummary = {
   name: string
   role: Role
   locale?: string
+  /** The uploaded picture (MH-679); "" draws the initial instead. */
+  avatar_url?: string
+  /** Active members (MH-679). */
+  member_count?: number
 }
+
+/** The rename/picture endpoints' response (MH-679). */
+export type WorkspaceProfile = { id: string; slug: string; name: string; avatar_url: string }
 
 export type CurrentWorkspace = {
   workspace: {
@@ -210,6 +217,7 @@ export type CurrentWorkspace = {
     currency?: string
     /** ISO 3166-1 alpha-2, or "" if unset (MH-646). */
     default_country?: string
+    avatar_url?: string
   }
   role: Role
   can: string[]

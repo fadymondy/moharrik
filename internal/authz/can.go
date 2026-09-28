@@ -39,8 +39,12 @@ func (r Role) AtLeast(min Role) bool {
 
 // Action names. Adding one means adding it to Matrix below.
 const (
-	WorkspaceRead     = "workspace:read"
-	WorkspaceUpdate   = "workspace:update"
+	WorkspaceRead   = "workspace:read"
+	WorkspaceUpdate = "workspace:update"
+	// Deleting the workspace and everything in it (MH-679).
+	WorkspaceDelete = "workspace:delete"
+	// Changing a member's role or removing them (MH-679). Leaving needs none.
+	MembersManage     = "members:manage"
 	MembersRead       = "members:read"
 	MembersInvite     = "members:invite"
 	InvitationsManage = "invitations:manage"
@@ -137,6 +141,8 @@ const (
 var Matrix = map[string]Role{
 	WorkspaceRead:     Client,
 	WorkspaceUpdate:   Admin,
+	WorkspaceDelete:   Owner,
+	MembersManage:     Admin,
 	MembersRead:       Member,
 	MembersInvite:     Admin,
 	InvitationsManage: Admin,

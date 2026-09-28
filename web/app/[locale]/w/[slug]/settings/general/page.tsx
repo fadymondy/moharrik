@@ -14,6 +14,11 @@ import {
 } from "@/components/ui/select"
 import { LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
+import {
+  DeleteWorkspaceSection,
+  LeaveWorkspaceSection,
+  WorkspaceProfileSection,
+} from "@/components/workspace/workspace-manage"
 import { api, ApiError, type DefaultCountryOut } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useCurrentWorkspace } from "@/lib/queries"
@@ -21,9 +26,10 @@ import { useDocumentTitle } from "@/lib/title"
 import { Bdi } from "@/components/bidi"
 
 /*
-Settings → General (MH-646): today just the workspace's default_country,
-used to resolve a phone number that carries no country code of its own on
-vCard import and Google Contacts sync (internal/vcard's ToE164). Its own page
+Settings → General (MH-646, MH-679): the workspace's name and picture, then
+its default_country — used to resolve a phone number that carries no country
+code of its own on vCard import and Google Contacts sync (internal/vcard's
+ToE164) — then leaving the workspace and, for owners, deleting it. Its own page
 rather than folded into an existing one because nothing here belonged to
 email, delivery or any other existing settings screen.
 
@@ -145,7 +151,10 @@ export default function GeneralSettingsPage() {
         title={t("nav.general")}
         description={t("generalSettings.hint")}
       />
-      <div className="px-6 pb-10">
+      <WorkspaceProfileSection />
+      <div className="grid-separator-contained hatch-band" aria-hidden />
+      <div className="px-6 py-6">
+        <h2 className="text-base font-medium">{t("generalSettings.defaultCountry")}</h2>
         {!current.data ? (
           <LoadingRows rows={2} />
         ) : !canWrite ? (
@@ -190,6 +199,10 @@ export default function GeneralSettingsPage() {
           </FieldGroup>
         )}
       </div>
+      <div className="grid-separator-contained hatch-band" aria-hidden />
+      <LeaveWorkspaceSection />
+      <DeleteWorkspaceSection />
+      <div className="pb-10" />
     </>
   )
 }

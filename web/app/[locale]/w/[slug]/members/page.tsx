@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react"
 import { MailWarningIcon } from "lucide-react"
 import { toast } from "sonner"
+import { mutate } from "swr"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,9 +29,9 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, INVITABLE_ROLES, type Invitation } from "@/lib/api"
+import { api, ApiError, INVITABLE_ROLES, type Invitation, type Member, type Role } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useInvitations, useMembers } from "@/lib/queries"
+import { useInvitations, useMe, useMembers } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -42,6 +43,27 @@ export default function MembersPage() {
   const canInvite = ws.can("members:invite")
   const members = useMembers(ws.id)
   const invitations = useInvitations(ws.id, canInvite)
+  const myId = String(useMe().data?.id ?? "")
+  const myRole = ws.summary.role
+  // Admins and owners manage the others (MH-679); only an owner touches an
+  // owner. The server enforces all of it — this just hides what would 403.
+  const canManage = ws.can("members:manage")
+  const manageable = (m: Member) =>
+    canManage && m.user_id !== myId && (m.role !== "owner" || myRole === "owner")
+
+  async function remove(m: Member) {
+    try {
+      const res = await api<{ members: Member[] | null }>(
+        `/api/w/members/${encodeURIComponent(m.user_id)}`,
+        { method: "DELETE", workspaceId: ws.id },
+      )
+      await members.mutate({ members: res.members ?? [] }, false)
+      void mutate("/api/me/workspaces")
+      toast.success(t("members.removed", { email: isolate(m.email) }))
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("common.networkError"))
+    }
+  }
 
   return (
     <>
@@ -65,22 +87,52 @@ export default function MembersPage() {
                 <TableHead className="ps-6">{t("members.email")}</TableHead>
                 <TableHead>{t("members.role")}</TableHead>
                 <TableHead>{t("members.status")}</TableHead>
-                <TableHead className="pe-6">{t("members.joined")}</TableHead>
+                <TableHead className={canManage ? undefined : "pe-6"}>
+                  {t("members.joined")}
+                </TableHead>
+                {canManage ? (
+                  <TableHead className="pe-6 text-end">
+                    <span className="sr-only">{t("common.actions")}</span>
+                  </TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {(members.data?.members ?? []).map((m) => (
-                <TableRow key={m.user_id}>
+                <TableRow key={m.user_id} data-member={m.email}>
                   <TableCell className="ps-6">
                     <Ltr>{m.email}</Ltr>
+                    {m.user_id === myId ? (
+                      <span className="ms-2 text-xs text-grid-muted">{t("members.you")}</span>
+                    ) : null}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{t(`role.${m.role}`)}</Badge>
+                    {manageable(m) ? (
+                      <MemberRoleSelect
+                        member={m}
+                        onChanged={(list) => members.mutate({ members: list }, false)}
+                      />
+                    ) : (
+                      <Badge variant="outline">{t(`role.${m.role}`)}</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-grid-muted">{t(`status.${m.status}`)}</TableCell>
-                  <TableCell className="pe-6 text-grid-muted">
+                  <TableCell className={canManage ? "text-grid-muted" : "pe-6 text-grid-muted"}>
                     <Ltr>{formatDate(m.joined_at)}</Ltr>
                   </TableCell>
+                  {canManage ? (
+                    <TableCell className="pe-6 text-end">
+                      {manageable(m) ? (
+                        <ConfirmButton
+                          label={t("members.remove")}
+                          title={t("members.removeTitle")}
+                          description={t("members.removeBody", { email: isolate(m.email) })}
+                          confirmLabel={t("members.remove")}
+                          onConfirm={() => remove(m)}
+                        />
+                      ) : null}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
@@ -104,6 +156,71 @@ export default function MembersPage() {
         <p className="px-6 py-6 text-sm text-grid-muted">{t("members.noInvitePermission")}</p>
       ) : null}
     </>
+  )
+}
+
+const ROLE_ORDER: Role[] = ["owner", "admin", "manager", "member", "client"]
+
+/** A member's role, changeable in place — offering only the roles the
+ * signed-in user may grant: never above their own, and owner only by an owner. */
+function MemberRoleSelect({
+  member,
+  onChanged,
+}: {
+  member: Member
+  onChanged: (list: Member[]) => void
+}) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [busy, setBusy] = useState(false)
+  const mine = ROLE_ORDER.indexOf(ws.summary.role)
+  const items = ROLE_ORDER.filter((r) => ROLE_ORDER.indexOf(r) >= mine).map((r) => ({
+    value: r,
+    label: t(`role.${r}`),
+  }))
+
+  async function change(role: string) {
+    if (role === member.role) return
+    setBusy(true)
+    try {
+      const res = await api<{ members: Member[] | null }>(
+        `/api/w/members/${encodeURIComponent(member.user_id)}`,
+        { method: "PUT", json: { role }, workspaceId: ws.id },
+      )
+      onChanged(res.members ?? [])
+      toast.success(
+        t("members.roleChanged", { email: isolate(member.email), role: t(`role.${role}`) }),
+      )
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Select
+      items={items}
+      value={member.role}
+      onValueChange={(v) => void change(String(v ?? member.role))}
+    >
+      <SelectTrigger
+        className="w-36"
+        size="sm"
+        disabled={busy}
+        aria-label={t("members.roleFor", { email: member.email })}
+        data-member-role
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {items.map((r) => (
+          <SelectItem key={r.value} value={r.value}>
+            {r.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 

@@ -86,6 +86,10 @@ type WorkspaceOut struct {
 	Name   string `json:"name"`
 	Role   string `json:"role"`
 	Locale string `json:"locale"`
+	// MH-679: the uploaded picture's URL (empty means draw the initial) and
+	// how many active members the workspace has. Filled by MyWorkspaces.
+	AvatarURL   string `json:"avatar_url"`
+	MemberCount int    `json:"member_count"`
 }
 
 type memberOut struct {
@@ -131,6 +135,8 @@ func isUniqueViolation(err error) bool {
 
 // Register mounts the tenancy endpoints. `a` may be nil (OpenAPI export).
 func Register(api huma.API, a *app.App) {
+	registerManage(api, a)
+
 	// ---- account level (signed in, no workspace) -------------------------
 
 	huma.Register(api, huma.Operation{
@@ -295,6 +301,7 @@ func Register(api huma.API, a *app.App) {
 				Timezone       string `json:"timezone"`
 				Currency       string `json:"currency"`
 				DefaultCountry string `json:"default_country,omitempty" doc:"ISO 3166-1 alpha-2 country used to resolve local-format phone numbers on import/sync (MH-646). Empty if never set."`
+				AvatarURL      string `json:"avatar_url" doc:"The uploaded workspace picture (MH-679); empty when there is none."`
 			} `json:"workspace"`
 			Role string   `json:"role"`
 			Can  []string `json:"can"`
@@ -314,6 +321,7 @@ func Register(api huma.API, a *app.App) {
 					Timezone       string `json:"timezone"`
 					Currency       string `json:"currency"`
 					DefaultCountry string `json:"default_country,omitempty" doc:"ISO 3166-1 alpha-2 country used to resolve local-format phone numbers on import/sync (MH-646). Empty if never set."`
+					AvatarURL      string `json:"avatar_url" doc:"The uploaded workspace picture (MH-679); empty when there is none."`
 				} `json:"workspace"`
 				Role string   `json:"role"`
 				Can  []string `json:"can"`
@@ -327,6 +335,7 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, huma.Error404NotFound("workspace not found")
 		}
+		w.AvatarURL = avatarURLFor(ctx, a.SysDB, w.ID)
 		out.Body.Role = s.Role
 		out.Body.Can = authz.Allowed(s.Role)
 		return out, nil
@@ -532,8 +541,10 @@ func Register(api huma.API, a *app.App) {
 // MyWorkspaces lists userID's active memberships (owner pool, explicit user predicate).
 func MyWorkspaces(ctx context.Context, sys *sql.DB, userID string) ([]WorkspaceOut, error) {
 	rows, err := sys.QueryContext(ctx, `
-		SELECT w.id, w.slug, w.name, m.role, w.locale
+		SELECT w.id, w.slug, w.name, m.role, w.locale, a.updated_at,
+		       (SELECT count(*) FROM workspace_members c WHERE c.workspace_id = w.id AND c.status = 'active')
 		FROM workspace_members m JOIN workspaces w ON w.id = m.workspace_id
+		LEFT JOIN workspace_avatars a ON a.workspace_id = w.id
 		WHERE m.user_id = $1 AND m.status = 'active'
 		ORDER BY lower(w.name)`, userID)
 	if err != nil {
@@ -543,9 +554,11 @@ func MyWorkspaces(ctx context.Context, sys *sql.DB, userID string) ([]WorkspaceO
 	out := []WorkspaceOut{}
 	for rows.Next() {
 		var w WorkspaceOut
-		if err := rows.Scan(&w.ID, &w.Slug, &w.Name, &w.Role, &w.Locale); err != nil {
+		var avatarAt sql.NullTime
+		if err := rows.Scan(&w.ID, &w.Slug, &w.Name, &w.Role, &w.Locale, &avatarAt, &w.MemberCount); err != nil {
 			return nil, err
 		}
+		w.AvatarURL = AvatarURL(w.ID, avatarAt)
 		out = append(out, w)
 	}
 	return out, rows.Err()
