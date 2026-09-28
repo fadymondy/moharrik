@@ -362,7 +362,7 @@ function ChatBubble({
       className={
         stickerOnly
           ? "relative flow-root max-w-[min(36rem,85%)] text-sm text-grid-fg"
-          : `relative flow-root max-w-[min(36rem,85%)] rounded-lg px-2.5 pt-1.5 pb-2 text-sm text-grid-fg shadow-[0_1px_0.5px_color-mix(in_oklab,var(--grid-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`
+          : `relative flow-root max-w-[min(36rem,85%)] rounded-[0.5rem] px-2.5 pt-1.5 pb-2 text-sm text-grid-fg shadow-[0_1px_0.5px_color-mix(in_oklab,var(--grid-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`
       }
       style={stickerOnly ? undefined : { background: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
     >

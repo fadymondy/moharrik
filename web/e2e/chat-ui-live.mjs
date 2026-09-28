@@ -133,16 +133,23 @@ for (const scheme of ["light", "dark"]) {
         return {
           bubbles: document.querySelectorAll(`${sel} [data-message]`).length,
           window: !!win,
-          // Desktop: the window docks toward the inline-end edge, above the
-          // launcher bar. Mobile: it's a full-width sheet.
+          // Desktop: the window docks toward the inline-end edge, beside the
+          // launcher pill (MH-663). Mobile: it's a full-width sheet.
           fullWidth: r ? Math.round(window.innerWidth - r.width) <= 4 : false,
           right: r ? Math.round(window.innerWidth - r.right) : null,
           left: r ? Math.round(r.left) : null,
+          // MH-663: the window sits beside the launcher pill, never over it.
+          overLauncher: (() => {
+            const l = document.querySelector("[data-chat-dock-launcher]")?.getBoundingClientRect()
+            return !!(r && l && r.left < l.right && l.left < r.right && r.top < l.bottom && l.top < r.bottom)
+          })(),
         }
       }, windowSel)
       const docked =
         opened.window &&
-        (w === 390 ? opened.fullWidth : loc === "ar" ? opened.left <= 40 : opened.right <= 40)
+        (w === 390
+          ? opened.fullWidth
+          : !opened.overLauncher && (loc === "ar" ? opened.left <= 200 : opened.right <= 200))
       check(`${k}-launcher-thread`, opened.bubbles > 0 && docked, opened)
       await shot(page, `${k}-launcher-thread`)
       await page.keyboard.press("Escape").catch(() => {})
