@@ -201,8 +201,16 @@ func build(svc *SMTP, msg Message) string {
 			name = "attachment"
 		}
 		fmt.Fprintf(&b, "--%s\r\n", mixedBoundary)
-		fmt.Fprintf(&b, "Content-Type: %s; name=%q\r\n", ct, name)
-		fmt.Fprintf(&b, "Content-Disposition: attachment; filename=%q\r\n", name)
+		// Both come from the uploader: re-format rather than interpolate, so a
+		// stray quote or line break can't leak into the headers and a
+		// non-ASCII name goes out RFC 2231-encoded.
+		if mt, _, err := mime.ParseMediaType(ct); err == nil {
+			ct = mt
+		} else {
+			ct = "application/octet-stream"
+		}
+		fmt.Fprintf(&b, "Content-Type: %s\r\n", mime.FormatMediaType(ct, map[string]string{"name": name}))
+		fmt.Fprintf(&b, "Content-Disposition: %s\r\n", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
 		b.WriteString("Content-Transfer-Encoding: base64\r\n\r\n")
 		b.WriteString(chunkBase64(at.Data))
 		b.WriteString("\r\n")

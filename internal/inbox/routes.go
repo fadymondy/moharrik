@@ -238,8 +238,10 @@ func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-reply-conversation-attachment", Method: http.MethodPost, Path: "/api/w/conversations/{id}/reply/attachment",
 		DefaultStatus: http.StatusCreated,
-		Summary:       "Reply to a conversation with one attachment: an image, video, document, voice note or location",
-		Tags:          tags,
+		// A 20MB video on a slow line takes longer than huma's 5s default.
+		BodyReadTimeout: 2 * time.Minute,
+		Summary:         "Reply to a conversation with one attachment: an image, video, document, voice note or location",
+		Tags:            tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID      string `path:"id"`
@@ -285,6 +287,9 @@ func Register(api huma.API, a *app.App) {
 			}
 			if kind == "" {
 				kind = "document"
+			}
+			if kind != "image" && kind != "video" && kind != "document" && kind != "voice" {
+				return nil, huma.Error422UnprocessableEntity("kind must be image, video, document, voice or location")
 			}
 			filename := data.File.Filename
 			if filename == "" {
