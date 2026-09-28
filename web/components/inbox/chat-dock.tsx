@@ -212,6 +212,8 @@ function DockThread({
   const detail = useConversation(workspaceId, id)
   const members = useMemberNames(workspaceId)
   const [reply, setReply] = useState("")
+  // MH-661: the Subject override (and template picker) on an email reply.
+  const [subject, setSubject] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [earlier, setEarlier] = useState<{ messages: InboxMessage[]; cursor: string } | null>(null)
@@ -244,10 +246,11 @@ function DockThread({
     setErr(null)
     try {
       await api(`/api/w/conversations/${encodeURIComponent(id)}/reply`, {
-        json: { body: text },
+        json: { body: text, ...(subject.trim() ? { subject: subject.trim() } : {}) },
         workspaceId,
       })
       setReply("")
+      setSubject("")
       detail.mutate()
       onChanged()
     } catch (e) {
@@ -271,6 +274,8 @@ function DockThread({
       canWrite={canWrite}
       reply={reply}
       onReplyChange={setReply}
+      subject={subject}
+      onSubjectChange={setSubject}
       onSubmit={send}
       busy={busy}
       error={err}
