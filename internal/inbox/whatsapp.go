@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"errors"
 	"strings"
 	"sync"
@@ -271,7 +272,13 @@ func fileWhatsAppMedia(ctx context.Context, a *app.App, db *sql.DB, workspaceID,
 		insertAttachment(ctx, a, db, workspaceID, messageID, media.Kind, filename, mimeType, "failed", nil, []byte(`{}`))
 		return
 	}
-	insertAttachment(ctx, a, db, workspaceID, messageID, media.Kind, filename, mimeType, "ready", mf.Data, []byte(`{}`))
+	meta := []byte(`{}`)
+	if media.Seconds > 0 {
+		// WhatsApp says how long a voice note or clip is; the player shows it
+		// before the audio's own metadata has loaded.
+		meta = []byte(`{"seconds":` + strconv.Itoa(media.Seconds) + `}`)
+	}
+	insertAttachment(ctx, a, db, workspaceID, messageID, media.Kind, filename, mimeType, "ready", mf.Data, meta)
 }
 
 // insertAttachment writes one message_attachments row. Best-effort: a failure

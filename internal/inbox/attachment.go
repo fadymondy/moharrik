@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -148,6 +149,19 @@ func RegisterAttachments(api huma.API, a *app.App) {
 			hctx.SetHeader("Content-Type", contentType)
 			hctx.SetHeader("Content-Disposition", `inline; filename="`+strings.ReplaceAll(filename, `"`, "")+`"`)
 			hctx.SetHeader("Cache-Control", "private, max-age=3600")
+			// Byte ranges (MH-658): a browser reads an Ogg/Opus voice note's
+			// length by seeking to its end, and without 206 support it reports
+			// the duration as Infinity — the player showed 0:00.
+			if w, ok := hctx.BodyWriter().(http.ResponseWriter); ok {
+				r := &http.Request{Method: hctx.Method(), Header: http.Header{}}
+				for _, h := range []string{"Range", "If-Range", "If-Modified-Since", "If-None-Match"} {
+					if v := hctx.Header(h); v != "" {
+						r.Header.Set(h, v)
+					}
+				}
+				http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
+				return
+			}
 			hctx.BodyWriter().Write(data) //nolint:errcheck
 		}}, nil
 	})

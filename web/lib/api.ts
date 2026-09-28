@@ -943,7 +943,7 @@ export type InboxAttachment = {
   status?: "ready" | "failed" | ""
   /** MH-658: kind-specific data carried outside the file bytes — lat/lng/name/address
    *  for a location, name/number for a contact card. */
-  meta?: { lat?: number; lng?: number; name?: string; address?: string; number?: string }
+  meta?: { lat?: number; lng?: number; name?: string; address?: string; number?: string; seconds?: number }
 }
 
 export type InboxMessage = {

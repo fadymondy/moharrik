@@ -150,20 +150,28 @@ function VoicePlayer({ a }: { a: InboxAttachment }) {
   const ref = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [current, setCurrent] = useState(0)
-  const [duration, setDuration] = useState(0)
+  // WhatsApp reports the length up front; the audio's own metadata replaces it
+  // once known. An Ogg/Opus file's duration can read as Infinity until the
+  // browser has seeked to its end, so a non-finite value keeps the reported one.
+  const [duration, setDuration] = useState(a.meta?.seconds ?? 0)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
     const onTime = () => setCurrent(el.currentTime)
-    const onMeta = () => setDuration(Number.isFinite(el.duration) ? el.duration : 0)
+    const onMeta = () => {
+      if (Number.isFinite(el.duration) && el.duration > 0) setDuration(el.duration)
+    }
     const onEnd = () => setPlaying(false)
+    onMeta() // metadata may have loaded before this effect ran
     el.addEventListener("timeupdate", onTime)
     el.addEventListener("loadedmetadata", onMeta)
+    el.addEventListener("durationchange", onMeta)
     el.addEventListener("ended", onEnd)
     return () => {
       el.removeEventListener("timeupdate", onTime)
       el.removeEventListener("loadedmetadata", onMeta)
+      el.removeEventListener("durationchange", onMeta)
       el.removeEventListener("ended", onEnd)
     }
   }, [])
