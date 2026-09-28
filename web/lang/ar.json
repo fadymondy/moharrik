@@ -701,6 +701,8 @@
   "inbox.thread.yesterday": "أمس",
   "inbox.thread.scrollToBottom": "الانتقال إلى الأحدث",
   "inbox.thread.newMessages": "{n} رسالة/رسائل جديدة",
+  "inbox.thread.typing": "يكتب الآن…",
+  "inbox.thread.recordingAudio": "يسجّل رسالة صوتية…",
   "inbox.thread.loadingOlder": "جارٍ تحميل الرسائل الأقدم…",
   "inbox.thread.windowOpen": "نافذة الرد خلال 24 ساعة في واتساب تُغلق خلال نحو {hours} ساعة.",
   "inbox.thread.windowClosed": "أُغلقت نافذة الرد خلال 24 ساعة في واتساب — قد يحتاج هذا الرد إلى رسالة قالب.",

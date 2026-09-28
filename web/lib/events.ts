@@ -27,6 +27,9 @@ export type WorkspaceEvent = {
   source?: string
   author_user_id?: string
   alert?: boolean
+  /** MH-660: a typing/recording indicator. "" (or absent) on a "typing" event
+   *  means the customer stopped. */
+  presence?: "composing" | "recording" | string
 }
 
 type Listener = (e: WorkspaceEvent) => void

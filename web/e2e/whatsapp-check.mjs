@@ -128,8 +128,13 @@ out.instanceNamePerWorkspace = /^moh-[0-9a-f]{32}$/.test(stub.created[0] ?? "")
 const hook = stub.webhooks[0] ?? {}
 out.webhookRegistered = !!hook.url && hook.url.includes("/api/whatsapp/hook/")
 out.webhookHasToken = !!(hook.headers && hook.headers["X-Moharrik-Token"])
+// MH-660: PRESENCE_UPDATE joined the subscription list so typing/recording
+// indicators work on a freshly linked instance too, not just via the
+// auto-widen path (see refreshEvents / events_refresh.go) that catches
+// already-linked ones on their next delivery.
 out.webhookEventsNarrow =
-  JSON.stringify(hook.events ?? []) === JSON.stringify(["MESSAGES_UPSERT", "CONNECTION_UPDATE"])
+  JSON.stringify(hook.events ?? []) ===
+  JSON.stringify(["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE", "PRESENCE_UPDATE"])
 
 const hookURL = hook.url.replace(/^https?:\/\/[^/]+/, base)
 const token = hook.headers["X-Moharrik-Token"]

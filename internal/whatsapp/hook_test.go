@@ -134,6 +134,33 @@ func TestNumberStripsEverythingButDigits(t *testing.T) {
 	}
 }
 
+// MH-660: a presence.update payload, in the shapes Evolution/Baileys sends it.
+func TestPresenceReadEveryShapeEvolutionSends(t *testing.T) {
+	cases := []struct {
+		name, body, phone, state string
+		ok                       bool
+	}{
+		{"nested under presences", `{"id":"201234567890@s.whatsapp.net","presences":{"201234567890@s.whatsapp.net":{"lastKnownPresence":"composing"}}}`, "201234567890", "composing", true},
+		{"flat", `{"id":"201234567890@s.whatsapp.net","lastKnownPresence":"recording"}`, "201234567890", "recording", true},
+		{"paused", `{"id":"201234567890@s.whatsapp.net","lastKnownPresence":"paused"}`, "201234567890", "paused", true},
+		{"no state at all", `{"id":"201234567890@s.whatsapp.net"}`, "", "", false},
+		{"no id", `{"lastKnownPresence":"composing"}`, "", "", false},
+		{"a group", `{"id":"12345-67890@g.us","lastKnownPresence":"composing"}`, "", "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var p Presence
+			if err := json.Unmarshal([]byte(c.body), &p); err != nil {
+				t.Fatal(err)
+			}
+			phone, state, ok := p.Read()
+			if ok != c.ok || (ok && (phone != c.phone || state != c.state)) {
+				t.Errorf("got (%q, %q, %v), want (%q, %q, %v)", phone, state, ok, c.phone, c.state, c.ok)
+			}
+		})
+	}
+}
+
 func TestSameTokenRefusesTheEmptyCase(t *testing.T) {
 	if !SameToken("abc", "abc") {
 		t.Error("equal tokens must match")

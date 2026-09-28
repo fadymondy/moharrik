@@ -35,6 +35,7 @@ import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { relativeTimeFormat } from "@/lib/i18n-locale"
 import { fetchOlderMessages, mergeMessages, useBell, useConversation } from "@/lib/queries"
+import { useAgentTyping, useTypingByConversation } from "@/lib/typing"
 
 /*
 The docked chat inbox (MH-663): replaces the MH-587 floating launcher/side-over
@@ -209,14 +210,18 @@ function DockThread({
   id,
   canWrite,
   onChanged,
+  typing,
 }: {
   workspaceId: string
   id: string
   canWrite: boolean
   onChanged: () => void
+  /** MH-660: "composing" | "recording" | undefined. */
+  typing?: string
 }) {
   const { t } = useTranslations()
   const detail = useConversation(workspaceId, id)
+  const agentTyping = useAgentTyping(id, workspaceId)
   const members = useMemberNames(workspaceId)
   const [reply, setReply] = useState("")
   // MH-661: the Subject override (and template picker) on an email reply.
@@ -258,6 +263,7 @@ function DockThread({
       })
       setReply("")
       setSubject("")
+      agentTyping.notifyStopped()
       detail.mutate()
       onChanged()
     } catch (e) {
@@ -301,6 +307,12 @@ function DockThread({
       loadingOlder={loadingEarlier}
       onLoadOlder={loadEarlier}
       onSendAttachment={sendAttachment}
+      typing={
+        typing
+          ? { label: t(typing === "recording" ? "inbox.thread.recordingAudio" : "inbox.thread.typing") }
+          : null
+      }
+      onTyping={agentTyping.notifyTyping}
     />
   )
 }
@@ -312,6 +324,7 @@ function DockWindowHeader({
   slug,
   onMinimize,
   onClose,
+  typing,
 }: {
   item: BellItem | undefined
   id: string
@@ -319,6 +332,8 @@ function DockWindowHeader({
   slug: string
   onMinimize: () => void
   onClose: () => void
+  /** MH-660: "composing" | "recording" | undefined. */
+  typing?: string
 }) {
   const { t } = useTranslations()
   const name = item?.title || t("alerts.visitor")
@@ -331,7 +346,16 @@ function DockWindowHeader({
         data-dock-window-title
       >
         <PersonAvatar id={item?.id} name={name} photoUrl={item?.avatar_url} size="sm" className="size-6" />
-        <BdiBlock className="min-w-0 flex-1 truncate text-sm font-medium">{name}</BdiBlock>
+        <span className="min-w-0 flex-1">
+          <BdiBlock className="block truncate text-sm font-medium">{name}</BdiBlock>
+          {typing ? (
+            <p className="truncate text-xs text-primary" data-typing-indicator>
+              <Bdi>
+                {t(typing === "recording" ? "inbox.thread.recordingAudio" : "inbox.thread.typing")}
+              </Bdi>
+            </p>
+          ) : null}
+        </span>
         {item?.unread ? (
           <span className="size-2 shrink-0 rounded-full bg-grid-action" aria-label={t("inbox.unread")} />
         ) : null}
@@ -375,6 +399,8 @@ export function ChatDock({
   const bell = useBell(workspaceId)
   const canWrite = can("inbox:write")
   const isMobile = useIsMobile()
+  // MH-660: shared typing map, same pattern as the full inbox page.
+  const typingByConversation = useTypingByConversation(workspaceId)
 
   const [docks, setDocks] = useState<DockEntry[]>([])
   const [hydrated, setHydrated] = useState(false)
@@ -462,6 +488,7 @@ export function ChatDock({
             slug={slug}
             onMinimize={() => toggleMinimize(mobileEntry.id)}
             onClose={() => closeDock(mobileEntry.id)}
+            typing={typingByConversation[mobileEntry.id]}
           />
           <div className="flex min-h-0 flex-1 flex-col">
             <DockThread
@@ -469,6 +496,7 @@ export function ChatDock({
               id={mobileEntry.id}
               canWrite={canWrite}
               onChanged={() => void bell.mutate()}
+              typing={typingByConversation[mobileEntry.id]}
             />
           </div>
         </div>
@@ -549,6 +577,7 @@ export function ChatDock({
               slug={slug}
               onMinimize={() => toggleMinimize(d.id)}
               onClose={() => closeDock(d.id)}
+              typing={typingByConversation[d.id]}
             />
             <div className="flex min-h-0 flex-1 flex-col">
               <DockThread
@@ -556,6 +585,7 @@ export function ChatDock({
                 id={d.id}
                 canWrite={canWrite}
                 onChanged={() => void bell.mutate()}
+                typing={typingByConversation[d.id]}
               />
             </div>
           </div>

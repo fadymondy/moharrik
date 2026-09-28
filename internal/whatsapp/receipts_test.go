@@ -35,13 +35,16 @@ func TestReceiptsReadEveryShapeEvolutionSends(t *testing.T) {
 	}
 }
 
-// A number linked before MESSAGES_UPDATE existed is widened once, and one
-// that already has every event is left alone.
+// A number linked before MESSAGES_UPDATE (or PRESENCE_UPDATE, MH-660) existed
+// is widened once, and one that already has every event is left alone.
 func TestMissingEvents(t *testing.T) {
 	if !missingEvents([]string{"MESSAGES_UPSERT", "CONNECTION_UPDATE"}) {
 		t.Error("an old subscription without MESSAGES_UPDATE was not seen as missing it")
 	}
-	if missingEvents([]string{"messages.upsert", "messages.update", "connection.update"}) {
+	if !missingEvents([]string{"messages.upsert", "messages.update", "connection.update"}) {
+		t.Error("MH-660: a subscription linked before PRESENCE_UPDATE existed must be seen as missing it, so the next delivery widens it")
+	}
+	if missingEvents([]string{"messages.upsert", "messages.update", "connection.update", "presence.update"}) {
 		t.Error("a complete subscription in Evolution's dotted spelling was seen as missing events")
 	}
 }

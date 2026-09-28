@@ -402,7 +402,11 @@ func VisitorEvents(a *app.App) http.HandlerFunc {
 				if !open {
 					return
 				}
-				fmt.Fprintf(w, "data: {\"kind\":%q}\n\n", kind)
+				if presence, ok := strings.CutPrefix(kind, "typing:"); ok {
+					fmt.Fprintf(w, "data: {\"kind\":\"typing\",\"presence\":%q}\n\n", presence)
+				} else {
+					fmt.Fprintf(w, "data: {\"kind\":%q}\n\n", kind)
+				}
 				flusher.Flush()
 			case <-ticker.C:
 				fmt.Fprint(w, ": ping\n\n")

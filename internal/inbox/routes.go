@@ -516,6 +516,7 @@ func Register(api huma.API, a *app.App) {
 	registerStats(api, a)
 	registerPublicChat(api, a)
 	registerThread(api, a)
+	registerAgentTyping(api, a)
 }
 
 // thread reads a conversation's newest messages on the app (RLS) pool, oldest
@@ -759,6 +760,7 @@ func registerPublicChat(api huma.API, a *app.App) {
 	})
 
 	registerWidgetPublic(api, a)
+	registerVisitorTyping(api, a)
 }
 
 // ThreadOut is the visitor's view of their thread. The greeting and presence

@@ -235,7 +235,7 @@ func (c *Client) Delete(ctx context.Context) error {
 // Events are the only ones the webhook is registered for. Narrow on purpose:
 // Evolution can send a firehose, and everything not listed here is noise this
 // app would have to parse and ignore.
-var Events = []string{"MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE"}
+var Events = []string{"MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE", "PRESENCE_UPDATE"}
 
 // SetWebhook points the instance at this app.
 func (c *Client) SetWebhook(ctx context.Context, hookURL, token string) error {
@@ -332,6 +332,15 @@ func (c *Client) SendLocation(ctx context.Context, number string, lat, lng float
 		return "", err
 	}
 	return out.Key.ID, nil
+}
+
+// SendPresence tells the contact we're "composing" (typing) or "paused"
+// (stopped), or "recording" for voice notes. It is fire-and-forget: presence
+// is ephemeral on WhatsApp's side too, so a failed call just means the
+// contact doesn't see it this time, not a message that needs retrying.
+func (c *Client) SendPresence(ctx context.Context, number, presence string) error {
+	return c.do(ctx, http.MethodPost, "/chat/sendPresence/"+c.inst(),
+		map[string]any{"number": number, "presence": presence}, nil)
 }
 
 // ProfilePicture asks Evolution for one number's current WhatsApp photo URL

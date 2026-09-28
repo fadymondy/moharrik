@@ -58,6 +58,11 @@ type Event struct {
 	Source   string `json:"source,omitempty"`
 	// The member who caused it (a reply's author), so their own tab stays quiet.
 	AuthorUserID string `json:"author_user_id,omitempty"`
+	// Presence is a typing indicator (MH-660): composing, recording or paused.
+	// Never stored — this is the only place it ever exists server-side, and a
+	// dropped connection just means the indicator times out client-side instead
+	// of clearing early.
+	Presence string `json:"presence,omitempty"`
 	// Alert is decided per viewer: true means pop, chime and push for THIS
 	// member; false means refresh the badge and lists quietly.
 	Alert bool `json:"alert,omitempty"`

@@ -423,6 +423,8 @@ export function ChatThread({
   loadingOlder = false,
   onLoadOlder,
   onSendAttachment,
+  typing = null,
+  onTyping,
 }: {
   conversation: Conversation
   messages: InboxMessage[]
@@ -451,6 +453,11 @@ export function ChatThread({
    *  text as its caption. Omitted keeps the composer exactly as before — no
    *  attach button, emoji or mic (e.g. a caller with nowhere to send one). */
   onSendAttachment?: (attachment: ReplyAttachmentInput, caption: string) => Promise<void>
+  /** MH-660: the customer's live typing/recording indicator, or null to show nothing. */
+  typing?: { label: string } | null
+  /** MH-660: fired as the agent edits the reply, so the caller can tell the
+   *  customer "composing" (throttled) — this component does no throttling itself. */
+  onTyping?: () => void
 }) {
   const { t, locale } = useTranslations()
   const items = buildItems(messages, t, locale, conversation.is_group)
@@ -827,6 +834,11 @@ export function ChatThread({
               {windowNote}
             </p>
           ) : null}
+          {typing ? (
+            <p className="mb-2 animate-pulse text-xs text-primary" data-typing-indicator>
+              <Bdi>{typing.label}</Bdi>
+            </p>
+          ) : null}
           {isEmail && onSubjectChange ? (
             <Input
               id="reply-subject"
@@ -872,7 +884,10 @@ export function ChatThread({
             id="reply-body"
             ref={textareaRef}
             value={reply}
-            onChange={(e) => onReplyChange(e.target.value)}
+            onChange={(e) => {
+              onReplyChange(e.target.value)
+              onTyping?.()
+            }}
             onKeyDown={onComposerKeyDown}
             placeholder={t("inbox.replyPlaceholder")}
             rows={2}
