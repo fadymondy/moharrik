@@ -5,6 +5,8 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ClipboardEvent,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
 } from "react"
@@ -15,6 +17,7 @@ import {
   CheckCheckIcon,
   CheckIcon,
   FileIcon,
+  FileUpIcon,
   SendIcon,
   XIcon,
   StarIcon,
@@ -22,7 +25,7 @@ import {
 
 import { Bdi } from "@/components/bidi"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
-import { AttachMenu, type PickedFile } from "@/components/inbox/attach-menu"
+import { AttachMenu, pickedFromFile, type PickedFile } from "@/components/inbox/attach-menu"
 import { CannedPicker } from "@/components/inbox/canned-picker"
 import { ChatText, firstUrl } from "@/components/inbox/chat-text"
 import { EmailTemplatePicker } from "@/components/inbox/email-template-picker"
@@ -696,6 +699,34 @@ export function ChatThread({
   const [pendingFile, setPendingFile] = useState<PickedFile | null>(null)
   const [attachBusy, setAttachBusy] = useState(false)
   const [attachError, setAttachError] = useState<string | null>(null)
+  // MH-672: files dragged over the thread. dragenter/dragleave fire for every child the pointer
+  // crosses, so the overlay follows a depth count rather than the last event.
+  const [dragging, setDragging] = useState(false)
+  const dragDepth = useRef(0)
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null)
+  // A file dropped just outside the thread would otherwise make the browser open it and leave
+  // the inbox. Drops some other zone handled are already defaultPrevented and left alone.
+  useEffect(() => {
+    if (!onSendAttachment) return
+    const guard = (e: globalThis.DragEvent) => {
+      if (!e.defaultPrevented && Array.from(e.dataTransfer?.types ?? []).includes("Files")) e.preventDefault()
+    }
+    window.addEventListener("dragover", guard)
+    window.addEventListener("drop", guard)
+    return () => {
+      window.removeEventListener("dragover", guard)
+      window.removeEventListener("drop", guard)
+    }
+  }, [onSendAttachment])
+  useEffect(() => {
+    if (!pendingFile || pendingFile.kind !== "image") {
+      setPendingPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(pendingFile.file)
+    setPendingPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [pendingFile])
   const [atBottom, setAtBottom] = useState(true)
   const [newCount, setNewCount] = useState(0)
   const lastIdRef = useRef<string | null>(null)
@@ -969,10 +1000,13 @@ export function ChatThread({
     if (!onSendAttachment) return
     setAttachBusy(true)
     setAttachError(null)
+    // A voice note carries no caption on WhatsApp, so the reply box keeps its text for the next
+    // message instead of the thread showing words the customer never received.
+    const caption = attachment.kind === "voice" ? "" : reply
     try {
-      await onSendAttachment(attachment, reply)
+      await onSendAttachment(attachment, caption)
       setPendingFile(null)
-      onReplyChange("")
+      if (caption) onReplyChange("")
     } catch {
       setAttachError(t("inbox.composer.sendFailed"))
     } finally {
@@ -992,7 +1026,11 @@ export function ChatThread({
   async function handleSubmit(e: FormEvent) {
     if (pendingFile) {
       e.preventDefault()
-      await sendAttachment({ kind: pendingFile.kind, file: pendingFile.file })
+      await sendAttachment(
+        pendingFile.kind === "voice"
+          ? { kind: "voice", file: pendingFile.file, filename: pendingFile.file.name || "audio" }
+          : { kind: pendingFile.kind, file: pendingFile.file },
+      )
       return
     }
     onSubmit(e)
@@ -1002,6 +1040,53 @@ export function ChatThread({
   const attachDisabledReason = attachDisabled
     ? t("inbox.composer.attachUnsupported", { channel: t(`inbox.channel.${conversation.channel}`) })
     : undefined
+
+  // MH-672: drop (or paste) a photo, video, audio file or document to attach it, the same as
+  // the paperclip. Only file drags are taken — dragging text or a link keeps its normal meaning.
+  const canDrop = !!onSendAttachment && canWrite && !conversation.blocked
+  const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files")
+  function takeFiles(files: FileList | File[]) {
+    const list = Array.from(files)
+    if (!list.length) return
+    if (attachDisabled) {
+      setAttachError(attachDisabledReason ?? null)
+      return
+    }
+    onPickFile(pickedFromFile(list[0]))
+    if (list.length > 1) setAttachError(t("inbox.composer.dropOneFile"))
+  }
+  const dropProps = canDrop
+    ? {
+        onDragEnter: (e: DragEvent) => {
+          if (!hasFiles(e)) return
+          e.preventDefault()
+          dragDepth.current += 1
+          setDragging(true)
+        },
+        onDragOver: (e: DragEvent) => {
+          if (!hasFiles(e)) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = attachDisabled || attachBusy ? "none" : "copy"
+        },
+        onDragLeave: (e: DragEvent) => {
+          if (!hasFiles(e)) return
+          dragDepth.current = Math.max(0, dragDepth.current - 1)
+          if (dragDepth.current === 0) setDragging(false)
+        },
+        onDrop: (e: DragEvent) => {
+          if (!hasFiles(e)) return
+          e.preventDefault()
+          dragDepth.current = 0
+          setDragging(false)
+          if (!attachBusy) takeFiles(e.dataTransfer.files)
+        },
+      }
+    : {}
+  function onComposerPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    if (!canDrop || !e.clipboardData.files.length) return
+    e.preventDefault()
+    takeFiles(e.clipboardData.files)
+  }
   const micDisabledReason = attachDisabled
     ? t("inbox.composer.micUnsupported", { channel: t(`inbox.channel.${conversation.channel}`) })
     : undefined
@@ -1011,7 +1096,23 @@ export function ChatThread({
       className={`relative flex min-h-0 flex-col ${fill ? "h-full" : ""}`}
       style={fill ? undefined : { height: "min(68vh, 40rem)" }}
       data-chat-thread
+      {...dropProps}
     >
+      {dragging ? (
+        <div
+          className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-start gap-2 rounded-lg border-2 border-dashed border-primary bg-grid-elevated/90 px-4 pt-[min(30%,8rem)] text-center backdrop-blur-sm"
+          data-drop-zone
+          data-drop-disabled={attachDisabled ? "" : undefined}
+        >
+          <FileUpIcon className="size-8 text-primary" />
+          <p className="text-sm font-medium">
+            {attachDisabled ? attachDisabledReason : t("inbox.composer.dropToAttach")}
+          </p>
+          {attachDisabled ? null : (
+            <p className="text-xs text-grid-muted">{t("inbox.composer.dropHint")}</p>
+          )}
+        </div>
+      ) : null}
       <div
         ref={parentRef}
         onScroll={onScroll}
@@ -1132,7 +1233,16 @@ export function ChatThread({
               data-pending-attachment
               data-pending-attachment-kind={pendingFile.kind}
             >
-              <FileIcon className="size-4 shrink-0 text-grid-muted" />
+              {pendingPreview ? (
+                <img
+                  src={pendingPreview}
+                  alt=""
+                  className="size-10 shrink-0 rounded object-cover"
+                  data-pending-attachment-preview
+                />
+              ) : (
+                <FileIcon className="size-4 shrink-0 text-grid-muted" />
+              )}
               <span className="min-w-0 flex-1 truncate" dir="auto">
                 {pendingFile.file.name}
               </span>
@@ -1176,6 +1286,7 @@ export function ChatThread({
               onTyping?.()
             }}
             onKeyDown={onComposerKeyDown}
+            onPaste={onComposerPaste}
             placeholder={t("inbox.replyPlaceholder")}
             rows={2}
             dir="auto"

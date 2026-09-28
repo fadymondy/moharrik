@@ -13,7 +13,19 @@ import {
 import { LocationPicker } from "@/components/inbox/location-picker"
 import { useTranslations } from "@/lib/i18n"
 
-export type PickedFile = { kind: "image" | "video" | "document"; file: File }
+export type PickedFile = { kind: "image" | "video" | "voice" | "document"; file: File }
+
+/**
+ * MH-672: the kind a dropped or pasted file goes out as. Audio is sent as a voice note so it
+ * plays inline on both sides, like one recorded with the mic; anything unrecognised is a document.
+ */
+export function pickedFromFile(file: File): PickedFile {
+  const type = file.type
+  if (type.startsWith("image/")) return { kind: "image", file }
+  if (type.startsWith("video/")) return { kind: "video", file }
+  if (type.startsWith("audio/")) return { kind: "voice", file }
+  return { kind: "document", file }
+}
 
 /** MH-659's attach button: photo/video, document, or a location — one at a time. */
 export function AttachMenu({
