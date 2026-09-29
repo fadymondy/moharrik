@@ -17,11 +17,17 @@ export const metadata: Metadata = {
     "The AI engine behind a business: automation, inbox, campaigns, CRM and research — all over MCP.",
 }
 
+// Hosbah real-user monitoring: page loads, Web Vitals and browser errors, per route. The key is
+// public by design (every page carries it) but still per-deploy config, so it comes from the env and
+// the tag is simply absent where it is unset — local development and worktrees report nothing.
+const HOSBAH_URL = (process.env.HOSBAH_URL ?? "https://app.hosbah.com").replace(/\/$/, "")
+
 // The locale lives in the URL (/en/..., /ar/...). A root layout cannot read route params, so
 // proxy.ts resolves it and forwards it on x-locale.
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const raw = (await headers()).get("x-locale")
   const locale: Locale = isLocale(raw) ? raw : "en"
+  const rumKey = process.env.HOSBAH_RUM_KEY?.trim()
 
   return (
     <html
@@ -31,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`grid-surface ${inter.variable}`}
       suppressHydrationWarning
     >
+      <head>{rumKey && <script defer src={`${HOSBAH_URL}/rum.js`} data-key={rumKey} />}</head>
       <body className="min-h-dvh" suppressHydrationWarning>
         <Providers locale={locale}>{children}</Providers>
       </body>

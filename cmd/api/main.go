@@ -5,10 +5,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/fadymondy/moharrik/internal/envfile"
 	"github.com/fadymondy/moharrik/internal/server"
+	"github.com/fadymondy/moharrik/internal/telemetry"
 )
 
 func main() {
@@ -21,6 +23,10 @@ func main() {
 		os.Stdout.Write(b)
 		return
 	}
+
+	// Before Boot, so the global tracer is in place when routes are built.
+	stopTraces := telemetry.Init(slog.Default())
+	defer stopTraces(context.Background())
 
 	a := server.Boot()
 	defer a.Kernel.Close()

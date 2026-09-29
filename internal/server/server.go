@@ -49,6 +49,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/rules"
 	"github.com/fadymondy/moharrik/internal/searchconsole"
+	"github.com/fadymondy/moharrik/internal/telemetry"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/trends"
 	"github.com/fadymondy/moharrik/internal/vcard"
@@ -85,6 +86,7 @@ func Boot() *app.App {
 
 	installErrors()
 	installProblemReports(k)          // outermost: sees what the guard and handlers answer
+	k.UseMiddleware(telemetry.Middleware) // inside it: a panic is traced as an exception, then reported
 	installInputGuard(k)              // text Postgres cannot store is a 400 before any query sees it
 	installClientIP(k)                // the visitor's address, from the TRUSTED proxy chain only
 	k.UseMiddleware(audit.Middleware) // who/where for the audit log (MH-392), after the address
