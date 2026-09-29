@@ -68,19 +68,22 @@ func TestRequestsReachHosbahAsOTLPJSON(t *testing.T) {
 	otel.SetTracerProvider(tp)
 	defer otel.SetTracerProvider(prev)
 
+	// The kernel's shape: middleware wraps the chi router from OUTSIDE, so no
+	// chi route context exists yet when Middleware runs (production read
+	// "unmatched" for every route until it made one). A mounted sub-router
+	// stands in for huma's.
 	r := chi.NewRouter()
-	r.Use(Middleware)
-	r.Use(func(next http.Handler) http.Handler { // stands in for the problem-report recoverer
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { next.ServeHTTP(w, r) })
-	})
-	r.Get("/api/w/contacts/{id}", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotFound) })
+	api := chi.NewRouter()
+	r.Mount("/api/w", api)
+	api.Get("/contacts/{id}", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotFound) })
 	r.Get("/api/boom", func(http.ResponseWriter, *http.Request) { panic("kaboom") })
 	r.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {})
 
+	h := Middleware(r)
 	get := func(path string) {
 		func() {
 			defer func() { _ = recover() }() // the re-raised panic
-			r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+			h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
 		}()
 	}
 	get("/api/w/contacts/4933c603")

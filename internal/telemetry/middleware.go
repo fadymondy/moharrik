@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"runtime/debug"
@@ -32,15 +33,20 @@ func Middleware(next http.Handler) http.Handler {
 			return
 		}
 		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		// togo applies kernel middleware OUTSIDE the chi router, so chi has not
+		// made its route context yet. Hand it one: a Mux that finds a context
+		// already in place routes with it, and fills in the pattern we read after.
+		rctx := chi.RouteContext(ctx)
+		if rctx == nil {
+			rctx = chi.NewRouteContext()
+			ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+		}
 		ctx, sp := otel.Tracer(scope).Start(ctx, r.Method, trace.WithSpanKind(trace.SpanKindServer))
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		defer func() {
 			rec := recover()
-			route := ""
-			if rc := chi.RouteContext(r.Context()); rc != nil {
-				route = rc.RoutePattern()
-			}
+			route := rctx.RoutePattern()
 			if route == "" {
 				route = "unmatched"
 			}
