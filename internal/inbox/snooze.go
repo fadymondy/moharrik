@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/realtime"
 )
 
@@ -79,10 +80,12 @@ func WakeAllDue(ctx context.Context, a *app.App) (int, error) {
 	return len(list), rows.Err()
 }
 
-// StartSnoozeWaker wakes due conversations on a ticker. In-process, like the
-// other tickers: a second replica would wake the same rows twice, which is
-// harmless (the UPDATE only matches what is still snoozed). SNOOZE_WAKER=off
-// turns it off (server.go).
+// StartSnoozeWaker wakes due conversations on a ticker. A second replica
+// racing the same tick would wake the same rows twice, which is harmless
+// on its own (the UPDATE only matches what is still snoozed, via
+// RETURNING) — but it still takes the cluster-wide lock so only one
+// replica does the work and fires the realtime event per tick.
+// SNOOZE_WAKER=off turns it off (server.go).
 func StartSnoozeWaker(a *app.App, interval time.Duration) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -94,10 +97,15 @@ func StartSnoozeWaker(a *app.App, interval time.Duration) context.CancelFunc {
 				return
 			case <-t.C:
 			}
-			if n, err := WakeAllDue(ctx, a); err != nil {
-				a.Log.Warn("could not wake snoozed conversations", "err", err)
-			} else if n > 0 {
-				a.Log.Info("snoozed conversations woke", "count", n)
+			_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:inbox:snooze", func() {
+				if n, err := WakeAllDue(ctx, a); err != nil {
+					a.Log.Warn("could not wake snoozed conversations", "err", err)
+				} else if n > 0 {
+					a.Log.Info("snoozed conversations woke", "count", n)
+				}
+			})
+			if err != nil {
+				a.Log.Error("snooze waker: could not acquire the cluster lock", "err", err)
 			}
 		}
 	}()

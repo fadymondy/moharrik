@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -252,9 +253,9 @@ func SweepWorkspace(ctx context.Context, a *app.App, workspaceID string, now tim
 // the OpenAPI export want no background work at all, and retention is exactly
 // the kind of thing that must not delete rows under a test.
 //
-// In-process, like the other tickers. A second replica would sweep the same
-// rows — harmless here, because the delete is idempotent, but the note belongs
-// next to the decision rather than in someone's memory.
+// A second replica would sweep the same rows — harmless, because the delete
+// is idempotent — but wasted work, so each tick takes a cluster-wide advisory
+// lock (internal/pglock) and skips when another replica already holds it.
 func StartRetention(a *app.App, log *slog.Logger) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	if os.Getenv("SCHEDULER") == "off" {
@@ -268,13 +269,18 @@ func StartRetention(a *app.App, log *slog.Logger) context.CancelFunc {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				n, err := SweepRuns(ctx, a, time.Now().UTC())
+				_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:automation:retention", func() {
+					n, err := SweepRuns(ctx, a, time.Now().UTC())
+					if err != nil {
+						log.Error("automation retention sweep failed", "err", err)
+						return
+					}
+					if n > 0 {
+						log.Info("automation retention swept", "runs", n)
+					}
+				})
 				if err != nil {
-					log.Error("automation retention sweep failed", "err", err)
-					continue
-				}
-				if n > 0 {
-					log.Info("automation retention swept", "runs", n)
+					log.Error("automation retention: could not acquire the cluster lock", "err", err)
 				}
 			}
 		}

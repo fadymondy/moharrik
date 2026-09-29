@@ -13,6 +13,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -158,6 +159,16 @@ func firstNonEmpty(vals ...string) string {
 
 // StartScheduler runs the clock. SCHEDULER=off disables it, which is what the
 // tests and the OpenAPI export want.
+//
+// This stays in the web process (see internal/server/server.go's Boot) because
+// h.fire dispatches to h's own live browser WebSocket registry — but Hosbah
+// can still run more than one web replica, each with its OWN Hub and its OWN
+// set of connected browsers, so a schedule due at the same moment could fire
+// twice: once from whichever replica happens to hold the browser its steps
+// run on. The tick itself still takes the cluster-wide lock so only one
+// replica even LOOKS at the due queue per tick; the other replicas' browsers
+// remain reachable for the run itself (pickAgents), just not for deciding
+// whether to start one.
 func (h *Hub) StartScheduler(a *app.App) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -168,7 +179,12 @@ func (h *Hub) StartScheduler(a *app.App) context.CancelFunc {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				h.Tick(ctx, a, time.Now().UTC())
+				_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:automation:scheduler", func() {
+					h.Tick(ctx, a, time.Now().UTC())
+				})
+				if err != nil {
+					a.Log.Error("automation scheduler: could not acquire the cluster lock", "err", err)
+				}
 			}
 		}
 	}()

@@ -17,6 +17,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -255,7 +256,12 @@ func NotifyTick(ctx context.Context, a *app.App) {
 }
 
 // StartNotifier runs NotifyTick every tick for the life of the process.
-// WHATSAPP_NOTIFY=off turns it off. In-process, like the other collectors.
+// WHATSAPP_NOTIFY=off turns it off.
+//
+// getMark/setMark race across replicas (read-then-conditional-write, not an
+// atomic claim), so two replicas ticking at once could both read the same old
+// watermark and queue the same message twice. The cluster-wide lock
+// (internal/pglock) makes the tick run on exactly one replica at a time.
 func StartNotifier(a *app.App, tick time.Duration) {
 	if os.Getenv("WHATSAPP_NOTIFY") == "off" {
 		return
@@ -265,7 +271,12 @@ func StartNotifier(a *app.App, tick time.Duration) {
 		defer t.Stop()
 		for range t.C {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			NotifyTick(ctx, a)
+			_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:whatsapp:notify", func() {
+				NotifyTick(ctx, a)
+			})
+			if err != nil {
+				a.Log.Error("whatsapp notify: could not acquire the cluster lock", "err", err)
+			}
 			cancel()
 		}
 	}()

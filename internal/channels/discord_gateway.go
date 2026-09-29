@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -120,7 +121,56 @@ func startGateway(a *app.App, workspaceID, id string) {
 	sessMu.Lock()
 	sessions[sessKey(workspaceID, id)] = &gatewaySession{cancel: cancel}
 	sessMu.Unlock()
-	go runGateway(ctx, workspaceID, id, token, c.AllowedGuildIDs, c.AllowedChannelIDs)
+	go ownGatewaySession(ctx, a, workspaceID, id, token, c.AllowedGuildIDs, c.AllowedChannelIDs)
+}
+
+// ownGatewaySession makes sure at most one replica runs this connection's
+// gateway session at a time: Discord delivers MESSAGE_CREATE to every open
+// session for a bot token, so two replicas each running runGateway for the
+// same connection would file every message twice. Unlike the tick-based
+// collectors' locks, this one is not "take it, do one unit of work, release
+// it" — it is held for the whole life of the session, on a dedicated
+// connection (internal/pglock.TryLock), so it is released automatically if
+// this replica crashes or loses its database connection, not only when
+// stopGateway runs cleanly. While another replica holds it, this one retries
+// on a slow interval so it can pick the connection up if that replica stops.
+func ownGatewaySession(ctx context.Context, a *app.App, workspaceID, id, token, allowedGuilds, allowedChannels string) {
+	lockName := "moharrik:discord:gateway:" + sessKey(workspaceID, id)
+	retryBackoff := time.Second
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		unlock, ok, err := pglock.TryLock(ctx, a.SysDB, lockName)
+		if err != nil {
+			if a.Log != nil {
+				a.Log.Warn("discord gateway: could not try the session lock", "connection", id, "err", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(retryBackoff):
+			}
+			if retryBackoff < 30*time.Second {
+				retryBackoff *= 2
+			}
+			continue
+		}
+		if !ok {
+			// Another replica already owns this connection's session.
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(30 * time.Second):
+			}
+			continue
+		}
+		func() {
+			defer unlock()
+			runGateway(ctx, workspaceID, id, token, allowedGuilds, allowedChannels)
+		}()
+		return
+	}
 }
 
 // stopGateway cancels a connection's session, if one is running.

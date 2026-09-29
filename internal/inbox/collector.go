@@ -5,16 +5,18 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pglock"
 )
 
 // StartMailCollector polls every enabled mailbox on a ticker.
 //
-// Same shape and same caveat as the trends collector: it is IN-PROCESS, so a
+// Same shape and same caveat as the trends collector: without a lock, a
 // multi-replica deploy would have every replica polling the same mailboxes.
 // That is not a disaster here — IMAP hands each message to whoever marks it
 // \Seen first, and the unique index on (workspace_id, external_id) makes a
-// double file a no-op — but it is wasted work, and a shared lock (or one
-// replica elected to run it) is the answer when there is a second replica.
+// double file a no-op — but it is wasted work, so each tick takes a
+// cluster-wide advisory lock (internal/pglock) and skips when another
+// replica already holds it.
 //
 // MAIL_COLLECTOR=off disables it, which is what the tests and the OpenAPI
 // export want: neither should open a connection to anyone's mail server.
@@ -31,9 +33,14 @@ func StartMailCollector(a *app.App, interval time.Duration, limit int) context.C
 				return
 			case <-timer.C:
 			}
-			polled, filed := CollectDue(ctx, a, limit)
-			if polled > 0 {
-				a.Log.Info("mail collected", "mailboxes", polled, "messages", filed)
+			_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:inbox:collector", func() {
+				polled, filed := CollectDue(ctx, a, limit)
+				if polled > 0 {
+					a.Log.Info("mail collected", "mailboxes", polled, "messages", filed)
+				}
+			})
+			if err != nil {
+				a.Log.Error("mail collector: could not acquire the cluster lock", "err", err)
 			}
 			timer.Reset(interval)
 		}

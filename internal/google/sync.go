@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -261,6 +262,13 @@ func WaitBackground() { bgWG.Wait() }
 // ---- the collector ------------------------------------------------------------------
 
 // StartCollector runs discovery and due syncs on a ticker.
+//
+// Unlike the inbox/trends collectors, the due-resource queue here is picked
+// by a plain SELECT with no atomic claim (no SKIP LOCKED, no conditional
+// UPDATE) before RunSync — sync_started_at is only set inside RunSync itself.
+// Two replicas racing the same tick could both pick the same resource and
+// both call RunSync concurrently, so this one needs the cluster-wide lock,
+// not just wants it for efficiency.
 func StartCollector(a *app.App, interval time.Duration, limit int) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -272,9 +280,14 @@ func StartCollector(a *app.App, interval time.Duration, limit int) context.Cance
 				return
 			case <-timer.C:
 			}
-			d, s := CollectDue(ctx, a, limit)
-			if d+s > 0 {
-				a.Log.Info("google collected", "discovered", d, "synced", s)
+			_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:google:collector", func() {
+				d, s := CollectDue(ctx, a, limit)
+				if d+s > 0 {
+					a.Log.Info("google collected", "discovered", d, "synced", s)
+				}
+			})
+			if err != nil {
+				a.Log.Error("google collector: could not acquire the cluster lock", "err", err)
 			}
 			timer.Reset(interval)
 		}

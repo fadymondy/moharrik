@@ -13,6 +13,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/pgtext"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
@@ -354,10 +355,12 @@ func CollectDue(ctx context.Context, a *app.App, limit int) (int, int) {
 StartCollector runs CollectDue on a ticker for the life of the process.
 
 The tick is only how often the queue is looked at; when each source is due is
-its own interval. One in-process ticker, not a job queue: Moharrik runs as a
-single container (deploy/lxc/docker-compose.yml). When it runs on more than
-one replica this needs a lock — the ON CONFLICT in Collect makes a double poll
-harmless and the budget counter is atomic, but it is still wasted work.
+its own interval. One in-process ticker, not a job queue: Moharrik can now run
+the worker process (deploy/start.sh, cloudy.toml's [processes] worker) on more
+than one replica. The ON CONFLICT in Collect makes a double poll harmless and
+the budget counter is atomic, but it is still wasted work and duplicate log
+noise, so each tick takes a cluster-wide advisory lock (internal/pglock) and
+simply skips when another replica already holds it.
 */
 func StartCollector(a *app.App, tick time.Duration, perTick int) (stop func()) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -372,19 +375,24 @@ func StartCollector(a *app.App, tick time.Duration, perTick int) (stop func()) {
 				return
 			case <-timer.C:
 			}
-			if !backfilled {
-				if n, err := BackfillCanonical(ctx, a); err != nil {
-					a.Log.Warn("trends: canonical backfill failed", "err", err)
-				} else {
-					backfilled = true
-					if n > 0 {
-						a.Log.Info("trends: canonical URLs backfilled", "workspaces", n)
+			_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:trends:collector", func() {
+				if !backfilled {
+					if n, err := BackfillCanonical(ctx, a); err != nil {
+						a.Log.Warn("trends: canonical backfill failed", "err", err)
+					} else {
+						backfilled = true
+						if n > 0 {
+							a.Log.Info("trends: canonical URLs backfilled", "workspaces", n)
+						}
 					}
 				}
-			}
-			sources, items := CollectDue(ctx, a, perTick)
-			if sources > 0 {
-				a.Log.Info("trends: collected", "sources", sources, "new_items", items)
+				sources, items := CollectDue(ctx, a, perTick)
+				if sources > 0 {
+					a.Log.Info("trends: collected", "sources", sources, "new_items", items)
+				}
+			})
+			if err != nil {
+				a.Log.Error("trends: collector could not acquire the cluster lock", "err", err)
 			}
 			timer.Reset(tick)
 		}

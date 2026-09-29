@@ -21,6 +21,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/alerts"
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/tenant"
@@ -687,6 +688,10 @@ func CollectDue(ctx context.Context, a *app.App, limit int) (sources, items int)
 // StartCollector runs CollectDue on a ticker for the life of the process. The
 // tick is how often the queue is looked at; each source's interval says when
 // it is due.
+//
+// The due-queue SELECT has no atomic claim, so two replicas ticking together
+// could both pick and poll the same source — a cluster-wide advisory lock
+// (internal/pglock) keeps the tick to one replica at a time.
 func StartCollector(a *app.App, tick time.Duration, perTick int) (stop func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -698,8 +703,13 @@ func StartCollector(a *app.App, tick time.Duration, perTick int) (stop func()) {
 				return
 			case <-timer.C:
 			}
-			if n, items := CollectDue(ctx, a, perTick); n > 0 {
-				a.Log.Info("notifications: collected", "sources", n, "new_items", items)
+			_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:notifications:collector", func() {
+				if n, items := CollectDue(ctx, a, perTick); n > 0 {
+					a.Log.Info("notifications: collected", "sources", n, "new_items", items)
+				}
+			})
+			if err != nil {
+				a.Log.Error("notifications collector: could not acquire the cluster lock", "err", err)
 			}
 			timer.Reset(tick)
 		}

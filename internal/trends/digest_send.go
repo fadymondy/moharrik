@@ -10,6 +10,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/marketing"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -258,6 +259,12 @@ func DigestTick(ctx context.Context, a *app.App) {
 
 // StartDigest runs DigestTick every five minutes. DIGEST=off (or
 // SCHEDULER=off, which the tests and the OpenAPI export set) turns it off.
+//
+// DigestTick already claims each member's period with an atomic
+// `UPDATE ... WHERE last_period <> $3`, so two replicas racing the same tick
+// never double-send — whichever one's UPDATE affects zero rows just skips.
+// It still takes the cluster-wide lock so only one replica pays for the SELECT
+// and the SendDigest work per tick instead of every replica doing it.
 func StartDigest(a *app.App) {
 	if os.Getenv("DIGEST") == "off" || os.Getenv("SCHEDULER") == "off" || a == nil || a.SysDB == nil {
 		return
@@ -267,7 +274,12 @@ func StartDigest(a *app.App) {
 		defer t.Stop()
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
-			DigestTick(ctx, a)
+			_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:trends:digest", func() {
+				DigestTick(ctx, a)
+			})
+			if err != nil {
+				a.Log.Error("trends digest: could not acquire the cluster lock", "err", err)
+			}
 			cancel()
 			<-t.C
 		}

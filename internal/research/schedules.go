@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/pglock"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -391,9 +392,11 @@ func (e *Engine) runSchedule(ctx context.Context, a *app.App, ws, id string) {
 }
 
 // StartScheduler runs due schedules on a ticker for the life of the process.
-// One in-process ticker, like the trends collector: a second replica would
-// need a lock (the budget is atomic, so a double tick spends at most once per
-// run that actually starts).
+// One in-process ticker, like the trends collector: the budget is atomic, so
+// a double tick spends at most once per run that actually starts, but each
+// tick still takes the cluster-wide advisory lock (internal/pglock) so a
+// second replica does not do the same wasted work (and the tick hooks, e.g.
+// MH-397's discovery schedules, run at most once per tick too).
 func (e *Engine) StartScheduler(a *app.App, tick time.Duration) (stop func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -405,11 +408,16 @@ func (e *Engine) StartScheduler(a *app.App, tick time.Duration) (stop func()) {
 				return
 			case <-timer.C:
 			}
-			if n := e.RunDueSchedules(ctx, a, 20); n > 0 {
-				a.Log.Info("research: schedules looked at", "due", n)
-			}
-			for _, f := range tickHooks() {
-				f(ctx, a)
+			_, err := pglock.WithLock(ctx, a.SysDB, "moharrik:research:scheduler", func() {
+				if n := e.RunDueSchedules(ctx, a, 20); n > 0 {
+					a.Log.Info("research: schedules looked at", "due", n)
+				}
+				for _, f := range tickHooks() {
+					f(ctx, a)
+				}
+			})
+			if err != nil {
+				a.Log.Error("research scheduler: could not acquire the cluster lock", "err", err)
 			}
 			timer.Reset(tick)
 		}
