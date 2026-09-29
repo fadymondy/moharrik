@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
-	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -58,6 +57,16 @@ import (
 	"github.com/fadymondy/moharrik/internal/youtube"
 )
 
+// externalWorkers reports whether a separate Hosbah worker process (moharrik-api
+// worker; see cmd/api/main.go and BootWorker below) runs this deploy's
+// background loops, so THIS process — the web one, taking public traffic —
+// must not also run them. WORKERS=external is set by deploy/start.sh only
+// when Hosbah's [processes] config actually gives the app a worker process;
+// unset (the default) keeps every loop running in-process here, exactly as
+// before WORKERS existed — backward compatible for local dev and every
+// already-deployed instance that has no worker process configured.
+func externalWorkers() bool { return os.Getenv("WORKERS") == "external" }
+
 // Boot builds the kernel + app and mounts REST, GraphQL, MCP and health on the
 // kernel router. It does not start listening — the caller calls Kernel.Serve.
 func Boot() *app.App {
@@ -72,6 +81,16 @@ func Boot() *app.App {
 	}
 	if err := tenant.VerifyAppRole(ctx, a.SQLDB); err != nil {
 		panic(err)
+	}
+
+	// The cross-process realtime bus (internal/realtime/bus.go): only needed
+	// once an event can be raised somewhere other than this process — i.e.
+	// once a separate worker exists. An all-in-one deploy (the default) keeps
+	// the Hub in-process-only, exactly as before the bus existed: no LISTEN
+	// connection, no NOTIFY round trip, nothing for local dev to depend on
+	// that a bare `docker compose up -d` Postgres didn't already need to run.
+	if externalWorkers() {
+		attachRealtimeBus(ctx, k, a)
 	}
 
 	// The research engine: search, reader and model, resolved from the
@@ -136,155 +155,43 @@ func Boot() *app.App {
 	// public process (WEB_ORIGIN; see webproxy.go).
 	installWebProxy(k)
 
-	// The trends collector: one in-process ticker looking for sources that are
-	// due. When each source is due is its own interval (6, 12 or 24 hours; MH-387).
-	// TRENDS_COLLECTOR=off turns it off, which is what the tests and the OpenAPI
-	// export want — neither should reach out to the internet.
-	if os.Getenv("TRENDS_COLLECTOR") != "off" {
-		trends.StartCollector(a, 5*time.Minute, 25)
-	}
-
 	// The WhatsApp webhook, and the inbox's own "file this message" handed to
-	// it: neither package imports the other, so the wiring happens here.
+	// it: neither package imports the other, so the wiring happens here. The
+	// callbacks (wireChannelCallbacks) are shared with BootWorker, because the
+	// Discord/Telegram/Slack GATEWAY loops call the same package-level filer a
+	// webhook handler does; the webhook ROUTES below stay web-only — nothing
+	// but a public HTTP endpoint mounts them.
 	whatsapp.RegisterHook(k.Router, a)
-	// Delivery receipts (MH-656): the ticks on a sent WhatsApp message.
-	whatsapp.SetStatusSink(func(ctx context.Context, workspaceID, externalID, status string) error {
-		return inbox.MarkStatus(ctx, a, workspaceID, externalID, status)
-	})
-	// What the linked number sent itself — a reply typed on the phone (MH-665).
-	whatsapp.SetOwnFiler(func(ctx context.Context, workspaceID, phone, text, externalID string, media *whatsapp.Media, download whatsapp.MediaDownloader) error {
-		return inbox.FileWhatsAppOwn(ctx, a, workspaceID, phone, text, externalID, media, download)
-	})
-	// Typing / recording indicators (MH-660): PRESENCE_UPDATE from a contact.
-	whatsapp.SetTypingSink(func(ctx context.Context, workspaceID, phone, state string) error {
-		return inbox.FileWhatsAppTyping(ctx, a, workspaceID, phone, state)
-	})
-	// Emoji reactions (MH-664): the customer's, and the number's own from the
-	// phone — filed against the message reacted to, never as a message.
-	whatsapp.SetReactionSink(func(ctx context.Context, workspaceID, phone, targetExternalID, emoji string, fromMe bool) error {
-		return inbox.FileWhatsAppReaction(ctx, a, workspaceID, phone, targetExternalID, emoji, fromMe)
-	})
-	whatsapp.SetFiler(func(ctx context.Context, workspaceID, phone, name, text, externalID string, media *whatsapp.Media, download whatsapp.MediaDownloader) error {
-		// "trends" / "ترندات" from a member's verified number is a question to
-		// the workspace, answered with its top trend stories (MH-389) — not a
-		// customer writing in. From anyone else it is filed like any message.
-		if handled, err := trends.HandleWhatsAppCommand(ctx, a, workspaceID, phone, text); handled {
-			if err != nil {
-				a.Log.Warn("could not answer a WhatsApp trends command", "workspace", workspaceID, "err", err)
-			}
-			return nil
-		} else if err != nil {
-			a.Log.Warn("could not check a WhatsApp trends command", "workspace", workspaceID, "err", err)
-		}
-		// "STOP" is the ONLY way out of a WhatsApp broadcast — there is no
-		// unsubscribe header the way email has one — so it is honoured before
-		// anything else happens to the message (MH-320).
-		//
-		// The message is still filed afterwards: the owner should see the
-		// customer asking to stop in the thread, not just find a flag changed.
-		if stopped, err := marketing.HandleStopWord(ctx, a, workspaceID, phone, text); err != nil {
-			a.Log.Warn("could not record a WhatsApp opt-out", "workspace", workspaceID, "err", err)
-		} else if stopped {
-			var locale string
-			_ = a.SQLDB.QueryRowContext(tenant.WithWorkspace(ctx, workspaceID), `
-				SELECT coalesce(locale, 'en') FROM contacts
-				WHERE workspace_id = $1 AND regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = $2
-				LIMIT 1`, workspaceID, marketing.OnlyDigits(phone)).Scan(&locale)
-			// Confirmed once, in their language. Silence after a STOP reads as
-			// having been ignored.
-			if _, err := whatsapp.Send(ctx, a, workspaceID, phone, marketing.StopConfirmation(locale)); err != nil {
-				a.Log.Warn("could not confirm a WhatsApp opt-out", "workspace", workspaceID, "err", err)
-			}
-		}
-		return inbox.FileWhatsApp(ctx, a, workspaceID, phone, name, text, externalID, media, download)
-	})
-
-	// Telegram, Slack and Discord inbox channels (MH-563), and browser-workflow
-	// channels (MH-564): the same "neither package imports the other" wiring
-	// as WhatsApp above.
 	channels.RegisterTelegramHook(k.Router, a)
 	channels.RegisterSlackHook(k.Router, a)
 	channels.RegisterDiscordHook(k.Router, a)
-	channels.SetFiler(func(ctx context.Context, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID string, isGroup bool) error {
-		return inbox.FileChannelMessage(ctx, a, workspaceID, channel, sourceChannelID, externalThreadID, handle, name, text, externalID, isGroup)
-	})
-	// Reconnects every enabled Discord connection's gateway session on boot.
-	// DISCORD_GATEWAY=off turns it off for the tests and the OpenAPI export —
-	// same switch shape as TRENDS_COLLECTOR.
-	channels.StartAllGateways(a)
+	wireChannelCallbacks(a)
 
-	// Members' WhatsApp notifications (MH-411): one in-process ticker that
-	// reads new events and sends each member's batch when their rules allow.
-	// WHATSAPP_NOTIFY=off turns it off.
-	whatsapp.StartNotifier(a, 30*time.Second)
+	// Every loop below is safe to run in a separate Hosbah worker process
+	// (see BootWorker) and, when WORKERS=external says one exists, MUST NOT
+	// also run here — a second copy ticking in the web process would be
+	// exactly the double-run a worker process was meant to replace, not just
+	// wasted work. startMovableLoops is the one place both boot paths call,
+	// so the set of "what moves" cannot drift between them.
+	if !externalWorkers() {
+		startMovableLoops(a, agentHub, researchEngine, k.Log)
+	}
 
-	// The automation scheduler: one in-process clock firing the schedules that
-	// are due. SCHEDULER=off turns it off for the tests and the OpenAPI export.
-	// In-process, like the other two tickers — a second replica would need a
-	// lock, and the note is here rather than assumed.
+	// These two stay in the web process ALWAYS, never gated by WORKERS: both
+	// ultimately dispatch to automation.Default()'s live WebSocket registry —
+	// agentHub.StartScheduler picks a connected browser to run a schedule's
+	// steps on, and a "run automation workflow" rule action
+	// (internal/rules/actions.go) goes through the same Hub. That registry
+	// only has connections where /api/agents/ws is actually mounted, which is
+	// here. Running these in the worker instead would not crash — pickAgents
+	// already handles "no browser is connected" as the ordinary case — it
+	// would just always report zero candidates and silently stop dispatching
+	// automation runs, which is worse than not moving them. See the report in
+	// AGENTS task history for the full reasoning.
 	if os.Getenv("SCHEDULER") != "off" {
 		agentHub.StartScheduler(a)
 	}
-
-	// The research clock (MH-388): scheduled research, spending each
-	// workspace's daily budget. RESEARCH_SCHEDULER=off turns it off, and so
-	// does SCHEDULER=off — the tests and the OpenAPI export must not search
-	// the web.
-	if os.Getenv("RESEARCH_SCHEDULER") != "off" && os.Getenv("SCHEDULER") != "off" {
-		researchEngine.StartScheduler(a, 2*time.Minute)
-	}
-	// Automation rules (MH-427): one in-process loop that runs the rules
-	// listening to the events the triggers write, and fires schedule rules.
-	// RULES=off (or SCHEDULER=off) turns it off; the tests drive it by hand.
 	rules.Start(a)
-
-	// The trends digest (MH-389): one in-process ticker sending the members'
-	// daily and weekly digests when they are due. DIGEST=off turns it off.
-	trends.StartDigest(a)
-
-	// Run retention: finished runs are deleted past each workspace's window
-	// (MH-234). It reads SCHEDULER itself, so it is off wherever the scheduler
-	// is — a sweeper that deletes rows under a test is exactly the thing not
-	// to leave running.
-	automation.StartRetention(a, k.Log)
-	// Audit log retention (MH-392): each workspace's window, 365 days by default.
-	audit.StartRetention(a, k.Log)
-
-	// The inbox's mail collector: one in-process ticker polling the mailboxes
-	// that are due. MAIL_COLLECTOR=off turns it off — the tests and the OpenAPI
-	// export must not open a connection to anyone's mail server.
-	if os.Getenv("MAIL_COLLECTOR") != "off" {
-		inbox.StartMailCollector(a, 2*time.Minute, 20)
-	}
-
-	// The Google data collector (MH-440..447): discovery, then the enabled
-	// properties, sites and channels that are due. GOOGLE_COLLECTOR=off turns
-	// it off — the tests and the OpenAPI export must not call Google.
-	analytics.RegisterSync()     // GA4's nightly snapshot (MH-444)
-	searchconsole.RegisterSync() // Search Console's daily import (MH-445)
-	youtube.RegisterSync()       // YouTube sync + quota ledger (MH-441)
-	if os.Getenv("GOOGLE_COLLECTOR") != "off" {
-		google.StartCollector(a, 5*time.Minute, 20)
-	}
-
-	// The notification center's collected sources (MH-384): Bluesky, YouTube
-	// and RSS, each on its own interval. NOTIFY_COLLECTOR=off turns it off —
-	// the tests and the OpenAPI export must not call anybody's servers.
-	if os.Getenv("NOTIFY_COLLECTOR") != "off" {
-		notifications.StartCollector(a, time.Minute, 20)
-	}
-
-	// Snoozed conversations wake when their time comes (MH-383), so every open
-	// tab's list and bell move without anyone reloading. SNOOZE_WAKER=off
-	// turns it off; the inbox list wakes due threads on read either way.
-	// GA4 conversions (MH-449): drains the outbox the lead and deal triggers fill,
-	// a few seconds after each moment. GA4_SENDER=off turns it off; the tests
-	// drain it themselves, against a fake Google.
-	conversions.StartSender(a, 5*time.Second)
-
-	if os.Getenv("SNOOZE_WAKER") != "off" {
-		inbox.StartSnoozeWaker(a, 30*time.Second)
-	}
 
 	gql := handler.NewDefaultServer(graphgen.NewExecutableSchema(graphgen.Config{
 		Resolvers: &resolvers.Resolver{App: a},

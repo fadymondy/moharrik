@@ -23,6 +23,16 @@ func main() {
 		os.Stdout.Write(b)
 		return
 	}
+	// The worker process (see internal/server/worker.go and cloudy.toml's
+	// [processes] worker): every background loop, no public HTTP listener.
+	// Hosbah starts this as its own process/replica set, independent of the
+	// process below that takes public traffic.
+	if len(os.Args) > 1 && os.Args[1] == "worker" {
+		if err := server.RunWorker(); err != nil {
+			panic(err)
+		}
+		return
+	}
 
 	// Before Boot, so the global tracer is in place when routes are built.
 	stopTraces := telemetry.Init(slog.Default())
