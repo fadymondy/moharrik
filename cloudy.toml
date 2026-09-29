@@ -22,14 +22,14 @@ timeout = 120
 # the live browser websockets (/api/agents/ws), so a worker replica's Hub would
 # never actually reach anyone. This wrapper is the one place that decides "a
 # separate worker exists" — start.sh itself does not try to guess.
-web = "sh -c 'WORKERS=external exec /app/start.sh'"
+web = "WORKERS=external exec /app/start.sh"
 # No port, no HTTP: every background loop and job consumer, as its own process
 # and its own replica set (internal/server/worker.go's RunWorker). Runs the
 # same binary the web process's API half does, in worker mode, so there is
 # nothing new for the Dockerfile to build.
-worker = "/app/bin/moharrik-api worker"
+"worker:jobs" = "exec /app/bin/moharrik-api worker"
 
-[resources.processes.worker]
+[resources.processes."worker:jobs"]
 # The worker holds no web/API traffic and no Next render, but it does keep a
 # handful of long-lived sockets open (one gorilla/websocket session per
 # enabled Discord connection — see internal/channels/discord_gateway.go) plus
