@@ -11,3 +11,34 @@ release = "/app/bin/moharrik-migrate"
 # Through the web to the API: passes only when both are up.
 path = "/api/health"
 timeout = 120
+
+[processes]
+# The web process runs deploy/start.sh unchanged (API + Next together, on `port`
+# above) but with WORKERS=external, which turns off every background loop that
+# also runs in `worker` below (internal/server/server.go's externalWorkers()) —
+# see internal/server/loops.go for the list. The scheduler that dispatches
+# automated agent runs (internal/automation.Hub) and the rule dispatcher stay
+# in the web process regardless: they act on the same Hub instance that holds
+# the live browser websockets (/api/agents/ws), so a worker replica's Hub would
+# never actually reach anyone. This wrapper is the one place that decides "a
+# separate worker exists" — start.sh itself does not try to guess.
+web = "sh -c 'WORKERS=external exec /app/start.sh'"
+# No port, no HTTP: every background loop and job consumer, as its own process
+# and its own replica set (internal/server/worker.go's RunWorker). Runs the
+# same binary the web process's API half does, in worker mode, so there is
+# nothing new for the Dockerfile to build.
+worker = "/app/bin/moharrik-api worker"
+
+[resources.processes.worker]
+# The worker holds no web/API traffic and no Next render, but it does keep a
+# handful of long-lived sockets open (one gorilla/websocket session per
+# enabled Discord connection — see internal/channels/discord_gateway.go) plus
+# the usual polling HTTP calls (IMAP, Google, WhatsApp, trends sources) and a
+# LISTEN connection for the realtime bus (internal/realtime/bus.go). That is
+# closer to the web process's steady-state load than to a one-shot job, so it
+# gets a smaller but not tiny share: half the web process's typical footprint
+# on a small Hosbah server (256M/0.5 CPU is this app's usual starting point).
+# A human should retune this from real memory/CPU graphs once the worker has
+# run for a while — these are a starting estimate, not a measurement.
+memory = "256M"
+cpus = 0.25
