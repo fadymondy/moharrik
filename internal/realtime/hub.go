@@ -111,10 +111,26 @@ type subscriber struct {
 type Hub struct {
 	mu   sync.RWMutex
 	subs map[string]map[*subscriber]struct{} // workspace id -> subscribers
+
+	// bus is nil in the all-in-one deployment (today's default): Publish then
+	// only ever does local, in-process delivery, exactly as it always has. A
+	// deploy that runs the background loops as a separate Hosbah worker
+	// process attaches one (see AttachBus / internal/realtime/bus.go) so an
+	// event raised over there still reaches a browser socket connected here.
+	bus *Bus
 }
 
 func NewHub() *Hub {
 	return &Hub{subs: make(map[string]map[*subscriber]struct{})}
+}
+
+// AttachBus wires the cross-process transport: every future local Publish
+// also gets published over Postgres NOTIFY (see Bus.publish), so another
+// process's Hub can pick it up. Call at most once, before traffic starts.
+func (h *Hub) AttachBus(b *Bus) {
+	h.mu.Lock()
+	h.bus = b
+	h.mu.Unlock()
 }
 
 // Subscribe returns a channel of encoded events for one workspace, as seen by
@@ -152,6 +168,31 @@ func (h *Hub) Subscribe(workspaceID string, v Viewer) (<-chan []byte, func()) {
 // this event, and its next revalidation catches it up. Dropping an event is the
 // correct trade here — the event is a hint to refetch, not the data itself.
 func (h *Hub) Publish(workspaceID string, ev Event) {
+	if workspaceID == "" || ev.Permission == "" {
+		return
+	}
+	h.deliverLocal(workspaceID, ev)
+
+	// Cross-process fan-out, if this Hub has a bus attached. Read under the
+	// same lock deliverLocal already released, not while holding it: NOTIFY
+	// does a round trip to Postgres, and must never make a slow subscriber's
+	// lock hold-time (there is none, deliverLocal never blocks) or a slow bus
+	// block Subscribe/Unsubscribe elsewhere.
+	h.mu.RLock()
+	bus := h.bus
+	h.mu.RUnlock()
+	if bus != nil {
+		bus.publish(workspaceID, ev)
+	}
+}
+
+// deliverLocal is Publish's in-process half: everything Publish used to do,
+// before the bus existed. Bus.Listen calls this directly for an event that
+// arrived over NOTIFY from another process, so a remote event is delivered
+// exactly like a local one — same scoping (Event.For), same non-blocking
+// send — without re-publishing it back onto the bus (Bus.Listen already
+// discards its own origin's notifications; this path is for the others').
+func (h *Hub) deliverLocal(workspaceID string, ev Event) {
 	if workspaceID == "" || ev.Permission == "" {
 		return
 	}
