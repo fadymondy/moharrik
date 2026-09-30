@@ -15,7 +15,7 @@ require (
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/circlexo/circlexo-go v0.1.0
+	github.com/circlexo/circlexo-go v0.1.1
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.2
 	github.com/gorilla/websocket v1.5.0
