@@ -25,6 +25,8 @@ const nextConfig = {
     return [
       { source: "/api/:path*", destination: `${API_ORIGIN}/api/:path*` },
       { source: "/graphql", destination: `${API_ORIGIN}/graphql` },
+      { source: "/auth/circlexo/:path*", destination: `${API_ORIGIN}/auth/circlexo/:path*` },
+      { source: "/sso/circlexo", destination: `${API_ORIGIN}/sso/circlexo` },
     ]
   },
 
