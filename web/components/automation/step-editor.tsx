@@ -37,11 +37,8 @@ import { CSS } from "@dnd-kit/utilities"
 import { ArrowDownIcon, ArrowUpIcon, GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { PickSelect } from "@/components/crm/shared"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Badge, Button, Checkbox, Input } from "@fadymondy/nasaq/web"
+import { Label } from "@/components/form-layout"
 import type { WorkflowStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -199,7 +196,7 @@ export function StepEditor({
       <div className="px-6 pt-3">
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           data-add-step
           onClick={() =>
@@ -259,10 +256,10 @@ function StepRow({
   const setArg = (name: string, value: unknown) =>
     onChange({ args: { ...step.args, [name]: value } })
 
-  const tone: Record<StepStatus, "default" | "secondary" | "outline"> = {
+  const tone: Record<StepStatus, "brand" | "neutral" | "outline"> = {
     pending: "outline",
-    running: "secondary",
-    ok: "default",
+    running: "neutral",
+    ok: "brand",
     failed: "outline",
     skipped: "outline",
   }

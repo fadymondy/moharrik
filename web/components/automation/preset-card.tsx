@@ -11,8 +11,7 @@ import Link from "next/link"
 import { CheckIcon, ExternalLinkIcon, ShieldCheckIcon } from "lucide-react"
 
 import { BrandIcon } from "@/components/automation/brand-icon"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Badge, Button } from "@fadymondy/nasaq/web"
 import type { Brand } from "@/lib/brands"
 import type { AutomationPreset } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -68,7 +67,7 @@ export function PresetCard({
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {p.writes ? (
-            <Badge variant="secondary" data-preset-publishes>
+            <Badge variant="neutral" data-preset-publishes>
               {t("presets.publishes")}
             </Badge>
           ) : null}

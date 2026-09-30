@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { BellOffIcon, BookmarkIcon, CheckIcon, SearchIcon, SettingsIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, InputGroup, InputGroupAddon, InputGroupInput, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { useDebounced } from "@/components/crm/contact-picker"
@@ -18,9 +18,6 @@ import {
 } from "@/components/notifications/notification-detail"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NotificationItem } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -126,7 +123,7 @@ export default function NotificationsPage() {
           <div className="flex flex-wrap items-center gap-2">
             {canManage ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 nativeButton={false}
                 render={<Link href={`/${locale}/w/${ws.slug}/notifications/sources`} />}
@@ -137,7 +134,7 @@ export default function NotificationsPage() {
             ) : null}
             {canWrite ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={markAllRead}
                 disabled={markAllDisabled}
@@ -176,7 +173,7 @@ export default function NotificationsPage() {
             <Button
               type="button"
               size="sm"
-              variant={unread ? "default" : "outline"}
+              variant={unread ? "primary" : "secondary"}
               aria-pressed={unread}
               onClick={() => setUnread((v) => !v)}
               data-filter="unread"
@@ -189,7 +186,7 @@ export default function NotificationsPage() {
             <Button
               type="button"
               size="sm"
-              variant={saved ? "default" : "outline"}
+              variant={saved ? "primary" : "secondary"}
               aria-pressed={saved}
               onClick={() => setSaved((v) => !v)}
               data-filter="saved"
@@ -241,7 +238,7 @@ export default function NotificationsPage() {
           action={
             canManage ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 nativeButton={false}
                 render={<Link href={`/${locale}/w/${ws.slug}/notifications/sources`} />}

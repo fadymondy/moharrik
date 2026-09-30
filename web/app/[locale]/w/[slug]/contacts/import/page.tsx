@@ -4,28 +4,8 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { CheckIcon, MessageCircleIcon, UsersIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -223,7 +203,7 @@ export default function ImportPage() {
 
           {anyGroupSelected ? (
             <div className="px-6 pb-4">
-              <Field orientation="horizontal">
+              <Field className="flex-row items-center gap-3">
                 <Checkbox
                   id="import-participants"
                   checked={importParticipants}

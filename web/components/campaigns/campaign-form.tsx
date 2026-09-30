@@ -2,19 +2,9 @@
 
 import { useState, type FormEvent } from "react"
 import { EyeIcon, FlaskConicalIcon, PencilLineIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsList, TabsPanel, TabsTab, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CampaignPreview } from "@/components/campaigns/campaign-preview"
 import { CampaignTestSend } from "@/components/campaigns/campaign-test-send"
 import { MarkdownEditor } from "@/components/campaigns/markdown-editor"
@@ -358,23 +348,23 @@ export function CampaignForm({
         </Field>
 
         <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-3">
-          <TabsList variant="line" aria-label={wa ? t("campaigns.message") : t("campaigns.body")}>
-            <TabsTrigger value="write" data-tab="write">
+          <TabsList variant="underline" aria-label={wa ? t("campaigns.message") : t("campaigns.body")}>
+            <TabsTab value="write" data-tab="write">
               <PencilLineIcon />
               {wa ? t("campaigns.message") : t("campaigns.body")}
-            </TabsTrigger>
-            <TabsTrigger value="preview" data-tab="preview">
+            </TabsTab>
+            <TabsTab value="preview" data-tab="preview">
               <EyeIcon />
               {t("campaigns.preview")}
-            </TabsTrigger>
+            </TabsTab>
             {showTest ? (
-              <TabsTrigger value="test" data-tab="test">
+              <TabsTab value="test" data-tab="test">
                 <FlaskConicalIcon />
                 {t("campaigns.test")}
-              </TabsTrigger>
+              </TabsTab>
             ) : null}
           </TabsList>
-          <TabsContent value="write">
+          <TabsPanel value="write">
             <Field>
               <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-body`} className="sr-only">
                 {wa ? t("campaigns.message") : t("campaigns.body")}
@@ -390,8 +380,8 @@ export function CampaignForm({
                 {wa ? t("campaigns.whatsappBodyHint") : t("campaigns.bodyHint")}
               </FieldDescription>
             </Field>
-          </TabsContent>
-          <TabsContent value="preview">
+          </TabsPanel>
+          <TabsPanel value="preview">
             <CampaignPreview
               channel={channel}
               subject={subject}
@@ -399,16 +389,16 @@ export function CampaignForm({
               lang={lang}
               onLangChange={setLang}
             />
-          </TabsContent>
+          </TabsPanel>
           {showTest && campaign ? (
-            <TabsContent value="test">
+            <TabsPanel value="test">
               <CampaignTestSend
                 campaign={campaign}
                 dirty={dirty}
                 smtpReady={smtpReady}
                 whatsappLinked={whatsappLinked}
               />
-            </TabsContent>
+            </TabsPanel>
           ) : null}
         </Tabs>
 

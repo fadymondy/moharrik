@@ -13,12 +13,9 @@ no control that would fail.
 
 import { useEffect, useState, type FormEvent } from "react"
 import { CheckIcon, GaugeIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationSettings } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"

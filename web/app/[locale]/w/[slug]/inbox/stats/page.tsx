@@ -4,15 +4,7 @@ import { useMemo, useState } from "react"
 
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { ChannelStats } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -84,9 +76,6 @@ export default function InboxStatsPage() {
       <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
         <span className="text-sm text-muted-foreground">{t("inbox.stats.window")}</span>
         <ToggleGroup
-          variant="outline"
-          size="sm"
-          spacing={0}
           value={[String(days)]}
           onValueChange={(v) => {
             const next = Number(v[0])
@@ -95,9 +84,9 @@ export default function InboxStatsPage() {
           aria-label={t("inbox.stats.window")}
         >
           {WINDOWS.map((d) => (
-            <ToggleGroupItem key={d} value={String(d)} data-window={d}>
+            <Toggle key={d} value={String(d)} data-window={d}>
               {t("inbox.stats.days", { n: formatNumber(d) })}
-            </ToggleGroupItem>
+            </Toggle>
           ))}
         </ToggleGroup>
         {s ? (

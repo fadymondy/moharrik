@@ -9,15 +9,12 @@ import {
   TriangleAlertIcon,
   WebhookIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type WhatsAppLink } from "@/lib/api"
@@ -136,7 +133,7 @@ export function WhatsAppChannelForm({
       />
       <div className="mt-4 flex flex-wrap items-center gap-2 pb-4 text-sm">
         <Badge
-          variant={state === "open" ? "default" : state === "connecting" ? "secondary" : "outline"}
+          variant={state === "open" ? "brand" : state === "connecting" ? "neutral" : "outline"}
         >
           {t(`whatsapp.state.${state}`)}
         </Badge>
@@ -190,7 +187,7 @@ export function WhatsAppChannelForm({
               <span className="font-medium">{t("whatsapp.webhook.title")}</span>
               <Badge
                 variant={
-                  hookOk ? "default" : hook.status === "unknown" ? "secondary" : "destructive"
+                  hookOk ? "brand" : hook.status === "unknown" ? "neutral" : "danger"
                 }
               >
                 {t(`whatsapp.webhook.${hook.status}`)}

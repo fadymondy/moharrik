@@ -38,7 +38,7 @@ import {
   TriangleAlertIcon,
   WorkflowIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Input, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -52,22 +52,6 @@ import { WorkflowChannelForm } from "@/components/channels/workflow-channel-form
 import { WidgetSettingsSheet } from "@/components/inbox/widget-settings"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type ChannelRow, type ChannelStatus, type ChannelType } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -308,7 +292,7 @@ export default function ChannelsPage() {
                 key={ty}
                 type="button"
                 size="sm"
-                variant={active ? "default" : "outline"}
+                variant={active ? "primary" : "secondary"}
                 aria-pressed={active}
                 onClick={() => toggleType(ty)}
                 data-type-filter={ty}
@@ -328,7 +312,7 @@ export default function ChannelsPage() {
             <Button
               type="button"
               size="sm"
-              variant={status === "" ? "default" : "outline"}
+              variant={status === "" ? "primary" : "secondary"}
               aria-pressed={status === ""}
               onClick={() => setParam("status", null)}
               data-status-filter="all"
@@ -340,7 +324,7 @@ export default function ChannelsPage() {
                 key={s}
                 type="button"
                 size="sm"
-                variant={status === s ? "default" : "outline"}
+                variant={status === s ? "primary" : "secondary"}
                 aria-pressed={status === s}
                 onClick={() => setParam("status", s)}
                 data-status-filter={s}
@@ -587,8 +571,8 @@ function ChannelListRow({
   const Icon = TYPE_ICON[row.type]
   const [testing, setTesting] = useState(false)
 
-  const statusVariant: Record<ChannelStatus, "default" | "secondary" | "outline"> = {
-    connected: "default",
+  const statusVariant: Record<ChannelStatus, "brand" | "neutral" | "outline"> = {
+    connected: "brand",
     error: "destructive" as "outline",
     paused: "outline",
   }
@@ -606,14 +590,14 @@ function ChannelListRow({
           <Bdi>{row.name}</Bdi>
         </p>
         {row.type === "workflow" && row.network ? (
-          <Badge variant="secondary">{t(`inbox.channel.${row.network}`)}</Badge>
+          <Badge variant="neutral">{t(`inbox.channel.${row.network}`)}</Badge>
         ) : null}
         <Badge
           variant={
             row.status === "error"
-              ? "destructive"
+              ? "danger"
               : row.status === "connected"
-                ? "default"
+                ? "brand"
                 : "outline"
           }
           data-channel-status-badge
@@ -633,7 +617,7 @@ function ChannelListRow({
           </Button>
           {onTest ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={testing}
               onClick={async () => {
@@ -651,13 +635,13 @@ function ChannelListRow({
             </Button>
           ) : null}
           {canManage && onToggle ? (
-            <Button variant="outline" size="sm" onClick={onToggle} data-toggle-enabled>
+            <Button variant="secondary" size="sm" onClick={onToggle} data-toggle-enabled>
               {row.enabled ? <PauseIcon /> : <PlayIcon />}
               {row.enabled ? t("channels.pause") : t("channels.resume")}
             </Button>
           ) : null}
           {canManage ? (
-            <Button variant="outline" size="sm" onClick={onEdit} data-edit-channel>
+            <Button variant="secondary" size="sm" onClick={onEdit} data-edit-channel>
               <SquarePenIcon />
               {t("common.edit")}
             </Button>

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState } from "react"
 import { LogOutIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, toast } from "@fadymondy/nasaq/web"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { DealsTable } from "@/components/crm/deals"
@@ -16,8 +16,6 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { UnsubscribeDialog, type UnsubscribeTarget } from "@/components/mail/subscriber-admin"
 import { NotFoundState } from "@/components/not-found-state"
 import { SectionHeader } from "@/components/public-frame"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -42,12 +40,12 @@ import { Bdi, isolate } from "@/components/bidi"
 
 const statusVariant: Record<
   SubscriptionStatus,
-  "default" | "secondary" | "outline" | "destructive"
+  "brand" | "neutral" | "outline" | "danger"
 > = {
-  subscribed: "default",
-  pending: "secondary",
+  subscribed: "brand",
+  pending: "neutral",
   unsubscribed: "outline",
-  bounced: "destructive",
+  bounced: "danger",
 }
 
 const identity = contactIdentity
@@ -140,7 +138,7 @@ export default function ContactDetailPage() {
               {canWrite && s.status !== "unsubscribed" ? (
                 <Button
                   variant="ghost"
-                  size="xs"
+                  size="sm"
                   data-unsubscribe-from={s.list_name}
                   onClick={() =>
                     setLeaving({

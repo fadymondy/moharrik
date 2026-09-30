@@ -3,10 +3,7 @@
 import { useState } from "react"
 import { MapPinIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button, Field, FieldError, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /*

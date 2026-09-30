@@ -10,8 +10,7 @@ be built without leaving the keyboard.
 import { useEffect, useMemo, useRef, useState } from "react"
 import { SearchIcon, XIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button, Input } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 

@@ -1,12 +1,10 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type TelegramChannel } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"

@@ -8,26 +8,13 @@ import {
   RefreshCwIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
 import { PickSelect } from "@/components/crm/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type CollectedKind, type CollectedSource } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -221,9 +208,9 @@ function CollectedRow({
 
   const status =
     source.last_status === "failed" ? (
-      <Badge variant="destructive">{t("notifications.status.failed")}</Badge>
+      <Badge variant="danger">{t("notifications.status.failed")}</Badge>
     ) : source.last_status === "ok" ? (
-      <Badge variant="secondary">{t("notifications.status.ok")}</Badge>
+      <Badge variant="neutral">{t("notifications.status.ok")}</Badge>
     ) : (
       <Badge variant="outline">{t("notifications.status.never")}</Badge>
     )
@@ -290,7 +277,7 @@ function CollectedRow({
               aria-label={source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
             />
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={collectNow}
               disabled={busy}
@@ -351,7 +338,7 @@ function CollectedRow({
               />
               <Button
                 type="submit"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={busy || kinds === source.push_kinds}
               >
@@ -442,17 +429,14 @@ function AddCollectedDialog({
             <Field>
               <FieldLabel>{t("notifications.sourceKindLabel")}</FieldLabel>
               <ToggleGroup
-                variant="outline"
-                size="sm"
-                spacing={0}
                 value={[kind]}
                 onValueChange={(v) => v[0] && setKind(v[0] as CollectedKind)}
                 aria-label={t("notifications.sourceKindLabel")}
               >
                 {kinds.map((k) => (
-                  <ToggleGroupItem key={k} value={k} data-kind-option={k}>
+                  <Toggle key={k} value={k} data-kind-option={k}>
                     {t(`notifications.sourceKind.${k}`)}
-                  </ToggleGroupItem>
+                  </Toggle>
                 ))}
               </ToggleGroup>
               <FieldDescription>{t(`notifications.kindAbout.${kind}`)}</FieldDescription>
@@ -492,7 +476,7 @@ function AddCollectedDialog({
                 options={intervals.map((m) => ({ value: String(m), label: intervalLabel(t, m) }))}
               />
             </Field>
-            <Field orientation="horizontal">
+            <Field className="flex-row items-center gap-3">
               <Switch id="collected-push" checked={push} onCheckedChange={setPush} />
               <div className="flex flex-col gap-1">
                 <FieldLabel htmlFor="collected-push">{t("notifications.pushEnabled")}</FieldLabel>

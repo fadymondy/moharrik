@@ -9,20 +9,8 @@ can be restored. A restore is itself a new version, so it can be undone too.
 
 import { useMemo, useState } from "react"
 import { HistoryIcon, XIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, toast } from "@fadymondy/nasaq/web"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationWorkflow, type WorkflowVersion } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -114,7 +102,7 @@ export function VersionsPanel({
                   </span>
                   {current ? <Badge>{t("automation.versions.current")}</Badge> : null}
                   {previewing === v.version ? (
-                    <Badge variant="secondary">{t("canvas.previewing")}</Badge>
+                    <Badge variant="neutral">{t("canvas.previewing")}</Badge>
                   ) : null}
                 </span>
                 <span className="block text-xs text-muted-foreground">
@@ -130,7 +118,7 @@ export function VersionsPanel({
               {!current && canEdit && previewing === v.version ? (
                 <Button
                   type="button"
-                  size="xs"
+                  size="sm"
                   className="mt-2"
                   onClick={() => setConfirm(v)}
                   data-restore={v.version}

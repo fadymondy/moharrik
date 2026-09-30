@@ -14,8 +14,7 @@ import { BarList, TrendChart } from "@/components/charts/trend-chart"
 import { DataError, Freshness, Stat, WindowToggle } from "@/components/google/data-page"
 import { Panel, useFormat } from "@/components/overview/overview-cards"
 import { EmptyState } from "@/components/states"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Skeleton, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, type YtAnalytics, type YtAnalyticsOut } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -180,17 +179,14 @@ function Filled({
       <div className="px-5 py-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <ToggleGroup
-            variant="outline"
-            size="sm"
-            spacing={0}
             value={[metric]}
             onValueChange={(v) => v[0] && setMetric(v[0] as Metric)}
             aria-label={t("analytics.metric")}
           >
             {(["views", "watch_minutes", "subscribers"] as Metric[]).map((m) => (
-              <ToggleGroupItem key={m} value={m} data-yt-metric={m}>
+              <Toggle key={m} value={m} data-yt-metric={m}>
                 {t(`yta.metric.${m}`)}
-              </ToggleGroupItem>
+              </Toggle>
             ))}
           </ToggleGroup>
         </div>

@@ -2,43 +2,9 @@
 
 import { useState, type FormEvent } from "react"
 import { PlusIcon, TriangleAlertIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet } from "@/components/form-layout"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
@@ -208,7 +174,7 @@ function TokenRow({
         <TableCell>
           <span className="flex flex-wrap items-center gap-1.5">
             <Ltr className="text-sm">{tok.user_email || tok.user_id}</Ltr>
-            {tok.mine ? <Badge variant="secondary">{t("mcp.you")}</Badge> : null}
+            {tok.mine ? <Badge variant="neutral">{t("mcp.you")}</Badge> : null}
           </span>
         </TableCell>
       ) : null}
@@ -246,9 +212,9 @@ function TokenRow({
       </TableCell>
       <TableCell className="pe-6 text-end">
         {tok.revoked_at ? (
-          <Badge variant="secondary">{t("mcp.revokedBadge")}</Badge>
+          <Badge variant="neutral">{t("mcp.revokedBadge")}</Badge>
         ) : expired ? (
-          <Badge variant="secondary">{t("mcp.expiredBadge")}</Badge>
+          <Badge variant="neutral">{t("mcp.expiredBadge")}</Badge>
         ) : (
           <ConfirmButton
             label={t("common.revoke")}
@@ -388,7 +354,7 @@ function CreateTokenDialog({
               </Field>
 
               <FieldSet>
-                <FieldLegend variant="label">{t("mcp.scopes")}</FieldLegend>
+                <FieldLegend>{t("mcp.scopes")}</FieldLegend>
                 <FieldDescription>
                   {t("mcp.scopesHint")}{" "}
                   <Link
@@ -469,7 +435,7 @@ function CreateTokenDialog({
               {error ? <FieldError>{error}</FieldError> : null}
             </FieldGroup>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              <Button type="button" variant="secondary" onClick={() => handleOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={busy || !name.trim() || chosen.length === 0}>

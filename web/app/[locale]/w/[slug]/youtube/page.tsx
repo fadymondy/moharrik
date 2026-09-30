@@ -28,18 +28,7 @@ import { YouTubeReports } from "@/components/google/youtube-reports"
 import { useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Badge, Button, Input, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Skeleton, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { YtChannelOut, YtSyncStep, YtVideo } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -136,7 +125,7 @@ function YouTube() {
       )}
       <Sheet open={!!open && !!resourceId} onOpenChange={(v) => !v && set({ video: "" })}>
         <SheetContent
-          side={isRtl ? "left" : "right"}
+          side="end"
           className="w-full gap-0 overflow-y-auto p-0 sm:max-w-xl"
           data-video-sheet
         >
@@ -310,21 +299,18 @@ function Videos({ resourceId, onOpen }: { resourceId: string; onOpen: (id: strin
           data-yt-search
         />
         <ToggleGroup
-          variant="outline"
-          size="sm"
-          spacing={0}
           className="flex-wrap"
           value={[privacy]}
           onValueChange={(v) => v[0] && setPrivacy(v[0] as (typeof PRIVACY)[number])}
           aria-label={t("yt.privacy")}
         >
           {PRIVACY.map((p) => (
-            <ToggleGroupItem key={p} value={p} data-privacy={p}>
+            <Toggle key={p} value={p} data-privacy={p}>
               {t(`yt.privacy.${p}`)}{" "}
               <span className="text-muted-foreground tabular-nums">
                 {first ? f.n(p === "all" ? first.total : (counts[p] ?? 0)) : ""}
               </span>
-            </ToggleGroupItem>
+            </Toggle>
           ))}
         </ToggleGroup>
       </div>
@@ -351,7 +337,7 @@ function Videos({ resourceId, onOpen }: { resourceId: string; onOpen: (id: strin
       {last?.has_more ? (
         <div className="flex justify-center py-4">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => pages.setSize(pages.size + 1)}
             disabled={pages.isValidating}
@@ -499,7 +485,7 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
         <Counts v={v} />
         <div className="flex flex-wrap gap-2 pt-1">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             nativeButton={false}
             render={<a href={v.url} target="_blank" rel="noreferrer" />}
@@ -508,7 +494,7 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
             {t("yt.watch")}
           </Button>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             nativeButton={false}
             render={<a href={v.studio_url} target="_blank" rel="noreferrer" />}
@@ -529,7 +515,7 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
       {v.tags && v.tags.length ? (
         <div className="flex flex-wrap gap-1 border-t border-nq-line px-6 py-3">
           {v.tags.slice(0, 20).map((tag) => (
-            <Badge key={tag} variant="secondary">
+            <Badge key={tag} variant="neutral">
               <bdi>{tag}</bdi>
             </Badge>
           ))}

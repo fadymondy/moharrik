@@ -16,44 +16,13 @@ import {
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { INTERVALS, SourceStatus, useWhen } from "@/components/trends/shared"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -127,7 +96,7 @@ export default function TrendSourcesPage() {
         action={
           canManage ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setAddingUrl(true)}
               data-action="add-by-url"
@@ -201,7 +170,7 @@ export default function TrendSourcesPage() {
         action={
           canManage ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setAddingTopic(true)}
               data-action="new-topic"
@@ -279,7 +248,7 @@ function Section({
             {icon}
             {title}
             {count !== undefined ? (
-              <Badge variant="secondary" className="tabular-nums">
+              <Badge variant="neutral" className="tabular-nums">
                 {formatNumber(count)}
               </Badge>
             ) : null}
@@ -320,7 +289,7 @@ function ConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction
-            variant="destructive"
+            variant="danger"
             disabled={busy}
             onClick={async () => {
               setBusy(true)
@@ -621,7 +590,7 @@ function SourceRow({
             aria-label={t("trends.collectThis", { name: source.name })}
           />
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={fetchNow}
             disabled={busy || !source.enabled}
@@ -650,7 +619,7 @@ function SourceRow({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                variant="destructive"
+                variant="danger"
                 onClick={() => setDeleting(true)}
                 data-action="delete"
               >
@@ -873,9 +842,6 @@ function Catalog({ entries, onAdded }: { entries: FeedCatalogEntry[]; onAdded: (
   return (
     <div className="flex flex-col gap-6 px-6" data-catalog>
       <ToggleGroup
-        variant="outline"
-        size="sm"
-        spacing={0}
         value={[lang]}
         onValueChange={(v) => {
           if (v[0]) setLang(v[0])
@@ -884,9 +850,9 @@ function Catalog({ entries, onAdded }: { entries: FeedCatalogEntry[]; onAdded: (
         data-catalog-lang={lang}
       >
         {langs.map((l) => (
-          <ToggleGroupItem key={l} value={l} data-lang={l}>
+          <Toggle key={l} value={l} data-lang={l}>
             {l === "all" ? t("trends.lang.all") : t(`trends.lang.${l}`)}
-          </ToggleGroupItem>
+          </Toggle>
         ))}
       </ToggleGroup>
       {CATEGORIES.map((cat) => {
@@ -963,7 +929,7 @@ function CatalogCard({ entry, onAdded }: { entry: FeedCatalogEntry; onAdded: () 
         ) : (
           <Button
             size="sm"
-            variant="outline"
+            variant="secondary"
             onClick={add}
             disabled={busy}
             data-action="add"
@@ -975,7 +941,7 @@ function CatalogCard({ entry, onAdded }: { entry: FeedCatalogEntry; onAdded: () 
         )}
       </div>
       <p className="mt-auto flex flex-wrap gap-1">
-        <Badge variant="secondary">{t(`trends.lang.${entry.language}`)}</Badge>
+        <Badge variant="neutral">{t(`trends.lang.${entry.language}`)}</Badge>
         <ProviderBadge provider={entry.provider} />
         <Badge variant="outline">{t(`trends.interval.${entry.interval_minutes}`)}</Badge>
       </p>
@@ -1051,7 +1017,7 @@ function TopicRow({
             aria-label={t("trends.useThisTopic", { name: topic.name })}
           />
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => setEditing(true)}
             data-action="edit-topic"

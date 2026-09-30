@@ -37,7 +37,7 @@ import {
   SaveIcon,
   SquareIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Input, toast } from "@fadymondy/nasaq/web"
 
 import { validParamName } from "@/components/automation/params-editor"
 import { ExecutionIcon, ExecutionsView } from "@/components/automation/canvas/executions-view"
@@ -61,19 +61,6 @@ import { WorkflowCanvas, type Selection } from "@/components/automation/canvas/w
 import { isolate } from "@/components/bidi"
 import { PickSelect } from "@/components/crm/shared"
 import { ErrorState, LoadingRows } from "@/components/states"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -648,7 +635,7 @@ function Editor({
               >
                 <HistoryIcon className="size-4 text-muted-foreground" />
                 {t("canvas.previewBanner", { n: preview.version })}
-                <Button size="xs" variant="outline" onClick={() => setPreview(null)}>
+                <Button size="sm" variant="secondary" onClick={() => setPreview(null)}>
                   {t("canvas.backToCurrent")}
                 </Button>
               </div>
@@ -691,7 +678,7 @@ function Editor({
               <div className="pointer-events-none absolute inset-x-0 bottom-16 z-10 flex flex-col items-center gap-2 px-4 md:bottom-6">
                 <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
                   {live ? (
-                    <Button size="lg" variant="outline" onClick={stop} data-stop-run>
+                    <Button size="lg" variant="secondary" onClick={stop} data-stop-run>
                       <SquareIcon />
                       {t("canvas.stop")}
                     </Button>

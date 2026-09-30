@@ -10,7 +10,7 @@ import {
   SearchIcon,
   XIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Input, Popover, PopoverContent, PopoverTrigger, ScrollArea, toast } from "@fadymondy/nasaq/web"
 
 import { useMemberNames } from "@/components/crm/shared"
 import { hrefFor } from "@/components/alerts/notification-bell"
@@ -20,12 +20,7 @@ import { ChatThread } from "@/components/inbox/chat-thread"
 import { ContactInfoPanel } from "@/components/inbox/contact-info-panel"
 import { ThreadHeaderMenu } from "@/components/inbox/thread-header-menu"
 import { ThreadSearch } from "@/components/inbox/thread-search"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   api,
   ApiError,

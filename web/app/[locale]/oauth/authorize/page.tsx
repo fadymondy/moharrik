@@ -31,18 +31,8 @@ import {
   XCircleIcon,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Skeleton } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet } from "@/components/form-layout"
 import { PickSelect } from "@/components/crm/shared"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
@@ -141,7 +131,7 @@ export default function OAuthAuthorizePage() {
                   {t("auth.signIn")}
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   nativeButton={false}
                   render={<Link href={`/${locale}/register?next=${encodeURIComponent(here)}`} />}
                 >
@@ -206,7 +196,7 @@ export default function OAuthAuthorizePage() {
                   problem={{ title: t("oauth.noWorkspaceTitle"), body: t("oauth.noWorkspaceBody") }}
                   action={
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       nativeButton={false}
                       render={<Link href={`/${locale}/workspaces`} />}
                     >
@@ -231,7 +221,7 @@ export default function OAuthAuthorizePage() {
                   </Field>
 
                   <FieldSet>
-                    <FieldLegend variant="label">{t("oauth.scopes")}</FieldLegend>
+                    <FieldLegend>{t("oauth.scopes")}</FieldLegend>
                     <FieldDescription>{t("oauth.scopesHint")}</FieldDescription>
                     <ul
                       className="max-h-[28rem] divide-y divide-nq-line overflow-y-auto border border-nq-line"
@@ -312,7 +302,7 @@ export default function OAuthAuthorizePage() {
                 ) : null}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   disabled={busy !== null}
                   onClick={() => decide(false)}
                   data-deny
@@ -401,13 +391,13 @@ function ProblemView({ problem, action }: { problem: Problem; action?: React.Rea
         <Bdi>{problem.body}</Bdi>
       </p>
       {problem.back ? (
-        <Button variant="outline" nativeButton={false} render={<a href={problem.back} />}>
+        <Button variant="secondary" nativeButton={false} render={<a href={problem.back} />}>
           <ExternalLinkIcon />
           {t("oauth.backToClient")}
         </Button>
       ) : null}
       {action}
-      {!problem.back && !action ? <Badge variant="secondary">{t("oauth.closeTab")}</Badge> : null}
+      {!problem.back && !action ? <Badge variant="neutral">{t("oauth.closeTab")}</Badge> : null}
     </div>
   )
 }

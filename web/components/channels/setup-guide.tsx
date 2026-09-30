@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ChevronDownIcon, ExternalLinkIcon, TriangleAlertIcon } from "lucide-react"
 
 import { Ltr } from "@/components/copy-field"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /**
@@ -54,7 +54,7 @@ export function SetupGuide({
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded:rotate-180" />
         <span className="flex-1">{t(titleKey)}</span>
       </CollapsibleTrigger>
-      <CollapsibleContent>
+      <CollapsiblePanel>
         <ol className="list-decimal space-y-4 px-4 pb-4 ps-9 text-sm marker:font-medium marker:text-muted-foreground">
           {steps.map((step, i) => (
             <li key={i} className="ps-1">
@@ -89,7 +89,7 @@ export function SetupGuide({
             </li>
           ))}
         </ol>
-      </CollapsibleContent>
+      </CollapsiblePanel>
     </Collapsible>
   )
 }

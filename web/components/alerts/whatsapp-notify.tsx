@@ -3,23 +3,11 @@
 import Link from "next/link"
 import { useEffect, useState, type FormEvent } from "react"
 import { CheckCircle2Icon, MessageCircleIcon, SendIcon, XCircleIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Checkbox, Field, FieldDescription, FieldError, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NotifyKind, type WhatsAppNotify } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -162,7 +150,7 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
           </Field>
           <Button
             type="submit"
-            variant={data.code_pending ? "outline" : "default"}
+            variant={data.code_pending ? "secondary" : "primary"}
             disabled={busy || phone.replace(/\D/g, "").length < 8}
           >
             <SendIcon />
@@ -286,7 +274,7 @@ function Settings({
   return (
     <div className="flex flex-col gap-6" data-wa-notify="verified">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant="secondary" data-wa-notify-phone={data.phone}>
+        <Badge variant="neutral" data-wa-notify-phone={data.phone}>
           <CheckCircle2Icon />
           <Ltr>+{data.phone}</Ltr>
         </Badge>
@@ -310,7 +298,7 @@ function Settings({
 
       <form onSubmit={save} noValidate className="max-w-3xl" data-form="wa-notify">
         <FieldGroup>
-          <Field orientation="horizontal">
+          <Field className="flex-row items-center gap-3">
             <Switch
               id="wa-notify-enabled"
               checked={enabled}
@@ -322,7 +310,7 @@ function Settings({
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-sm font-medium">{t("waNotify.kinds")}</legend>
             {data.all_kinds.map((k) => (
-              <Field key={k.kind} orientation="horizontal" data-disabled={!k.allowed || undefined}>
+              <Field key={k.kind} data-disabled={!k.allowed || undefined} className="flex-row items-center gap-3">
                 <Checkbox
                   id={`wa-kind-${k.kind}`}
                   checked={kinds.includes(k.kind)}
@@ -348,7 +336,7 @@ function Settings({
           </fieldset>
 
           <div className="flex flex-col gap-3">
-            <Field orientation="horizontal">
+            <Field className="flex-row items-center gap-3">
               <Switch id="wa-notify-quiet" checked={quiet} onCheckedChange={(v) => setQuiet(!!v)} />
               <FieldLabel htmlFor="wa-notify-quiet">{t("waNotify.quiet")}</FieldLabel>
             </Field>
@@ -449,7 +437,7 @@ function Settings({
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               disabled={!!busy || !data.workspace_linked}
               onClick={() => void test()}
               data-wa-notify-test

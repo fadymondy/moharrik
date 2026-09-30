@@ -13,16 +13,12 @@ import {
   SquareIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger, Skeleton, toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { CostLine, EvidenceItem, SignalBadge, StageList } from "@/components/research/evidence"
 import { isLive, ResearchStatusBadge, useFormatDateTime } from "@/components/research/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -93,7 +89,7 @@ export default function ResearchRunPage() {
           <div className="flex flex-wrap items-center gap-2">
             {canRun && live ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={cancel}
                 disabled={cancelling}
@@ -430,7 +426,7 @@ function SourceRow({
                 aria-hidden
               />
             </a>
-            <Badge variant={source.fetched ? "secondary" : "outline"}>
+            <Badge variant={source.fetched ? "neutral" : "outline"}>
               {source.fetched ? t("research.read") : t("research.unread")}
             </Badge>
           </p>
@@ -478,7 +474,7 @@ function SourceRow({
                   {t("research.hideText")}
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2" data-page-text>
+              <CollapsiblePanel className="mt-2" data-page-text>
                 {textState === "error" ? (
                   <p className="text-xs text-nq-danger-text">
                     {textError instanceof ApiError ? textError.message : t("common.networkError")}
@@ -499,7 +495,7 @@ function SourceRow({
                 ) : (
                   <p className="text-xs text-muted-foreground">{t("research.textEmpty")}</p>
                 )}
-              </CollapsibleContent>
+              </CollapsiblePanel>
             </Collapsible>
           ) : null}
         </div>
@@ -578,7 +574,7 @@ function RunEvidence({
           </ul>
           {companies.some((c) => c.status === "suggested") ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="mt-3"
               nativeButton={false}

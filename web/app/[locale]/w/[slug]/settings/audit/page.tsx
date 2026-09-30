@@ -15,7 +15,7 @@ link on Settings → MCP opens this page already filtered to that token.
 import { Suspense, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ChevronDownIcon, FilterXIcon, HistoryIcon, ShieldIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldLabel, toast } from "@fadymondy/nasaq/web"
 
 import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import { PickSelect } from "@/components/crm/shared"
@@ -24,9 +24,6 @@ import { Ltr } from "@/components/copy-field"
 import { Bdi, isolate } from "@/components/bidi"
 import { DatePicker } from "@/components/date-picker"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldLabel } from "@/components/ui/field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AuditEntry } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -309,7 +306,7 @@ function EntryRow({
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-1.5 text-sm">
             <Badge
-              variant={refused ? "destructive" : e.action === "delete" ? "secondary" : "default"}
+              variant={refused ? "danger" : e.action === "delete" ? "neutral" : "brand"}
               data-audit-action
             >
               {actionLabel(t, e.action)}
@@ -404,7 +401,7 @@ function EntryRow({
 
 function Value({ v }: { v: unknown }) {
   const { t } = useTranslations()
-  if (v === "[redacted]") return <Badge variant="secondary">{t("audit.redacted")}</Badge>
+  if (v === "[redacted]") return <Badge variant="neutral">{t("audit.redacted")}</Badge>
   if (v === "[hidden]") return <Badge variant="outline">{t("audit.hidden")}</Badge>
   if (v === null || v === undefined || v === "") return <span className="text-muted-foreground">—</span>
   const s = typeof v === "string" ? v : JSON.stringify(v)

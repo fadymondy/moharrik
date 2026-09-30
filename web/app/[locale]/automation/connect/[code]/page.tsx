@@ -36,11 +36,8 @@ import {
   XCircleIcon,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Input, Skeleton } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 import { PickSelect } from "@/components/crm/shared"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
@@ -177,7 +174,7 @@ export default function ConnectBrowserPage() {
                   {t("auth.signIn")}
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   nativeButton={false}
                   render={<Link href={`/${locale}/register?next=${encodeURIComponent(here)}`} />}
                 >
@@ -244,7 +241,7 @@ export default function ConnectBrowserPage() {
               action={
                 r.workspace ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     nativeButton={false}
                     render={<Link href={`/${locale}/w/${r.workspace.slug}/automation/browsers`} />}
                   >
@@ -273,7 +270,7 @@ export default function ConnectBrowserPage() {
                 </p>
                 {/* Latin, read character by character: LTR in an Arabic page too. */}
                 <Badge
-                  variant="secondary"
+                  variant="neutral"
                   className="font-mono text-sm tracking-widest"
                   dir="ltr"
                   data-connect-code
@@ -318,7 +315,7 @@ export default function ConnectBrowserPage() {
                   )}
                   action={
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       nativeButton={false}
                       render={<Link href={`/${locale}/workspaces`} />}
                     >
@@ -385,7 +382,7 @@ export default function ConnectBrowserPage() {
                 ) : null}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   disabled={busy !== null}
                   onClick={() => decide(false)}
                   data-deny

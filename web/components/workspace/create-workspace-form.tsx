@@ -4,9 +4,8 @@ import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 import { api, ApiError, type WorkspaceSummary } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 

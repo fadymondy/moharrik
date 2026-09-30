@@ -13,7 +13,7 @@ import {
   PinIcon,
   StarIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, ContextMenu, ContextMenuTrigger, Tabs, TabsList, TabsTab, toast } from "@fadymondy/nasaq/web"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
@@ -29,10 +29,6 @@ import { ThreadSelectBar } from "@/components/inbox/thread-select-bar"
 import { SearchIcon } from "lucide-react"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -64,9 +60,9 @@ import {
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, BdiBlock } from "@/components/bidi"
 
-const statusVariant: Record<ConversationStatus, "default" | "secondary" | "outline"> = {
-  open: "default",
-  snoozed: "secondary",
+const statusVariant: Record<ConversationStatus, "brand" | "neutral" | "outline"> = {
+  open: "brand",
+  snoozed: "neutral",
   closed: "outline",
 }
 
@@ -349,18 +345,18 @@ export default function InboxPage() {
             value={channel || "all"}
             onValueChange={(v) => setChannel(v === "all" ? "" : String(v))}
           >
-            <TabsList variant="line" className="w-max">
-              <TabsTrigger value="all" data-channel-tab="all">
+            <TabsList variant="underline" className="w-max">
+              <TabsTab value="all" data-channel-tab="all">
                 {t("inbox.channel.all")}
-              </TabsTrigger>
+              </TabsTab>
               {channelCounts.map((c) => {
                 const Icon = channelIcon(c.channel)
                 return (
-                  <TabsTrigger key={c.channel} value={c.channel} data-channel-tab={c.channel}>
+                  <TabsTab key={c.channel} value={c.channel} data-channel-tab={c.channel}>
                     <Icon />
                     {channelLabel(c.channel, t)}
-                    {c.unread ? <Badge variant="secondary">{c.unread}</Badge> : null}
-                  </TabsTrigger>
+                    {c.unread ? <Badge variant="neutral">{c.unread}</Badge> : null}
+                  </TabsTab>
                 )
               })}
             </TabsList>
@@ -409,7 +405,7 @@ export default function InboxPage() {
             key={key || "all"}
             type="button"
             size="sm"
-            variant={chip === key ? "default" : "outline"}
+            variant={chip === key ? "primary" : "secondary"}
             aria-pressed={chip === key}
             onClick={() => setChip(chip === key ? "" : key)}
             data-filter={key || "all"}
@@ -425,7 +421,7 @@ export default function InboxPage() {
               key={key}
               type="button"
               size="sm"
-              variant={chip === key ? "default" : "outline"}
+              variant={chip === key ? "primary" : "secondary"}
               aria-pressed={chip === key}
               onClick={() => setChip(chip === key ? "" : key)}
               data-filter="label"
@@ -484,7 +480,7 @@ export default function InboxPage() {
               <span className="flex-1 text-start">{t("inbox.org.archivedTitle")}</span>
               <span className="text-xs text-muted-foreground" data-archived-count>
                 {archivedUnread > 0 ? (
-                  <Badge variant="default">{archivedUnread}</Badge>
+                  <Badge variant="brand">{archivedUnread}</Badge>
                 ) : (
                   archivedCount
                 )}
@@ -1102,7 +1098,7 @@ function Thread({
             </div>
             <SnoozeControl c={c} onChanged={refresh} />
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               data-action={c.status === "closed" ? "reopen" : "close"}
               onClick={() =>
@@ -1171,7 +1167,7 @@ function Thread({
           </p>
           {cursor ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={loadEarlier}
               disabled={loadingEarlier}

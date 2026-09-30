@@ -11,14 +11,8 @@ import {
   MessageSquareIcon,
   SettingsIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Avatar, Badge, Button, Popover, PopoverContent, PopoverTrigger, ScrollArea, Tabs, TabsList, TabsPanel, TabsTab, toast } from "@fadymondy/nasaq/web"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useNotificationPermission } from "@/lib/alerts"
 import { api, ApiError, type BellItem } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -111,11 +105,13 @@ function Row({
       )}
     >
       <div className="relative h-fit shrink-0">
-        <Avatar className="size-9">
-          <AvatarFallback className="text-xs">
-            {item.kind === "conversation" ? initials(name) : <BellIcon className="size-4" />}
-          </AvatarFallback>
-        </Avatar>
+        {item.kind === "conversation" ? (
+          <Avatar name={name} size="lg" />
+        ) : (
+          <span className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground">
+            <BellIcon className="size-4" />
+          </span>
+        )}
         <span
           className={cn(
             "absolute -bottom-0.5 -end-0.5 flex size-4 items-center justify-center rounded-full text-white [&_svg]:size-2.5",
@@ -151,7 +147,7 @@ function Row({
         canMark ? (
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             className="relative z-10 shrink-0 self-center"
             aria-label={t("alerts.markRead")}
             title={t("alerts.markRead")}
@@ -285,7 +281,7 @@ export function NotificationBell({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{t("alerts.bell")}</span>
             {count > 0 ? (
-              <Badge variant="secondary" className="px-1.5 py-0 text-xs">
+              <Badge variant="neutral" className="px-1.5 py-0 text-xs">
                 {t("alerts.new", { n: count })}
               </Badge>
             ) : null}
@@ -293,7 +289,7 @@ export function NotificationBell({
           {count > 0 && (canMarkConv || canMarkNote) ? (
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={markAll}
               className="text-muted-foreground hover:text-foreground"
               data-bell-mark-all
@@ -311,23 +307,23 @@ export function NotificationBell({
           <Tabs defaultValue="all" className="gap-0">
             <div className="border-b border-nq-line px-4 py-2">
               <TabsList className="h-8 w-full">
-                <TabsTrigger value="all" className="flex-1 text-xs">
+                <TabsTab value="all" className="flex-1 text-xs">
                   {t("alerts.tabAll")}
-                </TabsTrigger>
-                <TabsTrigger value="unread" className="flex-1 text-xs">
+                </TabsTab>
+                <TabsTab value="unread" className="flex-1 text-xs">
                   {t("alerts.tabUnread")}
                   {unreadItems.length ? (
                     <span className="text-xs">({unreadItems.length})</span>
                   ) : null}
-                </TabsTrigger>
+                </TabsTab>
               </TabsList>
             </div>
-            <TabsContent value="all" className="mt-0">
+            <TabsPanel value="all" className="mt-0">
               <ScrollArea className="h-72">{list(items, t("alerts.empty"))}</ScrollArea>
-            </TabsContent>
-            <TabsContent value="unread" className="mt-0">
+            </TabsPanel>
+            <TabsPanel value="unread" className="mt-0">
               <ScrollArea className="h-72">{list(unreadItems, t("alerts.caughtUp"))}</ScrollArea>
-            </TabsContent>
+            </TabsPanel>
           </Tabs>
         )}
 
@@ -335,7 +331,7 @@ export function NotificationBell({
           <div className="border-t border-nq-line px-4 py-2">
             {/* A click, never on load: see useNotificationPermission. */}
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="w-full"
               onClick={() => void requestPerm()}

@@ -11,14 +11,13 @@ a bare old /automation link still redirects here).
 import Link from "next/link"
 import { useState } from "react"
 import { BookOpenIcon, ChevronUpIcon, DownloadIcon, OctagonXIcon, PlayIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, toast } from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { BrowserRow, BrowsersStatus, FlowStep } from "@/components/automation/browser-setup"
 import { PausedBanner } from "@/components/automation/paused-banner"
 import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -140,7 +139,7 @@ export default function AutomationBrowsersPage() {
                 {ext.data?.available && ext.data.download_url ? (
                   <Button
                     size="sm"
-                    variant={hasBrowser ? "outline" : "default"}
+                    variant={hasBrowser ? "secondary" : "primary"}
                     nativeButton={false}
                     render={
                       <a href={ext.data.download_url} download={ext.data.file} data-flow-download />

@@ -3,21 +3,10 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { LogOutIcon, Trash2Icon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 import { mutate } from "swr"
 
-import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Ltr } from "@/components/copy-field"
 import { BdiBlock, isolate } from "@/components/bidi"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -150,7 +139,7 @@ export function WorkspaceProfileSection() {
               />
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={picBusy}
                 onClick={() => fileRef.current?.click()}
@@ -263,7 +252,7 @@ export function LeaveWorkspaceSection() {
         </p>
       </div>
       <Button
-        variant="outline"
+        variant="secondary"
         onClick={() => setOpen(true)}
         disabled={myId == null}
         data-leave-open
@@ -281,7 +270,7 @@ export function LeaveWorkspaceSection() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <Button variant="destructive" disabled={busy} onClick={leave} data-leave-confirm>
+            <Button variant="danger" disabled={busy} onClick={leave} data-leave-confirm>
               {busy ? t("common.working") : t("manage.leave")}
             </Button>
           </AlertDialogFooter>
@@ -331,7 +320,7 @@ export function DeleteWorkspaceSection() {
           <p className="mt-1 text-sm text-muted-foreground">{t("manage.deleteHint")}</p>
         </div>
         <Button
-          variant="destructive"
+          variant="danger"
           onClick={() => {
             setTyped("")
             setErr(null)
@@ -370,7 +359,7 @@ export function DeleteWorkspaceSection() {
               <AlertDialogCancel type="button">{t("common.cancel")}</AlertDialogCancel>
               <Button
                 type="submit"
-                variant="destructive"
+                variant="danger"
                 disabled={busy || typed.trim() !== ws.slug}
                 data-delete-confirm
               >

@@ -22,13 +22,7 @@ import {
   DataTable,
   HorizontalBars,
 } from "@/components/reports/report-charts"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import type { OverviewConversationDay, OverviewCountDay, OverviewStage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
@@ -51,17 +45,14 @@ export function ViewToggle({
   const { t } = useTranslations()
   return (
     <ToggleGroup
-      variant="outline"
-      size="sm"
-      spacing={0}
       className="ms-auto"
       value={[value]}
       onValueChange={(v) => v[0] && onChange(v[0] as "chart" | "table")}
       aria-label={t("reports.view")}
       data-view-toggle={id}
     >
-      <ToggleGroupItem value="chart">{t("reports.chart")}</ToggleGroupItem>
-      <ToggleGroupItem value="table">{t("reports.table")}</ToggleGroupItem>
+      <Toggle value="chart">{t("reports.chart")}</Toggle>
+      <Toggle value="table">{t("reports.table")}</Toggle>
     </ToggleGroup>
   )
 }
@@ -152,24 +143,8 @@ export function TrendChart({
             cursor={{ strokeOpacity: 0.4 }}
             content={
               <ChartTooltipContent
-                labelFormatter={(_l, payload) =>
-                  formatDay(String(payload?.[0]?.payload?.date ?? ""))
-                }
-                formatter={(value, name, item) => (
-                  <div className="flex w-full items-center justify-between gap-4" dir={dir}>
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <span
-                        className="size-2.5 rounded-full"
-                        style={{ background: item.color }}
-                        aria-hidden
-                      />
-                      {config[String(name)]?.label}
-                    </span>
-                    <Ltr className="font-medium text-foreground tabular-nums">
-                      {value == null ? "—" : formatTick(Number(value))}
-                    </Ltr>
-                  </div>
-                )}
+                config={config}
+                labelFormatter={(l) => formatDay(String(l ?? ""))}
               />
             }
           />

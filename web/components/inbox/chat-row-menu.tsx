@@ -37,36 +37,8 @@ import {
   ZapIcon,
   type LucideProps,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, toast } from "@fadymondy/nasaq/web"
 
-import { Button } from "@/components/ui/button"
-import {
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-} from "@/components/ui/context-menu"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, TAG_COLORS, type Conversation, type TagColor } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -308,15 +280,15 @@ export function ChatRowMenu({
         {canManage ? (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem data-action="block" variant="destructive" onClick={() => setConfirm("block")}>
+            <ContextMenuItem data-action="block" variant="danger" onClick={() => setConfirm("block")}>
               <BanIcon />
               {c.blocked ? t("inbox.org.unblock") : t("inbox.org.block")}
             </ContextMenuItem>
-            <ContextMenuItem data-action="clear" variant="destructive" onClick={() => setConfirm("clear")}>
+            <ContextMenuItem data-action="clear" variant="danger" onClick={() => setConfirm("clear")}>
               <EraserIcon />
               {t("inbox.org.clear")}
             </ContextMenuItem>
-            <ContextMenuItem data-action="delete" variant="destructive" onClick={() => setConfirm("delete")}>
+            <ContextMenuItem data-action="delete" variant="danger" onClick={() => setConfirm("delete")}>
               <Trash2Icon />
               {t("inbox.org.delete")}
             </ContextMenuItem>
@@ -354,7 +326,7 @@ export function ChatRowMenu({
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               data-confirm
-              variant={confirm === "block" && c.blocked ? "default" : "destructive"}
+              variant={confirm === "block" && c.blocked ? "primary" : "danger"}
               onClick={runConfirm}
             >
               {confirm === "block"
@@ -536,7 +508,7 @@ export function LabelsDialog({
               aria-label={t("inbox.org.newLabel")}
               data-new-label
             />
-            <Button type="submit" variant="outline" disabled={busy || !name.trim()}>
+            <Button type="submit" variant="secondary" disabled={busy || !name.trim()}>
               {t("inbox.org.addLabel")}
             </Button>
           </div>
@@ -556,7 +528,7 @@ export function LabelsDialog({
           </div>
         </form>
         <DialogFooter>
-          <Button variant="outline" onClick={() => close(false)}>
+          <Button variant="secondary" onClick={() => close(false)}>
             {t("common.cancel")}
           </Button>
           <Button onClick={save} disabled={busy} data-labels-save>

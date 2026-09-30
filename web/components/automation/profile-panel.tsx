@@ -13,11 +13,9 @@ which links here rather than duplicating the form.
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"

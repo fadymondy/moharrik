@@ -10,21 +10,11 @@ import {
   LinkIcon,
   StarIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Tabs, TabsList, TabsPanel, TabsTab, Textarea, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
-import { Button } from "@/components/ui/button"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { isMuted } from "@/components/inbox/chat-row-menu"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Conversation } from "@/lib/api"
@@ -101,8 +91,8 @@ export function ContactInfoPanel({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="right"
-        className="data-[side=right]:w-full data-[side=right]:max-w-full sm:data-[side=right]:max-w-sm"
+        side="end"
+        className="w-full sm:w-[min(24rem,100vw)]"
         data-contact-info-panel
       >
         <SheetHeader>
@@ -134,7 +124,7 @@ export function ContactInfoPanel({
 
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => void toggleMute()}
             data-action="toggle-mute"
@@ -168,22 +158,22 @@ export function ContactInfoPanel({
           ) : null}
 
           <Tabs defaultValue="media" className="min-h-0 flex-1">
-            <TabsList className="grid w-full grid-cols-4" variant="line">
-              <TabsTrigger value="media" data-tab="media">
+            <TabsList className="grid w-full grid-cols-4" variant="underline">
+              <TabsTab value="media" data-tab="media">
                 <ImageIcon /> {counts ? counts.media : "–"}
-              </TabsTrigger>
-              <TabsTrigger value="links" data-tab="links">
+              </TabsTab>
+              <TabsTab value="links" data-tab="links">
                 <LinkIcon /> {counts ? counts.links : "–"}
-              </TabsTrigger>
-              <TabsTrigger value="docs" data-tab="docs">
+              </TabsTab>
+              <TabsTab value="docs" data-tab="docs">
                 <FileIcon /> {counts ? counts.docs : "–"}
-              </TabsTrigger>
-              <TabsTrigger value="starred" data-tab="starred">
+              </TabsTab>
+              <TabsTab value="starred" data-tab="starred">
                 <StarIcon /> {starred.data?.messages.length ?? "–"}
-              </TabsTrigger>
+              </TabsTab>
             </TabsList>
 
-            <TabsContent value="media">
+            <TabsPanel value="media">
               {!gallery.data || gallery.data.media.length === 0 ? (
                 <EmptyGallery text={t("inbox.contactInfo.noMedia")} />
               ) : (
@@ -209,9 +199,9 @@ export function ContactInfoPanel({
                   ))}
                 </div>
               )}
-            </TabsContent>
+            </TabsPanel>
 
-            <TabsContent value="links">
+            <TabsPanel value="links">
               {!gallery.data || gallery.data.links.length === 0 ? (
                 <EmptyGallery text={t("inbox.contactInfo.noLinks")} />
               ) : (
@@ -231,9 +221,9 @@ export function ContactInfoPanel({
                   ))}
                 </ul>
               )}
-            </TabsContent>
+            </TabsPanel>
 
-            <TabsContent value="docs">
+            <TabsPanel value="docs">
               {!gallery.data || gallery.data.docs.length === 0 ? (
                 <EmptyGallery text={t("inbox.contactInfo.noDocs")} />
               ) : (
@@ -254,9 +244,9 @@ export function ContactInfoPanel({
                   ))}
                 </ul>
               )}
-            </TabsContent>
+            </TabsPanel>
 
-            <TabsContent value="starred">
+            <TabsPanel value="starred">
               {!starred.data || starred.data.messages.length === 0 ? (
                 <EmptyGallery text={t("inbox.contactInfo.noStarred")} />
               ) : (
@@ -275,7 +265,7 @@ export function ContactInfoPanel({
                   ))}
                 </ul>
               )}
-            </TabsContent>
+            </TabsPanel>
           </Tabs>
         </div>
       </SheetContent>

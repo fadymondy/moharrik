@@ -2,22 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { BellRingIcon, MonitorSmartphoneIcon, SendIcon, Volume2Icon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   currentSubscription,
@@ -192,11 +181,11 @@ export default function DeliveryPage() {
   else if (status.data && supported) {
     pushControl = on ? (
       <>
-        <Badge variant="secondary" data-push-state="on">
+        <Badge variant="neutral" data-push-state="on">
           {t("delivery.pushOn")}
         </Badge>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={!!busy}
           onClick={() => mine && void remove(mine, true)}
@@ -255,12 +244,12 @@ export default function DeliveryPage() {
                 }
               >
                 {perm === "granted" ? (
-                  <Badge variant="secondary" data-desktop-state="granted">
+                  <Badge variant="neutral" data-desktop-state="granted">
                     {t("delivery.desktopAllowed")}
                   </Badge>
                 ) : perm === "default" ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     onClick={() => void requestPerm()}
                     data-allow-desktop
@@ -298,7 +287,7 @@ export default function DeliveryPage() {
                     {t("delivery.testHint")}
                   </span>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     disabled={!!busy}
                     onClick={() => void test()}

@@ -4,12 +4,10 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { ArrowLeftIcon, SquareIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type RunStep } from "@/lib/api"
 import { RunNotes } from "@/components/automation/run-notes"
@@ -65,7 +63,7 @@ export default function RunPage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             {canRun && live ? (
-              <Button variant="outline" size="sm" onClick={cancel}>
+              <Button variant="secondary" size="sm" onClick={cancel}>
                 <SquareIcon />
                 {t("automation.cancelRun")}
               </Button>
@@ -96,9 +94,9 @@ export default function RunPage() {
             <Badge
               variant={
                 run.status === "ok"
-                  ? "default"
+                  ? "brand"
                   : run.status === "running" || run.status === "queued"
-                    ? "secondary"
+                    ? "neutral"
                     : "outline"
               }
             >
@@ -198,7 +196,7 @@ function StepRow({
         </span>
         <Badge
           variant={
-            step.status === "ok" ? "default" : step.status === "pending" ? "secondary" : "outline"
+            step.status === "ok" ? "brand" : step.status === "pending" ? "neutral" : "outline"
           }
         >
           {t(`automation.step.${step.status}`)}

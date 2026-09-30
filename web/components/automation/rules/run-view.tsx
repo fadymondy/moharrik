@@ -21,15 +21,7 @@ import {
 
 import { Bdi } from "@/components/bidi"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { Badge, Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { intlTag } from "@/lib/i18n-locale"
 import { actionErrorText, actionSummaryText, runReasonText } from "@/lib/rule-messages"
@@ -324,15 +316,15 @@ export function RunLog({
       </div>
       {more ? (
         <div className="px-6 pt-4">
-          <Button variant="outline" size="sm" onClick={onMore}>
+          <Button variant="secondary" size="sm" onClick={onMore}>
             {t("common.loadMore")}
           </Button>
         </div>
       ) : null}
       <Sheet open={!!open} onOpenChange={(v) => (!v ? setOpen(null) : undefined)}>
         <SheetContent
-          side={isRtl ? "left" : "right"}
-          className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-lg data-[side=right]:sm:max-w-lg"
+          side="end"
+          className="w-full overflow-y-auto sm:w-[min(32rem,100vw)]"
           data-run-sheet
         >
           <SheetHeader className="pe-12">

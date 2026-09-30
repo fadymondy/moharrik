@@ -6,7 +6,8 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { PlayIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldError, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import {
@@ -16,9 +17,6 @@ import {
   type EditorStep,
 } from "@/components/automation/step-editor"
 import { RunNotes } from "@/components/automation/run-notes"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup } from "@/components/ui/field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationRun, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -106,10 +104,10 @@ export function StartRun({
 
 export function RunRow({ run, href }: { run: AutomationRun; href: string }) {
   const { t, formatDate } = useTranslations()
-  const tone: Record<string, "default" | "secondary" | "outline"> = {
-    ok: "default",
-    running: "secondary",
-    queued: "secondary",
+  const tone: Record<string, "brand" | "neutral" | "outline"> = {
+    ok: "brand",
+    running: "neutral",
+    queued: "neutral",
     failed: "outline",
     cancelled: "outline",
   }

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldError, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
 
 import { MailIcon, MessageCircleIcon, MessageSquareIcon } from "lucide-react"
 
@@ -10,11 +10,6 @@ import { ActivityIcon, useMemberNames } from "@/components/crm/shared"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   ACTIVITY_KINDS,
@@ -168,7 +163,7 @@ export function Timeline({
           </span>
           {fresh.cursor ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={loadOlder}
               disabled={loading}
@@ -232,7 +227,7 @@ function Composer({ target, onAdded }: { target: Target; onAdded: () => void }) 
             role="radio"
             aria-checked={kind === k}
             data-kind={k}
-            variant={kind === k ? "default" : "outline"}
+            variant={kind === k ? "primary" : "secondary"}
             onClick={() => setKind(k)}
           >
             <ActivityIcon kind={k} />
@@ -435,7 +430,7 @@ function ConversationItem({ c, target }: { c: ConversationRef; target: Target })
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <Badge
             variant={
-              c.status === "open" ? "default" : c.status === "snoozed" ? "secondary" : "outline"
+              c.status === "open" ? "brand" : c.status === "snoozed" ? "neutral" : "outline"
             }
           >
             {t(`inbox.status.${c.status}`)}
@@ -484,7 +479,7 @@ function ActivityBody({ body, done }: { body: string; done: boolean }) {
       {long ? (
         <Button
           variant="link"
-          size="xs"
+          size="sm"
           className="px-0"
           onClick={() => setAll((v) => !v)}
           aria-expanded={all}

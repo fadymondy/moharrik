@@ -5,9 +5,7 @@ import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import useSWR, { useSWRConfig } from "swr"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Badge, Button, Skeleton } from "@fadymondy/nasaq/web"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { ErrorState } from "@/components/states"
 import { Ltr } from "@/components/copy-field"
@@ -62,7 +60,7 @@ export default function InvitePage() {
         description={t("invite.notFoundBody")}
       >
         <PublicPanel className="flex justify-center py-10">
-          <Button variant="outline" nativeButton={false} render={<Link href={`/${locale}`} />}>
+          <Button variant="secondary" nativeButton={false} render={<Link href={`/${locale}`} />}>
             {t("invite.goHome")}
           </Button>
         </PublicPanel>
@@ -129,7 +127,7 @@ export default function InvitePage() {
                         {t("auth.signIn")}
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         nativeButton={false}
                         render={
                           <Link href={`/${locale}/register?next=${encodeURIComponent(here)}`} />
@@ -155,7 +153,7 @@ export default function InvitePage() {
                 )}
                 {inv.accepted ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     nativeButton={false}
                     render={<Link href={`/${locale}/workspaces`} />}
                   >

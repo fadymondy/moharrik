@@ -8,44 +8,14 @@ import {
   ShieldCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type WebhookSource, type WebhookSourceKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -257,7 +227,7 @@ function SourceRow({
             aria-label={source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
           />
         ) : (
-          <Badge variant={source.enabled ? "default" : "outline"}>
+          <Badge variant={source.enabled ? "brand" : "outline"}>
             {source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
           </Badge>
         )}
@@ -570,7 +540,7 @@ function SecretDialog({
                 onClose()
               }}
               secondary={
-                <Button type="button" variant="outline" onClick={onClose}>
+                <Button type="button" variant="secondary" onClick={onClose}>
                   {t("notifications.later")}
                 </Button>
               }

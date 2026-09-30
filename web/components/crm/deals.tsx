@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useMemo, useState, type DragEvent, type FormEvent } from "react"
 import { ArrowRightLeftIcon, GripVerticalIcon, PencilIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, Field, FieldError, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import {
   formatMoney,
@@ -15,26 +16,6 @@ import {
 } from "@/components/crm/shared"
 import { Ltr } from "@/components/copy-field"
 import { ScrollX } from "@/components/scroll-x"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -195,7 +176,7 @@ export function PipelineBoard({
                   </span>
                   {more && onLoadMore ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       onClick={() => onLoadMore(s.id)}
                       disabled={loadingStage === s.id}
@@ -264,7 +245,7 @@ function DealCard({
               render={
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   aria-label={t("deals.moveTo")}
                   data-move-menu
                 />

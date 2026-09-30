@@ -3,11 +3,8 @@
 import Link from "next/link"
 import { useState } from "react"
 import { FlaskConicalIcon, MailWarningIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Campaign } from "@/lib/api"
@@ -137,7 +134,7 @@ export function CampaignTestSend({
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" disabled={disabled} onClick={send} data-send-test>
+        <Button type="button" variant="secondary" disabled={disabled} onClick={send} data-send-test>
           <FlaskConicalIcon />
           {busy ? t("common.working") : t("campaigns.sendTest")}
         </Button>

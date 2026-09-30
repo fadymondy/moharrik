@@ -16,18 +16,9 @@ take the answer with it.
 
 import { useEffect, useRef, useState } from "react"
 import { CrosshairIcon, LoaderCircleIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Input, Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger, toast } from "@fadymondy/nasaq/web"
+import { Label } from "@/components/form-layout"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type ElementPick } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -110,7 +101,7 @@ export function PickControl({
         render={
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             className="shrink-0"
             data-pick={id}

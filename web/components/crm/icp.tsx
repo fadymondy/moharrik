@@ -14,19 +14,17 @@ import { CheckIcon, MinusIcon } from "lucide-react"
 
 import { Ltr } from "@/components/copy-field"
 import { Bdi } from "@/components/bidi"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
 import type { Lifecycle, ScoreReason } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { numberFormat } from "@/lib/i18n-locale"
 import { cn } from "@/lib/utils"
 
-const stageVariant: Record<Exclude<Lifecycle, "">, "default" | "secondary" | "outline"> = {
+const stageVariant: Record<Exclude<Lifecycle, "">, "brand" | "neutral" | "outline"> = {
   subscriber: "outline",
-  lead: "secondary",
-  qualified: "secondary",
-  customer: "default",
+  lead: "neutral",
+  qualified: "neutral",
+  customer: "brand",
 }
 
 export function LifecycleBadge({ stage }: { stage: Lifecycle }) {

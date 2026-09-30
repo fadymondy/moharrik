@@ -14,8 +14,7 @@ import {
   useDayLabel,
   useWhen,
 } from "@/components/trends/shared"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Badge, Button } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { ApiError, type TrendTopic, type TrendTopicDetail } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"

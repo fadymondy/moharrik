@@ -3,16 +3,10 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { LoaderCircleIcon } from "lucide-react"
 import Link from "next/link"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, Textarea, toast } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
 import { useFormatDateTime } from "@/components/research/shared"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, SIGNAL_TYPES, type ProspectProfileOut } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -122,7 +116,7 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
                     <div className="mt-1 flex flex-wrap gap-1" dir="auto">
                       {values.length ? (
                         values.map((v) => (
-                          <Badge key={v} variant="secondary">
+                          <Badge key={v} variant="neutral">
                             {v}
                           </Badge>
                         ))

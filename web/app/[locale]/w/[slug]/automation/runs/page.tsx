@@ -13,7 +13,7 @@ import { PausedBanner } from "@/components/automation/paused-banner"
 import { RunRow, StartRun } from "@/components/automation/run-controls"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -54,7 +54,7 @@ export default function AutomationRunsPage() {
         action={
           canRun && hasBrowser ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setRunningOnce((v) => !v)}
               data-run-once

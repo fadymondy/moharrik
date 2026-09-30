@@ -17,22 +17,11 @@ import {
   TriangleAlertIcon,
   XCircleIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
 import { Ltr } from "@/components/copy-field"
 import { useFormat } from "@/components/overview/overview-cards"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type GscInspection, type GscSitemapsOut } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -190,7 +179,7 @@ function InspectionDetail({ i }: { i: GscInspection }) {
       </dl>
       {i.result_link ? (
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           className="mt-3"
           nativeButton={false}

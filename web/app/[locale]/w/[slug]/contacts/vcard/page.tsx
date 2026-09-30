@@ -3,32 +3,10 @@
 import Link from "next/link"
 import { RefreshCwIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
 import { useRef, useState } from "react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Field, FieldDescription, FieldLabel, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, toast } from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -219,10 +197,10 @@ export default function VcardPage() {
     }
   }
 
-  const statusVariant: Record<PreviewRow["status"], "default" | "secondary" | "destructive"> = {
-    new: "default",
-    merge: "secondary",
-    invalid: "destructive",
+  const statusVariant: Record<PreviewRow["status"], "brand" | "neutral" | "danger"> = {
+    new: "brand",
+    merge: "neutral",
+    invalid: "danger",
   }
 
   return (
@@ -247,7 +225,7 @@ export default function VcardPage() {
             <>
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 onClick={runExportAll}
                 disabled={exporting}
                 data-action="export-vcard"
@@ -283,7 +261,7 @@ export default function VcardPage() {
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("vcard.source")}>
             <Button
               type="button"
-              variant={source === "vcard" ? "default" : "outline"}
+              variant={source === "vcard" ? "primary" : "secondary"}
               aria-pressed={source === "vcard"}
               onClick={() => {
                 setSource("vcard")
@@ -298,7 +276,7 @@ export default function VcardPage() {
             </Button>
             <Button
               type="button"
-              variant={source === "google_csv" ? "default" : "outline"}
+              variant={source === "google_csv" ? "primary" : "secondary"}
               aria-pressed={source === "google_csv"}
               onClick={() => {
                 setSource("google_csv")
@@ -337,7 +315,7 @@ export default function VcardPage() {
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               disabled={!canWrite}
               onClick={() => fileInput.current?.click()}
               data-action="pick-vcard-file"
@@ -382,7 +360,7 @@ export default function VcardPage() {
           {preview ? (
             <Button
               type="button"
-              variant="default"
+              variant="primary"
               onClick={runCommit}
               disabled={!canWrite || committing || preview.card_count === 0}
               data-action="commit-vcard"
@@ -519,7 +497,7 @@ function GoogleContactsPanel() {
         ) : (
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             className="mt-3"
             onClick={connect}
             disabled={connecting || (admin.data ? !admin.data.configured : false)}
@@ -632,7 +610,7 @@ function GoogleContactsConnectionRow({
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {reauth ? (
-            <Badge variant="destructive">{t("vcard.google.statusReauth")}</Badge>
+            <Badge variant="danger">{t("vcard.google.statusReauth")}</Badge>
           ) : status.data?.last_synced_at ? (
             t("vcard.google.lastSynced", {
               when: new Date(status.data.last_synced_at).toLocaleString(locale),
@@ -663,7 +641,7 @@ function GoogleContactsConnectionRow({
       <div className="flex shrink-0 items-center gap-2">
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() => void sync()}
           disabled={syncing || reauth}

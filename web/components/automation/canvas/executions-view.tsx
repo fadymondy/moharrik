@@ -30,8 +30,7 @@ import {
 } from "lucide-react"
 
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Badge, Button } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useExecutions, type WorkflowExecution, type WorkflowLayout } from "@/lib/canvas-queries"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -144,7 +143,7 @@ export function ExecutionsView({
                     <span className="mt-1 flex flex-wrap gap-1">
                       <Badge variant="outline">{t(`canvas.exec.trigger.${e.trigger}`)}</Badge>
                       {e.agent_name ? (
-                        <Badge variant="secondary">
+                        <Badge variant="neutral">
                           <span dir="auto">{e.agent_name}</span>
                         </Badge>
                       ) : null}
@@ -158,7 +157,7 @@ export function ExecutionsView({
         {more ? (
           <div className="p-3">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="w-full"
               onClick={() => list.setSize(list.size + 1)}
@@ -285,7 +284,7 @@ function Replay({
         ) : null}
         <div className="ms-auto flex items-center gap-1">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => (playing ? setAt(null) : setAt(0))}
             disabled={!detail.data || steps.length === 0}

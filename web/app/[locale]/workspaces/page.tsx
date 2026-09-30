@@ -3,9 +3,7 @@
 import Link from "next/link"
 import { ChevronRightIcon, Settings2Icon, UsersIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Badge, Button, Skeleton } from "@fadymondy/nasaq/web"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -85,7 +83,7 @@ export default function WorkspacesPage() {
                   <Badge variant="outline">{t(`role.${w.role}`)}</Badge>
                   <span className="flex-1 sm:hidden" />
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     nativeButton={false}
                     render={<Link href={`/${locale}/w/${w.slug}/settings/general`} />}

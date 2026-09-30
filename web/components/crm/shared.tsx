@@ -3,15 +3,8 @@
 import { CalendarIcon, CheckSquareIcon, PhoneIcon, StickyNoteIcon } from "lucide-react"
 import { useMemo } from "react"
 
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Field, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 import { COMPANY_SIZES, type ActivityKind, type StageKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { isLocale, numberFormat } from "@/lib/i18n-locale"

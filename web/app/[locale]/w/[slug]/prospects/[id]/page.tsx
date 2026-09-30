@@ -11,7 +11,7 @@ import {
   LoaderCircleIcon,
   MailIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Skeleton, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { DecideButtons } from "@/components/prospects/decide"
@@ -20,9 +20,6 @@ import { SectionHeader } from "@/components/public-frame"
 import { EvidenceItem, SignalBadge } from "@/components/research/evidence"
 import { useFormatDateTime } from "@/components/research/shared"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type ProspectDraft } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -89,7 +86,7 @@ export default function ProspectPage() {
                 <div className="flex flex-wrap gap-2 text-sm">
                   {p.crm_company_id ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       nativeButton={false}
                       render={<Link href={`${base}/companies/${p.crm_company_id}`} />}
@@ -99,7 +96,7 @@ export default function ProspectPage() {
                   ) : null}
                   {p.crm_contact_id ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       nativeButton={false}
                       render={<Link href={`${base}/contacts/${p.crm_contact_id}`} />}
@@ -109,7 +106,7 @@ export default function ProspectPage() {
                   ) : null}
                   {p.crm_deal_id ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       nativeButton={false}
                       render={<Link href={`${base}/deals/${p.crm_deal_id}`} />}
@@ -246,7 +243,7 @@ function Drafts({
             {(["en", "ar"] as const).map((l) => (
               <Button
                 key={l}
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => make(l)}
                 disabled={!!busy}
@@ -292,7 +289,7 @@ function DraftCard({ d }: { d: ProspectDraft }) {
     >
       <header className="flex flex-wrap items-center gap-2 border-b border-nq-line px-4 py-2 text-xs">
         <Badge variant="outline">{d.locale === "ar" ? "العربية" : "English"}</Badge>
-        <Badge variant="secondary" data-not-sent>
+        <Badge variant="neutral" data-not-sent>
           {t("prospects.draftNotSent")}
         </Badge>
         <Button variant="ghost" size="sm" className="ms-auto" onClick={copy}>

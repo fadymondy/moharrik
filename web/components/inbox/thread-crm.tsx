@@ -4,24 +4,12 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, type FormEvent } from "react"
 import { BriefcaseIcon, LinkIcon, SparklesIcon, UnlinkIcon, UserPlusIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, toast, TooltipRoot, TooltipContent, TooltipTrigger } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { ContactPicker } from "@/components/crm/contact-picker"
 import { PickSelect, toMinor } from "@/components/crm/shared"
 import { Bdi, isolate } from "@/components/bidi"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Conversation, type VisitorGuess } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -102,8 +90,8 @@ export function ThreadCRM({
             </>
           ) : null}
           {c.contact_link === "auto" ? (
-            <Tooltip>
-              <TooltipTrigger render={<Badge variant="secondary" data-crm-auto />}>
+            <TooltipRoot>
+              <TooltipTrigger render={<Badge variant="neutral" data-crm-auto />}>
                 <SparklesIcon />
                 {t("inbox.crm.auto")}
               </TooltipTrigger>
@@ -114,7 +102,7 @@ export function ThreadCRM({
                     : "inbox.crm.autoHint.email",
                 )}
               </TooltipContent>
-            </Tooltip>
+            </TooltipRoot>
           ) : null}
         </span>
       ) : (
@@ -156,7 +144,7 @@ export function ThreadCRM({
           ) : (
             <>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setDialog("link")}
                 data-crm-action="link"
@@ -165,7 +153,7 @@ export function ThreadCRM({
                 {t("inbox.crm.link")}
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setDialog("create")}
                 data-crm-action="create"
@@ -177,7 +165,7 @@ export function ThreadCRM({
           )}
           {!c.deal ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setDialog("deal")}
               data-crm-action="deal"

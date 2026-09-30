@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { MicIcon, SendIcon, XIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /*

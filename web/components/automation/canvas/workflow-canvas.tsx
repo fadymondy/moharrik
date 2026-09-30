@@ -63,7 +63,7 @@ import { BaseNode } from "@/components/flow/base-node"
 import { ButtonEdge } from "@/components/flow/button-edge"
 import { NodeStatusIndicator, type NodeStatus } from "@/components/flow/node-status-indicator"
 import { ZoomSlider } from "@/components/flow/zoom-slider"
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import type { WorkflowStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -274,7 +274,7 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
             {c.onRunTo ? (
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="icon-sm"
                 onClick={() => c.onRunTo?.(index)}
                 disabled={!!c.runBlocked}
                 title={c.runBlocked || t("canvas.runTo")}
@@ -286,7 +286,7 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
             ) : null}
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               onClick={() => c.onReorder?.(index, index - 1)}
               disabled={index === 0}
               title={t("canvas.moveEarlier")}
@@ -296,7 +296,7 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
             </Button>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               onClick={() => c.onReorder?.(index, index + 1)}
               disabled={index === c.count - 1}
               title={t("canvas.moveLater")}
@@ -306,7 +306,7 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
             </Button>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               onClick={() => c.onDuplicate?.(index)}
               title={t("canvas.duplicate")}
               aria-label={t("canvas.duplicate")}
@@ -315,7 +315,7 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
             </Button>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               className="text-nq-danger-text"
               onClick={() => c.onDelete?.(index)}
               title={t("canvas.delete")}

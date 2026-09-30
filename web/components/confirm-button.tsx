@@ -2,17 +2,7 @@
 
 import { useState, type ReactNode } from "react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 export function ConfirmButton({
@@ -51,7 +41,7 @@ export function ConfirmButton({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              variant="destructive"
+              variant="danger"
               disabled={busy}
               onClick={async () => {
                 setBusy(true)

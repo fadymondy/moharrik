@@ -2,19 +2,10 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import { BookmarkIcon, ExternalLinkIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NotificationSeverity } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -28,11 +19,11 @@ export const severityTone: Record<NotificationSeverity, string> = {
 
 export const severityVariant: Record<
   NotificationSeverity,
-  "default" | "secondary" | "destructive"
+  "brand" | "neutral" | "danger"
 > = {
-  info: "secondary",
-  warning: "default",
-  error: "destructive",
+  info: "neutral",
+  warning: "brand",
+  error: "danger",
 }
 
 /** A kind's label: the known ones are translated, anything else is shown as it came. */
@@ -113,8 +104,8 @@ export function NotificationDetailSheet({
   return (
     <Sheet open={!!id} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isRtl ? "left" : "right"}
-        className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-xl data-[side=right]:sm:max-w-xl"
+        side="end"
+        className="w-full overflow-y-auto sm:w-[min(36rem,100vw)]"
         data-notification-detail
       >
         <SheetHeader className="pe-12">
@@ -189,7 +180,7 @@ export function NotificationDetailSheet({
             {canWrite ? (
               <div className="flex flex-wrap gap-2">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={toggleSaved}
                   aria-pressed={!!item.saved_at}

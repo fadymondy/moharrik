@@ -30,27 +30,8 @@ import { SyncStatus } from "@/components/google/resource-picker"
 import { Panel, useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState } from "@/components/states"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tabs, TabsList, TabsPanel, TabsTab, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { Label } from "@/components/form-layout"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { GoogleResource, GscPerformance, GscPoint, GscRow } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -224,19 +205,19 @@ function SearchConsole() {
           className="gap-0"
         >
           <div className="px-6 pb-4">
-            <TabsList variant="line">
-              <TabsTrigger value="performance" data-tab="performance">
+            <TabsList variant="underline">
+              <TabsTab value="performance" data-tab="performance">
                 {t("gsc.tabPerformance")}
-              </TabsTrigger>
-              <TabsTrigger value="inspect" data-tab="inspect">
+              </TabsTab>
+              <TabsTab value="inspect" data-tab="inspect">
                 {t("gsc.tabInspect")}
-              </TabsTrigger>
-              <TabsTrigger value="sitemaps" data-tab="sitemaps">
+              </TabsTab>
+              <TabsTab value="sitemaps" data-tab="sitemaps">
                 {t("gsc.tabSitemaps")}
-              </TabsTrigger>
+              </TabsTab>
             </TabsList>
           </div>
-          <TabsContent value="performance">
+          <TabsPanel value="performance">
             {perf.error ? (
               <ErrorState error={perf.error} />
             ) : !out || !p ? (
@@ -274,13 +255,13 @@ function SearchConsole() {
                 )}
               </div>
             )}
-          </TabsContent>
-          <TabsContent value="inspect">
+          </TabsPanel>
+          <TabsPanel value="inspect">
             {tab === "inspect" ? <InspectTab resourceId={resourceId} siteLabel={siteName} /> : null}
-          </TabsContent>
-          <TabsContent value="sitemaps">
+          </TabsPanel>
+          <TabsPanel value="sitemaps">
             {tab === "sitemaps" ? <SitemapsTab resourceId={resourceId} site={siteID} /> : null}
-          </TabsContent>
+          </TabsPanel>
         </Tabs>
       )}
     </>
@@ -528,18 +509,15 @@ function Filled({ p }: { p: GscPerformance }) {
           icon={<ChartLineIcon />}
           meta={
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               className="ms-auto flex-wrap"
               value={[metric]}
               onValueChange={(v) => v[0] && setMetric(v[0] as Metric)}
               aria-label={t("analytics.metric")}
             >
               {(["clicks", "impressions", "ctr", "position"] as Metric[]).map((m) => (
-                <ToggleGroupItem key={m} value={m} data-metric={m}>
+                <Toggle key={m} value={m} data-metric={m}>
                   {t(`gsc.${m}`)}
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
           }

@@ -2,21 +2,11 @@
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon, SparklesIcon, XIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { EvidenceItem, SignalBadge } from "@/components/research/evidence"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type CompanySuggestion } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -67,7 +57,7 @@ export function SuggestionsPanel({ onAccepted }: { onAccepted: () => void }) {
         <div className="flex flex-wrap items-center gap-3 px-6 pt-3">
           {!all && loaded.length > items.length ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setAll(true)}
               data-action="all-suggestions"

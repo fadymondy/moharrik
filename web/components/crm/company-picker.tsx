@@ -9,7 +9,7 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from "@/components/ui/combobox"
+} from "@fadymondy/nasaq/web"
 import { useDebounced } from "@/components/crm/contact-picker"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
@@ -81,7 +81,7 @@ export function CompanyPicker({
         id={id}
         className="w-full"
         placeholder={t("companies.pickPlaceholder")}
-        showClear={!!current}
+        clearable={!!current}
       />
       <ComboboxContent>
         <ComboboxEmpty>

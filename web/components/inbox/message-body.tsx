@@ -14,7 +14,7 @@ import {
 import { type InboxAttachment } from "@/lib/api"
 import { renderEmailHtml } from "@/lib/inbox-html"
 import { useTranslations } from "@/lib/i18n"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@fadymondy/nasaq/web"
 import { cn } from "@/lib/utils"
 
 /*
@@ -127,7 +127,7 @@ function ImageLightbox({ images, index, onClose }: { images: InboxAttachment[]; 
   const a = index !== null ? images[index] : null
   return (
     <Dialog open={index !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[calc(100%-2rem)] border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-3xl" showCloseButton>
+      <DialogContent className="max-w-[calc(100%-2rem)] border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-3xl" showClose>
         <DialogTitle className="sr-only">{a?.filename || t("inbox.media.openImage")}</DialogTitle>
         {a ? (
           // eslint-disable-next-line @next/next/no-img-element

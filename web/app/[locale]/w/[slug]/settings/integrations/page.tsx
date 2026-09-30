@@ -11,7 +11,8 @@ import {
   XIcon,
   YoutubeIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Checkbox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { Label } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ga4Conversions } from "@/components/google/ga4-conversions"
@@ -19,18 +20,6 @@ import { ResourcePicker } from "@/components/google/resource-picker"
 import { Ltr } from "@/components/copy-field"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -316,7 +305,7 @@ function ConnectProducts() {
             ) : null}
           </div>
           <Button
-            variant="outline"
+            variant="secondary"
             onClick={() => connect(p)}
             disabled={busy !== null}
             data-connect={p}
@@ -371,7 +360,7 @@ function ConnectionRow({
 
   const status = reauth ? (
     <div className="space-y-1 whitespace-normal">
-      <Badge variant="destructive">{t("integrations.statusReauth")}</Badge>
+      <Badge variant="danger">{t("integrations.statusReauth")}</Badge>
       <p className="max-w-56 text-xs text-muted-foreground">{t("integrations.statusReauthHint")}</p>
     </div>
   ) : (
@@ -391,7 +380,7 @@ function ConnectionRow({
             <span className="text-muted-foreground">{t("integrations.noProducts")}</span>
           ) : null}
           {products.map((p) => (
-            <Badge key={p} variant="secondary">
+            <Badge key={p} variant="neutral">
               {t(`integrations.product.${p}`)}
             </Badge>
           ))}
@@ -405,7 +394,7 @@ function ConnectionRow({
       <TableCell className="pe-6 text-end">
         <div className="flex flex-wrap items-center justify-end gap-1">
           {reauth && configured ? (
-            <Button variant="outline" size="sm" onClick={reconnect} disabled={busy}>
+            <Button variant="secondary" size="sm" onClick={reconnect} disabled={busy}>
               <RefreshCwIcon />
               {busy ? t("integrations.redirecting") : t("integrations.reconnect")}
             </Button>

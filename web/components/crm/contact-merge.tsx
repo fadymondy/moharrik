@@ -2,26 +2,9 @@
 
 import { useMemo, useState } from "react"
 import { CombineIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, toast } from "@fadymondy/nasaq/web"
 
 import { BdiBlock } from "@/components/bidi"
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 import { useDebounced } from "@/components/crm/contact-picker"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, contactIdentity, type ContactDetail } from "@/lib/api"
@@ -189,7 +172,7 @@ function MergeContactDialog({
               </ComboboxContent>
             </Combobox>
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="secondary" onClick={() => onOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
             </DialogFooter>
@@ -221,10 +204,10 @@ function MergeContactDialog({
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirming(false)} disabled={busy}>
+              <Button variant="secondary" onClick={() => setConfirming(false)} disabled={busy}>
                 {t("common.back")}
               </Button>
-              <Button variant="destructive" onClick={() => void confirmMerge()} disabled={busy}>
+              <Button variant="danger" onClick={() => void confirmMerge()} disabled={busy}>
                 {busy ? t("common.working") : t("contacts.mergeConfirm")}
               </Button>
             </DialogFooter>

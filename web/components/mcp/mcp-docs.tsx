@@ -19,9 +19,7 @@ import {
   MailCheckIcon,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { Badge, Collapsible, CollapsiblePanel, CollapsibleTrigger, InputGroup, InputGroupAddon, InputGroupInput } from "@fadymondy/nasaq/web"
 import { CopyField, Ltr } from "@/components/copy-field"
 import { ConnectClients } from "@/components/mcp/connect-clients"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
@@ -218,7 +216,7 @@ function ScopesSection({ cat }: { cat: McpDocsCatalog }) {
         >
           {cat.roles.map((r, i) => (
             <li key={r} className="flex items-center gap-1.5">
-              <Badge variant={i === 0 ? "default" : "outline"}>{t(`role.${r}`)}</Badge>
+              <Badge variant={i === 0 ? "brand" : "outline"}>{t(`role.${r}`)}</Badge>
               {i < cat.roles.length - 1 ? (
                 <span className="text-muted-foreground" aria-hidden>
                   ›
@@ -434,14 +432,14 @@ function ToolEntry({ tool, open: linked }: { tool: McpDocTool; open: boolean }) 
               <Badge variant="outline" className="font-mono" dir="ltr">
                 {tool.scope}
               </Badge>
-              <Badge variant="secondary">
+              <Badge variant="neutral">
                 {tool.writes ? t("docs.mcp.reference.writes") : t("docs.mcp.reference.reads")}
               </Badge>
             </span>
             <span className="block text-sm text-nq-fg-body">{tool.description}</span>
           </span>
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 pb-5 ps-7">
+        <CollapsiblePanel className="space-y-4 pb-5 ps-7">
           <p className="text-xs text-muted-foreground">
             {t("docs.mcp.reference.needs", { scope: tool.scope, role: t(`role.${tool.min_role}`) })}
           </p>
@@ -465,7 +463,7 @@ function ToolEntry({ tool, open: linked }: { tool: McpDocTool; open: boolean }) 
             <p className="eyebrow">{t("docs.mcp.reference.exampleResult")}</p>
             <CopyField value={result} label={t("docs.mcp.reference.exampleResult")} pre />
           </div>
-        </CollapsibleContent>
+        </CollapsiblePanel>
       </Collapsible>
     </li>
   )

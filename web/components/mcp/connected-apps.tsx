@@ -1,17 +1,8 @@
 "use client"
 
 import { PlugZapIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
-import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { Bdi, isolate } from "@/components/bidi"
@@ -98,7 +89,7 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
                     <TableCell>
                       <span className="flex flex-wrap items-center gap-1.5">
                         <Ltr className="text-sm">{g.user_email || g.user_id}</Ltr>
-                        {g.mine ? <Badge variant="secondary">{t("mcp.you")}</Badge> : null}
+                        {g.mine ? <Badge variant="neutral">{t("mcp.you")}</Badge> : null}
                       </span>
                     </TableCell>
                   ) : null}
@@ -119,7 +110,7 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
                   </TableCell>
                   <TableCell className="pe-6 text-end">
                     {g.revoked_at ? (
-                      <Badge variant="secondary">{t("oauth.apps.disconnectedBadge")}</Badge>
+                      <Badge variant="neutral">{t("oauth.apps.disconnectedBadge")}</Badge>
                     ) : (
                       <ConfirmButton
                         label={t("oauth.apps.disconnect")}

@@ -12,9 +12,7 @@ workflow and in every version of it.
 
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
+import { Button, Checkbox, Input } from "@fadymondy/nasaq/web"
 import type { WorkflowParam, WorkflowStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -56,8 +54,8 @@ export function ParamsEditor({
           </span>
           <Button
             type="button"
-            size="xs"
-            variant="outline"
+            size="sm"
+            variant="secondary"
             onClick={() =>
               onChange([...params, ...missing.map((name) => ({ name, required: true }))])
             }
@@ -165,7 +163,7 @@ export function ParamsEditor({
       <div className="px-6 pt-3">
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() => onChange([...params, { name: "", required: true }])}
         >

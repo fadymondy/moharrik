@@ -13,8 +13,7 @@ whole point is that it is byte-for-byte what came back.
 import { useEffect, useMemo, useState } from "react"
 import { CircleAlertIcon, ClockIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Badge, Button } from "@fadymondy/nasaq/web"
 import type { RunStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -44,7 +43,7 @@ export function NodeOutput({
     )
   }
   const tone =
-    step.status === "ok" ? "default" : step.status === "pending" ? "secondary" : "outline"
+    step.status === "ok" ? "brand" : step.status === "pending" ? "neutral" : "outline"
   return (
     <div className="space-y-3 px-4 py-4" data-node-output={step.status}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -74,7 +73,7 @@ export function NodeOutput({
             <div className="flex gap-1" role="group" aria-label={t("canvas.output.view")}>
               <Button
                 type="button"
-                size="xs"
+                size="sm"
                 variant={view === "table" ? "secondary" : "ghost"}
                 onClick={() => setView("table")}
                 aria-pressed={view === "table"}
@@ -83,7 +82,7 @@ export function NodeOutput({
               </Button>
               <Button
                 type="button"
-                size="xs"
+                size="sm"
                 variant={view === "json" ? "secondary" : "ghost"}
                 onClick={() => setView("json")}
                 aria-pressed={view === "json"}

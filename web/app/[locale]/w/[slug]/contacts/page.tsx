@@ -11,50 +11,9 @@ import {
   PencilIcon,
   SearchIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldError, FieldLabel, Input, InputGroup, InputGroupAddon, InputGroupInput, CursorPager, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
-import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { SectionHeader } from "@/components/public-frame"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -94,12 +53,12 @@ const MIN_SCORES = [25, 50, 75] as const
 
 const statusVariant: Record<
   SubscriptionStatus,
-  "default" | "secondary" | "outline" | "destructive"
+  "brand" | "neutral" | "outline" | "danger"
 > = {
-  subscribed: "default",
-  pending: "secondary",
+  subscribed: "brand",
+  pending: "neutral",
   unsubscribed: "outline",
-  bounced: "destructive",
+  bounced: "danger",
 }
 
 export default function ContactsPage() {
@@ -343,7 +302,7 @@ function ListsSection({
               {busy ? t("common.working") : t("lists.create")}
             </Button>
           </FieldGroup>
-          <Field orientation="horizontal" className="mt-4">
+          <Field className="flex-row items-center gap-3 mt-4">
             <Switch id="list-doi" checked={doi} onCheckedChange={(v) => setDoi(!!v)} />
             <div>
               <FieldLabel htmlFor="list-doi">{t("lists.doubleOptIn")}</FieldLabel>
@@ -708,7 +667,7 @@ function ContactsBrowser({
         </Field>
         {list && canExport ? (
           <Button
-            variant="outline"
+            variant="secondary"
             data-export-view
             onClick={() =>
               exportList(
@@ -728,28 +687,22 @@ function ContactsBrowser({
       <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
         <span className="text-sm text-muted-foreground">{t("icp.sortBy")}</span>
         <ToggleGroup
-          variant="outline"
-          size="sm"
-          spacing={0}
           value={[sort || "newest"]}
           onValueChange={(v) => v[0] && setSort(v[0] === "score" ? "score" : "")}
           aria-label={t("icp.sortBy")}
         >
-          <ToggleGroupItem value="newest" data-sort="newest">
+          <Toggle value="newest" data-sort="newest">
             {t("icp.sortNewest")}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="score" data-sort="score">
+          </Toggle>
+          <Toggle value="score" data-sort="score">
             {t("icp.sortScore")}
-          </ToggleGroupItem>
+          </Toggle>
         </ToggleGroup>
       </div>
 
       {list ? (
         <div className="px-6 pb-4">
           <ToggleGroup
-            variant="outline"
-            size="sm"
-            spacing={0}
             className="flex-wrap"
             value={[activeStatus || "all"]}
             onValueChange={(v) => {
@@ -759,19 +712,19 @@ function ContactsBrowser({
             }}
             aria-label={t("contacts.statusFilter")}
           >
-            <ToggleGroupItem value="all" data-status-filter="all">
+            <Toggle value="all" data-status-filter="all">
               {t("contacts.statusAll")}{" "}
               <span className="text-muted-foreground tabular-nums">
                 {counts ? formatNumber(counts.all) : ""}
               </span>
-            </ToggleGroupItem>
+            </Toggle>
             {STATUSES.map((st) => (
-              <ToggleGroupItem key={st} value={st} data-status-filter={st}>
+              <Toggle key={st} value={st} data-status-filter={st}>
                 {t(`sub.${st}`)}{" "}
                 <span className="text-muted-foreground tabular-nums">
                   {counts ? formatNumber(counts[st]) : ""}
                 </span>
-              </ToggleGroupItem>
+              </Toggle>
             ))}
           </ToggleGroup>
         </div>
@@ -788,7 +741,7 @@ function ContactsBrowser({
             body={t("contacts.noMatchBody")}
             action={
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => {
                   setSearch("")
@@ -829,53 +782,36 @@ function ContactsBrowser({
             <ContactsTable items={rows} canWrite={canWrite} onChange={onChange} />
           </div>
           {pages > 1 ? (
-            <Pagination className="px-6 pt-4">
-              <PaginationContent className="gap-2">
-                <PaginationItem>
-                  <Button
-                    variant="ghost"
-                    disabled={!page.current || cursors.length === 1}
-                    onClick={() =>
-                      setCursors((c) =>
-                        c.length > 1 && c[c.length - 1] === shownCursor ? c.slice(0, -1) : c,
-                      )
-                    }
-                    data-page="prev"
-                  >
-                    <ChevronLeftIcon data-icon="inline-start" className="rtl:rotate-180" />
-                    {t("contacts.prevPage")}
-                  </Button>
-                </PaginationItem>
-                <PaginationItem>
-                  <span
-                    className="px-2 text-sm text-muted-foreground tabular-nums"
-                    data-page-of={`${pageIndex + 1}/${pages}`}
-                  >
-                    {t("contacts.pageOf", {
-                      page: formatNumber(pageIndex + 1),
-                      pages: formatNumber(pages),
-                    })}
-                  </span>
-                </PaginationItem>
-                <PaginationItem>
-                  <Button
-                    variant="ghost"
-                    disabled={!page.current || !page.data.next_cursor}
-                    onClick={() => {
-                      const next = page.data?.next_cursor
-                      // Only from the page it belongs to: a second click before the
-                      // re-render must not push the same cursor twice.
-                      if (next && page.current)
-                        setCursors((c) => (c[c.length - 1] === shownCursor ? [...c, next] : c))
-                    }}
-                    data-page="next"
-                  >
-                    {t("contacts.nextPage")}
-                    <ChevronRightIcon data-icon="inline-end" className="rtl:rotate-180" />
-                  </Button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+            <CursorPager
+              className="px-6 pt-4"
+              from={0}
+              to={0}
+              summary={
+                <span data-page-of={`${pageIndex + 1}/${pages}`}>
+                  {t("contacts.pageOf", {
+                    page: formatNumber(pageIndex + 1),
+                    pages: formatNumber(pages),
+                  })}
+                </span>
+              }
+              previousLabel={t("contacts.prevPage")}
+              nextLabel={t("contacts.nextPage")}
+              hasPrevious={cursors.length > 1}
+              hasNext={!!page.data?.next_cursor}
+              loading={!page.current}
+              onPrevious={() =>
+                setCursors((c) =>
+                  c.length > 1 && c[c.length - 1] === shownCursor ? c.slice(0, -1) : c,
+                )
+              }
+              onNext={() => {
+                const next = page.data?.next_cursor
+                // Only from the page it belongs to: a second click before the
+                // re-render must not push the same cursor twice.
+                if (next && page.current)
+                  setCursors((c) => (c[c.length - 1] === shownCursor ? [...c, next] : c))
+              }}
+            />
           ) : null}
         </>
       )}
@@ -1064,7 +1000,7 @@ function ContactsTable({
                           </>
                         ) : null}
                         <DropdownMenuItem
-                          variant="destructive"
+                          variant="danger"
                           data-delete-contact
                           onClick={() => setDeleting(c)}
                         >
@@ -1092,7 +1028,7 @@ function ContactsTable({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              variant="destructive"
+              variant="danger"
               disabled={busy}
               onClick={() => deleting && remove(deleting)}
             >

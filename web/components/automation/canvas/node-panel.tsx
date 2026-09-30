@@ -39,14 +39,8 @@ import {
 import { PickControl } from "@/components/automation/pick-control"
 import { placeholdersIn, validParamName } from "@/components/automation/params-editor"
 import { PickSelect } from "@/components/crm/shared"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Tabs, TabsList, TabsPanel, TabsTab, Textarea } from "@fadymondy/nasaq/web"
+import { Label } from "@/components/form-layout"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { AutomationSchedule, RunStep, WorkflowParam, WorkflowStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -192,14 +186,14 @@ export function StepPanel({
         onValueChange={(v) => onTab(v as PanelTab)}
         className="min-h-0 flex-1 gap-0"
       >
-        <TabsList variant="line" className="w-full justify-start border-b border-nq-line px-2">
-          <TabsTrigger value="parameters" className="flex-none" data-panel-tab="parameters">
+        <TabsList variant="underline" className="w-full justify-start border-b border-nq-line px-2">
+          <TabsTab value="parameters" className="flex-none" data-panel-tab="parameters">
             {t("canvas.tab.parameters")}
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="flex-none" data-panel-tab="settings">
+          </TabsTab>
+          <TabsTab value="settings" className="flex-none" data-panel-tab="settings">
             {t("canvas.tab.settings")}
-          </TabsTrigger>
-          <TabsTrigger value="output" className="flex-none" data-panel-tab="output">
+          </TabsTab>
+          <TabsTab value="output" className="flex-none" data-panel-tab="output">
             {t("canvas.tab.output")}
             {output && output.status !== "pending" ? (
               <span
@@ -207,10 +201,10 @@ export function StepPanel({
                 aria-hidden
               />
             ) : null}
-          </TabsTrigger>
+          </TabsTab>
         </TabsList>
 
-        <TabsContent value="parameters" className="min-h-0 overflow-y-auto">
+        <TabsPanel value="parameters" className="min-h-0 overflow-y-auto">
           <div className="space-y-4 px-4 py-4">
             <p className="text-sm text-muted-foreground">
               {kind === "unknown"
@@ -265,9 +259,9 @@ export function StepPanel({
               <p className="text-xs text-muted-foreground">{t("canvas.fieldsHint")}</p>
             ) : null}
           </div>
-        </TabsContent>
+        </TabsPanel>
 
-        <TabsContent value="settings" className="min-h-0 overflow-y-auto">
+        <TabsPanel value="settings" className="min-h-0 overflow-y-auto">
           <div className="space-y-5 px-4 py-4">
             <Field>
               <FieldLabel htmlFor={`onerr-${index}`}>{t("canvas.onError")}</FieldLabel>
@@ -306,11 +300,11 @@ export function StepPanel({
               </span>
             </p>
           </div>
-        </TabsContent>
+        </TabsPanel>
 
-        <TabsContent value="output" className="min-h-0 overflow-y-auto">
+        <TabsPanel value="output" className="min-h-0 overflow-y-auto">
           <NodeOutput step={output} runId={runId} workspaceId={ws.id} live={live} />
-        </TabsContent>
+        </TabsPanel>
       </Tabs>
     </div>
   )
@@ -472,8 +466,8 @@ function FieldsMap({
       {!readOnly ? (
         <Button
           type="button"
-          variant="outline"
-          size="xs"
+          variant="secondary"
+          size="sm"
           onClick={() => setRows([...rows, { k: "", v: "" }])}
           data-add-field
         >
@@ -630,7 +624,7 @@ export function TriggerPanel({
                         <span dir="ltr" className="ltr-isolate font-mono text-muted-foreground">
                           {s.cron}
                         </span>
-                        <Badge variant={s.enabled ? "default" : "outline"}>
+                        <Badge variant={s.enabled ? "brand" : "outline"}>
                           {s.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")}
                         </Badge>
                       </li>
@@ -703,8 +697,8 @@ export function TriggerPanel({
               </span>
               <Button
                 type="button"
-                size="xs"
-                variant="outline"
+                size="sm"
+                variant="secondary"
                 onClick={() =>
                   onParams([...params, ...undeclared.map((name) => ({ name, required: true }))])
                 }
@@ -790,7 +784,7 @@ export function TriggerPanel({
           {!readOnly ? (
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => onParams([...params, { name: "", required: true }])}
             >

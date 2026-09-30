@@ -25,8 +25,7 @@ import {
 import { Panel, useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState } from "@/components/states"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Skeleton, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, type GaReport, type GaReportOut } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -195,18 +194,15 @@ function Filled({ rep }: { rep: GaReport }) {
           icon={<ChartLineIcon />}
           meta={
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               className="ms-auto"
               value={[metric]}
               onValueChange={(v) => v[0] && setMetric(v[0] as Metric)}
               aria-label={t("analytics.metric")}
             >
               {(["users", "sessions", "views"] as Metric[]).map((m) => (
-                <ToggleGroupItem key={m} value={m} data-metric={m}>
+                <Toggle key={m} value={m} data-metric={m}>
                   {t(`analytics.${m}`)}
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
           }

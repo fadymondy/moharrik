@@ -2,17 +2,8 @@
 
 import { useMemo } from "react"
 import { AlarmClockIcon, AlarmClockOffIcon, ChevronDownIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
 
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Conversation } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -87,7 +78,7 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
     // controls row keeps only the button, so it does not squeeze the subject.
     return (
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
         onClick={() => patch({ snoozed_until: "" }, t("inbox.unsnoozed"))}
         data-action="unsnooze"
@@ -101,7 +92,7 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="sm" data-action="snooze" />}>
+      <DropdownMenuTrigger render={<Button variant="secondary" size="sm" data-action="snooze" />}>
         <AlarmClockIcon />
         {t("inbox.snooze")}
         <ChevronDownIcon />

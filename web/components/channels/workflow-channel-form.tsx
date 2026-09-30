@@ -1,20 +1,11 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { Bdi } from "@/components/bidi"
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type WorkflowChannel } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"

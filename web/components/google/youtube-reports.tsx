@@ -10,19 +10,10 @@
 
 import { useState } from "react"
 import { DownloadIcon, FileSpreadsheetIcon, RefreshCwIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
 import { useFormat } from "@/components/overview/overview-cards"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, downloadFile, type YtReports } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -86,7 +77,7 @@ export function YouTubeReports({ resourceId }: { resourceId: string }) {
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("ytr.hint")}</p>
         </div>
         {manage ? (
-          <Button variant="outline" size="sm" onClick={check} disabled={busy} data-reports-check>
+          <Button variant="secondary" size="sm" onClick={check} disabled={busy} data-reports-check>
             <RefreshCwIcon className={busy ? "animate-spin" : undefined} />
             {busy ? t("ytr.checking") : t("ytr.check")}
           </Button>

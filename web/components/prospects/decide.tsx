@@ -2,21 +2,10 @@
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon, XIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { isolate } from "@/components/bidi"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Prospect } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -33,7 +22,7 @@ export function DecideButtons({ p, onDone }: { p: Prospect; onDone: () => void }
       </Button>
       <Button
         size="sm"
-        variant="outline"
+        variant="secondary"
         onClick={() => setOpen("reject")}
         data-action="reject-prospect"
       >
@@ -225,7 +214,7 @@ function RejectDialog({
             </Button>
             <Button
               type="submit"
-              variant="destructive"
+              variant="danger"
               disabled={busy}
               data-action="confirm-reject-prospect"
             >

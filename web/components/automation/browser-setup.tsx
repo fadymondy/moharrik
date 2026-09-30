@@ -18,13 +18,10 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -63,7 +60,7 @@ export function FlowStep({
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {title}
           <Badge
-            variant={state === "done" ? "secondary" : state === "current" ? "default" : "outline"}
+            variant={state === "done" ? "neutral" : state === "current" ? "brand" : "outline"}
           >
             {t(`automation.flow.state.${state}`)}
           </Badge>
@@ -107,7 +104,7 @@ export function BrowsersStatus({
           {t("automation.flow.statusRow", { n: browsers.length, online })}
           {outdated > 0 ? (
             <Link href={installHref} data-update-available>
-              <Badge variant="secondary">{t("automation.flow.needUpdate", { n: outdated })}</Badge>
+              <Badge variant="neutral">{t("automation.flow.needUpdate", { n: outdated })}</Badge>
             </Link>
           ) : null}
         </p>
@@ -136,7 +133,7 @@ export function BrowsersStatus({
           <DownloadIcon />
           {t("automation.ext.link")}
         </Button>
-        <Button variant="outline" size="sm" onClick={onManage} data-manage-browsers>
+        <Button variant="secondary" size="sm" onClick={onManage} data-manage-browsers>
           <SettingsIcon />
           {t("automation.flow.manage")}
         </Button>
@@ -229,7 +226,7 @@ export function BrowserRow({
             {revoked ? (
               <Badge variant="outline">{t("automation.revokedBadge")}</Badge>
             ) : (
-              <Badge variant={browser.status === "online" ? "default" : "outline"}>
+              <Badge variant={browser.status === "online" ? "brand" : "outline"}>
                 {browser.status === "online" ? t("automation.online") : t("automation.offline")}
               </Badge>
             )}
@@ -237,7 +234,7 @@ export function BrowserRow({
               // The extension reports its version on every connect, so this
               // clears by itself once the browser is updated (MH-399).
               <Link href={`/${locale}/w/${ws.slug}/automation/extension`} data-update-available>
-                <Badge variant="secondary">
+                <Badge variant="neutral">
                   {t("automation.ext.outdated", { version: browser.extension_version || "?" })}
                 </Badge>
               </Link>

@@ -9,8 +9,7 @@ import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { LeadStatusBadge, leadSource } from "@/components/leads/shared"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button, Input } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { LEAD_STATUSES, type Lead, type LeadStatus } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -61,7 +60,7 @@ export default function LeadsPage() {
         action={
           canManageForms ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               nativeButton={false}
               render={<Link href={`${base}/subscribe-forms`} />}
@@ -126,7 +125,7 @@ export default function LeadsPage() {
             action={
               canManageForms ? (
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   nativeButton={false}
                   render={<Link href={`${base}/subscribe-forms`} />}
@@ -168,7 +167,7 @@ function FilterButton({
     <Button
       type="button"
       size="sm"
-      variant={active ? "default" : "outline"}
+      variant={active ? "primary" : "secondary"}
       aria-pressed={active}
       onClick={onClick}
       data-filter={filter}

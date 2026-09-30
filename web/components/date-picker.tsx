@@ -2,12 +2,8 @@
 
 import { useState } from "react"
 import { CalendarIcon, XIcon } from "lucide-react"
-import { ar, enUS } from "react-day-picker/locale"
 
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button, ButtonGroup, Calendar, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
 import { cn } from "@/lib/utils"
@@ -76,7 +72,7 @@ export function DatePicker({
         <Button
           id={id}
           type="button"
-          variant="outline"
+          variant="secondary"
           disabled={disabled}
           data-date-picker
           data-value={value || undefined}
@@ -99,7 +95,7 @@ export function DatePicker({
           {trigger}
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="icon"
             disabled={disabled}
             aria-label={t("date.clear")}
@@ -116,19 +112,12 @@ export function DatePicker({
       <PopoverContent align="start" className="w-auto p-0">
         <Calendar
           mode="single"
-          selected={selected}
+          value={selected ?? null}
           defaultMonth={selected ?? after}
-          locale={locale === "ar" ? ar : enUS}
-          numerals="latn"
-          // Arabic's full day names ("أربعاء", "خميس") run into each other in a 28px column;
-          // the narrow ones are what an Arabic calendar prints. English keeps its default.
-          formatters={
-            locale === "ar"
-              ? { formatWeekdayName: (d) => dateFormat("ar", { weekday: "narrow" }).format(d) }
-              : undefined
-          }
-          disabled={[...(before ? [{ before }] : []), ...(after ? [{ after }] : [])]}
-          onSelect={(date) => {
+          locale={locale}
+          min={before}
+          max={after}
+          onValueChange={(date) => {
             onValueChange(date ? toISO(date) : "")
             setOpen(false)
           }}

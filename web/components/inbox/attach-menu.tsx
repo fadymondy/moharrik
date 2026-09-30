@@ -3,13 +3,7 @@
 import { useRef } from "react"
 import { FileIcon, ImageIcon, PaperclipIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@fadymondy/nasaq/web"
 import { LocationPicker } from "@/components/inbox/location-picker"
 import { useTranslations } from "@/lib/i18n"
 

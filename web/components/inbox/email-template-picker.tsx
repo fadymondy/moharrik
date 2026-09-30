@@ -3,19 +3,9 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ChevronDownIcon, MailIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"

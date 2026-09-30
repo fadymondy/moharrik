@@ -1,14 +1,10 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Checkbox, Field, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { PickSelect } from "@/components/crm/shared"
 import { Ltr } from "@/components/copy-field"
 import {
@@ -110,7 +106,7 @@ export function IdentitiesPanel({
               className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
               data-identity={`${i.channel}:${i.external_id}`}
             >
-              <Badge variant="secondary">{t(`channel.${i.channel}`)}</Badge>
+              <Badge variant="neutral">{t(`channel.${i.channel}`)}</Badge>
               <Ltr className="text-sm">{i.external_id}</Ltr>
               {i.label ? <span className="text-xs text-muted-foreground">{i.label}</span> : null}
               {i.is_primary ? (
@@ -168,7 +164,7 @@ export function IdentitiesPanel({
             </Field>
             {/* Horizontal: the vertical default gives every child w-full, which
                 stretched the checkbox and pushed "Primary" off-screen at 390. */}
-            <Field orientation="horizontal" className="self-end pb-2">
+            <Field className="flex-row items-center gap-3 self-end pb-2">
               <Checkbox
                 id="identity-primary"
                 checked={primary}
@@ -288,7 +284,7 @@ export function MetaPanel({
 
       {canWrite ? (
         <div className="mt-2 flex items-center gap-3">
-          <Button type="button" variant="outline" size="sm" onClick={addRow}>
+          <Button type="button" variant="secondary" size="sm" onClick={addRow}>
             {t("contacts.metaAdd")}
           </Button>
           <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>

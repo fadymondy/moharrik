@@ -13,7 +13,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { TargetIcon, UsersIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
@@ -21,11 +21,6 @@ import { LifecycleBadge, ScoreButton } from "@/components/crm/icp"
 import { Panel } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,

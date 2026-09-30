@@ -3,18 +3,8 @@
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 import { LogOutIcon, MessageSquarePlusIcon, UserIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
 
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { api, resetCsrf } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 

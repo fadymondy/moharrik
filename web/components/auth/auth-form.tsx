@@ -5,10 +5,8 @@ import { useState, type FormEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import useSWR, { useSWRConfig } from "swr"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Separator } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { api, ApiError, resetCsrf } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -168,7 +166,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               {providers.map((p) => (
                 <Button
                   key={p.id}
-                  variant="outline"
+                  variant="secondary"
                   size="lg"
                   className="w-full"
                   nativeButton={false}

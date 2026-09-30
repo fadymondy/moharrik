@@ -2,33 +2,12 @@
 
 import { useState, type FormEvent } from "react"
 import { MessageCircleIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, Switch, Textarea, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet } from "@/components/form-layout"
 
 import { Bdi } from "@/components/bidi"
 import { CopyField } from "@/components/copy-field"
 import { PickSelect } from "@/components/crm/shared"
-import { Button } from "@/components/ui/button"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -119,8 +98,8 @@ export function WidgetSettingsSheet({
   return (
     <Sheet open={!!widget} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isRtl ? "left" : "right"}
-        className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-xl data-[side=right]:sm:max-w-xl"
+        side="end"
+        className="w-full overflow-y-auto sm:w-[min(36rem,100vw)]"
         data-widget-settings
       >
         <SheetHeader className="pe-12">
@@ -381,34 +360,28 @@ function SettingsForm({
           <Field>
             <FieldLabel>{t("inbox.widgetTheme")}</FieldLabel>
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               value={[s.theme]}
               onValueChange={(v) => v[0] && set("theme", v[0] as ChatWidgetSettings["theme"])}
               aria-label={t("inbox.widgetTheme")}
             >
               {(["auto", "light", "dark"] as const).map((v) => (
-                <ToggleGroupItem key={v} value={v} data-theme-option={v}>
+                <Toggle key={v} value={v} data-theme-option={v}>
                   {t(`inbox.theme.${v}`)}
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
           </Field>
           <Field>
             <FieldLabel>{t("inbox.widgetPosition")}</FieldLabel>
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               value={[s.position]}
               onValueChange={(v) => v[0] && set("position", v[0] as ChatWidgetSettings["position"])}
               aria-label={t("inbox.widgetPosition")}
             >
               {(["end", "start"] as const).map((v) => (
-                <ToggleGroupItem key={v} value={v} data-position-option={v}>
+                <Toggle key={v} value={v} data-position-option={v}>
                   {t(`inbox.position.${v}`)}
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
             <FieldDescription>{t("inbox.positionHint")}</FieldDescription>
@@ -419,7 +392,7 @@ function SettingsForm({
       <FieldSet>
         <FieldLegend>{t("inbox.widgetBehaviour")}</FieldLegend>
         <FieldGroup>
-          <Field orientation="horizontal">
+          <Field className="flex-row items-center gap-3">
             <Switch id="ws-invite" checked={s.invite} onCheckedChange={(v) => set("invite", v)} />
             <div className="flex flex-col gap-1">
               <FieldLabel htmlFor="ws-invite">{t("inbox.invite")}</FieldLabel>
@@ -439,7 +412,7 @@ function SettingsForm({
               />
             </Field>
           ) : null}
-          <Field orientation="horizontal">
+          <Field className="flex-row items-center gap-3">
             <Switch
               id="ws-lead"
               checked={s.lead_event}
@@ -517,7 +490,7 @@ function SettingsForm({
           {s.quick_actions.length < 8 ? (
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="self-start"
               onClick={() =>
@@ -536,7 +509,7 @@ function SettingsForm({
 
       {err ? <FieldError>{err}</FieldError> : null}
       <SheetFooter className="flex-row justify-end gap-2 p-0">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="secondary" onClick={onCancel}>
           {t("common.cancel")}
         </Button>
         <Button type="submit" disabled={busy}>

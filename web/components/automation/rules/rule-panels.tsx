@@ -29,20 +29,7 @@ import {
 
 import { PickSelect } from "@/components/crm/shared"
 import { Bdi } from "@/components/bidi"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+import { Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, Switch, Textarea } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import {
@@ -138,7 +125,7 @@ function InsertField({ fields, onInsert }: { fields: string[]; onInsert: (f: str
         render={
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
             aria-label={t("rules.insertField")}
             data-insert-field
@@ -386,7 +373,7 @@ export function ConditionsPanel({
               {!readOnly ? (
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   className="text-nq-danger-text"
                   onClick={() =>
                     onChange({ conditions: draft.conditions.filter((_, j) => j !== i) })
@@ -432,7 +419,7 @@ export function ConditionsPanel({
       </ol>
       {!readOnly ? (
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() =>
             onChange({
@@ -493,7 +480,7 @@ export function ActionPanel({
           <>
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={() => onMove(index - 1)}
               disabled={index === 0}
               data-move-up
@@ -502,7 +489,7 @@ export function ActionPanel({
             </Button>
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={() => onMove(index + 1)}
               disabled={index === count - 1}
               data-move-down
@@ -997,7 +984,7 @@ export function TestPanel({
       <div className="space-y-3" data-sample>
         <p className="text-sm font-medium">{t("rules.sample")}</p>
         {shown.map((f) => (
-          <Field key={f.name} orientation="horizontal" className="items-center">
+          <Field key={f.name} className="flex-row items-center gap-3 items-center">
             <FieldLabel
               htmlFor={`sample-${f.name}`}
               className="w-32 shrink-0 text-xs font-normal text-muted-foreground"
@@ -1015,7 +1002,7 @@ export function TestPanel({
           </Field>
         ))}
         {fields.length > 6 ? (
-          <Button variant="link" size="xs" className="px-0" onClick={() => setShowAll(!showAll)}>
+          <Button variant="link" size="sm" className="px-0" onClick={() => setShowAll(!showAll)}>
             {showAll ? t("rules.fewerFields") : t("rules.allFields", { n: fields.length })}
           </Button>
         ) : null}

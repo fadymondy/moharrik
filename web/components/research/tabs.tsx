@@ -12,7 +12,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, type FormEvent } from "react"
 import { ArrowRightIcon, BookOpenIcon, LoaderCircleIcon, PlusIcon, SearchIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, Textarea, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -20,13 +21,6 @@ import { PickSelect } from "@/components/crm/shared"
 import { EvidenceItem } from "@/components/research/evidence"
 import { isLive, ResearchStatusBadge, useFormatDateTime } from "@/components/research/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -167,21 +161,18 @@ function AskBox({ caps, onStarted }: { caps: ResearchList; onStarted: () => void
           <div className="space-y-2">
             <p className="text-sm font-medium">{t("research.modeLabel")}</p>
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               value={[mode]}
               onValueChange={(v) => v[0] && setMode(v[0] as "search" | "urls")}
               aria-label={t("research.modeLabel")}
             >
-              <ToggleGroupItem value="search" data-mode-option="search">
+              <Toggle value="search" data-mode-option="search">
                 <SearchIcon />
                 {t("research.modeSearch")}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="urls" data-mode-option="urls">
+              </Toggle>
+              <Toggle value="urls" data-mode-option="urls">
                 <BookOpenIcon />
                 {t("research.modeUrls")}
-              </ToggleGroupItem>
+              </Toggle>
             </ToggleGroup>
           </div>
         ) : null}
@@ -261,7 +252,7 @@ function LiveNotice({ run }: { run: ResearchRun }) {
           </p>
         </div>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           nativeButton={false}
           render={<Link href={`/${locale}/w/${ws.slug}/research/${encodeURIComponent(run.id)}`} />}
@@ -412,7 +403,7 @@ export function EvidenceTab() {
           {items.length < total && limit < 100 ? (
             <div className="px-6 pt-4">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setLimit((l) => Math.min(l + PAGE, 100))}
               >
@@ -543,7 +534,7 @@ function BudgetPanel({
           </Field>
           <Button
             type="submit"
-            variant="outline"
+            variant="secondary"
             disabled={!valid || busy || n === budget.daily_run_budget}
           >
             {busy ? t("common.working") : t("common.save")}
@@ -598,7 +589,7 @@ function ScheduleRow({
       <div className="min-w-0 flex-1 space-y-1">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <Bdi>{schedule.name}</Bdi>
-          <Badge variant={schedule.enabled ? "default" : "outline"}>
+          <Badge variant={schedule.enabled ? "brand" : "outline"}>
             {schedule.enabled ? t("research.scheduleOn") : t("research.scheduleOff")}
           </Badge>
           <Badge variant="outline">{t(`research.cadence.${schedule.cadence}`)}</Badge>
@@ -607,7 +598,7 @@ function ScheduleRow({
           ) : null}
           {schedule.last_status ? (
             <Badge
-              variant={schedule.last_status === "started" ? "secondary" : "outline"}
+              variant={schedule.last_status === "started" ? "neutral" : "outline"}
               data-last-status={schedule.last_status}
             >
               {t(`research.last.${schedule.last_status}`)}
@@ -741,21 +732,18 @@ function NewSchedule({ caps, onCreated }: { caps: ResearchList; onCreated: () =>
         </FieldGroup>
         {modes.length > 1 ? (
           <ToggleGroup
-            variant="outline"
-            size="sm"
-            spacing={0}
             value={[mode]}
             onValueChange={(v) => v[0] && setMode(v[0] as "search" | "urls")}
             aria-label={t("research.modeLabel")}
           >
-            <ToggleGroupItem value="search">
+            <Toggle value="search">
               <SearchIcon />
               {t("research.modeSearch")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="urls">
+            </Toggle>
+            <Toggle value="urls">
               <BookOpenIcon />
               {t("research.modeUrls")}
-            </ToggleGroupItem>
+            </Toggle>
           </ToggleGroup>
         ) : null}
         {mode === "urls" ? (

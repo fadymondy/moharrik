@@ -9,22 +9,11 @@ one, and confirms before anything that publishes, sends or submits.
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Checkbox, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { isolate } from "@/components/bidi"
 import { PickSelect } from "@/components/crm/shared"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationPreset, type BrowserAgent } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"

@@ -3,35 +3,8 @@
 import Link from "next/link"
 import { useState } from "react"
 import { MailWarningIcon, PencilIcon, SendIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CampaignForm } from "@/components/campaigns/campaign-form"
@@ -48,11 +21,11 @@ import { Bdi, isolate } from "@/components/bidi"
 
 const PAGE_SIZE = 50
 
-const statusVariant: Record<CampaignStatus, "default" | "secondary" | "outline" | "destructive"> = {
+const statusVariant: Record<CampaignStatus, "brand" | "neutral" | "outline" | "danger"> = {
   draft: "outline",
-  sending: "secondary",
-  sent: "default",
-  failed: "destructive",
+  sending: "neutral",
+  sent: "brand",
+  failed: "danger",
 }
 
 export default function CampaignsPage() {
@@ -252,8 +225,8 @@ function EditCampaignSheet({
   return (
     <Sheet open={!!campaign} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <SheetContent
-        side={isRtl ? "left" : "right"}
-        className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-2xl data-[side=right]:sm:max-w-2xl"
+        side="end"
+        className="w-full overflow-y-auto sm:w-[min(42rem,100vw)]"
         data-edit-sheet
       >
         <SheetHeader className="pe-12">
@@ -510,7 +483,7 @@ function SendButton({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
         <SendIcon />
         {campaign.status === "failed" ? t("campaigns.retry") : t("campaigns.send")}
       </Button>

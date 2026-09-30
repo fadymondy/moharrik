@@ -4,7 +4,7 @@ import { Suspense, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { CheckCircle2Icon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -71,7 +71,7 @@ function Inner({ kind }: { kind: "confirm" | "unsubscribe" }) {
         <p className="text-sm text-muted-foreground">
           {kind === "confirm" ? t("mail.confirmBody") : t("mail.unsubscribeBody")}
         </p>
-        <Button onClick={act} disabled={busy} variant={kind === "confirm" ? "default" : "outline"}>
+        <Button onClick={act} disabled={busy} variant={kind === "confirm" ? "primary" : "secondary"}>
           {busy
             ? t("common.working")
             : kind === "confirm"

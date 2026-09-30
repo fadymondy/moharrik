@@ -9,19 +9,8 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Textarea, toast } from "@fadymondy/nasaq/web"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Textarea } from "@/components/ui/textarea"
 import { ConfirmButton } from "@/components/confirm-button"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Bdi } from "@/components/bidi"
@@ -83,7 +72,7 @@ export function ContactContextPanel({
           <h2 className="text-base font-medium">{t("contactContext.title")}</h2>
           {canWrite ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="ms-auto"
               onClick={() => setImportOpen(true)}
@@ -301,7 +290,7 @@ function AskPanel({ contactId }: { contactId: string }) {
                   className="flex flex-wrap items-start gap-2 text-xs text-muted-foreground"
                   data-citation-kind={c.kind}
                 >
-                  <Badge variant="secondary">{t(`contactContext.citationKind.${c.kind}`)}</Badge>
+                  <Badge variant="neutral">{t(`contactContext.citationKind.${c.kind}`)}</Badge>
                   {c.when ? (
                     <span>
                       <Ltr>{when.format(new Date(c.when.replace(" ", "T")))}</Ltr>
@@ -393,7 +382,7 @@ function ReportsPanel({
         <h3 className="text-sm font-medium text-muted-foreground">{t("contactContext.reportsTitle")}</h3>
         {canWrite ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             className="ms-auto"
             onClick={generate}
@@ -432,7 +421,7 @@ function ReportsPanel({
                   {t("contactContext.reportVersion", { version: r.version })}
                 </span>
                 {r.no_provider ? (
-                  <Badge variant="secondary" data-report-no-provider>
+                  <Badge variant="neutral" data-report-no-provider>
                     {t("contactContext.noProviderShort")}
                   </Badge>
                 ) : null}
@@ -448,7 +437,7 @@ function ReportsPanel({
                   </pre>
                   <Button
                     variant="ghost"
-                    size="xs"
+                    size="sm"
                     className="mt-2"
                     onClick={() => download(r)}
                     data-action="download-report"
@@ -574,7 +563,7 @@ function WhatsAppImportSheet({
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => fileInput.current?.click()}
               data-action="pick-whatsapp-file"
             >

@@ -12,7 +12,7 @@ import { ScheduleForm } from "@/components/automation/schedule-form"
 import { ScheduleRow } from "@/components/automation/schedule-row"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -67,7 +67,7 @@ export default function AutomationSchedulesPage() {
         action={
           canRun && (hasBrowser || canJob) && (schedules.data?.schedules ?? []).length > 0 ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setScheduling((v) => !v)}
               data-new-schedule

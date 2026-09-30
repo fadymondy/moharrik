@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { ToggleGroup, Toggle } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type CampaignChannel } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -78,9 +78,6 @@ export function CampaignPreview({
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-muted-foreground">{t("campaigns.previewLanguage")}</span>
         <ToggleGroup
-          variant="outline"
-          size="sm"
-          spacing={0}
           value={[lang]}
           onValueChange={(v) => {
             const next = v[0]
@@ -88,12 +85,12 @@ export function CampaignPreview({
           }}
           aria-label={t("campaigns.previewLanguage")}
         >
-          <ToggleGroupItem value="en" data-preview-lang="en">
+          <Toggle value="en" data-preview-lang="en">
             {t("lang.en")}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="ar" data-preview-lang="ar">
+          </Toggle>
+          <Toggle value="ar" data-preview-lang="ar">
             {t("lang.ar")}
-          </ToggleGroupItem>
+          </Toggle>
         </ToggleGroup>
         <span className="text-xs text-muted-foreground">
           {wa ? t("campaigns.previewWhatsAppHint") : t("campaigns.previewEmailHint")}

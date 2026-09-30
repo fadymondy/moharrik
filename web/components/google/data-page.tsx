@@ -21,15 +21,7 @@ import { Ltr } from "@/components/copy-field"
 import { KIND_ICON } from "@/components/google/resource-picker"
 import { useFormat } from "@/components/overview/overview-cards"
 import { EmptyState } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { GoogleKind, GoogleResource } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -125,9 +117,6 @@ export function WindowToggle({
   const { t } = useTranslations()
   return (
     <ToggleGroup
-      variant="outline"
-      size="sm"
-      spacing={0}
       value={[String(value)]}
       onValueChange={(v) => {
         const next = v[0]
@@ -136,9 +125,9 @@ export function WindowToggle({
       aria-label={t("gdata.window")}
     >
       {options.map((d) => (
-        <ToggleGroupItem key={d} value={String(d)} data-window={d}>
+        <Toggle key={d} value={String(d)} data-window={d}>
           {t("gdata.days", { n: d })}
-        </ToggleGroupItem>
+        </Toggle>
       ))}
     </ToggleGroup>
   )
@@ -173,7 +162,7 @@ export function DataError({
         ) : null}
         {ws.can("integrations:manage") ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             nativeButton={false}
             render={<Link href={`/${locale}/w/${ws.slug}/settings/integrations`} />}
@@ -223,7 +212,7 @@ export function Freshness({
           {t("gdata.updated", { when: f.ago(fetchedAt) })}
         </span>
         {onRefresh ? (
-          <Button variant="ghost" size="xs" onClick={onRefresh} disabled={refreshing} data-refresh>
+          <Button variant="ghost" size="sm" onClick={onRefresh} disabled={refreshing} data-refresh>
             <RefreshCwIcon className={refreshing ? "animate-spin" : undefined} />
             {refreshing ? t("gdata.refreshing") : t("gdata.refresh")}
           </Button>

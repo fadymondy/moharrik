@@ -24,15 +24,11 @@ import {
   PlusIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger, Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
 
 import { AddPresetDialog } from "@/components/automation/preset-add-dialog"
 import { BrandIcon } from "@/components/automation/brand-icon"
 import { plainOf } from "@/components/automation/preset-card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationPreset, type BrowserAgent } from "@/lib/api"
 import type { Brand } from "@/lib/brands"
@@ -100,7 +96,7 @@ export function PresetDetailSheet({
     <>
       <Sheet open onOpenChange={(v) => (v ? null : onClose())}>
         <SheetContent
-          side={locale === "ar" ? "left" : "right"}
+          side="end"
           className="w-full sm:max-w-md"
           data-preset-sheet={p.slug}
         >
@@ -114,7 +110,7 @@ export function PresetDetailSheet({
           <div className="flex-1 space-y-4 overflow-y-auto px-4">
             {plain.summary ? <p className="text-sm text-nq-fg-body">{plain.summary}</p> : null}
             <div className="flex flex-wrap items-center gap-1.5">
-              {p.writes ? <Badge variant="secondary">{t("presets.publishes")}</Badge> : null}
+              {p.writes ? <Badge variant="neutral">{t("presets.publishes")}</Badge> : null}
               {p.dry_run_of ? <Badge variant="outline">{t("presets.rehearsal")}</Badge> : null}
               {p.workflow_id ? (
                 <Badge variant="outline" data-preset-added>
@@ -142,7 +138,7 @@ export function PresetDetailSheet({
                 <ChevronDownIcon className="size-3 transition-transform group-aria-expanded:rotate-180" />
                 {t("presets.technical")}
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 space-y-1 border-s-2 border-nq-line ps-3" dir="ltr">
+              <CollapsiblePanel className="mt-2 space-y-1 border-s-2 border-nq-line ps-3" dir="ltr">
                 <p className="text-xs font-medium text-foreground">
                   {p.name} <span className="font-mono font-normal text-muted-foreground">({p.slug})</span>
                 </p>
@@ -154,7 +150,7 @@ export function PresetDetailSheet({
                     })}
                   </p>
                 ) : null}
-              </CollapsibleContent>
+              </CollapsiblePanel>
             </Collapsible>
           </div>
           <SheetFooter className="flex-row justify-end gap-2 border-t border-nq-line">
@@ -173,7 +169,7 @@ export function PresetDetailSheet({
               <>
                 {canAddAndRun ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     onClick={addAndRun}
                     disabled={runningAfterAdd}
                     data-add-and-run={p.slug}

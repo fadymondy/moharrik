@@ -23,13 +23,11 @@ already saved is not shown; left blank it is kept, typed over it is replaced.
 import Link from "next/link"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { CheckIcon, PlusIcon, XIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import { Ltr } from "@/components/copy-field"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,

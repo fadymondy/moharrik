@@ -16,14 +16,10 @@ import {
   TriangleAlertIcon,
   YoutubeIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Input, Switch, toast } from "@fadymondy/nasaq/web"
 
 import { Ltr } from "@/components/copy-field"
 import { useFormat } from "@/components/overview/overview-cards"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -87,7 +83,7 @@ export function ResourcePicker({ emails }: { emails: Record<string, string> }) {
           <h3 className="text-sm font-medium">{t("resources.title")}</h3>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("resources.hint")}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={discover} disabled={looking} data-discover>
+        <Button variant="secondary" size="sm" onClick={discover} disabled={looking} data-discover>
           <RefreshCwIcon className={looking ? "animate-spin" : undefined} />
           {looking ? t("resources.looking") : t("resources.lookAgain")}
         </Button>
@@ -207,7 +203,7 @@ function DiscoveryError({ d, email }: { d: GoogleDiscovery; email?: string }) {
 export function SyncStatus({ r }: { r: GoogleResource }) {
   const { t } = useTranslations()
   const f = useFormat()
-  if (r.reauth) return <Badge variant="destructive">{t("integrations.statusReauth")}</Badge>
+  if (r.reauth) return <Badge variant="danger">{t("integrations.statusReauth")}</Badge>
   if (!r.available) return <Badge variant="outline">{t("resources.unavailable")}</Badge>
   if (r.syncing)
     return (
@@ -217,7 +213,7 @@ export function SyncStatus({ r }: { r: GoogleResource }) {
       </span>
     )
   if (!r.enabled) return null
-  if (r.last_error) return <Badge variant="destructive">{t("resources.failed")}</Badge>
+  if (r.last_error) return <Badge variant="danger">{t("resources.failed")}</Badge>
   if (!r.last_synced_at)
     return <span className="text-xs text-muted-foreground">{t("resources.notSyncedYet")}</span>
   return (

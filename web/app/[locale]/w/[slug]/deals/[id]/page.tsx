@@ -10,11 +10,7 @@ import { Timeline } from "@/components/crm/timeline"
 import { ConfirmButton } from "@/components/confirm-button"
 import { NotFoundState } from "@/components/not-found-state"
 import { SectionHeader } from "@/components/public-frame"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type StageKind } from "@/lib/api"
@@ -52,10 +48,10 @@ export default function DealDetailPage() {
   if (!detail.data || !pipeline.data) return <LoadingRows rows={6} />
 
   const { deal, activities } = detail.data
-  const closedTone: Record<StageKind, "default" | "secondary" | "outline"> = {
+  const closedTone: Record<StageKind, "brand" | "neutral" | "outline"> = {
     open: "outline",
-    won: "default",
-    lost: "secondary",
+    won: "brand",
+    lost: "neutral",
   }
 
   return (

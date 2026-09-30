@@ -2,24 +2,13 @@
 
 import { useState, type FormEvent } from "react"
 import { PencilIcon, PlusIcon, SparklesIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type EmailTemplate } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -143,7 +132,7 @@ function EmailTemplateRow({
         </p>
         {canManage ? (
           <div className="ms-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onEdit} data-action="edit-email-template">
+            <Button variant="secondary" size="sm" onClick={onEdit} data-action="edit-email-template">
               <PencilIcon />
               {t("inbox.emailTemplates.edit")}
             </Button>
@@ -347,7 +336,7 @@ function EmailTemplateForm({
 
       {template ? (
         <div className="space-y-2">
-          <Button type="button" variant="outline" size="sm" onClick={runPreview} disabled={previewing} data-action="preview-email-template">
+          <Button type="button" variant="secondary" size="sm" onClick={runPreview} disabled={previewing} data-action="preview-email-template">
             <SparklesIcon />
             {previewing ? t("common.working") : t("inbox.emailTemplates.preview")}
           </Button>

@@ -12,7 +12,7 @@ import {
 
 import { Bdi } from "@/components/bidi"
 import { useFormatDateTime } from "@/components/research/shared"
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { Evidence, ResearchCost, ResearchStage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -22,7 +22,7 @@ export function SignalBadge({ signal }: { signal: string }) {
   const { t } = useTranslations()
   if (!signal) return null
   return (
-    <Badge variant="secondary" data-signal={signal}>
+    <Badge variant="neutral" data-signal={signal}>
       {t(`research.signal.${signal}`)}
     </Badge>
   )

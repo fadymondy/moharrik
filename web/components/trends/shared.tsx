@@ -10,11 +10,8 @@ import {
   ExternalLinkIcon,
   RotateCcwIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, toast, TooltipRoot, TooltipContent, TooltipTrigger } from "@fadymondy/nasaq/web"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -93,15 +90,15 @@ export function ReasonChips({ reasons }: { reasons: TrendReason[] }) {
     <ul className="flex flex-wrap gap-1.5" aria-label={t("trends.whyRanked")} data-trend-reasons>
       {reasons.map((r) => (
         <li key={r.kind}>
-          <Tooltip>
+          <TooltipRoot>
             <TooltipTrigger
               render={
                 <Badge
                   variant={
                     r.kind === "relevance"
-                      ? "default"
+                      ? "brand"
                       : r.kind === "velocity"
-                        ? "secondary"
+                        ? "neutral"
                         : "outline"
                   }
                   className="h-auto max-w-full whitespace-normal py-0.5 text-start"
@@ -120,7 +117,7 @@ export function ReasonChips({ reasons }: { reasons: TrendReason[] }) {
               <p className="font-medium">{t(`trends.reasonKind.${r.kind}`)}</p>
               {r.detail.length ? <p className="mt-0.5">{r.detail.join(" · ")}</p> : null}
             </TooltipContent>
-          </Tooltip>
+          </TooltipRoot>
         </li>
       ))}
     </ul>
@@ -190,7 +187,7 @@ export function TopicActions({
         {saved ? t("trends.topicSaved") : t("trends.topicSave")}
       </Button>
       <Button
-        variant={reviewed ? "ghost" : "outline"}
+        variant={reviewed ? "ghost" : "secondary"}
         size={size}
         aria-pressed={reviewed}
         disabled={busy}
@@ -379,11 +376,11 @@ export function SourceStatus({ source }: { source: FeedSource }) {
   const [variant, key] = !source.enabled
     ? (["outline", "off"] as const)
     : source.last_status === "failed"
-      ? (["destructive", "failed"] as const)
+      ? (["danger", "failed"] as const)
       : source.last_status === "over_budget"
-        ? (["secondary", "overBudget"] as const)
+        ? (["neutral", "overBudget"] as const)
         : source.last_status === "ok"
-          ? (["default", "ok"] as const)
+          ? (["brand", "ok"] as const)
           : (["outline", "waiting"] as const)
   return (
     <Badge

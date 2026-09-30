@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { ChevronDownIcon, ChevronUpIcon, XIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button, Input } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { ApiError, type InboxMessage } from "@/lib/api"
 import { searchConversation } from "@/lib/queries"

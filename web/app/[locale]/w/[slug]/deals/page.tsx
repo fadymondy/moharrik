@@ -2,23 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { LayoutGridIcon, ListIcon, SettingsIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, FieldError, Input, toast } from "@fadymondy/nasaq/web"
 
 import { DealForm, DealsTable, PipelineBoard } from "@/components/crm/deals"
 import { PickSelect, stageTone } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { FieldError } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -140,7 +129,7 @@ export default function DealsPage() {
               <Button
                 type="button"
                 size="icon-sm"
-                variant={view === "board" ? "default" : "outline"}
+                variant={view === "board" ? "primary" : "secondary"}
                 role="radio"
                 aria-checked={view === "board"}
                 aria-label={t("deals.viewBoard")}
@@ -151,7 +140,7 @@ export default function DealsPage() {
               <Button
                 type="button"
                 size="icon-sm"
-                variant={view === "list" ? "default" : "outline"}
+                variant={view === "list" ? "primary" : "secondary"}
                 role="radio"
                 aria-checked={view === "list"}
                 aria-label={t("deals.viewList")}
@@ -161,7 +150,7 @@ export default function DealsPage() {
               </Button>
             </div>
             {canManagePipeline ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => setManaging(true)}>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setManaging(true)}>
                 <SettingsIcon />
                 {t("pipeline.manage")}
               </Button>
@@ -399,7 +388,7 @@ function ManagePipelineDialog({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-xs"
+                size="icon-sm"
                 aria-label={t("pipeline.moveUp")}
                 disabled={i === 0}
                 onClick={() => move(i, -1)}
@@ -409,7 +398,7 @@ function ManagePipelineDialog({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-xs"
+                size="icon-sm"
                 aria-label={t("pipeline.moveDown")}
                 disabled={i === rows.length - 1}
                 onClick={() => move(i, 1)}
@@ -419,7 +408,7 @@ function ManagePipelineDialog({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-xs"
+                size="icon-sm"
                 className="text-nq-danger-text"
                 aria-label={t("common.delete")}
                 disabled={rows.length <= 1}
@@ -429,7 +418,7 @@ function ManagePipelineDialog({
               </Button>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" onClick={add}>
+          <Button type="button" variant="secondary" size="sm" onClick={add}>
             {t("pipeline.addStage")}
           </Button>
         </div>

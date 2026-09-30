@@ -15,16 +15,12 @@
 import Link from "next/link"
 import { useEffect, useState, type FormEvent } from "react"
 import { ChartLineIcon, CheckCircle2Icon, SendIcon, TriangleAlertIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { Ltr } from "@/components/copy-field"
 import { PickSelect } from "@/components/crm/shared"
 import { useFormat } from "@/components/overview/overview-cards"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -275,7 +271,7 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
             {ready ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 onClick={() => void sendTest()}
                 disabled={testing}
                 data-ga4-test
@@ -330,7 +326,7 @@ function ToggleRow({
   hint: string
 }) {
   return (
-    <Field orientation="horizontal" className="items-start">
+    <Field className="flex-row items-center gap-3 items-start">
       <Switch id={id} checked={checked} onCheckedChange={onChange} data-toggle={id} />
       <div className="min-w-0 space-y-0.5">
         <FieldLabel htmlFor={id}>{title}</FieldLabel>
@@ -379,12 +375,12 @@ function TestOutcome({ r }: { r: Ga4TestResult }) {
 
 const STATUS_VARIANT: Record<
   Ga4ConversionEvent["status"],
-  "default" | "secondary" | "outline" | "destructive"
+  "brand" | "neutral" | "outline" | "danger"
 > = {
-  sent: "secondary",
+  sent: "neutral",
   pending: "outline",
   skipped: "outline",
-  failed: "destructive",
+  failed: "danger",
 }
 
 function Recent({ list }: { list: Ga4ConversionEvent[] }) {

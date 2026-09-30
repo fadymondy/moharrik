@@ -3,9 +3,7 @@
 import { useRef, type KeyboardEvent } from "react"
 import { BoldIcon, Heading2Icon, ItalicIcon, LinkIcon, ListIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
-import { Textarea } from "@/components/ui/textarea"
+import { Button, ButtonGroup, Textarea } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -141,7 +139,7 @@ export function MarkdownEditor({
               <Button
                 key={action}
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="icon-sm"
                 aria-label={label}
                 title={label}

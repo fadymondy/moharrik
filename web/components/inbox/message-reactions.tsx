@@ -5,9 +5,7 @@ import { PlusIcon, ReplyIcon, SmilePlusIcon, XIcon } from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
 import { EmojiGrid } from "@/components/inbox/emoji-picker"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Button, Popover, PopoverContent, PopoverTrigger, TooltipRoot, TooltipContent, TooltipTrigger } from "@fadymondy/nasaq/web"
 import type { Conversation, InboxMessage, InboxReaction, InboxReplyTo } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -166,7 +164,7 @@ export function ReactionChips({
       data-reactions
     >
       {reactions.map((r) => (
-        <Tooltip key={r.emoji}>
+        <TooltipRoot key={r.emoji}>
           <TooltipTrigger
             render={
               <button
@@ -195,7 +193,7 @@ export function ReactionChips({
               </span>
             ) : null}
           </TooltipContent>
-        </Tooltip>
+        </TooltipRoot>
       ))}
     </div>
   )

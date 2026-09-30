@@ -3,33 +3,13 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { MessageSquareTextIcon, PencilIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type FormKind, type MailList, type SubscribeForm } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -67,7 +47,7 @@ export default function SubscribeFormsPage() {
             <div className="flex flex-wrap items-center gap-2">
               {/* An inquiry form needs no list, so it is available from the start. */}
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => setEditing("new-inquiry")}
                 disabled={!forms.data}
                 data-new-form="inquiry"
@@ -196,7 +176,7 @@ function FormRow({
         <p className="text-sm font-medium">
           <Bdi>{form.name}</Bdi>
         </p>
-        <Badge variant="secondary">
+        <Badge variant="neutral">
           {inquiry ? t("forms.kind.inquiry") : t("forms.kind.subscribe")}
         </Badge>
         <Badge variant="outline">
@@ -204,7 +184,7 @@ function FormRow({
             ? t("forms.toLeads")
             : t("forms.toList", { list: isolate(form.list_name) || "—" })}
         </Badge>
-        <Badge variant={form.enabled ? "default" : "outline"}>
+        <Badge variant={form.enabled ? "brand" : "outline"}>
           {form.enabled ? t("forms.enabled") : t("forms.disabled")}
         </Badge>
         {blocked ? (

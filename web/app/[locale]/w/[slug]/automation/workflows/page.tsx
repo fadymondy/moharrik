@@ -18,9 +18,7 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Badge, Button, Input, toast } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { Bdi, isolate } from "@/components/bidi"
 import { api, ApiError, type AutomationWorkflow } from "@/lib/api"
@@ -31,7 +29,6 @@ import { intlTag } from "@/lib/i18n-locale"
 import { useWorkflows } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { cn } from "@/lib/utils"
-import { toast } from "@fadymondy/nasaq/web"
 
 export default function WorkflowsPage() {
   return (
@@ -123,7 +120,7 @@ function Workflows() {
     <div className="flex flex-wrap items-center gap-2">
       {/* New workflow → from a preset (MH-478): the preset gallery. */}
       <Button
-        variant="outline"
+        variant="secondary"
         nativeButton={false}
         render={<Link href={`${base}/presets`} />}
         data-create-from-preset
@@ -319,7 +316,7 @@ function WorkflowRow({
             {t("automation.editor.versionBadge", { n: workflow.version })}
           </Badge>
           {workflow.writes ? (
-            <Badge variant="secondary" data-workflow-writes>
+            <Badge variant="neutral" data-workflow-writes>
               {t("presets.publishes")}
             </Badge>
           ) : null}
@@ -456,7 +453,7 @@ function AllExecutions({
       </div>
       {more ? (
         <div className="px-6 pt-4">
-          <Button variant="outline" size="sm" onClick={onMore}>
+          <Button variant="secondary" size="sm" onClick={onMore}>
             {t("common.loadMore")}
           </Button>
         </div>

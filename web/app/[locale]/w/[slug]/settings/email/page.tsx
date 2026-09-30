@@ -11,43 +11,9 @@ import {
   StarIcon,
   XCircleIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldError, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -241,12 +207,12 @@ function ServiceList({
                 <Bdi>{s.name}</Bdi>
               </span>
               {s.is_default ? (
-                <Badge variant="default" data-role="default">
+                <Badge variant="brand" data-role="brand">
                   {t("smtp.roleDefault")}
                 </Badge>
               ) : null}
               {s.is_campaign_default ? (
-                <Badge variant="secondary" data-role="campaign">
+                <Badge variant="neutral" data-role="campaign">
                   {t("smtp.roleCampaign")}
                 </Badge>
               ) : null}
@@ -300,7 +266,7 @@ function ServiceList({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  variant="destructive"
+                  variant="danger"
                   disabled={defaultLocked(s)}
                   onClick={() => setRemoving(s)}
                   data-remove-service
@@ -327,7 +293,7 @@ function ServiceList({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={busy} onClick={remove}>
+            <AlertDialogAction variant="danger" disabled={busy} onClick={remove}>
               {busy ? t("common.working") : t("smtp.remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -351,8 +317,8 @@ function ServiceSheet({
   return (
     <Sheet open={!!editing} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <SheetContent
-        side={isRtl ? "left" : "right"}
-        className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-xl data-[side=right]:sm:max-w-xl"
+        side="end"
+        className="w-full overflow-y-auto sm:w-[min(36rem,100vw)]"
         data-service-sheet
       >
         <SheetHeader className="pe-12">
@@ -625,7 +591,7 @@ function TestSection({ services, onTested }: { services: SmtpService[]; onTested
               onChange={(e) => setTo(e.target.value)}
             />
           </Field>
-          <Button type="submit" variant="outline" disabled={busy || !target.trim() || !chosen}>
+          <Button type="submit" variant="secondary" disabled={busy || !target.trim() || !chosen}>
             {busy ? t("common.working") : t("smtp.test")}
           </Button>
         </FieldGroup>

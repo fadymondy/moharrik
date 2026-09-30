@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { CubeMark } from "@/components/brand/cube-mark"
 import { MOHARRIK_MARK } from "@/lib/brand/mark"
 import { useTranslations } from "@/lib/i18n"
@@ -30,7 +30,7 @@ export function NotFoundState({
       <h1 className="font-medium tracking-tight text-foreground text-2xl">{title ?? t("notFound.title")}</h1>
       <p className="leading-relaxed text-nq-fg-body max-w-md text-sm">{body ?? t("notFound.body")}</p>
       <Button
-        variant="outline"
+        variant="secondary"
         nativeButton={false}
         render={<Link href={backHref ?? `/${locale}/workspaces`} />}
       >

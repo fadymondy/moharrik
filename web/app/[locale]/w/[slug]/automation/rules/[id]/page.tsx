@@ -18,7 +18,7 @@ import {
   LoaderCircleIcon,
   SaveIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Input, Switch, toast } from "@fadymondy/nasaq/web"
 
 import { RuleCanvas, type RuleSelection } from "@/components/automation/rules/rule-canvas"
 import {
@@ -41,9 +41,6 @@ import { isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
 import { NotFoundState } from "@/components/not-found-state"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -461,7 +458,7 @@ function RuleBuilder() {
           ) : null}
           {canEdit ? (
             <Button
-              variant={selected === "test" ? "secondary" : "outline"}
+              variant={selected === "test" ? "secondary" : "secondary"}
               size="sm"
               onClick={() => {
                 setView("editor")

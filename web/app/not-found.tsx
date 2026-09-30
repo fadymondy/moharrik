@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { useTranslations } from "@/lib/i18n"
 import { useDocumentTitle } from "@/lib/title"
@@ -14,7 +14,7 @@ export default function NotFound() {
     <PublicFrame eyebrow="404" title={t("notFound.title")} description={t("notFound.body")}>
       <PublicPanel className="flex justify-center py-10">
         <Button
-          variant="outline"
+          variant="secondary"
           nativeButton={false}
           render={<Link href={`/${locale}/workspaces`} />}
         >

@@ -1,13 +1,13 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@fadymondy/nasaq/web"
 import type { ProspectReason, ProspectStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
 /** 0-100, as a number people read at a glance. */
 export function ScoreBadge({ score }: { score: number }) {
   const { t, formatNumber } = useTranslations()
-  const tone = score >= 70 ? "default" : score >= 40 ? "secondary" : "outline"
+  const tone = score >= 70 ? "brand" : score >= 40 ? "neutral" : "outline"
   return (
     <Badge
       variant={tone}
@@ -23,7 +23,7 @@ export function ScoreBadge({ score }: { score: number }) {
 export function StatusBadge({ status }: { status: ProspectStatus }) {
   const { t } = useTranslations()
   return (
-    <Badge variant={status === "accepted" ? "default" : "outline"}>
+    <Badge variant={status === "accepted" ? "brand" : "outline"}>
       {t(`prospects.status.${status}`)}
     </Badge>
   )

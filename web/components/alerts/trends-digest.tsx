@@ -12,14 +12,11 @@ Everything here is the member's own; the API reads and writes only their row.
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { MailIcon, SendIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
 import useSWR from "swr"
 
 import { PickSelect } from "@/components/crm/shared"
 import { Bdi } from "@/components/bidi"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -314,7 +311,7 @@ function DigestForm({ data, onSaved }: { data: Digest; onSaved: (d: Digest) => v
           {busy === "save" ? t("common.working") : t("common.save")}
         </Button>
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={() => void test()}
           disabled={!data.email_ready || busy !== "" || dirty}
           title={dirty ? t("digest.saveFirst") : undefined}

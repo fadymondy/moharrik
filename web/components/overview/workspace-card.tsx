@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Building2Icon, KeyRoundIcon, UsersIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { Ltr } from "@/components/copy-field"
 import { Panel } from "@/components/overview/overview-cards"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -76,7 +76,7 @@ export function WorkspaceCard({
       <div className="flex flex-wrap gap-2 px-5 py-4">
         {ws.can("members:read") ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             nativeButton={false}
             render={<Link href={`${base}/members`} />}
@@ -86,7 +86,7 @@ export function WorkspaceCard({
           </Button>
         ) : null}
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           nativeButton={false}
           render={<Link href={`${base}/settings/mcp`} />}

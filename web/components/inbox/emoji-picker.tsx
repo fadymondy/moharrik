@@ -3,9 +3,7 @@
 import { useMemo, useState } from "react"
 import { SmilePlusIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button, Input, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /*

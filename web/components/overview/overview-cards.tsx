@@ -28,9 +28,7 @@ import {
 import { Ltr } from "@/components/copy-field"
 import { formatMoney } from "@/components/crm/shared"
 import { LeadStatusBadge, leadSource } from "@/components/leads/shared"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@fadymondy/nasaq/web"
 import {
   LEAD_STATUSES,
   type NotificationSeverity,
@@ -147,7 +145,7 @@ export function Empty({
       {body ? <p className="max-w-md text-sm text-muted-foreground">{body}</p> : null}
       {action ? (
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           className="mt-2"
           nativeButton={false}
@@ -830,7 +828,7 @@ export function MarketingCard({
           <p className="text-sm text-muted-foreground">{t("overview.noDrafts")}</p>
           {canWriteCampaigns ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               nativeButton={false}
               render={<Link href={`${base}/campaigns`} />}
@@ -926,7 +924,7 @@ export function TrendsCard({
               )}
               <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                 {it.topics.map((name) => (
-                  <Badge key={name} variant="secondary">
+                  <Badge key={name} variant="neutral">
                     <bdi>{name}</bdi>
                   </Badge>
                 ))}
@@ -1062,7 +1060,7 @@ export function SetupCard({
               aria-hidden
             />
           </CollapsibleTrigger>
-          <CollapsibleContent>
+          <CollapsiblePanel>
             <ul
               className="flex flex-wrap gap-x-6 gap-y-2 px-5 pb-4"
               aria-label={t("overview.done")}
@@ -1082,7 +1080,7 @@ export function SetupCard({
                 </li>
               ))}
             </ul>
-          </CollapsibleContent>
+          </CollapsiblePanel>
         </Collapsible>
       ) : null}
     </Panel>

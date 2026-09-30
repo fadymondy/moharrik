@@ -3,7 +3,7 @@
 import { InfoIcon } from "lucide-react"
 
 import { CopyField, Ltr } from "@/components/copy-field"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsPanel, TabsList, TabsTab } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /**
@@ -65,51 +65,51 @@ export function ConnectClients({
   return (
     <Tabs defaultValue="claude-code" className="gap-3">
       <div className="-mx-1 overflow-x-auto overflow-y-hidden px-1 pb-1.5">
-        <TabsList variant="line" className="h-9">
+        <TabsList variant="underline" className="h-9">
           {clients.map((c) => (
-            <TabsTrigger key={c.id} value={c.id} className="px-2.5">
+            <TabsTab key={c.id} value={c.id} className="px-2.5">
               <Ltr>{c.label}</Ltr>
-            </TabsTrigger>
+            </TabsTab>
           ))}
         </TabsList>
       </div>
 
-      <TabsContent value="claude-code" className="space-y-3">
+      <TabsPanel value="claude-code" className="space-y-3">
         <Step n={1}>{t("mcp.client.claudeCode.step1")}</Step>
         <CopyField value={claudeCode} label="Claude Code" />
         <Step n={2}>{t("mcp.client.claudeCode.step2")}</Step>
-      </TabsContent>
+      </TabsPanel>
 
-      <TabsContent value="claude-desktop" className="space-y-3">
+      <TabsPanel value="claude-desktop" className="space-y-3">
         <Step n={1}>{t("mcp.client.claudeDesktop.step1")}</Step>
         <Step n={2}>{t("mcp.client.claudeDesktop.step2")}</Step>
         <CopyField value={claudeDesktop} label="claude_desktop_config.json" />
         <Step n={3}>{t("mcp.client.claudeDesktop.step3")}</Step>
-      </TabsContent>
+      </TabsPanel>
 
-      <TabsContent value="claude-ai" className="space-y-3" data-connect-oauth="claude-ai">
+      <TabsPanel value="claude-ai" className="space-y-3" data-connect-oauth="claude-ai">
         <Note>{t("mcp.client.oauthNote")}</Note>
         <Step n={1}>{t("mcp.client.claudeAi.step1")}</Step>
         <Step n={2}>{t("mcp.client.claudeAi.step2")}</Step>
         <CopyField value={oauthUrl ?? url} label={t("mcp.client.serverUrl")} />
         <Step n={3}>{t("mcp.client.claudeAi.step3")}</Step>
         <Step n={4}>{lastOAuthStep}</Step>
-      </TabsContent>
+      </TabsPanel>
 
-      <TabsContent value="chatgpt" className="space-y-3" data-connect-oauth="chatgpt">
+      <TabsPanel value="chatgpt" className="space-y-3" data-connect-oauth="chatgpt">
         <Note>{t("mcp.client.oauthNote")}</Note>
         <Step n={1}>{t("mcp.client.chatgpt.step1")}</Step>
         <Step n={2}>{t("mcp.client.chatgpt.step2")}</Step>
         <CopyField value={oauthUrl ?? url} label={t("mcp.client.serverUrl")} />
         <Step n={3}>{t("mcp.client.chatgpt.step3")}</Step>
         <Step n={4}>{lastOAuthStep}</Step>
-      </TabsContent>
+      </TabsPanel>
 
-      <TabsContent value="cursor" className="space-y-3">
+      <TabsPanel value="cursor" className="space-y-3">
         <Step n={1}>{t("mcp.client.cursor.step1")}</Step>
         <CopyField value={cursor} label="mcp.json" />
         <Step n={2}>{t("mcp.client.cursor.step2")}</Step>
-      </TabsContent>
+      </TabsPanel>
     </Tabs>
   )
 }

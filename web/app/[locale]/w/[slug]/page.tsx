@@ -1,7 +1,6 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Badge, Skeleton } from "@fadymondy/nasaq/web"
 import { SectionHeader } from "@/components/public-frame"
 import {
   InboxCard,

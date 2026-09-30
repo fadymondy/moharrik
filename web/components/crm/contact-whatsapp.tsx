@@ -3,28 +3,8 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { CheckCircle2Icon, InfoIcon, MessageCircleIcon, XCircleIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, Field, FieldDescription, FieldError, FieldLabel, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Textarea, toast } from "@fadymondy/nasaq/web"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Textarea } from "@/components/ui/textarea"
 import { Ltr } from "@/components/copy-field"
 import { Bdi } from "@/components/bidi"
 import { WhatsAppConsent } from "@/components/crm/whatsapp-consent"
@@ -123,7 +103,7 @@ export function ContactWhatsAppPanel({
         </div>
         {canWrite ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={!data?.can_send}
             onClick={() => setOpen(true)}
@@ -243,8 +223,8 @@ function MessageSheet({
       }}
     >
       <SheetContent
-        side={isRtl ? "left" : "right"}
-        className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-lg data-[side=right]:sm:max-w-lg"
+        side="end"
+        className="w-full overflow-y-auto sm:w-[min(32rem,100vw)]"
         data-whatsapp-sheet
       >
         <SheetHeader className="pe-12">

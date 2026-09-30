@@ -33,12 +33,7 @@ import {
   type BarRow,
 } from "@/components/reports/report-charts"
 import { ErrorState } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Button, Field, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger, Skeleton, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { CrmReport, ReportChannel } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -138,17 +133,14 @@ function Reports() {
           canRead ? (
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto" data-range-controls>
               <ToggleGroup
-                variant="outline"
-                size="sm"
-                spacing={0}
                 value={custom ? [] : [String(days)]}
                 onValueChange={(v) => v[0] && go({ days: v[0] })}
                 aria-label={t("reports.range")}
               >
                 {PRESETS.map((d) => (
-                  <ToggleGroupItem key={d} value={String(d)} data-preset={d}>
+                  <Toggle key={d} value={String(d)} data-preset={d}>
                     {d === 365 ? t("reports.last12Months") : t("reports.lastDays", { n: d })}
-                  </ToggleGroupItem>
+                  </Toggle>
                 ))}
               </ToggleGroup>
               <CustomRange
@@ -197,7 +189,7 @@ function CustomRange({
       <PopoverTrigger
         render={
           <Button
-            variant={active ? "secondary" : "outline"}
+            variant={active ? "secondary" : "secondary"}
             size="sm"
             data-custom-range
             aria-pressed={active}
@@ -264,17 +256,14 @@ function ViewToggle({
   const { t } = useTranslations()
   return (
     <ToggleGroup
-      variant="outline"
-      size="sm"
-      spacing={0}
       className="ms-auto"
       value={[value]}
       onValueChange={(v) => v[0] && onChange(v[0] as "chart" | "table")}
       aria-label={t("reports.view")}
       data-view-toggle={id}
     >
-      <ToggleGroupItem value="chart">{t("reports.chart")}</ToggleGroupItem>
-      <ToggleGroupItem value="table">{t("reports.table")}</ToggleGroupItem>
+      <Toggle value="chart">{t("reports.chart")}</Toggle>
+      <Toggle value="table">{t("reports.table")}</Toggle>
     </ToggleGroup>
   )
 }
@@ -580,16 +569,13 @@ function TimelinePanel({ rep, f }: { rep: CrmReport; f: Fmt }) {
         any ? (
           <div className="ms-auto flex flex-wrap items-center gap-2">
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               value={[metric]}
               onValueChange={(v) => v[0] && setMetric(v[0] as "count" | "value")}
               aria-label={t("reports.metric")}
               data-metric-toggle
             >
-              <ToggleGroupItem value="count">{t("reports.count")}</ToggleGroupItem>
-              <ToggleGroupItem value="value">{t("reports.value")}</ToggleGroupItem>
+              <Toggle value="count">{t("reports.count")}</Toggle>
+              <Toggle value="value">{t("reports.value")}</Toggle>
             </ToggleGroup>
             <ViewToggle id="timeline" value={view} onChange={setView} />
           </div>

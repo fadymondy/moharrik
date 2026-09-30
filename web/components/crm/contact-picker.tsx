@@ -9,7 +9,7 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from "@/components/ui/combobox"
+} from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import { useContact, useContactsPage } from "@/lib/queries"
@@ -96,7 +96,7 @@ export function ContactPicker({
         id={id}
         className="w-full"
         placeholder={t("contacts.pickPlaceholder")}
-        showClear={!!chosen}
+        clearable={!!chosen}
       />
       <ComboboxContent>
         <ComboboxEmpty>

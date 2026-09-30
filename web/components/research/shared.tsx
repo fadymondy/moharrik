@@ -2,18 +2,18 @@
 
 import { InfoIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@fadymondy/nasaq/web"
 import type { ResearchList, ResearchStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
 
 export const isLive = (status?: string) => status === "queued" || status === "running"
 
-const TONE: Record<ResearchStatus, "default" | "secondary" | "outline" | "destructive"> = {
-  queued: "secondary",
-  running: "secondary",
-  ok: "default",
-  failed: "destructive",
+const TONE: Record<ResearchStatus, "brand" | "neutral" | "outline" | "danger"> = {
+  queued: "neutral",
+  running: "neutral",
+  ok: "brand",
+  failed: "danger",
   cancelled: "outline",
 }
 

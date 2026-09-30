@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { ArrowRightIcon, InfoIcon, LoaderCircleIcon, RadarIcon, UserIcon } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Tabs, TabsList, TabsTab, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { ProfileForm } from "@/components/prospects/profile-form"
@@ -12,8 +12,6 @@ import { SectionHeader } from "@/components/public-frame"
 import { SignalBadge } from "@/components/research/evidence"
 import { isLive } from "@/components/research/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Prospect } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -120,16 +118,16 @@ export default function ProspectsPage() {
 
       <Tabs value={status} onValueChange={(v) => setStatus(String(v))} className="gap-0">
         <div className="px-6 pb-3">
-          <TabsList variant="line">
+          <TabsList variant="underline">
             {STATUSES.map((s) => (
-              <TabsTrigger key={s} value={s} data-tab={s}>
+              <TabsTab key={s} value={s} data-tab={s}>
                 {t(`prospects.status.${s}`)}
                 {counts && s !== "all" ? (
                   <span className="ms-1 text-muted-foreground tabular-nums">
                     {formatNumber(counts[s] ?? 0)}
                   </span>
                 ) : null}
-              </TabsTrigger>
+              </TabsTab>
             ))}
           </TabsList>
         </div>

@@ -28,7 +28,7 @@ import {
 } from "@/components/overview/overview-charts"
 import { WorkspaceCard } from "@/components/overview/workspace-card"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Skeleton } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"

@@ -18,29 +18,8 @@ import {
   Trash2Icon,
   UserIcon,
 } from "lucide-react"
-import { toast } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
 
-import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { isMuted, LabelsDialog } from "@/components/inbox/chat-row-menu"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, downloadFile, type Conversation } from "@/lib/api"
@@ -244,15 +223,15 @@ export function ThreadHeaderMenu({
           {canManage ? (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem data-action="block" variant="destructive" onClick={() => setConfirm("block")}>
+              <DropdownMenuItem data-action="block" variant="danger" onClick={() => setConfirm("block")}>
                 <BanIcon />
                 {c.blocked ? t("inbox.org.unblock") : t("inbox.org.block")}
               </DropdownMenuItem>
-              <DropdownMenuItem data-action="clear" variant="destructive" onClick={() => setConfirm("clear")}>
+              <DropdownMenuItem data-action="clear" variant="danger" onClick={() => setConfirm("clear")}>
                 <EraserIcon />
                 {t("inbox.org.clear")}
               </DropdownMenuItem>
-              <DropdownMenuItem data-action="delete" variant="destructive" onClick={() => setConfirm("delete")}>
+              <DropdownMenuItem data-action="delete" variant="danger" onClick={() => setConfirm("delete")}>
                 <Trash2Icon />
                 {t("inbox.org.delete")}
               </DropdownMenuItem>
@@ -291,7 +270,7 @@ export function ThreadHeaderMenu({
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               data-confirm
-              variant={confirm === "block" && c.blocked ? "default" : "destructive"}
+              variant={confirm === "block" && c.blocked ? "primary" : "danger"}
               onClick={runConfirm}
             >
               {confirm === "block"

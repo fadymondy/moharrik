@@ -1,16 +1,13 @@
 "use client"
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react"
-import { toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldError, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 import { useSWRConfig } from "swr"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { CompanyPicker } from "@/components/crm/company-picker"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
-import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { DatePicker } from "@/components/date-picker"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
@@ -171,7 +168,7 @@ function ContactAvatarControl({
           />
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
