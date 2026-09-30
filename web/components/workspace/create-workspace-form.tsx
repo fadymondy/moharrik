@@ -4,9 +4,8 @@ import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+import { Button, Field, FieldDescription, FieldLabel, Input } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 import { api, ApiError, type WorkspaceSummary } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -66,10 +65,10 @@ export function CreateWorkspaceForm({
             placeholder={t("workspaces.namePlaceholder")}
           />
         </Field>
-        <Field data-invalid={!!error || undefined}>
+        <Field invalid={!!(!!error)}>
           <FieldLabel htmlFor="ws-slug">
             {t("workspaces.slug")}{" "}
-            <span className="font-normal text-grid-muted">({t("common.optional")})</span>
+            <span className="font-normal text-muted-foreground">({t("common.optional")})</span>
           </FieldLabel>
           <Input
             id="ws-slug"

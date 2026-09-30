@@ -3,15 +3,12 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { BookmarkIcon, RadioIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Input, Tabs, TabsList, TabsPanel, TabsTab, toast } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { ItemLine, TopicCard, useDayLabel, useWhen } from "@/components/trends/shared"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NewsItem, type TrendTopic, type TrendTopicPage } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -56,7 +53,7 @@ export default function TrendsPage() {
         action={
           canManage ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               nativeButton={false}
               render={<Link href={`/${locale}/w/${ws.slug}/trends/sources`} />}
@@ -69,13 +66,13 @@ export default function TrendsPage() {
       />
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-0">
         <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-3">
-          <TabsList variant="line">
-            <TabsTrigger value="topics" data-tab="topics">
+          <TabsList variant="underline">
+            <TabsTab value="topics" data-tab="topics">
               {t("trends.tabTopics")}
-            </TabsTrigger>
-            <TabsTrigger value="items" data-tab="items">
+            </TabsTab>
+            <TabsTab value="items" data-tab="items">
               {t("trends.tabItems")}
-            </TabsTrigger>
+            </TabsTab>
           </TabsList>
           <p
             className="flex items-center gap-1.5 text-xs text-muted-foreground"
@@ -86,12 +83,12 @@ export default function TrendsPage() {
             {updatedAt ? t("trends.liveUpdated", { when: when(updatedAt) }) : t("trends.live")}
           </p>
         </div>
-        <TabsContent value="topics">
+        <TabsPanel value="topics">
           <TopicsTab onLive={() => setUpdatedAt(new Date().toISOString())} />
-        </TabsContent>
-        <TabsContent value="items">
+        </TabsPanel>
+        <TabsPanel value="items">
           <ItemsTab />
-        </TabsContent>
+        </TabsPanel>
       </Tabs>
       <div className="pb-8" />
     </>
@@ -226,7 +223,7 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
           action={
             noSources && canManage ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 nativeButton={false}
                 render={<Link href={`/${locale}/w/${ws.slug}/trends/sources`} />}
@@ -250,10 +247,10 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
           <div className="flex flex-col gap-6" data-trend-topics>
             {groups.map((g) => (
               <section key={g.day} aria-labelledby={`day-${g.day}`}>
-                <h2 id={`day-${g.day}`} className="grid-micro px-6 pb-1">
+                <h2 id={`day-${g.day}`} className="eyebrow px-6 pb-1">
                   {dayLabel(g.day)}
                 </h2>
-                <ul className="divide-y divide-line border-y border-line">
+                <ul className="divide-y divide-nq-line border-y border-nq-line">
                   {g.topics.map((topic) => (
                     <TopicCard
                       key={topic.id}
@@ -269,7 +266,7 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
           {hasMore ? (
             <div className="flex justify-center px-6 pt-5">
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => void pages.setSize(pages.size + 1)}
                 disabled={loadingMore}
                 data-load-more="topics"
@@ -350,7 +347,7 @@ function ItemsTab() {
         />
         <Button
           type="button"
-          variant={saved ? "default" : "outline"}
+          variant={saved ? "primary" : "secondary"}
           aria-pressed={saved}
           onClick={() => setSaved((v) => !v)}
           data-filter="saved"
@@ -374,7 +371,7 @@ function ItemsTab() {
               total: formatNumber(total),
             })}
           </p>
-          <ul className="divide-y divide-line border-y border-line" data-news-list>
+          <ul className="divide-y divide-nq-line border-y border-nq-line" data-news-list>
             {items.map((item) => (
               <NewsRow key={item.id} item={item} onChange={() => void pages.mutate()} />
             ))}
@@ -382,7 +379,7 @@ function ItemsTab() {
           {hasMore ? (
             <div className="flex justify-center px-6 pt-5">
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => void pages.setSize(pages.size + 1)}
                 disabled={loadingMore}
                 data-load-more="items"

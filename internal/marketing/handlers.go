@@ -863,6 +863,13 @@ func Register(api huma.API, a *app.App) {
 // a second thinner copy that drifts from this one. Progress lands on
 // the row, so "how far has it got" is a read, not a held connection.
 func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SMTP) error {
+	// A hub-linked workspace needs the `campaigns` feature and headroom on `emails_sent`
+	// (internal/circlexo); nil, and no check, unless the integration is on.
+	if BeforeCampaignSend != nil {
+		if err := BeforeCampaignSend(ctx, wsID); err != nil {
+			return err
+		}
+	}
 	// Over the stated limit is refused before the claim (MH-467), so the
 	// campaign stays a draft and nobody is half-sent to.
 	var tooLarge *AudienceTooLargeError
@@ -922,6 +929,7 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 		wsID, campaignID, int64(len(list)), skipped)
 	PublishCampaigns(a, wsID, campaignID)
 
+	attempt := time.Now().UTC().Format("20060102T150405.000000000") // one id per send, so a re-send meters again
 	go func() {
 		// A system context scoped to the one workspace: the RLS pool still applies.
 		bg := tenant.WithWorkspace(context.Background(), wsID)
@@ -961,6 +969,9 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 		_, _ = a.SQLDB.ExecContext(bg, `
 			UPDATE campaigns SET status = $3, sent_count = $4, failed_count = $5, last_error = $6, sent_at = now(), updated_at = now()
 			WHERE workspace_id = $1 AND id = $2`, wsID, campaignID, status, sent, failed, lastErr)
+		if AfterCampaignSend != nil && sent > 0 {
+			AfterCampaignSend(wsID, campaignID, sent, attempt)
+		}
 		PublishCampaigns(a, wsID, campaignID)
 	}()
 	return nil
@@ -1159,3 +1170,12 @@ func AddContact(ctx context.Context, a *app.App, in AddContactInput) (*AddContac
 	PublishContacts(a, s.WorkspaceID)
 	return &res, nil
 }
+
+// Hooks for the CircleXO hub integration (internal/circlexo); both are nil, and do nothing,
+// unless CIRCLEXO_ISSUER is set. BeforeCampaignSend may refuse a send (return a huma error);
+// AfterCampaignSend is told how many messages a finished send delivered (attempt is unique per
+// send) and must not block.
+var (
+	BeforeCampaignSend func(ctx context.Context, workspaceID string) error
+	AfterCampaignSend  func(workspaceID, campaignID string, sent int64, attempt string)
+)

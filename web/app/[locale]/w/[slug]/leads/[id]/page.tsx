@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, type ReactNode } from "react"
 import { ArrowRightLeftIcon, Building2Icon, HandshakeIcon, UserIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, toast } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
 import { Ltr } from "@/components/copy-field"
@@ -12,7 +12,6 @@ import { LeadStatusBadge, leadSource } from "@/components/leads/shared"
 import { NotFoundState } from "@/components/not-found-state"
 import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Lead, type LeadConversion, type LeadStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -69,10 +68,10 @@ export default function LeadDetailPage() {
 
       {lead.status === "converted" ? <Converted lead={lead} base={base} /> : null}
 
-      <section className="border-t border-line">
+      <section className="border-t border-nq-line">
         <h2 className="px-6 pt-5 pb-2 text-base font-medium">{t("leads.message")}</h2>
         <p
-          className="px-6 pb-6 text-sm leading-6 break-words whitespace-pre-wrap text-grid-fg"
+          className="px-6 pb-6 text-sm leading-6 break-words whitespace-pre-wrap text-foreground"
           data-lead-message
           dir="auto"
         >
@@ -80,8 +79,8 @@ export default function LeadDetailPage() {
         </p>
       </section>
 
-      <div className="grid border-t border-line md:grid-cols-2">
-        <section className="border-b border-line md:border-e md:border-b-0">
+      <div className="grid border-t border-nq-line md:grid-cols-2">
+        <section className="border-b border-nq-line md:border-e md:border-b-0">
           <h2 className="px-6 pt-5 pb-2 text-base font-medium">{t("leads.details")}</h2>
           <Facts
             rows={[
@@ -107,7 +106,7 @@ export default function LeadDetailPage() {
           <Attribution lead={lead} />
         </section>
       </div>
-      <div className="border-t border-line pb-8" />
+      <div className="border-t border-nq-line pb-8" />
     </>
   )
 }
@@ -184,7 +183,7 @@ function LeadActions({ lead, onChange }: { lead: Lead; onChange: () => void }) {
       </div>
       {canConvert ? (
         lead.status === "spam" ? (
-          <p className="text-xs text-grid-muted">{t("leads.spamNoConvert")}</p>
+          <p className="text-xs text-muted-foreground">{t("leads.spamNoConvert")}</p>
         ) : (
           <Button onClick={convert} disabled={busy !== null} data-convert-lead>
             <ArrowRightLeftIcon />
@@ -201,19 +200,19 @@ function Converted({ lead, base }: { lead: Lead; base: string }) {
   const link = (href: string, icon: ReactNode, label: string, name: string, attr: string) => (
     <Link
       href={href}
-      className="flex min-w-0 items-center gap-2.5 px-6 py-4 transition-colors hover:bg-grid-soft [&_svg]:size-4 [&_svg]:shrink-0"
+      className="flex min-w-0 items-center gap-2.5 px-6 py-4 transition-colors hover:bg-nq-surface-soft [&_svg]:size-4 [&_svg]:shrink-0"
       data-converted={attr}
     >
       {icon}
       <span className="min-w-0">
-        <span className="block text-xs text-grid-muted">{label}</span>
+        <span className="block text-xs text-muted-foreground">{label}</span>
         <BdiBlock className="block truncate text-sm font-medium">{name}</BdiBlock>
       </span>
     </Link>
   )
   return (
-    <section className="border-t border-line bg-grid-card" data-lead-converted>
-      <p className="px-6 pt-4 text-sm text-grid-body">
+    <section className="border-t border-nq-line bg-card" data-lead-converted>
+      <p className="px-6 pt-4 text-sm text-nq-fg-body">
         {t("leads.convertedOn", { date: formatDate(lead.converted_at) })}
       </p>
       <div className="grid sm:grid-cols-3">
@@ -236,7 +235,7 @@ function Converted({ lead, base }: { lead: Lead; base: string }) {
           )
         ) : (
           <div
-            className="flex items-center gap-2.5 px-6 py-4 text-grid-muted [&_svg]:size-4 [&_svg]:shrink-0"
+            className="flex items-center gap-2.5 px-6 py-4 text-muted-foreground [&_svg]:size-4 [&_svg]:shrink-0"
             data-converted="no-company"
           >
             <Building2Icon />
@@ -265,8 +264,8 @@ function Facts({ rows }: { rows: [string, ReactNode | null][] }) {
     <dl className="grid grid-cols-[minmax(7rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 px-6 pb-6 text-sm">
       {rows.map(([k, v]) => (
         <div key={k} className="contents">
-          <dt className="text-grid-muted">{k}</dt>
-          <dd className="min-w-0 break-words">{v ?? <span className="text-grid-muted">—</span>}</dd>
+          <dt className="text-muted-foreground">{k}</dt>
+          <dd className="min-w-0 break-words">{v ?? <span className="text-muted-foreground">—</span>}</dd>
         </div>
       ))}
     </dl>
@@ -277,7 +276,7 @@ function Attribution({ lead }: { lead: Lead }) {
   const { t } = useTranslations()
   const a = lead.attribution
   const any = Object.values(a).some((v) => v)
-  if (!any) return <p className="px-6 pb-6 text-sm text-grid-muted">{t("leads.noAttribution")}</p>
+  if (!any) return <p className="px-6 pb-6 text-sm text-muted-foreground">{t("leads.noAttribution")}</p>
   const url = (v: string) =>
     v ? (
       <span dir="ltr" className="ltr-isolate block truncate rtl:text-right" title={v}>

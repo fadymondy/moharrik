@@ -1,14 +1,11 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { PickSelect } from "@/components/crm/shared"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Mailbox, type MailboxInput } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -196,7 +193,7 @@ export function MailboxChannelForm({
               ]}
             />
             {tls === "none" ? (
-              <FieldDescription className="text-grid-danger-text">
+              <FieldDescription className="text-nq-danger-text">
                 {t("mailbox.noneWarning")}
               </FieldDescription>
             ) : null}
@@ -247,7 +244,7 @@ export function MailboxChannelForm({
             </Button>
           ) : null}
         </div>
-        <FieldDescription>{t("mailbox.replyHint")}</FieldDescription>
+        <FormHint>{t("mailbox.replyHint")}</FormHint>
       </form>
     </div>
   )

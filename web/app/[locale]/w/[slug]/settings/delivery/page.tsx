@@ -2,22 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { BellRingIcon, MonitorSmartphoneIcon, SendIcon, Volume2Icon } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   currentSubscription,
@@ -87,11 +76,11 @@ function Row({
   children: ReactNode
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-6 py-4 [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-grid-muted">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-6 py-4 [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
       {icon}
       <div className="min-w-0 flex-1 basis-60">
         <p className="text-sm font-medium">{title}</p>
-        <div className="text-sm text-grid-muted">{hint}</div>
+        <div className="text-sm text-muted-foreground">{hint}</div>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>
     </div>
@@ -192,11 +181,11 @@ export default function DeliveryPage() {
   else if (status.data && supported) {
     pushControl = on ? (
       <>
-        <Badge variant="secondary" data-push-state="on">
+        <Badge variant="neutral" data-push-state="on">
           {t("delivery.pushOn")}
         </Badge>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={!!busy}
           onClick={() => mine && void remove(mine, true)}
@@ -228,7 +217,7 @@ export default function DeliveryPage() {
       {!ws.current ? (
         <LoadingRows rows={3} />
       ) : !allowed ? (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("alerts.nothingToRead")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("alerts.nothingToRead")}</p>
       ) : status.error ? (
         <ErrorState error={status.error} />
       ) : !status.data ? (
@@ -236,10 +225,10 @@ export default function DeliveryPage() {
       ) : (
         <>
           <section aria-labelledby="this-device" data-section="this-device">
-            <h2 id="this-device" className="grid-micro px-6 pb-2">
+            <h2 id="this-device" className="eyebrow px-6 pb-2">
               {t("delivery.thisDevice")}
             </h2>
-            <div className="divide-y divide-line border-y border-line">
+            <div className="divide-y divide-nq-line border-y border-nq-line">
               <Row icon={<MonitorSmartphoneIcon />} title={t("delivery.push")} hint={pushHint}>
                 {pushControl}
               </Row>
@@ -255,12 +244,12 @@ export default function DeliveryPage() {
                 }
               >
                 {perm === "granted" ? (
-                  <Badge variant="secondary" data-desktop-state="granted">
+                  <Badge variant="neutral" data-desktop-state="granted">
                     {t("delivery.desktopAllowed")}
                   </Badge>
                 ) : perm === "default" ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     onClick={() => void requestPerm()}
                     data-allow-desktop
@@ -290,15 +279,15 @@ export default function DeliveryPage() {
                 <h2 id="devices" className="text-base font-medium">
                   {t("delivery.devices")}
                 </h2>
-                <p className="text-sm text-grid-muted">{t("delivery.devicesHint")}</p>
+                <p className="text-sm text-muted-foreground">{t("delivery.devicesHint")}</p>
               </div>
               {status.data.configured && devices.length ? (
                 <div className="flex items-center gap-2">
-                  <span className="hidden text-xs text-grid-muted sm:inline">
+                  <span className="hidden text-xs text-muted-foreground sm:inline">
                     {t("delivery.testHint")}
                   </span>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     disabled={!!busy}
                     onClick={() => void test()}
@@ -313,7 +302,7 @@ export default function DeliveryPage() {
             {devices.length === 0 ? (
               <EmptyState title={t("delivery.noDevices")} />
             ) : (
-              <div className="border-y border-line">
+              <div className="border-y border-nq-line">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -348,15 +337,15 @@ export default function DeliveryPage() {
                             </span>
                             {/* Below md the column is hidden; the problem still shows. */}
                             {d.last_error ? (
-                              <span className="mt-0.5 block text-xs text-grid-danger-text md:hidden">
+                              <span className="mt-0.5 block text-xs text-nq-danger-text md:hidden">
                                 {d.last_error}
                               </span>
                             ) : null}
                           </TableCell>
-                          <TableCell className="hidden text-grid-muted sm:table-cell">
+                          <TableCell className="hidden text-muted-foreground sm:table-cell">
                             <Ltr>{formatDate(d.created_at)}</Ltr>
                           </TableCell>
-                          <TableCell className="text-grid-muted">
+                          <TableCell className="text-muted-foreground">
                             {d.last_ok_at ? (
                               <Ltr>{formatDate(d.last_ok_at)}</Ltr>
                             ) : (
@@ -364,7 +353,7 @@ export default function DeliveryPage() {
                             )}
                           </TableCell>
                           <TableCell
-                            className="hidden max-w-64 truncate text-grid-muted md:table-cell"
+                            className="hidden max-w-64 truncate text-muted-foreground md:table-cell"
                             title={d.last_error}
                           >
                             {d.last_error || "—"}
@@ -373,7 +362,7 @@ export default function DeliveryPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-grid-danger-text"
+                              className="text-nq-danger-text"
                               disabled={!!busy}
                               onClick={() => void remove(d, self)}
                             >

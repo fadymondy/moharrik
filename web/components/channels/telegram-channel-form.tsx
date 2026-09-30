@@ -1,12 +1,10 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type TelegramChannel } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -115,7 +113,7 @@ export function TelegramChannelForm({
           <Field>
             <FieldLabel htmlFor="tg-token">
               {t("channels.telegram.botToken")}
-              {channel ? <span className="text-grid-muted"> ({t("common.optional")})</span> : null}
+              {channel ? <span className="text-muted-foreground"> ({t("common.optional")})</span> : null}
             </FieldLabel>
             <Input
               id="tg-token"

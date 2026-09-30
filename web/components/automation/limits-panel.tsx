@@ -13,12 +13,9 @@ no control that would fail.
 
 import { useEffect, useState, type FormEvent } from "react"
 import { CheckIcon, GaugeIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationSettings } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -99,9 +96,9 @@ export function LimitsPanel({
             <GaugeIcon className="size-4" />
             {t("automation.limits.title")}
           </h2>
-          <p className="max-w-2xl text-sm text-grid-muted">{t("automation.limits.hint")}</p>
+          <p className="max-w-2xl text-sm text-muted-foreground">{t("automation.limits.hint")}</p>
         </div>
-        <p className="text-sm text-grid-muted" data-live-runs={settings.live_runs}>
+        <p className="text-sm text-muted-foreground" data-live-runs={settings.live_runs}>
           {t("automation.limits.live", {
             n: formatNumber(settings.live_runs),
             max: formatNumber(settings.max_parallel_runs),
@@ -111,7 +108,7 @@ export function LimitsPanel({
       <form
         onSubmit={save}
         noValidate
-        className="border-y border-line px-6 py-5"
+        className="border-y border-nq-line px-6 py-5"
         data-form="limits"
       >
         <FieldGroup>
@@ -144,7 +141,7 @@ export function LimitsPanel({
               </Button>
             </div>
           ) : (
-            <p className="text-xs text-grid-muted">{t("automation.limits.adminOnly")}</p>
+            <p className="text-xs text-muted-foreground">{t("automation.limits.adminOnly")}</p>
           )}
         </FieldGroup>
         {err ? <FieldError className="mt-3">{err}</FieldError> : null}
@@ -199,7 +196,7 @@ function SitesSwitches({
     >
       <div className="min-w-0">
         <p className="text-sm font-medium">{title}</p>
-        <p className="max-w-2xl text-sm text-grid-muted">{hint}</p>
+        <p className="max-w-2xl text-sm text-muted-foreground">{hint}</p>
       </div>
       <Switch
         checked={on}
@@ -211,7 +208,7 @@ function SitesSwitches({
   )
 
   return (
-    <div className="divide-y divide-line border-b border-line" data-sites-settings>
+    <div className="divide-y divide-nq-line border-b border-nq-line" data-sites-settings>
       {row(
         "auto_add_sites",
         settings.auto_add_sites,

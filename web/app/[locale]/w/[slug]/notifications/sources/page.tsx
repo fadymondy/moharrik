@@ -8,44 +8,14 @@ import {
   ShieldCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type WebhookSource, type WebhookSourceKind } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -86,7 +56,7 @@ export default function WebhookSourcesPage() {
       >
         <div className="max-w-2xl">
           <h2 className="text-lg font-semibold">{t("notifications.webhooks")}</h2>
-          <p className="mt-1 text-sm text-grid-muted">{t("notifications.sourcesHint")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("notifications.sourcesHint")}</p>
         </div>
         {canManage ? (
           <Button onClick={() => setCreating(true)} disabled={!sources.data}>
@@ -106,7 +76,7 @@ export default function WebhookSourcesPage() {
           body={canManage ? t("notifications.noSourcesBody") : undefined}
         />
       ) : (
-        <div className="border-y border-line">
+        <div className="border-y border-nq-line">
           <Table>
             <TableHeader>
               <TableRow>
@@ -226,7 +196,7 @@ function SourceRow({
         <div className="font-medium">
           <Bdi>{source.name}</Bdi>
         </div>
-        <Ltr className="text-xs text-grid-muted" mono>
+        <Ltr className="text-xs text-muted-foreground" mono>
           {source.url}
         </Ltr>
         {source.legacy_signing ? (
@@ -234,7 +204,7 @@ function SourceRow({
         ) : null}
         {isSentry && !source.has_secret ? (
           <p
-            className="mt-1 flex max-w-[min(28rem,75vw)] items-start gap-1 text-xs whitespace-normal text-grid-warn-text"
+            className="mt-1 flex max-w-[min(28rem,75vw)] items-start gap-1 text-xs whitespace-normal text-nq-warning-text"
             data-no-secret
           >
             <KeyRoundIcon className="mt-0.5 size-3 shrink-0" />
@@ -242,13 +212,13 @@ function SourceRow({
           </p>
         ) : null}
         {source.last_error ? (
-          <p className="mt-1 flex items-start gap-1 text-xs text-grid-danger-text">
+          <p className="mt-1 flex items-start gap-1 text-xs text-nq-danger-text">
             <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" />
             <Bdi>{source.last_error}</Bdi>
           </p>
         ) : null}
       </TableCell>
-      <TableCell className="text-grid-muted">{t(`notifications.kind.${source.kind}`)}</TableCell>
+      <TableCell className="text-muted-foreground">{t(`notifications.kind.${source.kind}`)}</TableCell>
       <TableCell>
         {canManage ? (
           <Switch
@@ -257,12 +227,12 @@ function SourceRow({
             aria-label={source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
           />
         ) : (
-          <Badge variant={source.enabled ? "default" : "outline"}>
+          <Badge variant={source.enabled ? "brand" : "outline"}>
             {source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
           </Badge>
         )}
       </TableCell>
-      <TableCell className="text-grid-muted">
+      <TableCell className="text-muted-foreground">
         {source.delivery_count}
         {source.last_delivery_at ? (
           <span className="block text-xs">{formatDate(source.last_delivery_at)}</span>
@@ -339,7 +309,7 @@ function LegacyNotice({
   return (
     <div className="mt-1.5 space-y-1" data-legacy-signing>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="border-grid-warn text-grid-warn-text">
+        <Badge variant="outline" className="border-nq-warning text-nq-warning-text">
           <TriangleAlertIcon />
           {t("notifications.legacySigning")}
         </Badge>
@@ -355,7 +325,7 @@ function LegacyNotice({
           </Button>
         ) : null}
       </div>
-      <p className="max-w-[min(28rem,75vw)] text-xs whitespace-normal text-grid-muted">
+      <p className="max-w-[min(28rem,75vw)] text-xs whitespace-normal text-muted-foreground">
         {source.kind === "generic"
           ? t("notifications.legacySigningHint")
           : t("notifications.legacySigningHintPlatform")}{" "}
@@ -528,7 +498,7 @@ function SecretDialog({
           </DialogHeader>
           {kind !== "sentry" ? (
             <p
-              className="flex items-start gap-2 border border-line bg-grid-card p-3 text-sm text-grid-warn-text"
+              className="flex items-start gap-2 border border-nq-line bg-card p-3 text-sm text-nq-warning-text"
               role="alert"
             >
               <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
@@ -536,26 +506,26 @@ function SecretDialog({
             </p>
           ) : null}
           <div className="space-y-1.5">
-            <p className="grid-micro">
+            <p className="eyebrow">
               {kind === "sentry" ? t("notifications.webhookUrl") : t("notifications.url")}
             </p>
             <CopyField value={source.url} label={t("notifications.url")} />
           </div>
           {kind !== "sentry" ? (
             <div className="space-y-1.5">
-              <p className="grid-micro">{t("notifications.secret")}</p>
+              <p className="eyebrow">{t("notifications.secret")}</p>
               <CopyField value={secret} label={t("notifications.secret")} />
             </div>
           ) : null}
           <div className="space-y-1.5">
-            <p className="grid-micro">{t("notifications.howToTitle")}</p>
-            <p className="text-sm text-grid-muted" data-how-to={kind}>
+            <p className="eyebrow">{t("notifications.howToTitle")}</p>
+            <p className="text-sm text-muted-foreground" data-how-to={kind}>
               {t(`notifications.howTo.${kind}`)}
             </p>
           </div>
           {kind === "generic" ? (
             <div className="space-y-1.5">
-              <p className="grid-micro">{t("notifications.curlExample")}</p>
+              <p className="eyebrow">{t("notifications.curlExample")}</p>
               <CopyField
                 value={genericCurl(source.url, secret)}
                 label={t("notifications.curlExample")}
@@ -570,7 +540,7 @@ function SecretDialog({
                 onClose()
               }}
               secondary={
-                <Button type="button" variant="outline" onClick={onClose}>
+                <Button type="button" variant="secondary" onClick={onClose}>
                   {t("notifications.later")}
                 </Button>
               }

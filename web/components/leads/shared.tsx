@@ -1,15 +1,15 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@fadymondy/nasaq/web"
 import type { Lead, LeadAttribution, LeadStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
-const statusVariant: Record<LeadStatus, "default" | "secondary" | "outline" | "destructive"> = {
-  new: "default",
-  contacted: "secondary",
-  qualified: "secondary",
+const statusVariant: Record<LeadStatus, "brand" | "neutral" | "outline" | "danger"> = {
+  new: "brand",
+  contacted: "neutral",
+  qualified: "neutral",
   converted: "outline",
-  spam: "destructive",
+  spam: "danger",
 }
 
 export function LeadStatusBadge({ status, className }: { status: LeadStatus; className?: string }) {

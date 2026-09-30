@@ -11,7 +11,7 @@ import {
   LoaderCircleIcon,
   MailIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, Skeleton, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { DecideButtons } from "@/components/prospects/decide"
@@ -20,9 +20,6 @@ import { SectionHeader } from "@/components/public-frame"
 import { EvidenceItem, SignalBadge } from "@/components/research/evidence"
 import { useFormatDateTime } from "@/components/research/shared"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type ProspectDraft } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -74,7 +71,7 @@ export default function ProspectPage() {
               <SignalBadge key={s} signal={s} />
             ))}
             {p.decided_at ? (
-              <span className="text-xs text-grid-muted">
+              <span className="text-xs text-muted-foreground">
                 {t("prospects.decided", { date: fmt(p.decided_at) })}
               </span>
             ) : null}
@@ -83,13 +80,13 @@ export default function ProspectPage() {
                 canDecide ? (
                   <DecideButtons p={p} onDone={() => detail.mutate()} />
                 ) : (
-                  <p className="text-xs text-grid-muted">{t("prospects.readOnly")}</p>
+                  <p className="text-xs text-muted-foreground">{t("prospects.readOnly")}</p>
                 )
               ) : p.status === "accepted" ? (
                 <div className="flex flex-wrap gap-2 text-sm">
                   {p.crm_company_id ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       nativeButton={false}
                       render={<Link href={`${base}/companies/${p.crm_company_id}`} />}
@@ -99,7 +96,7 @@ export default function ProspectPage() {
                   ) : null}
                   {p.crm_contact_id ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       nativeButton={false}
                       render={<Link href={`${base}/contacts/${p.crm_contact_id}`} />}
@@ -109,7 +106,7 @@ export default function ProspectPage() {
                   ) : null}
                   {p.crm_deal_id ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       nativeButton={false}
                       render={<Link href={`${base}/deals/${p.crm_deal_id}`} />}
@@ -119,14 +116,14 @@ export default function ProspectPage() {
                   ) : null}
                 </div>
               ) : p.reject_reason ? (
-                <p className="text-xs text-grid-muted" dir="auto">
+                <p className="text-xs text-muted-foreground" dir="auto">
                   {p.reject_reason}
                 </p>
               ) : null}
             </div>
           </div>
 
-          <div className="grid gap-px border-y border-line bg-line lg:grid-cols-2">
+          <div className="grid gap-px border-y border-nq-line bg-nq-line lg:grid-cols-2">
             <section className="bg-background px-6 py-5">
               <h2 className="pb-3 text-base font-medium">{t("prospects.why")}</h2>
               <ReasonList reasons={p.reasons} />
@@ -139,24 +136,24 @@ export default function ProspectPage() {
                     <p className="font-medium">
                       <Bdi>{p.contact.name}</Bdi>
                       {p.contact.title ? (
-                        <span className="font-normal text-grid-muted"> · {p.contact.title}</span>
+                        <span className="font-normal text-muted-foreground"> · {p.contact.title}</span>
                       ) : null}
                     </p>
                   ) : null}
                   {p.contact.email ? (
-                    <p className="inline-flex items-center gap-1 text-grid-muted" dir="ltr">
+                    <p className="inline-flex items-center gap-1 text-muted-foreground" dir="ltr">
                       <MailIcon className="size-3.5" />
                       {p.contact.email}
                     </p>
                   ) : null}
                   {p.contact.source_url ? (
-                    <p className="text-xs text-grid-muted">
+                    <p className="text-xs text-muted-foreground">
                       {t("prospects.contactFound")}{" "}
                       <a
                         href={p.contact.source_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-grid-brand hover:underline"
+                        className="text-nq-brand hover:underline"
                         dir="ltr"
                       >
                         {hostOf(p.contact.source_url)}
@@ -166,7 +163,7 @@ export default function ProspectPage() {
                   ) : null}
                 </div>
               ) : (
-                <p className="text-sm text-grid-muted">{t("prospects.contactNone")}</p>
+                <p className="text-sm text-muted-foreground">{t("prospects.contactNone")}</p>
               )}
             </section>
           </div>
@@ -178,11 +175,11 @@ export default function ProspectPage() {
             onMade={() => detail.mutate()}
           />
 
-          <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
+          <div className="hatch h-8 border-y border-border mt-2" aria-hidden />
           <h2 className="px-6 pt-6 pb-1 text-base font-medium">{t("prospects.timeline")}</h2>
-          <p className="px-6 pb-3 text-sm text-grid-muted">{t("prospects.timelineHint")}</p>
+          <p className="px-6 pb-3 text-sm text-muted-foreground">{t("prospects.timelineHint")}</p>
           <ol
-            className="divide-y divide-line border-y border-line"
+            className="divide-y divide-nq-line border-y border-nq-line"
             data-timeline={detail.data?.timeline.length ?? 0}
           >
             {(detail.data?.timeline ?? []).map((e) => (
@@ -246,7 +243,7 @@ function Drafts({
             {(["en", "ar"] as const).map((l) => (
               <Button
                 key={l}
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => make(l)}
                 disabled={!!busy}
@@ -259,9 +256,9 @@ function Drafts({
           </div>
         ) : null}
       </div>
-      <p className="mt-1 text-sm text-grid-muted">{t("prospects.draftsHint")}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{t("prospects.draftsHint")}</p>
       {latest.size === 0 ? (
-        <p className="mt-3 text-sm text-grid-muted">{t("prospects.noDrafts")}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t("prospects.noDrafts")}</p>
       ) : (
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           {[...latest.values()].map((d) => (
@@ -286,13 +283,13 @@ function DraftCard({ d }: { d: ProspectDraft }) {
   }
   return (
     <article
-      className="border border-line bg-grid-card"
+      className="border border-nq-line bg-card"
       data-draft={d.locale}
       data-generator={d.generator}
     >
-      <header className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 text-xs">
+      <header className="flex flex-wrap items-center gap-2 border-b border-nq-line px-4 py-2 text-xs">
         <Badge variant="outline">{d.locale === "ar" ? "العربية" : "English"}</Badge>
-        <Badge variant="secondary" data-not-sent>
+        <Badge variant="neutral" data-not-sent>
           {t("prospects.draftNotSent")}
         </Badge>
         <Button variant="ghost" size="sm" className="ms-auto" onClick={copy}>
@@ -303,7 +300,7 @@ function DraftCard({ d }: { d: ProspectDraft }) {
       <div className="space-y-2 px-4 py-3 text-sm">
         {/* The chrome follows the page's language; the draft, its own. */}
         <p>
-          <span className="text-grid-muted">{t("prospects.subject")}: </span>
+          <span className="text-muted-foreground">{t("prospects.subject")}: </span>
           <span className="font-medium" dir={d.locale === "ar" ? "rtl" : "ltr"} lang={d.locale}>
             {d.subject}
           </span>
@@ -316,7 +313,7 @@ function DraftCard({ d }: { d: ProspectDraft }) {
           {d.body}
         </pre>
       </div>
-      <p className="border-t border-line px-4 py-2 text-xs text-grid-muted" dir="auto">
+      <p className="border-t border-nq-line px-4 py-2 text-xs text-muted-foreground" dir="auto">
         {model ? t("prospects.draftModel", { model }) : t("prospects.draftTemplate")}
       </p>
     </article>

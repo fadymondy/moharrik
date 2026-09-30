@@ -39,14 +39,8 @@ import {
 import { PickControl } from "@/components/automation/pick-control"
 import { placeholdersIn, validParamName } from "@/components/automation/params-editor"
 import { PickSelect } from "@/components/crm/shared"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Tabs, TabsList, TabsPanel, TabsTab, Textarea } from "@fadymondy/nasaq/web"
+import { Label } from "@/components/form-layout"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { AutomationSchedule, RunStep, WorkflowParam, WorkflowStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -73,13 +67,13 @@ function PanelHeader({
 }) {
   const { t } = useTranslations()
   return (
-    <div className="flex items-start gap-3 border-b border-line px-4 py-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-line bg-grid-card">
+    <div className="flex items-start gap-3 border-b border-nq-line px-4 py-3">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-nq-line bg-card">
         {icon}
       </span>
       <div className="min-w-0 flex-1">
         <h2 className="truncate text-base font-medium">{title}</h2>
-        {sub ? <p className="truncate text-xs text-grid-muted">{sub}</p> : null}
+        {sub ? <p className="truncate text-xs text-muted-foreground">{sub}</p> : null}
       </div>
       <div className="flex items-center gap-1">
         {actions}
@@ -176,7 +170,7 @@ export function StepPanel({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="text-grid-danger-text"
+                  className="text-nq-danger-text"
                   onClick={onDelete}
                   aria-label={t("canvas.delete")}
                 >
@@ -192,33 +186,33 @@ export function StepPanel({
         onValueChange={(v) => onTab(v as PanelTab)}
         className="min-h-0 flex-1 gap-0"
       >
-        <TabsList variant="line" className="w-full justify-start border-b border-line px-2">
-          <TabsTrigger value="parameters" className="flex-none" data-panel-tab="parameters">
+        <TabsList variant="underline" className="w-full justify-start border-b border-nq-line px-2">
+          <TabsTab value="parameters" className="flex-none" data-panel-tab="parameters">
             {t("canvas.tab.parameters")}
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="flex-none" data-panel-tab="settings">
+          </TabsTab>
+          <TabsTab value="settings" className="flex-none" data-panel-tab="settings">
             {t("canvas.tab.settings")}
-          </TabsTrigger>
-          <TabsTrigger value="output" className="flex-none" data-panel-tab="output">
+          </TabsTab>
+          <TabsTab value="output" className="flex-none" data-panel-tab="output">
             {t("canvas.tab.output")}
             {output && output.status !== "pending" ? (
               <span
-                className={`size-1.5 rounded-full ${output.status === "ok" ? "bg-grid-ok" : output.status === "failed" ? "bg-grid-danger" : "bg-grid-muted"}`}
+                className={`size-1.5 rounded-full ${output.status === "ok" ? "bg-nq-success" : output.status === "failed" ? "bg-nq-danger" : "bg-nq-fg-muted"}`}
                 aria-hidden
               />
             ) : null}
-          </TabsTrigger>
+          </TabsTab>
         </TabsList>
 
-        <TabsContent value="parameters" className="min-h-0 overflow-y-auto">
+        <TabsPanel value="parameters" className="min-h-0 overflow-y-auto">
           <div className="space-y-4 px-4 py-4">
-            <p className="text-sm text-grid-muted">
+            <p className="text-sm text-muted-foreground">
               {kind === "unknown"
                 ? t("canvas.unknownHint", { command: step.command })
                 : t(`canvas.desc.${kind}`)}
             </p>
             {spec.fields.length === 0 && kind !== "unknown" ? (
-              <p className="text-sm text-grid-muted">{t("canvas.noFields")}</p>
+              <p className="text-sm text-muted-foreground">{t("canvas.noFields")}</p>
             ) : null}
             {spec.fields.map((f) =>
               f.kind === "fields" ? (
@@ -262,12 +256,12 @@ export function StepPanel({
               ),
             )}
             {kind === "extract_data" ? (
-              <p className="text-xs text-grid-muted">{t("canvas.fieldsHint")}</p>
+              <p className="text-xs text-muted-foreground">{t("canvas.fieldsHint")}</p>
             ) : null}
           </div>
-        </TabsContent>
+        </TabsPanel>
 
-        <TabsContent value="settings" className="min-h-0 overflow-y-auto">
+        <TabsPanel value="settings" className="min-h-0 overflow-y-auto">
           <div className="space-y-5 px-4 py-4">
             <Field>
               <FieldLabel htmlFor={`onerr-${index}`}>{t("canvas.onError")}</FieldLabel>
@@ -299,18 +293,18 @@ export function StepPanel({
               readOnly={readOnly}
               onChange={(a) => onChange({ ...step, args: a })}
             />
-            <p className="text-xs text-grid-muted">
+            <p className="text-xs text-muted-foreground">
               {t("canvas.command")}{" "}
               <span dir="ltr" className="ltr-isolate font-mono">
                 {step.command}
               </span>
             </p>
           </div>
-        </TabsContent>
+        </TabsPanel>
 
-        <TabsContent value="output" className="min-h-0 overflow-y-auto">
+        <TabsPanel value="output" className="min-h-0 overflow-y-auto">
           <NodeOutput step={output} runId={runId} workspaceId={ws.id} live={live} />
-        </TabsContent>
+        </TabsPanel>
       </Tabs>
     </div>
   )
@@ -352,7 +346,7 @@ function FieldInput({
   const label = (
     <Label htmlFor={id} className="text-xs">
       {t(`automation.field.${def.name}`)}
-      {def.required ? null : <span className="text-grid-muted"> ({t("common.optional")})</span>}
+      {def.required ? null : <span className="text-muted-foreground"> ({t("common.optional")})</span>}
     </Label>
   )
   if (def.kind === "textarea") {
@@ -460,7 +454,7 @@ function FieldsMap({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="text-grid-danger-text"
+              className="text-nq-danger-text"
               aria-label={t("canvas.removeField")}
               onClick={() => commit(rows.filter((_, j) => j !== i))}
             >
@@ -472,8 +466,8 @@ function FieldsMap({
       {!readOnly ? (
         <Button
           type="button"
-          variant="outline"
-          size="xs"
+          variant="secondary"
+          size="sm"
           onClick={() => setRows([...rows, { k: "", v: "" }])}
           data-add-field
         >
@@ -525,7 +519,7 @@ function ArgsJson({
         data-args-json
       />
       {err ? (
-        <p className="text-xs text-grid-danger-text">{err}</p>
+        <p className="text-xs text-nq-danger-text">{err}</p>
       ) : (
         <FieldDescription>{t("canvas.argsHint")}</FieldDescription>
       )}
@@ -583,7 +577,7 @@ export function TriggerPanel({
   return (
     <div className="flex h-full flex-col" data-trigger-panel>
       <PanelHeader
-        icon={<ZapIcon className="size-4.5 text-grid-gold" />}
+        icon={<ZapIcon className="size-4.5 text-nq-accent" />}
         title={t("canvas.trigger")}
         sub={t("canvas.triggerSub")}
         onClose={onClose}
@@ -592,7 +586,7 @@ export function TriggerPanel({
         <Field>
           <FieldLabel htmlFor="wf-description">
             {t("automation.workflowDescription")}{" "}
-            <span className="text-grid-muted">({t("common.optional")})</span>
+            <span className="text-muted-foreground">({t("common.optional")})</span>
           </FieldLabel>
           <Textarea
             id="wf-description"
@@ -606,20 +600,20 @@ export function TriggerPanel({
         </Field>
         <section className="space-y-2">
           <h3 className="text-sm font-medium">{t("canvas.startsHow")}</h3>
-          <ul className="divide-y divide-line rounded-md border border-line">
+          <ul className="divide-y divide-nq-line rounded-md border border-nq-line">
             <li className="flex gap-3 px-3 py-2.5">
-              <HandIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" />
+              <HandIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="text-sm">
                 <p className="font-medium">{t("canvas.start.manual")}</p>
-                <p className="text-xs text-grid-muted">{t("canvas.start.manualHint")}</p>
+                <p className="text-xs text-muted-foreground">{t("canvas.start.manualHint")}</p>
               </div>
             </li>
             <li className="flex gap-3 px-3 py-2.5" data-trigger-schedules={mine.length}>
-              <CalendarClockIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" />
+              <CalendarClockIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 text-sm">
                 <p className="font-medium">{t("canvas.start.schedule")}</p>
                 {mine.length === 0 ? (
-                  <p className="text-xs text-grid-muted">
+                  <p className="text-xs text-muted-foreground">
                     {workflowId ? t("canvas.start.noSchedules") : t("canvas.start.saveFirst")}
                   </p>
                 ) : (
@@ -627,10 +621,10 @@ export function TriggerPanel({
                     {mine.map((s) => (
                       <li key={s.id} className="flex flex-wrap items-center gap-2 text-xs">
                         <span dir="auto">{s.name}</span>
-                        <span dir="ltr" className="ltr-isolate font-mono text-grid-muted">
+                        <span dir="ltr" className="ltr-isolate font-mono text-muted-foreground">
                           {s.cron}
                         </span>
-                        <Badge variant={s.enabled ? "default" : "outline"}>
+                        <Badge variant={s.enabled ? "brand" : "outline"}>
                           {s.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")}
                         </Badge>
                       </li>
@@ -648,10 +642,10 @@ export function TriggerPanel({
               </div>
             </li>
             <li className="flex gap-3 px-3 py-2.5">
-              <WorkflowIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" />
+              <WorkflowIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="text-sm">
                 <p className="font-medium">{t("canvas.start.mcp")}</p>
-                <p className="text-xs text-grid-muted">{t("canvas.start.mcpHint")}</p>
+                <p className="text-xs text-muted-foreground">{t("canvas.start.mcpHint")}</p>
               </div>
             </li>
           </ul>
@@ -662,7 +656,7 @@ export function TriggerPanel({
         <section className="space-y-2" data-trigger-required-sites={sites.join(",")}>
           <h3 className="text-sm font-medium">{t("canvas.sites.title")}</h3>
           {sites.length === 0 ? (
-            <p className="text-xs text-grid-muted">{t("canvas.sites.none")}</p>
+            <p className="text-xs text-muted-foreground">{t("canvas.sites.none")}</p>
           ) : (
             <>
               <ul className="flex flex-wrap gap-1.5">
@@ -675,7 +669,7 @@ export function TriggerPanel({
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-grid-muted" data-auto-add={autoAdd ? "on" : "off"}>
+              <p className="text-xs text-muted-foreground" data-auto-add={autoAdd ? "on" : "off"}>
                 {autoAdd
                   ? canManage
                     ? t("canvas.sites.auto")
@@ -684,27 +678,27 @@ export function TriggerPanel({
               </p>
             </>
           )}
-          <p className="text-xs text-grid-muted">{t("canvas.sites.values")}</p>
+          <p className="text-xs text-muted-foreground">{t("canvas.sites.values")}</p>
         </section>
 
         <section className="space-y-3">
           <div>
             <h3 className="text-sm font-medium">{t("automation.params.title")}</h3>
-            <p className="text-xs text-grid-muted">{t("canvas.paramsHint")}</p>
+            <p className="text-xs text-muted-foreground">{t("canvas.paramsHint")}</p>
           </div>
           {undeclared.length > 0 && !readOnly ? (
             <div
-              className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-grid-card px-3 py-2 text-xs"
+              className="flex flex-wrap items-center gap-2 rounded-md border border-nq-line bg-card px-3 py-2 text-xs"
               data-missing-params
             >
-              <CircleHelpIcon className="size-3.5 text-grid-muted" />
-              <span className="text-grid-muted">
+              <CircleHelpIcon className="size-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">
                 {t("automation.params.undeclared", { names: undeclared.join(", ") })}
               </span>
               <Button
                 type="button"
-                size="xs"
-                variant="outline"
+                size="sm"
+                variant="secondary"
                 onClick={() =>
                   onParams([...params, ...undeclared.map((name) => ({ name, required: true }))])
                 }
@@ -714,12 +708,12 @@ export function TriggerPanel({
             </div>
           ) : null}
           {params.length === 0 ? (
-            <p className="text-sm text-grid-muted">{t("automation.params.none")}</p>
+            <p className="text-sm text-muted-foreground">{t("automation.params.none")}</p>
           ) : null}
           {params.map((p, i) => (
             <div
               key={i}
-              className="space-y-2 rounded-md border border-line p-3"
+              className="space-y-2 rounded-md border border-nq-line p-3"
               data-param={p.name}
             >
               <div className="flex items-center gap-2">
@@ -738,7 +732,7 @@ export function TriggerPanel({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="text-grid-danger-text"
+                    className="text-nq-danger-text"
                     aria-label={t("automation.params.remove")}
                     onClick={() => onParams(params.filter((_, j) => j !== i))}
                   >
@@ -754,7 +748,7 @@ export function TriggerPanel({
                 onChange={(e) => set(i, { label: e.target.value })}
               />
               {p.secret ? (
-                <p className="text-xs text-grid-muted">{t("automation.params.secretNoDefault")}</p>
+                <p className="text-xs text-muted-foreground">{t("automation.params.secretNoDefault")}</p>
               ) : (
                 <Input
                   aria-label={t("automation.params.default")}
@@ -783,14 +777,14 @@ export function TriggerPanel({
                 </label>
               </div>
               {!used.includes(p.name) && validParamName(p.name) ? (
-                <p className="text-xs text-grid-muted">{t("automation.params.unused")}</p>
+                <p className="text-xs text-muted-foreground">{t("automation.params.unused")}</p>
               ) : null}
             </div>
           ))}
           {!readOnly ? (
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => onParams([...params, { name: "", required: true }])}
             >
@@ -804,7 +798,7 @@ export function TriggerPanel({
           <section className="space-y-3" data-test-values>
             <div>
               <h3 className="text-sm font-medium">{t("canvas.testValues")}</h3>
-              <p className="text-xs text-grid-muted">{t("canvas.testValuesHint")}</p>
+              <p className="text-xs text-muted-foreground">{t("canvas.testValuesHint")}</p>
             </div>
             {fields.map((f) => (
               <Field key={f.name}>

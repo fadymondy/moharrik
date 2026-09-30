@@ -3,9 +3,7 @@
 import { useRef, type KeyboardEvent } from "react"
 import { BoldIcon, Heading2Icon, ItalicIcon, LinkIcon, ListIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
-import { Textarea } from "@/components/ui/textarea"
+import { Button, ButtonGroup, Textarea } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -131,17 +129,17 @@ export function MarkdownEditor({
 
   return (
     <div
-      className={cn("flex flex-col border border-line bg-grid-card", className)}
+      className={cn("flex flex-col border border-nq-line bg-card", className)}
       data-markdown-editor
     >
       {toolbar ? (
-        <div className="flex items-center gap-2 border-b border-line px-2 py-1.5">
+        <div className="flex items-center gap-2 border-b border-nq-line px-2 py-1.5">
           <ButtonGroup aria-label={t("editor.toolbar")}>
             {tools.map(({ action, label, Icon }) => (
               <Button
                 key={action}
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="icon-sm"
                 aria-label={label}
                 title={label}
@@ -154,7 +152,7 @@ export function MarkdownEditor({
               </Button>
             ))}
           </ButtonGroup>
-          <span className="ms-auto hidden text-xs text-grid-muted sm:inline">
+          <span className="ms-auto hidden text-xs text-muted-foreground sm:inline">
             {t("editor.markdown")}
           </span>
         </div>

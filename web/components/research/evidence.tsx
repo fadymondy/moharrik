@@ -12,7 +12,7 @@ import {
 
 import { Bdi } from "@/components/bidi"
 import { useFormatDateTime } from "@/components/research/shared"
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { Evidence, ResearchCost, ResearchStage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -22,7 +22,7 @@ export function SignalBadge({ signal }: { signal: string }) {
   const { t } = useTranslations()
   if (!signal) return null
   return (
-    <Badge variant="secondary" data-signal={signal}>
+    <Badge variant="neutral" data-signal={signal}>
       {t(`research.signal.${signal}`)}
     </Badge>
   )
@@ -57,13 +57,13 @@ export function EvidenceItem({ e, showRun = false }: { e: Evidence; showRun?: bo
         </p>
       ) : null}
       <blockquote
-        className="border-s-2 border-line ps-3 text-sm leading-relaxed text-grid-body"
+        className="border-s-2 border-nq-line ps-3 text-sm leading-relaxed text-nq-fg-body"
         dir="auto"
         data-quote
       >
         {e.quote}
       </blockquote>
-      <div className="flex flex-wrap items-center gap-2 text-xs text-grid-muted">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         {e.company_name ? (
           <Badge variant="outline" data-evidence-company={e.company_name}>
             <Bdi>{e.company_name}</Bdi>
@@ -78,12 +78,12 @@ export function EvidenceItem({ e, showRun = false }: { e: Evidence; showRun?: bo
             : t("research.byHeuristic")}
         </span>
       </div>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         <a
           href={e.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-w-0 items-center gap-1 font-medium text-grid-brand hover:underline"
+          className="inline-flex min-w-0 items-center gap-1 font-medium text-nq-brand hover:underline"
           data-evidence-source
           title={e.source_url}
         >
@@ -116,11 +116,11 @@ export function EvidenceItem({ e, showRun = false }: { e: Evidence; showRun?: bo
 }
 
 const STAGE_ICON = {
-  pending: <CircleDashedIcon className="text-grid-muted" />,
-  running: <LoaderCircleIcon className="animate-spin text-grid-brand" />,
-  done: <CheckIcon className="text-grid-brand" />,
-  skipped: <MinusIcon className="text-grid-muted" />,
-  failed: <TriangleAlertIcon className="text-grid-danger" />,
+  pending: <CircleDashedIcon className="text-muted-foreground" />,
+  running: <LoaderCircleIcon className="animate-spin text-nq-brand" />,
+  done: <CheckIcon className="text-nq-brand" />,
+  skipped: <MinusIcon className="text-muted-foreground" />,
+  failed: <TriangleAlertIcon className="text-nq-danger" />,
 } as const
 
 /** A run's stages, in order, each with its count and what it said. */
@@ -128,7 +128,7 @@ export function StageList({ stages }: { stages: ResearchStage[] }) {
   const { t, formatNumber } = useTranslations()
   if (!stages.length) return null
   return (
-    <ol className="grid gap-px border-y border-line bg-line sm:grid-cols-5" data-stages>
+    <ol className="grid gap-px border-y border-nq-line bg-nq-line sm:grid-cols-5" data-stages>
       {stages.map((s) => (
         <li
           key={s.stage}
@@ -140,12 +140,12 @@ export function StageList({ stages }: { stages: ResearchStage[] }) {
             {STAGE_ICON[s.status] ?? STAGE_ICON.pending}
             <span>{t(`research.stage.${s.stage}`)}</span>
             {s.status === "done" ? (
-              <span className="ms-auto tabular-nums text-grid-muted">{formatNumber(s.count)}</span>
+              <span className="ms-auto tabular-nums text-muted-foreground">{formatNumber(s.count)}</span>
             ) : null}
           </p>
-          <p className="mt-1 text-xs text-grid-muted">{t(`research.stageStatus.${s.status}`)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t(`research.stageStatus.${s.status}`)}</p>
           {s.note ? (
-            <p className="mt-1 text-xs break-words text-grid-muted" dir="auto">
+            <p className="mt-1 text-xs break-words text-muted-foreground" dir="auto">
               {s.note}
             </p>
           ) : null}
@@ -160,7 +160,7 @@ export function CostLine({ cost }: { cost: ResearchCost }) {
   const { t, formatNumber } = useTranslations()
   const n = (v: number | undefined) => formatNumber(v ?? 0)
   return (
-    <p className="px-6 pt-3 text-xs text-grid-muted" data-cost>
+    <p className="px-6 pt-3 text-xs text-muted-foreground" data-cost>
       <span className="font-medium text-foreground">{t("research.cost")}: </span>
       {t("research.costLine", {
         queries: n(cost.search_queries),

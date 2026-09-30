@@ -2,43 +2,9 @@
 
 import { useState, type FormEvent } from "react"
 import { PlusIcon, TriangleAlertIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet, FieldError, FormHint } from "@/components/form-layout"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
@@ -115,7 +81,7 @@ export default function McpTokensPage() {
       ) : list.length === 0 ? (
         <EmptyState title={t("mcp.empty")} body={t("mcp.emptyBody")} />
       ) : (
-        <div className="border-y border-line">
+        <div className="border-y border-nq-line">
           <Table>
             <TableHeader>
               <TableRow>
@@ -149,16 +115,16 @@ export default function McpTokensPage() {
 
       <ConnectedApps grants={grants} />
 
-      <section className="border-t border-line px-6 py-8" aria-labelledby="mcp-connect">
+      <section className="border-t border-nq-line px-6 py-8" aria-labelledby="mcp-connect">
         <div className="mb-4 max-w-2xl space-y-1.5">
-          <h2 id="mcp-connect" className="grid-title text-lg">
+          <h2 id="mcp-connect" className="font-medium tracking-tight text-foreground text-lg">
             {t("mcp.connectTitle")}
           </h2>
-          <p className="grid-body text-sm">{t("mcp.connectHint")}</p>
+          <p className="leading-relaxed text-nq-fg-body text-sm">{t("mcp.connectHint")}</p>
           <p className="text-sm">
             <Link
               href={mcpDocsHref(locale)}
-              className="text-grid-action underline-offset-4 hover:underline"
+              className="text-nq-action underline-offset-4 hover:underline"
               data-mcp-docs-link
             >
               {t("mcp.docsLink")}
@@ -208,7 +174,7 @@ function TokenRow({
         <TableCell>
           <span className="flex flex-wrap items-center gap-1.5">
             <Ltr className="text-sm">{tok.user_email || tok.user_id}</Ltr>
-            {tok.mine ? <Badge variant="secondary">{t("mcp.you")}</Badge> : null}
+            {tok.mine ? <Badge variant="neutral">{t("mcp.you")}</Badge> : null}
           </span>
         </TableCell>
       ) : null}
@@ -226,29 +192,29 @@ function TokenRow({
           ))}
         </div>
       </TableCell>
-      <TableCell className="text-grid-muted">
+      <TableCell className="text-muted-foreground">
         <Ltr>{formatDate(tok.created_at)}</Ltr>
       </TableCell>
-      <TableCell className="text-grid-muted">
+      <TableCell className="text-muted-foreground">
         {tok.last_used_at ? <Ltr>{formatDate(tok.last_used_at)}</Ltr> : t("mcp.never")}
         {activityHref && tok.last_used_at ? (
           <Link
             href={activityHref}
-            className="block text-xs text-grid-action underline-offset-4 hover:underline"
+            className="block text-xs text-nq-action underline-offset-4 hover:underline"
             data-token-activity
           >
             {t("mcp.recentCalls")}
           </Link>
         ) : null}
       </TableCell>
-      <TableCell className="text-grid-muted">
+      <TableCell className="text-muted-foreground">
         {tok.expires_at ? <Ltr>{formatDate(tok.expires_at)}</Ltr> : t("mcp.noExpiry")}
       </TableCell>
       <TableCell className="pe-6 text-end">
         {tok.revoked_at ? (
-          <Badge variant="secondary">{t("mcp.revokedBadge")}</Badge>
+          <Badge variant="neutral">{t("mcp.revokedBadge")}</Badge>
         ) : expired ? (
-          <Badge variant="secondary">{t("mcp.expiredBadge")}</Badge>
+          <Badge variant="neutral">{t("mcp.expiredBadge")}</Badge>
         ) : (
           <ConfirmButton
             label={t("common.revoke")}
@@ -350,18 +316,18 @@ function CreateTokenDialog({
               <DialogDescription>{t("mcp.createdHint")}</DialogDescription>
             </DialogHeader>
             <p
-              className="flex items-start gap-2 border border-line bg-grid-card p-3 text-sm text-grid-warn-text"
+              className="flex items-start gap-2 border border-nq-line bg-card p-3 text-sm text-nq-warning-text"
               role="alert"
             >
               <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
               {t("mcp.shownOnce")}
             </p>
             <div className="space-y-1.5">
-              <p className="grid-micro">{t("mcp.token")}</p>
+              <p className="eyebrow">{t("mcp.token")}</p>
               <CopyField value={plaintext} label={t("mcp.token")} />
             </div>
             <div className="space-y-1.5">
-              <p className="grid-micro">{t("mcp.connectTitle")}</p>
+              <p className="eyebrow">{t("mcp.connectTitle")}</p>
               <ConnectClients url={serverUrl} token={plaintext} />
             </div>
             <DialogFooter>
@@ -388,25 +354,25 @@ function CreateTokenDialog({
               </Field>
 
               <FieldSet>
-                <FieldLegend variant="label">{t("mcp.scopes")}</FieldLegend>
-                <FieldDescription>
+                <FieldLegend>{t("mcp.scopes")}</FieldLegend>
+                <FormHint>
                   {t("mcp.scopesHint")}{" "}
                   <Link
                     href={mcpDocsHref(locale, "scopes")}
                     target="_blank"
-                    className="text-grid-action underline-offset-4 hover:underline"
+                    className="text-nq-action underline-offset-4 hover:underline"
                   >
                     {t("mcp.scopesDocsLink")}
                   </Link>
-                </FieldDescription>
+                </FormHint>
                 {scopes.length === 0 ? (
-                  <p className="text-sm text-grid-muted">{t("mcp.noScopes")}</p>
+                  <p className="text-sm text-muted-foreground">{t("mcp.noScopes")}</p>
                 ) : (
-                  <ul className="max-h-64 divide-y divide-line overflow-y-auto border border-line">
+                  <ul className="max-h-64 divide-y divide-nq-line overflow-y-auto border border-nq-line">
                     {scopes.map((s) => {
                       const id = `scope-${s.scope}`
                       return (
-                        <li key={s.scope} className={s.allowed ? "" : "bg-grid-soft/50"}>
+                        <li key={s.scope} className={s.allowed ? "" : "bg-nq-surface-soft/50"}>
                           <label
                             htmlFor={id}
                             className={`flex items-start gap-3 px-3 py-2.5 ${s.allowed ? "cursor-pointer" : "cursor-not-allowed"}`}
@@ -414,7 +380,7 @@ function CreateTokenDialog({
                             <input
                               id={id}
                               type="checkbox"
-                              className="mt-0.5 size-4 shrink-0 accent-(--grid-action)"
+                              className="mt-0.5 size-4 shrink-0 accent-(--nq-action)"
                               disabled={!s.allowed}
                               checked={chosen.includes(s.scope)}
                               onChange={(e) => toggle(s.scope, e.target.checked)}
@@ -425,16 +391,16 @@ function CreateTokenDialog({
                               <span className="block">
                                 <span
                                   dir="ltr"
-                                  className="ltr-isolate font-mono text-xs text-grid-fg"
+                                  className="ltr-isolate font-mono text-xs text-foreground"
                                 >
                                   {s.scope}
                                 </span>
                               </span>
-                              <span className="block text-sm text-grid-body">
+                              <span className="block text-sm text-nq-fg-body">
                                 {scopeText(t, s.scope, s.description)}
                               </span>
                               {!s.allowed ? (
-                                <span className="mt-0.5 block text-xs text-grid-muted">
+                                <span className="mt-0.5 block text-xs text-muted-foreground">
                                   {t("mcp.notAllowed", { role: t(`role.${s.min_role}`) })}
                                 </span>
                               ) : null}
@@ -469,7 +435,7 @@ function CreateTokenDialog({
               {error ? <FieldError>{error}</FieldError> : null}
             </FieldGroup>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              <Button type="button" variant="secondary" onClick={() => handleOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={busy || !name.trim() || chosen.length === 0}>

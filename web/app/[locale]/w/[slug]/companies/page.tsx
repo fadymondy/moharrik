@@ -3,11 +3,11 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { SearchIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Field, FieldLabel, Input, InputGroup, InputGroupAddon, InputGroupInput, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { useDebounced } from "@/components/crm/contact-picker"
 import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 
 import { useMemberNames } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
@@ -15,23 +15,11 @@ import { SuggestionsPanel } from "@/components/research/suggestions"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Company } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useCompaniesPage } from "@/lib/queries"
 import { ScoreButton } from "@/components/crm/icp"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
@@ -96,40 +84,34 @@ export default function CompaniesPage() {
               />
             </InputGroup>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-grid-muted">{t("icp.sortBy")}</span>
+              <span className="text-sm text-muted-foreground">{t("icp.sortBy")}</span>
               <ToggleGroup
-                variant="outline"
-                size="sm"
-                spacing={0}
                 value={[sort || "name"]}
                 onValueChange={(v) => v[0] && setSort(v[0] === "score" ? "score" : "")}
                 aria-label={t("icp.sortBy")}
               >
-                <ToggleGroupItem value="name" data-sort="name">
+                <Toggle value="name" data-sort="name">
                   {t("icp.sortName")}
-                </ToggleGroupItem>
-                <ToggleGroupItem value="score" data-sort="score">
+                </Toggle>
+                <Toggle value="score" data-sort="score">
                   {t("icp.sortScore")}
-                </ToggleGroupItem>
+                </Toggle>
               </ToggleGroup>
               <ToggleGroup
-                variant="outline"
-                size="sm"
-                spacing={0}
                 value={[String(minScore)]}
                 onValueChange={(v) => v[0] !== undefined && setMinScore(Number(v[0]))}
                 aria-label={t("icp.score")}
               >
                 {[0, 50, 75].map((n) => (
-                  <ToggleGroupItem key={n} value={String(n)} data-min-score={n}>
+                  <Toggle key={n} value={String(n)} data-min-score={n}>
                     {n ? t("icp.atLeast", { n }) : t("icp.anyScore")}
-                  </ToggleGroupItem>
+                  </Toggle>
                 ))}
               </ToggleGroup>
             </div>
           </div>
           {total === 0 ? (
-            <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">
+            <p className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground">
               {t("companies.noMatch")}
             </p>
           ) : (
@@ -166,12 +148,12 @@ export default function CompaniesPage() {
         </>
       )}
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       {canWrite ? (
         <AddCompany onAdded={() => companies.mutate()} />
       ) : (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("companies.readOnly")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("companies.readOnly")}</p>
       )}
       <div className="pb-8" />
     </>
@@ -223,7 +205,7 @@ function AddCompany({ onAdded }: { onAdded: () => void }) {
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="company-domain">
               {t("companies.domain")}{" "}
-              <span className="text-grid-muted">({t("common.optional")})</span>
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="company-domain"
@@ -271,7 +253,7 @@ function CompaniesTable({
   }
 
   return (
-    <div className="border-y border-line">
+    <div className="border-y border-nq-line">
       <Table>
         <TableHeader>
           <TableRow>
@@ -294,7 +276,7 @@ function CompaniesTable({
                   <Bdi>{c.name}</Bdi>
                 </Link>
                 {c.industry ? (
-                  <div className="text-xs text-grid-muted">
+                  <div className="text-xs text-muted-foreground">
                     <Bdi>{c.industry}</Bdi>
                   </div>
                 ) : null}
@@ -302,12 +284,12 @@ function CompaniesTable({
               <TableCell>
                 <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name)} />
               </TableCell>
-              <TableCell className="text-grid-muted">
+              <TableCell className="text-muted-foreground">
                 {c.domain ? <Ltr>{c.domain}</Ltr> : "—"}
               </TableCell>
               <TableCell>{c.contact_count}</TableCell>
               <TableCell>{c.open_deals}</TableCell>
-              <TableCell className="text-grid-muted">
+              <TableCell className="text-muted-foreground">
                 <Ltr>{members.name(c.owner_user_id)}</Ltr>
               </TableCell>
               <TableCell className="pe-6 text-end">

@@ -1,20 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, toast } from "@fadymondy/nasaq/web"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -77,18 +65,18 @@ export function WhatsAppConsent({
       data-wa-consent={optedOut ? "opted_out" : optedIn ? "opted_in" : "none"}
     >
       {optedOut ? (
-        <Badge variant="destructive" title={formatDate(contact.whatsapp_opt_out_at!)}>
+        <Badge variant="danger" title={formatDate(contact.whatsapp_opt_out_at!)}>
           {t("contacts.waOptedOut")}
         </Badge>
       ) : optedIn ? (
-        <Badge variant="default" title={formatDate(contact.whatsapp_opt_in_at!)}>
+        <Badge variant="brand" title={formatDate(contact.whatsapp_opt_in_at!)}>
           {t("contacts.waOptedIn")}
         </Badge>
       ) : (
-        <span className="text-xs text-grid-muted">{t("contacts.waNone")}</span>
+        <span className="text-xs text-muted-foreground">{t("contacts.waNone")}</span>
       )}
       {optedIn && noPhone ? (
-        <span className="text-xs text-grid-warn">{t("contacts.waNoPhone")}</span>
+        <span className="text-xs text-nq-warning">{t("contacts.waNoPhone")}</span>
       ) : null}
 
       {!optedOut && !optedIn && ws.can("contacts:write") ? (
@@ -105,7 +93,7 @@ export function WhatsAppConsent({
         <Button
           variant="link"
           size="sm"
-          className="h-auto px-1 text-xs text-grid-danger-text"
+          className="h-auto px-1 text-xs text-nq-danger-text"
           onClick={() => setOpen("reverse")}
         >
           {t("contacts.waReverse")}
@@ -128,7 +116,7 @@ export function WhatsAppConsent({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              variant={open === "reverse" ? "destructive" : "default"}
+              variant={open === "reverse" ? "danger" : "primary"}
               disabled={busy}
               onClick={() => open && run(open)}
             >

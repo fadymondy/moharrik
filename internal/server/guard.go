@@ -11,6 +11,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/audit"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/circlexo"
 	"github.com/fadymondy/moharrik/internal/presence"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -76,7 +77,11 @@ func classify(r *http.Request) tier {
 		// Double opt-in and unsubscribe links from an email: the random token in
 		// the body is the authorization (internal/marketing).
 		"/api/mail/confirm",
-		"/api/mail/unsubscribe":
+		"/api/mail/unsubscribe",
+		// CircleXO: the public config the login page reads, and the hub's signed
+		// server-to-server calls (authenticated by their signature, internal/circlexo).
+		// The /auth/circlexo and /sso/circlexo routes are outside /api: public already.
+		circlexo.ConfigPath, circlexo.EventsPath, circlexo.ProvisionPath, circlexo.DeprovisionPath:
 		return tierPublic
 	case "/api/invitations/accept":
 		return tierSignedIn
@@ -221,8 +226,8 @@ func installGuard(k *togo.Kernel, a *app.App) {
 	}
 
 	k.UseMiddleware(func(next http.Handler) http.Handler {
-		signedIn := svc.Middleware(csrf(next))
-		workspace := svc.Middleware(csrf(tenant.Require(a.SysDB)(stampPresence(generatedAuthz(a, next)))))
+		signedIn := svc.Middleware(hubSessionEnded(csrf(next)))
+		workspace := svc.Middleware(hubSessionEnded(csrf(tenant.Require(a.SysDB)(stampPresence(generatedAuthz(a, next))))))
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch classify(r) {
@@ -319,6 +324,21 @@ func generatedAuthz(a *app.App, next http.Handler) http.Handler {
 		if !authz.CanTable(s.Role, table, r.Method) {
 			refused(http.StatusForbidden, "your role cannot do this through the generic API")
 			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// hubSessionEnded refuses a session that was born from a CircleXO sign-in the hub has since
+// revoked (session.revoked webhook). Inert when the integration is off. It sits after the auth
+// middleware, so the identity is known.
+func hubSessionEnded(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s := circlexo.Current(); s != nil {
+			if id, ok := auth.IdentityFrom(r.Context()); ok && id != nil && circlexo.SessionEnded(r.Context(), s, id.ID, r) {
+				writeError(w, http.StatusUnauthorized, "your session was ended — sign in again")
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

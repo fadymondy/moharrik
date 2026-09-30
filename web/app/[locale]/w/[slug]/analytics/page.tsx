@@ -25,8 +25,7 @@ import {
 import { Panel, useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState } from "@/components/states"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Skeleton, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, type GaReport, type GaReportOut } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -104,7 +103,7 @@ function Analytics() {
       />
 
       {!canRead ? (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("gdata.noAccess")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("gdata.noAccess")}</p>
       ) : enabled.error ? (
         <ErrorState error={enabled.error} />
       ) : !enabled.data ? (
@@ -160,7 +159,7 @@ function Filled({ rep }: { rep: GaReport }) {
 
   return (
     <>
-      <div className="grid-cells grid-cells-flush-x grid-cols-2 lg:grid-cols-4" data-ga-totals>
+      <div className="cells cells-flush-x grid-cols-2 lg:grid-cols-4" data-ga-totals>
         <Stat
           id="users"
           label={t("analytics.users")}
@@ -188,25 +187,22 @@ function Filled({ rep }: { rep: GaReport }) {
         />
       </div>
 
-      <div className="grid-cells grid-cells-flush-x mt-6 grid-cols-1">
+      <div className="cells cells-flush-x mt-6 grid-cols-1">
         <Panel
           id="trend"
           title={t("analytics.trend")}
           icon={<ChartLineIcon />}
           meta={
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               className="ms-auto"
               value={[metric]}
               onValueChange={(v) => v[0] && setMetric(v[0] as Metric)}
               aria-label={t("analytics.metric")}
             >
               {(["users", "sessions", "views"] as Metric[]).map((m) => (
-                <ToggleGroupItem key={m} value={m} data-metric={m}>
+                <Toggle key={m} value={m} data-metric={m}>
                   {t(`analytics.${m}`)}
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
           }
@@ -226,22 +222,22 @@ function Filled({ rep }: { rep: GaReport }) {
               format={f.n}
               formatDate={f.date}
             />
-            <p className="mt-2 text-xs text-grid-muted">
+            <p className="mt-2 text-xs text-muted-foreground">
               {t("analytics.trendNote", { tz: rep.time_zone })}
             </p>
           </div>
         </Panel>
       </div>
 
-      <div className="grid-cells grid-cells-flush-x mt-6 grid-cols-1 lg:grid-cols-2">
+      <div className="cells cells-flush-x mt-6 grid-cols-1 lg:grid-cols-2">
         <Panel
           id="pages"
           title={t("analytics.topPages")}
           icon={<FileTextIcon />}
-          meta={<span className="ms-auto text-xs text-grid-muted">{t("analytics.views")}</span>}
+          meta={<span className="ms-auto text-xs text-muted-foreground">{t("analytics.views")}</span>}
         >
           {pages.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-grid-muted">{t("analytics.noPages")}</p>
+            <p className="px-5 py-6 text-sm text-muted-foreground">{t("analytics.noPages")}</p>
           ) : (
             <BarList
               label={t("analytics.topPages")}
@@ -259,10 +255,10 @@ function Filled({ rep }: { rep: GaReport }) {
           id="sources"
           title={t("analytics.sources")}
           icon={<SignpostIcon />}
-          meta={<span className="ms-auto text-xs text-grid-muted">{t("analytics.sessions")}</span>}
+          meta={<span className="ms-auto text-xs text-muted-foreground">{t("analytics.sessions")}</span>}
         >
           {sources.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-grid-muted">{t("analytics.noSources")}</p>
+            <p className="px-5 py-6 text-sm text-muted-foreground">{t("analytics.noSources")}</p>
           ) : (
             <BarList
               label={t("analytics.sources")}
@@ -295,7 +291,7 @@ function duration(
 function PageSkeleton() {
   return (
     <div className="space-y-6 pb-10" aria-busy>
-      <div className="grid-cells grid-cells-flush-x grid-cols-2 lg:grid-cols-4">
+      <div className="cells cells-flush-x grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="space-y-2 px-5 py-4">
             <Skeleton className="h-3 w-20" />

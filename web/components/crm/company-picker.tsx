@@ -9,7 +9,7 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from "@/components/ui/combobox"
+} from "@fadymondy/nasaq/web"
 import { useDebounced } from "@/components/crm/contact-picker"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
@@ -81,7 +81,7 @@ export function CompanyPicker({
         id={id}
         className="w-full"
         placeholder={t("companies.pickPlaceholder")}
-        showClear={!!current}
+        clearable={!!current}
       />
       <ComboboxContent>
         <ComboboxEmpty>
@@ -95,7 +95,7 @@ export function CompanyPicker({
           )}
         </ComboboxList>
         {total > shown ? (
-          <p className="border-t border-line px-2.5 py-1.5 text-xs text-grid-muted" data-pick-more>
+          <p className="border-t border-nq-line px-2.5 py-1.5 text-xs text-muted-foreground" data-pick-more>
             {t("companies.pickMore", { shown: formatNumber(shown), total: formatNumber(total) })}
           </p>
         ) : null}

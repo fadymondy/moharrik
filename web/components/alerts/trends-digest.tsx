@@ -12,14 +12,11 @@ Everything here is the member's own; the API reads and writes only their row.
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { MailIcon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
 import useSWR from "swr"
 
 import { PickSelect } from "@/components/crm/shared"
 import { Bdi } from "@/components/bidi"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -53,18 +50,18 @@ export function TrendsDigestSection() {
     <section aria-labelledby="trends-digest" className="pb-10" data-section="trends-digest">
       <div className="px-6 pb-3">
         <h2 id="trends-digest" className="flex items-center gap-2 text-base font-medium">
-          <MailIcon className="size-4 text-grid-muted" />
+          <MailIcon className="size-4 text-muted-foreground" />
           {t("digest.title")}
         </h2>
-        <p className="text-sm text-grid-muted">{t("digest.hint")}</p>
+        <p className="text-sm text-muted-foreground">{t("digest.hint")}</p>
       </div>
-      <div className="border-y border-line px-6 py-5">
+      <div className="border-y border-nq-line px-6 py-5">
         {q.error ? (
-          <p className="text-sm text-grid-danger-text">
+          <p className="text-sm text-nq-danger-text">
             {q.error instanceof ApiError ? q.error.message : t("common.networkError")}
           </p>
         ) : !q.data ? (
-          <p className="text-sm text-grid-muted">{t("common.working")}</p>
+          <p className="text-sm text-muted-foreground">{t("common.working")}</p>
         ) : (
           <DigestForm
             key={JSON.stringify([
@@ -181,7 +178,7 @@ function DigestForm({ data, onSaved }: { data: Digest; onSaved: (d: Digest) => v
     <div className="flex max-w-3xl flex-col gap-5" data-digest={data.frequency}>
       {!data.email_ready ? (
         <p
-          className="rounded-md border border-line bg-grid-card px-3 py-2 text-sm text-grid-muted"
+          className="rounded-md border border-nq-line bg-card px-3 py-2 text-sm text-muted-foreground"
           data-digest-no-smtp
         >
           {t("digest.noSmtp")}{" "}
@@ -283,16 +280,16 @@ function DigestForm({ data, onSaved }: { data: Digest; onSaved: (d: Digest) => v
         </div>
       ) : null}
 
-      <div className="space-y-1 text-sm text-grid-muted" data-digest-status>
+      <div className="space-y-1 text-sm text-muted-foreground" data-digest-status>
         <p>
-          {t("digest.to")} <Bdi className="font-medium text-grid-fg">{data.email}</Bdi>
+          {t("digest.to")} <Bdi className="font-medium text-foreground">{data.email}</Bdi>
         </p>
         {data.frequency !== "off" && data.next_at ? (
           <p data-digest-next>{t("digest.next", { when: when.format(new Date(data.next_at)) })}</p>
         ) : null}
         {data.last_status ? (
           <p
-            className={data.last_status === "failed" ? "text-grid-danger-text" : undefined}
+            className={data.last_status === "failed" ? "text-nq-danger-text" : undefined}
             data-digest-last={data.last_status}
           >
             {data.last_status === "sent" && data.last_sent_at
@@ -305,7 +302,7 @@ function DigestForm({ data, onSaved }: { data: Digest; onSaved: (d: Digest) => v
       </div>
 
       {err ? (
-        <p className="text-sm text-grid-danger-text" role="alert" data-digest-error>
+        <p className="text-sm text-nq-danger-text" role="alert" data-digest-error>
           {err}
         </p>
       ) : null}
@@ -314,7 +311,7 @@ function DigestForm({ data, onSaved }: { data: Digest; onSaved: (d: Digest) => v
           {busy === "save" ? t("common.working") : t("common.save")}
         </Button>
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={() => void test()}
           disabled={!data.email_ready || busy !== "" || dirty}
           title={dirty ? t("digest.saveFirst") : undefined}
@@ -324,7 +321,7 @@ function DigestForm({ data, onSaved }: { data: Digest; onSaved: (d: Digest) => v
           {t("digest.sendNow")}
         </Button>
       </div>
-      <p className="text-sm text-grid-muted" data-digest-whatsapp>
+      <p className="text-sm text-muted-foreground" data-digest-whatsapp>
         {t("digest.whatsapp")}
       </p>
     </div>

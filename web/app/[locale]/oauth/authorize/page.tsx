@@ -31,18 +31,8 @@ import {
   XCircleIcon,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Skeleton } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet, FieldError, FormHint } from "@/components/form-layout"
 import { PickSelect } from "@/components/crm/shared"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
@@ -132,7 +122,7 @@ export default function OAuthAuthorizePage() {
             <Loading />
           ) : !me.data ? (
             <div className="space-y-4" data-oauth-signin>
-              <p className="text-sm text-grid-body">{t("oauth.signInFirst")}</p>
+              <p className="text-sm text-nq-fg-body">{t("oauth.signInFirst")}</p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   nativeButton={false}
@@ -141,7 +131,7 @@ export default function OAuthAuthorizePage() {
                   {t("auth.signIn")}
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   nativeButton={false}
                   render={<Link href={`/${locale}/register?next=${encodeURIComponent(here)}`} />}
                 >
@@ -154,7 +144,7 @@ export default function OAuthAuthorizePage() {
               {leaving === "approved" ? (
                 <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" />
               ) : (
-                <XCircleIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" />
+                <XCircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               )}
               <span>
                 {t(leaving === "approved" ? "oauth.returningApproved" : "oauth.returningDenied", {
@@ -175,10 +165,10 @@ export default function OAuthAuthorizePage() {
             >
               <div className="space-y-3">
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <PlugZapIcon className="size-4 text-grid-muted" />
+                  <PlugZapIcon className="size-4 text-muted-foreground" />
                   {t("oauth.wantsAccess", { client: isolate(r.client.name || t("oauth.unnamed")) })}
                 </p>
-                <dl className="divide-y divide-line border border-line text-sm" data-oauth-claims>
+                <dl className="divide-y divide-nq-line border border-nq-line text-sm" data-oauth-claims>
                   <Claim
                     label={t("oauth.claimClient")}
                     value={<Bdi>{r.client.name || t("oauth.unnamed")}</Bdi>}
@@ -189,16 +179,16 @@ export default function OAuthAuthorizePage() {
                   <Claim label={t("oauth.claimReturnsTo")} value={<Ltr>{r.redirect_host}</Ltr>} />
                   <Claim label={t("oauth.claimServer")} value={<Ltr>{r.resource}</Ltr>} />
                 </dl>
-                <p className="text-xs text-grid-muted">
+                <p className="text-xs text-muted-foreground">
                   {r.loopback_redirect
                     ? t("oauth.loopbackHint")
                     : t("oauth.claimsHint", { host: isolate(r.redirect_host) })}
                 </p>
               </div>
 
-              <p className="text-sm text-grid-body">
+              <p className="text-sm text-nq-fg-body">
                 {t("oauth.signedInAs")}{" "}
-                <Ltr className="font-medium text-grid-fg">{me.data.email}</Ltr>
+                <Ltr className="font-medium text-foreground">{me.data.email}</Ltr>
               </p>
 
               {r.workspaces.length === 0 ? (
@@ -206,7 +196,7 @@ export default function OAuthAuthorizePage() {
                   problem={{ title: t("oauth.noWorkspaceTitle"), body: t("oauth.noWorkspaceBody") }}
                   action={
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       nativeButton={false}
                       render={<Link href={`/${locale}/workspaces`} />}
                     >
@@ -231,10 +221,10 @@ export default function OAuthAuthorizePage() {
                   </Field>
 
                   <FieldSet>
-                    <FieldLegend variant="label">{t("oauth.scopes")}</FieldLegend>
-                    <FieldDescription>{t("oauth.scopesHint")}</FieldDescription>
+                    <FieldLegend>{t("oauth.scopes")}</FieldLegend>
+                    <FormHint>{t("oauth.scopesHint")}</FormHint>
                     <ul
-                      className="max-h-[28rem] divide-y divide-line overflow-y-auto border border-line"
+                      className="max-h-[28rem] divide-y divide-nq-line overflow-y-auto border border-nq-line"
                       data-oauth-scopes
                     >
                       {r.requested_scopes.map((s) => {
@@ -243,7 +233,7 @@ export default function OAuthAuthorizePage() {
                         return (
                           <li
                             key={s.scope}
-                            className={ok ? "" : "bg-grid-soft/50"}
+                            className={ok ? "" : "bg-nq-surface-soft/50"}
                             data-scope={s.scope}
                             data-allowed={ok}
                           >
@@ -254,7 +244,7 @@ export default function OAuthAuthorizePage() {
                               <input
                                 id={id}
                                 type="checkbox"
-                                className="mt-0.5 size-4 shrink-0 accent-(--grid-action)"
+                                className="mt-0.5 size-4 shrink-0 accent-(--nq-action)"
                                 disabled={!ok}
                                 checked={ok && chosen.includes(s.scope)}
                                 onChange={(e) =>
@@ -269,16 +259,16 @@ export default function OAuthAuthorizePage() {
                                 <span className="block">
                                   <span
                                     dir="ltr"
-                                    className="ltr-isolate font-mono text-xs text-grid-fg"
+                                    className="ltr-isolate font-mono text-xs text-foreground"
                                   >
                                     {s.scope}
                                   </span>
                                 </span>
-                                <span className="block text-sm text-grid-body">
+                                <span className="block text-sm text-nq-fg-body">
                                   {scopeText(t, s.scope, s.description)}
                                 </span>
                                 {!ok ? (
-                                  <span className="mt-0.5 block text-xs text-grid-muted">
+                                  <span className="mt-0.5 block text-xs text-muted-foreground">
                                     {t("mcp.notAllowed", { role: t(`role.${s.min_role}`) })}
                                   </span>
                                 ) : null}
@@ -289,7 +279,7 @@ export default function OAuthAuthorizePage() {
                       })}
                     </ul>
                   </FieldSet>
-                  <p className="flex items-start gap-1.5 text-xs text-grid-muted">
+                  <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                     <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
                     <span>
                       {t("oauth.boundHint", { hours: Math.round(r.access_ttl_seconds / 3600) })}
@@ -312,7 +302,7 @@ export default function OAuthAuthorizePage() {
                 ) : null}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   disabled={busy !== null}
                   onClick={() => decide(false)}
                   data-deny
@@ -383,7 +373,7 @@ function Loading() {
 function Claim({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-2.5">
-      <dt className="shrink-0 text-grid-muted">{label}</dt>
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
       <dd className="min-w-0 truncate text-end">{value}</dd>
     </div>
   )
@@ -394,20 +384,20 @@ function ProblemView({ problem, action }: { problem: Problem; action?: React.Rea
   return (
     <div className="space-y-3" data-oauth-problem>
       <p className="flex items-center gap-2 text-sm font-medium">
-        <ShieldAlertIcon className="size-4 text-grid-muted" />
+        <ShieldAlertIcon className="size-4 text-muted-foreground" />
         {problem.title}
       </p>
-      <p className="text-sm text-grid-muted">
+      <p className="text-sm text-muted-foreground">
         <Bdi>{problem.body}</Bdi>
       </p>
       {problem.back ? (
-        <Button variant="outline" nativeButton={false} render={<a href={problem.back} />}>
+        <Button variant="secondary" nativeButton={false} render={<a href={problem.back} />}>
           <ExternalLinkIcon />
           {t("oauth.backToClient")}
         </Button>
       ) : null}
       {action}
-      {!problem.back && !action ? <Badge variant="secondary">{t("oauth.closeTab")}</Badge> : null}
+      {!problem.back && !action ? <Badge variant="neutral">{t("oauth.closeTab")}</Badge> : null}
     </div>
   )
 }

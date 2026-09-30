@@ -10,8 +10,7 @@ be built without leaving the keyboard.
 import { useEffect, useMemo, useRef, useState } from "react"
 import { SearchIcon, XIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button, Input } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -61,17 +60,17 @@ export function NodePicker({
       data-node-picker
       onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
-      <div className="flex items-start justify-between gap-2 border-b border-line px-4 py-3">
+      <div className="flex items-start justify-between gap-2 border-b border-nq-line px-4 py-3">
         <div>
           <h2 className="text-base font-medium">{t("canvas.picker.title")}</h2>
-          <p className="text-xs text-grid-muted">{t("canvas.picker.hint", { n: position + 1 })}</p>
+          <p className="text-xs text-muted-foreground">{t("canvas.picker.hint", { n: position + 1 })}</p>
         </div>
         <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t("canvas.close")}>
           <XIcon />
         </Button>
       </div>
-      <div className="relative border-b border-line px-4 py-3">
-        <SearchIcon className="pointer-events-none absolute start-6 top-1/2 size-4 -translate-y-1/2 text-grid-muted" />
+      <div className="relative border-b border-nq-line px-4 py-3">
+        <SearchIcon className="pointer-events-none absolute start-6 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           ref={input}
           value={q}
@@ -103,13 +102,13 @@ export function NodePicker({
         aria-label={t("canvas.picker.title")}
       >
         {groups.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-grid-muted">
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
             {t("canvas.picker.none", { q })}
           </p>
         ) : null}
         {groups.map((g) => (
           <div key={g.id} className="pb-2">
-            <p className="grid-micro px-4 pt-2 pb-1">{t(`canvas.cat.${g.id}`)}</p>
+            <p className="eyebrow px-4 pt-2 pb-1">{t(`canvas.cat.${g.id}`)}</p>
             <ul>
               {g.kinds.map((k) => {
                 const Icon = SPECS[k].icon
@@ -124,16 +123,16 @@ export function NodePicker({
                       onClick={() => onPick(k)}
                       className={cn(
                         "flex w-full items-start gap-3 px-4 py-2.5 text-start transition-colors",
-                        on ? "bg-grid-soft" : "hover:bg-grid-soft",
+                        on ? "bg-nq-surface-soft" : "hover:bg-nq-surface-soft",
                       )}
                       data-pick-kind={k}
                     >
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-line bg-grid-card">
-                        <Icon className="size-4.5 text-grid-fg" />
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-nq-line bg-card">
+                        <Icon className="size-4.5 text-foreground" />
                       </span>
                       <span className="min-w-0">
                         <span className="block text-sm font-medium">{t(`canvas.kind.${k}`)}</span>
-                        <span className="block text-xs text-grid-muted">
+                        <span className="block text-xs text-muted-foreground">
                           {t(`canvas.desc.${k}`)}
                         </span>
                       </span>

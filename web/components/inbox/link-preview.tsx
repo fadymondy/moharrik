@@ -26,7 +26,7 @@ export function LinkPreviewCard({ url }: { url: string }) {
       target="_blank"
       rel="noreferrer noopener"
       aria-label={`${t("inbox.thread.linkPreview")}: ${data.title || site}`}
-      className="mb-1.5 block overflow-hidden rounded-md bg-[color-mix(in_oklab,var(--grid-fg)_6%,transparent)] no-underline transition-colors hover:bg-[color-mix(in_oklab,var(--grid-fg)_10%,transparent)]"
+      className="mb-1.5 block overflow-hidden rounded-md bg-[color-mix(in_oklab,var(--nq-fg)_6%,transparent)] no-underline transition-colors hover:bg-[color-mix(in_oklab,var(--nq-fg)_10%,transparent)]"
       data-link-preview
     >
       {data.image_url ? (
@@ -45,12 +45,12 @@ export function LinkPreviewCard({ url }: { url: string }) {
       ) : null}
       <div className="flex flex-col gap-0.5 px-2.5 py-2" dir="auto">
         {data.title ? (
-          <p className="line-clamp-2 text-sm font-medium text-grid-fg">{data.title}</p>
+          <p className="line-clamp-2 text-sm font-medium text-foreground">{data.title}</p>
         ) : null}
         {data.description ? (
-          <p className="line-clamp-2 text-xs text-grid-muted">{data.description}</p>
+          <p className="line-clamp-2 text-xs text-muted-foreground">{data.description}</p>
         ) : null}
-        <p className="truncate text-xs text-grid-muted" dir="ltr">
+        <p className="truncate text-xs text-muted-foreground" dir="ltr">
           {site}
         </p>
       </div>

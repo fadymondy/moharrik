@@ -8,8 +8,7 @@ icons inside a Button take no size classes — the Button sizes them.
 import { MaximizeIcon, MinusIcon, PlusIcon } from "lucide-react"
 import { Panel, useReactFlow, useStore, useViewport, type PanelProps } from "@xyflow/react"
 
-import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
+import { Button, Slider } from "@fadymondy/nasaq/web"
 import { cn } from "@/lib/utils"
 
 export function ZoomSlider({
@@ -29,7 +28,7 @@ export function ZoomSlider({
   return (
     <Panel
       className={cn(
-        "flex gap-1 rounded-md border border-line bg-grid-card p-1 text-grid-fg shadow-sm",
+        "flex gap-1 rounded-md border border-nq-line bg-card p-1 text-foreground shadow-sm",
         orientation === "horizontal" ? "flex-row items-center" : "flex-col",
         className,
       )}
@@ -50,8 +49,7 @@ export function ZoomSlider({
           <MinusIcon />
         </Button>
         <Slider
-          className={cn("hidden sm:flex", orientation === "horizontal" ? "w-[120px]" : "h-[120px]")}
-          orientation={orientation}
+          className={cn("hidden sm:flex", "w-[120px]")}
           value={[zoom]}
           min={minZoom}
           max={maxZoom}

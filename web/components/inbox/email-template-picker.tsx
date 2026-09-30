@@ -3,19 +3,9 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ChevronDownIcon, MailIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -85,7 +75,7 @@ export function EmailTemplatePicker({
             {t("inbox.emailTemplates.inLanguage", { language })}
           </DropdownMenuLabel>
           {list.length === 0 ? (
-            <p className="px-2 py-1.5 text-sm text-grid-muted">{t("inbox.emailTemplates.none")}</p>
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">{t("inbox.emailTemplates.none")}</p>
           ) : (
             list.map((tpl) => {
               const subject = lang === "ar" ? tpl.subject_ar || tpl.subject_en : tpl.subject_en || tpl.subject_ar
@@ -100,12 +90,12 @@ export function EmailTemplatePicker({
                 >
                   <Bdi className="font-medium">{tpl.name}</Bdi>
                   {subject ? (
-                    <span dir="auto" className="line-clamp-1 w-full text-start text-xs text-grid-muted">
+                    <span dir="auto" className="line-clamp-1 w-full text-start text-xs text-muted-foreground">
                       {subject}
                     </span>
                   ) : null}
                   {fallback ? (
-                    <span className="text-xs text-grid-warn-text">
+                    <span className="text-xs text-nq-warning-text">
                       {t("inbox.emailTemplates.fallback", {
                         language,
                         other: t(`inbox.canned.language.${lang === "ar" ? "en" : "ar"}`),

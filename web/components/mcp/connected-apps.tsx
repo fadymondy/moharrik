@@ -1,17 +1,8 @@
 "use client"
 
 import { PlugZapIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
-import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { Bdi, isolate } from "@/components/bidi"
@@ -47,13 +38,13 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
   }
 
   return (
-    <section className="border-t border-line py-8" aria-labelledby="mcp-apps" data-connected-apps>
+    <section className="border-t border-nq-line py-8" aria-labelledby="mcp-apps" data-connected-apps>
       <div className="mb-4 max-w-2xl space-y-1.5 px-6">
-        <h2 id="mcp-apps" className="grid-title flex items-center gap-2 text-lg">
-          <PlugZapIcon className="size-4 text-grid-muted" />
+        <h2 id="mcp-apps" className="font-medium tracking-tight text-foreground flex items-center gap-2 text-lg">
+          <PlugZapIcon className="size-4 text-muted-foreground" />
           {t("oauth.apps.title")}
         </h2>
-        <p className="grid-body text-sm">{all ? t("oauth.apps.hintAll") : t("oauth.apps.hint")}</p>
+        <p className="leading-relaxed text-nq-fg-body text-sm">{all ? t("oauth.apps.hintAll") : t("oauth.apps.hint")}</p>
       </div>
       {grants.error ? (
         <ErrorState error={grants.error} />
@@ -62,7 +53,7 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
       ) : list.length === 0 ? (
         <EmptyState title={t("oauth.apps.empty")} body={t("oauth.apps.emptyBody")} />
       ) : (
-        <div className="border-y border-line">
+        <div className="border-y border-nq-line">
           <Table>
             <TableHeader>
               <TableRow>
@@ -89,7 +80,7 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
                       <Bdi>{g.client_name || t("oauth.unnamed")}</Bdi>
                     </span>
                     {g.client_uri ? (
-                      <Ltr className="block max-w-56 truncate text-xs text-grid-muted">
+                      <Ltr className="block max-w-56 truncate text-xs text-muted-foreground">
                         {g.client_uri}
                       </Ltr>
                     ) : null}
@@ -98,7 +89,7 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
                     <TableCell>
                       <span className="flex flex-wrap items-center gap-1.5">
                         <Ltr className="text-sm">{g.user_email || g.user_id}</Ltr>
-                        {g.mine ? <Badge variant="secondary">{t("mcp.you")}</Badge> : null}
+                        {g.mine ? <Badge variant="neutral">{t("mcp.you")}</Badge> : null}
                       </span>
                     </TableCell>
                   ) : null}
@@ -111,15 +102,15 @@ export function ConnectedApps({ grants }: { grants: ReturnType<typeof useOAuthGr
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell className="text-grid-muted">
+                  <TableCell className="text-muted-foreground">
                     <Ltr>{formatDate(g.created_at)}</Ltr>
                   </TableCell>
-                  <TableCell className="text-grid-muted">
+                  <TableCell className="text-muted-foreground">
                     {g.last_used_at ? <Ltr>{formatDate(g.last_used_at)}</Ltr> : t("mcp.never")}
                   </TableCell>
                   <TableCell className="pe-6 text-end">
                     {g.revoked_at ? (
-                      <Badge variant="secondary">{t("oauth.apps.disconnectedBadge")}</Badge>
+                      <Badge variant="neutral">{t("oauth.apps.disconnectedBadge")}</Badge>
                     ) : (
                       <ConfirmButton
                         label={t("oauth.apps.disconnect")}

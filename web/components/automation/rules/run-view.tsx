@@ -21,15 +21,7 @@ import {
 
 import { Bdi } from "@/components/bidi"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { Badge, Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { intlTag } from "@/lib/i18n-locale"
 import { actionErrorText, actionSummaryText, runReasonText } from "@/lib/rule-messages"
@@ -39,12 +31,12 @@ import { cn } from "@/lib/utils"
 import { actionIcon } from "./rule-model"
 
 const STATUS_TONE: Record<string, string> = {
-  ok: "text-grid-ok",
-  partial: "text-grid-warn-text",
-  failed: "text-grid-danger-text",
-  skipped: "text-grid-muted",
-  rate_limited: "text-grid-warn-text",
-  loop_blocked: "text-grid-warn-text",
+  ok: "text-nq-success",
+  partial: "text-nq-warning-text",
+  failed: "text-nq-danger-text",
+  skipped: "text-muted-foreground",
+  rate_limited: "text-nq-warning-text",
+  loop_blocked: "text-nq-warning-text",
 }
 
 /** A test that would run says so, rather than "Ran". */
@@ -75,7 +67,7 @@ export function RunStatusIcon({
               : CircleMinusIcon
   return (
     <Icon
-      className={cn("size-4 shrink-0", STATUS_TONE[status] ?? "text-grid-muted", className)}
+      className={cn("size-4 shrink-0", STATUS_TONE[status] ?? "text-muted-foreground", className)}
       aria-hidden
     />
   )
@@ -92,10 +84,10 @@ function ActionIconFor({ a }: { a: RuleActionResult }) {
           : BanIcon
   const tone =
     a.status === "ok" || a.status === "would"
-      ? "text-grid-ok"
+      ? "text-nq-success"
       : a.status === "failed"
-        ? "text-grid-danger-text"
-        : "text-grid-muted"
+        ? "text-nq-danger-text"
+        : "text-muted-foreground"
   return <Icon className={cn("mt-0.5 size-4 shrink-0", tone)} aria-hidden />
 }
 
@@ -108,7 +100,7 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
       data-run-result={run.status}
       data-dry-run={run.dry_run ? "true" : "false"}
     >
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-grid-card px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-nq-line bg-card px-3 py-2">
         <RunStatusIcon status={run.status} />
         <span className="text-sm font-medium" data-run-status>
           {statusLabel(t, run)}
@@ -123,16 +115,16 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
           <Badge variant="outline">{t("rules.depth", { n: run.depth })}</Badge>
         ) : null}
         {run.reason ? (
-          <p className="w-full text-xs text-grid-muted" data-run-reason>
+          <p className="w-full text-xs text-muted-foreground" data-run-reason>
             <Bdi>{runReasonText(t, run)}</Bdi>
           </p>
         ) : null}
       </div>
 
       <section className="space-y-2">
-        <h3 className="text-xs font-medium text-grid-muted">{t("rules.if")}</h3>
+        <h3 className="text-xs font-medium text-muted-foreground">{t("rules.if")}</h3>
         {run.conditions.length === 0 ? (
-          <p className="text-sm text-grid-muted">{t("rules.noConditionsRan")}</p>
+          <p className="text-sm text-muted-foreground">{t("rules.noConditionsRan")}</p>
         ) : (
           <ul className="space-y-1.5" data-run-conditions>
             {run.conditions.map((c, i) => (
@@ -142,17 +134,17 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
                 data-cond-passed={c.passed ? "true" : "false"}
               >
                 {c.passed ? (
-                  <CircleCheckIcon className="mt-0.5 size-4 shrink-0 text-grid-ok" aria-hidden />
+                  <CircleCheckIcon className="mt-0.5 size-4 shrink-0 text-nq-success" aria-hidden />
                 ) : (
                   <CircleXIcon
-                    className="mt-0.5 size-4 shrink-0 text-grid-danger-text"
+                    className="mt-0.5 size-4 shrink-0 text-nq-danger-text"
                     aria-hidden
                   />
                 )}
                 <span className="min-w-0">
                   {t(`rules.field.${c.field}`)} {t(`rules.op.${c.op}`)}{" "}
                   {c.value ? <Bdi className="font-medium">{c.value}</Bdi> : null}
-                  <span className="block text-xs text-grid-muted">
+                  <span className="block text-xs text-muted-foreground">
                     {t("rules.itWas")} <Bdi>{c.actual === "" ? t("rules.empty") : c.actual}</Bdi>
                   </span>
                 </span>
@@ -163,9 +155,9 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-xs font-medium text-grid-muted">{t("rules.then")}</h3>
+        <h3 className="text-xs font-medium text-muted-foreground">{t("rules.then")}</h3>
         {run.actions.length === 0 ? (
-          <p className="text-sm text-grid-muted">{t("rules.noActionsRan")}</p>
+          <p className="text-sm text-muted-foreground">{t("rules.noActionsRan")}</p>
         ) : (
           <ol className="space-y-2" data-run-actions>
             {run.actions.map((a, i) => {
@@ -175,20 +167,20 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
               return (
                 <li
                   key={i}
-                  className="flex items-start gap-2 rounded-md border border-line px-3 py-2 text-sm"
+                  className="flex items-start gap-2 rounded-md border border-nq-line px-3 py-2 text-sm"
                   data-action-status={a.status}
                 >
                   <ActionIconFor a={a} />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <p className="flex items-center gap-1.5 font-medium">
-                      <Icon className="size-3.5 text-grid-muted" aria-hidden />
+                      <Icon className="size-3.5 text-muted-foreground" aria-hidden />
                       {t(`rules.action.${a.type}`)}
-                      <span className="text-xs font-normal text-grid-muted">
+                      <span className="text-xs font-normal text-muted-foreground">
                         · {t(`rules.actionStatus.${a.status}`)}
                       </span>
                     </p>
                     {summary ? (
-                      <p className="text-grid-muted" dir="auto">
+                      <p className="text-muted-foreground" dir="auto">
                         {summary}
                       </p>
                     ) : null}
@@ -196,7 +188,7 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
                       <p
                         className={cn(
                           "text-xs",
-                          a.status === "failed" ? "text-grid-danger-text" : "text-grid-warn-text",
+                          a.status === "failed" ? "text-nq-danger-text" : "text-nq-warning-text",
                         )}
                         dir="auto"
                       >
@@ -213,14 +205,14 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
 
       {showEvent ? (
         <section className="space-y-2">
-          <h3 className="text-xs font-medium text-grid-muted">{t("rules.eventGiven")}</h3>
+          <h3 className="text-xs font-medium text-muted-foreground">{t("rules.eventGiven")}</h3>
           <dl
             className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs"
             data-run-event
           >
             {Object.entries(run.event).map(([k, v]) => (
               <div key={k} className="contents">
-                <dt className="truncate text-grid-muted">{t(`rules.field.${k}`)}</dt>
+                <dt className="truncate text-muted-foreground">{t(`rules.field.${k}`)}</dt>
                 <dd className="break-words" dir="auto">
                   {v == null || v === "" ? "—" : String(v)}
                 </dd>
@@ -267,8 +259,8 @@ export function RunLog({
     <section data-rule-runs>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
-          <thead className="text-xs text-grid-muted">
-            <tr className="border-y border-line">
+          <thead className="text-xs text-muted-foreground">
+            <tr className="border-y border-nq-line">
               {showRule ? (
                 <th className="px-6 py-2 text-start font-normal">{t("rules.runs.rule")}</th>
               ) : null}
@@ -280,11 +272,11 @@ export function RunLog({
               <th className="px-6 py-2 text-start font-normal">{t("rules.runs.what")}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line border-b border-line">
+          <tbody className="divide-y divide-nq-line border-b border-nq-line">
             {runs.map((r) => (
               <tr
                 key={r.id}
-                className="cursor-pointer hover:bg-grid-soft"
+                className="cursor-pointer hover:bg-nq-surface-soft"
                 onClick={() => setOpen(r)}
                 data-rule-run={r.id}
                 data-run-row-status={r.status}
@@ -301,13 +293,13 @@ export function RunLog({
                     {r.dry_run ? <Badge variant="outline">{t("rules.testBadge")}</Badge> : null}
                   </span>
                 </td>
-                <td className="px-2 py-3 whitespace-nowrap text-grid-muted">
+                <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
                   {t(`rules.trigger.${r.trigger}`)}
                 </td>
-                <td className="px-2 py-3 whitespace-nowrap text-grid-muted">
+                <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
                   {when.format(new Date(r.started_at))}
                 </td>
-                <td className="max-w-md px-6 py-3 text-grid-muted">
+                <td className="max-w-md px-6 py-3 text-muted-foreground">
                   <span className="line-clamp-1" dir="auto">
                     {r.reason
                       ? runReasonText(t, r)
@@ -324,15 +316,15 @@ export function RunLog({
       </div>
       {more ? (
         <div className="px-6 pt-4">
-          <Button variant="outline" size="sm" onClick={onMore}>
+          <Button variant="secondary" size="sm" onClick={onMore}>
             {t("common.loadMore")}
           </Button>
         </div>
       ) : null}
       <Sheet open={!!open} onOpenChange={(v) => (!v ? setOpen(null) : undefined)}>
         <SheetContent
-          side={isRtl ? "left" : "right"}
-          className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-lg data-[side=right]:sm:max-w-lg"
+          side="end"
+          className="w-full overflow-y-auto sm:w-[min(32rem,100vw)]"
           data-run-sheet
         >
           <SheetHeader className="pe-12">

@@ -11,43 +11,9 @@ import {
   StarIcon,
   XCircleIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -95,7 +61,7 @@ export default function EmailSettingsPage() {
       {!ws.current ? (
         <LoadingRows rows={2} />
       ) : !isAdmin ? (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("smtp.adminOnly")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("smtp.adminOnly")}</p>
       ) : services.error ? (
         <ErrorState error={services.error} />
       ) : !services.data ? (
@@ -103,17 +69,17 @@ export default function EmailSettingsPage() {
       ) : (
         <>
           <p
-            className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted"
+            className="flex items-start gap-2 px-6 pb-4 text-sm text-muted-foreground"
             data-smtp-state={list.length ? "configured" : "missing"}
           >
             {list.length ? (
               <>
-                <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-grid-brand" />
+                <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-nq-brand" />
                 <span>{t("smtp.countConfigured", { count: list.length })}</span>
               </>
             ) : (
               <>
-                <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+                <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
                 <span>{t("smtp.notConfigured")}</span>
               </>
             )}
@@ -129,7 +95,7 @@ export default function EmailSettingsPage() {
           )}
           {list.length > 0 ? (
             <>
-              <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
+              <div className="hatch h-8 border-y border-border mt-2" aria-hidden />
               <TestSection services={list} onTested={() => services.mutate()} />
             </>
           ) : null}
@@ -150,16 +116,16 @@ export default function EmailSettingsPage() {
 function TestBadge({ s }: { s: SmtpService }) {
   const { t, formatDate } = useTranslations()
   if (s.last_test_ok === null) {
-    return <span className="text-xs text-grid-muted">{t("smtp.neverTested")}</span>
+    return <span className="text-xs text-muted-foreground">{t("smtp.neverTested")}</span>
   }
   return (
     <span
-      className={`inline-flex items-center gap-1 text-xs ${s.last_test_ok ? "text-grid-muted" : "text-grid-danger-text"}`}
+      className={`inline-flex items-center gap-1 text-xs ${s.last_test_ok ? "text-muted-foreground" : "text-nq-danger-text"}`}
       title={s.last_test_error || undefined}
       data-test-ok={s.last_test_ok ? "yes" : "no"}
     >
       {s.last_test_ok ? (
-        <CheckCircle2Icon className="size-3.5 text-grid-brand" />
+        <CheckCircle2Icon className="size-3.5 text-nq-brand" />
       ) : (
         <XCircleIcon className="size-3.5" />
       )}
@@ -228,11 +194,11 @@ function ServiceList({
   const defaultLocked = (s: SmtpService) => s.is_default && services.length > 1
 
   return (
-    <ul className="border-y border-line" data-smtp-services>
+    <ul className="border-y border-nq-line" data-smtp-services>
       {services.map((s) => (
         <li
           key={s.id}
-          className="flex flex-col gap-3 border-b border-line px-6 py-4 last:border-b-0 sm:flex-row sm:items-start"
+          className="flex flex-col gap-3 border-b border-nq-line px-6 py-4 last:border-b-0 sm:flex-row sm:items-start"
           data-service={s.name}
         >
           <div className="min-w-0 flex-1">
@@ -241,17 +207,17 @@ function ServiceList({
                 <Bdi>{s.name}</Bdi>
               </span>
               {s.is_default ? (
-                <Badge variant="default" data-role="default">
+                <Badge variant="brand" data-role="brand">
                   {t("smtp.roleDefault")}
                 </Badge>
               ) : null}
               {s.is_campaign_default ? (
-                <Badge variant="secondary" data-role="campaign">
+                <Badge variant="neutral" data-role="campaign">
                   {t("smtp.roleCampaign")}
                 </Badge>
               ) : null}
             </div>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-grid-muted">
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <Ltr>
                 {s.host}:{s.port}
               </Ltr>
@@ -300,7 +266,7 @@ function ServiceList({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  variant="destructive"
+                  variant="danger"
                   disabled={defaultLocked(s)}
                   onClick={() => setRemoving(s)}
                   data-remove-service
@@ -327,7 +293,7 @@ function ServiceList({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={busy} onClick={remove}>
+            <AlertDialogAction variant="danger" disabled={busy} onClick={remove}>
               {busy ? t("common.working") : t("smtp.remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -351,8 +317,8 @@ function ServiceSheet({
   return (
     <Sheet open={!!editing} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <SheetContent
-        side={isRtl ? "left" : "right"}
-        className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-xl data-[side=right]:sm:max-w-xl"
+        side="end"
+        className="w-full overflow-y-auto sm:w-[min(36rem,100vw)]"
         data-service-sheet
       >
         <SheetHeader className="pe-12">
@@ -497,7 +463,7 @@ function SmtpForm({
         <div className="flex flex-col gap-4 sm:flex-row">
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="smtp-username">
-              {t("smtp.username")} <span className="text-grid-muted">({t("common.optional")})</span>
+              {t("smtp.username")} <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="smtp-username"
@@ -523,7 +489,7 @@ function SmtpForm({
         <div className="flex flex-col gap-4 sm:flex-row">
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="smtp-from-name">
-              {t("smtp.fromName")} <span className="text-grid-muted">({t("common.optional")})</span>
+              {t("smtp.fromName")} <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="smtp-from-name"
@@ -625,7 +591,7 @@ function TestSection({ services, onTested }: { services: SmtpService[]; onTested
               onChange={(e) => setTo(e.target.value)}
             />
           </Field>
-          <Button type="submit" variant="outline" disabled={busy || !target.trim() || !chosen}>
+          <Button type="submit" variant="secondary" disabled={busy || !target.trim() || !chosen}>
             {busy ? t("common.working") : t("smtp.test")}
           </Button>
         </FieldGroup>

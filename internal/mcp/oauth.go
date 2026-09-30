@@ -57,6 +57,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	hub "github.com/fadymondy/moharrik/internal/circlexo"
 	"github.com/fadymondy/moharrik/internal/clientip"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -244,9 +245,15 @@ func (s *oauthServer) protectedResource(w http.ResponseWriter, _ *http.Request) 
 // dedicated host (public_host.go, MH-516) binds it to MCPPublicURL. Same
 // authorization server either way — there is only ever one.
 func protectedResourceBody(resource string) map[string]any {
+	servers := []string{OAuthIssuer()}
+	// With the CircleXO hub connected, its authorization server can issue tokens for this resource
+	// too (hub.go); Moharrik's own stays first, so existing clients are unaffected.
+	if s := hub.Current(); s != nil {
+		servers = append(servers, s.Cfg.Issuer)
+	}
 	return map[string]any{
 		"resource":                 resource,
-		"authorization_servers":    []string{OAuthIssuer()},
+		"authorization_servers":    servers,
 		"scopes_supported":         scopeNames(),
 		"bearer_methods_supported": []string{"header"},
 		"resource_name":            "Moharrik",

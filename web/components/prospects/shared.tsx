@@ -1,13 +1,13 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@fadymondy/nasaq/web"
 import type { ProspectReason, ProspectStatus } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
 /** 0-100, as a number people read at a glance. */
 export function ScoreBadge({ score }: { score: number }) {
   const { t, formatNumber } = useTranslations()
-  const tone = score >= 70 ? "default" : score >= 40 ? "secondary" : "outline"
+  const tone = score >= 70 ? "brand" : score >= 40 ? "neutral" : "outline"
   return (
     <Badge
       variant={tone}
@@ -23,7 +23,7 @@ export function ScoreBadge({ score }: { score: number }) {
 export function StatusBadge({ status }: { status: ProspectStatus }) {
   const { t } = useTranslations()
   return (
-    <Badge variant={status === "accepted" ? "default" : "outline"}>
+    <Badge variant={status === "accepted" ? "brand" : "outline"}>
       {t(`prospects.status.${status}`)}
     </Badge>
   )
@@ -62,20 +62,20 @@ export function ReasonList({
   return (
     <ul
       className={
-        compact ? "flex flex-wrap gap-x-3 gap-y-1 text-xs text-grid-muted" : "space-y-1.5 text-sm"
+        compact ? "flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground" : "space-y-1.5 text-sm"
       }
       data-reasons
     >
       {list.map((r, i) => (
         <li key={i} className="flex items-baseline gap-2" data-reason={r.dimension}>
           <span
-            className={`shrink-0 tabular-nums ${r.points < 0 ? "text-grid-danger-text" : "text-grid-ok-text"}`}
+            className={`shrink-0 tabular-nums ${r.points < 0 ? "text-nq-danger-text" : "text-nq-success-text"}`}
             dir="ltr"
           >
             {r.points > 0 ? "+" : ""}
             {formatNumber(Math.round(r.points))}
           </span>
-          <span className={compact ? "" : "text-grid-body"}>{text(r)}</span>
+          <span className={compact ? "" : "text-nq-fg-body"}>{text(r)}</span>
         </li>
       ))}
     </ul>

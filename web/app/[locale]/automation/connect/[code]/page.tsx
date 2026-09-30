@@ -36,11 +36,8 @@ import {
   XCircleIcon,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Skeleton } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 import { PickSelect } from "@/components/crm/shared"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
@@ -168,7 +165,7 @@ export default function ConnectBrowserPage() {
             // Signed out: sign in, then come straight back — the whole address,
             // key included, is where the sign-in form returns to.
             <div className="space-y-4" data-connect-signin>
-              <p className="text-sm text-grid-body">{t("automation.connect.signInFirst")}</p>
+              <p className="text-sm text-nq-fg-body">{t("automation.connect.signInFirst")}</p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   nativeButton={false}
@@ -177,7 +174,7 @@ export default function ConnectBrowserPage() {
                   {t("auth.signIn")}
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   nativeButton={false}
                   render={<Link href={`/${locale}/register?next=${encodeURIComponent(here)}`} />}
                 >
@@ -198,9 +195,9 @@ export default function ConnectBrowserPage() {
                   )}
                 </span>
               </p>
-              <p className="text-sm text-grid-muted">{t("automation.connect.closeTab")}</p>
+              <p className="text-sm text-muted-foreground">{t("automation.connect.closeTab")}</p>
               {done.browser.allowed_hosts.length === 0 ? (
-                <p className="text-sm text-grid-warn-text">{t("automation.connect.noSitesYet")}</p>
+                <p className="text-sm text-nq-warning-text">{t("automation.connect.noSitesYet")}</p>
               ) : null}
               <Button
                 nativeButton={false}
@@ -213,7 +210,7 @@ export default function ConnectBrowserPage() {
           ) : done?.kind === "denied" ? (
             <div className="space-y-4" data-connect-done="denied">
               <p className="flex items-start gap-2 text-sm">
-                <XCircleIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" />
+                <XCircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 {t("automation.connect.refusedBody")}
               </p>
             </div>
@@ -244,7 +241,7 @@ export default function ConnectBrowserPage() {
               action={
                 r.workspace ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     nativeButton={false}
                     render={<Link href={`/${locale}/w/${r.workspace.slug}/automation/browsers`} />}
                   >
@@ -268,12 +265,12 @@ export default function ConnectBrowserPage() {
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <MonitorSmartphoneIcon className="size-4 text-grid-muted" />
+                  <MonitorSmartphoneIcon className="size-4 text-muted-foreground" />
                   {t("automation.connect.checkCode")}
                 </p>
                 {/* Latin, read character by character: LTR in an Arabic page too. */}
                 <Badge
-                  variant="secondary"
+                  variant="neutral"
                   className="font-mono text-sm tracking-widest"
                   dir="ltr"
                   data-connect-code
@@ -283,7 +280,7 @@ export default function ConnectBrowserPage() {
               </div>
 
               <div>
-                <dl className="divide-y divide-line border border-line text-sm" data-connect-claims>
+                <dl className="divide-y divide-nq-line border border-nq-line text-sm" data-connect-claims>
                   <Claim label={t("automation.connect.claimName")} value={r.requested_name} />
                   <Claim label={t("automation.connect.claimPlatform")} value={r.platform} ltr />
                   <Claim
@@ -298,14 +295,14 @@ export default function ConnectBrowserPage() {
                   />
                   <Claim label={t("automation.connect.claimIp")} value={r.ip} ltr />
                 </dl>
-                <p className="mt-2 text-xs text-grid-muted">
+                <p className="mt-2 text-xs text-muted-foreground">
                   {t("automation.connect.claimsHint", { date: formatDate(r.expires_at) })}
                 </p>
               </div>
 
-              <p className="text-sm text-grid-body">
+              <p className="text-sm text-nq-fg-body">
                 {t("automation.connect.signedInAs")}{" "}
-                <Ltr className="font-medium text-grid-fg">{me.data.email}</Ltr>
+                <Ltr className="font-medium text-foreground">{me.data.email}</Ltr>
               </p>
 
               {approvable.length === 0 ? (
@@ -318,7 +315,7 @@ export default function ConnectBrowserPage() {
                   )}
                   action={
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       nativeButton={false}
                       render={<Link href={`/${locale}/workspaces`} />}
                     >
@@ -385,7 +382,7 @@ export default function ConnectBrowserPage() {
                 ) : null}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   disabled={busy !== null}
                   onClick={() => decide(false)}
                   data-deny
@@ -414,7 +411,7 @@ function Loading() {
 function Claim({ label, value, ltr }: { label: string; value: string; ltr?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-2.5">
-      <dt className="shrink-0 text-grid-muted">{label}</dt>
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
       <dd className="min-w-0 truncate text-end">
         {value ? ltr ? <Ltr>{value}</Ltr> : <Bdi>{value}</Bdi> : "—"}
       </dd>
@@ -434,10 +431,10 @@ function Problem({
   return (
     <div className="space-y-3" data-connect-problem>
       <p className="flex items-center gap-2 text-sm font-medium">
-        <ShieldAlertIcon className="size-4 text-grid-muted" />
+        <ShieldAlertIcon className="size-4 text-muted-foreground" />
         {title}
       </p>
-      <p className="text-sm text-grid-muted">{body}</p>
+      <p className="text-sm text-muted-foreground">{body}</p>
       {action}
     </div>
   )

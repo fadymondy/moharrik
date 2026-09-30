@@ -3,9 +3,7 @@
 import { useMemo, useState } from "react"
 import { SmilePlusIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button, Input, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /*
@@ -179,7 +177,7 @@ export function EmojiGrid({ onPick }: { onPick: (emoji: string) => void }) {
         <div className="max-h-56 overflow-y-auto">
           {results ? (
             results.length === 0 ? (
-              <p className="px-1 py-4 text-center text-xs text-grid-muted">
+              <p className="px-1 py-4 text-center text-xs text-muted-foreground">
                 {t("inbox.composer.emojiNone")}
               </p>
             ) : (
@@ -192,7 +190,7 @@ export function EmojiGrid({ onPick }: { onPick: (emoji: string) => void }) {
           ) : (
             CATEGORIES.map((cat) => (
               <div key={cat.key} className="mb-2" data-emoji-category={cat.key}>
-                <p className="mb-1 px-1 text-xs font-medium text-grid-muted">{cat.label}</p>
+                <p className="mb-1 px-1 text-xs font-medium text-muted-foreground">{cat.label}</p>
                 <div className="grid grid-cols-8 gap-0.5">
                   {cat.items.map((e) => (
                     <EmojiButton key={e.char} entry={e} onPick={onPick} />
@@ -216,7 +214,7 @@ function EmojiButton({
   return (
     <button
       type="button"
-      className="flex size-8 items-center justify-center rounded text-lg hover:bg-grid-elevated"
+      className="flex size-8 items-center justify-center rounded text-lg hover:bg-nq-surface-overlay"
       title={entry.name}
       data-emoji={entry.char}
       onClick={() => {

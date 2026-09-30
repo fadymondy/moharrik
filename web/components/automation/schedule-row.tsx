@@ -5,23 +5,10 @@
 
 import { Fragment, useState } from "react"
 import { PencilIcon, PlayIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Switch, toast } from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { ScheduleForm } from "@/components/automation/schedule-form"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -122,21 +109,21 @@ export function ScheduleRow({
         <div className="min-w-0 flex-1 basis-64">
           <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
             <Bdi>{schedule.name}</Bdi>
-            <Badge variant={schedule.enabled ? "default" : "outline"}>
+            <Badge variant={schedule.enabled ? "brand" : "outline"}>
               {schedule.enabled ? t("automation.scheduleOn") : t("automation.scheduleOff")}
             </Badge>
             {schedule.last_status ? (
-              <Badge variant="secondary">{t(`automation.last.${schedule.last_status}`)}</Badge>
+              <Badge variant="neutral">{t(`automation.last.${schedule.last_status}`)}</Badge>
             ) : null}
             {/* Five failures in a row (MH-478): said on the row, not left for someone to count. */}
             {schedule.failing ? (
-              <Badge variant="destructive" data-schedule-failing>
+              <Badge variant="danger" data-schedule-failing>
                 {t("automation.sched.failing", { n: schedule.failure_count })}
               </Badge>
             ) : null}
           </p>
           {schedule.job_key ? (
-            <p className="text-xs text-grid-muted" data-schedule-job={schedule.job_key}>
+            <p className="text-xs text-muted-foreground" data-schedule-job={schedule.job_key}>
               {t("automation.sched.runsJob", { name: t(`automation.job.${schedule.job_key}`) })}
               {Object.entries(schedule.values ?? {}).map(
                 ([k, v]) => ` · ${t(`automation.jobParam.${k}`)}: ${v}`,
@@ -144,7 +131,7 @@ export function ScheduleRow({
             </p>
           ) : null}
           {schedule.workflow_id ? (
-            <p className="text-xs text-grid-muted" data-schedule-workflow>
+            <p className="text-xs text-muted-foreground" data-schedule-workflow>
               {t("automation.sched.runs", {
                 name: schedule.workflow_name
                   ? isolate(schedule.workflow_name)
@@ -166,7 +153,7 @@ export function ScheduleRow({
               ))}
             </p>
           ) : null}
-          <p className="text-xs text-grid-muted">
+          <p className="text-xs text-muted-foreground">
             <Ltr mono>{schedule.cron}</Ltr> · <Ltr>{schedule.timezone}</Ltr>
             {schedule.job_key ? null : (
               <>
@@ -188,7 +175,7 @@ export function ScheduleRow({
               ? ` · ${t("automation.sched.missedCount", { n: schedule.missed_count })}`
               : ""}
           </p>
-          <p className="text-xs text-grid-muted">
+          <p className="text-xs text-muted-foreground">
             {schedule.next_run_at
               ? t("automation.nextRun", { date: formatDate(schedule.next_run_at) })
               : ""}
@@ -202,8 +189,8 @@ export function ScheduleRow({
             <p
               className={
                 schedule.last_status === "ok" || schedule.last_status === "skipped"
-                  ? "mt-1 text-xs text-grid-muted"
-                  : "mt-1 text-xs text-grid-danger-text"
+                  ? "mt-1 text-xs text-muted-foreground"
+                  : "mt-1 text-xs text-nq-danger-text"
               }
               data-schedule-error
             >

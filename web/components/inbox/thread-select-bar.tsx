@@ -2,19 +2,8 @@
 
 import { useState } from "react"
 import { CopyIcon, StarIcon, StarOffIcon, Trash2Icon, XIcon } from "lucide-react"
-import { toast } from "sonner"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, toast } from "@fadymondy/nasaq/web"
 
-import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { ApiError, type InboxMessage } from "@/lib/api"
 import { hideMessage, starMessage, unstarMessage } from "@/lib/queries"
@@ -95,7 +84,7 @@ export function ThreadSelectBar({
   return (
     <>
       <div
-        className="flex items-center gap-2 border-b border-line bg-grid-elevated px-6 py-2"
+        className="flex items-center gap-2 border-b border-nq-line bg-nq-surface-overlay px-6 py-2"
         data-thread-select-bar
       >
         <Button type="button" variant="ghost" size="icon-sm" aria-label={t("inbox.select.cancel")} onClick={onExit}>
@@ -149,7 +138,7 @@ export function ThreadSelectBar({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => void deleteForUs()} data-confirm>
+            <AlertDialogAction variant="danger" onClick={() => void deleteForUs()} data-confirm>
               {t("inbox.select.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -7,8 +7,7 @@ import { Providers } from "@/components/providers"
 import { dirForLocale, isLocale, type Locale } from "@/lib/i18n-locale"
 
 // English UI is set in Inter: built for screens and legible at small sizes on desktop and mobile.
-// next/font self-hosts it at build time, so no request reaches Google at runtime. Arabic keeps the
-// grid's Lusail/Alexandria; the switch is in styles/moharrik-brand.css (English only).
+// next/font self-hosts it at build time, so no request reaches Google at runtime. Arabic uses Nasaq's Arabic stack (Lusail); the English/Arabic switch is --nq-font-sans / [lang|=ar] in globals.css.
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" })
 
 export const metadata: Metadata = {
@@ -34,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang={locale}
       dir={dirForLocale(locale)}
       data-brand="moharrik"
-      className={`grid-surface ${inter.variable}`}
+      className={inter.variable}
       suppressHydrationWarning
     >
       <head>{rumKey && <script defer src={`${HOSBAH_URL}/rum.js`} data-key={rumKey} />}</head>

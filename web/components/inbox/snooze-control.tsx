@@ -2,17 +2,8 @@
 
 import { useMemo } from "react"
 import { AlarmClockIcon, AlarmClockOffIcon, ChevronDownIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
 
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Conversation } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -87,7 +78,7 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
     // controls row keeps only the button, so it does not squeeze the subject.
     return (
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
         onClick={() => patch({ snoozed_until: "" }, t("inbox.unsnoozed"))}
         data-action="unsnooze"
@@ -101,7 +92,7 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="sm" data-action="snooze" />}>
+      <DropdownMenuTrigger render={<Button variant="secondary" size="sm" data-action="snooze" />}>
         <AlarmClockIcon />
         {t("inbox.snooze")}
         <ChevronDownIcon />
@@ -121,11 +112,11 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
               }
             >
               <span className="flex-1">{t(`inbox.snooze.${p.key}`)}</span>
-              <span className="text-xs text-grid-muted">{fmt.short(p.at)}</span>
+              <span className="text-xs text-muted-foreground">{fmt.short(p.at)}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
-        <p className="max-w-64 px-2 py-1.5 text-xs text-grid-muted">{t("inbox.snoozeHint")}</p>
+        <p className="max-w-64 px-2 py-1.5 text-xs text-muted-foreground">{t("inbox.snoozeHint")}</p>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -138,7 +129,7 @@ export function SnoozedNote({ c }: { c: Conversation }) {
   if (c.status !== "snoozed") return null
   return (
     <p
-      className="flex items-center gap-1 text-xs text-grid-muted [&_svg]:size-3.5"
+      className="flex items-center gap-1 text-xs text-muted-foreground [&_svg]:size-3.5"
       data-snoozed-until={c.snoozed_until ?? ""}
     >
       <AlarmClockIcon aria-hidden />

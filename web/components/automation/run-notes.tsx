@@ -24,7 +24,7 @@ export function RunNotes({ notes, className }: { notes?: string[]; className?: s
         return (
           <li
             key={i}
-            className="flex items-start gap-1.5 text-xs text-grid-muted"
+            className="flex items-start gap-1.5 text-xs text-muted-foreground"
             data-run-note={m ? "sites-added" : "text"}
           >
             <GlobeIcon className="mt-0.5 size-3 shrink-0" aria-hidden />

@@ -18,20 +18,7 @@ import { useSyncExternalStore, type ReactNode } from "react"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /** True below the sm breakpoint: narrow charts give the labels more room. */
@@ -114,10 +101,7 @@ export function HorizontalBars({
         <ChartTooltip
           cursor={false}
           content={
-            <ChartTooltipContent
-              hideLabel
-              formatter={(_v, _n, item) => <div dir={dir}>{(item.payload as BarRow).tooltip}</div>}
-            />
+            <ChartTooltipContent config={config} hideLabel />
           }
         />
         <Bar
@@ -141,7 +125,7 @@ export function HorizontalBars({
                   y={y}
                   dy="0.35em"
                   textAnchor={isRtl ? "end" : "start"}
-                  className="fill-grid-fg"
+                  className="fill-nq-fg"
                   fontSize={12}
                 >
                   {String(p.value ?? "")}
@@ -183,7 +167,7 @@ export function WonLostChart({
     <>
       {/* The legend, in the series' own order (won, then lost); identity is never colour alone. */}
       <ul
-        className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-grid-muted"
+        className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-muted-foreground"
         data-legend
       >
         {(["won", "lost"] as const).map((k) => (
@@ -232,24 +216,8 @@ export function WonLostChart({
             cursor={{ fillOpacity: 0.4 }}
             content={
               <ChartTooltipContent
-                labelFormatter={(_l, payload) =>
-                  formatBucket(String(payload?.[0]?.payload?.start ?? ""))
-                }
-                formatter={(value, name, item) => (
-                  <div className="flex w-full items-center justify-between gap-4" dir={dir}>
-                    <span className="flex items-center gap-1.5 text-grid-muted">
-                      <span
-                        className="size-2.5 rounded-[2px]"
-                        style={{ background: item.color }}
-                        aria-hidden
-                      />
-                      {name === "won" ? wonLabel : lostLabel}
-                    </span>
-                    <Ltr className="font-medium text-grid-fg tabular-nums">
-                      {format(Number(value))}
-                    </Ltr>
-                  </div>
-                )}
+                config={config}
+                labelFormatter={(l) => formatBucket(String(l ?? ""))}
               />
             }
           />

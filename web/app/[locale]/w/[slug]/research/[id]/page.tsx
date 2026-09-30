@@ -13,16 +13,12 @@ import {
   SquareIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger, Skeleton, toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { CostLine, EvidenceItem, SignalBadge, StageList } from "@/components/research/evidence"
 import { isLive, ResearchStatusBadge, useFormatDateTime } from "@/components/research/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -93,7 +89,7 @@ export default function ResearchRunPage() {
           <div className="flex flex-wrap items-center gap-2">
             {canRun && live ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={cancel}
                 disabled={cancelling}
@@ -123,7 +119,7 @@ export default function ResearchRunPage() {
       ) : (
         <>
           <div
-            className="flex flex-wrap items-center gap-x-2 gap-y-1 px-6 pb-4 text-sm text-grid-muted"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 px-6 pb-4 text-sm text-muted-foreground"
             data-run-status={run.status}
           >
             <ResearchStatusBadge status={run.status} />
@@ -146,7 +142,7 @@ export default function ResearchRunPage() {
           <StageList stages={run.stages ?? []} />
           {run.cost ? <CostLine cost={run.cost} /> : null}
           {run.mode === "urls" && run.urls?.length ? (
-            <div className="px-6 pt-3 text-xs text-grid-muted" data-urls-given>
+            <div className="px-6 pt-3 text-xs text-muted-foreground" data-urls-given>
               <p className="font-medium text-foreground">{t("research.pagesGiven")}</p>
               <ul>
                 {run.urls.map((u) => (
@@ -173,12 +169,12 @@ export default function ResearchRunPage() {
             />
           ) : null}
 
-          <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
+          <div className="hatch h-8 border-y border-border mt-2" aria-hidden />
 
           <h2 className="flex flex-wrap items-baseline gap-x-2 px-6 pt-6 pb-1 text-base font-medium">
             {t("research.sources")}
           </h2>
-          <p className="px-6 pb-3 text-sm text-grid-muted">{t("research.sourcesHint")}</p>
+          <p className="px-6 pb-3 text-sm text-muted-foreground">{t("research.sourcesHint")}</p>
           {sources.length === 0 ? (
             live ? (
               <LoadingRows rows={3} />
@@ -186,7 +182,7 @@ export default function ResearchRunPage() {
               <EmptyState title={t("research.noSources")} />
             )
           ) : (
-            <ol className="divide-y divide-line border-y border-line" data-sources>
+            <ol className="divide-y divide-nq-line border-y border-nq-line" data-sources>
               {sources.map((s) => (
                 <SourceRow
                   key={s.position}
@@ -224,7 +220,7 @@ function Outcome({
   if (live) {
     const read = sources.filter((s) => s.fetched).length
     return (
-      <Panel icon={<LoaderCircleIcon className="animate-spin text-grid-brand" />} data="progress">
+      <Panel icon={<LoaderCircleIcon className="animate-spin text-nq-brand" />} data="progress">
         <p className="font-medium" aria-live="polite">
           {run.status === "queued"
             ? t("research.progressQueued")
@@ -232,25 +228,25 @@ function Outcome({
               ? t("research.progressSearching")
               : t("research.progressReading", { checked: sources.length, read })}
         </p>
-        <p className="text-grid-muted">{t("research.progressHint")}</p>
+        <p className="text-muted-foreground">{t("research.progressHint")}</p>
       </Panel>
     )
   }
 
   if (run.status === "failed") {
     return (
-      <Panel icon={<TriangleAlertIcon className="text-grid-danger" />} data="failed">
+      <Panel icon={<TriangleAlertIcon className="text-nq-danger" />} data="failed">
         <p className="font-medium">{t("research.failedTitle")}</p>
-        {run.error ? <p className="text-grid-danger-text">{run.error}</p> : null}
+        {run.error ? <p className="text-nq-danger-text">{run.error}</p> : null}
       </Panel>
     )
   }
 
   if (run.status === "cancelled") {
     return (
-      <Panel icon={<SquareIcon className="text-grid-muted" />} data="cancelled">
+      <Panel icon={<SquareIcon className="text-muted-foreground" />} data="cancelled">
         <p className="font-medium">{t("research.cancelledTitle")}</p>
-        <p className="text-grid-muted">
+        <p className="text-muted-foreground">
           {sources.length ? t("research.cancelledBody") : t("research.cancelledEmpty")}
         </p>
       </Panel>
@@ -260,7 +256,7 @@ function Outcome({
   // ok, with nothing found: the search itself came back empty.
   if (sources.length === 0) {
     return (
-      <Panel icon={<InfoIcon className="text-grid-muted" />} data="nothing-found">
+      <Panel icon={<InfoIcon className="text-muted-foreground" />} data="nothing-found">
         <p className="font-medium">{t("research.nothingFound")}</p>
       </Panel>
     )
@@ -272,13 +268,13 @@ function Outcome({
       <section className="px-6 pb-6" data-outcome="summary">
         <h2 className="pb-2 text-base font-medium">{t("research.answer")}</h2>
         <div
-          className="max-w-3xl space-y-3 text-sm leading-relaxed text-grid-body"
+          className="max-w-3xl space-y-3 text-sm leading-relaxed text-nq-fg-body"
           dir="auto"
           data-summary
         >
           <Summary text={run.summary} sources={sources} />
         </div>
-        <p className="mt-3 text-xs text-grid-muted">
+        <p className="mt-3 text-xs text-muted-foreground">
           {run.model ? t("research.answerBy", { model: run.model }) : t("research.answerFrom")}
         </p>
       </section>
@@ -290,14 +286,14 @@ function Outcome({
   const noModel = canSummarise === false
   return (
     <Panel
-      icon={<InfoIcon className="text-grid-warn" />}
+      icon={<InfoIcon className="text-nq-warning" />}
       data={noModel ? "no-model" : "not-summarised"}
     >
       <p className="font-medium">{t("research.notSummarisedTitle")}</p>
-      <p className="text-grid-muted">
+      <p className="text-muted-foreground">
         {noModel ? t("research.noModelBody") : t("research.notSummarisedBody")}
       </p>
-      {!noModel && run.error ? <p className="text-grid-muted">{run.error}</p> : null}
+      {!noModel && run.error ? <p className="text-muted-foreground">{run.error}</p> : null}
     </Panel>
   )
 }
@@ -305,7 +301,7 @@ function Outcome({
 function Panel({ icon, children, data }: { icon: ReactNode; children: ReactNode; data: string }) {
   return (
     <section className="px-6 pb-6" data-outcome={data}>
-      <div className="flex max-w-3xl items-start gap-3 border border-line bg-grid-card px-4 py-3 text-sm [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0">
+      <div className="flex max-w-3xl items-start gap-3 border border-nq-line bg-card px-4 py-3 text-sm [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0">
         {icon}
         <div className="min-w-0 flex-1 space-y-1">{children}</div>
       </div>
@@ -358,7 +354,7 @@ function renderInline(text: string, byNumber: Map<number, ResearchSource>): Reac
                 key={j}
                 href={`#source-${n}`}
                 title={src.title || src.url}
-                className="font-medium text-grid-brand underline-offset-4 hover:underline"
+                className="font-medium text-nq-brand underline-offset-4 hover:underline"
                 data-citation={n}
               >
                 {n}
@@ -404,13 +400,13 @@ function SourceRow({
   return (
     <li
       id={`source-${n}`}
-      className="scroll-mt-4 px-6 py-4 target:bg-grid-soft"
+      className="scroll-mt-4 px-6 py-4 target:bg-nq-surface-soft"
       data-source={n}
       data-source-read={source.fetched ? "true" : "false"}
     >
       <div className="flex items-start gap-3">
         <span
-          className="grid-mono w-7 shrink-0 pt-0.5 text-xs text-grid-muted tabular-nums"
+          className="font-mono w-7 shrink-0 pt-0.5 text-xs text-muted-foreground tabular-nums"
           dir="ltr"
           aria-label={t("research.rank", { n })}
         >
@@ -426,26 +422,26 @@ function SourceRow({
             >
               <bdi>{source.title || host}</bdi>
               <ExternalLinkIcon
-                className="ms-1 inline size-3.5 align-[-2px] text-grid-muted"
+                className="ms-1 inline size-3.5 align-[-2px] text-muted-foreground"
                 aria-hidden
               />
             </a>
-            <Badge variant={source.fetched ? "secondary" : "outline"}>
+            <Badge variant={source.fetched ? "neutral" : "outline"}>
               {source.fetched ? t("research.read") : t("research.unread")}
             </Badge>
           </p>
           {/* Aligned with the page, isolated inside: a dir="ltr" block would pin
               the link to the far left of an Arabic row, away from its title. */}
-          <p className="truncate font-mono text-xs text-grid-muted" title={source.url}>
+          <p className="truncate font-mono text-xs text-muted-foreground" title={source.url}>
             <bdi dir="ltr">{source.url}</bdi>
           </p>
           {source.snippet ? (
-            <p className="text-sm text-grid-muted break-words">
+            <p className="text-sm text-muted-foreground break-words">
               <bdi>{source.snippet}</bdi>
             </p>
           ) : null}
           {!source.fetched ? (
-            <p className="flex items-start gap-1.5 text-xs text-grid-warn-text" data-source-error>
+            <p className="flex items-start gap-1.5 text-xs text-nq-warning-text" data-source-error>
               <TriangleAlertIcon className="mt-px size-3.5 shrink-0" aria-hidden />
               <span>
                 {source.error
@@ -464,7 +460,7 @@ function SourceRow({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="-ms-2 mt-1 text-grid-muted"
+                    className="-ms-2 mt-1 text-muted-foreground"
                     data-action="page-text"
                   />
                 }
@@ -478,9 +474,9 @@ function SourceRow({
                   {t("research.hideText")}
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2" data-page-text>
+              <CollapsiblePanel className="mt-2" data-page-text>
                 {textState === "error" ? (
-                  <p className="text-xs text-grid-danger-text">
+                  <p className="text-xs text-nq-danger-text">
                     {textError instanceof ApiError ? textError.message : t("common.networkError")}
                   </p>
                 ) : textState === "loading" || text === undefined ? (
@@ -491,15 +487,15 @@ function SourceRow({
                   </div>
                 ) : text ? (
                   <pre
-                    className="max-h-96 overflow-auto border border-line bg-grid-card px-3 py-2 font-sans text-xs leading-relaxed whitespace-pre-wrap break-words"
+                    className="max-h-96 overflow-auto border border-nq-line bg-card px-3 py-2 font-sans text-xs leading-relaxed whitespace-pre-wrap break-words"
                     dir="auto"
                   >
                     {text}
                   </pre>
                 ) : (
-                  <p className="text-xs text-grid-muted">{t("research.textEmpty")}</p>
+                  <p className="text-xs text-muted-foreground">{t("research.textEmpty")}</p>
                 )}
-              </CollapsibleContent>
+              </CollapsiblePanel>
             </Collapsible>
           ) : null}
         </div>
@@ -520,23 +516,23 @@ function RunEvidence({
   const ws = useWorkspace()
   return (
     <>
-      <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-2" aria-hidden />
       <h2
         className="flex flex-wrap items-baseline gap-x-2 px-6 pt-6 pb-1 text-base font-medium"
         data-run-evidence={evidence.length}
       >
         {t("research.evidence")}
-        <span className="text-sm font-normal text-grid-muted tabular-nums">
+        <span className="text-sm font-normal text-muted-foreground tabular-nums">
           {formatNumber(evidence.length)}
         </span>
       </h2>
-      <p className="px-6 pb-3 text-sm text-grid-muted">{t("research.evidenceHint")}</p>
+      <p className="px-6 pb-3 text-sm text-muted-foreground">{t("research.evidenceHint")}</p>
       {evidence.length === 0 ? (
-        <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">
+        <p className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground">
           {t("research.noEvidence")}
         </p>
       ) : (
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-nq-line border-y border-nq-line">
           {evidence.map((e) => (
             <EvidenceItem key={e.id} e={e} />
           ))}
@@ -546,12 +542,12 @@ function RunEvidence({
       {companies.length ? (
         <section className="px-6 pt-6" data-run-companies={companies.length}>
           <h2 className="text-base font-medium">{t("research.companiesFound")}</h2>
-          <p className="pb-3 text-sm text-grid-muted">{t("research.companiesFoundHint")}</p>
+          <p className="pb-3 text-sm text-muted-foreground">{t("research.companiesFoundHint")}</p>
           <ul className="flex flex-wrap gap-2">
             {companies.map((c) => (
               <li
                 key={c.id}
-                className="flex flex-wrap items-center gap-2 border border-line bg-grid-card px-3 py-2 text-sm"
+                className="flex flex-wrap items-center gap-2 border border-nq-line bg-card px-3 py-2 text-sm"
                 data-run-company={c.name}
                 data-company-status={c.status}
               >
@@ -570,7 +566,7 @@ function RunEvidence({
                 {c.signal_types.slice(0, 2).map((s) => (
                   <SignalBadge key={s} signal={s} />
                 ))}
-                <span className="text-xs text-grid-muted">
+                <span className="text-xs text-muted-foreground">
                   {t(`research.suggestionStatus.${c.status}`)}
                 </span>
               </li>
@@ -578,7 +574,7 @@ function RunEvidence({
           </ul>
           {companies.some((c) => c.status === "suggested") ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="mt-3"
               nativeButton={false}

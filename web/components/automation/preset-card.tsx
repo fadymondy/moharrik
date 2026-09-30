@@ -11,8 +11,7 @@ import Link from "next/link"
 import { CheckIcon, ExternalLinkIcon, ShieldCheckIcon } from "lucide-react"
 
 import { BrandIcon } from "@/components/automation/brand-icon"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Badge, Button } from "@fadymondy/nasaq/web"
 import type { Brand } from "@/lib/brands"
 import type { AutomationPreset } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -41,8 +40,8 @@ export function PresetCard({
 
   return (
     <li
-      className="relative flex flex-col gap-2 overflow-hidden rounded-lg border border-line p-4"
-      style={{ borderInlineStartWidth: 3, borderInlineStartColor: tint ?? "var(--grid-muted)" }}
+      className="relative flex flex-col gap-2 overflow-hidden rounded-lg border border-nq-line p-4"
+      style={{ borderInlineStartWidth: 3, borderInlineStartColor: tint ?? "var(--nq-fg-muted)" }}
       id={`preset-${p.slug}`}
       data-preset={p.slug}
       data-writes={p.writes ? "true" : undefined}
@@ -60,7 +59,7 @@ export function PresetCard({
               <span data-preset-name>{plain.name}</span>
             </p>
             {plain.summary ? (
-              <p className="line-clamp-2 text-xs text-grid-muted" data-preset-summary>
+              <p className="line-clamp-2 text-xs text-muted-foreground" data-preset-summary>
                 {plain.summary}
               </p>
             ) : null}
@@ -68,7 +67,7 @@ export function PresetCard({
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {p.writes ? (
-            <Badge variant="secondary" data-preset-publishes>
+            <Badge variant="neutral" data-preset-publishes>
               {t("presets.publishes")}
             </Badge>
           ) : null}
@@ -81,7 +80,7 @@ export function PresetCard({
           ) : null}
         </div>
         <p
-          className="flex items-start gap-1 text-xs text-grid-muted"
+          className="flex items-start gap-1 text-xs text-muted-foreground"
           data-preset-hosts={p.hosts.join(",")}
         >
           <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
@@ -93,7 +92,7 @@ export function PresetCard({
         </p>
       </button>
       {twin && p.dry_run ? (
-        <p className="text-xs text-grid-muted">
+        <p className="text-xs text-muted-foreground">
           {t("presets.rehearseFirst")}{" "}
           <a className="underline" href={`#preset-${twin.slug}`}>
             {plainOf(twin, locale).name}

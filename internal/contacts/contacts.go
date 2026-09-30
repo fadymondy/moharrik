@@ -166,8 +166,16 @@ func Upsert(ctx context.Context, db *sql.DB, wsID string, c Candidate) (*Result,
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	if res.Created && OnCreated != nil {
+		OnCreated(wsID, res.ContactID)
+	}
 	return res, nil
 }
+
+// OnCreated, when set, is called after a contact is created (not for a match or a merge). It must
+// not block and must not fail the caller. internal/circlexo sets it to meter `contacts` for a
+// hub-linked workspace; nil (always, when CIRCLEXO_ISSUER is unset) does nothing.
+var OnCreated func(workspaceID, contactID string)
 
 // matchingContacts finds every contact in the workspace that the candidate's
 // email/phone/handle (against the legacy columns, for any row a caller that

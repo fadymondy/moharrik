@@ -10,19 +10,10 @@
 
 import { useState } from "react"
 import { DownloadIcon, FileSpreadsheetIcon, RefreshCwIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
 
 import { useFormat } from "@/components/overview/overview-cards"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, downloadFile, type YtReports } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -79,14 +70,14 @@ export function YouTubeReports({ resourceId }: { resourceId: string }) {
     <section className="pt-8" data-yt-reports>
       <div className="flex flex-wrap items-start gap-3 px-6 pb-3">
         <div className="min-w-0 flex-1">
-          <h2 className="flex items-center gap-2 text-sm font-medium [&_svg]:size-4 [&_svg]:text-grid-muted">
+          <h2 className="flex items-center gap-2 text-sm font-medium [&_svg]:size-4 [&_svg]:text-muted-foreground">
             <FileSpreadsheetIcon />
             {t("ytr.title")}
           </h2>
-          <p className="mt-1 max-w-3xl text-sm text-grid-muted">{t("ytr.hint")}</p>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("ytr.hint")}</p>
         </div>
         {manage ? (
-          <Button variant="outline" size="sm" onClick={check} disabled={busy} data-reports-check>
+          <Button variant="secondary" size="sm" onClick={check} disabled={busy} data-reports-check>
             <RefreshCwIcon className={busy ? "animate-spin" : undefined} />
             {busy ? t("ytr.checking") : t("ytr.check")}
           </Button>
@@ -98,9 +89,9 @@ export function YouTubeReports({ resourceId }: { resourceId: string }) {
         <LoadingRows rows={2} />
       ) : (
         <>
-          <ul className="divide-y divide-line border-y border-line text-sm">
+          <ul className="divide-y divide-nq-line border-y border-nq-line text-sm">
             {(data.data.jobs ?? []).length === 0 ? (
-              <li className="px-6 py-4 text-grid-muted" data-no-jobs>
+              <li className="px-6 py-4 text-muted-foreground" data-no-jobs>
                 {data.data.checked_at ? t("ytr.noJobs") : t("ytr.notChecked")}
               </li>
             ) : (
@@ -110,11 +101,11 @@ export function YouTubeReports({ resourceId }: { resourceId: string }) {
                   className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-3"
                   data-report-job={j.report_type_id}
                 >
-                  <span className="font-medium text-grid-fg">{label(j.report_type_id)}</span>
-                  <span className="font-mono text-xs text-grid-muted" dir="ltr">
+                  <span className="font-medium text-foreground">{label(j.report_type_id)}</span>
+                  <span className="font-mono text-xs text-muted-foreground" dir="ltr">
                     {j.report_type_id}
                   </span>
-                  <span className="ms-auto text-xs text-grid-muted">
+                  <span className="ms-auto text-xs text-muted-foreground">
                     {j.reports > 0
                       ? t("ytr.jobReports", {
                           n: f.n(j.reports),
@@ -127,7 +118,7 @@ export function YouTubeReports({ resourceId }: { resourceId: string }) {
             )}
           </ul>
           {(data.data.reports ?? []).length > 0 ? (
-            <div className="border-b border-line">
+            <div className="border-b border-nq-line">
               <Table className="table-fixed" data-reports-table>
                 <TableHeader>
                   <TableRow>

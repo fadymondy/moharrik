@@ -12,7 +12,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, type FormEvent } from "react"
 import { ArrowRightIcon, BookOpenIcon, LoaderCircleIcon, PlusIcon, SearchIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Switch, Textarea, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -20,13 +21,6 @@ import { PickSelect } from "@/components/crm/shared"
 import { EvidenceItem } from "@/components/research/evidence"
 import { isLive, ResearchStatusBadge, useFormatDateTime } from "@/components/research/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -91,7 +85,7 @@ export function RunsTab({ list }: { list: ReturnType<typeof useResearchRuns> }) 
         )
       ) : null}
 
-      <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-2" aria-hidden />
 
       <h2 className="px-6 pt-6 pb-3 text-base font-medium">{t("research.runs")}</h2>
       {list.error ? (
@@ -104,7 +98,7 @@ export function RunsTab({ list }: { list: ReturnType<typeof useResearchRuns> }) 
           body={canRun && canStart ? t("research.emptyBody") : undefined}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line" data-research-runs>
+        <ul className="divide-y divide-nq-line border-y border-nq-line" data-research-runs>
           {runs.map((r) => (
             <RunRow key={r.id} run={r} />
           ))}
@@ -167,21 +161,18 @@ function AskBox({ caps, onStarted }: { caps: ResearchList; onStarted: () => void
           <div className="space-y-2">
             <p className="text-sm font-medium">{t("research.modeLabel")}</p>
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               value={[mode]}
               onValueChange={(v) => v[0] && setMode(v[0] as "search" | "urls")}
               aria-label={t("research.modeLabel")}
             >
-              <ToggleGroupItem value="search" data-mode-option="search">
+              <Toggle value="search" data-mode-option="search">
                 <SearchIcon />
                 {t("research.modeSearch")}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="urls" data-mode-option="urls">
+              </Toggle>
+              <Toggle value="urls" data-mode-option="urls">
                 <BookOpenIcon />
                 {t("research.modeUrls")}
-              </ToggleGroupItem>
+              </Toggle>
             </ToggleGroup>
           </div>
         ) : null}
@@ -252,16 +243,16 @@ function LiveNotice({ run }: { run: ResearchRun }) {
   const ws = useWorkspace()
   return (
     <section className="px-6 pb-6" data-research-live={run.id}>
-      <div className="flex max-w-3xl flex-wrap items-center gap-3 border border-line bg-grid-card px-4 py-3">
-        <LoaderCircleIcon className="size-4 shrink-0 animate-spin text-grid-brand" aria-hidden />
+      <div className="flex max-w-3xl flex-wrap items-center gap-3 border border-nq-line bg-card px-4 py-3">
+        <LoaderCircleIcon className="size-4 shrink-0 animate-spin text-nq-brand" aria-hidden />
         <div className="min-w-0 flex-1 text-sm">
           <p className="font-medium">{t("research.liveTitle")}</p>
-          <p className="truncate text-grid-muted">
+          <p className="truncate text-muted-foreground">
             <bdi>{run.topic}</bdi>
           </p>
         </div>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           nativeButton={false}
           render={<Link href={`/${locale}/w/${ws.slug}/research/${encodeURIComponent(run.id)}`} />}
@@ -297,7 +288,7 @@ export function RunRow({ run }: { run: ResearchRun }) {
             <Badge variant="outline">{t(`research.origin.${run.origin}`)}</Badge>
           ) : null}
         </p>
-        <p className="flex flex-wrap gap-x-2 text-xs text-grid-muted">
+        <p className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
           {live ? (
             <span>{run.stage ? t(`research.stage.${run.stage}`) : t("research.inProgress")}</span>
           ) : run.status === "cancelled" ? null : (
@@ -315,7 +306,7 @@ export function RunRow({ run }: { run: ResearchRun }) {
           <span>{fmt(run.started_at ?? run.created_at)}</span>
         </p>
         {run.status === "failed" && run.error ? (
-          <p className="text-xs text-grid-danger-text">
+          <p className="text-xs text-nq-danger-text">
             <Bdi>{run.error}</Bdi>
           </p>
         ) : null}
@@ -348,7 +339,7 @@ export function EvidenceTab() {
 
   return (
     <section data-evidence-tab>
-      <p className="px-6 pb-4 text-sm text-grid-muted">{t("research.evidenceTabHint")}</p>
+      <p className="px-6 pb-4 text-sm text-muted-foreground">{t("research.evidenceTabHint")}</p>
       <div className="grid gap-3 px-6 pb-4 sm:grid-cols-3">
         <Field>
           <FieldLabel htmlFor="ev-q">{t("research.evidenceSearch")}</FieldLabel>
@@ -390,7 +381,7 @@ export function EvidenceTab() {
         <LoadingRows rows={4} />
       ) : total === 0 ? (
         filtered ? (
-          <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">
+          <p className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground">
             {t("research.evidenceNoMatch")}
           </p>
         ) : (
@@ -398,13 +389,13 @@ export function EvidenceTab() {
         )
       ) : (
         <>
-          <p className="px-6 pb-2 text-xs text-grid-muted" data-evidence-total={total}>
+          <p className="px-6 pb-2 text-xs text-muted-foreground" data-evidence-total={total}>
             {t("research.evidenceShowing", {
               shown: formatNumber(items.length),
               total: formatNumber(total),
             })}
           </p>
-          <ul className="divide-y divide-line border-y border-line" data-evidence-list>
+          <ul className="divide-y divide-nq-line border-y border-nq-line" data-evidence-list>
             {items.map((e) => (
               <EvidenceItem key={e.id} e={e} showRun />
             ))}
@@ -412,7 +403,7 @@ export function EvidenceTab() {
           {items.length < total && limit < 100 ? (
             <div className="px-6 pt-4">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setLimit((l) => Math.min(l + PAGE, 100))}
               >
@@ -443,7 +434,7 @@ export function SchedulesTab({ caps }: { caps?: ResearchList }) {
         <BudgetPanel budget={budget} canEdit={canRun} onSaved={() => data.mutate()} />
       ) : null}
 
-      <div className="grid-separator-contained hatch-band mt-2" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-2" aria-hidden />
 
       {data.error ? (
         <ErrorState error={data.error} />
@@ -455,7 +446,7 @@ export function SchedulesTab({ caps }: { caps?: ResearchList }) {
           body={possible && canRun ? t("research.schedulesEmptyBody") : undefined}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line" data-research-schedules>
+        <ul className="divide-y divide-nq-line border-y border-nq-line" data-research-schedules>
           {schedules.map((s) => (
             <ScheduleRow key={s.id} schedule={s} canRun={canRun} onChange={() => data.mutate()} />
           ))}
@@ -463,10 +454,10 @@ export function SchedulesTab({ caps }: { caps?: ResearchList }) {
       )}
 
       {!canRun ? (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("research.schedulesReadOnly")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("research.schedulesReadOnly")}</p>
       ) : !possible ? (
         caps ? (
-          <p className="px-6 py-6 text-sm text-grid-muted" data-schedules-not-configured>
+          <p className="px-6 py-6 text-sm text-muted-foreground" data-schedules-not-configured>
             {t("research.schedulesNotConfigured")}
           </p>
         ) : null
@@ -526,7 +517,7 @@ function BudgetPanel({
           budget: formatNumber(budget.daily_run_budget),
         })}
       </p>
-      <p className="mt-1 max-w-3xl text-sm text-grid-muted">{t("research.budgetHint")}</p>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("research.budgetHint")}</p>
       {canEdit ? (
         <form onSubmit={save} className="mt-4 flex flex-wrap items-end gap-3" noValidate>
           <Field className="w-40">
@@ -543,7 +534,7 @@ function BudgetPanel({
           </Field>
           <Button
             type="submit"
-            variant="outline"
+            variant="secondary"
             disabled={!valid || busy || n === budget.daily_run_budget}
           >
             {busy ? t("common.working") : t("common.save")}
@@ -598,7 +589,7 @@ function ScheduleRow({
       <div className="min-w-0 flex-1 space-y-1">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <Bdi>{schedule.name}</Bdi>
-          <Badge variant={schedule.enabled ? "default" : "outline"}>
+          <Badge variant={schedule.enabled ? "brand" : "outline"}>
             {schedule.enabled ? t("research.scheduleOn") : t("research.scheduleOff")}
           </Badge>
           <Badge variant="outline">{t(`research.cadence.${schedule.cadence}`)}</Badge>
@@ -607,18 +598,18 @@ function ScheduleRow({
           ) : null}
           {schedule.last_status ? (
             <Badge
-              variant={schedule.last_status === "started" ? "secondary" : "outline"}
+              variant={schedule.last_status === "started" ? "neutral" : "outline"}
               data-last-status={schedule.last_status}
             >
               {t(`research.last.${schedule.last_status}`)}
             </Badge>
           ) : null}
         </p>
-        <p className="text-sm text-grid-muted" dir="auto">
+        <p className="text-sm text-muted-foreground" dir="auto">
           {schedule.topic}
         </p>
         {schedule.mode === "urls" ? (
-          <ul className="text-xs text-grid-muted">
+          <ul className="text-xs text-muted-foreground">
             {schedule.urls.map((u) => (
               <li key={u} className="truncate">
                 <bdi dir="ltr">{u}</bdi>
@@ -626,20 +617,20 @@ function ScheduleRow({
             ))}
           </ul>
         ) : null}
-        <p className="text-xs text-grid-muted">
+        <p className="text-xs text-muted-foreground">
           {schedule.enabled ? t("research.nextRun", { date: fmt(schedule.next_run_at) }) : null}
           {schedule.last_run_at
             ? `${schedule.enabled ? " · " : ""}${t("research.lastRun", { date: fmt(schedule.last_run_at) })}`
             : ""}
         </p>
         {schedule.last_note ? (
-          <p className="text-xs text-grid-warn-text" data-schedule-note>
+          <p className="text-xs text-nq-warning-text" data-schedule-note>
             <Bdi>{schedule.last_note}</Bdi>
           </p>
         ) : null}
         {schedule.last_run_id ? (
           <Link
-            className="text-xs text-grid-brand hover:underline"
+            className="text-xs text-nq-brand hover:underline"
             href={`/${locale}/w/${ws.slug}/research/${encodeURIComponent(schedule.last_run_id)}`}
           >
             {t("research.openLastRun")}
@@ -741,21 +732,18 @@ function NewSchedule({ caps, onCreated }: { caps: ResearchList; onCreated: () =>
         </FieldGroup>
         {modes.length > 1 ? (
           <ToggleGroup
-            variant="outline"
-            size="sm"
-            spacing={0}
             value={[mode]}
             onValueChange={(v) => v[0] && setMode(v[0] as "search" | "urls")}
             aria-label={t("research.modeLabel")}
           >
-            <ToggleGroupItem value="search">
+            <Toggle value="search">
               <SearchIcon />
               {t("research.modeSearch")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="urls">
+            </Toggle>
+            <Toggle value="urls">
               <BookOpenIcon />
               {t("research.modeUrls")}
-            </ToggleGroupItem>
+            </Toggle>
           </ToggleGroup>
         ) : null}
         {mode === "urls" ? (

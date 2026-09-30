@@ -19,9 +19,7 @@ import {
   MailCheckIcon,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { Badge, Collapsible, CollapsiblePanel, CollapsibleTrigger, InputGroup, InputGroupAddon, InputGroupInput } from "@fadymondy/nasaq/web"
 import { CopyField, Ltr } from "@/components/copy-field"
 import { ConnectClients } from "@/components/mcp/connect-clients"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
@@ -61,7 +59,7 @@ export function McpDocs({ initial }: { initial: McpDocsCatalog | null }) {
           aria-label={t("docs.mcp.onThisPage")}
           className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-sm"
         >
-          <span className="grid-micro">{t("docs.mcp.onThisPage")}</span>
+          <span className="eyebrow">{t("docs.mcp.onThisPage")}</span>
           <TocLink href="#connect">{t("docs.mcp.connect.title")}</TocLink>
           <TocLink href="#scopes">{t("docs.mcp.scopes.title")}</TocLink>
           <TocLink href="#safety">{t("docs.mcp.safety.title")}</TocLink>
@@ -91,7 +89,7 @@ export function McpDocs({ initial }: { initial: McpDocsCatalog | null }) {
 
 function TocLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} className="text-grid-body underline-offset-4 hover:text-grid-fg hover:underline">
+    <a href={href} className="text-nq-fg-body underline-offset-4 hover:text-foreground hover:underline">
       {children}
     </a>
   )
@@ -108,18 +106,18 @@ function SectionTitle({
 }) {
   return (
     <div className="mb-5 max-w-2xl space-y-1.5">
-      <h2 id={id} className="grid-title scroll-mt-20 text-xl">
+      <h2 id={id} className="font-medium tracking-tight text-foreground scroll-mt-20 text-xl">
         {children}
       </h2>
-      {hint ? <p className="grid-body text-sm text-pretty">{hint}</p> : null}
+      {hint ? <p className="leading-relaxed text-nq-fg-body text-sm text-pretty">{hint}</p> : null}
     </div>
   )
 }
 
 function Step({ n, children }: { n: number; children: ReactNode }) {
   return (
-    <li className="flex gap-2.5 text-sm text-grid-body">
-      <span className="grid size-5 shrink-0 place-items-center border border-line font-mono text-[11px] text-grid-muted">
+    <li className="flex gap-2.5 text-sm text-nq-fg-body">
+      <span className="grid size-5 shrink-0 place-items-center border border-nq-line font-mono text-[11px] text-muted-foreground">
         {n}
       </span>
       <span className="min-w-0">{children}</span>
@@ -135,7 +133,7 @@ function ConnectSection({ cat, locale }: { cat: McpDocsCatalog; locale: string }
   // mcp.<domain> host once configured, else this app's /api/mcp. No client-side
   // guessing any more — the catalog is the single source, same as Settings.
   const url = cat.server_url
-  const link = "text-grid-action underline-offset-4 hover:underline"
+  const link = "text-nq-action underline-offset-4 hover:underline"
 
   return (
     <PublicPanel className="py-8">
@@ -145,10 +143,10 @@ function ConnectSection({ cat, locale }: { cat: McpDocsCatalog; locale: string }
 
       <div className="max-w-3xl space-y-6">
         <div className="space-y-1.5">
-          <p className="grid-micro">{t("mcp.client.serverUrl")}</p>
+          <p className="eyebrow">{t("mcp.client.serverUrl")}</p>
           <CopyField value={url} label={t("mcp.client.serverUrl")} nowrap />
           {cat.legacy_url ? (
-            <p className="text-xs text-grid-muted" data-docs-legacy-url>
+            <p className="text-xs text-muted-foreground" data-docs-legacy-url>
               {t("docs.mcp.connect.legacy")} <Ltr mono>{cat.legacy_url}</Ltr>
             </p>
           ) : null}
@@ -156,7 +154,7 @@ function ConnectSection({ cat, locale }: { cat: McpDocsCatalog; locale: string }
 
         <div className="space-y-3" data-docs-token-steps>
           <h3 className="text-base font-medium">{t("docs.mcp.connect.tokenTitle")}</h3>
-          <p className="text-sm text-grid-body">{t("docs.mcp.connect.tokenIntro")}</p>
+          <p className="text-sm text-nq-fg-body">{t("docs.mcp.connect.tokenIntro")}</p>
           <ol className="space-y-2.5">
             <Step n={1}>
               {t("docs.mcp.connect.token1")}{" "}
@@ -179,19 +177,19 @@ function ConnectSection({ cat, locale }: { cat: McpDocsCatalog; locale: string }
           <ConnectClients url={url} oauthUrl={url} where="docs" />
         </div>
 
-        <div className="space-y-2 border border-line bg-grid-card p-4">
+        <div className="space-y-2 border border-nq-line bg-card p-4">
           <h3 className="text-sm font-medium">{t("docs.mcp.connect.checkTitle")}</h3>
-          <p className="text-sm text-grid-body">{t("docs.mcp.connect.check")}</p>
+          <p className="text-sm text-nq-fg-body">{t("docs.mcp.connect.check")}</p>
           <CopyField
             value={t("docs.mcp.connect.checkPrompt")}
             label={t("docs.mcp.connect.checkTitle")}
           />
-          <p className="text-sm text-grid-muted">{t("docs.mcp.connect.checkAfter")}</p>
+          <p className="text-sm text-muted-foreground">{t("docs.mcp.connect.checkAfter")}</p>
         </div>
 
         <div className="space-y-2">
           <h3 className="text-base font-medium">{t("docs.mcp.connect.otherTitle")}</h3>
-          <p className="text-sm text-grid-body">
+          <p className="text-sm text-nq-fg-body">
             {t("docs.mcp.connect.other", { versions: cat.protocol_versions.join(", ") })}
           </p>
         </div>
@@ -210,7 +208,7 @@ function ScopesSection({ cat }: { cat: McpDocsCatalog }) {
         {t("docs.mcp.scopes.title")}
       </SectionTitle>
 
-      <div className="mb-6 max-w-2xl space-y-3 text-sm text-grid-body">
+      <div className="mb-6 max-w-2xl space-y-3 text-sm text-nq-fg-body">
         <p>{t("docs.mcp.scopes.roles")}</p>
         <ol
           className="flex flex-wrap items-center gap-1.5"
@@ -218,9 +216,9 @@ function ScopesSection({ cat }: { cat: McpDocsCatalog }) {
         >
           {cat.roles.map((r, i) => (
             <li key={r} className="flex items-center gap-1.5">
-              <Badge variant={i === 0 ? "default" : "outline"}>{t(`role.${r}`)}</Badge>
+              <Badge variant={i === 0 ? "brand" : "outline"}>{t(`role.${r}`)}</Badge>
               {i < cat.roles.length - 1 ? (
-                <span className="text-grid-muted" aria-hidden>
+                <span className="text-muted-foreground" aria-hidden>
                   ›
                 </span>
               ) : null}
@@ -231,26 +229,26 @@ function ScopesSection({ cat }: { cat: McpDocsCatalog }) {
         <p>{t("docs.mcp.scopes.client")}</p>
       </div>
 
-      <ul className="divide-y divide-line border-y border-line" data-docs-scopes>
+      <ul className="divide-y divide-nq-line border-y border-nq-line" data-docs-scopes>
         {cat.scopes.map((s) => (
           <li key={s.scope} className="grid gap-2 py-3 sm:grid-cols-[13rem_1fr] sm:gap-4">
             <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-start">
-              <Ltr mono className="text-sm text-grid-fg">
+              <Ltr mono className="text-sm text-foreground">
                 {s.scope}
               </Ltr>
-              <span className="text-xs text-grid-muted">
+              <span className="text-xs text-muted-foreground">
                 {t("docs.mcp.scopes.minRole", { role: t(`role.${s.min_role}`) })}
               </span>
             </div>
             <div className="min-w-0 space-y-1.5">
-              <p className="text-sm text-grid-body">{s.description}</p>
+              <p className="text-sm text-nq-fg-body">{s.description}</p>
               <p className="flex flex-wrap gap-1">
                 {s.tools.map((name) => (
                   <a
                     key={name}
                     href={`#tool-${name}`}
                     dir="ltr"
-                    className="border border-line px-1.5 py-0.5 font-mono text-[11px] text-grid-muted hover:border-grid-action hover:text-grid-fg"
+                    className="border border-nq-line px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:border-nq-action hover:text-foreground"
                   >
                     {name}
                   </a>
@@ -287,18 +285,18 @@ function SafetySection() {
       <SectionTitle id="safety" hint={t("docs.mcp.safety.intro")}>
         {t("docs.mcp.safety.title")}
       </SectionTitle>
-      <ul className="grid gap-px border border-line bg-line sm:grid-cols-2" data-docs-safety>
+      <ul className="grid gap-px border border-nq-line bg-nq-line sm:grid-cols-2" data-docs-safety>
         {SAFETY.map((r) => (
           <li
             key={r.key}
-            className="flex gap-3 bg-background p-4 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-grid-muted"
+            className="flex gap-3 bg-background p-4 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
           >
             <span className="mt-0.5">{r.icon}</span>
             <span className="min-w-0 space-y-1">
               <span className="block text-sm font-medium">
                 {t(`docs.mcp.safety.${r.key}.title`)}
               </span>
-              <span className="block text-sm text-grid-body">
+              <span className="block text-sm text-nq-fg-body">
                 {t(`docs.mcp.safety.${r.key}.body`)}
               </span>
             </span>
@@ -357,14 +355,14 @@ function Reference({ cat }: { cat: McpDocsCatalog }) {
           <a
             key={g.id}
             href={`#tools-${g.id}`}
-            className="text-grid-body underline-offset-4 hover:text-grid-fg hover:underline"
+            className="text-nq-fg-body underline-offset-4 hover:text-foreground hover:underline"
           >
-            {g.title} <span className="text-grid-muted">({formatNumber(g.tools.length)})</span>
+            {g.title} <span className="text-muted-foreground">({formatNumber(g.tools.length)})</span>
           </a>
         ))}
       </div>
 
-      <div className="sticky top-14 z-10 -mx-4 mb-4 border-y border-line bg-background px-4 py-2.5">
+      <div className="sticky top-14 z-10 -mx-4 mb-4 border-y border-nq-line bg-background px-4 py-2.5">
         <InputGroup className="max-w-md">
           <InputGroupAddon>
             <SearchIcon />
@@ -377,7 +375,7 @@ function Reference({ cat }: { cat: McpDocsCatalog }) {
             aria-label={t("docs.mcp.reference.filter")}
           />
         </InputGroup>
-        <p className="mt-1.5 text-xs text-grid-muted" aria-live="polite">
+        <p className="mt-1.5 text-xs text-muted-foreground" aria-live="polite">
           {t("docs.mcp.reference.showing", {
             n: formatNumber(shown),
             total: formatNumber(cat.tool_count),
@@ -386,7 +384,7 @@ function Reference({ cat }: { cat: McpDocsCatalog }) {
       </div>
 
       {shown === 0 ? (
-        <p className="py-6 text-sm text-grid-muted">{t("docs.mcp.reference.none", { q })}</p>
+        <p className="py-6 text-sm text-muted-foreground">{t("docs.mcp.reference.none", { q })}</p>
       ) : null}
 
       <div className="space-y-10">
@@ -395,8 +393,8 @@ function Reference({ cat }: { cat: McpDocsCatalog }) {
             <h3 id={`tools-${g.id}`} className="scroll-mt-40 text-lg font-medium">
               {g.title}
             </h3>
-            <p className="mt-1 mb-3 max-w-2xl text-sm text-grid-body">{g.intro}</p>
-            <ul className="divide-y divide-line border-y border-line">
+            <p className="mt-1 mb-3 max-w-2xl text-sm text-nq-fg-body">{g.intro}</p>
+            <ul className="divide-y divide-nq-line border-y border-nq-line">
               {g.tools.map((tool) => (
                 <ToolEntry key={tool.name} tool={tool} open={hash === `tool-${tool.name}`} />
               ))}
@@ -425,32 +423,32 @@ function ToolEntry({ tool, open: linked }: { tool: McpDocTool; open: boolean }) 
     <li id={`tool-${tool.name}`} className="scroll-mt-40" data-docs-tool={tool.name}>
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger className="group flex w-full items-start gap-3 py-3 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-          <ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-grid-muted transition-transform group-aria-expanded:rotate-180" />
+          <ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded:rotate-180" />
           <span className="min-w-0 flex-1 space-y-1">
             <span className="flex flex-wrap items-center gap-1.5">
-              <Ltr mono className="text-sm font-medium text-grid-fg">
+              <Ltr mono className="text-sm font-medium text-foreground">
                 {tool.name}
               </Ltr>
               <Badge variant="outline" className="font-mono" dir="ltr">
                 {tool.scope}
               </Badge>
-              <Badge variant="secondary">
+              <Badge variant="neutral">
                 {tool.writes ? t("docs.mcp.reference.writes") : t("docs.mcp.reference.reads")}
               </Badge>
             </span>
-            <span className="block text-sm text-grid-body">{tool.description}</span>
+            <span className="block text-sm text-nq-fg-body">{tool.description}</span>
           </span>
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 pb-5 ps-7">
-          <p className="text-xs text-grid-muted">
+        <CollapsiblePanel className="space-y-4 pb-5 ps-7">
+          <p className="text-xs text-muted-foreground">
             {t("docs.mcp.reference.needs", { scope: tool.scope, role: t(`role.${tool.min_role}`) })}
           </p>
           <div className="space-y-1.5">
-            <p className="grid-micro">{t("docs.mcp.reference.arguments")}</p>
+            <p className="eyebrow">{t("docs.mcp.reference.arguments")}</p>
             {tool.arguments.length === 0 ? (
-              <p className="text-sm text-grid-muted">{t("docs.mcp.reference.noArguments")}</p>
+              <p className="text-sm text-muted-foreground">{t("docs.mcp.reference.noArguments")}</p>
             ) : (
-              <ul className="divide-y divide-line border border-line">
+              <ul className="divide-y divide-nq-line border border-nq-line">
                 {tool.arguments.map((a) => (
                   <ArgRow key={a.name} arg={a} />
                 ))}
@@ -458,14 +456,14 @@ function ToolEntry({ tool, open: linked }: { tool: McpDocTool; open: boolean }) 
             )}
           </div>
           <div className="space-y-1.5">
-            <p className="grid-micro">{t("docs.mcp.reference.exampleCall")}</p>
+            <p className="eyebrow">{t("docs.mcp.reference.exampleCall")}</p>
             <CopyField value={call} label={t("docs.mcp.reference.exampleCall")} pre />
           </div>
           <div className="space-y-1.5">
-            <p className="grid-micro">{t("docs.mcp.reference.exampleResult")}</p>
+            <p className="eyebrow">{t("docs.mcp.reference.exampleResult")}</p>
             <CopyField value={result} label={t("docs.mcp.reference.exampleResult")} pre />
           </div>
-        </CollapsibleContent>
+        </CollapsiblePanel>
       </Collapsible>
     </li>
   )
@@ -476,23 +474,23 @@ function ArgRow({ arg }: { arg: McpDocArg }) {
   return (
     <li className="space-y-1 px-3 py-2">
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Ltr mono className="text-sm text-grid-fg">
+        <Ltr mono className="text-sm text-foreground">
           {arg.name}
         </Ltr>
-        <Ltr mono className="text-xs text-grid-muted">
+        <Ltr mono className="text-xs text-muted-foreground">
           {arg.type}
         </Ltr>
         {arg.required ? <Badge variant="outline">{t("docs.mcp.reference.required")}</Badge> : null}
       </p>
-      {arg.description ? <p className="text-sm text-grid-body">{arg.description}</p> : null}
+      {arg.description ? <p className="text-sm text-nq-fg-body">{arg.description}</p> : null}
       {arg.enum?.length ? (
-        <p className="flex flex-wrap items-center gap-1 text-xs text-grid-muted">
+        <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
           <span>{t("docs.mcp.reference.oneOf")}</span>
           {arg.enum.map((v) => (
             <code
               key={String(v)}
               dir="ltr"
-              className="border border-line px-1 font-mono text-[11px]"
+              className="border border-nq-line px-1 font-mono text-[11px]"
             >
               {v === "" ? '""' : String(v)}
             </code>

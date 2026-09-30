@@ -23,13 +23,11 @@ already saved is not shown; left blank it is kept, typed over it is replaced.
 import Link from "next/link"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { CheckIcon, PlusIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import { Ltr } from "@/components/copy-field"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -262,7 +260,7 @@ export function ScheduleForm({
 
   if (workflows.length === 0 && allowedJobs.length === 0 && !ownSteps) {
     return (
-      <p className="px-6 pt-6 text-sm text-grid-muted" data-schedule-needs-workflow>
+      <p className="px-6 pt-6 text-sm text-muted-foreground" data-schedule-needs-workflow>
         {t("automation.sched.noWorkflows")}{" "}
         <Link className="underline" href={`/${locale}/w/${ws.slug}/automation/workflows/new`}>
           {t("automation.editor.newWorkflow")}
@@ -320,7 +318,7 @@ export function ScheduleForm({
             </Field>
           )}
           {ownSteps ? (
-            <p className="text-sm text-grid-muted sm:col-span-2" data-schedule-own-steps>
+            <p className="text-sm text-muted-foreground sm:col-span-2" data-schedule-own-steps>
               {t("automation.sched.ownSteps")}
             </p>
           ) : kind === "workflow" ? (
@@ -502,22 +500,22 @@ export function ScheduleForm({
         </div>
 
         <div
-          className="border border-line bg-grid-card px-4 py-3"
+          className="border border-nq-line bg-card px-4 py-3"
           data-preview={preview?.valid ? "valid" : "invalid"}
         >
           <p className="text-sm font-medium">
             {t("automation.sched.nextFive")}{" "}
-            <Ltr mono className="text-xs text-grid-muted">
+            <Ltr mono className="text-xs text-muted-foreground">
               {cron || "—"}
             </Ltr>
             {preview?.timezone ? (
-              <span className="text-xs text-grid-muted"> · {preview.timezone}</span>
+              <span className="text-xs text-muted-foreground"> · {preview.timezone}</span>
             ) : null}
           </p>
           {preview && !preview.valid ? (
-            <p className="mt-1 text-sm text-grid-danger-text">{preview.error}</p>
+            <p className="mt-1 text-sm text-nq-danger-text">{preview.error}</p>
           ) : (
-            <ol className="mt-1 space-y-0.5 text-sm text-grid-muted" data-next-runs>
+            <ol className="mt-1 space-y-0.5 text-sm text-muted-foreground" data-next-runs>
               {(preview?.times ?? []).map((at) => (
                 <li key={at}>{fmt.format(new Date(at))}</li>
               ))}

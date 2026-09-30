@@ -1,10 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination"
+import { CursorPager } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /*
@@ -55,7 +53,7 @@ export function PageSummary({
   const { from, to } = pageRange(index, pageSize, shown, total)
   return (
     <p
-      className="px-6 pb-3 text-sm text-grid-muted"
+      className="px-6 pb-3 text-sm text-muted-foreground"
       aria-live="polite"
       data-pager-summary={name}
       data-range={`${from}-${to}/${total}`}
@@ -94,34 +92,23 @@ export function PageNav({
   const { pages } = pageRange(index, pageSize, 0, total)
   if (pages <= 1 && index === 0) return null
   return (
-    <Pagination className="px-6 pt-4" data-pager={name}>
-      <PaginationContent className="gap-2">
-        <PaginationItem>
-          <Button variant="ghost" disabled={busy || index === 0} onClick={onPrev} data-page="prev">
-            <ChevronLeftIcon data-icon="inline-start" className="rtl:rotate-180" />
-            {t("common.prevPage")}
-          </Button>
-        </PaginationItem>
-        <PaginationItem>
-          <span
-            className="px-2 text-sm text-grid-muted tabular-nums"
-            data-page-of={`${index + 1}/${pages}`}
-          >
-            {t("common.pageOf", { page: formatNumber(index + 1), pages: formatNumber(pages) })}
-          </span>
-        </PaginationItem>
-        <PaginationItem>
-          <Button
-            variant="ghost"
-            disabled={busy || !nextCursor}
-            onClick={() => nextCursor && onNext(nextCursor)}
-            data-page="next"
-          >
-            {t("common.nextPage")}
-            <ChevronRightIcon data-icon="inline-end" className="rtl:rotate-180" />
-          </Button>
-        </PaginationItem>
-      </PaginationContent>
-    </Pagination>
+    <CursorPager
+      className="px-6 pt-4"
+      data-pager={name}
+      from={0}
+      to={0}
+      summary={
+        <span data-page-of={`${index + 1}/${pages}`}>
+          {t("common.pageOf", { page: formatNumber(index + 1), pages: formatNumber(pages) })}
+        </span>
+      }
+      previousLabel={t("common.prevPage")}
+      nextLabel={t("common.nextPage")}
+      hasPrevious={index > 0}
+      hasNext={!!nextCursor}
+      loading={busy}
+      onPrevious={onPrev}
+      onNext={() => nextCursor && onNext(nextCursor)}
+    />
   )
 }

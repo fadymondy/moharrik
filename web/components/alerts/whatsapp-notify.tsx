@@ -3,23 +3,11 @@
 import Link from "next/link"
 import { useEffect, useState, type FormEvent } from "react"
 import { CheckCircle2Icon, MessageCircleIcon, SendIcon, XCircleIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NotifyKind, type WhatsAppNotify } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -51,27 +39,27 @@ export function WhatsAppNotifySection() {
     <section aria-labelledby="whatsapp-notify" className="pb-10" data-section="whatsapp-notify">
       <div className="px-6 pb-3">
         <h2 id="whatsapp-notify" className="flex items-center gap-2 text-base font-medium">
-          <MessageCircleIcon className="size-4 text-grid-muted" />
+          <MessageCircleIcon className="size-4 text-muted-foreground" />
           {t("waNotify.title")}
         </h2>
-        <p className="text-sm text-grid-muted">{t("waNotify.hint")}</p>
+        <p className="text-sm text-muted-foreground">{t("waNotify.hint")}</p>
       </div>
-      <div className="border-y border-line px-6 py-5">
+      <div className="border-y border-nq-line px-6 py-5">
         {q.error ? (
-          <p className="text-sm text-grid-danger-text">
+          <p className="text-sm text-nq-danger-text">
             {q.error instanceof ApiError ? q.error.message : t("common.networkError")}
           </p>
         ) : !d ? (
-          <p className="text-sm text-grid-muted">{t("common.working")}</p>
+          <p className="text-sm text-muted-foreground">{t("common.working")}</p>
         ) : !d.available ? (
-          <p className="text-sm text-grid-muted" data-wa-notify="unavailable">
+          <p className="text-sm text-muted-foreground" data-wa-notify="unavailable">
             {t("waNotify.unavailable")}
           </p>
         ) : !d.verified ? (
           d.workspace_linked ? (
             <Verify data={d} onChange={() => q.mutate()} />
           ) : (
-            <p className="text-sm text-grid-muted" data-wa-notify="not-linked">
+            <p className="text-sm text-muted-foreground" data-wa-notify="not-linked">
               {t("waNotify.notLinked")}{" "}
               {ws.can("inbox:manage") ? (
                 <Link
@@ -162,14 +150,14 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
           </Field>
           <Button
             type="submit"
-            variant={data.code_pending ? "outline" : "default"}
+            variant={data.code_pending ? "secondary" : "primary"}
             disabled={busy || phone.replace(/\D/g, "").length < 8}
           >
             <SendIcon />
             {data.code_pending ? t("waNotify.resend") : t("waNotify.sendCode")}
           </Button>
         </FieldGroup>
-        <FieldDescription className="mt-2">{t("waNotify.phoneHint")}</FieldDescription>
+        <FormHint className="mt-2">{t("waNotify.phoneHint")}</FormHint>
       </form>
       {data.code_pending ? (
         <form onSubmit={confirm} noValidate>
@@ -190,9 +178,9 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
               {t("waNotify.confirm")}
             </Button>
           </FieldGroup>
-          <FieldDescription className="mt-2">
+          <FormHint className="mt-2">
             {t("waNotify.codeHint", { phone: `+${data.phone}` })}
-          </FieldDescription>
+          </FormHint>
         </form>
       ) : null}
       {err ? <FieldError>{err}</FieldError> : null}
@@ -286,16 +274,16 @@ function Settings({
   return (
     <div className="flex flex-col gap-6" data-wa-notify="verified">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant="secondary" data-wa-notify-phone={data.phone}>
+        <Badge variant="neutral" data-wa-notify-phone={data.phone}>
           <CheckCircle2Icon />
           <Ltr>+{data.phone}</Ltr>
         </Badge>
         {data.verified_at ? (
-          <span className="text-grid-muted">
+          <span className="text-muted-foreground">
             {t("waNotify.verifiedOn", { date: formatDate(data.verified_at) })}
           </span>
         ) : null}
-        <span className="text-grid-muted" data-wa-notify-pending={data.pending}>
+        <span className="text-muted-foreground" data-wa-notify-pending={data.pending}>
           ·{" "}
           {t("waNotify.status", {
             pending: data.pending,
@@ -304,13 +292,13 @@ function Settings({
           })}
         </span>
         {!data.workspace_linked ? (
-          <span className="text-grid-warn">· {t("waNotify.notLinkedShort")}</span>
+          <span className="text-nq-warning">· {t("waNotify.notLinkedShort")}</span>
         ) : null}
       </div>
 
       <form onSubmit={save} noValidate className="max-w-3xl" data-form="wa-notify">
         <FieldGroup>
-          <Field orientation="horizontal">
+          <Field className="flex-row items-center gap-3">
             <Switch
               id="wa-notify-enabled"
               checked={enabled}
@@ -322,7 +310,7 @@ function Settings({
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-sm font-medium">{t("waNotify.kinds")}</legend>
             {data.all_kinds.map((k) => (
-              <Field key={k.kind} orientation="horizontal" data-disabled={!k.allowed || undefined}>
+              <Field key={k.kind} data-disabled={!k.allowed || undefined} className="flex-row items-center gap-3">
                 <Checkbox
                   id={`wa-kind-${k.kind}`}
                   checked={kinds.includes(k.kind)}
@@ -339,7 +327,7 @@ function Settings({
                   <span>
                     {t(`waNotify.kind.${k.kind}`)}
                     {!k.allowed ? (
-                      <span className="text-grid-muted"> · {t("waNotify.kindNotAllowed")}</span>
+                      <span className="text-muted-foreground"> · {t("waNotify.kindNotAllowed")}</span>
                     ) : null}
                   </span>
                 </FieldLabel>
@@ -348,7 +336,7 @@ function Settings({
           </fieldset>
 
           <div className="flex flex-col gap-3">
-            <Field orientation="horizontal">
+            <Field className="flex-row items-center gap-3">
               <Switch id="wa-notify-quiet" checked={quiet} onCheckedChange={(v) => setQuiet(!!v)} />
               <FieldLabel htmlFor="wa-notify-quiet">{t("waNotify.quiet")}</FieldLabel>
             </Field>
@@ -386,9 +374,9 @@ function Settings({
                 </Field>
               </div>
             ) : null}
-            <FieldDescription>
+            <FormHint>
               {t("waNotify.quietHint", { zone: data.effective_timezone })}
-            </FieldDescription>
+            </FormHint>
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row">
@@ -441,7 +429,7 @@ function Settings({
               </Select>
             </Field>
           </div>
-          <FieldDescription>{t("waNotify.batchHint")}</FieldDescription>
+          <FormHint>{t("waNotify.batchHint")}</FormHint>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={!!busy}>
@@ -449,7 +437,7 @@ function Settings({
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               disabled={!!busy || !data.workspace_linked}
               onClick={() => void test()}
               data-wa-notify-test
@@ -472,13 +460,13 @@ function Settings({
       {data.recent.length > 0 ? (
         <div data-wa-notify-log>
           <h3 className="mb-2 text-sm font-medium">{t("waNotify.log")}</h3>
-          <ul className="flex flex-col gap-1 text-xs text-grid-muted">
+          <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
             {data.recent.map((r, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2">
                 {r.ok ? (
-                  <CheckCircle2Icon className="size-3.5 text-grid-brand" />
+                  <CheckCircle2Icon className="size-3.5 text-nq-brand" />
                 ) : (
-                  <XCircleIcon className="size-3.5 text-grid-danger-text" />
+                  <XCircleIcon className="size-3.5 text-nq-danger-text" />
                 )}
                 <Ltr>{formatDate(r.at)}</Ltr>
                 <span>
@@ -488,7 +476,7 @@ function Settings({
                     : t("waNotify.logBatch", { n: r.events })}
                 </span>
                 {!r.ok && r.error ? (
-                  <span className="text-grid-danger-text">· {r.error}</span>
+                  <span className="text-nq-danger-text">· {r.error}</span>
                 ) : null}
               </li>
             ))}

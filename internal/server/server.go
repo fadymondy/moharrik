@@ -22,6 +22,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/analytics"
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/audit"
+	"github.com/fadymondy/moharrik/internal/circlexo"
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/channels"
 	"github.com/fadymondy/moharrik/internal/clientip"
@@ -150,6 +151,9 @@ func Boot() *app.App {
 	registerREST(api, a, researchEngine)
 
 	mcp.Mount(k, a, researchEngine)
+
+	// Sign in with CircleXO (off unless CIRCLEXO_ISSUER is set).
+	installCircleXO(k, a)
 
 	// Last, so every registered route wins: unknown paths go to Next when the API is the
 	// public process (WEB_ORIGIN; see webproxy.go).
@@ -284,6 +288,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	googlecontacts.Register(api, a) // Google Contacts import/sync REST (MH-585)
 	alerts.Register(api, a)
 	overview.Register(api, a)      // the workspace front page (MH-462)
+	circlexo.RegisterAPI(api, a)    // the workspace's CircleXO link + entitlements
 	reports.Register(api, a)       // CRM reporting (MH-394)
 	icp.Register(api, a)           // ideal-customer profile + lead score (MH-395)
 	analytics.Register(api, a)     // GA4 (MH-444)

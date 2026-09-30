@@ -5,11 +5,9 @@
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon, UserRoundIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Field, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup } from "@/components/form-layout"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -56,9 +54,9 @@ export function PresetProfilePanel({
           <UserRoundIcon className="size-4" />
           {t("presets.profileTitle")}
         </h2>
-        <p className="max-w-2xl text-sm text-grid-muted">{t("presets.profileHint")}</p>
+        <p className="max-w-2xl text-sm text-muted-foreground">{t("presets.profileHint")}</p>
       </div>
-      <form onSubmit={save} className="border-y border-line px-6 py-5" data-form="profile">
+      <form onSubmit={save} className="border-y border-nq-line px-6 py-5" data-form="profile">
         <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-2">
             {data.fields.map((f) => (
@@ -83,7 +81,7 @@ export function PresetProfilePanel({
               </Button>
             </div>
           ) : (
-            <p className="text-xs text-grid-muted">{t("presets.profileAdminOnly")}</p>
+            <p className="text-xs text-muted-foreground">{t("presets.profileAdminOnly")}</p>
           )}
         </FieldGroup>
       </form>

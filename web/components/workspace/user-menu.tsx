@@ -3,18 +3,8 @@
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 import { LogOutIcon, MessageSquarePlusIcon, UserIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
 
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { api, resetCsrf } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -46,8 +36,8 @@ export function UserMenu({ email, onReport }: { email: string; onReport?: () => 
       <DropdownMenuContent align="end" className="min-w-56">
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            <span className="grid-micro block">{t("header.signedInAs")}</span>
-            <span dir="ltr" className="ltr-isolate mt-1 block truncate text-sm text-grid-fg">
+            <span className="eyebrow block">{t("header.signedInAs")}</span>
+            <span dir="ltr" className="ltr-isolate mt-1 block truncate text-sm text-foreground">
               {email}
             </span>
           </DropdownMenuLabel>

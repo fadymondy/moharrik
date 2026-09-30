@@ -40,10 +40,8 @@ import {
   quoteAuthor,
 } from "@/components/inbox/message-reactions"
 import { VoiceRecorder } from "@/components/inbox/voice-recorder"
-import { Button } from "@/components/ui/button"
-import { FieldError } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { Button, Input, Textarea } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 import { Ltr } from "@/components/copy-field"
 import { channelIcon } from "@/lib/inbox-channels"
 import {
@@ -208,7 +206,7 @@ function buildItems(
 function DaySeparator({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center py-3" data-day-separator>
-      <span className="rounded-full border border-line bg-grid-elevated px-3 py-1 text-xs text-grid-muted">
+      <span className="rounded-full border border-nq-line bg-nq-surface-overlay px-3 py-1 text-xs text-muted-foreground">
         {label}
       </span>
     </div>
@@ -278,11 +276,11 @@ function MessageGroup({
             data-message={m.direction}
             data-message-id={m.id}
             data-message-layout="email"
-            className={`group/msg w-full min-w-0 border border-line bg-grid-card text-sm ${out ? "border-s-2 border-s-primary" : ""}`}
+            className={`group/msg w-full min-w-0 border border-nq-line bg-card text-sm ${out ? "border-s-2 border-s-primary" : ""}`}
           >
-            <header className="flex min-w-0 items-center gap-2 border-b border-line px-4 py-2 text-xs text-grid-muted">
+            <header className="flex min-w-0 items-center gap-2 border-b border-nq-line px-4 py-2 text-xs text-muted-foreground">
               <Icon className="size-3 shrink-0" />
-              <span className="min-w-0 truncate font-medium text-grid-fg">
+              <span className="min-w-0 truncate font-medium text-foreground">
                 <Bdi>
                   {out ? (m.author_user_id ? memberName(m.author_user_id) : t("inbox.team")) : who}
                 </Bdi>
@@ -404,7 +402,7 @@ function Ticks({ status }: { status: InboxMessage["status"] }) {
   if (!status) return null
   const label = t(`inbox.thread.status.${status}`)
   if (status === "failed")
-    return <AlertCircleIcon className="size-3.5 text-grid-danger-text" aria-label={label} />
+    return <AlertCircleIcon className="size-3.5 text-nq-danger-text" aria-label={label} />
   const Icon = status === "sent" ? CheckIcon : CheckCheckIcon
   return (
     <Icon
@@ -461,7 +459,7 @@ function ChatBubble({
   // text whenever its direction was not the page's (Arabic in the English UI).
   const meta = (
     <span
-      className="relative top-1.5 float-end ms-2 flex items-center gap-1 text-[0.6875rem] leading-4 text-grid-muted"
+      className="relative top-1.5 float-end ms-2 flex items-center gap-1 text-[0.6875rem] leading-4 text-muted-foreground"
       data-message-meta
     >
       {m.starred ? <StarIcon className="size-3 fill-current text-amber-500" aria-hidden /> : null}
@@ -478,8 +476,8 @@ function ChatBubble({
       data-starred={m.starred || undefined}
       className={
         stickerOnly
-          ? "relative flow-root max-w-[min(36rem,85%)] text-sm text-grid-fg"
-          : `relative flow-root max-w-[min(36rem,85%)] rounded-[0.5rem] px-2.5 pt-1.5 pb-2 text-sm text-grid-fg shadow-[0_1px_0.5px_color-mix(in_oklab,var(--grid-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`
+          ? "relative flow-root max-w-[min(36rem,85%)] text-sm text-foreground"
+          : `relative flow-root max-w-[min(36rem,85%)] rounded-[0.5rem] px-2.5 pt-1.5 pb-2 text-sm text-foreground shadow-[0_1px_0.5px_color-mix(in_oklab,var(--nq-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`
       }
       style={stickerOnly ? undefined : { background: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
       onClick={selectMode ? () => onToggleSelect?.(m.id) : () => setActive((v) => !v)}
@@ -1100,7 +1098,7 @@ export function ChatThread({
     >
       {dragging ? (
         <div
-          className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-start gap-2 rounded-lg border-2 border-dashed border-primary bg-grid-elevated/90 px-4 pt-[min(30%,8rem)] text-center backdrop-blur-sm"
+          className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-start gap-2 rounded-lg border-2 border-dashed border-primary bg-nq-surface-overlay/90 px-4 pt-[min(30%,8rem)] text-center backdrop-blur-sm"
           data-drop-zone
           data-drop-disabled={attachDisabled ? "" : undefined}
         >
@@ -1109,7 +1107,7 @@ export function ChatThread({
             {attachDisabled ? attachDisabledReason : t("inbox.composer.dropToAttach")}
           </p>
           {attachDisabled ? null : (
-            <p className="text-xs text-grid-muted">{t("inbox.composer.dropHint")}</p>
+            <p className="text-xs text-muted-foreground">{t("inbox.composer.dropHint")}</p>
           )}
         </div>
       ) : null}
@@ -1126,7 +1124,7 @@ export function ChatThread({
             data-loading-older
             aria-live="polite"
           >
-            <span className="rounded-full border border-line bg-grid-elevated px-3 py-1 text-xs text-grid-muted shadow-sm">
+            <span className="rounded-full border border-nq-line bg-nq-surface-overlay px-3 py-1 text-xs text-muted-foreground shadow-sm">
               {t("inbox.thread.loadingOlder")}
             </span>
           </div>
@@ -1188,7 +1186,7 @@ export function ChatThread({
       {canWrite && conversation.blocked ? (
         // MH-657: the API refuses replies to a blocked customer, so no composer.
         <p
-          className="shrink-0 border-t border-line px-4 py-3 text-center text-sm text-grid-muted"
+          className="shrink-0 border-t border-nq-line px-4 py-3 text-center text-sm text-muted-foreground"
           data-blocked-note
         >
           {t("inbox.org.blockedComposer")}
@@ -1198,11 +1196,11 @@ export function ChatThread({
           ref={formRef}
           onSubmit={handleSubmit}
           noValidate
-          className="@container shrink-0 border-t border-line px-4 py-3"
+          className="@container shrink-0 border-t border-nq-line px-4 py-3"
           data-form="reply"
         >
           {windowNote ? (
-            <p className="mb-2 text-xs text-grid-muted" data-whatsapp-window>
+            <p className="mb-2 text-xs text-muted-foreground" data-whatsapp-window>
               {windowNote}
             </p>
           ) : null}
@@ -1223,13 +1221,13 @@ export function ChatThread({
               data-reply-subject
             />
           ) : emailNote ? (
-            <p className="mb-2 truncate text-xs text-grid-muted" data-email-reply-note>
+            <p className="mb-2 truncate text-xs text-muted-foreground" data-email-reply-note>
               <Bdi>{emailNote}</Bdi>
             </p>
           ) : null}
           {pendingFile ? (
             <div
-              className="mb-2 flex items-center gap-2 rounded-md border border-line bg-grid-elevated px-2 py-1.5 text-sm"
+              className="mb-2 flex items-center gap-2 rounded-md border border-nq-line bg-nq-surface-overlay px-2 py-1.5 text-sm"
               data-pending-attachment
               data-pending-attachment-kind={pendingFile.kind}
             >
@@ -1241,7 +1239,7 @@ export function ChatThread({
                   data-pending-attachment-preview
                 />
               ) : (
-                <FileIcon className="size-4 shrink-0 text-grid-muted" />
+                <FileIcon className="size-4 shrink-0 text-muted-foreground" />
               )}
               <span className="min-w-0 flex-1 truncate" dir="auto">
                 {pendingFile.file.name}
@@ -1349,7 +1347,7 @@ export function ChatThread({
           {attachError ? <FieldError data-attach-error>{attachError}</FieldError> : null}
         </form>
       ) : (
-        <p className="shrink-0 border-t border-line px-4 py-4 text-sm text-grid-muted">
+        <p className="shrink-0 border-t border-nq-line px-4 py-4 text-sm text-muted-foreground">
           {t("inbox.readOnly")}
         </p>
       )}

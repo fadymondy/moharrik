@@ -30,8 +30,7 @@ import {
 } from "lucide-react"
 
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Badge, Button } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useExecutions, type WorkflowExecution, type WorkflowLayout } from "@/lib/canvas-queries"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -46,12 +45,12 @@ import { WorkflowCanvas, type Selection } from "./workflow-canvas"
 
 export function ExecutionIcon({ status, className }: { status: string; className?: string }) {
   const c = cn("size-4 shrink-0", className)
-  if (status === "ok") return <CircleCheckIcon className={cn(c, "text-grid-ok-text")} />
-  if (status === "failed") return <CircleXIcon className={cn(c, "text-grid-danger-text")} />
-  if (status === "cancelled") return <CircleSlashIcon className={cn(c, "text-grid-muted")} />
+  if (status === "ok") return <CircleCheckIcon className={cn(c, "text-nq-success-text")} />
+  if (status === "failed") return <CircleXIcon className={cn(c, "text-nq-danger-text")} />
+  if (status === "cancelled") return <CircleSlashIcon className={cn(c, "text-muted-foreground")} />
   if (status === "running")
     return <LoaderCircleIcon className={cn(c, "animate-spin text-primary")} />
-  return <CircleDotIcon className={cn(c, "text-grid-muted")} />
+  return <CircleDotIcon className={cn(c, "text-muted-foreground")} />
 }
 
 /** How long a run took, as a person reads it. */
@@ -100,14 +99,14 @@ export function ExecutionsView({
   const listPane = (
     <aside
       className={cn(
-        "flex min-h-0 flex-col border-line md:w-80 md:shrink-0 md:border-e",
+        "flex min-h-0 flex-col border-nq-line md:w-80 md:shrink-0 md:border-e",
         shown && vertical ? "hidden" : "flex-1 md:flex-none",
       )}
       data-executions-list
     >
-      <div className="border-b border-line px-4 py-3">
+      <div className="border-b border-nq-line px-4 py-3">
         <h2 className="text-sm font-medium">{t("canvas.exec.title")}</h2>
-        <p className="text-xs text-grid-muted">{t("canvas.exec.hint")}</p>
+        <p className="text-xs text-muted-foreground">{t("canvas.exec.hint")}</p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {list.error ? (
@@ -117,15 +116,15 @@ export function ExecutionsView({
         ) : executions.length === 0 ? (
           <EmptyState title={t("canvas.exec.none")} body={t("canvas.exec.noneBody")} />
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-nq-line">
             {executions.map((e) => (
               <li key={e.id}>
                 <button
                   type="button"
                   onClick={() => onSelectRun(e.id)}
                   className={cn(
-                    "flex w-full items-start gap-3 px-4 py-3 text-start transition-colors hover:bg-grid-soft",
-                    e.id === shown && "bg-grid-soft",
+                    "flex w-full items-start gap-3 px-4 py-3 text-start transition-colors hover:bg-nq-surface-soft",
+                    e.id === shown && "bg-nq-surface-soft",
                   )}
                   aria-current={e.id === shown ? "true" : undefined}
                   data-execution={e.id}
@@ -136,7 +135,7 @@ export function ExecutionsView({
                     <span className="block text-sm font-medium">
                       {when.format(new Date(e.created_at))}
                     </span>
-                    <span className="block text-xs text-grid-muted">
+                    <span className="block text-xs text-muted-foreground">
                       {t(`automation.status.${e.status}`)}
                       {duration(e) ? ` · ${duration(e)}` : ""}
                       {` · ${t("automation.stepsDone", { ok: e.ok_count, total: e.step_count })}`}
@@ -144,7 +143,7 @@ export function ExecutionsView({
                     <span className="mt-1 flex flex-wrap gap-1">
                       <Badge variant="outline">{t(`canvas.exec.trigger.${e.trigger}`)}</Badge>
                       {e.agent_name ? (
-                        <Badge variant="secondary">
+                        <Badge variant="neutral">
                           <span dir="auto">{e.agent_name}</span>
                         </Badge>
                       ) : null}
@@ -158,7 +157,7 @@ export function ExecutionsView({
         {more ? (
           <div className="p-3">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="w-full"
               onClick={() => list.setSize(list.size + 1)}
@@ -184,7 +183,7 @@ export function ExecutionsView({
           onBack={() => onSelectRun(null)}
         />
       ) : !vertical ? (
-        <div className="flex flex-1 items-center justify-center p-6 text-sm text-grid-muted">
+        <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
           {list.data ? t("canvas.exec.pick") : null}
         </div>
       ) : null}
@@ -262,7 +261,7 @@ function Replay({
       data-replay={runId}
       data-replay-playing={playing ? "true" : "false"}
     >
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-nq-line px-4 py-2">
         {vertical ? (
           <Button
             variant="ghost"
@@ -277,7 +276,7 @@ function Replay({
           <>
             <ExecutionIcon status={run.status} />
             <span className="text-sm font-medium">{t(`automation.status.${run.status}`)}</span>
-            <span className="text-xs text-grid-muted">
+            <span className="text-xs text-muted-foreground">
               {execution ? duration(execution) : ""}
               {run.agent_name ? ` · ${run.agent_name}` : ""}
             </span>
@@ -285,7 +284,7 @@ function Replay({
         ) : null}
         <div className="ms-auto flex items-center gap-1">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => (playing ? setAt(null) : setAt(0))}
             disabled={!detail.data || steps.length === 0}
@@ -306,7 +305,7 @@ function Replay({
         </div>
       </div>
       {run?.error ? (
-        <p className="border-b border-line px-4 py-2 text-xs text-grid-danger-text" dir="auto">
+        <p className="border-b border-nq-line px-4 py-2 text-xs text-nq-danger-text" dir="auto">
           {run.error}
         </p>
       ) : null}
@@ -339,7 +338,7 @@ function Replay({
         {typeof selected === "number" && steps[selected] ? (
           <div
             className={cn(
-              "z-20 min-h-0 border-line bg-background",
+              "z-20 min-h-0 border-nq-line bg-background",
               vertical ? "absolute inset-0" : "w-[26rem] shrink-0 border-s",
             )}
             dir={isRtl ? "rtl" : "ltr"}

@@ -2,19 +2,9 @@
 
 import { useState, type FormEvent } from "react"
 import { EyeIcon, FlaskConicalIcon, PencilLineIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsList, TabsPanel, TabsTab, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CampaignPreview } from "@/components/campaigns/campaign-preview"
 import { CampaignTestSend } from "@/components/campaigns/campaign-test-send"
 import { MarkdownEditor } from "@/components/campaigns/markdown-editor"
@@ -31,13 +21,13 @@ function Reachable({ listId, audience }: { listId: string; audience: Audience })
   const ws = useWorkspace()
   const aud = useWhatsAppAudience(ws.id, listId, audience)
   if (aud.error)
-    return <p className="text-sm text-grid-danger-text">{t("campaigns.reachableError")}</p>
+    return <p className="text-sm text-nq-danger-text">{t("campaigns.reachableError")}</p>
   return (
     <div className="text-sm" data-whatsapp-reachable={aud.data?.reachable ?? ""}>
       <p className="font-medium">
         {aud.data ? t("campaigns.reachable", { count: aud.data.reachable }) : t("common.working")}
       </p>
-      <p className="text-grid-muted">{t("campaigns.reachableRule")}</p>
+      <p className="text-muted-foreground">{t("campaigns.reachableRule")}</p>
     </div>
   )
 }
@@ -53,11 +43,11 @@ function EmailReach({ listId, audience }: { listId: string; audience: Audience }
   if (!aud.data) return null
   return (
     <>
-      <p className="text-sm text-grid-muted" data-email-reachable={aud.data.reachable}>
+      <p className="text-sm text-muted-foreground" data-email-reachable={aud.data.reachable}>
         {t("campaigns.emailReachable", { count: aud.data.reachable })}
       </p>
       {aud.data.skipped > 0 ? (
-        <p className="text-sm text-grid-warn-text" data-email-skipped={aud.data.skipped}>
+        <p className="text-sm text-nq-warning-text" data-email-skipped={aud.data.skipped}>
           {t("campaigns.emailSkipped", { count: aud.data.skipped })}
         </p>
       ) : null}
@@ -336,7 +326,7 @@ export function CampaignForm({
         ) : null}
         {wa ? (
           <div
-            className="flex flex-col gap-3 border border-line bg-grid-card px-4 py-3"
+            className="flex flex-col gap-3 border border-nq-line bg-card px-4 py-3"
             data-whatsapp-panel
           >
             <Reachable listId={chosen} audience={audience} />
@@ -358,23 +348,23 @@ export function CampaignForm({
         </Field>
 
         <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-3">
-          <TabsList variant="line" aria-label={wa ? t("campaigns.message") : t("campaigns.body")}>
-            <TabsTrigger value="write" data-tab="write">
+          <TabsList variant="underline" aria-label={wa ? t("campaigns.message") : t("campaigns.body")}>
+            <TabsTab value="write" data-tab="write">
               <PencilLineIcon />
               {wa ? t("campaigns.message") : t("campaigns.body")}
-            </TabsTrigger>
-            <TabsTrigger value="preview" data-tab="preview">
+            </TabsTab>
+            <TabsTab value="preview" data-tab="preview">
               <EyeIcon />
               {t("campaigns.preview")}
-            </TabsTrigger>
+            </TabsTab>
             {showTest ? (
-              <TabsTrigger value="test" data-tab="test">
+              <TabsTab value="test" data-tab="test">
                 <FlaskConicalIcon />
                 {t("campaigns.test")}
-              </TabsTrigger>
+              </TabsTab>
             ) : null}
           </TabsList>
-          <TabsContent value="write">
+          <TabsPanel value="write">
             <Field>
               <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-body`} className="sr-only">
                 {wa ? t("campaigns.message") : t("campaigns.body")}
@@ -390,8 +380,8 @@ export function CampaignForm({
                 {wa ? t("campaigns.whatsappBodyHint") : t("campaigns.bodyHint")}
               </FieldDescription>
             </Field>
-          </TabsContent>
-          <TabsContent value="preview">
+          </TabsPanel>
+          <TabsPanel value="preview">
             <CampaignPreview
               channel={channel}
               subject={subject}
@@ -399,16 +389,16 @@ export function CampaignForm({
               lang={lang}
               onLangChange={setLang}
             />
-          </TabsContent>
+          </TabsPanel>
           {showTest && campaign ? (
-            <TabsContent value="test">
+            <TabsPanel value="test">
               <CampaignTestSend
                 campaign={campaign}
                 dirty={dirty}
                 smtpReady={smtpReady}
                 whatsappLinked={whatsappLinked}
               />
-            </TabsContent>
+            </TabsPanel>
           ) : null}
         </Tabs>
 
@@ -429,7 +419,7 @@ export function CampaignForm({
             </Button>
           ) : null}
           {editing && dirty ? (
-            <span className="text-sm text-grid-muted" data-unsaved>
+            <span className="text-sm text-muted-foreground" data-unsaved>
               {t("campaigns.unsaved")}
             </span>
           ) : null}

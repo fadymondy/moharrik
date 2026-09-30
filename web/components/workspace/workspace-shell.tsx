@@ -1,48 +1,49 @@
 "use client"
 
-import Link from "next/link"
-import { useEffect, useState, type ReactNode } from "react"
+import { useMemo, useState, type MouseEvent, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
-  ArrowLeftIcon,
-  BookOpenIcon,
-  CheckIcon,
-  ChevronRightIcon,
-  ChevronsUpDownIcon,
-  LayoutDashboardIcon,
-  MenuIcon,
-  MessageSquarePlusIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  PlusIcon,
-  Settings2Icon,
-} from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
+  AppHeader,
+  AppMain,
+  AppShell,
+  Button,
+  CommandPalette,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
-import { WorkspaceMark } from "@/components/workspace/workspace-mark"
+  DropdownMenuItem,
+  ProductMark,
+  SearchTrigger,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarItem,
+  SidebarTrigger,
+  Skeleton,
+  UserMenu,
+  WorkspaceSwitcher,
+  toast,
+  useRegisterCommands,
+  type Command,
+  type Workspace,
+} from "@fadymondy/nasaq/web"
+import {
+  ArrowLeftIcon,
+  BookOpenIcon,
+  ChevronRightIcon,
+  LayoutDashboardIcon,
+  MessageSquarePlusIcon,
+  Settings2Icon,
+} from "lucide-react"
+import { useSWRConfig } from "swr"
+
 import { LiveAlerts } from "@/components/alerts/live-alerts"
 import { NotificationBell } from "@/components/alerts/notification-bell"
-import { CubeMark } from "@/components/brand/cube-mark"
 import { ChatDock } from "@/components/inbox/chat-dock"
-import { LanguageSwitcher, ThemeToggle } from "@/components/header-controls"
 import {
   MahaamFeedbackWidget,
   openFeedback,
@@ -51,10 +52,8 @@ import {
 import { NotFoundState } from "@/components/not-found-state"
 import { ErrorState } from "@/components/states"
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form"
-import { UserMenu } from "@/components/workspace/user-menu"
 import { WorkspaceContext } from "@/components/workspace/workspace-context"
-import { MOHARRIK_MARK } from "@/lib/brand/mark"
-import type { WorkspaceSummary } from "@/lib/api"
+import { api, resetCsrf, type WorkspaceSummary } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import {
   groupForPath,
@@ -62,29 +61,50 @@ import {
   visibleEntries,
   visibleItems,
   type NavGroup,
-  type NavItem,
 } from "@/lib/nav-config"
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
-import { cn } from "@/lib/utils"
 import { mcpDocsHref } from "@/lib/mcp-docs"
-import { BdiBlock } from "@/components/bidi"
 
-function Brand({ mini = false }: { mini?: boolean }) {
+/** SidebarItem is a native <a>: plain clicks route client-side, modified clicks keep the browser's behaviour. */
+function useNavClick() {
+  const router = useRouter()
+  return (href: string) => (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+      return
+    e.preventDefault()
+    router.push(href)
+  }
+}
+
+function Brand() {
   const { t, locale } = useTranslations()
+  const go = useNavClick()
+  const href = `/${locale}/workspaces`
   return (
-    <Link href={`/${locale}/workspaces`} className="flex items-center gap-2.5">
-      <CubeMark mark={MOHARRIK_MARK} size={24} />
-      {mini ? null : <span className="text-[15px] font-medium">{t("brand.name")}</span>}
-    </Link>
+    <a href={href} onClick={go(href)} className="flex items-center gap-2.5 px-1 py-1">
+      <ProductMark brand="moharrik" size={24} />
+      <span className="text-body font-medium">{t("brand.name")}</span>
+    </a>
   )
 }
 
-function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: WorkspaceSummary[] }) {
+function Switcher({ active, all }: { active: WorkspaceSummary; all: WorkspaceSummary[] }) {
   const { t, locale } = useTranslations()
   const router = useRouter()
   const pathname = usePathname()
   const [creating, setCreating] = useState(false)
+
+  const workspaces = useMemo<Workspace[]>(
+    () =>
+      all.map((w) => ({
+        id: w.id,
+        name: w.name,
+        description: t(`role.${w.role}`),
+        logoSrc: w.avatar_url ?? undefined,
+      })),
+    [all, t],
+  )
 
   // Switching keeps the section (members, MCP) when it exists in every workspace.
   function hrefFor(slug: string) {
@@ -95,48 +115,24 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            // min-w-0 + shrink: the Button base is shrink-0, so at phone width a
-            // long workspace name slid UNDER the header's right-hand controls.
-            <Button
-              variant="ghost"
-              className="h-9 max-w-[16rem] min-w-0 shrink justify-between gap-2 px-2.5"
-              aria-label={t("shell.switchWorkspace")}
-            />
-          }
+      <WorkspaceSwitcher
+        workspaces={workspaces}
+        value={active.id}
+        onValueChange={(id) => {
+          const w = all.find((x) => x.id === id)
+          if (w) router.push(hrefFor(w.slug))
+        }}
+        onCreate={() => setCreating(true)}
+        labels={{ heading: t("shell.workspaces"), create: t("workspaces.create") }}
+      >
+        <DropdownMenuItem
+          onClick={() => router.push(`/${locale}/workspaces`)}
+          data-manage-workspaces
         >
-          <WorkspaceMark name={active.name} avatarUrl={active.avatar_url} size="sm" />
-          <BdiBlock className="truncate text-sm font-medium">{active.name}</BdiBlock>
-          <ChevronsUpDownIcon className="text-grid-muted" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-64">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>{t("shell.workspaces")}</DropdownMenuLabel>
-            {all.map((w) => (
-              <DropdownMenuItem key={w.id} onClick={() => router.push(hrefFor(w.slug))}>
-                <WorkspaceMark name={w.name} avatarUrl={w.avatar_url} size="sm" />
-                <BdiBlock className="min-w-0 flex-1 truncate">{w.name}</BdiBlock>
-                <span className="text-xs text-grid-muted">{t(`role.${w.role}`)}</span>
-                {w.id === active.id ? <CheckIcon /> : null}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setCreating(true)}>
-            <PlusIcon />
-            {t("workspaces.create")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => router.push(`/${locale}/workspaces`)}
-            data-manage-workspaces
-          >
-            <Settings2Icon />
-            {t("workspaces.manageAll")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <Settings2Icon />
+          {t("workspaces.manageAll")}
+        </DropdownMenuItem>
+      </WorkspaceSwitcher>
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -150,82 +146,33 @@ function WorkspaceSwitcher({ active, all }: { active: WorkspaceSummary; all: Wor
   )
 }
 
-/** One navigable row: a real page, whether a top-level link or a page inside a drilled-down group. */
-function NavLink({
-  href,
-  icon,
-  children,
-  active,
-  onNavigate,
-  mini = false,
-  dataNav,
-}: {
-  href: string
-  icon: ReactNode
-  children: ReactNode
-  active: boolean
-  onNavigate?: () => void
-  mini?: boolean
-  dataNav?: string
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      title={mini && typeof children === "string" ? children : undefined}
-      data-nav-item={dataNav}
-      className={cn(
-        "flex items-center gap-2.5 border-s-2 px-3 py-2 text-sm transition-colors [&_svg]:size-4 [&_svg]:shrink-0",
-        mini && "justify-center px-0 py-2.5",
-        active
-          ? "border-grid-action bg-grid-soft font-medium text-grid-fg"
-          : "border-transparent text-grid-body hover:bg-grid-soft hover:text-grid-fg",
-      )}
-    >
-      {icon}
-      {mini ? <span className="sr-only">{children}</span> : children}
-    </Link>
-  )
-}
+function Account({ email, onReport }: { email: string; onReport?: () => void }) {
+  const { t, locale } = useTranslations()
+  const router = useRouter()
+  const { mutate } = useSWRConfig()
 
-/** A group row on the root screen: a link to that section's own page (MH-673), whose dashboard it opens. */
-function NavGroupLink({
-  group,
-  href,
-  onNavigate,
-  mini = false,
-}: {
-  group: NavGroup
-  href: string
-  onNavigate?: () => void
-  mini?: boolean
-}) {
-  const { t } = useTranslations()
-  const Icon = group.icon
-  const label = t(group.labelKey)
+  async function signOut() {
+    try {
+      await api("/api/auth/logout", { method: "POST" })
+    } catch {
+      toast.error(t("common.networkError"))
+      return
+    }
+    resetCsrf()
+    // Drop every cached response: the next account must not see this one's data.
+    await mutate(() => true, undefined, { revalidate: false })
+    router.replace(`/${locale}/login`)
+  }
+
   return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      title={mini ? label : undefined}
-      data-nav-group={group.key}
-      className={cn(
-        "flex w-full items-center gap-2.5 border-s-2 px-3 py-2 text-sm transition-colors [&_svg]:size-4 [&_svg]:shrink-0",
-        mini && "justify-center px-0 py-2.5",
-        "border-transparent text-grid-body hover:bg-grid-soft hover:text-grid-fg",
-      )}
-    >
-      <Icon />
-      {mini ? (
-        <span className="sr-only">{label}</span>
-      ) : (
-        <>
-          <span className="min-w-0 flex-1 truncate text-start">{label}</span>
-          <ChevronRightIcon className="size-3.5 shrink-0 text-grid-muted rtl:rotate-180" />
-        </>
-      )}
-    </Link>
+    <UserMenu user={{ name: email.split("@")[0] || email, email }} onSignOut={signOut}>
+      {onReport ? (
+        <DropdownMenuItem onClick={onReport}>
+          <MessageSquarePlusIcon />
+          {t("feedback.report")}
+        </DropdownMenuItem>
+      ) : null}
+    </UserMenu>
   )
 }
 
@@ -238,36 +185,26 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   // no Mahaam key, or a widget script that failed to load, gets no button rather than a dead one.
   const canReport = useFeedbackReady()
   const list = useMyWorkspaces(!!me.data)
-  const [navOpen, setNavOpen] = useState(false)
-  // The desktop sidebar collapses to an icon rail; the choice is kept per browser. Ctrl/⌘+B toggles.
-  const [mini, setMini] = useState(false)
-  useEffect(() => {
-    setMini(localStorage.getItem("moharrik.nav") === "mini")
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-        e.preventDefault()
-        toggleMini()
-      }
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [])
-  function toggleMini() {
-    setMini((m) => {
-      localStorage.setItem("moharrik.nav", m ? "full" : "mini")
-      return !m
-    })
-  }
-  const { isRtl } = useTranslations()
 
   const summary = list.data?.find((w) => w.slug === slug)
   const current = useCurrentWorkspace(summary?.id)
   const base = `/${locale}/w/${slug}`
+  const can = current.data?.can
+
+  const ctx = summary
+    ? {
+        summary,
+        current: current.data,
+        id: summary.id,
+        slug: summary.slug,
+        can: (p: string) => !!current.data?.can?.includes(p),
+      }
+    : null
 
   let body: ReactNode
   if (me.error || list.error) body = <ErrorState error={me.error ?? list.error} />
   else if (!me.data || !list.data) body = <ShellSkeleton />
-  else if (!summary)
+  else if (!summary || !ctx)
     body = (
       <NotFoundState
         title={t("shell.unknownWorkspace")}
@@ -277,131 +214,67 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       />
     )
   else if (current.error) body = <ErrorState error={current.error} />
-  else
-    body = (
-      <WorkspaceContext.Provider
-        value={{
-          summary,
-          current: current.data,
-          id: summary.id,
-          slug: summary.slug,
-          can: (p) => !!current.data?.can?.includes(p),
-        }}
-      >
-        {children}
-      </WorkspaceContext.Provider>
-    )
+  else body = <WorkspaceContext.Provider value={ctx}>{children}</WorkspaceContext.Provider>
+
+  const sidebar = (
+    <Sidebar aria-label={t("shell.navigation")}>
+      <SidebarHeader>
+        <Brand />
+        {summary && list.data ? (
+          <Switcher active={summary} all={list.data} />
+        ) : (
+          <Skeleton className="h-9 w-full" />
+        )}
+        <SearchTrigger label={t("shell.search")} />
+      </SidebarHeader>
+      <SidebarContent>{summary ? <ShellNav base={base} can={can} /> : null}</SidebarContent>
+      <SidebarFooter>
+        {me.data ? (
+          <Account email={me.data.email} onReport={canReport ? () => openFeedback() : undefined} />
+        ) : null}
+      </SidebarFooter>
+    </Sidebar>
+  )
 
   return (
-    <div className="grid-shell" data-nav={mini ? "mini" : "full"}>
-      {/* The column carries the panel colour and its rule for the page's full height; the nav
-          inside it is what sticks. With both on one sticky h-dvh element the panel ended one
-          screen down and the page background showed below it on a long page. */}
-      <div className="grid-shell-nav hidden md:block">
-        <aside className="sticky top-0 flex h-dvh flex-col overflow-y-auto">
-          <div
-            className={cn(
-              "flex h-14 shrink-0 items-center border-b border-line px-4",
-              mini && "justify-center px-0",
-            )}
-          >
-            <Brand mini={mini} />
-          </div>
-          {summary ? <ShellNav base={base} mini={mini} can={current.data?.can} /> : null}
-        </aside>
-      </div>
-
-      <div className="flex min-w-0 flex-col">
-        <header className="flex h-14 items-center justify-between gap-2 border-b border-line px-3 sm:px-4">
-          <div className="flex min-w-0 items-center gap-1">
-            {summary ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="md:hidden"
-                aria-label={t("shell.navigation")}
-                onClick={() => setNavOpen(true)}
-                data-mobile-nav-toggle
-              >
-                <MenuIcon />
-              </Button>
-            ) : null}
+    <AppShell sidebar={sidebar} resizeLabel={t("shell.resizeSidebar")}>
+      <AppHeader>
+        <SidebarTrigger label={t("shell.toggleSidebar")} data-nav-toggle />
+        <div className="ms-auto flex shrink-0 items-center gap-1">
+          {me.data && canReport ? (
             <Button
-              variant="ghost"
-              size="icon-sm"
-              className="hidden md:inline-flex"
-              aria-label={t("shell.toggleSidebar")}
-              aria-pressed={mini}
-              title={t("shell.toggleSidebar")}
-              onClick={toggleMini}
-              data-nav-toggle
+              variant="secondary"
+              size="sm"
+              onClick={() => openFeedback()}
+              aria-label={t("feedback.report")}
             >
-              {mini ? (
-                <PanelLeftOpenIcon className="rtl:-scale-x-100" />
-              ) : (
-                <PanelLeftCloseIcon className="rtl:-scale-x-100" />
-              )}
+              <MessageSquarePlusIcon />
+              <span className="hidden sm:inline">{t("feedback.report")}</span>
             </Button>
-            {summary && list.data ? (
-              <WorkspaceSwitcher active={summary} all={list.data} />
-            ) : (
-              <Skeleton className="h-6 w-40" />
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {me.data && canReport ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => openFeedback()}
-                aria-label={t("feedback.report")}
-              >
-                <MessageSquarePlusIcon />
-                <span className="hidden sm:inline">{t("feedback.report")}</span>
-              </Button>
-            ) : null}
-            {/* The bell and the live alerts ride on every workspace page (MH-378):
-                a customer who writes while the member is on Contacts must not
-                wait for them to open the inbox. */}
-            {summary && current.data ? (
-              <>
-                <NotificationBell
-                  workspaceId={summary.id}
-                  slug={summary.slug}
-                  userId={me.data ? String(me.data.id) : undefined}
-                  can={(p) => !!current.data?.can?.includes(p)}
-                />
-                <LiveAlerts workspaceId={summary.id} slug={summary.slug} />
-              </>
-            ) : null}
-            <LanguageSwitcher />
-            <ThemeToggle />
-            {me.data ? (
-              <UserMenu
-                email={me.data.email}
-                onReport={canReport ? () => openFeedback() : undefined}
-              />
-            ) : null}
-          </div>
-        </header>
-        {/* MH-663: reserve room for the chat dock's launcher pill so it never
-            sits over the last row of page content — the dock itself hides on
-            the inbox route, so no padding is needed there either. */}
-        <main className={`min-w-0 flex-1 ${pathname?.includes("/inbox") ? "" : "pb-16"}`}>
-          {body}
-        </main>
-      </div>
-
-      <Sheet open={navOpen} onOpenChange={setNavOpen}>
-        <SheetContent side={isRtl ? "right" : "left"} className="w-72 gap-0 p-0" data-mobile-nav>
-          <SheetTitle className="flex h-14 items-center border-b border-line px-4">
-            <Brand />
-          </SheetTitle>
-          {summary ? (
-            <ShellNav base={base} can={current.data?.can} onNavigate={() => setNavOpen(false)} />
           ) : null}
-        </SheetContent>
-      </Sheet>
+          {/* The bell and the live alerts ride on every workspace page (MH-378):
+              a customer who writes while the member is on Contacts must not
+              wait for them to open the inbox. */}
+          {summary && current.data ? (
+            <>
+              <NotificationBell
+                workspaceId={summary.id}
+                slug={summary.slug}
+                userId={me.data ? String(me.data.id) : undefined}
+                can={(p) => !!current.data?.can?.includes(p)}
+              />
+              <LiveAlerts workspaceId={summary.id} slug={summary.slug} />
+            </>
+          ) : null}
+        </div>
+      </AppHeader>
+      {/* MH-663: reserve room for the chat dock's launcher pill so it never
+          sits over the last row of page content — the dock itself hides on
+          the inbox route, so no padding is needed there either. */}
+      <AppMain className={pathname?.includes("/inbox") ? "p-0" : "p-0 pb-16"}>{body}</AppMain>
+
+      {summary ? <NavCommands base={base} can={can} /> : null}
+      <CommandPalette />
 
       {me.data ? <MahaamFeedbackWidget /> : null}
 
@@ -411,24 +284,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           not a descendant, so it needs the same context re-supplied —
           CannedPicker (reused inside ChatThread) calls useWorkspace() and
           throws outside one. */}
-      {summary && current.data ? (
-        <WorkspaceContext.Provider
-          value={{
-            summary,
-            current: current.data,
-            id: summary.id,
-            slug: summary.slug,
-            can: (p) => !!current.data?.can?.includes(p),
-          }}
-        >
-          <ChatDock
-            workspaceId={summary.id}
-            slug={summary.slug}
-            can={(p) => !!current.data?.can?.includes(p)}
-          />
+      {summary && current.data && ctx ? (
+        <WorkspaceContext.Provider value={ctx}>
+          <ChatDock workspaceId={summary.id} slug={summary.slug} can={ctx.can} />
         </WorkspaceContext.Provider>
       ) : null}
-    </div>
+    </AppShell>
   )
 }
 
@@ -442,9 +303,50 @@ function ShellSkeleton() {
   )
 }
 
+/** Every page in the sidebar, as navigation commands in the palette (Ctrl/Cmd+K). */
+function NavCommands({ base, can }: { base: string; can?: string[] }) {
+  const { t, locale } = useTranslations()
+  const router = useRouter()
+  const commands = useMemo<Command[]>(() => {
+    const out: Command[] = []
+    for (const e of visibleEntries(can)) {
+      if (e.type === "link") {
+        out.push({
+          id: `nav.${e.item.key}`,
+          section: "navigation",
+          label: t(e.item.labelKey),
+          icon: e.item.icon,
+          perform: () => router.push(e.item.path ? `${base}/${e.item.path}` : base),
+        })
+        continue
+      }
+      for (const item of visibleItems(e.group.items, can)) {
+        out.push({
+          id: `nav.${item.key}`,
+          section: "navigation",
+          label: t(item.labelKey),
+          hint: t(e.group.labelKey),
+          icon: item.icon,
+          perform: () => router.push(`${base}/${item.path}`),
+        })
+      }
+    }
+    out.push({
+      id: "nav.mcp-docs",
+      section: "navigation",
+      label: t("nav.mcpDocs"),
+      icon: BookOpenIcon,
+      perform: () => router.push(mcpDocsHref(locale)),
+    })
+    return out
+  }, [base, can, locale, router, t])
+  useRegisterCommands(commands)
+  return null
+}
+
 /**
- * The workspace navigation (MH-526): the sticky sidebar on desktop, a slide-out
- * sheet below md. Two screens, not one long list —
+ * The workspace navigation (MH-526), inside Nasaq's Sidebar (a sheet below md, an icon rail when
+ * collapsed). Two screens, not one long list —
  *
  *   ROOT: Overview, then every group button (CRM, Marketing, Inbox, Automation,
  *   Research, Insights, Notifications), then Members, then Settings.
@@ -457,135 +359,109 @@ function ShellSkeleton() {
  * sidebar follows because that page — like every page inside it — belongs to
  * the section. There is no client-only "drilled" state to get out of step.
  */
-function ShellNav({
-  base,
-  onNavigate,
-  mini = false,
-  can,
-}: {
-  base: string
-  onNavigate?: () => void
-  mini?: boolean
-  can?: string[]
-}) {
+function ShellNav({ base, can }: { base: string; can?: string[] }) {
   const { t, locale } = useTranslations()
   const pathname = usePathname()
+  const go = useNavClick()
   const rest = pathname.startsWith(base) ? pathname.slice(base.length).replace(/^\//, "") : ""
   const entries = visibleEntries(can)
   const derivedGroup = groupForPath(rest)
   // A section this role cannot see does not take over the sidebar.
-  const openGroup = entries.some((e) => e.type === "group" && e.group.key === derivedGroup?.key)
+  const openGroup: NavGroup | null = entries.some(
+    (e) => e.type === "group" && e.group.key === derivedGroup?.key,
+  )
     ? derivedGroup
     : null
 
   if (openGroup) {
     const items = visibleItems(openGroup.items, can)
+    const home = `${base}/${openGroup.home}`
     return (
-      <nav
-        className="flex flex-col py-3"
-        aria-label={t("shell.navigation")}
-        data-nav-drilled={openGroup.key}
-      >
-        <Link
+      <SidebarGroup data-nav-drilled={openGroup.key} label={t(openGroup.labelKey)}>
+        <SidebarItem
           href={base}
-          onClick={onNavigate}
-          title={mini ? t("nav.back") : undefined}
+          onClick={go(base)}
+          icon={<ArrowLeftIcon className="rtl:rotate-180" />}
           data-nav-back
-          className={cn(
-            "flex items-center gap-2.5 border-s-2 border-transparent px-3 py-2 text-sm text-grid-muted transition-colors hover:bg-grid-soft hover:text-grid-fg [&_svg]:size-4 [&_svg]:shrink-0",
-            mini && "justify-center px-0 py-2.5",
-          )}
         >
-          <ArrowLeftIcon className="rtl:rotate-180" />
-          {mini ? <span className="sr-only">{t("nav.back")}</span> : t("nav.back")}
-        </Link>
-        {mini ? null : (
-          <p className="grid-micro px-4 pt-2 pb-1 text-grid-fg">{t(openGroup.labelKey)}</p>
-        )}
-        <NavLink
-          href={`${base}/${openGroup.home}`}
+          {t("nav.back")}
+        </SidebarItem>
+        <SidebarItem
+          href={home}
+          onClick={go(home)}
           icon={<LayoutDashboardIcon />}
           active={rest === openGroup.home}
-          onNavigate={onNavigate}
-          mini={mini}
-          dataNav={`${openGroup.key}-home`}
+          data-nav-item={`${openGroup.key}-home`}
         >
           {t("nav.sectionOverview")}
-        </NavLink>
+        </SidebarItem>
         {items.map((item) => {
           const Icon = item.icon
+          const href = `${base}/${item.path}`
           return (
-            <NavLink
+            <SidebarItem
               key={item.key}
-              href={`${base}/${item.path}`}
+              href={href}
+              onClick={go(href)}
               icon={<Icon />}
               active={itemActive(item, rest)}
-              onNavigate={onNavigate}
-              mini={mini}
-              dataNav={item.key}
+              data-nav-item={item.key}
             >
               {t(item.labelKey)}
-            </NavLink>
+            </SidebarItem>
           )
         })}
-      </nav>
+      </SidebarGroup>
     )
   }
 
   return (
-    <nav className="flex flex-col py-3" aria-label={t("shell.navigation")} data-nav-drilled="">
+    <SidebarGroup data-nav-drilled="">
       {entries.map((e) => {
         if (e.type === "link") {
           const Icon = e.item.icon
+          const href = e.item.path ? `${base}/${e.item.path}` : base
           return (
-            <NavLink
+            <SidebarItem
               key={e.item.key}
-              href={e.item.path ? `${base}/${e.item.path}` : base}
+              href={href}
+              onClick={go(href)}
               icon={<Icon />}
               active={itemActive(e.item, rest)}
-              onNavigate={onNavigate}
-              mini={mini}
-              dataNav={e.item.key}
+              data-nav-item={e.item.key}
             >
               {t(e.item.labelKey)}
-            </NavLink>
+            </SidebarItem>
           )
         }
-        // Settings sits below a divider, apart from the workspace-level groups above it.
-        // Its own row already reads "Settings" with the drill-down chevron, so the rule
-        // needs no label of its own.
-        const divider =
-          e.group.key === "settings" ? (
-            <div
-              key="div"
-              className={cn("border-t border-line", mini ? "mt-3 pt-3" : "mt-4 pt-2")}
-            />
-          ) : null
+        const Icon = e.group.icon
+        const href = `${base}/${e.group.home}`
         return (
-          <span key={e.group.key} className="contents">
-            {divider}
-            <NavGroupLink
-              group={e.group}
-              href={`${base}/${e.group.home}`}
-              onNavigate={onNavigate}
-              mini={mini}
-            />
-          </span>
+          <SidebarItem
+            key={e.group.key}
+            href={href}
+            onClick={go(href)}
+            icon={<Icon />}
+            trailing={<ChevronRightIcon className="size-3.5 rtl:rotate-180" />}
+            data-nav-group={e.group.key}
+            className={e.group.key === "settings" ? "mt-2 border-t border-border pt-2" : undefined}
+          >
+            {t(e.group.labelKey)}
+          </SidebarItem>
         )
       })}
       {/* The public MCP reference (MH-428): every tool, its scope and an example.
           Not a workspace page (it needs no group or workspace base), so it sits
           here rather than in nav-config.ts's workspace-relative NAV table. */}
-      <NavLink
+      <SidebarItem
         href={mcpDocsHref(locale)}
+        onClick={go(mcpDocsHref(locale))}
         icon={<BookOpenIcon />}
         active={pathname === mcpDocsHref(locale)}
-        onNavigate={onNavigate}
-        mini={mini}
-        dataNav="mcp-docs"
+        data-nav-item="mcp-docs"
       >
         {t("nav.mcpDocs")}
-      </NavLink>
-    </nav>
+      </SidebarItem>
+    </SidebarGroup>
   )
 }

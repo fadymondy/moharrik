@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { BellOffIcon, BookmarkIcon, CheckIcon, SearchIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, InputGroup, InputGroupAddon, InputGroupInput, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { useDebounced } from "@/components/crm/contact-picker"
@@ -18,9 +18,6 @@ import {
 } from "@/components/notifications/notification-detail"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NotificationItem } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
@@ -126,7 +123,7 @@ export default function NotificationsPage() {
           <div className="flex flex-wrap items-center gap-2">
             {canManage ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 nativeButton={false}
                 render={<Link href={`/${locale}/w/${ws.slug}/notifications/sources`} />}
@@ -137,7 +134,7 @@ export default function NotificationsPage() {
             ) : null}
             {canWrite ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={markAllRead}
                 disabled={markAllDisabled}
@@ -176,7 +173,7 @@ export default function NotificationsPage() {
             <Button
               type="button"
               size="sm"
-              variant={unread ? "default" : "outline"}
+              variant={unread ? "primary" : "secondary"}
               aria-pressed={unread}
               onClick={() => setUnread((v) => !v)}
               data-filter="unread"
@@ -189,7 +186,7 @@ export default function NotificationsPage() {
             <Button
               type="button"
               size="sm"
-              variant={saved ? "default" : "outline"}
+              variant={saved ? "primary" : "secondary"}
               aria-pressed={saved}
               onClick={() => setSaved((v) => !v)}
               data-filter="saved"
@@ -241,7 +238,7 @@ export default function NotificationsPage() {
           action={
             canManage ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 nativeButton={false}
                 render={<Link href={`/${locale}/w/${ws.slug}/notifications/sources`} />}
@@ -253,7 +250,7 @@ export default function NotificationsPage() {
         />
       ) : page.total === 0 ? (
         <p
-          className="border-y border-line px-6 py-6 text-sm text-grid-muted"
+          className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground"
           data-notifications-no-match
         >
           {t("notifications.noMatch")}
@@ -267,7 +264,7 @@ export default function NotificationsPage() {
             total={page.total}
             name="notifications"
           />
-          <ul className="divide-y divide-line border-y border-line">
+          <ul className="divide-y divide-nq-line border-y border-nq-line">
             {page.items.map((it) => (
               <NotificationRow
                 key={it.id}
@@ -336,7 +333,7 @@ function NotificationRow({
 
   return (
     <li
-      className={`flex items-start gap-3 px-6 py-4 ${isRead ? "" : "bg-grid-card"}`}
+      className={`flex items-start gap-3 px-6 py-4 ${isRead ? "" : "bg-card"}`}
       data-notification={item.title}
       data-notification-read={isRead ? "true" : "false"}
     >
@@ -355,13 +352,13 @@ function NotificationRow({
         </button>
         {item.body ? (
           <p
-            className="mt-1 line-clamp-3 text-sm break-words whitespace-pre-wrap text-grid-muted"
+            className="mt-1 line-clamp-3 text-sm break-words whitespace-pre-wrap text-muted-foreground"
             dir="auto"
           >
             {item.body}
           </p>
         ) : null}
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <Badge variant={severityVariant[item.severity]}>
             {t(`notifications.severity.${item.severity}`)}
           </Badge>
@@ -402,7 +399,7 @@ function NotificationRow({
             aria-pressed={isSaved}
             aria-label={isSaved ? t("notifications.unsave") : t("notifications.save")}
             onClick={() => toggle("saved", !isSaved)}
-            className={isSaved ? "text-grid-brand" : undefined}
+            className={isSaved ? "text-nq-brand" : undefined}
           >
             <BookmarkIcon fill={isSaved ? "currentColor" : "none"} />
           </Button>

@@ -4,16 +4,7 @@ import Link from "next/link"
 import { ChevronDownIcon, MessageSquareQuoteIcon } from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { CannedReply } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -75,7 +66,7 @@ export function CannedPicker({
             {t("inbox.canned.inLanguage", { language })}
           </DropdownMenuLabel>
           {replies.length === 0 ? (
-            <p className="px-2 py-1.5 text-sm text-grid-muted">{t("inbox.canned.none")}</p>
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">{t("inbox.canned.none")}</p>
           ) : (
             replies.map((r) => {
               const text = cannedText(r, lang)
@@ -90,12 +81,12 @@ export function CannedPicker({
                   <Bdi className="font-medium">{r.title}</Bdi>
                   <span
                     dir="auto"
-                    className="line-clamp-2 w-full text-start text-xs text-grid-muted"
+                    className="line-clamp-2 w-full text-start text-xs text-muted-foreground"
                   >
                     {text}
                   </span>
                   {fallback ? (
-                    <span className="text-xs text-grid-warn-text">
+                    <span className="text-xs text-nq-warning-text">
                       {t("inbox.canned.fallback", { language, other })}
                     </span>
                   ) : null}

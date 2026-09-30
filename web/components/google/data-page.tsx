@@ -21,15 +21,7 @@ import { Ltr } from "@/components/copy-field"
 import { KIND_ICON } from "@/components/google/resource-picker"
 import { useFormat } from "@/components/overview/overview-cards"
 import { EmptyState } from "@/components/states"
-import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { GoogleKind, GoogleResource } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -84,7 +76,7 @@ export function ResourceSwitcher({
     const r = list[0]
     return r ? (
       <p
-        className="flex min-w-0 items-center gap-2 text-sm text-grid-body [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-grid-muted"
+        className="flex min-w-0 items-center gap-2 text-sm text-nq-fg-body [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
         data-resource-name
       >
         {KIND_ICON[kind]}
@@ -125,9 +117,6 @@ export function WindowToggle({
   const { t } = useTranslations()
   return (
     <ToggleGroup
-      variant="outline"
-      size="sm"
-      spacing={0}
       value={[String(value)]}
       onValueChange={(v) => {
         const next = v[0]
@@ -136,9 +125,9 @@ export function WindowToggle({
       aria-label={t("gdata.window")}
     >
       {options.map((d) => (
-        <ToggleGroupItem key={d} value={String(d)} data-window={d}>
+        <Toggle key={d} value={String(d)} data-window={d}>
           {t("gdata.days", { n: d })}
-        </ToggleGroupItem>
+        </Toggle>
       ))}
     </ToggleGroup>
   )
@@ -157,23 +146,23 @@ export function DataError({
   return (
     <div
       role="alert"
-      className="mx-6 my-6 flex items-start gap-3 border border-line bg-grid-card px-4 py-4 text-sm"
+      className="mx-6 my-6 flex items-start gap-3 border border-nq-line bg-card px-4 py-4 text-sm"
       data-data-error
     >
-      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-danger" />
+      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-nq-danger" />
       <div className="min-w-0 space-y-2">
-        <p className="font-medium text-grid-fg">{t("gdata.errorTitle")}</p>
-        <p className="break-words text-grid-danger-text">
+        <p className="font-medium text-foreground">{t("gdata.errorTitle")}</p>
+        <p className="break-words text-nq-danger-text">
           <Ltr>{message}</Ltr>
         </p>
         {resource?.last_error && resource.last_error !== message ? (
-          <p className="break-words text-grid-muted">
+          <p className="break-words text-muted-foreground">
             <Ltr>{resource.last_error}</Ltr>
           </p>
         ) : null}
         {ws.can("integrations:manage") ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             nativeButton={false}
             render={<Link href={`/${locale}/w/${ws.slug}/settings/integrations`} />}
@@ -181,7 +170,7 @@ export function DataError({
             {t("gdata.openIntegrations")}
           </Button>
         ) : (
-          <p className="text-grid-muted">{t("gdata.askAdmin")}</p>
+          <p className="text-muted-foreground">{t("gdata.askAdmin")}</p>
         )}
       </div>
     </div>
@@ -209,21 +198,21 @@ export function Freshness({
       {stale ? (
         <div
           role="status"
-          className="flex items-start gap-3 border border-line bg-grid-card px-4 py-3 text-sm"
+          className="flex items-start gap-3 border border-nq-line bg-card px-4 py-3 text-sm"
           data-stale
         >
-          <ClockIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
-          <p className="min-w-0 break-words text-grid-body">
+          <ClockIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
+          <p className="min-w-0 break-words text-nq-fg-body">
             {t("gdata.stale", { when: f.ago(fetchedAt) })} <Ltr>{note}</Ltr>
           </p>
         </div>
       ) : null}
-      <p className="flex flex-wrap items-center gap-2 text-xs text-grid-muted">
+      <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span title={f.exact(fetchedAt)} data-fetched-at={fetchedAt}>
           {t("gdata.updated", { when: f.ago(fetchedAt) })}
         </span>
         {onRefresh ? (
-          <Button variant="ghost" size="xs" onClick={onRefresh} disabled={refreshing} data-refresh>
+          <Button variant="ghost" size="sm" onClick={onRefresh} disabled={refreshing} data-refresh>
             <RefreshCwIcon className={refreshing ? "animate-spin" : undefined} />
             {refreshing ? t("gdata.refreshing") : t("gdata.refresh")}
           </Button>
@@ -249,10 +238,10 @@ export function Stat({
 }) {
   return (
     <div className="min-w-0 px-5 py-4" data-stat={id}>
-      <p className="grid-micro truncate">{label}</p>
-      <p className="mt-1.5 text-2xl font-medium text-grid-fg tabular-nums">{value}</p>
+      <p className="eyebrow truncate">{label}</p>
+      <p className="mt-1.5 text-2xl font-medium text-foreground tabular-nums">{value}</p>
       {delta ? <div className="mt-1">{delta}</div> : null}
-      {sub ? <p className="mt-0.5 truncate text-xs text-grid-muted">{sub}</p> : null}
+      {sub ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{sub}</p> : null}
     </div>
   )
 }
@@ -275,10 +264,10 @@ export function Delta({
 }) {
   const { t, locale } = useTranslations()
   if (now == null || before == null)
-    return <span className="text-xs text-grid-muted">{t("gdata.noCompare")}</span>
+    return <span className="text-xs text-muted-foreground">{t("gdata.noCompare")}</span>
   const diff = now - before
   if (mode === "relative" && before === 0)
-    return <span className="text-xs text-grid-muted">{t("gdata.noBase")}</span>
+    return <span className="text-xs text-muted-foreground">{t("gdata.noBase")}</span>
   const change = mode === "relative" ? diff / before : mode === "pp" ? diff * 100 : diff
   const tag = intlTag(locale)
   const text =
@@ -305,13 +294,13 @@ export function Delta({
     <span
       className={cn(
         "inline-flex items-center gap-1 text-xs font-medium tabular-nums",
-        good == null ? "text-grid-muted" : good ? "text-grid-ok-text" : "text-grid-danger-text",
+        good == null ? "text-muted-foreground" : good ? "text-nq-success-text" : "text-nq-danger-text",
       )}
       data-delta={good == null ? "flat" : good ? "better" : "worse"}
     >
       <Icon className="size-3.5" aria-hidden />
       {shown}
-      <span className="font-normal text-grid-muted">
+      <span className="font-normal text-muted-foreground">
         {t(good == null ? "gdata.flat" : good ? "gdata.better" : "gdata.worse")}
       </span>
     </span>

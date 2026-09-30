@@ -3,16 +3,11 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { LoaderCircleIcon } from "lucide-react"
 import Link from "next/link"
-import { toast } from "sonner"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Switch, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import { useFormatDateTime } from "@/components/research/shared"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, SIGNAL_TYPES, type ProspectProfileOut } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -80,7 +75,7 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
   return (
     <section className="px-6 py-6" data-form="prospect-profile">
       <h2 className="text-base font-medium">{t("prospects.profile")}</h2>
-      <p className="mt-1 max-w-3xl text-sm text-grid-muted">{t("prospects.profileHint")}</p>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("prospects.profileHint")}</p>
       <form onSubmit={save} noValidate className="mt-5 max-w-3xl space-y-5">
         <fieldset disabled={!canEdit} className="space-y-5">
           <Field>
@@ -95,18 +90,18 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
             />
             <FieldDescription>{t("prospects.offerHint")}</FieldDescription>
           </Field>
-          <div data-icp-who="" className="rounded-md border border-line p-4">
+          <div data-icp-who="" className="rounded-md border border-nq-line p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium">{t("prospects.icpWho")}</p>
               <Link
                 href={`/${locale}/w/${ws.slug}/settings/icp`}
-                className="text-xs text-grid-brand hover:underline"
+                className="text-xs text-nq-brand hover:underline"
                 data-action="edit-icp"
               >
                 {t("prospects.icpEdit")}
               </Link>
             </div>
-            <p className="mt-1 text-xs text-grid-muted">{t("prospects.icpWhoHint")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("prospects.icpWhoHint")}</p>
             {p.icp_configured ? (
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {(
@@ -118,23 +113,23 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
                   ] as const
                 ).map(([key, values]) => (
                   <div key={key}>
-                    <p className="text-xs font-medium text-grid-muted">{t(`prospects.${key}`)}</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t(`prospects.${key}`)}</p>
                     <div className="mt-1 flex flex-wrap gap-1" dir="auto">
                       {values.length ? (
                         values.map((v) => (
-                          <Badge key={v} variant="secondary">
+                          <Badge key={v} variant="neutral">
                             {v}
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-xs text-grid-muted">{t("prospects.icpEmpty")}</span>
+                        <span className="text-xs text-muted-foreground">{t("prospects.icpEmpty")}</span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="mt-2 text-xs text-grid-warn-text">{t("prospects.icpNotConfigured")}</p>
+              <p className="mt-2 text-xs text-nq-warning-text">{t("prospects.icpNotConfigured")}</p>
             )}
           </div>
           <Field>
@@ -161,7 +156,7 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
           </Field>
           {p.effective_queries.length ? (
             <div
-              className="text-xs text-grid-muted"
+              className="text-xs text-muted-foreground"
               data-effective-queries={p.effective_queries.length}
             >
               <p>{t("prospects.willSearch")}</p>
@@ -174,11 +169,11 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
               </ol>
             </div>
           ) : (
-            <p className="text-xs text-grid-warn-text">{t("prospects.profileEmpty")}</p>
+            <p className="text-xs text-nq-warning-text">{t("prospects.profileEmpty")}</p>
           )}
           <div>
             <p className="text-sm font-medium">{t("prospects.weights")}</p>
-            <p className="text-xs text-grid-muted">{t("prospects.weightsHint")}</p>
+            <p className="text-xs text-muted-foreground">{t("prospects.weightsHint")}</p>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {SIGNAL_TYPES.map((s) => (
                 <Field key={s}>
@@ -199,7 +194,7 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
               ))}
             </div>
           </div>
-          <div className="flex flex-wrap items-end gap-4 border-t border-line pt-4">
+          <div className="flex flex-wrap items-end gap-4 border-t border-nq-line pt-4">
             <div className="flex items-center gap-2">
               <Switch
                 id="pp-on"
@@ -226,7 +221,7 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
               />
             </Field>
           </div>
-          <p className="text-xs text-grid-muted">
+          <p className="text-xs text-muted-foreground">
             {t("prospects.scheduleHint", {
               used: formatNumber(data.budget.runs_today),
               budget: formatNumber(data.budget.daily_run_budget),
@@ -243,7 +238,7 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
             {t("prospects.saveProfile")}
           </Button>
         ) : (
-          <p className="text-sm text-grid-muted">{t("prospects.profileReadOnly")}</p>
+          <p className="text-sm text-muted-foreground">{t("prospects.profileReadOnly")}</p>
         )}
       </form>
     </section>

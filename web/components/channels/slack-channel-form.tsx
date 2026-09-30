@@ -1,13 +1,11 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { CopyField } from "@/components/copy-field"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type SlackChannel } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -124,7 +122,7 @@ export function SlackChannelForm({
           <Field>
             <FieldLabel htmlFor="slack-token">
               {t("channels.slack.botToken")}
-              {channel ? <span className="text-grid-muted"> ({t("common.optional")})</span> : null}
+              {channel ? <span className="text-muted-foreground"> ({t("common.optional")})</span> : null}
             </FieldLabel>
             <Input
               id="slack-token"
@@ -139,7 +137,7 @@ export function SlackChannelForm({
           <Field>
             <FieldLabel htmlFor="slack-signing">
               {t("channels.slack.signingSecret")}
-              {channel ? <span className="text-grid-muted"> ({t("common.optional")})</span> : null}
+              {channel ? <span className="text-muted-foreground"> ({t("common.optional")})</span> : null}
             </FieldLabel>
             <Input
               id="slack-signing"
@@ -173,7 +171,7 @@ export function SlackChannelForm({
               <FieldDescription>{t("channels.slack.addHint")}</FieldDescription>
             </Field>
           ) : (
-            <FieldDescription>{t("channels.slack.addHint")}</FieldDescription>
+            <FormHint>{t("channels.slack.addHint")}</FormHint>
           )}
         </FieldGroup>
         {err ? <FieldError>{err}</FieldError> : null}

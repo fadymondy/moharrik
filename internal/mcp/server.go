@@ -135,6 +135,11 @@ func (s *server) handler(a *app.App) http.Handler {
 			return
 		}
 
+		if d, ok := denied(ctx); ok {
+			writeRPC(w, d.status, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: rpcRefused, Message: d.msg}})
+			return
+		}
+
 		var rpc rpcRequest
 		if json.NewDecoder(http.MaxBytesReader(w, req.Body, 4<<20)).Decode(&rpc) != nil {
 			writeRPC(w, http.StatusBadRequest, rpcResponse{JSONRPC: "2.0",
@@ -377,3 +382,24 @@ func auditCall(ctx context.Context, a *app.App, t Tool, raw json.RawMessage, sta
 		Operation: "mcp:" + t.Name, Status: status, EntityType: entityType, EntityID: entityID,
 	})
 }
+
+// deny is an authenticated caller who may not act: a valid CircleXO token whose user is not
+// linked, or whose org is not connected. The token was fine, so this is a 403, not a 401.
+type deny struct {
+	status int
+	msg    string
+}
+
+type denyKey struct{}
+
+func withDeny(ctx context.Context, status int, msg string) context.Context {
+	return context.WithValue(ctx, denyKey{}, deny{status: status, msg: msg})
+}
+
+func denied(ctx context.Context) (deny, bool) {
+	d, ok := ctx.Value(denyKey{}).(deny)
+	return d, ok
+}
+
+// rpcRefused is the JSON-RPC error code of a denied call.
+const rpcRefused = -32003

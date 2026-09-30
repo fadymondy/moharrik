@@ -1,16 +1,13 @@
 "use client"
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react"
-import { toast } from "sonner"
+import { Button, Field, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 import { useSWRConfig } from "swr"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { CompanyPicker } from "@/components/crm/company-picker"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
-import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { DatePicker } from "@/components/date-picker"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
@@ -171,7 +168,7 @@ function ContactAvatarControl({
           />
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
@@ -199,7 +196,7 @@ function ContactAvatarControl({
         {err ? (
           <FieldError>{err}</FieldError>
         ) : (
-          <p className="text-xs text-grid-muted">{t("contacts.avatar.hint")}</p>
+          <p className="text-xs text-muted-foreground">{t("contacts.avatar.hint")}</p>
         )}
       </div>
     </div>
@@ -365,7 +362,7 @@ export function ContactEditForm({
           />
         </Field>
       </FieldGroup>
-      <h3 className="text-sm font-medium text-grid-muted">{t("contacts.personDetails")}</h3>
+      <h3 className="text-sm font-medium text-muted-foreground">{t("contacts.personDetails")}</h3>
       <FieldGroup className="grid gap-4 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-name-prefix`}>{t("contacts.namePrefix")}</FieldLabel>

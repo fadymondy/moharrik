@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState } from "react"
 import { LogOutIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, toast } from "@fadymondy/nasaq/web"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { DealsTable } from "@/components/crm/deals"
@@ -16,8 +16,6 @@ import { ConfirmButton } from "@/components/confirm-button"
 import { UnsubscribeDialog, type UnsubscribeTarget } from "@/components/mail/subscriber-admin"
 import { NotFoundState } from "@/components/not-found-state"
 import { SectionHeader } from "@/components/public-frame"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -42,12 +40,12 @@ import { Bdi, isolate } from "@/components/bidi"
 
 const statusVariant: Record<
   SubscriptionStatus,
-  "default" | "secondary" | "outline" | "destructive"
+  "brand" | "neutral" | "outline" | "danger"
 > = {
-  subscribed: "default",
-  pending: "secondary",
+  subscribed: "brand",
+  pending: "neutral",
   unsubscribed: "outline",
-  bounced: "destructive",
+  bounced: "danger",
 }
 
 const identity = contactIdentity
@@ -140,7 +138,7 @@ export default function ContactDetailPage() {
               {canWrite && s.status !== "unsubscribed" ? (
                 <Button
                   variant="ghost"
-                  size="xs"
+                  size="sm"
                   data-unsubscribe-from={s.list_name}
                   onClick={() =>
                     setLeaving({
@@ -193,14 +191,14 @@ export default function ContactDetailPage() {
         />
       </div>
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <section>
         <h2 className="px-6 py-4 text-base font-medium">{t("nav.deals")}</h2>
         <DealsTable deals={deals} total={detail.data.deals_total} empty={t("contacts.noDeals")} />
       </section>
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <Timeline
         items={activities}
@@ -211,7 +209,7 @@ export default function ContactDetailPage() {
         onChange={() => detail.mutate()}
       />
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <ContactContextPanel
         contact={{ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone }}
@@ -265,8 +263,8 @@ function ContactFit({
 
   return (
     <section className="grid gap-4 px-6 pb-6 lg:grid-cols-2" data-contact-fit>
-      <div className="border border-line bg-grid-card" data-lifecycle-panel>
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
+      <div className="border border-nq-line bg-card" data-lifecycle-panel>
+        <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-5 py-4">
           <h2 className="text-base font-medium">{t("lifecycle.label")}</h2>
           <LifecycleBadge stage={contact.lifecycle} />
           {canWrite ? (
@@ -282,11 +280,11 @@ function ContactFit({
             </div>
           ) : null}
         </div>
-        <p className="px-5 pt-3 text-xs text-grid-muted">{t("lifecycle.hint")}</p>
+        <p className="px-5 pt-3 text-xs text-muted-foreground">{t("lifecycle.hint")}</p>
         {history.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-grid-muted">{t("lifecycle.noHistory")}</p>
+          <p className="px-5 py-4 text-sm text-muted-foreground">{t("lifecycle.noHistory")}</p>
         ) : (
-          <ol className="divide-y divide-line px-5 pb-2" data-lifecycle-history>
+          <ol className="divide-y divide-nq-line px-5 pb-2" data-lifecycle-history>
             {history.map((e) => (
               <li
                 key={e.id}
@@ -297,25 +295,25 @@ function ContactFit({
                   {e.from ? (
                     <LifecycleBadge stage={e.from} />
                   ) : (
-                    <span className="text-grid-muted">{t("lifecycle.none")}</span>
+                    <span className="text-muted-foreground">{t("lifecycle.none")}</span>
                   )}
-                  <span className="text-grid-muted rtl:-scale-x-100" aria-hidden>
+                  <span className="text-muted-foreground rtl:-scale-x-100" aria-hidden>
                     →
                   </span>
                   <LifecycleBadge stage={e.to} />
                 </span>
-                <span className="text-grid-muted">
+                <span className="text-muted-foreground">
                   {e.source === "manual"
                     ? t("lifecycle.source.manualBy", { who: members.name(e.actor_user_id) })
                     : t(`lifecycle.source.${e.source}`)}
                 </span>
-                <span className="ms-auto text-xs text-grid-muted">
+                <span className="ms-auto text-xs text-muted-foreground">
                   <Ltr>{when.format(new Date(e.at))}</Ltr>
                 </span>
               </li>
             ))}
             {contact.lifecycle_history_total > history.length ? (
-              <li className="py-2 text-xs text-grid-muted">
+              <li className="py-2 text-xs text-muted-foreground">
                 {t("lifecycle.more", { n: contact.lifecycle_history_total - history.length })}
               </li>
             ) : null}
@@ -323,18 +321,18 @@ function ContactFit({
         )}
       </div>
 
-      <div className="border border-line bg-grid-card" data-score-panel>
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
+      <div className="border border-nq-line bg-card" data-score-panel>
+        <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-5 py-4">
           <h2 className="text-base font-medium">{t("icp.fit")}</h2>
           <ScoreMeter score={contact.score} />
           <Link
-            className="ms-auto text-xs text-grid-muted hover:text-grid-fg hover:underline"
+            className="ms-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
             href={`/${locale}/w/${ws.slug}/settings/icp`}
           >
             {t("icp.editProfile")}
           </Link>
         </div>
-        <p className="px-5 pt-3 text-xs text-grid-muted">{t("icp.scoreHow")}</p>
+        <p className="px-5 pt-3 text-xs text-muted-foreground">{t("icp.scoreHow")}</p>
         <div className="px-5 pb-2">
           <ScoreReasons reasons={contact.score_reasons ?? []} />
         </div>

@@ -38,7 +38,7 @@ import {
   TriangleAlertIcon,
   WorkflowIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Input, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -52,22 +52,6 @@ import { WorkflowChannelForm } from "@/components/channels/workflow-channel-form
 import { WidgetSettingsSheet } from "@/components/inbox/widget-settings"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type ChannelRow, type ChannelStatus, type ChannelType } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -285,11 +269,11 @@ export default function ChannelsPage() {
         className="flex flex-wrap items-center gap-2 px-6 pb-4"
         aria-label={t("channels.totalsLabel")}
       >
-        <span className="text-xs text-grid-muted">{t("channels.totalsLabel")}</span>
+        <span className="text-xs text-muted-foreground">{t("channels.totalsLabel")}</span>
         {CHANNEL_TYPES.map((ty) => (
           <Badge key={ty} variant="outline" className="gap-1" data-total-type={ty}>
             {t(`inbox.channel.${ty}`)}
-            <span className="text-grid-muted">{counts?.[ty] ?? 0}</span>
+            <span className="text-muted-foreground">{counts?.[ty] ?? 0}</span>
           </Badge>
         ))}
       </div>
@@ -308,7 +292,7 @@ export default function ChannelsPage() {
                 key={ty}
                 type="button"
                 size="sm"
-                variant={active ? "default" : "outline"}
+                variant={active ? "primary" : "secondary"}
                 aria-pressed={active}
                 onClick={() => toggleType(ty)}
                 data-type-filter={ty}
@@ -328,7 +312,7 @@ export default function ChannelsPage() {
             <Button
               type="button"
               size="sm"
-              variant={status === "" ? "default" : "outline"}
+              variant={status === "" ? "primary" : "secondary"}
               aria-pressed={status === ""}
               onClick={() => setParam("status", null)}
               data-status-filter="all"
@@ -340,7 +324,7 @@ export default function ChannelsPage() {
                 key={s}
                 type="button"
                 size="sm"
-                variant={status === s ? "default" : "outline"}
+                variant={status === s ? "primary" : "secondary"}
                 aria-pressed={status === s}
                 onClick={() => setParam("status", s)}
                 data-status-filter={s}
@@ -351,7 +335,7 @@ export default function ChannelsPage() {
           </div>
           <div className="relative lg:ms-auto lg:w-72">
             <SearchIcon
-              className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-grid-muted"
+              className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden
             />
             <Input
@@ -380,7 +364,7 @@ export default function ChannelsPage() {
           body={selectedTypes.size || status || query ? undefined : t("channels.emptyBody")}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line" data-channel-list>
+        <ul className="divide-y divide-nq-line border-y border-nq-line" data-channel-list>
           {items.map((row) => (
             <ChannelListRow
               key={`${row.type}-${row.id}`}
@@ -587,8 +571,8 @@ function ChannelListRow({
   const Icon = TYPE_ICON[row.type]
   const [testing, setTesting] = useState(false)
 
-  const statusVariant: Record<ChannelStatus, "default" | "secondary" | "outline"> = {
-    connected: "default",
+  const statusVariant: Record<ChannelStatus, "brand" | "neutral" | "outline"> = {
+    connected: "brand",
     error: "destructive" as "outline",
     paused: "outline",
   }
@@ -601,19 +585,19 @@ function ChannelListRow({
       data-channel-status={row.status}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <Icon className="size-4 shrink-0 text-grid-muted" aria-hidden />
+        <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <p className="text-sm font-medium">
           <Bdi>{row.name}</Bdi>
         </p>
         {row.type === "workflow" && row.network ? (
-          <Badge variant="secondary">{t(`inbox.channel.${row.network}`)}</Badge>
+          <Badge variant="neutral">{t(`inbox.channel.${row.network}`)}</Badge>
         ) : null}
         <Badge
           variant={
             row.status === "error"
-              ? "destructive"
+              ? "danger"
               : row.status === "connected"
-                ? "default"
+                ? "brand"
                 : "outline"
           }
           data-channel-status-badge
@@ -633,7 +617,7 @@ function ChannelListRow({
           </Button>
           {onTest ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={testing}
               onClick={async () => {
@@ -651,13 +635,13 @@ function ChannelListRow({
             </Button>
           ) : null}
           {canManage && onToggle ? (
-            <Button variant="outline" size="sm" onClick={onToggle} data-toggle-enabled>
+            <Button variant="secondary" size="sm" onClick={onToggle} data-toggle-enabled>
               {row.enabled ? <PauseIcon /> : <PlayIcon />}
               {row.enabled ? t("channels.pause") : t("channels.resume")}
             </Button>
           ) : null}
           {canManage ? (
-            <Button variant="outline" size="sm" onClick={onEdit} data-edit-channel>
+            <Button variant="secondary" size="sm" onClick={onEdit} data-edit-channel>
               <SquarePenIcon />
               {t("common.edit")}
             </Button>
@@ -673,7 +657,7 @@ function ChannelListRow({
           ) : null}
         </div>
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-grid-muted">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span>
           {row.last_message_at
             ? t("channels.lastMessage", { date: formatDate(row.last_message_at) })
@@ -681,18 +665,18 @@ function ChannelListRow({
         </span>
         <span>{t("channels.conversations30d", { n: row.conversations_30d })}</span>
         {row.unread > 0 ? (
-          <span className="font-medium text-grid-fg" data-unread={row.unread}>
+          <span className="font-medium text-foreground" data-unread={row.unread}>
             {t("channels.unread", { n: row.unread })}
           </span>
         ) : null}
       </div>
       {row.status === "error" && row.last_error ? (
         <p
-          className="mt-2 flex items-start gap-2 border border-grid-danger-text/40 bg-grid-danger-text/5 px-3 py-2 text-sm"
+          className="mt-2 flex items-start gap-2 border border-nq-danger-text/40 bg-nq-danger-text/5 px-3 py-2 text-sm"
           role="status"
           data-channel-error
         >
-          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-danger-text" />
+          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-nq-danger-text" />
           <span>{row.last_error}</span>
         </p>
       ) : null}

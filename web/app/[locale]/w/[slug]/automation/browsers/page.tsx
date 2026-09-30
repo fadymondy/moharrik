@@ -11,14 +11,13 @@ a bare old /automation link still redirects here).
 import Link from "next/link"
 import { useState } from "react"
 import { BookOpenIcon, ChevronUpIcon, DownloadIcon, OctagonXIcon, PlayIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, toast } from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { BrowserRow, BrowsersStatus, FlowStep } from "@/components/automation/browser-setup"
 import { PausedBanner } from "@/components/automation/paused-banner"
 import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -113,7 +112,7 @@ export default function AutomationBrowsersPage() {
               <h2 className="text-base font-medium">
                 {setupDone ? t("automation.browsers") : t("automation.flow.title")}
               </h2>
-              <p className="text-sm text-grid-muted">
+              <p className="text-sm text-muted-foreground">
                 {setupDone ? t("automation.browsersHint") : t("automation.flow.hint")}
               </p>
             </div>
@@ -124,7 +123,7 @@ export default function AutomationBrowsersPage() {
               </Button>
             ) : null}
           </div>
-          <ol className="divide-y divide-line border-y border-line">
+          <ol className="divide-y divide-nq-line border-y border-nq-line">
             <FlowStep
               n={1}
               state={hasBrowser ? "done" : "current"}
@@ -132,15 +131,15 @@ export default function AutomationBrowsersPage() {
               data="install"
             >
               {hasBrowser ? (
-                <p className="text-sm text-grid-muted">{t("automation.flow.install.done")}</p>
+                <p className="text-sm text-muted-foreground">{t("automation.flow.install.done")}</p>
               ) : (
-                <p className="text-sm text-grid-muted">{t("automation.flow.install.body")}</p>
+                <p className="text-sm text-muted-foreground">{t("automation.flow.install.body")}</p>
               )}
               <div className="flex flex-wrap items-center gap-2">
                 {ext.data?.available && ext.data.download_url ? (
                   <Button
                     size="sm"
-                    variant={hasBrowser ? "outline" : "default"}
+                    variant={hasBrowser ? "secondary" : "primary"}
                     nativeButton={false}
                     render={
                       <a href={ext.data.download_url} download={ext.data.file} data-flow-download />
@@ -162,7 +161,7 @@ export default function AutomationBrowsersPage() {
                 </Button>
               </div>
               {ext.data && !ext.data.available ? (
-                <p className="text-xs text-grid-muted">{ext.data.reason}</p>
+                <p className="text-xs text-muted-foreground">{ext.data.reason}</p>
               ) : null}
             </FlowStep>
 
@@ -172,7 +171,7 @@ export default function AutomationBrowsersPage() {
               title={t("automation.flow.pair.title")}
               data="pair"
             >
-              <p className="text-sm text-grid-muted">
+              <p className="text-sm text-muted-foreground">
                 {hasBrowser
                   ? t("automation.flow.pair.done", { n: active.length })
                   : t("automation.flow.pair.body")}
@@ -181,7 +180,7 @@ export default function AutomationBrowsersPage() {
                   approval page on this site where the workspace is chosen. Nothing
                   is typed here, so this step only says where to press. */}
               {!canManage ? (
-                <p className="text-sm text-grid-muted" data-connect-how>
+                <p className="text-sm text-muted-foreground" data-connect-how>
                   {t("automation.flow.pair.askAdmin")}
                 </p>
               ) : null}
@@ -193,7 +192,7 @@ export default function AutomationBrowsersPage() {
               title={t("automation.flow.sites.title")}
               data="sites"
             >
-              <p className="text-sm text-grid-muted">
+              <p className="text-sm text-muted-foreground">
                 {!hasBrowser
                   ? t("automation.flow.sites.waiting")
                   : hasSites
@@ -203,7 +202,7 @@ export default function AutomationBrowsersPage() {
             </FlowStep>
             {hasBrowser ? (
               <li className="list-none">
-                <ul className="divide-y divide-line border-t border-line" data-browser-list>
+                <ul className="divide-y divide-nq-line border-t border-nq-line" data-browser-list>
                   {list.map((b) => (
                     <BrowserRow
                       key={b.id}

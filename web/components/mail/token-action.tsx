@@ -4,7 +4,7 @@ import { Suspense, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { CheckCircle2Icon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -49,36 +49,36 @@ function Inner({ kind }: { kind: "confirm" | "unsubscribe" }) {
 
   let body
   if (!token || token.length < 32)
-    body = <p className="text-sm text-grid-danger-text">{t("mail.invalid")}</p>
+    body = <p className="text-sm text-nq-danger-text">{t("mail.invalid")}</p>
   else if (done) {
     const ok = kind === "confirm" ? done.status === "subscribed" : done.status === "unsubscribed"
     body = ok ? (
       <p className="flex items-start gap-2 text-sm" role="status" data-mail-result={done.status}>
-        <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-grid-brand" />
+        <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-nq-brand" />
         {t(kind === "confirm" ? "mail.confirmed" : "mail.unsubscribed", {
           list: done.list,
           workspace: done.workspace,
         })}
       </p>
     ) : (
-      <p className="text-sm text-grid-muted" role="status" data-mail-result={done.status}>
+      <p className="text-sm text-muted-foreground" role="status" data-mail-result={done.status}>
         {t("mail.notConfirmable", { status: t(`sub.${done.status}`) })}
       </p>
     )
   } else
     body = (
       <div className="space-y-4">
-        <p className="text-sm text-grid-muted">
+        <p className="text-sm text-muted-foreground">
           {kind === "confirm" ? t("mail.confirmBody") : t("mail.unsubscribeBody")}
         </p>
-        <Button onClick={act} disabled={busy} variant={kind === "confirm" ? "default" : "outline"}>
+        <Button onClick={act} disabled={busy} variant={kind === "confirm" ? "primary" : "secondary"}>
           {busy
             ? t("common.working")
             : kind === "confirm"
               ? t("mail.confirm")
               : t("mail.unsubscribe")}
         </Button>
-        {error ? <p className="text-sm text-grid-danger-text">{error}</p> : null}
+        {error ? <p className="text-sm text-nq-danger-text">{error}</p> : null}
       </div>
     )
 

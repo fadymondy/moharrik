@@ -164,6 +164,13 @@ func Invite(ctx context.Context, db, sys *sql.DB, workspaceID, actorRole, invite
 		return nil, "", huma.Error409Conflict("that person is already a member")
 	}
 
+	// A workspace governed by a CircleXO hub org may be capped on members (internal/circlexo).
+	if BeforeInvite != nil {
+		if err := BeforeInvite(ctx, workspaceID); err != nil {
+			return nil, "", err
+		}
+	}
+
 	token := newToken()
 	var inv Invitation
 	err = db.QueryRowContext(ctx, `
@@ -201,3 +208,9 @@ func isInvalidUUID(err error) bool {
 	var pg interface{ SQLState() string }
 	return errors.As(err, &pg) && pg.SQLState() == "22P02"
 }
+
+// BeforeInvite, when set, is asked before an invitation is created and may refuse it (an error
+// that is already a huma error is returned as is). internal/circlexo sets it when the hub
+// integration is on, to hold a hub-linked workspace to the `members` limit of its plan. Nil (the
+// default, and always when CIRCLEXO_ISSUER is unset) allows everything.
+var BeforeInvite func(ctx context.Context, workspaceID string) error

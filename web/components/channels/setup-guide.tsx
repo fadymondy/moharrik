@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ChevronDownIcon, ExternalLinkIcon, TriangleAlertIcon } from "lucide-react"
 
 import { Ltr } from "@/components/copy-field"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /**
@@ -47,22 +47,22 @@ export function SetupGuide({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className="border border-line bg-grid-card"
+      className="border border-nq-line bg-card"
       data-setup-guide={id}
     >
       <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-start text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-        <ChevronDownIcon className="size-4 shrink-0 text-grid-muted transition-transform group-aria-expanded:rotate-180" />
+        <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded:rotate-180" />
         <span className="flex-1">{t(titleKey)}</span>
       </CollapsibleTrigger>
-      <CollapsibleContent>
-        <ol className="list-decimal space-y-4 px-4 pb-4 ps-9 text-sm marker:font-medium marker:text-grid-muted">
+      <CollapsiblePanel>
+        <ol className="list-decimal space-y-4 px-4 pb-4 ps-9 text-sm marker:font-medium marker:text-muted-foreground">
           {steps.map((step, i) => (
             <li key={i} className="ps-1">
-              <p className="font-medium text-grid-fg">{t(step.titleKey)}</p>
-              {step.bodyKey ? <p className="mt-0.5 text-grid-muted">{t(step.bodyKey)}</p> : null}
+              <p className="font-medium text-foreground">{t(step.titleKey)}</p>
+              {step.bodyKey ? <p className="mt-0.5 text-muted-foreground">{t(step.bodyKey)}</p> : null}
               {step.warningKey ? (
                 <p
-                  className="mt-1.5 flex items-start gap-2 border border-grid-danger-text/40 bg-grid-danger-text/5 px-3 py-2 text-grid-danger-text"
+                  className="mt-1.5 flex items-start gap-2 border border-nq-danger-text/40 bg-nq-danger-text/5 px-3 py-2 text-nq-danger-text"
                   role="alert"
                   data-setup-warning
                 >
@@ -78,7 +78,7 @@ export function SetupGuide({
                       href={link.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-grid-brand underline underline-offset-4"
+                      className="inline-flex items-center gap-1 text-nq-brand underline underline-offset-4"
                     >
                       <Ltr>{link.text}</Ltr>
                       <ExternalLinkIcon className="size-3" />
@@ -89,7 +89,7 @@ export function SetupGuide({
             </li>
           ))}
         </ol>
-      </CollapsibleContent>
+      </CollapsiblePanel>
     </Collapsible>
   )
 }

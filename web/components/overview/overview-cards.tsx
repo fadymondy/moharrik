@@ -28,9 +28,7 @@ import {
 import { Ltr } from "@/components/copy-field"
 import { formatMoney } from "@/components/crm/shared"
 import { LeadStatusBadge, leadSource } from "@/components/leads/shared"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@fadymondy/nasaq/web"
 import {
   LEAD_STATUSES,
   type NotificationSeverity,
@@ -101,11 +99,11 @@ export function Panel({
     <section
       aria-labelledby={`ov-${id}`}
       data-card={id}
-      className={cn("flex min-w-0 flex-col border border-line bg-grid-card", className)}
+      className={cn("flex min-w-0 flex-col border border-nq-line bg-card", className)}
     >
-      <header className="flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 px-5 pt-4 pb-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-grid-muted">
+      <header className="flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 px-5 pt-4 pb-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
         {icon}
-        <h2 id={`ov-${id}`} className="text-base font-medium text-grid-fg">
+        <h2 id={`ov-${id}`} className="text-base font-medium text-foreground">
           {href ? (
             <Link href={href} className="hover:underline hover:underline-offset-4">
               {title}
@@ -118,7 +116,7 @@ export function Panel({
         {href ? (
           <Link
             href={href}
-            className="ms-auto inline-flex items-center gap-1 text-xs text-grid-muted transition-colors hover:text-grid-fg"
+            className="ms-auto inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             data-view-all={id}
           >
             {t("overview.viewAll")}
@@ -126,7 +124,7 @@ export function Panel({
           </Link>
         ) : null}
       </header>
-      <div className="flex flex-1 flex-col border-t border-line">{children}</div>
+      <div className="flex flex-1 flex-col border-t border-nq-line">{children}</div>
     </section>
   )
 }
@@ -143,11 +141,11 @@ export function Empty({
 }) {
   return (
     <div className="flex flex-1 flex-col items-start justify-center gap-1.5 px-5 py-6" data-empty>
-      <p className="text-sm font-medium text-grid-fg">{title}</p>
-      {body ? <p className="max-w-md text-sm text-grid-muted">{body}</p> : null}
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      {body ? <p className="max-w-md text-sm text-muted-foreground">{body}</p> : null}
       {action ? (
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           className="mt-2"
           nativeButton={false}
@@ -162,7 +160,7 @@ export function Empty({
 
 function Rows({ children, label }: { children: ReactNode; label: string }) {
   return (
-    <ul className="divide-y divide-line" aria-label={label}>
+    <ul className="divide-y divide-nq-line" aria-label={label}>
       {children}
     </ul>
   )
@@ -179,7 +177,7 @@ function RowLink({
       <Link
         href={href}
         className={cn(
-          "flex flex-col gap-1 px-5 py-3 transition-colors hover:bg-grid-soft",
+          "flex flex-col gap-1 px-5 py-3 transition-colors hover:bg-nq-surface-soft",
           className,
         )}
         {...rest}
@@ -213,14 +211,14 @@ function Tile({
   return (
     <Link
       href={href}
-      className="flex min-w-0 flex-col gap-2 border border-line bg-grid-card px-5 py-4 transition-colors hover:bg-grid-soft"
+      className="flex min-w-0 flex-col gap-2 border border-nq-line bg-card px-5 py-4 transition-colors hover:bg-nq-surface-soft"
       data-tile={id}
     >
-      <span className="grid-micro min-h-[2lh] text-balance lg:min-h-0">{label}</span>
-      <span className="text-4xl leading-none font-medium text-grid-fg tabular-nums" data-tile-value>
+      <span className="eyebrow min-h-[2lh] text-balance lg:min-h-0">{label}</span>
+      <span className="text-4xl leading-none font-medium text-foreground tabular-nums" data-tile-value>
         {value}
       </span>
-      <span className="truncate text-xs text-grid-muted">{sub}</span>
+      <span className="truncate text-xs text-muted-foreground">{sub}</span>
     </Link>
   )
 }
@@ -327,7 +325,7 @@ export function PipelineCard({
       href={`${base}/deals`}
       meta={
         hasDeals ? (
-          <span className="text-xs text-grid-muted">
+          <span className="text-xs text-muted-foreground">
             <Ltr>{f.money(p.open_value_minor, currency)}</Ltr> ·{" "}
             {t("overview.openDeals", { n: f.n(p.open_deals) })}
           </span>
@@ -342,11 +340,11 @@ export function PipelineCard({
           action={{ href: `${base}/deals`, label: t("deals.newDeal") }}
         />
       ) : (
-        <div className="grid flex-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:divide-x lg:divide-line rtl:lg:divide-x-reverse">
+        <div className="grid flex-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:divide-x lg:divide-nq-line rtl:lg:divide-x-reverse">
           <div className="min-w-0">
             <table className="w-full text-sm" data-pipeline-stages>
               <thead>
-                <tr className="border-b border-line text-start text-xs text-grid-muted">
+                <tr className="border-b border-nq-line text-start text-xs text-muted-foreground">
                   <th scope="col" className="w-full px-5 py-2 text-start font-normal">
                     {t("overview.stage")}
                   </th>
@@ -358,7 +356,7 @@ export function PipelineCard({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody className="divide-y divide-nq-line">
                 {p.stages.map((s) => (
                   <tr key={s.id} data-stage={s.name}>
                     <th scope="row" className="px-5 pt-2.5 pb-3 text-start align-top font-normal">
@@ -366,12 +364,12 @@ export function PipelineCard({
                         href={`${base}/deals`}
                         className="hover:underline hover:underline-offset-4"
                       >
-                        <bdi className="text-grid-fg">{s.name}</bdi>
+                        <bdi className="text-foreground">{s.name}</bdi>
                       </Link>
                       {/* One hue, 8px, 4px rounded data-end, square at the baseline. */}
                       <div className="mt-2 h-2" aria-hidden title={t("overview.stageBarLabel")}>
                         <div
-                          className="h-2 rounded-e-[4px] bg-grid-brand"
+                          className="h-2 rounded-e-[4px] bg-nq-brand"
                           style={{
                             width:
                               max > 0 && s.value_minor > 0
@@ -391,7 +389,7 @@ export function PipelineCard({
                       </Link>
                     </td>
                     <td
-                      className="px-5 pt-2.5 text-end align-top whitespace-nowrap tabular-nums text-grid-fg"
+                      className="px-5 pt-2.5 text-end align-top whitespace-nowrap tabular-nums text-foreground"
                       data-stage-value
                     >
                       <Ltr>{f.money(s.value_minor, currency)}</Ltr>
@@ -402,7 +400,7 @@ export function PipelineCard({
             </table>
             {p.other_currency_deals > 0 ? (
               <p
-                className="border-t border-line px-5 py-2.5 text-xs text-grid-muted"
+                className="border-t border-nq-line px-5 py-2.5 text-xs text-muted-foreground"
                 data-other-currency
               >
                 {t("overview.otherCurrency", { n: f.n(p.other_currency_deals) })}
@@ -410,14 +408,14 @@ export function PipelineCard({
             ) : null}
             <Link
               href={`${base}/deals`}
-              className="flex flex-col gap-1 border-t border-line px-5 py-3 transition-colors hover:bg-grid-soft"
+              className="flex flex-col gap-1 border-t border-nq-line px-5 py-3 transition-colors hover:bg-nq-surface-soft"
               data-won-month
             >
-              <span className="grid-micro">{t("overview.wonThisMonth")}</span>
-              <span className="text-2xl font-medium text-grid-fg">
+              <span className="eyebrow">{t("overview.wonThisMonth")}</span>
+              <span className="text-2xl font-medium text-foreground">
                 <Ltr>{f.money(won.value_minor, currency)}</Ltr>
               </span>
-              <span className="text-xs text-grid-muted">
+              <span className="text-xs text-muted-foreground">
                 {t("overview.wonCount", { n: f.n(won.count) })}
                 {won.other_currency_deals > 0
                   ? ` · ${t("overview.wonOtherCurrency", { n: f.n(won.other_currency_deals) })}`
@@ -426,10 +424,10 @@ export function PipelineCard({
             </Link>
           </div>
 
-          <div className="flex min-w-0 flex-col border-t border-line lg:border-t-0">
-            <p className="grid-micro px-5 pt-3 pb-1">{t("overview.nextCloses")}</p>
+          <div className="flex min-w-0 flex-col border-t border-nq-line lg:border-t-0">
+            <p className="eyebrow px-5 pt-3 pb-1">{t("overview.nextCloses")}</p>
             {p.next_closes.length === 0 ? (
-              <p className="px-5 pb-4 text-sm text-grid-muted">{t("overview.noNextCloses")}</p>
+              <p className="px-5 pb-4 text-sm text-muted-foreground">{t("overview.noNextCloses")}</p>
             ) : (
               <Rows label={t("overview.nextCloses")}>
                 {p.next_closes.map((d) => (
@@ -440,10 +438,10 @@ export function PipelineCard({
                     data-next-close={d.title}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="bidi-block block truncate text-sm text-grid-fg" dir="auto">
+                      <span className="bidi-block block truncate text-sm text-foreground" dir="auto">
                         {d.title}
                       </span>
-                      <span className="block truncate text-xs text-grid-muted">
+                      <span className="block truncate text-xs text-muted-foreground">
                         <bdi>{d.company_name ?? d.stage_name}</bdi> ·{" "}
                         <Ltr>{f.date(d.expected_close)}</Ltr>
                       </span>
@@ -486,7 +484,7 @@ export function LeadsCard({
     >
       {counts && leads.length > 0 ? (
         <div
-          className="flex flex-wrap gap-1.5 border-b border-line px-5 py-2.5"
+          className="flex flex-wrap gap-1.5 border-b border-nq-line px-5 py-2.5"
           role="group"
           aria-label={t("overview.leadsByStatus")}
         >
@@ -494,11 +492,11 @@ export function LeadsCard({
             <Link
               key={s}
               href={`${base}/leads?status=${s}`}
-              className="inline-flex items-center gap-1.5 border border-line px-2 py-0.5 text-xs text-grid-body transition-colors hover:bg-grid-soft"
+              className="inline-flex items-center gap-1.5 border border-nq-line px-2 py-0.5 text-xs text-nq-fg-body transition-colors hover:bg-nq-surface-soft"
               data-lead-count={s}
             >
               {t(`leads.status.${s}`)}
-              <span className="font-medium text-grid-fg tabular-nums">{f.n(counts[s] ?? 0)}</span>
+              <span className="font-medium text-foreground tabular-nums">{f.n(counts[s] ?? 0)}</span>
             </Link>
           ))}
         </div>
@@ -518,17 +516,17 @@ export function LeadsCard({
           {leads.map((l) => (
             <RowLink key={l.id} href={`${base}/leads/${l.id}`} data-overview-lead={l.email}>
               <span className="flex min-w-0 items-center gap-2">
-                <span className="bidi-block truncate text-sm font-medium text-grid-fg" dir="auto">
+                <span className="bidi-block truncate text-sm font-medium text-foreground" dir="auto">
                   {l.name || l.email}
                 </span>
                 {l.company ? (
-                  <span className="hidden truncate text-sm text-grid-muted sm:inline">
+                  <span className="hidden truncate text-sm text-muted-foreground sm:inline">
                     ·&nbsp;<bdi>{l.company}</bdi>
                   </span>
                 ) : null}
                 <LeadStatusBadge status={l.status} className="ms-auto shrink-0" />
               </span>
-              <span className="flex flex-wrap gap-x-2 text-xs text-grid-muted">
+              <span className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
                 <bdi>{leadSource(l, t)}</bdi>
                 <span aria-hidden>·</span>
                 <time dateTime={l.created_at} title={f.exact(l.created_at)}>
@@ -568,11 +566,11 @@ export function InboxCard({
         unread ? (
           <Link
             href={`${base}/inbox?unread=1`}
-            className="text-xs text-grid-muted hover:text-grid-fg hover:underline"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
             data-unread-link
           >
             {t("overview.unreadConversations")}:{" "}
-            <span className="font-medium text-grid-fg">{f.n(unread)}</span>
+            <span className="font-medium text-foreground">{f.n(unread)}</span>
           </Link>
         ) : null
       }
@@ -593,20 +591,20 @@ export function InboxCard({
             <RowLink
               key={c.id}
               href={`${base}/inbox?c=${encodeURIComponent(c.id)}`}
-              className={c.unread ? "bg-grid-card" : undefined}
+              className={c.unread ? "bg-card" : undefined}
               data-overview-conversation={c.id}
             >
               <span className="flex min-w-0 items-center gap-2">
                 {c.unread ? (
                   <span
-                    className="size-2 shrink-0 rounded-full bg-grid-brand"
+                    className="size-2 shrink-0 rounded-full bg-nq-brand"
                     role="img"
                     aria-label={t("inbox.unread")}
                   />
                 ) : null}
                 <span
                   className={cn(
-                    "bidi-block truncate text-sm text-grid-fg",
+                    "bidi-block truncate text-sm text-foreground",
                     c.unread && "font-medium",
                   )}
                   dir="auto"
@@ -620,7 +618,7 @@ export function InboxCard({
                   {t(`inbox.channel.${c.channel}`)}
                 </Badge>
               </span>
-              <span className="flex min-w-0 gap-2 text-xs text-grid-muted">
+              <span className="flex min-w-0 gap-2 text-xs text-muted-foreground">
                 <span className="bidi-block min-w-0 flex-1 truncate" dir="auto">
                   {c.preview || c.subject}
                 </span>
@@ -643,9 +641,9 @@ export function InboxCard({
 // ── notifications ────────────────────────────────────────────────────────
 
 const severityTone: Record<NotificationSeverity, string> = {
-  info: "bg-grid-brand",
-  warning: "bg-grid-warn",
-  error: "bg-grid-danger",
+  info: "bg-nq-brand",
+  warning: "bg-nq-warning",
+  error: "bg-nq-danger",
 }
 
 export function NotificationsCard({
@@ -671,11 +669,11 @@ export function NotificationsCard({
         unread ? (
           <Link
             href={`${base}/notifications?unread=1`}
-            className="text-xs text-grid-muted hover:text-grid-fg hover:underline"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
             data-unread-link
           >
             {t("overview.unreadNotifications")}:{" "}
-            <span className="font-medium text-grid-fg">{f.n(unread)}</span>
+            <span className="font-medium text-foreground">{f.n(unread)}</span>
           </Link>
         ) : null
       }
@@ -696,7 +694,7 @@ export function NotificationsCard({
             <RowLink
               key={n.id}
               href={`${base}/notifications${n.read ? "" : "?unread=1"}`}
-              className={cn("flex-row items-start gap-3", !n.read && "bg-grid-card")}
+              className={cn("flex-row items-start gap-3", !n.read && "bg-card")}
               data-overview-notification={n.title}
             >
               <span
@@ -706,14 +704,14 @@ export function NotificationsCard({
               <span className="min-w-0 flex-1">
                 <span
                   className={cn(
-                    "bidi-block block truncate text-sm text-grid-fg",
+                    "bidi-block block truncate text-sm text-foreground",
                     !n.read && "font-medium",
                   )}
                   dir="auto"
                 >
                   {n.title}
                 </span>
-                <span className="flex flex-wrap gap-x-2 text-xs text-grid-muted">
+                <span className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
                   <span>{t(`notifications.severity.${n.severity}`)}</span>
                   <span aria-hidden>·</span>
                   <bdi>{n.source_name || t("notifications.unknownSource")}</bdi>
@@ -765,7 +763,7 @@ export function MarketingCard({
         ) : (
           <table className="w-full text-sm" data-marketing-lists>
             <thead>
-              <tr className="border-b border-line text-xs text-grid-muted">
+              <tr className="border-b border-nq-line text-xs text-muted-foreground">
                 <th scope="col" className="w-full px-5 py-2 text-start font-normal">
                   {t("lists.title")}
                 </th>
@@ -777,13 +775,13 @@ export function MarketingCard({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="divide-y divide-nq-line">
               {m.lists.map((l) => (
                 <tr key={l.id} data-list={l.name}>
                   <th scope="row" className="max-w-0 truncate px-5 py-2.5 text-start font-normal">
                     <Link
                       href={`${base}/contacts`}
-                      className="text-grid-fg hover:underline hover:underline-offset-4"
+                      className="text-foreground hover:underline hover:underline-offset-4"
                     >
                       <bdi>{l.name}</bdi>
                     </Link>
@@ -796,7 +794,7 @@ export function MarketingCard({
                       {f.n(l.subscribed)}
                     </Link>
                   </td>
-                  <td className="px-5 py-2.5 text-end tabular-nums text-grid-muted" data-pending>
+                  <td className="px-5 py-2.5 text-end tabular-nums text-muted-foreground" data-pending>
                     <Link
                       href={`${base}/contacts`}
                       className="hover:underline hover:underline-offset-4"
@@ -813,13 +811,13 @@ export function MarketingCard({
       <div
         className={cn(
           "flex items-center gap-2 px-5 pt-3 pb-1",
-          m.lists !== null && "border-t border-line",
+          m.lists !== null && "border-t border-nq-line",
         )}
       >
-        <p className="grid-micro">{t("overview.drafts")}</p>
+        <p className="eyebrow">{t("overview.drafts")}</p>
         <Link
           href={`${base}/campaigns`}
-          className="text-xs font-medium text-grid-fg hover:underline"
+          className="text-xs font-medium text-foreground hover:underline"
           data-draft-count
         >
           {f.n(m.draft_count)}
@@ -827,10 +825,10 @@ export function MarketingCard({
       </div>
       {m.drafts.length === 0 ? (
         <div className="flex flex-wrap items-center gap-3 px-5 pb-4">
-          <p className="text-sm text-grid-muted">{t("overview.noDrafts")}</p>
+          <p className="text-sm text-muted-foreground">{t("overview.noDrafts")}</p>
           {canWriteCampaigns ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               nativeButton={false}
               render={<Link href={`${base}/campaigns`} />}
@@ -848,10 +846,10 @@ export function MarketingCard({
               className="flex-row items-center gap-2"
               data-draft={d.subject}
             >
-              <span className="bidi-block min-w-0 flex-1 truncate text-sm text-grid-fg" dir="auto">
+              <span className="bidi-block min-w-0 flex-1 truncate text-sm text-foreground" dir="auto">
                 {d.subject}
               </span>
-              <span className="hidden shrink-0 truncate text-xs text-grid-muted sm:inline">
+              <span className="hidden shrink-0 truncate text-xs text-muted-foreground sm:inline">
                 <bdi>{d.list_name}</bdi>
               </span>
               <Badge variant="outline" className="shrink-0">
@@ -889,7 +887,7 @@ export function TrendsCard({
       href={`${base}/trends`}
       meta={
         tr.topics > 0 ? (
-          <span className="text-xs text-grid-muted">
+          <span className="text-xs text-muted-foreground">
             {t("overview.topicsFollowed", { n: f.n(tr.topics) })} ·{" "}
             {t("overview.matchedItems", { n: f.n(tr.matched) })}
           </span>
@@ -901,7 +899,7 @@ export function TrendsCard({
       ) : tr.items.length === 0 ? (
         <Empty title={t("overview.noMatches")} body={t("overview.noMatchesBody")} action={manage} />
       ) : (
-        <ul className="divide-y divide-line" aria-label={t("nav.trends")}>
+        <ul className="divide-y divide-nq-line" aria-label={t("nav.trends")}>
           {tr.items.map((it) => (
             <li key={it.id} className="flex flex-col gap-1 px-5 py-3" data-trend={it.title}>
               {it.url ? (
@@ -909,24 +907,24 @@ export function TrendsCard({
                   href={it.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="group inline-flex items-start gap-1.5 text-sm text-grid-fg hover:underline hover:underline-offset-4"
+                  className="group inline-flex items-start gap-1.5 text-sm text-foreground hover:underline hover:underline-offset-4"
                 >
                   <span className="bidi-block line-clamp-2" dir="auto">
                     {it.title}
                   </span>
                   <ExternalLinkIcon
-                    className="mt-0.5 size-3.5 shrink-0 text-grid-muted"
+                    className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
                     aria-hidden
                   />
                 </a>
               ) : (
-                <span className="bidi-block line-clamp-2 text-sm text-grid-fg" dir="auto">
+                <span className="bidi-block line-clamp-2 text-sm text-foreground" dir="auto">
                   {it.title}
                 </span>
               )}
-              <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                 {it.topics.map((name) => (
-                  <Badge key={name} variant="secondary">
+                  <Badge key={name} variant="neutral">
                     <bdi>{name}</bdi>
                   </Badge>
                 ))}
@@ -986,12 +984,12 @@ export function SetupCard({
       icon={<ListChecksIcon />}
       meta={
         <span
-          className="ms-auto flex items-center gap-2 text-xs text-grid-muted"
+          className="ms-auto flex items-center gap-2 text-xs text-muted-foreground"
           data-setup-progress
         >
           {t("overview.setupProgress", { done: f.n(done), total: f.n(doable.length) })}
-          <span className="h-1.5 w-20 overflow-hidden rounded-full bg-grid-soft" aria-hidden>
-            <span className="block h-full rounded-full bg-grid-ok" style={{ width: `${pct}%` }} />
+          <span className="h-1.5 w-20 overflow-hidden rounded-full bg-nq-surface-soft" aria-hidden>
+            <span className="block h-full rounded-full bg-nq-success" style={{ width: `${pct}%` }} />
           </span>
         </span>
       }
@@ -1000,7 +998,7 @@ export function SetupCard({
       {/* Only what is still to do is spelled out; finished items fold into one line. They used
           to be struck through, which read as errors rather than progress. */}
       <ul
-        className="grid divide-y divide-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3"
+        className="grid divide-y divide-nq-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3"
         aria-label={t("overview.setup")}
       >
         {open.map((it) => {
@@ -1013,34 +1011,34 @@ export function SetupCard({
               data-setup={it.key}
               data-setup-done="false"
             >
-              <CircleIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" aria-hidden />
+              <CircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
               <div className="min-w-0 flex-1">
                 <p
                   className={cn(
                     "text-sm",
-                    it.available ? "font-medium text-grid-fg" : "text-grid-muted",
+                    it.available ? "font-medium text-foreground" : "text-muted-foreground",
                   )}
                 >
                   {t(`overview.setup.${it.key}`)}
                 </p>
-                <p className="mt-0.5 text-xs text-grid-muted">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {t(`overview.setup.${it.key}.hint`)}
                 </p>
                 {!it.available ? (
-                  <p className="mt-1.5 text-xs text-grid-muted" data-setup-unavailable>
+                  <p className="mt-1.5 text-xs text-muted-foreground" data-setup-unavailable>
                     {t("overview.unavailable")}
                   </p>
                 ) : canFix ? (
                   <Link
                     href={`${base}/${cfg.path}`}
-                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-grid-fg underline underline-offset-4"
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-foreground underline underline-offset-4"
                     data-setup-link={it.key}
                   >
                     {t("overview.setUp")}
                     <ArrowRightIcon className="size-3 rtl:-scale-x-100" aria-hidden />
                   </Link>
                 ) : (
-                  <p className="mt-1.5 text-xs text-grid-muted">
+                  <p className="mt-1.5 text-xs text-muted-foreground">
                     {t(cfg.role === "admin" ? "overview.needsAdmin" : "overview.needsManager")}
                   </p>
                 )}
@@ -1050,19 +1048,19 @@ export function SetupCard({
         })}
       </ul>
       {doneItems.length ? (
-        <Collapsible className="border-t border-line">
+        <Collapsible className="border-t border-nq-line">
           <CollapsibleTrigger
-            className="group flex w-full items-center gap-2 px-5 py-3 text-start text-xs text-grid-muted transition-colors hover:text-grid-fg"
+            className="group flex w-full items-center gap-2 px-5 py-3 text-start text-xs text-muted-foreground transition-colors hover:text-foreground"
             data-setup-done-toggle
           >
-            <CheckCircle2Icon className="size-4 shrink-0 text-grid-ok" aria-hidden />
+            <CheckCircle2Icon className="size-4 shrink-0 text-nq-success" aria-hidden />
             {t("overview.showDone", { n: f.n(doneItems.length) })}
             <ChevronDownIcon
               className="size-3.5 transition-transform group-aria-expanded:rotate-180"
               aria-hidden
             />
           </CollapsibleTrigger>
-          <CollapsibleContent>
+          <CollapsiblePanel>
             <ul
               className="flex flex-wrap gap-x-6 gap-y-2 px-5 pb-4"
               aria-label={t("overview.done")}
@@ -1070,19 +1068,19 @@ export function SetupCard({
               {doneItems.map((it) => (
                 <li
                   key={it.key}
-                  className="flex items-center gap-2 text-sm text-grid-muted"
+                  className="flex items-center gap-2 text-sm text-muted-foreground"
                   data-setup={it.key}
                   data-setup-done="true"
                 >
                   <CheckCircle2Icon
-                    className="size-4 shrink-0 text-grid-ok"
+                    className="size-4 shrink-0 text-nq-success"
                     aria-label={t("overview.done")}
                   />
                   {t(`overview.setup.${it.key}`)}
                 </li>
               ))}
             </ul>
-          </CollapsibleContent>
+          </CollapsiblePanel>
         </Collapsible>
       ) : null}
     </Panel>

@@ -29,20 +29,8 @@ import {
 
 import { PickSelect } from "@/components/crm/shared"
 import { Bdi } from "@/components/bidi"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+import { Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, Switch, Textarea } from "@fadymondy/nasaq/web"
+import { Label } from "@/components/form-layout"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import {
@@ -87,13 +75,13 @@ export function PanelFrame({
   const { t } = useTranslations()
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-start gap-3 border-b border-line px-4 py-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-line bg-grid-card [&>svg]:size-5">
+      <div className="flex items-start gap-3 border-b border-nq-line px-4 py-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-nq-line bg-card [&>svg]:size-5">
           {icon}
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-medium">{title}</h2>
-          {sub ? <p className="line-clamp-2 text-xs text-grid-muted">{sub}</p> : null}
+          {sub ? <p className="line-clamp-2 text-xs text-muted-foreground">{sub}</p> : null}
         </div>
         <div className="flex items-center gap-1">
           {actions}
@@ -138,8 +126,8 @@ function InsertField({ fields, onInsert }: { fields: string[]; onInsert: (f: str
         render={
           <Button
             variant="ghost"
-            size="xs"
-            className="h-6 gap-1 px-1.5 text-xs text-grid-muted"
+            size="sm"
+            className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
             aria-label={t("rules.insertField")}
             data-insert-field
           />
@@ -154,7 +142,7 @@ function InsertField({ fields, onInsert }: { fields: string[]; onInsert: (f: str
           {fields.map((f) => (
             <DropdownMenuItem key={f} onClick={() => onInsert(f)}>
               <span className="flex-1">{t(`rules.field.${f}`)}</span>
-              <code dir="ltr" className="font-mono text-[11px] text-grid-muted">{`{{${f}}}`}</code>
+              <code dir="ltr" className="font-mono text-[11px] text-muted-foreground">{`{{${f}}}`}</code>
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
@@ -191,7 +179,7 @@ export function TriggerPanel({
   )
   return (
     <PanelFrame
-      icon={<Icon className="text-grid-gold" />}
+      icon={<Icon className="text-nq-accent" />}
       title={t("rules.when")}
       sub={t(`rules.triggerHint.${draft.trigger}`)}
       onClose={onClose}
@@ -246,21 +234,21 @@ export function TriggerPanel({
           {(def?.fields ?? []).map((f) => (
             <li
               key={f.name}
-              className="rounded-md border border-line bg-grid-card px-2 py-1 text-xs"
+              className="rounded-md border border-nq-line bg-card px-2 py-1 text-xs"
             >
               {t(`rules.field.${f.name}`)}{" "}
               <code
                 dir="ltr"
-                className="ms-1 font-mono text-[11px] text-grid-muted"
+                className="ms-1 font-mono text-[11px] text-muted-foreground"
               >{`{{${f.name}}}`}</code>
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="space-y-3 border-t border-line pt-4">
+      <div className="space-y-3 border-t border-nq-line pt-4">
         <p className="flex items-center gap-2 text-sm font-medium">
-          <ShieldCheckIcon className="size-4 text-grid-muted" />
+          <ShieldCheckIcon className="size-4 text-muted-foreground" />
           {t("rules.brakes")}
         </p>
         <label className="flex items-start gap-3 text-sm">
@@ -272,7 +260,7 @@ export function TriggerPanel({
           />
           <span>
             {t("rules.once")}
-            <span className="block text-xs text-grid-muted">{t("rules.onceHint")}</span>
+            <span className="block text-xs text-muted-foreground">{t("rules.onceHint")}</span>
           </span>
         </label>
         <Field>
@@ -338,7 +326,7 @@ export function ConditionsPanel({
     onChange({ conditions: draft.conditions.map((x, j) => (j === i ? { ...x, ...c } : x)) })
   return (
     <PanelFrame
-      icon={<BracesIcon className="text-grid-brand-accent" />}
+      icon={<BracesIcon className="text-nq-accent" />}
       title={t("rules.if")}
       sub={t("rules.ifHint")}
       onClose={onClose}
@@ -370,24 +358,24 @@ export function ConditionsPanel({
       </div>
 
       {draft.conditions.length === 0 ? (
-        <p className="text-sm text-grid-muted">{t("rules.noConditions")}</p>
+        <p className="text-sm text-muted-foreground">{t("rules.noConditions")}</p>
       ) : null}
       <ol className="space-y-3" data-conditions>
         {draft.conditions.map((c, i) => (
           <li
             key={i}
-            className="space-y-2 rounded-lg border border-line bg-grid-card p-3"
+            className="space-y-2 rounded-lg border border-nq-line bg-card p-3"
             data-condition={i}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-grid-muted">
+              <span className="text-xs text-muted-foreground">
                 {i === 0 ? t("rules.condFirst") : t(`rules.condJoin.${draft.match}`)}
               </span>
               {!readOnly ? (
                 <Button
                   variant="ghost"
-                  size="icon-xs"
-                  className="text-grid-danger-text"
+                  size="icon-sm"
+                  className="text-nq-danger-text"
                   onClick={() =>
                     onChange({ conditions: draft.conditions.filter((_, j) => j !== i) })
                   }
@@ -432,7 +420,7 @@ export function ConditionsPanel({
       </ol>
       {!readOnly ? (
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() =>
             onChange({
@@ -493,7 +481,7 @@ export function ActionPanel({
           <>
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={() => onMove(index - 1)}
               disabled={index === 0}
               data-move-up
@@ -502,7 +490,7 @@ export function ActionPanel({
             </Button>
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={() => onMove(index + 1)}
               disabled={index === count - 1}
               data-move-down
@@ -512,7 +500,7 @@ export function ActionPanel({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-grid-danger-text"
+              className="text-nq-danger-text"
               onClick={onRemove}
               aria-label={t("rules.removeAction")}
               title={t("rules.removeAction")}
@@ -526,7 +514,7 @@ export function ActionPanel({
     >
       {def?.to_customer ? (
         <p
-          className="rounded-md border border-line bg-grid-card px-3 py-2 text-xs text-grid-muted"
+          className="rounded-md border border-nq-line bg-card px-3 py-2 text-xs text-muted-foreground"
           data-consent-note
         >
           {t(`rules.consent.${action.type}`)}
@@ -569,10 +557,10 @@ function ParamField({
   const id = `param-${name}`
   const label = (
     <span className="flex w-full items-center justify-between gap-2">
-      <FieldLabel htmlFor={id}>
+      <Label htmlFor={id}>
         {t(`rules.param.${name}`)}
-        {required ? <span className="text-grid-danger-text"> *</span> : null}
-      </FieldLabel>
+        {required ? <span className="text-nq-danger-text"> *</span> : null}
+      </Label>
       {["text", "textarea", "number", "contact_ref", "url"].includes(kind) && !readOnly ? (
         <InsertField fields={fields} onInsert={(f) => onChange(`${value}{{${f}}}`)} />
       ) : null}
@@ -725,7 +713,7 @@ function MembersPick({
     onChange(next.size === 0 ? "all" : [...next].join(","))
   }
   return (
-    <div className="space-y-2 rounded-md border border-line p-3" data-members-pick>
+    <div className="space-y-2 rounded-md border border-nq-line p-3" data-members-pick>
       <label className="flex items-center gap-2 text-sm">
         <Checkbox checked={all} disabled={readOnly} onCheckedChange={(v) => v && onChange("all")} />
         {t("rules.everyone")}
@@ -941,15 +929,15 @@ export function ActionPicker({
               <button
                 type="button"
                 onClick={() => onPick(a.type)}
-                className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-start transition-colors hover:bg-grid-soft focus-visible:outline-2 focus-visible:outline-ring"
+                className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-start transition-colors hover:bg-nq-surface-soft focus-visible:outline-2 focus-visible:outline-ring"
                 data-pick-action={a.type}
               >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-line bg-grid-card">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-nq-line bg-card">
                   <Icon className="size-4 text-primary" />
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">{t(`rules.action.${a.type}`)}</span>
-                  <span className="block text-xs text-grid-muted">
+                  <span className="block text-xs text-muted-foreground">
                     {t(`rules.actionHint.${a.type}`)}
                   </span>
                 </span>
@@ -997,10 +985,10 @@ export function TestPanel({
       <div className="space-y-3" data-sample>
         <p className="text-sm font-medium">{t("rules.sample")}</p>
         {shown.map((f) => (
-          <Field key={f.name} orientation="horizontal" className="items-center">
+          <Field key={f.name} className="flex-row items-center gap-3 items-center">
             <FieldLabel
               htmlFor={`sample-${f.name}`}
-              className="w-32 shrink-0 text-xs font-normal text-grid-muted"
+              className="w-32 shrink-0 text-xs font-normal text-muted-foreground"
             >
               {t(`rules.field.${f.name}`)}
             </FieldLabel>
@@ -1015,7 +1003,7 @@ export function TestPanel({
           </Field>
         ))}
         {fields.length > 6 ? (
-          <Button variant="link" size="xs" className="px-0" onClick={() => setShowAll(!showAll)}>
+          <Button variant="link" size="sm" className="px-0" onClick={() => setShowAll(!showAll)}>
             {showAll ? t("rules.fewerFields") : t("rules.allFields", { n: fields.length })}
           </Button>
         ) : null}
@@ -1024,9 +1012,9 @@ export function TestPanel({
         {running ? <LoaderCircleIcon className="animate-spin" /> : <FlaskConicalIcon />}
         {t("rules.runTest")}
       </Button>
-      <p className="text-xs text-grid-muted">{t("rules.testSendsNothing")}</p>
+      <p className="text-xs text-muted-foreground">{t("rules.testSendsNothing")}</p>
       {error ? (
-        <p className="text-sm text-grid-danger-text" role="alert" data-test-error>
+        <p className="text-sm text-nq-danger-text" role="alert" data-test-error>
           {error}
         </p>
       ) : null}

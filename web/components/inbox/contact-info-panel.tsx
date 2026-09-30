@@ -10,21 +10,11 @@ import {
   LinkIcon,
   StarIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Tabs, TabsList, TabsPanel, TabsTab, Textarea, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
-import { Button } from "@/components/ui/button"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { isMuted } from "@/components/inbox/chat-row-menu"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Conversation } from "@/lib/api"
@@ -101,8 +91,8 @@ export function ContactInfoPanel({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="right"
-        className="data-[side=right]:w-full data-[side=right]:max-w-full sm:data-[side=right]:max-w-sm"
+        side="end"
+        className="w-full sm:w-[min(24rem,100vw)]"
         data-contact-info-panel
       >
         <SheetHeader>
@@ -115,17 +105,17 @@ export function ContactInfoPanel({
             <PersonAvatar id={c.contact_id || c.id} name={who} photoUrl={c.avatar_url} size="lg" className="size-20" />
             <Bdi className="text-base font-medium">{who}</Bdi>
             {c.customer_phone ? (
-              <p className="text-sm text-grid-muted">
+              <p className="text-sm text-muted-foreground">
                 <Ltr>{c.customer_phone}</Ltr>
               </p>
             ) : null}
             {c.customer_email ? (
-              <p className="text-sm text-grid-muted">
+              <p className="text-sm text-muted-foreground">
                 <Ltr>{c.customer_email}</Ltr>
               </p>
             ) : null}
             {contact?.company ? (
-              <p className="flex items-center gap-1 text-xs text-grid-muted">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Building2Icon className="size-3" />
                 <Bdi>{contact.company.name}</Bdi>
               </p>
@@ -134,7 +124,7 @@ export function ContactInfoPanel({
 
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => void toggleMute()}
             data-action="toggle-mute"
@@ -145,7 +135,7 @@ export function ContactInfoPanel({
 
           {contact?.biography ? (
             <section data-panel-about>
-              <h3 className="mb-1 text-xs font-medium text-grid-muted">{t("inbox.contactInfo.about")}</h3>
+              <h3 className="mb-1 text-xs font-medium text-muted-foreground">{t("inbox.contactInfo.about")}</h3>
               <p className="text-sm">
                 <Bdi>{contact.biography}</Bdi>
               </p>
@@ -154,7 +144,7 @@ export function ContactInfoPanel({
 
           {contact ? (
             <section data-panel-notes>
-              <h3 className="mb-1 text-xs font-medium text-grid-muted">{t("inbox.contactInfo.notes")}</h3>
+              <h3 className="mb-1 text-xs font-medium text-muted-foreground">{t("inbox.contactInfo.notes")}</h3>
               <Textarea
                 value={notesValue}
                 onChange={(e) => setNotes(e.target.value)}
@@ -168,22 +158,22 @@ export function ContactInfoPanel({
           ) : null}
 
           <Tabs defaultValue="media" className="min-h-0 flex-1">
-            <TabsList className="grid w-full grid-cols-4" variant="line">
-              <TabsTrigger value="media" data-tab="media">
+            <TabsList className="grid w-full grid-cols-4" variant="underline">
+              <TabsTab value="media" data-tab="media">
                 <ImageIcon /> {counts ? counts.media : "–"}
-              </TabsTrigger>
-              <TabsTrigger value="links" data-tab="links">
+              </TabsTab>
+              <TabsTab value="links" data-tab="links">
                 <LinkIcon /> {counts ? counts.links : "–"}
-              </TabsTrigger>
-              <TabsTrigger value="docs" data-tab="docs">
+              </TabsTab>
+              <TabsTab value="docs" data-tab="docs">
                 <FileIcon /> {counts ? counts.docs : "–"}
-              </TabsTrigger>
-              <TabsTrigger value="starred" data-tab="starred">
+              </TabsTab>
+              <TabsTab value="starred" data-tab="starred">
                 <StarIcon /> {starred.data?.messages.length ?? "–"}
-              </TabsTrigger>
+              </TabsTab>
             </TabsList>
 
-            <TabsContent value="media">
+            <TabsPanel value="media">
               {!gallery.data || gallery.data.media.length === 0 ? (
                 <EmptyGallery text={t("inbox.contactInfo.noMedia")} />
               ) : (
@@ -194,14 +184,14 @@ export function ContactInfoPanel({
                       href={item.attachment?.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="block aspect-square overflow-hidden rounded-md bg-grid-elevated"
+                      className="block aspect-square overflow-hidden rounded-md bg-nq-surface-overlay"
                       data-gallery-item="media"
                     >
                       {item.attachment?.kind === "image" && item.attachment.url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={item.attachment.url} alt="" className="size-full object-cover" />
                       ) : (
-                        <span className="flex size-full items-center justify-center text-grid-muted">
+                        <span className="flex size-full items-center justify-center text-muted-foreground">
                           <ImageIcon className="size-6" />
                         </span>
                       )}
@@ -209,9 +199,9 @@ export function ContactInfoPanel({
                   ))}
                 </div>
               )}
-            </TabsContent>
+            </TabsPanel>
 
-            <TabsContent value="links">
+            <TabsPanel value="links">
               {!gallery.data || gallery.data.links.length === 0 ? (
                 <EmptyGallery text={t("inbox.contactInfo.noLinks")} />
               ) : (
@@ -222,7 +212,7 @@ export function ContactInfoPanel({
                         href={item.link}
                         target="_blank"
                         rel="noreferrer"
-                        className="block truncate rounded-md px-2 py-1.5 text-sm text-primary hover:bg-grid-soft"
+                        className="block truncate rounded-md px-2 py-1.5 text-sm text-primary hover:bg-nq-surface-soft"
                         data-gallery-item="link"
                       >
                         <Ltr>{item.link}</Ltr>
@@ -231,9 +221,9 @@ export function ContactInfoPanel({
                   ))}
                 </ul>
               )}
-            </TabsContent>
+            </TabsPanel>
 
-            <TabsContent value="docs">
+            <TabsPanel value="docs">
               {!gallery.data || gallery.data.docs.length === 0 ? (
                 <EmptyGallery text={t("inbox.contactInfo.noDocs")} />
               ) : (
@@ -244,7 +234,7 @@ export function ContactInfoPanel({
                         href={item.attachment?.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-2 truncate rounded-md px-2 py-1.5 text-sm hover:bg-grid-soft"
+                        className="flex items-center gap-2 truncate rounded-md px-2 py-1.5 text-sm hover:bg-nq-surface-soft"
                         data-gallery-item="doc"
                       >
                         <FileIcon className="size-4 shrink-0" />
@@ -254,19 +244,19 @@ export function ContactInfoPanel({
                   ))}
                 </ul>
               )}
-            </TabsContent>
+            </TabsPanel>
 
-            <TabsContent value="starred">
+            <TabsPanel value="starred">
               {!starred.data || starred.data.messages.length === 0 ? (
                 <EmptyGallery text={t("inbox.contactInfo.noStarred")} />
               ) : (
                 <ul className="flex flex-col gap-2 pt-2">
                   {starred.data.messages.map((m) => (
-                    <li key={m.id} className="rounded-md border border-line px-2 py-1.5 text-sm" data-starred-item>
+                    <li key={m.id} className="rounded-md border border-nq-line px-2 py-1.5 text-sm" data-starred-item>
                       <p className="truncate">
                         <Bdi>{m.body}</Bdi>
                       </p>
-                      <p className="text-xs text-grid-muted">
+                      <p className="text-xs text-muted-foreground">
                         {dateFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
                           new Date(m.created_at),
                         )}
@@ -275,7 +265,7 @@ export function ContactInfoPanel({
                   ))}
                 </ul>
               )}
-            </TabsContent>
+            </TabsPanel>
           </Tabs>
         </div>
       </SheetContent>
@@ -284,5 +274,5 @@ export function ContactInfoPanel({
 }
 
 function EmptyGallery({ text }: { text: string }) {
-  return <p className="py-6 text-center text-sm text-grid-muted">{text}</p>
+  return <p className="py-6 text-center text-sm text-muted-foreground">{text}</p>
 }

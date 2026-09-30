@@ -3,10 +3,8 @@
 import { useState } from "react"
 import { MapPinIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button, Field, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 import { useTranslations } from "@/lib/i18n"
 
 /*
@@ -104,7 +102,7 @@ export function LocationPicker({
           <MapPinIcon />
           {locating ? t("inbox.composer.locationLocating") : t("inbox.composer.locationMine")}
         </Button>
-        <div className="my-2 border-t border-line" />
+        <div className="my-2 border-t border-nq-line" />
         <div className="flex gap-2">
           <Field className="flex-1">
             <FieldLabel htmlFor="location-lat">{t("inbox.composer.locationLat")}</FieldLabel>

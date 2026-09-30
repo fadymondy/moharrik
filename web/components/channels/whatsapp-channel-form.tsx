@@ -9,15 +9,12 @@ import {
   TriangleAlertIcon,
   WebhookIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type WhatsAppLink } from "@/lib/api"
@@ -136,22 +133,22 @@ export function WhatsAppChannelForm({
       />
       <div className="mt-4 flex flex-wrap items-center gap-2 pb-4 text-sm">
         <Badge
-          variant={state === "open" ? "default" : state === "connecting" ? "secondary" : "outline"}
+          variant={state === "open" ? "brand" : state === "connecting" ? "neutral" : "outline"}
         >
           {t(`whatsapp.state.${state}`)}
         </Badge>
         {link.data.phone ? (
-          <span className="text-grid-muted">
+          <span className="text-muted-foreground">
             <Ltr>+{link.data.phone}</Ltr>
           </span>
         ) : null}
         {link.data.linked_at ? (
-          <span className="text-grid-muted">
+          <span className="text-muted-foreground">
             · {t("whatsapp.linkedAt", { date: formatDate(link.data.linked_at) })}
           </span>
         ) : null}
         <span
-          className="text-grid-muted"
+          className="text-muted-foreground"
           data-whatsapp-sends={`${link.data.sent_today}/${link.data.failed_today}`}
         >
           ·{" "}
@@ -159,7 +156,7 @@ export function WhatsAppChannelForm({
         </span>
         {state === "open" ? (
           <Link
-            className="text-grid-brand underline underline-offset-4"
+            className="text-nq-brand underline underline-offset-4"
             href={`/${locale}/w/${ws.slug}/contacts/import?source=whatsapp`}
             data-nav="import-chats"
           >
@@ -170,33 +167,33 @@ export function WhatsAppChannelForm({
 
       {link.data.last_error ? (
         <p
-          className="mb-4 flex items-start gap-2 border border-grid-danger-text/40 bg-grid-danger-text/5 px-4 py-3 text-sm"
+          className="mb-4 flex items-start gap-2 border border-nq-danger-text/40 bg-nq-danger-text/5 px-4 py-3 text-sm"
           role="status"
           data-whatsapp-error
         >
-          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-danger-text" />
+          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-nq-danger-text" />
           <span>{link.data.last_error}</span>
         </p>
       ) : null}
 
       {link.data.linked && hook ? (
         <div
-          className="mb-5 flex items-start gap-3 border border-line bg-grid-card px-4 py-3 text-sm"
+          className="mb-5 flex items-start gap-3 border border-nq-line bg-card px-4 py-3 text-sm"
           data-webhook-status={hook.status}
         >
-          <WebhookIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" />
+          <WebhookIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{t("whatsapp.webhook.title")}</span>
               <Badge
                 variant={
-                  hookOk ? "default" : hook.status === "unknown" ? "secondary" : "destructive"
+                  hookOk ? "brand" : hook.status === "unknown" ? "neutral" : "danger"
                 }
               >
                 {t(`whatsapp.webhook.${hook.status}`)}
               </Badge>
             </p>
-            <p className="text-grid-muted">
+            <p className="text-muted-foreground">
               {hookOk ? t("whatsapp.webhook.okHint") : t(`whatsapp.webhook.${hook.status}Hint`)}{" "}
               {hook.last_delivery_at
                 ? t("whatsapp.webhook.lastDelivery", { date: formatDate(hook.last_delivery_at) })
@@ -215,10 +212,10 @@ export function WhatsAppChannelForm({
             alt={t("whatsapp.qrAlt")}
             width={256}
             height={256}
-            className="border border-line bg-white p-2"
+            className="border border-nq-line bg-white p-2"
             data-whatsapp-qr
           />
-          <p className="text-xs text-grid-muted">
+          <p className="text-xs text-muted-foreground">
             {t("whatsapp.scanExpires")} {t("whatsapp.watching")}
           </p>
         </div>
@@ -230,18 +227,18 @@ export function WhatsAppChannelForm({
           <div data-pairing-code={pairing}>
             <Ltr
               mono
-              className="inline-block border border-line bg-grid-card px-4 py-2 text-2xl tracking-[0.3em]"
+              className="inline-block border border-nq-line bg-card px-4 py-2 text-2xl tracking-[0.3em]"
             >
               {pairing.length === 8 ? `${pairing.slice(0, 4)}-${pairing.slice(4)}` : pairing}
             </Ltr>
           </div>
-          <p className="text-xs text-grid-muted">{t("whatsapp.watching")}</p>
+          <p className="text-xs text-muted-foreground">{t("whatsapp.watching")}</p>
         </div>
       ) : null}
 
       {state === "open" && !waiting ? (
         <p className="mb-4 flex items-center gap-2 text-sm" data-whatsapp-linked>
-          <CheckCircle2Icon className="size-4 text-grid-brand" />
+          <CheckCircle2Icon className="size-4 text-nq-brand" />
           {t("whatsapp.replyHint")}
         </p>
       ) : null}
@@ -267,9 +264,9 @@ export function WhatsAppChannelForm({
                   {busy ? t("common.working") : t("whatsapp.getPairingCode")}
                 </Button>
               </FieldGroup>
-              <FieldDescription className="mt-2">
+              <FormHint className="mt-2">
                 {t("whatsapp.pairingNumberHint")}
-              </FieldDescription>
+              </FormHint>
             </form>
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
@@ -303,11 +300,11 @@ export function WhatsAppChannelForm({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-grid-muted">{t("mailbox.managerOnly")}</p>
+        <p className="text-sm text-muted-foreground">{t("mailbox.managerOnly")}</p>
       )}
 
       {state !== "open" ? (
-        <p className="pt-4 text-sm text-grid-muted">{t("whatsapp.replyHint")}</p>
+        <p className="pt-4 text-sm text-muted-foreground">{t("whatsapp.replyHint")}</p>
       ) : null}
     </div>
   )

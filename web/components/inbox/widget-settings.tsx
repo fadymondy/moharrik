@@ -2,33 +2,12 @@
 
 import { useState, type FormEvent } from "react"
 import { MessageCircleIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, Switch, Textarea, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet, FieldError, FormHint } from "@/components/form-layout"
 
 import { Bdi } from "@/components/bidi"
 import { CopyField } from "@/components/copy-field"
 import { PickSelect } from "@/components/crm/shared"
-import { Button } from "@/components/ui/button"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
   api,
@@ -119,8 +98,8 @@ export function WidgetSettingsSheet({
   return (
     <Sheet open={!!widget} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isRtl ? "left" : "right"}
-        className="w-full overflow-y-auto data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:sm:max-w-xl data-[side=right]:sm:max-w-xl"
+        side="end"
+        className="w-full overflow-y-auto sm:w-[min(36rem,100vw)]"
         data-widget-settings
       >
         <SheetHeader className="pe-12">
@@ -225,7 +204,7 @@ function SettingsForm({
       {/* What the visitor sees first, in the colours chosen below. Inline
           styles only for the accent: it is the workspace's own brand colour,
           not a theme colour, and the widget itself paints with exactly it. */}
-      <div className="border border-line" aria-hidden data-widget-preview>
+      <div className="border border-nq-line" aria-hidden data-widget-preview>
         <div
           className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium"
           style={{ background: previewAccent, color: inkOn(previewAccent) }}
@@ -237,7 +216,7 @@ function SettingsForm({
         </div>
         <div className="flex flex-col gap-2 p-3">
           <p
-            className="max-w-[85%] self-start bg-grid-card px-3 py-2 text-sm whitespace-pre-wrap"
+            className="max-w-[85%] self-start bg-card px-3 py-2 text-sm whitespace-pre-wrap"
             dir="auto"
           >
             {previewGreeting}
@@ -245,7 +224,7 @@ function SettingsForm({
           {previewActions.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {previewActions.map((q, i) => (
-                <span key={i} className="border border-line px-2.5 py-1 text-xs" dir="auto">
+                <span key={i} className="border border-nq-line px-2.5 py-1 text-xs" dir="auto">
                   {q.label}
                 </span>
               ))}
@@ -343,13 +322,13 @@ function SettingsForm({
       <FieldSet>
         <FieldLegend>{t("inbox.widgetLook")}</FieldLegend>
         <FieldGroup>
-          <Field data-invalid={!accentOk || undefined}>
+          <Field invalid={!!(!accentOk)}>
             <FieldLabel htmlFor="ws-accent">{t("inbox.accent")}</FieldLabel>
             <div className="flex items-center gap-2">
               <input
                 type="color"
                 aria-label={t("inbox.accent")}
-                className="size-9 shrink-0 cursor-pointer border border-line bg-transparent p-0.5"
+                className="size-9 shrink-0 cursor-pointer border border-nq-line bg-transparent p-0.5"
                 value={
                   accentOk && s.accent.length === 7
                     ? s.accent
@@ -381,34 +360,28 @@ function SettingsForm({
           <Field>
             <FieldLabel>{t("inbox.widgetTheme")}</FieldLabel>
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               value={[s.theme]}
               onValueChange={(v) => v[0] && set("theme", v[0] as ChatWidgetSettings["theme"])}
               aria-label={t("inbox.widgetTheme")}
             >
               {(["auto", "light", "dark"] as const).map((v) => (
-                <ToggleGroupItem key={v} value={v} data-theme-option={v}>
+                <Toggle key={v} value={v} data-theme-option={v}>
                   {t(`inbox.theme.${v}`)}
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
           </Field>
           <Field>
             <FieldLabel>{t("inbox.widgetPosition")}</FieldLabel>
             <ToggleGroup
-              variant="outline"
-              size="sm"
-              spacing={0}
               value={[s.position]}
               onValueChange={(v) => v[0] && set("position", v[0] as ChatWidgetSettings["position"])}
               aria-label={t("inbox.widgetPosition")}
             >
               {(["end", "start"] as const).map((v) => (
-                <ToggleGroupItem key={v} value={v} data-position-option={v}>
+                <Toggle key={v} value={v} data-position-option={v}>
                   {t(`inbox.position.${v}`)}
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
             <FieldDescription>{t("inbox.positionHint")}</FieldDescription>
@@ -419,7 +392,7 @@ function SettingsForm({
       <FieldSet>
         <FieldLegend>{t("inbox.widgetBehaviour")}</FieldLegend>
         <FieldGroup>
-          <Field orientation="horizontal">
+          <Field className="flex-row items-center gap-3">
             <Switch id="ws-invite" checked={s.invite} onCheckedChange={(v) => set("invite", v)} />
             <div className="flex flex-col gap-1">
               <FieldLabel htmlFor="ws-invite">{t("inbox.invite")}</FieldLabel>
@@ -439,7 +412,7 @@ function SettingsForm({
               />
             </Field>
           ) : null}
-          <Field orientation="horizontal">
+          <Field className="flex-row items-center gap-3">
             <Switch
               id="ws-lead"
               checked={s.lead_event}
@@ -455,10 +428,10 @@ function SettingsForm({
 
       <FieldSet>
         <FieldLegend>{t("inbox.quickActions")}</FieldLegend>
-        <FieldDescription>{t("inbox.quickActionsHint")}</FieldDescription>
+        <FormHint>{t("inbox.quickActionsHint")}</FormHint>
         <div className="flex flex-col gap-3">
           {s.quick_actions.map((q, i) => (
-            <div key={i} className="grid gap-2 border border-line p-3" data-quick-action={i}>
+            <div key={i} className="grid gap-2 border border-nq-line p-3" data-quick-action={i}>
               <div className="flex items-center gap-2">
                 <Input
                   aria-label={t("inbox.qaLabel")}
@@ -517,7 +490,7 @@ function SettingsForm({
           {s.quick_actions.length < 8 ? (
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="self-start"
               onClick={() =>
@@ -536,7 +509,7 @@ function SettingsForm({
 
       {err ? <FieldError>{err}</FieldError> : null}
       <SheetFooter className="flex-row justify-end gap-2 p-0">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="secondary" onClick={onCancel}>
           {t("common.cancel")}
         </Button>
         <Button type="submit" disabled={busy}>

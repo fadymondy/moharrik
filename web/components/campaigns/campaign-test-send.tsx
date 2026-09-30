@@ -3,11 +3,9 @@
 import Link from "next/link"
 import { useState } from "react"
 import { FlaskConicalIcon, MailWarningIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 
-import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Campaign } from "@/lib/api"
@@ -77,7 +75,7 @@ export function CampaignTestSend({
   // The form above already says how to link one; this only says why there is no button.
   if (wa && !whatsappLinked) {
     return (
-      <p className="text-sm text-grid-muted" role="status" data-test-blocked="whatsapp">
+      <p className="text-sm text-muted-foreground" role="status" data-test-blocked="whatsapp">
         {t("campaigns.testNeedsWhatsApp")}
       </p>
     )
@@ -85,11 +83,11 @@ export function CampaignTestSend({
   if (!wa && !smtpReady) {
     return (
       <p
-        className="flex items-start gap-2 text-sm text-grid-muted"
+        className="flex items-start gap-2 text-sm text-muted-foreground"
         role="status"
         data-test-blocked="smtp"
       >
-        <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+        <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
         {ws.can("mail:settings") ? (
           <span>
             {t("campaigns.testNeedsSmtp")}{" "}
@@ -110,7 +108,7 @@ export function CampaignTestSend({
   return (
     <div className="flex flex-col gap-3" data-form="campaign-test">
       {wa ? (
-        <p className="text-sm text-grid-muted">{t("campaigns.testWhatsAppHint")}</p>
+        <p className="text-sm text-muted-foreground">{t("campaigns.testWhatsAppHint")}</p>
       ) : (
         <Field>
           <FieldLabel htmlFor="campaign-test-to">{t("campaigns.testTo")}</FieldLabel>
@@ -132,22 +130,22 @@ export function CampaignTestSend({
         </Field>
       )}
       {dirty ? (
-        <p className="text-sm text-grid-warn-text" role="status" data-test-blocked="unsaved">
+        <p className="text-sm text-nq-warning-text" role="status" data-test-blocked="unsaved">
           {t("campaigns.testUnsaved")}
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" disabled={disabled} onClick={send} data-send-test>
+        <Button type="button" variant="secondary" disabled={disabled} onClick={send} data-send-test>
           <FlaskConicalIcon />
           {busy ? t("common.working") : t("campaigns.sendTest")}
         </Button>
         {done ? (
-          <span className="text-sm text-grid-ok-text" data-test-result={done.to}>
+          <span className="text-sm text-nq-success-text" data-test-result={done.to}>
             {t("campaigns.testSentTo")} <Ltr>{done.to}</Ltr>
           </span>
         ) : null}
       </div>
-      <p className="text-xs text-grid-muted">{t("campaigns.testNotASend")}</p>
+      <p className="text-xs text-muted-foreground">{t("campaigns.testNotASend")}</p>
       {err ? <FieldError>{err}</FieldError> : null}
     </div>
   )

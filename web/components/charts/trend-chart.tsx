@@ -175,7 +175,7 @@ export function TrendChart({
   return (
     <div className={cn("space-y-2", className)}>
       {series.length > 1 ? (
-        <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-grid-muted" aria-hidden>
+        <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground" aria-hidden>
           {series.map((s) => (
             <li key={s.key} className="flex items-center gap-2">
               <svg width="22" height="8" className="shrink-0">
@@ -190,7 +190,7 @@ export function TrendChart({
                   strokeLinecap="round"
                 />
               </svg>
-              <span className="text-grid-body">{s.label}</span>
+              <span className="text-nq-fg-body">{s.label}</span>
             </li>
           ))}
         </ul>
@@ -206,7 +206,7 @@ export function TrendChart({
           tabIndex={0}
           // Geometry is mirrored by hand for RTL; SVG text must not also flip its anchors.
           direction="ltr"
-          className="block max-w-full touch-pan-y outline-none focus-visible:ring-2 focus-visible:ring-grid-action/50"
+          className="block max-w-full touch-pan-y outline-none focus-visible:ring-2 focus-visible:ring-nq-action/50"
           onPointerMove={pick}
           onPointerDown={pick}
           onPointerLeave={() => setHover(null)}
@@ -220,7 +220,7 @@ export function TrendChart({
                 x2={width - PAD.end}
                 y1={yAt(v)}
                 y2={yAt(v)}
-                stroke="var(--grid-line)"
+                stroke="var(--nq-line)"
                 strokeWidth="1"
                 strokeDasharray={v === lo && !invert ? undefined : "2 4"}
                 transform={isRtl ? `translate(${PAD.end - PAD.start} 0)` : undefined}
@@ -230,7 +230,7 @@ export function TrendChart({
                 y={yAt(v)}
                 dy="0.32em"
                 textAnchor={isRtl ? "start" : "end"}
-                className="fill-grid-muted text-[11px] tabular-nums"
+                className="fill-nq-fg-muted text-[11px] tabular-nums"
               >
                 {format(v)}
               </text>
@@ -252,7 +252,7 @@ export function TrendChart({
                       : "end"
                     : "middle"
               }
-              className="fill-grid-muted text-[11px]"
+              className="fill-nq-fg-muted text-[11px]"
             >
               {formatDate(dates[i])}
             </text>
@@ -281,7 +281,7 @@ export function TrendChart({
                 x2={xAt(hover)}
                 y1={PAD.top}
                 y2={PAD.top + plotH}
-                stroke="var(--grid-muted)"
+                stroke="var(--nq-fg-muted)"
                 strokeWidth="1"
                 opacity="0.6"
               />
@@ -295,7 +295,7 @@ export function TrendChart({
                     cy={yAt(v)}
                     r="4.5"
                     fill={`var(--chart-${s.slot})`}
-                    stroke="var(--grid-bg)"
+                    stroke="var(--nq-bg)"
                     strokeWidth="2"
                   />
                 )
@@ -306,7 +306,7 @@ export function TrendChart({
         {hover != null ? (
           <div
             role="status"
-            className="pointer-events-none absolute top-1 z-10 min-w-36 border border-line bg-grid-card px-3 py-2 text-xs shadow-sm"
+            className="pointer-events-none absolute top-1 z-10 min-w-36 border border-nq-line bg-card px-3 py-2 text-xs shadow-sm"
             style={
               flip
                 ? { left: Math.max(0, tipLeft - 12), transform: "translateX(-100%)" }
@@ -330,8 +330,8 @@ export function TrendChart({
                       strokeDasharray={s.dashed ? "3 2" : undefined}
                     />
                   </svg>
-                  <span className="text-grid-muted">{date ? formatDate(date) : ""}</span>
-                  <span className="ms-auto ps-3 font-medium text-grid-fg tabular-nums">
+                  <span className="text-muted-foreground">{date ? formatDate(date) : ""}</span>
+                  <span className="ms-auto ps-3 font-medium text-foreground tabular-nums">
                     {v == null ? "—" : format(v)}
                   </span>
                 </div>
@@ -340,14 +340,14 @@ export function TrendChart({
           </div>
         ) : null}
       </div>
-      <details className="text-xs text-grid-muted" id={`${id}-table`}>
-        <summary className="w-fit cursor-pointer select-none hover:text-grid-fg">
+      <details className="text-xs text-muted-foreground" id={`${id}-table`}>
+        <summary className="w-fit cursor-pointer select-none hover:text-foreground">
           {t("charts.table")}
         </summary>
-        <div className="mt-2 max-h-72 overflow-auto border border-line">
+        <div className="mt-2 max-h-72 overflow-auto border border-nq-line">
           <table className="w-full text-start text-xs">
             <caption className="sr-only">{title}</caption>
-            <thead className="sticky top-0 bg-grid-card">
+            <thead className="sticky top-0 bg-card">
               <tr>
                 <th className="px-3 py-1.5 text-start font-medium">{t("charts.date")}</th>
                 {series.map((s) => (
@@ -359,13 +359,13 @@ export function TrendChart({
             </thead>
             <tbody>
               {dates.map((d, i) => (
-                <tr key={d} className="border-t border-line">
-                  <td className="px-3 py-1 text-grid-body">{formatDate(d)}</td>
+                <tr key={d} className="border-t border-nq-line">
+                  <td className="px-3 py-1 text-nq-fg-body">{formatDate(d)}</td>
                   {series.map((s) => (
-                    <td key={s.key} className="px-3 py-1 text-end text-grid-body tabular-nums">
+                    <td key={s.key} className="px-3 py-1 text-end text-nq-fg-body tabular-nums">
                       {s.values[i] == null ? "—" : format(s.values[i] as number)}
                       {s.dates && s.dates[i] ? (
-                        <span className="ms-1 text-grid-muted">({formatDate(s.dates[i])})</span>
+                        <span className="ms-1 text-muted-foreground">({formatDate(s.dates[i])})</span>
                       ) : null}
                     </td>
                   ))}
@@ -393,15 +393,15 @@ export function BarList({
 }) {
   const max = Math.max(1, ...rows.map((r) => r.value))
   return (
-    <ul className={cn("divide-y divide-line", className)} aria-label={label}>
+    <ul className={cn("divide-y divide-nq-line", className)} aria-label={label}>
       {rows.map((r) => (
         <li key={r.key} className="px-5 py-2.5" data-bar-row>
           <div className="flex items-baseline gap-3 text-sm">
-            <span className="min-w-0 flex-1 truncate text-grid-fg">{r.label}</span>
+            <span className="min-w-0 flex-1 truncate text-foreground">{r.label}</span>
             {r.sub ? (
-              <span className="shrink-0 text-xs text-grid-muted tabular-nums">{r.sub}</span>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{r.sub}</span>
             ) : null}
-            <span className="shrink-0 font-medium text-grid-fg tabular-nums">
+            <span className="shrink-0 font-medium text-foreground tabular-nums">
               {format(r.value)}
             </span>
           </div>

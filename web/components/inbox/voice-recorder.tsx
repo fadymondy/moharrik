@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { MicIcon, SendIcon, XIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /*
@@ -113,7 +113,7 @@ export function VoiceRecorder({
   if (recording) {
     return (
       <div
-        className="flex flex-1 items-center gap-2 rounded-md border border-line bg-grid-elevated px-2 py-1"
+        className="flex flex-1 items-center gap-2 rounded-md border border-nq-line bg-nq-surface-overlay px-2 py-1"
         data-recording-bar
       >
         <Button
@@ -126,10 +126,10 @@ export function VoiceRecorder({
         >
           <XIcon />
         </Button>
-        <span className="flex items-center gap-1.5 text-sm text-grid-fg" aria-live="polite">
-          <span className="size-2 animate-pulse rounded-full bg-grid-danger-text" aria-hidden />
+        <span className="flex items-center gap-1.5 text-sm text-foreground" aria-live="polite">
+          <span className="size-2 animate-pulse rounded-full bg-nq-danger-text" aria-hidden />
           <span data-recording-timer>{formatTimer(elapsed)}</span>
-          <span className="text-xs text-grid-muted">{t("inbox.composer.recordingHint")}</span>
+          <span className="text-xs text-muted-foreground">{t("inbox.composer.recordingHint")}</span>
         </span>
         <Button
           type="button"
@@ -160,7 +160,7 @@ export function VoiceRecorder({
         <MicIcon />
       </Button>
       {error ? (
-        <span className="text-xs text-grid-danger-text" role="alert">
+        <span className="text-xs text-nq-danger-text" role="alert">
           {error}
         </span>
       ) : null}

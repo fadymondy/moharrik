@@ -4,15 +4,7 @@ import { useMemo, useState } from "react"
 
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { ChannelStats } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -82,11 +74,8 @@ export default function InboxStatsPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
-        <span className="text-sm text-grid-muted">{t("inbox.stats.window")}</span>
+        <span className="text-sm text-muted-foreground">{t("inbox.stats.window")}</span>
         <ToggleGroup
-          variant="outline"
-          size="sm"
-          spacing={0}
           value={[String(days)]}
           onValueChange={(v) => {
             const next = Number(v[0])
@@ -95,13 +84,13 @@ export default function InboxStatsPage() {
           aria-label={t("inbox.stats.window")}
         >
           {WINDOWS.map((d) => (
-            <ToggleGroupItem key={d} value={String(d)} data-window={d}>
+            <Toggle key={d} value={String(d)} data-window={d}>
               {t("inbox.stats.days", { n: formatNumber(d) })}
-            </ToggleGroupItem>
+            </Toggle>
           ))}
         </ToggleGroup>
         {s ? (
-          <span className="text-sm text-grid-muted sm:ms-auto" data-stats-now>
+          <span className="text-sm text-muted-foreground sm:ms-auto" data-stats-now>
             {t("inbox.stats.now", {
               open: formatNumber(s.open_now),
               snoozed: formatNumber(s.snoozed_now),
@@ -122,7 +111,7 @@ export default function InboxStatsPage() {
         />
       ) : (
         <>
-          <dl className="grid grid-cols-2 border-y border-line lg:grid-cols-4" data-stats-tiles>
+          <dl className="grid grid-cols-2 border-y border-nq-line lg:grid-cols-4" data-stats-tiles>
             <Tile
               label={t("inbox.stats.conversations")}
               value={formatNumber(total.conversations)}
@@ -177,7 +166,7 @@ export default function InboxStatsPage() {
               </TableBody>
             </Table>
           </div>
-          <p className="max-w-3xl px-6 pt-4 text-xs text-grid-muted">{t("inbox.stats.method")}</p>
+          <p className="max-w-3xl px-6 pt-4 text-xs text-muted-foreground">{t("inbox.stats.method")}</p>
         </>
       )}
       <div className="pb-8" />
@@ -198,12 +187,12 @@ function Tile({
 }) {
   return (
     <div
-      className="flex flex-col gap-1 border-line px-6 py-5 not-last:border-e max-lg:nth-2:border-e-0 max-lg:nth-[-n+2]:border-b"
+      className="flex flex-col gap-1 border-nq-line px-6 py-5 not-last:border-e max-lg:nth-2:border-e-0 max-lg:nth-[-n+2]:border-b"
       data-stat={stat}
     >
-      <dt className="text-sm text-grid-muted">{label}</dt>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-2xl font-medium tabular-nums">{value}</dd>
-      {note ? <dd className="text-xs text-grid-muted">{note}</dd> : null}
+      {note ? <dd className="text-xs text-muted-foreground">{note}</dd> : null}
     </div>
   )
 }

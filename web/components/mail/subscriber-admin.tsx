@@ -1,30 +1,9 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, downloadFile, type MailList } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -94,7 +73,7 @@ export function UnsubscribeDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" disabled={busy} onClick={run}>
+          <AlertDialogAction variant="danger" disabled={busy} onClick={run}>
             {busy ? t("common.working") : t("contacts.unsubscribeConfirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -171,7 +150,7 @@ export function EditListDialog({
             <Field>
               <FieldLabel htmlFor="edit-list-description">
                 {t("lists.description")}{" "}
-                <span className="text-grid-muted">({t("common.optional")})</span>
+                <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
               <Input
                 id="edit-list-description"
@@ -180,7 +159,7 @@ export function EditListDialog({
                 maxLength={500}
               />
             </Field>
-            <Field orientation="horizontal">
+            <Field className="flex-row items-center gap-3">
               <Switch id="edit-list-doi" checked={doi} onCheckedChange={(v) => setDoi(!!v)} />
               <div>
                 <FieldLabel htmlFor="edit-list-doi">{t("lists.doubleOptIn")}</FieldLabel>

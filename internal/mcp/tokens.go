@@ -53,7 +53,7 @@ func parseScopes(raw string) []string {
 // and the same RLS. The token's stored scopes are narrowed by the role.
 func authUser(r *http.Request, a *app.App, token string) (context.Context, []string, bool) {
 	if !strings.HasPrefix(token, UserPrefix) {
-		return nil, nil, false
+		return authHub(r, a, token) // a CircleXO-issued token, when that integration is on
 	}
 	ctx := r.Context()
 	var id, workspaceID, userID, rawScopes, name string

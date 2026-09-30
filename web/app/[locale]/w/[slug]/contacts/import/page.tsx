@@ -4,28 +4,9 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { CheckIcon, MessageCircleIcon, UsersIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FormHint } from "@/components/form-layout"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -163,14 +144,14 @@ export default function ImportPage() {
         </Field>
 
         {conn && !conn.ready ? (
-          <FieldDescription className="text-grid-warn-text" data-import-not-ready={source}>
+          <FormHint className="text-nq-warning-text" data-import-not-ready={source}>
             {conn.note || t("import.notReady")}{" "}
             {source === "whatsapp" ? (
               <Link className="underline underline-offset-4" href={`${base}/inbox/whatsapp`}>
                 {t("import.linkWhatsApp")}
               </Link>
             ) : null}
-          </FieldDescription>
+          </FormHint>
         ) : null}
       </div>
 
@@ -223,7 +204,7 @@ export default function ImportPage() {
 
           {anyGroupSelected ? (
             <div className="px-6 pb-4">
-              <Field orientation="horizontal">
+              <Field className="flex-row items-center gap-3">
                 <Checkbox
                   id="import-participants"
                   checked={importParticipants}
@@ -245,7 +226,7 @@ export default function ImportPage() {
           ) : items.length === 0 ? (
             <EmptyState title={t("import.empty")} body={t("import.emptyBody")} />
           ) : (
-            <div className="border-y border-line">
+            <div className="border-y border-nq-line">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -276,22 +257,22 @@ export default function ImportPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {it.kind === "group" ? (
-                            <UsersIcon className="size-4 text-grid-muted" />
+                            <UsersIcon className="size-4 text-muted-foreground" />
                           ) : (
-                            <MessageCircleIcon className="size-4 text-grid-muted" />
+                            <MessageCircleIcon className="size-4 text-muted-foreground" />
                           )}
                           <Bdi>{it.name || it.identity}</Bdi>
                         </div>
                         {it.kind === "group" && it.participants?.length ? (
-                          <div className="mt-1 text-xs text-grid-muted">
+                          <div className="mt-1 text-xs text-muted-foreground">
                             {t("import.participantsCount", { count: it.participants.length })}
                           </div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-grid-muted">
+                      <TableCell className="text-muted-foreground">
                         <Ltr>{it.identity}</Ltr>
                       </TableCell>
-                      <TableCell className="max-w-xs truncate text-grid-muted">
+                      <TableCell className="max-w-xs truncate text-muted-foreground">
                         <Bdi>{it.last_message}</Bdi>
                       </TableCell>
                       <TableCell className="pe-6">
@@ -320,9 +301,9 @@ export default function ImportPage() {
                 ? t("import.importing")
                 : t("import.importSelected", { count: selected.size })}
             </Button>
-            {!canWrite ? <FieldDescription>{t("contacts.readOnly")}</FieldDescription> : null}
+            {!canWrite ? <FormHint>{t("contacts.readOnly")}</FormHint> : null}
             {job.data?.job ? (
-              <div className="text-sm text-grid-muted" data-import-job-status={job.data.job.status}>
+              <div className="text-sm text-muted-foreground" data-import-job-status={job.data.job.status}>
                 {job.data.job.status === "running"
                   ? t("import.progress", { done: job.data.job.done, total: job.data.job.total })
                   : job.data.job.status === "done"

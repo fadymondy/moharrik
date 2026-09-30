@@ -3,21 +3,10 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { LogOutIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 import { mutate } from "swr"
 
-import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Ltr } from "@/components/copy-field"
 import { BdiBlock, isolate } from "@/components/bidi"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -132,7 +121,7 @@ export function WorkspaceProfileSection() {
   return (
     <section className="px-6 py-6" data-workspace-profile>
       <h2 className="text-base font-medium">{t("manage.profileTitle")}</h2>
-      <p className="mt-1 mb-5 text-sm text-grid-muted">
+      <p className="mt-1 mb-5 text-sm text-muted-foreground">
         {canWrite ? t("manage.profileHint") : t("generalSettings.adminOnly")}
       </p>
       <div className="flex items-center gap-4">
@@ -150,7 +139,7 @@ export function WorkspaceProfileSection() {
               />
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={picBusy}
                 onClick={() => fileRef.current?.click()}
@@ -178,7 +167,7 @@ export function WorkspaceProfileSection() {
             {picErr ? (
               <FieldError>{picErr}</FieldError>
             ) : (
-              <p className="text-xs text-grid-muted">{t("manage.pictureHint")}</p>
+              <p className="text-xs text-muted-foreground">{t("manage.pictureHint")}</p>
             )}
           </div>
         ) : (
@@ -258,12 +247,12 @@ export function LeaveWorkspaceSection() {
     >
       <div className="max-w-xl">
         <h2 className="text-base font-medium">{t("manage.leaveTitle")}</h2>
-        <p className="mt-1 text-sm text-grid-muted">
+        <p className="mt-1 text-sm text-muted-foreground">
           {ws.summary.role === "owner" ? t("manage.leaveHintOwner") : t("manage.leaveHint")}
         </p>
       </div>
       <Button
-        variant="outline"
+        variant="secondary"
         onClick={() => setOpen(true)}
         disabled={myId == null}
         data-leave-open
@@ -281,7 +270,7 @@ export function LeaveWorkspaceSection() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <Button variant="destructive" disabled={busy} onClick={leave} data-leave-confirm>
+            <Button variant="danger" disabled={busy} onClick={leave} data-leave-confirm>
               {busy ? t("common.working") : t("manage.leave")}
             </Button>
           </AlertDialogFooter>
@@ -325,13 +314,13 @@ export function DeleteWorkspaceSection() {
 
   return (
     <section className="px-6 py-6" data-delete-workspace>
-      <div className="flex flex-wrap items-center justify-between gap-4 border border-grid-danger-text/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border border-nq-danger-text/40 p-4">
         <div className="max-w-xl">
-          <h2 className="text-base font-medium text-grid-danger-text">{t("manage.deleteTitle")}</h2>
-          <p className="mt-1 text-sm text-grid-muted">{t("manage.deleteHint")}</p>
+          <h2 className="text-base font-medium text-nq-danger-text">{t("manage.deleteTitle")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("manage.deleteHint")}</p>
         </div>
         <Button
-          variant="destructive"
+          variant="danger"
           onClick={() => {
             setTyped("")
             setErr(null)
@@ -370,7 +359,7 @@ export function DeleteWorkspaceSection() {
               <AlertDialogCancel type="button">{t("common.cancel")}</AlertDialogCancel>
               <Button
                 type="submit"
-                variant="destructive"
+                variant="danger"
                 disabled={busy || typed.trim() !== ws.slug}
                 data-delete-confirm
               >

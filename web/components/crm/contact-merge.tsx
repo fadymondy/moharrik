@@ -2,26 +2,9 @@
 
 import { useMemo, useState } from "react"
 import { CombineIcon } from "lucide-react"
-import { toast } from "sonner"
+import { Button, Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, toast } from "@fadymondy/nasaq/web"
 
 import { BdiBlock } from "@/components/bidi"
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 import { useDebounced } from "@/components/crm/contact-picker"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, contactIdentity, type ContactDetail } from "@/lib/api"
@@ -189,7 +172,7 @@ function MergeContactDialog({
               </ComboboxContent>
             </Combobox>
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="secondary" onClick={() => onOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
             </DialogFooter>
@@ -201,30 +184,30 @@ function MergeContactDialog({
               <DialogDescription>{t("contacts.mergeConfirmBody")}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 py-2 sm:grid-cols-2" data-merge-contact-preview>
-              <div className="border border-line bg-grid-card p-3" data-merge-survivor>
-                <p className="text-xs text-grid-muted">{t("contacts.mergeSurvivor")}</p>
+              <div className="border border-nq-line bg-card p-3" data-merge-survivor>
+                <p className="text-xs text-muted-foreground">{t("contacts.mergeSurvivor")}</p>
                 <p className="font-medium">
                   <BdiBlock>{contact.name || contactIdentity(contact)}</BdiBlock>
                 </p>
-                <p className="text-sm text-grid-muted">
+                <p className="text-sm text-muted-foreground">
                   <BdiBlock>{contactIdentity(contact)}</BdiBlock>
                 </p>
               </div>
-              <div className="border border-line bg-grid-card p-3" data-merge-source>
-                <p className="text-xs text-grid-muted">{t("contacts.mergeSource")}</p>
+              <div className="border border-nq-line bg-card p-3" data-merge-source>
+                <p className="text-xs text-muted-foreground">{t("contacts.mergeSource")}</p>
                 <p className="font-medium">
                   <BdiBlock>{source.name || contactIdentity(source)}</BdiBlock>
                 </p>
-                <p className="text-sm text-grid-muted">
+                <p className="text-sm text-muted-foreground">
                   <BdiBlock>{contactIdentity(source)}</BdiBlock>
                 </p>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirming(false)} disabled={busy}>
+              <Button variant="secondary" onClick={() => setConfirming(false)} disabled={busy}>
                 {t("common.back")}
               </Button>
-              <Button variant="destructive" onClick={() => void confirmMerge()} disabled={busy}>
+              <Button variant="danger" onClick={() => void confirmMerge()} disabled={busy}>
                 {busy ? t("common.working") : t("contacts.mergeConfirm")}
               </Button>
             </DialogFooter>
