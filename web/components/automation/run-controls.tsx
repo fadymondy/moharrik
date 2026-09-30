@@ -6,8 +6,8 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { PlayIcon } from "lucide-react"
-import { Badge, Button, Field, FieldError, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Badge, Button, Field, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import {

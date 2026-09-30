@@ -11,8 +11,8 @@ import {
   PencilIcon,
   SearchIcon,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldError, FieldLabel, Input, InputGroup, InputGroupAddon, InputGroupInput, CursorPager, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, InputGroup, InputGroupAddon, InputGroupInput, CursorPager, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { SectionHeader } from "@/components/public-frame"
 import { PersonAvatar } from "@/components/avatar-with-fallback"
@@ -488,10 +488,10 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
           </Button>
         </FieldGroup>
         {listBlocked ? (
-          <FieldDescription className="mt-2">{t("contacts.listNeedsEmail")}</FieldDescription>
+          <FormHint className="mt-2">{t("contacts.listNeedsEmail")}</FormHint>
         ) : null}
         {!hasIdentity ? (
-          <FieldDescription className="mt-2">{t("contacts.needsIdentity")}</FieldDescription>
+          <FormHint className="mt-2">{t("contacts.needsIdentity")}</FormHint>
         ) : null}
         {err ? <FieldError className="mt-3">{err}</FieldError> : null}
       </form>

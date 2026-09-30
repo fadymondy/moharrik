@@ -36,8 +36,8 @@ import {
   XCircleIcon,
 } from "lucide-react"
 
-import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Input, Skeleton } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Skeleton } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 import { PickSelect } from "@/components/crm/shared"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"

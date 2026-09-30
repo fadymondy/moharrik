@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, type FormEvent } from "react"
-import { Button, Field, FieldError, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 
 import { DealsTable } from "@/components/crm/deals"
 import { ScoreMeter, ScoreReasons } from "@/components/crm/icp"

@@ -40,7 +40,8 @@ import {
   quoteAuthor,
 } from "@/components/inbox/message-reactions"
 import { VoiceRecorder } from "@/components/inbox/voice-recorder"
-import { Button, FieldError, Input, Textarea } from "@fadymondy/nasaq/web"
+import { Button, Input, Textarea } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 import { Ltr } from "@/components/copy-field"
 import { channelIcon } from "@/lib/inbox-channels"
 import {

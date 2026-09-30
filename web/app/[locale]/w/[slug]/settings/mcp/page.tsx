@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from "react"
 import { PlusIcon, TriangleAlertIcon } from "lucide-react"
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup, FieldLegend, FieldSet } from "@/components/form-layout"
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet, FieldError, FormHint } from "@/components/form-layout"
 
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -355,7 +355,7 @@ function CreateTokenDialog({
 
               <FieldSet>
                 <FieldLegend>{t("mcp.scopes")}</FieldLegend>
-                <FieldDescription>
+                <FormHint>
                   {t("mcp.scopesHint")}{" "}
                   <Link
                     href={mcpDocsHref(locale, "scopes")}
@@ -364,7 +364,7 @@ function CreateTokenDialog({
                   >
                     {t("mcp.scopesDocsLink")}
                   </Link>
-                </FieldDescription>
+                </FormHint>
                 {scopes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{t("mcp.noScopes")}</p>
                 ) : (

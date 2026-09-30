@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { parseOrigins } from "@/components/inbox/widget-settings"

@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { useEffect, useState, type FormEvent } from "react"
 import { CheckCircle2Icon, MessageCircleIcon, SendIcon, XCircleIcon } from "lucide-react"
-import { Badge, Button, Checkbox, Field, FieldDescription, FieldError, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
@@ -157,7 +157,7 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
             {data.code_pending ? t("waNotify.resend") : t("waNotify.sendCode")}
           </Button>
         </FieldGroup>
-        <FieldDescription className="mt-2">{t("waNotify.phoneHint")}</FieldDescription>
+        <FormHint className="mt-2">{t("waNotify.phoneHint")}</FormHint>
       </form>
       {data.code_pending ? (
         <form onSubmit={confirm} noValidate>
@@ -178,9 +178,9 @@ function Verify({ data, onChange }: { data: WhatsAppNotify; onChange: () => void
               {t("waNotify.confirm")}
             </Button>
           </FieldGroup>
-          <FieldDescription className="mt-2">
+          <FormHint className="mt-2">
             {t("waNotify.codeHint", { phone: `+${data.phone}` })}
-          </FieldDescription>
+          </FormHint>
         </form>
       ) : null}
       {err ? <FieldError>{err}</FieldError> : null}
@@ -374,9 +374,9 @@ function Settings({
                 </Field>
               </div>
             ) : null}
-            <FieldDescription>
+            <FormHint>
               {t("waNotify.quietHint", { zone: data.effective_timezone })}
-            </FieldDescription>
+            </FormHint>
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row">
@@ -429,7 +429,7 @@ function Settings({
               </Select>
             </Field>
           </div>
-          <FieldDescription>{t("waNotify.batchHint")}</FieldDescription>
+          <FormHint>{t("waNotify.batchHint")}</FormHint>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={!!busy}>

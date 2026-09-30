@@ -11,12 +11,11 @@ import {
   Button,
   Field,
   FieldDescription,
-  FieldError,
   FieldLabel,
   Input,
   OAuthDivider,
 } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 import { LanguageSwitcher, ThemeToggle } from "@/components/header-controls"
 import { api, ApiError, resetCsrf } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -155,7 +154,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       <div className="w-full" data-auth-form>
         <form onSubmit={onSubmit} noValidate>
           <FieldGroup>
-            <Field data-invalid={!!error || undefined}>
+            <Field invalid={!!(!!error)}>
               <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
               <Input
                 id="email"
@@ -168,7 +167,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 placeholder="you@company.com"
               />
             </Field>
-            <Field data-invalid={!!error || undefined}>
+            <Field invalid={!!(!!error)}>
               <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
               <Input
                 id="password"

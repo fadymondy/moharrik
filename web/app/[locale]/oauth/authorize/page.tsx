@@ -31,8 +31,8 @@ import {
   XCircleIcon,
 } from "lucide-react"
 
-import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Skeleton } from "@fadymondy/nasaq/web"
-import { FieldGroup, FieldLegend, FieldSet } from "@/components/form-layout"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Skeleton } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet, FieldError, FormHint } from "@/components/form-layout"
 import { PickSelect } from "@/components/crm/shared"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
@@ -222,7 +222,7 @@ export default function OAuthAuthorizePage() {
 
                   <FieldSet>
                     <FieldLegend>{t("oauth.scopes")}</FieldLegend>
-                    <FieldDescription>{t("oauth.scopesHint")}</FieldDescription>
+                    <FormHint>{t("oauth.scopesHint")}</FormHint>
                     <ul
                       className="max-h-[28rem] divide-y divide-nq-line overflow-y-auto border border-nq-line"
                       data-oauth-scopes

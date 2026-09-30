@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useState } from "react"
 import { FlaskConicalIcon, MailWarningIcon } from "lucide-react"
-import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 
 import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"

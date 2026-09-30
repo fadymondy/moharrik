@@ -4,8 +4,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, type FormEvent } from "react"
 import { BriefcaseIcon, LinkIcon, SparklesIcon, UnlinkIcon, UserPlusIcon } from "lucide-react"
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldError, FieldLabel, Input, toast, TooltipRoot, TooltipContent, TooltipTrigger } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, toast, TooltipRoot, TooltipContent, TooltipTrigger } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { ContactPicker } from "@/components/crm/contact-picker"
 import { PickSelect, toMinor } from "@/components/crm/shared"
@@ -400,7 +400,7 @@ export function CreateContactForm({
         </Field>
       </FieldGroup>
       {!email.trim() && !phone.trim() ? (
-        <FieldDescription>{t("contacts.needsIdentity")}</FieldDescription>
+        <FormHint>{t("contacts.needsIdentity")}</FormHint>
       ) : null}
       {err ? <FieldError>{err}</FieldError> : null}
       <DialogFooter>

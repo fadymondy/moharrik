@@ -264,12 +264,15 @@ export function NotificationBell({
       >
         <BellIcon />
         {count > 0 ? (
-          <Badge
-            className="pointer-events-none absolute -top-1 -end-1 h-4.5 min-w-4.5 rounded-full px-1 text-xs leading-none tabular-nums"
-            data-bell-count={count}
-          >
-            {count > 99 ? "99+" : count}
-          </Badge>
+          <span className="pointer-events-none absolute -top-1 -end-1">
+            <Badge
+              variant="brand"
+              className="h-4 min-w-4 justify-center rounded-full px-1 text-caption leading-none tabular-nums"
+              data-bell-count={count}
+            >
+              {count > 99 ? "99+" : count}
+            </Badge>
+          </span>
         ) : null}
       </PopoverTrigger>
       <PopoverContent

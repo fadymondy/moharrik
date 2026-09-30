@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { CheckIcon, MessageCircleIcon, UsersIcon } from "lucide-react"
 import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FormHint } from "@/components/form-layout"
 
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
@@ -143,14 +144,14 @@ export default function ImportPage() {
         </Field>
 
         {conn && !conn.ready ? (
-          <FieldDescription className="text-nq-warning-text" data-import-not-ready={source}>
+          <FormHint className="text-nq-warning-text" data-import-not-ready={source}>
             {conn.note || t("import.notReady")}{" "}
             {source === "whatsapp" ? (
               <Link className="underline underline-offset-4" href={`${base}/inbox/whatsapp`}>
                 {t("import.linkWhatsApp")}
               </Link>
             ) : null}
-          </FieldDescription>
+          </FormHint>
         ) : null}
       </div>
 
@@ -300,7 +301,7 @@ export default function ImportPage() {
                 ? t("import.importing")
                 : t("import.importSelected", { count: selected.size })}
             </Button>
-            {!canWrite ? <FieldDescription>{t("contacts.readOnly")}</FieldDescription> : null}
+            {!canWrite ? <FormHint>{t("contacts.readOnly")}</FormHint> : null}
             {job.data?.job ? (
               <div className="text-sm text-muted-foreground" data-import-job-status={job.data.job.status}>
                 {job.data.job.status === "running"

@@ -28,3 +28,17 @@ export function Label({ className, ...props }: ComponentProps<"label">) {
     />
   )
 }
+
+/**
+ * An error line that is always shown. Nasaq's FieldError (Base UI) renders only inside a Field and
+ * only for a matching validity flag; these screens keep the error in state and render it when set,
+ * often outside any Field (a form-level failure under the buttons).
+ */
+export function FieldError({ className, ...props }: ComponentProps<"p">) {
+  return <p role="alert" data-slot="field-error" className={cn("text-caption text-nq-danger-text", className)} {...props} />
+}
+
+/** A helper line for places that have no surrounding Nasaq Field to link it to. */
+export function FormHint({ className, ...props }: ComponentProps<"p">) {
+  return <p data-slot="form-hint" className={cn("text-caption text-muted-foreground", className)} {...props} />
+}

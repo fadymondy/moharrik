@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from "react"
 import { MessageCircleIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, Switch, Textarea, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
-import { FieldGroup, FieldLegend, FieldSet } from "@/components/form-layout"
+import { Button, Field, FieldDescription, FieldLabel, Input, Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, Switch, Textarea, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldLegend, FieldSet, FieldError, FormHint } from "@/components/form-layout"
 
 import { Bdi } from "@/components/bidi"
 import { CopyField } from "@/components/copy-field"
@@ -322,7 +322,7 @@ function SettingsForm({
       <FieldSet>
         <FieldLegend>{t("inbox.widgetLook")}</FieldLegend>
         <FieldGroup>
-          <Field data-invalid={!accentOk || undefined}>
+          <Field invalid={!!(!accentOk)}>
             <FieldLabel htmlFor="ws-accent">{t("inbox.accent")}</FieldLabel>
             <div className="flex items-center gap-2">
               <input
@@ -428,7 +428,7 @@ function SettingsForm({
 
       <FieldSet>
         <FieldLegend>{t("inbox.quickActions")}</FieldLegend>
-        <FieldDescription>{t("inbox.quickActionsHint")}</FieldDescription>
+        <FormHint>{t("inbox.quickActionsHint")}</FormHint>
         <div className="flex flex-col gap-3">
           {s.quick_actions.map((q, i) => (
             <div key={i} className="grid gap-2 border border-nq-line p-3" data-quick-action={i}>

@@ -3,7 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { LoaderCircleIcon } from "lucide-react"
 import Link from "next/link"
-import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, Textarea, toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Switch, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import { useFormatDateTime } from "@/components/research/shared"

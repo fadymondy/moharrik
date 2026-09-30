@@ -13,8 +13,8 @@ no control that would fail.
 
 import { useEffect, useState, type FormEvent } from "react"
 import { CheckIcon, GaugeIcon } from "lucide-react"
-import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Button, Field, FieldDescription, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AutomationSettings } from "@/lib/api"

@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { useMemo, useState, type DragEvent, type FormEvent } from "react"
 import { ArrowRightLeftIcon, GripVerticalIcon, PencilIcon } from "lucide-react"
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, Field, FieldError, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, Field, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, Label } from "@/components/form-layout"
 
 import {
   formatMoney,
@@ -390,9 +390,9 @@ function DealValueEditor({ deal, onSaved }: { deal: Deal; onSaved?: () => void }
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64" data-deal-value-popover>
         <form onSubmit={save} noValidate className="flex flex-col gap-2">
-          <FieldLabel htmlFor={inputId}>
+          <Label htmlFor={inputId}>
             {t("deals.valueIn", { currency: deal.currency })}
-          </FieldLabel>
+          </Label>
           <div className="flex gap-2">
             <Input
               id={inputId}

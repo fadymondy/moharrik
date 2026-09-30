@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { LayoutGridIcon, ListIcon, SettingsIcon } from "lucide-react"
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, FieldError, Input, toast } from "@fadymondy/nasaq/web"
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 
 import { DealForm, DealsTable, PipelineBoard } from "@/components/crm/deals"
 import { PickSelect, stageTone } from "@/components/crm/shared"

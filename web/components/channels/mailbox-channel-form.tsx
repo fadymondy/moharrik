@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Button, Field, FieldDescription, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { PickSelect } from "@/components/crm/shared"
@@ -244,7 +244,7 @@ export function MailboxChannelForm({
             </Button>
           ) : null}
         </div>
-        <FieldDescription>{t("mailbox.replyHint")}</FieldDescription>
+        <FormHint>{t("mailbox.replyHint")}</FormHint>
       </form>
     </div>
   )

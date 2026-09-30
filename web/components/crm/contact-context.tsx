@@ -10,6 +10,7 @@ import {
   UploadIcon,
 } from "lucide-react"
 import { Badge, Button, Field, FieldDescription, FieldLabel, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -574,7 +575,7 @@ function WhatsAppImportSheet({
               {fileName ?? t("contactContext.noFile")}
             </span>
           </div>
-          <FieldDescription>{t("contactContext.importFormats")}</FieldDescription>
+          <FormHint>{t("contactContext.importFormats")}</FormHint>
 
           {previewing ? <LoadingRows rows={2} /> : null}
           {previewError ? <ErrorState error={previewError} /> : null}

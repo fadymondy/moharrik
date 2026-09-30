@@ -30,6 +30,7 @@ import {
 import { PickSelect } from "@/components/crm/shared"
 import { Bdi } from "@/components/bidi"
 import { Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, Switch, Textarea } from "@fadymondy/nasaq/web"
+import { Label } from "@/components/form-layout"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import {
@@ -556,10 +557,10 @@ function ParamField({
   const id = `param-${name}`
   const label = (
     <span className="flex w-full items-center justify-between gap-2">
-      <FieldLabel htmlFor={id}>
+      <Label htmlFor={id}>
         {t(`rules.param.${name}`)}
         {required ? <span className="text-nq-danger-text"> *</span> : null}
-      </FieldLabel>
+      </Label>
       {["text", "textarea", "number", "contact_ref", "url"].includes(kind) && !readOnly ? (
         <InsertField fields={fields} onInsert={(f) => onChange(`${value}{{${f}}}`)} />
       ) : null}

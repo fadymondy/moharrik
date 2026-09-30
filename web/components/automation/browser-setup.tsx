@@ -18,8 +18,8 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { Badge, Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Badge, Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { useWorkspace } from "@/components/workspace/workspace-context"

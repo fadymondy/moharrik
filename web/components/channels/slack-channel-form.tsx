@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { CopyField } from "@/components/copy-field"
@@ -171,7 +171,7 @@ export function SlackChannelForm({
               <FieldDescription>{t("channels.slack.addHint")}</FieldDescription>
             </Field>
           ) : (
-            <FieldDescription>{t("channels.slack.addHint")}</FieldDescription>
+            <FormHint>{t("channels.slack.addHint")}</FormHint>
           )}
         </FieldGroup>
         {err ? <FieldError>{err}</FieldError> : null}

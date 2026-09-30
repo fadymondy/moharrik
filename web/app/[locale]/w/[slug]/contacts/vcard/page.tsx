@@ -4,6 +4,7 @@ import Link from "next/link"
 import { RefreshCwIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
 import { useRef, useState } from "react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Field, FieldDescription, FieldLabel, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
@@ -232,7 +233,7 @@ export default function VcardPage() {
               >
                 {exporting ? t("vcard.exporting") : t("vcard.exportAll")}
               </Button>
-              <FieldDescription>{t("vcard.exportHint")}</FieldDescription>
+              <FormHint>{t("vcard.exportHint")}</FormHint>
             </>
           ) : null}
           {canWrite ? (
@@ -253,7 +254,7 @@ export default function VcardPage() {
         {canWrite ? <GoogleContactsPanel /> : null}
 
         {!canWrite ? (
-          <FieldDescription className="pb-4">{t("contacts.readOnly")}</FieldDescription>
+          <FormHint className="pb-4">{t("contacts.readOnly")}</FormHint>
         ) : null}
 
         <Field className="mb-4">

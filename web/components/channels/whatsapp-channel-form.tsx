@@ -10,7 +10,7 @@ import {
   WebhookIcon,
 } from "lucide-react"
 import { Badge, Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
-import { FieldGroup } from "@/components/form-layout"
+import { FieldGroup, FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
@@ -264,9 +264,9 @@ export function WhatsAppChannelForm({
                   {busy ? t("common.working") : t("whatsapp.getPairingCode")}
                 </Button>
               </FieldGroup>
-              <FieldDescription className="mt-2">
+              <FormHint className="mt-2">
                 {t("whatsapp.pairingNumberHint")}
-              </FieldDescription>
+              </FormHint>
             </form>
           ) : null}
           <div className="flex flex-wrap items-center gap-2">

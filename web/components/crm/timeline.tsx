@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { Badge, Button, Field, FieldError, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Field, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import { FieldError } from "@/components/form-layout"
 
 import { MailIcon, MessageCircleIcon, MessageSquareIcon } from "lucide-react"
 
