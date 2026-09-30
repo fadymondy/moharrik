@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { parseOrigins } from "@/components/inbox/widget-settings"
@@ -116,7 +116,7 @@ export function WidgetChannelForm({
           <Field>
             <FieldLabel htmlFor="widget-greeting">
               {t("inbox.greeting")}{" "}
-              <span className="text-grid-muted">({t("common.optional")})</span>
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="widget-greeting"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import {
   AlertDialog,
@@ -85,10 +85,10 @@ export function WhatsAppConsent({
           {t("contacts.waOptedIn")}
         </Badge>
       ) : (
-        <span className="text-xs text-grid-muted">{t("contacts.waNone")}</span>
+        <span className="text-xs text-muted-foreground">{t("contacts.waNone")}</span>
       )}
       {optedIn && noPhone ? (
-        <span className="text-xs text-grid-warn">{t("contacts.waNoPhone")}</span>
+        <span className="text-xs text-nq-warning">{t("contacts.waNoPhone")}</span>
       ) : null}
 
       {!optedOut && !optedIn && ws.can("contacts:write") ? (
@@ -105,7 +105,7 @@ export function WhatsAppConsent({
         <Button
           variant="link"
           size="sm"
-          className="h-auto px-1 text-xs text-grid-danger-text"
+          className="h-auto px-1 text-xs text-nq-danger-text"
           onClick={() => setOpen("reverse")}
         >
           {t("contacts.waReverse")}

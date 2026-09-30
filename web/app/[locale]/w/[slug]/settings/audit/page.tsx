@@ -15,7 +15,7 @@ link on Settings → MCP opens this page already filtered to that token.
 import { Suspense, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ChevronDownIcon, FilterXIcon, HistoryIcon, ShieldIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import { PickSelect } from "@/components/crm/shared"
@@ -108,7 +108,7 @@ function AuditLog() {
         <LoadingRows rows={3} />
       ) : !canRead ? (
         <p
-          className="flex items-start gap-2 border-y border-line px-6 py-6 text-sm text-grid-muted"
+          className="flex items-start gap-2 border-y border-nq-line px-6 py-6 text-sm text-muted-foreground"
           data-audit="admin-only"
         >
           <ShieldIcon className="mt-0.5 size-4 shrink-0" />
@@ -117,7 +117,7 @@ function AuditLog() {
       ) : (
         <>
           <div
-            className="grid gap-3 border-y border-line px-6 py-4 sm:grid-cols-2 lg:grid-cols-6"
+            className="grid gap-3 border-y border-nq-line px-6 py-4 sm:grid-cols-2 lg:grid-cols-6"
             data-audit-filters
           >
             <Field className="lg:col-span-2">
@@ -216,7 +216,7 @@ function AuditLog() {
               />
               <ul
                 className={cn(
-                  "divide-y divide-line border-y border-line",
+                  "divide-y divide-nq-line border-y border-nq-line",
                   !page.current && "opacity-60",
                 )}
                 data-audit-list
@@ -287,7 +287,7 @@ function EntryRow({
   return (
     <li className="px-6 py-3" data-audit-entry={e.id} data-kind={e.kind} data-action={e.action}>
       <div className="grid gap-x-4 gap-y-1.5 md:grid-cols-[11rem_minmax(0,1fr)_minmax(0,1.2fr)_20rem] md:items-start">
-        <p className="text-xs text-grid-muted tabular-nums md:pt-0.5">
+        <p className="text-xs text-muted-foreground tabular-nums md:pt-0.5">
           <Ltr>{when}</Ltr>
         </p>
 
@@ -302,7 +302,7 @@ function EntryRow({
           </button>
           <p className="mt-0.5 flex flex-wrap items-center gap-1.5">
             <Badge variant="outline">{t(`audit.kind.${e.actor_kind || "system"}`)}</Badge>
-            <span className="text-xs text-grid-muted">{t(`audit.via.${e.via || "web"}`)}</span>
+            <span className="text-xs text-muted-foreground">{t(`audit.via.${e.via || "web"}`)}</span>
           </p>
         </div>
 
@@ -315,16 +315,16 @@ function EntryRow({
               {actionLabel(t, e.action)}
             </Badge>
             {e.entity_type ? (
-              <span className="text-grid-body">{entityLabel(t, e.entity_type)}</span>
+              <span className="text-nq-fg-body">{entityLabel(t, e.entity_type)}</span>
             ) : null}
             {refused ? (
-              <span className="text-xs text-grid-warn-text">
+              <span className="text-xs text-nq-warning-text">
                 {t("audit.refused", { status: e.status })}
               </span>
             ) : null}
           </p>
           {e.operation || e.entity_id ? (
-            <p className="mt-0.5 truncate text-xs text-grid-muted" title={e.entity_id || undefined}>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={e.entity_id || undefined}>
               {/* One LTR run, so the operation stays before the id in an RTL line. */}
               <Ltr mono>
                 {e.operation}
@@ -340,7 +340,7 @@ function EntryRow({
         </div>
 
         <div className="flex items-start justify-between gap-3 md:justify-end">
-          <p className="min-w-0 text-xs text-grid-muted md:text-end">
+          <p className="min-w-0 text-xs text-muted-foreground md:text-end">
             <Ltr className="block">{e.ip || "—"}</Ltr>
             {/* dir=ltr on the truncating box itself: the ellipsis goes at the END of the agent string. */}
             <span dir="ltr" className="block max-w-56 truncate md:ms-auto" title={e.user_agent}>
@@ -363,9 +363,9 @@ function EntryRow({
       </div>
 
       {open ? (
-        <div className="mt-3 overflow-x-auto border border-line" data-audit-diff>
+        <div className="mt-3 overflow-x-auto border border-nq-line" data-audit-diff>
           <table className="w-full text-xs">
-            <thead className="bg-grid-card text-grid-muted">
+            <thead className="bg-card text-muted-foreground">
               <tr>
                 <th className="px-3 py-1.5 text-start font-medium">{t("audit.field")}</th>
                 {e.action !== "create" ? (
@@ -376,7 +376,7 @@ function EntryRow({
                 ) : null}
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="divide-y divide-nq-line">
               {fields.map(([field, v]) => (
                 <tr key={field} className="align-top">
                   <td className="px-3 py-1.5">
@@ -406,10 +406,10 @@ function Value({ v }: { v: unknown }) {
   const { t } = useTranslations()
   if (v === "[redacted]") return <Badge variant="secondary">{t("audit.redacted")}</Badge>
   if (v === "[hidden]") return <Badge variant="outline">{t("audit.hidden")}</Badge>
-  if (v === null || v === undefined || v === "") return <span className="text-grid-muted">—</span>
+  if (v === null || v === undefined || v === "") return <span className="text-muted-foreground">—</span>
   const s = typeof v === "string" ? v : JSON.stringify(v)
   return (
-    <bdi dir="auto" className="block break-words whitespace-pre-wrap text-grid-fg">
+    <bdi dir="auto" className="block break-words whitespace-pre-wrap text-foreground">
       {s}
     </bdi>
   )
@@ -445,16 +445,16 @@ function Retention({ days, onSaved }: { days?: number; onSaved: () => void }) {
 
   return (
     <section
-      className="mt-8 border-t border-line px-6 py-8"
+      className="mt-8 border-t border-nq-line px-6 py-8"
       aria-labelledby="audit-retention"
       data-audit-retention
     >
       <div className="max-w-2xl space-y-1.5">
-        <h2 id="audit-retention" className="grid-title flex items-center gap-2 text-lg">
-          <HistoryIcon className="size-4 text-grid-muted" />
+        <h2 id="audit-retention" className="font-medium tracking-tight text-foreground flex items-center gap-2 text-lg">
+          <HistoryIcon className="size-4 text-muted-foreground" />
           {t("audit.retentionTitle")}
         </h2>
-        <p className="grid-body text-sm">
+        <p className="leading-relaxed text-nq-fg-body text-sm">
           {days ? t("audit.retentionHint", { days: formatNumber(days) }) : "…"}
         </p>
       </div>

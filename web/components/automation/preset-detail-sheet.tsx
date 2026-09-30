@@ -24,7 +24,7 @@ import {
   PlusIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { AddPresetDialog } from "@/components/automation/preset-add-dialog"
 import { BrandIcon } from "@/components/automation/brand-icon"
@@ -108,11 +108,11 @@ export function PresetDetailSheet({
             <BrandIcon brand={brand} size={44} />
             <div className="min-w-0 flex-1">
               <SheetTitle>{plain.name}</SheetTitle>
-              <p className="text-xs text-grid-muted">{brand.name}</p>
+              <p className="text-xs text-muted-foreground">{brand.name}</p>
             </div>
           </SheetHeader>
           <div className="flex-1 space-y-4 overflow-y-auto px-4">
-            {plain.summary ? <p className="text-sm text-grid-body">{plain.summary}</p> : null}
+            {plain.summary ? <p className="text-sm text-nq-fg-body">{plain.summary}</p> : null}
             <div className="flex flex-wrap items-center gap-1.5">
               {p.writes ? <Badge variant="secondary">{t("presets.publishes")}</Badge> : null}
               {p.dry_run_of ? <Badge variant="outline">{t("presets.rehearsal")}</Badge> : null}
@@ -124,7 +124,7 @@ export function PresetDetailSheet({
               ) : null}
             </div>
             <p
-              className="flex items-start gap-1 text-xs text-grid-muted"
+              className="flex items-start gap-1 text-xs text-muted-foreground"
               data-preset-hosts={p.hosts.join(",")}
             >
               <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
@@ -136,19 +136,19 @@ export function PresetDetailSheet({
             </p>
             <Collapsible data-preset-technical>
               <CollapsibleTrigger
-                className="group flex items-center gap-1 text-xs text-grid-muted underline-offset-2 hover:underline"
+                className="group flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
                 data-technical-toggle
               >
                 <ChevronDownIcon className="size-3 transition-transform group-aria-expanded:rotate-180" />
                 {t("presets.technical")}
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 space-y-1 border-s-2 border-line ps-3" dir="ltr">
-                <p className="text-xs font-medium text-grid-fg">
-                  {p.name} <span className="font-mono font-normal text-grid-muted">({p.slug})</span>
+              <CollapsibleContent className="mt-2 space-y-1 border-s-2 border-nq-line ps-3" dir="ltr">
+                <p className="text-xs font-medium text-foreground">
+                  {p.name} <span className="font-mono font-normal text-muted-foreground">({p.slug})</span>
                 </p>
-                <p className="text-xs text-grid-muted">{p.description}</p>
+                <p className="text-xs text-muted-foreground">{p.description}</p>
                 {p.inputs.length > 0 ? (
-                  <p className="text-xs text-grid-muted" data-preset-inputs>
+                  <p className="text-xs text-muted-foreground" data-preset-inputs>
                     {t("presets.asksFor", {
                       names: p.inputs.map((i) => (i.required ? `${i.name}*` : i.name)).join(", "),
                     })}
@@ -157,7 +157,7 @@ export function PresetDetailSheet({
               </CollapsibleContent>
             </Collapsible>
           </div>
-          <SheetFooter className="flex-row justify-end gap-2 border-t border-line">
+          <SheetFooter className="flex-row justify-end gap-2 border-t border-nq-line">
             {p.workflow_id ? (
               <Button
                 nativeButton={false}

@@ -76,7 +76,7 @@ export function CampaignPreview({
       data-campaign-preview={data ? `${data.channel}:${data.locale}` : ""}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm text-grid-muted">{t("campaigns.previewLanguage")}</span>
+        <span className="text-sm text-muted-foreground">{t("campaigns.previewLanguage")}</span>
         <ToggleGroup
           variant="outline"
           size="sm"
@@ -95,35 +95,35 @@ export function CampaignPreview({
             {t("lang.ar")}
           </ToggleGroupItem>
         </ToggleGroup>
-        <span className="text-xs text-grid-muted">
+        <span className="text-xs text-muted-foreground">
           {wa ? t("campaigns.previewWhatsAppHint") : t("campaigns.previewEmailHint")}
         </span>
       </div>
 
       {err ? (
-        <p className="text-sm text-grid-danger-text" role="alert">
+        <p className="text-sm text-nq-danger-text" role="alert">
           {err}
         </p>
       ) : !body.trim() ? (
-        <p className="border border-dashed border-line px-4 py-8 text-center text-sm text-grid-muted">
+        <p className="border border-dashed border-nq-line px-4 py-8 text-center text-sm text-muted-foreground">
           {t("campaigns.previewEmpty")}
         </p>
       ) : !data ? (
-        <p className="px-4 py-8 text-center text-sm text-grid-muted">{t("common.working")}</p>
+        <p className="px-4 py-8 text-center text-sm text-muted-foreground">{t("common.working")}</p>
       ) : data.channel === "whatsapp" ? (
-        <div className="border border-line bg-grid-soft px-4 py-6" data-whatsapp-preview>
+        <div className="border border-nq-line bg-nq-surface-soft px-4 py-6" data-whatsapp-preview>
           <div
             dir={data.dir}
-            className="max-w-sm whitespace-pre-wrap rounded-lg rounded-ss-none border border-line bg-grid-card px-3 py-2 text-sm text-foreground shadow-sm [overflow-wrap:anywhere]"
+            className="max-w-sm whitespace-pre-wrap rounded-lg rounded-ss-none border border-nq-line bg-card px-3 py-2 text-sm text-foreground shadow-sm [overflow-wrap:anywhere]"
             data-whatsapp-bubble
           >
             {data.text}
           </div>
         </div>
       ) : (
-        <div className="flex flex-col border border-line">
-          <div className="border-b border-line px-3 py-2 text-sm" dir={data.dir}>
-            <span className="text-grid-muted">{t("campaigns.subject")}: </span>
+        <div className="flex flex-col border border-nq-line">
+          <div className="border-b border-nq-line px-3 py-2 text-sm" dir={data.dir}>
+            <span className="text-muted-foreground">{t("campaigns.subject")}: </span>
             <span className="font-medium" data-preview-subject>
               {data.subject}
             </span>

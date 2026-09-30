@@ -12,11 +12,11 @@ export function WhatsAppMissing() {
   const ws = useWorkspace()
   return (
     <p
-      className="flex items-start gap-2 text-sm text-grid-muted"
+      className="flex items-start gap-2 text-sm text-muted-foreground"
       role="status"
       data-whatsapp-missing
     >
-      <MessageCircleWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+      <MessageCircleWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
       {ws.can("inbox:manage") ? (
         <span>
           {t("campaigns.whatsappMissing")}{" "}

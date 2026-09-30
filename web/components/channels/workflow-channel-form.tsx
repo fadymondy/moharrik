@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
@@ -140,7 +140,7 @@ export function WorkflowChannelForm({
           <Field>
             <FieldLabel htmlFor="wfc-workflow">
               {t("channels.workflow.pickWorkflow")}{" "}
-              <span className="text-grid-muted">({t("common.optional")})</span>
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Select
               items={workflowItems}

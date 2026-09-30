@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { PencilIcon, PlusIcon, SparklesIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -62,7 +62,7 @@ export default function EmailTemplatesPage() {
         }
       />
       {!canManage ? (
-        <p className="px-6 pb-4 text-sm text-grid-muted">{t("inbox.emailTemplates.readOnly")}</p>
+        <p className="px-6 pb-4 text-sm text-muted-foreground">{t("inbox.emailTemplates.readOnly")}</p>
       ) : null}
 
       {templates.error ? (
@@ -75,7 +75,7 @@ export default function EmailTemplatesPage() {
           body={canManage ? t("inbox.emailTemplates.emptyBody") : undefined}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line" data-email-template-list>
+        <ul className="divide-y divide-nq-line border-y border-nq-line" data-email-template-list>
           {list.map((tpl) => (
             <EmailTemplateRow
               key={tpl.id}
@@ -193,18 +193,18 @@ function Variant({
   const { t } = useTranslations()
   return (
     <div className="min-w-0 space-y-1" data-email-template-variant={lang}>
-      <p className="grid-micro">{label}</p>
+      <p className="eyebrow">{label}</p>
       {text || subject ? (
         <div
           dir={dir}
           lang={lang}
-          className="space-y-1 rounded-md border border-line bg-grid-card px-3 py-2 text-sm"
+          className="space-y-1 rounded-md border border-nq-line bg-card px-3 py-2 text-sm"
         >
           {subject ? <p className="font-medium">{subject}</p> : null}
-          {text ? <p className="break-words whitespace-pre-wrap text-grid-muted">{text}</p> : null}
+          {text ? <p className="break-words whitespace-pre-wrap text-muted-foreground">{text}</p> : null}
         </div>
       ) : (
-        <p className="text-sm text-grid-muted">
+        <p className="text-sm text-muted-foreground">
           {t("inbox.emailTemplates.missing", { language: t(`inbox.canned.language.${lang}`) })}
         </p>
       )}
@@ -342,7 +342,7 @@ function EmailTemplateForm({
             />
           </Field>
         </div>
-        <p className="text-xs text-grid-muted">{t("inbox.emailTemplates.placeholdersHint")}</p>
+        <p className="text-xs text-muted-foreground">{t("inbox.emailTemplates.placeholdersHint")}</p>
       </FieldGroup>
 
       {template ? (
@@ -353,12 +353,12 @@ function EmailTemplateForm({
           </Button>
           {preview ? (
             <div
-              className="space-y-1 rounded-md border border-line bg-grid-card px-3 py-2 text-sm"
+              className="space-y-1 rounded-md border border-nq-line bg-card px-3 py-2 text-sm"
               dir="auto"
               data-email-template-preview
             >
               <p className="font-medium">{preview.subject}</p>
-              <p className="break-words whitespace-pre-wrap text-grid-muted">{preview.body}</p>
+              <p className="break-words whitespace-pre-wrap text-muted-foreground">{preview.body}</p>
             </div>
           ) : null}
         </div>

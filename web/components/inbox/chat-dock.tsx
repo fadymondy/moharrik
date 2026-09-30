@@ -10,7 +10,7 @@ import {
   SearchIcon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { useMemberNames } from "@/components/crm/shared"
 import { hrefFor } from "@/components/alerts/notification-bell"
@@ -158,7 +158,7 @@ function DockList({ items, onOpen }: { items: BellItem[]; onOpen: (id: string) =
   return (
     <div className="flex max-h-96 w-72 flex-col gap-2" data-dock-list>
       <div className="relative">
-        <SearchIcon className="absolute top-1/2 start-2 size-3.5 -translate-y-1/2 text-grid-muted" />
+        <SearchIcon className="absolute top-1/2 start-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -171,11 +171,11 @@ function DockList({ items, onOpen }: { items: BellItem[]; onOpen: (id: string) =
       <ScrollArea className="-mx-2.5 h-72">
         {filtered.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center gap-2 px-6 text-center">
-            <MessageCircleIcon className="size-8 text-grid-muted/50" />
-            <p className="text-sm text-grid-muted">{t("inbox.launcher.empty")}</p>
+            <MessageCircleIcon className="size-8 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">{t("inbox.launcher.empty")}</p>
           </div>
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-nq-line">
             {filtered.map((item) => {
               const name = item.title || t("alerts.visitor")
               return (
@@ -183,7 +183,7 @@ function DockList({ items, onOpen }: { items: BellItem[]; onOpen: (id: string) =
                   <button
                     type="button"
                     onClick={() => onOpen(item.id)}
-                    className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-start transition-colors hover:bg-grid-soft"
+                    className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-start transition-colors hover:bg-nq-surface-soft"
                   >
                     <PersonAvatar id={item.id} name={name} photoUrl={item.avatar_url} className="size-9 shrink-0" />
                     <div className="min-w-0 flex-1">
@@ -191,17 +191,17 @@ function DockList({ items, onOpen }: { items: BellItem[]; onOpen: (id: string) =
                         <BdiBlock className="truncate text-sm font-medium">{name}</BdiBlock>
                         {item.unread ? (
                           <span
-                            className="size-2 shrink-0 rounded-full bg-grid-action"
+                            className="size-2 shrink-0 rounded-full bg-nq-action"
                             aria-label={t("inbox.unread")}
                           />
                         ) : null}
                       </span>
                       {item.snippet ? (
-                        <BdiBlock className="mt-0.5 block truncate text-xs text-grid-muted">
+                        <BdiBlock className="mt-0.5 block truncate text-xs text-muted-foreground">
                           {item.snippet}
                         </BdiBlock>
                       ) : null}
-                      <p className="mt-1 text-xs text-grid-muted">{relative(item.at)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{relative(item.at)}</p>
                     </div>
                   </button>
                 </li>
@@ -311,7 +311,7 @@ function DockThread({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center justify-end gap-1 border-b border-line px-2 py-1" data-dock-thread-actions>
+      <div className="flex shrink-0 items-center justify-end gap-1 border-b border-nq-line px-2 py-1" data-dock-thread-actions>
         <Button
           type="button"
           variant="ghost"
@@ -415,7 +415,7 @@ function DockWindowHeader({
   const { t } = useTranslations()
   const name = item?.title || t("alerts.visitor")
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line px-3" data-dock-window-header>
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-nq-line px-3" data-dock-window-header>
       <Link
         href={hrefFor({ kind: "conversation", id }, locale, slug)}
         className="flex min-w-0 flex-1 items-center gap-2 text-start"
@@ -434,7 +434,7 @@ function DockWindowHeader({
           ) : null}
         </span>
         {item?.unread ? (
-          <span className="size-2 shrink-0 rounded-full bg-grid-action" aria-label={t("inbox.unread")} />
+          <span className="size-2 shrink-0 rounded-full bg-nq-action" aria-label={t("inbox.unread")} />
         ) : null}
       </Link>
       <Button
@@ -560,7 +560,7 @@ export function ChatDock({
     <>
       {mobileEntry ? (
         <div
-          className="fixed inset-x-0 bottom-14 top-14 z-40 flex flex-col overflow-hidden rounded-t-xl border border-line bg-grid-card shadow-xl"
+          className="fixed inset-x-0 bottom-14 top-14 z-40 flex flex-col overflow-hidden rounded-t-xl border border-nq-line bg-card shadow-xl"
           data-dock-window
           data-dock-sheet
           data-dock-id={mobileEntry.id}
@@ -605,7 +605,7 @@ export function ChatDock({
               <PersonAvatar id={d.id} name={name} photoUrl={item?.avatar_url} className="size-10" />
               {item?.unread ? (
                 <span
-                  className="pointer-events-none absolute -top-0.5 -end-0.5 size-2.5 rounded-full bg-grid-action ring-2 ring-background"
+                  className="pointer-events-none absolute -top-0.5 -end-0.5 size-2.5 rounded-full bg-nq-action ring-2 ring-background"
                   aria-hidden
                 />
               ) : null}
@@ -619,7 +619,7 @@ export function ChatDock({
           return (
             <div
               key={d.id}
-              className="pointer-events-auto flex h-11 max-w-48 shrink-0 items-center gap-1 rounded-t-lg border border-b-0 border-line bg-grid-elevated px-2 shadow-md"
+              className="pointer-events-auto flex h-11 max-w-48 shrink-0 items-center gap-1 rounded-t-lg border border-b-0 border-nq-line bg-nq-surface-overlay px-2 shadow-md"
               data-dock-minimized={d.id}
             >
               <button
@@ -630,7 +630,7 @@ export function ChatDock({
                 <PersonAvatar id={d.id} name={name} photoUrl={item?.avatar_url} size="sm" className="size-6" />
                 <BdiBlock className="min-w-0 truncate text-xs font-medium">{name}</BdiBlock>
                 {item?.unread ? (
-                  <span className="size-2 shrink-0 rounded-full bg-grid-action" aria-label={t("inbox.unread")} />
+                  <span className="size-2 shrink-0 rounded-full bg-nq-action" aria-label={t("inbox.unread")} />
                 ) : null}
               </button>
               <Button
@@ -650,7 +650,7 @@ export function ChatDock({
         {desktopVisible.map((d) => (
           <div
             key={d.id}
-            className="pointer-events-auto flex h-[28rem] w-80 max-w-[calc(100vw-2rem)] shrink-0 flex-col overflow-hidden rounded-t-lg border border-line bg-grid-card shadow-xl"
+            className="pointer-events-auto flex h-[28rem] w-80 max-w-[calc(100vw-2rem)] shrink-0 flex-col overflow-hidden rounded-t-lg border border-nq-line bg-card shadow-xl"
             data-dock-window
             data-dock-id={d.id}
           >

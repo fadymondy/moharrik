@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { Button } from "@/components/ui/button"
@@ -117,7 +117,7 @@ export function DiscordChannelForm({
           <Field>
             <FieldLabel htmlFor="dc-token">
               {t("channels.discord.botToken")}
-              {channel ? <span className="text-grid-muted"> ({t("common.optional")})</span> : null}
+              {channel ? <span className="text-muted-foreground"> ({t("common.optional")})</span> : null}
             </FieldLabel>
             <Input
               id="dc-token"
@@ -131,7 +131,7 @@ export function DiscordChannelForm({
           <Field>
             <FieldLabel htmlFor="dc-pubkey">
               {t("channels.discord.publicKey")}{" "}
-              <span className="text-grid-muted">({t("common.optional")})</span>
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="dc-pubkey"

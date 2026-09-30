@@ -4397,5 +4397,7 @@
   "manage.deleteConfirmBody": "تُحذف كل جهات الاتصال والمحادثات والحملات والإعدادات فيها لجميع الأعضاء، ويُفصل رقم واتساب الخاص بها. لا يوجد تراجع.",
   "manage.deleteType": "للتأكيد، اكتب",
   "manage.deleteForever": "حذف نهائي",
-  "manage.deleted": "تم حذف {name}"
+  "manage.deleted": "تم حذف {name}",
+  "shell.search": "ابحث…",
+  "shell.resizeSidebar": "تغيير عرض الشريط الجانبي"
 }

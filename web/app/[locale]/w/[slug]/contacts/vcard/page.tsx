@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { RefreshCwIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
 import { useRef, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
@@ -99,10 +99,10 @@ function NeedsCountryBanner({ count, settingsHref }: { count: number; settingsHr
   if (count <= 0) return null
   return (
     <p
-      className="mb-4 flex items-start gap-2 rounded-lg border border-grid-warn/40 bg-grid-warn/10 p-3 text-sm"
+      className="mb-4 flex items-start gap-2 rounded-lg border border-nq-warning/40 bg-nq-warning/10 p-3 text-sm"
       data-testid="needs-country-banner"
     >
-      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
       <span>
         {t("vcard.needsCountry", { count })}{" "}
         <Link className="underline underline-offset-4" href={settingsHref}>
@@ -240,7 +240,7 @@ export default function VcardPage() {
 
       <div className="px-6 pb-4">
         <div
-          className="mb-6 flex flex-wrap items-center gap-4 border-b border-line pb-6"
+          className="mb-6 flex flex-wrap items-center gap-4 border-b border-nq-line pb-6"
           hidden={!canExport && !canWrite}
         >
           {canExport ? (
@@ -345,7 +345,7 @@ export default function VcardPage() {
               <UploadIcon />
               {t("vcard.chooseFile")}
             </Button>
-            <span className="min-w-0 truncate text-sm text-grid-muted" data-vcard-file-name>
+            <span className="min-w-0 truncate text-sm text-muted-foreground" data-vcard-file-name>
               {fileName ?? t("vcard.noFile")}
             </span>
           </div>
@@ -398,7 +398,7 @@ export default function VcardPage() {
 
         {result ? (
           <div
-            className="mb-6 rounded-lg border border-line p-4 text-sm"
+            className="mb-6 rounded-lg border border-nq-line p-4 text-sm"
             data-testid="vcard-commit-result"
           >
             {t("vcard.commitDone", { created: result.created_count, merged: result.merged_count })}
@@ -421,8 +421,8 @@ export default function VcardPage() {
           preview.rows.length === 0 ? (
             <EmptyState title={t("vcard.empty")} body={t("vcard.emptyBody")} />
           ) : (
-            <div className="border-y border-line" data-testid="vcard-preview-table">
-              <div className="flex flex-wrap gap-4 py-4 text-sm text-grid-muted">
+            <div className="border-y border-nq-line" data-testid="vcard-preview-table">
+              <div className="flex flex-wrap gap-4 py-4 text-sm text-muted-foreground">
                 <span data-testid="vcard-new-count">
                   {t("vcard.newCount", { count: preview.new_count })}
                 </span>
@@ -448,8 +448,8 @@ export default function VcardPage() {
                       <TableCell className="ps-6">
                         <Bdi>{row.name || t("vcard.noName")}</Bdi>
                       </TableCell>
-                      <TableCell className="text-grid-muted">{row.phones.join(", ")}</TableCell>
-                      <TableCell className="text-grid-muted">{row.emails.join(", ")}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.phones.join(", ")}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.emails.join(", ")}</TableCell>
                       <TableCell className="pe-6">
                         <Badge variant={statusVariant[row.status]} data-vcard-status={row.status}>
                           {row.status === "invalid"
@@ -504,14 +504,14 @@ function GoogleContactsPanel() {
   }
 
   return (
-    <div className="mb-6 border-y border-line py-4" data-testid="google-contacts-panel">
+    <div className="mb-6 border-y border-nq-line py-4" data-testid="google-contacts-panel">
       <h2 className="text-base font-medium">{t("vcard.google.title")}</h2>
-      <p className="mt-1 max-w-3xl text-sm text-grid-muted">{t("vcard.google.hint")}</p>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("vcard.google.hint")}</p>
 
       {canManage ? (
         admin.data && !admin.data.configured ? (
           <p
-            className="mt-3 text-sm text-grid-danger-text"
+            className="mt-3 text-sm text-nq-danger-text"
             data-testid="google-contacts-not-configured"
           >
             {t("vcard.google.notConfigured")}
@@ -537,11 +537,11 @@ function GoogleContactsPanel() {
           <LoadingRows rows={1} />
         )
       ) : list.length === 0 ? (
-        <p className="mt-3 text-sm text-grid-muted" data-testid="google-contacts-empty">
+        <p className="mt-3 text-sm text-muted-foreground" data-testid="google-contacts-empty">
           {canManage ? t("vcard.google.none") : t("vcard.google.adminOnly")}
         </p>
       ) : (
-        <ul className="mt-4 divide-y divide-line border-y border-line">
+        <ul className="mt-4 divide-y divide-nq-line border-y border-nq-line">
           {list.map((c) => (
             <GoogleContactsConnectionRow
               key={c.id}
@@ -630,7 +630,7 @@ function GoogleContactsConnectionRow({
         <p className="text-sm font-medium">
           <Ltr>{c.email || "—"}</Ltr>
         </p>
-        <p className="mt-1 text-xs text-grid-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           {reauth ? (
             <Badge variant="destructive">{t("vcard.google.statusReauth")}</Badge>
           ) : status.data?.last_synced_at ? (
@@ -642,12 +642,12 @@ function GoogleContactsConnectionRow({
           )}
         </p>
         {status.data?.last_error ? (
-          <p className="mt-1 text-xs text-grid-danger-text">
+          <p className="mt-1 text-xs text-nq-danger-text">
             {t("vcard.google.lastError", { error: status.data.last_error })}
           </p>
         ) : null}
         {result ? (
-          <p className="mt-1 text-xs text-grid-muted" data-testid="google-contacts-sync-result">
+          <p className="mt-1 text-xs text-muted-foreground" data-testid="google-contacts-sync-result">
             {t("vcard.google.syncResult", {
               added: result.added,
               updated: result.updated,

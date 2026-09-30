@@ -37,7 +37,7 @@ export function ConfirmButton({
       <Button
         variant="ghost"
         size="sm"
-        className="text-grid-danger-text"
+        className="text-nq-danger-text"
         onClick={() => setOpen(true)}
       >
         {label}

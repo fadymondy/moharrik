@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { MailWarningIcon, PencilIcon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import {
   AlertDialog,
@@ -89,11 +89,11 @@ export default function CampaignsPage() {
 
       {campaigns.data && !smtpReady ? (
         <p
-          className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted"
+          className="flex items-start gap-2 px-6 pb-4 text-sm text-muted-foreground"
           role="status"
           data-smtp-missing
         >
-          <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+          <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
           {isAdmin ? (
             <span>
               {t("campaigns.smtpMissing")}{" "}
@@ -168,7 +168,7 @@ export default function CampaignsPage() {
         />
       ) : null}
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
       {canWrite ? (
         <NewCampaign
           lists={lists.data?.lists ?? []}
@@ -178,7 +178,7 @@ export default function CampaignsPage() {
           onCreated={() => campaigns.mutate()}
         />
       ) : ws.current ? (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("campaigns.readOnly")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("campaigns.readOnly")}</p>
       ) : null}
     </>
   )
@@ -204,7 +204,7 @@ function NewCampaign({
     <section className="px-6 py-6 pb-10">
       <h2 className="text-base font-medium">{t("campaigns.newTitle")}</h2>
       {lists.length === 0 ? (
-        <p className="mt-2 text-sm text-grid-muted">
+        <p className="mt-2 text-sm text-muted-foreground">
           <Link className="underline underline-offset-4" href={`/${locale}/w/${ws.slug}/contacts`}>
             {t("campaigns.needList")}
           </Link>
@@ -273,7 +273,7 @@ function EditCampaignSheet({
               onCancel={onClose}
             />
           ) : campaign ? (
-            <p className="text-sm text-grid-muted" role="status" data-edit-locked={campaign.status}>
+            <p className="text-sm text-muted-foreground" role="status" data-edit-locked={campaign.status}>
               {t("campaigns.editLocked", { status: t(`campaigns.status.${campaign.status}`) })}
             </p>
           ) : null}
@@ -321,7 +321,7 @@ function CampaignTable({
   }
 
   return (
-    <div className="border-y border-line">
+    <div className="border-y border-nq-line">
       <Table>
         <TableHeader>
           <TableRow>
@@ -349,7 +349,7 @@ function CampaignTable({
                   </div>
                   {c.last_error ? (
                     <div
-                      className="max-w-md truncate text-xs text-grid-danger-text"
+                      className="max-w-md truncate text-xs text-nq-danger-text"
                       title={c.last_error}
                     >
                       {t("campaigns.lastError", { error: c.last_error })}
@@ -362,7 +362,7 @@ function CampaignTable({
                   </Badge>
                   {c.audience_locale ? (
                     <div
-                      className="mt-1 text-xs text-grid-muted"
+                      className="mt-1 text-xs text-muted-foreground"
                       data-campaign-audience={c.audience_locale}
                     >
                       {t(`campaigns.audienceOnly.${c.audience_locale}`)}
@@ -370,7 +370,7 @@ function CampaignTable({
                   ) : null}
                   {!wa && c.smtp_service_name ? (
                     <div
-                      className="mt-1 text-xs text-grid-muted"
+                      className="mt-1 text-xs text-muted-foreground"
                       data-campaign-service={c.smtp_service_name}
                     >
                       {t("campaigns.via", { name: isolate(c.smtp_service_name) })}
@@ -385,7 +385,7 @@ function CampaignTable({
                     {t(`campaigns.status.${c.status}`)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-grid-muted">
+                <TableCell className="text-muted-foreground">
                   <Ltr>
                     {c.status === "draft"
                       ? "—"
@@ -393,14 +393,14 @@ function CampaignTable({
                   </Ltr>
                   {!wa && c.skipped_count > 0 ? (
                     <div
-                      className="text-xs text-grid-warn-text"
+                      className="text-xs text-nq-warning-text"
                       data-campaign-skipped={c.skipped_count}
                     >
                       {t("campaigns.skippedNoEmail", { count: c.skipped_count })}
                     </div>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-grid-muted">
+                <TableCell className="text-muted-foreground">
                   <Ltr>{formatDate(c.sent_at ?? c.created_at)}</Ltr>
                 </TableCell>
                 <TableCell className="pe-6 text-end whitespace-nowrap">
@@ -414,7 +414,7 @@ function CampaignTable({
                         {t("campaigns.whatsappLinkToSend")}
                       </Link>
                     ) : (
-                      <span className="me-2 text-xs text-grid-muted" data-send-blocked="whatsapp">
+                      <span className="me-2 text-xs text-muted-foreground" data-send-blocked="whatsapp">
                         {t("campaigns.whatsappNotLinkedShort")}
                       </span>
                     )
@@ -543,7 +543,7 @@ function SendButton({
                     })}
             </AlertDialogDescription>
             {tooLarge ? (
-              <p className="text-sm text-grid-danger-text" role="alert" data-send-too-large>
+              <p className="text-sm text-nq-danger-text" role="alert" data-send-too-large>
                 {t("campaigns.audienceTooLarge", {
                   count: formatNumber(audience ?? 0),
                   max: formatNumber(maxAudience),

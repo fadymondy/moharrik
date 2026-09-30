@@ -132,9 +132,9 @@ type InsertEdgeData = { index: number; items: number | null; state: string }
 
 const CATEGORY_TONE: Record<Category, string> = {
   browser: "text-primary",
-  interact: "text-grid-brand-accent",
-  wait: "text-grid-warn",
-  data: "text-grid-ok",
+  interact: "text-nq-accent",
+  wait: "text-nq-warning",
+  data: "text-nq-success",
 }
 
 const statusOf = (state?: NodeRun["state"]): NodeStatus | undefined =>
@@ -160,7 +160,7 @@ function StateBadge({ state }: { state?: NodeRun["state"] }) {
   if (state === "ok")
     return (
       <span
-        className="absolute -end-2 -bottom-2 flex size-6 items-center justify-center rounded-full bg-grid-ok text-background shadow-sm"
+        className="absolute -end-2 -bottom-2 flex size-6 items-center justify-center rounded-full bg-nq-success text-background shadow-sm"
         data-node-badge="ok"
       >
         <CheckIcon className="size-3.5" strokeWidth={3} />
@@ -169,7 +169,7 @@ function StateBadge({ state }: { state?: NodeRun["state"] }) {
   if (state === "failed")
     return (
       <span
-        className="absolute -end-2 -bottom-2 flex size-6 items-center justify-center rounded-full bg-grid-danger text-background shadow-sm"
+        className="absolute -end-2 -bottom-2 flex size-6 items-center justify-center rounded-full bg-nq-danger text-background shadow-sm"
         data-node-badge="failed"
       >
         <XIcon className="size-3.5" strokeWidth={3} />
@@ -178,7 +178,7 @@ function StateBadge({ state }: { state?: NodeRun["state"] }) {
   if (state === "running")
     return (
       <span
-        className="absolute -end-2 -bottom-2 flex size-6 items-center justify-center rounded-full border border-line bg-grid-card text-primary shadow-sm"
+        className="absolute -end-2 -bottom-2 flex size-6 items-center justify-center rounded-full border border-nq-line bg-card text-primary shadow-sm"
         data-node-badge="running"
       >
         <LoaderCircleIcon className="size-3.5 animate-spin" />
@@ -207,12 +207,12 @@ const TriggerNode = memo(function TriggerNode({ data }: NodeProps<Node<TriggerDa
           style={{ width: NODE_SIZE, height: NODE_SIZE }}
           aria-label={data.title}
         >
-          <ZapIcon className="size-9 text-grid-gold" />
+          <ZapIcon className="size-9 text-nq-accent" />
           <Handle
             type="source"
             position={h.source}
             isConnectable={false}
-            className="!size-3 !border-grid-muted !bg-grid-card"
+            className="!size-3 !border-nq-fg-muted !bg-card"
           />
           <StateBadge state={c.triggerState} />
         </BaseNode>
@@ -268,7 +268,7 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
       {!c.readOnly ? (
         <NodeToolbar isVisible={hover || selected} position={Position.Top} offset={6}>
           <div
-            className="flex items-center gap-0.5 rounded-md border border-line bg-grid-card p-0.5 shadow-sm"
+            className="flex items-center gap-0.5 rounded-md border border-nq-line bg-card p-0.5 shadow-sm"
             dir={dir}
           >
             {c.onRunTo ? (
@@ -316,7 +316,7 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
             <Button
               variant="ghost"
               size="icon-xs"
-              className="text-grid-danger-text"
+              className="text-nq-danger-text"
               onClick={() => c.onDelete?.(index)}
               title={t("canvas.delete")}
               aria-label={t("canvas.delete")}
@@ -340,24 +340,24 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
             className={cn(
               "size-9",
               CATEGORY_TONE[spec.category],
-              kind === "unknown" && "text-grid-danger-text",
+              kind === "unknown" && "text-nq-danger-text",
             )}
           />
           <Handle
             type="target"
             position={h.target}
             isConnectable={false}
-            className="!size-3 !border-grid-muted !bg-grid-card"
+            className="!size-3 !border-nq-fg-muted !bg-card"
           />
           <Handle
             type="source"
             position={h.source}
             isConnectable={false}
-            className="!size-3 !border-grid-muted !bg-grid-card"
+            className="!size-3 !border-nq-fg-muted !bg-card"
           />
           {missing && !run ? (
             <span
-              className="absolute -end-2 -top-2 flex size-6 items-center justify-center rounded-full border border-line bg-grid-card text-grid-warn-text"
+              className="absolute -end-2 -top-2 flex size-6 items-center justify-center rounded-full border border-nq-line bg-card text-nq-warning-text"
               title={t("canvas.needsField", { field: t(`automation.field.${missing}`) })}
               data-node-missing={missing}
             >
@@ -365,7 +365,7 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
             </span>
           ) : null}
           {step.continue_on_error ? (
-            <span className="absolute start-1.5 top-1 text-[10px] font-medium text-grid-muted">
+            <span className="absolute start-1.5 top-1 text-[10px] font-medium text-muted-foreground">
               {t("canvas.continues")}
             </span>
           ) : null}
@@ -387,7 +387,7 @@ const AddNode = memo(function AddNode({ data }: NodeProps<Node<AddData>>) {
       <button
         type="button"
         onClick={() => c.onInsert?.(data.index)}
-        className="flex size-14 items-center justify-center rounded-lg border-2 border-dashed border-grid-muted/60 bg-grid-card text-grid-muted transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
+        className="flex size-14 items-center justify-center rounded-lg border-2 border-dashed border-nq-fg-muted/60 bg-card text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
         aria-label={c.count === 0 ? t("canvas.addFirst") : t("canvas.addStep")}
         data-add-end
       >
@@ -395,7 +395,7 @@ const AddNode = memo(function AddNode({ data }: NodeProps<Node<AddData>>) {
         <Handle type="target" position={h.target} isConnectable={false} className="!opacity-0" />
       </button>
       {c.count === 0 ? (
-        <p className="absolute top-full left-1/2 mt-2 w-40 -translate-x-1/2 text-center text-xs text-grid-muted">
+        <p className="absolute top-full left-1/2 mt-2 w-40 -translate-x-1/2 text-center text-xs text-muted-foreground">
           {t("canvas.addFirst")}
         </p>
       ) : null}
@@ -432,14 +432,14 @@ function NodeLabel({
       )}
       dir={dir}
     >
-      <p className="truncate text-sm font-medium text-grid-fg">{title}</p>
+      <p className="truncate text-sm font-medium text-foreground">{title}</p>
       {subtitle ? (
-        <p dir="ltr" className="truncate font-mono text-[11px] text-grid-muted">
+        <p dir="ltr" className="truncate font-mono text-[11px] text-muted-foreground">
           {subtitle}
         </p>
       ) : null}
       {note ? (
-        <p className="truncate text-[11px] text-grid-muted" data-trigger-sites>
+        <p className="truncate text-[11px] text-muted-foreground" data-trigger-sites>
           {note}
         </p>
       ) : null}
@@ -450,8 +450,8 @@ function NodeLabel({
 // ── edges ────────────────────────────────────────────────────────────────
 
 const EDGE_TONE: Record<string, string> = {
-  ok: "!stroke-grid-ok",
-  failed: "!stroke-grid-danger",
+  ok: "!stroke-nq-success",
+  failed: "!stroke-nq-danger",
   running: "!stroke-primary flow-edge-running",
 }
 
@@ -464,7 +464,7 @@ function InsertEdge(props: EdgeProps<Edge<InsertEdgeData>>) {
       <div className="flex flex-col items-center gap-1">
         {d.items != null ? (
           <span
-            className="rounded bg-grid-card px-1 text-[11px] whitespace-nowrap text-grid-muted"
+            className="rounded bg-card px-1 text-[11px] whitespace-nowrap text-muted-foreground"
             data-edge-items={d.items}
           >
             {t("canvas.items", { n: d.items })}
@@ -474,7 +474,7 @@ function InsertEdge(props: EdgeProps<Edge<InsertEdgeData>>) {
           <button
             type="button"
             onClick={() => c.onInsert?.(d.index)}
-            className="flex size-6 items-center justify-center rounded-md border border-line bg-grid-card text-grid-muted shadow-sm transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
+            className="flex size-6 items-center justify-center rounded-md border border-nq-line bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
             aria-label={t("canvas.insertHere", { n: d.index + 1 })}
             data-insert-at={d.index}
           >

@@ -96,9 +96,9 @@ export default function PresetsGalleryPage() {
         description={t("presets.hint")}
       />
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-6 py-4">
+      <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-6 py-4">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">
-          <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-grid-muted" />
+          <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -109,7 +109,7 @@ export default function PresetsGalleryPage() {
           />
         </div>
         {presets.data && needle ? (
-          <p className="text-sm text-grid-muted" data-preset-count={searchCount}>
+          <p className="text-sm text-muted-foreground" data-preset-count={searchCount}>
             {t("presets.count", { n: formatNumber(searchCount), total: formatNumber(list.length) })}
           </p>
         ) : null}
@@ -130,7 +130,7 @@ export default function PresetsGalleryPage() {
                 <h2 className="flex items-center gap-2 px-6 pb-2 text-base font-medium">
                   <BrandIcon brand={brand} size={24} />
                   {brand.name}
-                  <span className="text-sm font-normal text-grid-muted tabular-nums">
+                  <span className="text-sm font-normal text-muted-foreground tabular-nums">
                     {formatNumber(ps.length)}
                   </span>
                 </h2>

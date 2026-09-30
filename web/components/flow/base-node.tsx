@@ -12,8 +12,8 @@ export function BaseNode({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "relative rounded-md border border-line bg-grid-card text-grid-fg",
-        "transition-shadow hover:ring-1 hover:ring-grid-muted/40",
+        "relative rounded-md border border-nq-line bg-card text-foreground",
+        "transition-shadow hover:ring-1 hover:ring-nq-fg-muted/40",
         "in-[.selected]:border-primary in-[.selected]:ring-2 in-[.selected]:ring-primary/30",
         className,
       )}
@@ -62,7 +62,7 @@ export function BaseNodeFooter({ className, ...props }: ComponentProps<"div">) {
     <div
       data-slot="base-node-footer"
       className={cn(
-        "flex flex-col items-center gap-y-2 border-t border-line px-3 pt-2 pb-3",
+        "flex flex-col items-center gap-y-2 border-t border-nq-line px-3 pt-2 pb-3",
         className,
       )}
       {...props}

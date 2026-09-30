@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { MailIcon, MessageCircleIcon, MessageSquareIcon } from "lucide-react"
 
@@ -132,26 +132,26 @@ export function Timeline({
   return (
     <section data-timeline>
       <h2 className="px-6 pb-1 text-base font-medium">{t("timeline.title")}</h2>
-      <p className="px-6 pb-4 text-sm text-grid-muted">{t("timeline.hint")}</p>
+      <p className="px-6 pb-4 text-sm text-muted-foreground">{t("timeline.hint")}</p>
       {canWrite ? <Composer target={target} onAdded={onChange} /> : null}
       {open.length > 0 ? (
         <>
-          <p className="grid-micro px-6 pt-4 pb-2">{t("timeline.openTasks")}</p>
-          <ul className="divide-y divide-line border-y border-line" data-open-tasks>
+          <p className="eyebrow px-6 pt-4 pb-2">{t("timeline.openTasks")}</p>
+          <ul className="divide-y divide-nq-line border-y border-nq-line" data-open-tasks>
             {open.map((a) => (
               <Item key={a.id} a={a} target={target} onChange={onChange} />
             ))}
           </ul>
         </>
       ) : null}
-      <p className="grid-micro px-6 pt-4 pb-2">{t("timeline.history")}</p>
+      <p className="eyebrow px-6 pt-4 pb-2">{t("timeline.history")}</p>
       {history.length === 0 && !fresh.cursor ? (
         <EmptyState
           title={t("timeline.empty")}
           body={canWrite ? t("timeline.emptyBody") : undefined}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-nq-line border-y border-nq-line">
           {history.map((h) =>
             h.activity ? (
               <Item key={h.activity.id} a={h.activity} target={target} onChange={onChange} />
@@ -163,7 +163,7 @@ export function Timeline({
       )}
       {total > items.length ? (
         <div className="flex flex-wrap items-center gap-3 px-6 pt-4" data-timeline-more>
-          <span className="text-sm text-grid-muted" data-timeline-shown={`${all.length}/${total}`}>
+          <span className="text-sm text-muted-foreground" data-timeline-shown={`${all.length}/${total}`}>
             {t("timeline.showing", { shown: formatNumber(all.length), total: formatNumber(total) })}
           </span>
           {fresh.cursor ? (
@@ -338,20 +338,20 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
       {a.kind === "task" ? (
         <input
           type="checkbox"
-          className="mt-1 size-4 shrink-0 accent-[var(--color-grid-brand)]"
+          className="mt-1 size-4 shrink-0 accent-[var(--nq-brand)]"
           checked={!!a.done_at}
           disabled={!canWrite}
           onChange={toggle}
           aria-label={a.done_at ? t("timeline.markOpen") : t("timeline.markDone")}
         />
       ) : (
-        <span className="mt-0.5 text-grid-muted [&_svg]:size-4" aria-hidden>
+        <span className="mt-0.5 text-muted-foreground [&_svg]:size-4" aria-hidden>
           <ActivityIcon kind={a.kind} />
         </span>
       )}
       <div className="min-w-0 flex-1">
         <ActivityBody body={a.body} done={!!a.done_at} />
-        <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-grid-muted">
+        <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>{t(`activity.${a.kind}`)}</span>
           <span aria-hidden>·</span>
           <Ltr>{members.name(a.created_by)}</Ltr>
@@ -360,7 +360,7 @@ function Item({ a, target, onChange }: { a: Activity; target: Target; onChange: 
           {a.kind === "task" && a.due_at ? (
             <>
               <span aria-hidden>·</span>
-              <span className={overdue ? "text-grid-danger-text" : ""}>
+              <span className={overdue ? "text-nq-danger-text" : ""}>
                 {t("timeline.dueOn", { date: formatDate(a.due_at) })}
               </span>
             </>
@@ -409,7 +409,7 @@ function ConversationItem({ c, target }: { c: ConversationRef; target: Target })
 
   return (
     <li className="flex items-start gap-3 px-6 py-4" data-timeline-conversation={c.id}>
-      <span className="mt-0.5 text-grid-muted [&_svg]:size-4" aria-hidden>
+      <span className="mt-0.5 text-muted-foreground [&_svg]:size-4" aria-hidden>
         <Icon />
       </span>
       <div className="min-w-0 flex-1">
@@ -418,7 +418,7 @@ function ConversationItem({ c, target }: { c: ConversationRef; target: Target })
             {t("timeline.conversation")} · {t(`inbox.channel.${c.channel}`)}
           </span>
           {c.channel === "email" && c.subject ? (
-            <span className="text-grid-muted">
+            <span className="text-muted-foreground">
               {" · "}
               <Bdi>{c.subject}</Bdi>
             </span>
@@ -427,12 +427,12 @@ function ConversationItem({ c, target }: { c: ConversationRef; target: Target })
         {c.preview ? (
           <p
             dir="auto"
-            className="mt-0.5 line-clamp-2 text-start text-sm break-words text-grid-muted"
+            className="mt-0.5 line-clamp-2 text-start text-sm break-words text-muted-foreground"
           >
             {c.preview}
           </p>
         ) : null}
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <Badge
             variant={
               c.status === "open" ? "default" : c.status === "snoozed" ? "secondary" : "outline"
@@ -477,7 +477,7 @@ function ActivityBody({ body, done }: { body: string; done: boolean }) {
     <>
       <p
         dir="auto"
-        className={`text-start text-sm break-words whitespace-pre-wrap ${done ? "text-grid-muted line-through" : ""} ${long && !all ? "line-clamp-[12]" : ""}`}
+        className={`text-start text-sm break-words whitespace-pre-wrap ${done ? "text-muted-foreground line-through" : ""} ${long && !all ? "line-clamp-[12]" : ""}`}
       >
         {body}
       </p>

@@ -36,7 +36,7 @@ export function WorkspaceMark({
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden border border-line bg-grid-card font-medium text-grid-brand",
+        "flex shrink-0 items-center justify-center overflow-hidden border border-nq-line bg-card font-medium text-nq-brand",
         SIZES[size],
         className,
       )}

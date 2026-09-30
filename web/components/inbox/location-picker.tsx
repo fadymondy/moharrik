@@ -104,7 +104,7 @@ export function LocationPicker({
           <MapPinIcon />
           {locating ? t("inbox.composer.locationLocating") : t("inbox.composer.locationMine")}
         </Button>
-        <div className="my-2 border-t border-line" />
+        <div className="my-2 border-t border-nq-line" />
         <div className="flex gap-2">
           <Field className="flex-1">
             <FieldLabel htmlFor="location-lat">{t("inbox.composer.locationLat")}</FieldLabel>

@@ -99,7 +99,7 @@ function YouTube() {
         }
       />
       {!ws.can("analytics:read") ? (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("gdata.noAccess")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("gdata.noAccess")}</p>
       ) : enabled.error ? (
         <ErrorState error={enabled.error} />
       ) : !enabled.data ? (
@@ -113,11 +113,11 @@ function YouTube() {
       ) : !out.channel ? (
         out.resource?.syncing || (!out.resource?.last_error && !out.resource?.last_synced_at) ? (
           <div
-            className="flex items-center gap-3 border-y border-line bg-grid-card px-6 py-10 text-sm text-grid-body"
+            className="flex items-center gap-3 border-y border-nq-line bg-card px-6 py-10 text-sm text-nq-fg-body"
             role="status"
             data-yt-syncing
           >
-            <LoaderIcon className="size-4 animate-spin text-grid-muted" />
+            <LoaderIcon className="size-4 animate-spin text-muted-foreground" />
             {t("yt.firstSync")}
           </div>
         ) : (
@@ -153,7 +153,7 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
   const c = out.channel!
   const q = out.quota
   return (
-    <section className="border-y border-line" data-yt-channel>
+    <section className="border-y border-nq-line" data-yt-channel>
       <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           {c.avatar_url ? (
@@ -161,21 +161,21 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
             <img
               src={c.avatar_url}
               alt=""
-              className="size-14 shrink-0 rounded-full border border-line"
+              className="size-14 shrink-0 rounded-full border border-nq-line"
               referrerPolicy="no-referrer"
             />
           ) : null}
           <div className="min-w-0">
-            <p className="truncate text-lg font-medium text-grid-fg">
+            <p className="truncate text-lg font-medium text-foreground">
               <bdi>{c.title}</bdi>
             </p>
-            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-grid-muted">
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
               {c.handle ? <Ltr>{c.handle}</Ltr> : null}
               <a
                 href={c.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 hover:text-grid-fg"
+                className="inline-flex items-center gap-1 hover:text-foreground"
               >
                 {t("yt.openChannel")}
                 <ExternalLinkIcon className="size-3.5" />
@@ -186,25 +186,25 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
         </div>
         <dl className="grid grid-cols-3 gap-6 text-sm">
           <div data-yt-stat="subscribers">
-            <dt className="grid-micro">{t("yt.subscribers")}</dt>
-            <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">
+            <dt className="eyebrow">{t("yt.subscribers")}</dt>
+            <dd className="mt-1 text-xl font-medium text-foreground tabular-nums">
               {c.subscribers_hidden ? (
-                <span className="text-sm text-grid-muted">{t("yt.hidden")}</span>
+                <span className="text-sm text-muted-foreground">{t("yt.hidden")}</span>
               ) : (
                 f.n(c.subscribers)
               )}
             </dd>
           </div>
           <div data-yt-stat="views">
-            <dt className="grid-micro">{t("yt.lifetimeViews")}</dt>
-            <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">{f.n(c.views)}</dd>
+            <dt className="eyebrow">{t("yt.lifetimeViews")}</dt>
+            <dd className="mt-1 text-xl font-medium text-foreground tabular-nums">{f.n(c.views)}</dd>
           </div>
           <div data-yt-stat="videos">
-            <dt className="grid-micro">{t("yt.uploads")}</dt>
-            <dd className="mt-1 text-xl font-medium text-grid-fg tabular-nums">{f.n(c.uploads)}</dd>
+            <dt className="eyebrow">{t("yt.uploads")}</dt>
+            <dd className="mt-1 text-xl font-medium text-foreground tabular-nums">{f.n(c.uploads)}</dd>
             {c.videos !== c.public_uploads ? (
               <dd
-                className="mt-0.5 max-w-44 text-xs text-grid-muted"
+                className="mt-0.5 max-w-44 text-xs text-muted-foreground"
                 title={t("yt.countHint")}
                 data-yt-count-differs
               >
@@ -217,13 +217,13 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
       <Steps steps={c.steps ?? []} />
       {out.resource?.last_error ? (
         <p
-          className="border-t border-line px-6 py-2 text-xs break-words text-grid-danger-text"
+          className="border-t border-nq-line px-6 py-2 text-xs break-words text-nq-danger-text"
           data-last-error
         >
           <Ltr>{out.resource.last_error}</Ltr>
         </p>
       ) : null}
-      <p className="border-t border-line px-6 py-2 text-xs text-grid-muted" data-yt-quota>
+      <p className="border-t border-nq-line px-6 py-2 text-xs text-muted-foreground" data-yt-quota>
         {t("yt.quota", {
           used: f.n(q.workspace_used),
           limit: f.n(q.workspace_limit),
@@ -242,7 +242,7 @@ function Steps({ steps }: { steps: YtSyncStep[] }) {
   const bad = steps.filter((s) => s.state !== "ok")
   if (bad.length === 0) return null
   return (
-    <ul className="divide-y divide-line border-t border-line" data-yt-steps>
+    <ul className="divide-y divide-nq-line border-t border-nq-line" data-yt-steps>
       {bad.map((s) => (
         <li
           key={s.name}
@@ -253,21 +253,21 @@ function Steps({ steps }: { steps: YtSyncStep[] }) {
           <TriangleAlertIcon
             className={
               s.state === "failed"
-                ? "mt-0.5 size-3.5 shrink-0 text-grid-danger"
-                : "mt-0.5 size-3.5 shrink-0 text-grid-warn"
+                ? "mt-0.5 size-3.5 shrink-0 text-nq-danger"
+                : "mt-0.5 size-3.5 shrink-0 text-nq-warning"
             }
           />
           <p className="min-w-0 break-words">
-            <span className="font-medium text-grid-fg">
+            <span className="font-medium text-foreground">
               {t(`yt.step.${s.name}`)} · {t(`yt.stepState.${s.state}`)}
             </span>
             {s.error ? (
-              <span className="text-grid-muted">
+              <span className="text-muted-foreground">
                 {" — "}
                 <Ltr>{s.error}</Ltr>
               </span>
             ) : null}
-            <span className="ms-2 text-grid-muted" title={f.exact(s.at)}>
+            <span className="ms-2 text-muted-foreground" title={f.exact(s.at)}>
               {f.ago(s.at)}
             </span>
           </p>
@@ -321,7 +321,7 @@ function Videos({ resourceId, onOpen }: { resourceId: string; onOpen: (id: strin
           {PRIVACY.map((p) => (
             <ToggleGroupItem key={p} value={p} data-privacy={p}>
               {t(`yt.privacy.${p}`)}{" "}
-              <span className="text-grid-muted tabular-nums">
+              <span className="text-muted-foreground tabular-nums">
                 {first ? f.n(p === "all" ? first.total : (counts[p] ?? 0)) : ""}
               </span>
             </ToggleGroupItem>
@@ -342,7 +342,7 @@ function Videos({ resourceId, onOpen }: { resourceId: string; onOpen: (id: strin
           body={search || privacy !== "all" ? undefined : t("yt.noVideosBody")}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-nq-line border-y border-nq-line">
           {videos.map((v) => (
             <VideoRow key={v.id} v={v} onOpen={() => onOpen(v.id)} />
           ))}
@@ -369,7 +369,7 @@ function Counts({ v }: { v: YtVideo }) {
   const { t } = useTranslations()
   const f = useFormat()
   return (
-    <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-grid-muted tabular-nums">
+    <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
       <span className="inline-flex items-center gap-1" title={t("yt.views")}>
         <EyeIcon className="size-3.5" aria-hidden />
         <span className="sr-only">{t("yt.views")}</span>
@@ -411,7 +411,7 @@ function VideoRow({ v, onOpen }: { v: YtVideo; onOpen: () => void }) {
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full items-start gap-4 px-6 py-3 text-start transition-colors hover:bg-grid-soft"
+        className="flex w-full items-start gap-4 px-6 py-3 text-start transition-colors hover:bg-nq-surface-soft"
         data-video={v.id}
       >
         <span className="relative w-32 shrink-0 sm:w-40">
@@ -420,12 +420,12 @@ function VideoRow({ v, onOpen }: { v: YtVideo; onOpen: () => void }) {
             <img
               src={v.thumbnail_url}
               alt=""
-              className="aspect-video w-full rounded-sm border border-line object-cover"
+              className="aspect-video w-full rounded-sm border border-nq-line object-cover"
               referrerPolicy="no-referrer"
               loading="lazy"
             />
           ) : (
-            <span className="block aspect-video w-full rounded-sm border border-line bg-grid-soft" />
+            <span className="block aspect-video w-full rounded-sm border border-nq-line bg-nq-surface-soft" />
           )}
           {v.duration_seconds ? (
             <span
@@ -437,10 +437,10 @@ function VideoRow({ v, onOpen }: { v: YtVideo; onOpen: () => void }) {
           ) : null}
         </span>
         <span className="min-w-0 flex-1 space-y-1.5">
-          <span className="line-clamp-2 text-sm font-medium text-grid-fg">
+          <span className="line-clamp-2 text-sm font-medium text-foreground">
             <bdi>{v.title}</bdi>
           </span>
-          <span className="flex flex-wrap items-center gap-2 text-xs text-grid-muted">
+          <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {v.published_at ? (
               <span title={f.exact(v.published_at)}>{f.ago(v.published_at)}</span>
             ) : null}
@@ -482,7 +482,7 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
         <img
           src={v.thumbnail_url.replace("mqdefault", "hqdefault")}
           alt=""
-          className="aspect-video w-full border-b border-line object-cover"
+          className="aspect-video w-full border-b border-nq-line object-cover"
           referrerPolicy="no-referrer"
         />
       ) : null}
@@ -520,14 +520,14 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
       </SheetHeader>
       <YouTubeAnalytics resourceId={resourceId} video={v.id} compact />
       {v.description ? (
-        <p className="border-t border-line px-6 py-4 text-sm whitespace-pre-wrap text-grid-body">
+        <p className="border-t border-nq-line px-6 py-4 text-sm whitespace-pre-wrap text-nq-fg-body">
           <bdi>
             {v.description.length > 1200 ? v.description.slice(0, 1200) + "…" : v.description}
           </bdi>
         </p>
       ) : null}
       {v.tags && v.tags.length ? (
-        <div className="flex flex-wrap gap-1 border-t border-line px-6 py-3">
+        <div className="flex flex-wrap gap-1 border-t border-nq-line px-6 py-3">
           {v.tags.slice(0, 20).map((tag) => (
             <Badge key={tag} variant="secondary">
               <bdi>{tag}</bdi>
@@ -535,16 +535,16 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
           ))}
         </div>
       ) : null}
-      <section className="border-t border-line" data-top-comments={comments.length}>
+      <section className="border-t border-nq-line" data-top-comments={comments.length}>
         <h3 className="px-6 pt-4 pb-2 text-sm font-medium">{t("yt.topComments")}</h3>
         {v.comment_note === "comments_disabled" ? (
-          <p className="px-6 pb-5 text-sm text-grid-muted" data-comments-off>
+          <p className="px-6 pb-5 text-sm text-muted-foreground" data-comments-off>
             {t("yt.commentsDisabled")}
           </p>
         ) : v.comment_note === "comments_unavailable" ||
           v.comment_note === "comments_not_public" ? (
           <p
-            className="px-6 pb-5 text-sm text-grid-muted"
+            className="px-6 pb-5 text-sm text-muted-foreground"
             data-comments-unavailable={v.comment_note}
           >
             {t(
@@ -556,34 +556,34 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
         ) : (
           <>
             {v.comment_note ? (
-              <p className="px-6 pb-2 text-xs break-words text-grid-warn-text" data-comment-note>
+              <p className="px-6 pb-2 text-xs break-words text-nq-warning-text" data-comment-note>
                 <Ltr>{v.comment_note}</Ltr>
               </p>
             ) : null}
             {comments.length === 0 ? (
-              <p className="px-6 pb-5 text-sm text-grid-muted">{t("yt.noComments")}</p>
+              <p className="px-6 pb-5 text-sm text-muted-foreground">{t("yt.noComments")}</p>
             ) : (
-              <ul className="divide-y divide-line border-t border-line">
+              <ul className="divide-y divide-nq-line border-t border-nq-line">
                 {comments.map((c) => (
                   <li key={c.id} className="space-y-1.5 px-6 py-3" data-comment={c.id}>
-                    <p className="flex flex-wrap items-center gap-x-2 text-xs text-grid-muted">
-                      <span className="font-medium text-grid-fg">
+                    <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">
                         <bdi>{c.author}</bdi>
                       </span>
                       {c.published_at ? (
                         <span title={f.exact(c.published_at)}>{f.ago(c.published_at)}</span>
                       ) : null}
                       {c.answered ? (
-                        <span className="inline-flex items-center gap-1 text-grid-ok-text">
+                        <span className="inline-flex items-center gap-1 text-nq-success-text">
                           <CheckIcon className="size-3" />
                           {t("yt.answered")}
                         </span>
                       ) : null}
                     </p>
-                    <p className="text-sm whitespace-pre-wrap text-grid-body">
+                    <p className="text-sm whitespace-pre-wrap text-nq-fg-body">
                       <bdi>{c.text}</bdi>
                     </p>
-                    <p className="flex flex-wrap items-center gap-x-4 text-xs text-grid-muted tabular-nums">
+                    <p className="flex flex-wrap items-center gap-x-4 text-xs text-muted-foreground tabular-nums">
                       <span className="inline-flex items-center gap-1">
                         <ThumbsUpIcon className="size-3" aria-hidden /> {f.n(c.likes)}
                       </span>
@@ -592,7 +592,7 @@ function VideoDetail({ resourceId, id }: { resourceId: string; id: string }) {
                         href={c.reply_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-grid-fg hover:underline"
+                        className="inline-flex items-center gap-1 text-foreground hover:underline"
                         data-reply
                       >
                         {t("yt.reply")}

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { BellIcon, MessageCircleIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { chime, desktopNotify, PUSH_MESSAGE } from "@/lib/alerts"
 import { useWorkspaceEvents, type WorkspaceEvent } from "@/lib/events"
@@ -66,9 +66,9 @@ export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: s
         duration: SHOW_MS,
         icon:
           a.kind === "message" ? (
-            <MessageCircleIcon className="size-4 text-grid-action" />
+            <MessageCircleIcon className="size-4 text-nq-action" />
           ) : (
-            <BellIcon className="size-4 text-grid-action" />
+            <BellIcon className="size-4 text-nq-action" />
           ),
         action: { label: t("alerts.open"), onClick: () => router.push(a.url) },
         className: "moharrik-alert",

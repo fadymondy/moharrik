@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { ArrowRightIcon, InfoIcon, LoaderCircleIcon, RadarIcon, UserIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { ProfileForm } from "@/components/prospects/profile-form"
@@ -95,22 +95,22 @@ export default function ProspectsPage() {
 
       {p && !p.can_search ? (
         <p
-          className="flex items-start gap-2 px-6 pb-4 text-sm text-grid-muted"
+          className="flex items-start gap-2 px-6 pb-4 text-sm text-muted-foreground"
           role="status"
           data-capability="search"
         >
-          <InfoIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+          <InfoIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
           <span>{t("prospects.notConfigured")}</span>
         </p>
       ) : null}
       {liveDiscovery ? (
         <p className="flex items-center gap-2 px-6 pb-4 text-sm" data-discovery-live>
-          <LoaderCircleIcon className="size-4 animate-spin text-grid-brand" />
+          <LoaderCircleIcon className="size-4 animate-spin text-nq-brand" />
           <span>
             {t("prospects.discoverLive")}: <bdi>{liveDiscovery.topic}</bdi>
           </span>
           <Link
-            className="text-grid-brand hover:underline"
+            className="text-nq-brand hover:underline"
             href={`/${locale}/w/${ws.slug}/research/${encodeURIComponent(liveDiscovery.id)}`}
           >
             {t("research.watch")}
@@ -125,7 +125,7 @@ export default function ProspectsPage() {
               <TabsTrigger key={s} value={s} data-tab={s}>
                 {t(`prospects.status.${s}`)}
                 {counts && s !== "all" ? (
-                  <span className="ms-1 text-grid-muted tabular-nums">
+                  <span className="ms-1 text-muted-foreground tabular-nums">
                     {formatNumber(counts[s] ?? 0)}
                   </span>
                 ) : null}
@@ -143,19 +143,19 @@ export default function ProspectsPage() {
         status === "new" && counts && counts.accepted + counts.rejected === 0 ? (
           <EmptyState title={t("prospects.empty")} body={t("prospects.emptyBody")} />
         ) : (
-          <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">
+          <p className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground">
             {t("prospects.emptyStatus")}
           </p>
         )
       ) : (
-        <ul className="divide-y divide-line border-y border-line" data-prospects>
+        <ul className="divide-y divide-nq-line border-y border-nq-line" data-prospects>
           {prospects.map((x) => (
             <ProspectRow key={x.id} p={x} />
           ))}
         </ul>
       )}
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
       {profile.error ? (
         <ErrorState error={profile.error} />
       ) : p ? (
@@ -191,7 +191,7 @@ function ProspectRow({ p }: { p: Prospect }) {
             <Bdi>{p.name}</Bdi>
           </Link>
           {p.domain ? (
-            <span className="text-xs font-normal text-grid-muted" dir="ltr">
+            <span className="text-xs font-normal text-muted-foreground" dir="ltr">
               {p.domain}
             </span>
           ) : null}
@@ -201,7 +201,7 @@ function ProspectRow({ p }: { p: Prospect }) {
           {p.status !== "new" ? <StatusBadge status={p.status} /> : null}
         </p>
         <ReasonList reasons={p.reasons} compact />
-        <p className="flex flex-wrap items-center gap-x-2 text-xs text-grid-muted">
+        <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           {p.contact.name ? (
             <span className="inline-flex items-center gap-1">
               <UserIcon className="size-3.5" aria-hidden />

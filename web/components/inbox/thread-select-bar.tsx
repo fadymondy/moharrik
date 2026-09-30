@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { CopyIcon, StarIcon, StarOffIcon, Trash2Icon, XIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -95,7 +95,7 @@ export function ThreadSelectBar({
   return (
     <>
       <div
-        className="flex items-center gap-2 border-b border-line bg-grid-elevated px-6 py-2"
+        className="flex items-center gap-2 border-b border-nq-line bg-nq-surface-overlay px-6 py-2"
         data-thread-select-bar
       >
         <Button type="button" variant="ghost" size="icon-sm" aria-label={t("inbox.select.cancel")} onClick={onExit}>

@@ -13,7 +13,7 @@ import {
   PinIcon,
   StarIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
@@ -440,17 +440,17 @@ export default function InboxPage() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 border-y border-line lg:grid-cols-[22rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 border-y border-nq-line lg:grid-cols-[22rem_minmax(0,1fr)]">
         {/* The chat list column (MH-592): its own search on top, so what you
             search is right above what it finds, and the list below it. The
             search stays put while the list loads, errors or comes back empty,
             so a search with no hits can be changed where it was typed. */}
         <div
-          className="flex min-w-0 flex-col lg:border-e lg:border-line"
+          className="flex min-w-0 flex-col lg:border-e lg:border-nq-line"
           style={{ height: "min(70vh, 44rem)" }}
           data-conversation-column
         >
-          <div className="shrink-0 border-b border-line p-2">
+          <div className="shrink-0 border-b border-nq-line p-2">
             <input
               id="inbox-search"
               type="search"
@@ -460,14 +460,14 @@ export default function InboxPage() {
               aria-label={t("inbox.searchPlaceholder")}
               dir="auto"
               data-search="conversations"
-              className="h-8 w-full border border-line bg-grid-card px-3 text-sm placeholder:text-grid-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grid-brand"
+              className="h-8 w-full border border-nq-line bg-card px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nq-brand"
             />
           </div>
           {archived ? (
             <button
               type="button"
               onClick={() => setArchived(false)}
-              className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-2 text-sm font-medium hover:bg-grid-soft"
+              className="flex shrink-0 items-center gap-2 border-b border-nq-line px-4 py-2 text-sm font-medium hover:bg-nq-surface-soft"
               data-archived-back
             >
               <ArrowLeftIcon className="size-4 rtl:rotate-180" aria-hidden />
@@ -477,12 +477,12 @@ export default function InboxPage() {
             <button
               type="button"
               onClick={() => setArchived(true)}
-              className="flex shrink-0 items-center gap-3 border-b border-line px-6 py-2.5 text-sm hover:bg-grid-soft"
+              className="flex shrink-0 items-center gap-3 border-b border-nq-line px-6 py-2.5 text-sm hover:bg-nq-surface-soft"
               data-archived-entry
             >
-              <ArchiveIcon className="size-4 text-grid-muted" aria-hidden />
+              <ArchiveIcon className="size-4 text-muted-foreground" aria-hidden />
               <span className="flex-1 text-start">{t("inbox.org.archivedTitle")}</span>
-              <span className="text-xs text-grid-muted" data-archived-count>
+              <span className="text-xs text-muted-foreground" data-archived-count>
                 {archivedUnread > 0 ? (
                   <Badge variant="default">{archivedUnread}</Badge>
                 ) : (
@@ -507,7 +507,7 @@ export default function InboxPage() {
             // for why there is no separate inner sizer wrapper.
             <ul
               ref={listParentRef}
-              className="relative min-h-0 min-w-0 flex-1 divide-y divide-line overflow-y-auto"
+              className="relative min-h-0 min-w-0 flex-1 divide-y divide-nq-line overflow-y-auto"
               data-conversation-list
             >
               {virtualItems.map((vi) => {
@@ -556,7 +556,7 @@ export default function InboxPage() {
               />
               {loadingMore ? (
                 <li
-                  className="px-6 py-3 text-center text-xs text-grid-muted"
+                  className="px-6 py-3 text-center text-xs text-muted-foreground"
                   style={{
                     position: "absolute",
                     top: listBottom + 4,
@@ -579,7 +579,7 @@ export default function InboxPage() {
               typing={typingByConversation[selected]}
             />
           ) : (
-            <p className="px-6 py-10 text-center text-sm text-grid-muted">{t("inbox.pickOne")}</p>
+            <p className="px-6 py-10 text-center text-sm text-muted-foreground">{t("inbox.pickOne")}</p>
           )}
         </div>
       </div>
@@ -674,7 +674,7 @@ function ConversationRow({
           aria-current={active ? "true" : undefined}
           data-conversation={c.id}
           data-conversation-unread={c.unread ? "true" : "false"}
-          className={`flex w-full min-w-0 items-start gap-3 px-6 py-4 text-start transition-colors ${active ? "bg-grid-soft" : c.unread ? "bg-grid-card" : ""} ${highlighted ? "ring-2 ring-inset ring-grid-brand" : ""} hover:bg-grid-soft`}
+          className={`flex w-full min-w-0 items-start gap-3 px-6 py-4 text-start transition-colors ${active ? "bg-nq-surface-soft" : c.unread ? "bg-card" : ""} ${highlighted ? "ring-2 ring-inset ring-nq-brand" : ""} hover:bg-nq-surface-soft`}
         >
           {/* The chat's colour (MH-657): a stripe on the inline-start edge. */}
           {c.color ? (
@@ -688,7 +688,7 @@ function ConversationRow({
             <PersonAvatar id={c.contact_id || c.id} name={who} photoUrl={c.avatar_url} />
             {c.icon ? (
               <span
-                className="absolute -bottom-1 -end-1 flex size-5 items-center justify-center rounded-full border border-line bg-grid-card text-grid-fg"
+                className="absolute -bottom-1 -end-1 flex size-5 items-center justify-center rounded-full border border-nq-line bg-card text-foreground"
                 data-row-icon={c.icon}
               >
                 <ChatIcon name={c.icon} className="size-3" />
@@ -699,12 +699,12 @@ function ConversationRow({
             <span className="flex min-w-0 items-center gap-2">
               {c.unread ? (
                 <span
-                  className="size-2 shrink-0 rounded-full bg-grid-brand"
+                  className="size-2 shrink-0 rounded-full bg-nq-brand"
                   aria-label={t("inbox.unread")}
                 />
               ) : null}
               <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
-              <span className="ms-auto flex shrink-0 items-center gap-1 text-grid-muted">
+              <span className="ms-auto flex shrink-0 items-center gap-1 text-muted-foreground">
                 {c.blocked ? (
                   <BanIcon
                     className="size-3.5 text-destructive"
@@ -748,11 +748,11 @@ function ConversationRow({
                 </Bdi>
               </p>
             ) : (
-              <BdiBlock className="block truncate text-xs text-grid-muted" data-conversation-preview>
+              <BdiBlock className="block truncate text-xs text-muted-foreground" data-conversation-preview>
                 {c.preview || c.subject}
               </BdiBlock>
             )}
-            <span className="text-xs text-grid-muted">
+            <span className="text-xs text-muted-foreground">
               {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> ·{" "}
               {t("inbox.messageCount", { n: c.message_count })}
             </span>
@@ -783,7 +783,7 @@ function ConversationRow({
               }),
             )
           }}
-          className="absolute end-2 bottom-2 flex size-6 items-center justify-center rounded-full border border-line bg-grid-card text-grid-muted opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-lg:opacity-100"
+          className="absolute end-2 bottom-2 flex size-6 items-center justify-center rounded-full border border-nq-line bg-card text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-lg:opacity-100"
         >
           <ChevronDownIcon className="size-4" aria-hidden />
         </button>
@@ -840,7 +840,7 @@ function VisitorContext({ c }: { c: Conversation }) {
       aria-label={t("inbox.context")}
       // Its own full-width row of the header: inside the name column it was
       // squeezed to a few characters by the controls at phone width.
-      className="grid basis-full grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs text-grid-muted"
+      className="grid basis-full grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs text-muted-foreground"
       data-thread-context
     >
       {c.page_url ? (
@@ -855,7 +855,7 @@ function VisitorContext({ c }: { c: Conversation }) {
                 href={c.page_url}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="text-grid-fg underline-offset-2 hover:underline"
+                className="text-foreground underline-offset-2 hover:underline"
               >
                 {c.page_url}
               </a>
@@ -1043,7 +1043,7 @@ function Thread({
 
   return (
     <section data-thread={id}>
-      <header className="flex flex-wrap items-center gap-2 border-b border-line px-6 py-4">
+      <header className="flex flex-wrap items-center gap-2 border-b border-nq-line px-6 py-4">
         <PersonAvatar
           id={c.contact_id || c.id}
           name={headerWho}
@@ -1060,7 +1060,7 @@ function Thread({
               was nowhere on this page — the e2e caught that. Chat has no
               subject worth showing, so it is only rendered when there is one. */}
           {c.subject ? (
-            <BdiBlock as="p" className="truncate text-sm text-grid-fg" data-thread-subject>
+            <BdiBlock as="p" className="truncate text-sm text-foreground" data-thread-subject>
               {c.subject}
             </BdiBlock>
           ) : null}
@@ -1071,7 +1071,7 @@ function Thread({
               </Bdi>
             </p>
           ) : (
-            <p className="truncate text-xs text-grid-muted">
+            <p className="truncate text-xs text-muted-foreground">
               {t(`inbox.channel.${c.channel}`)}
             {c.customer_email ? (
               <>
@@ -1164,7 +1164,7 @@ function Thread({
 
       {total > detail.data.messages.length ? (
         <div className="flex flex-wrap items-center gap-3 px-6 pt-4" data-thread-paging>
-          <p className="text-xs text-grid-muted" data-thread-count>
+          <p className="text-xs text-muted-foreground" data-thread-count>
             {cursor
               ? t("inbox.shownOfTotal", { n: messages.length, total })
               : t("inbox.allShown", { total })}

@@ -9,7 +9,7 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -78,8 +78,8 @@ export function ContactContextPanel({
 
   return (
     <section className="px-6 pb-6" data-contact-context-panel>
-      <div className="border border-line bg-grid-card">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
+      <div className="border border-nq-line bg-card">
+        <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-5 py-4">
           <h2 className="text-base font-medium">{t("contactContext.title")}</h2>
           {canWrite ? (
             <Button
@@ -171,25 +171,25 @@ function ImportsList({
 
   return (
     <div data-contact-context-imports>
-      <h3 className="mb-2 text-sm font-medium text-grid-muted">{t("contactContext.imports")}</h3>
+      <h3 className="mb-2 text-sm font-medium text-muted-foreground">{t("contactContext.imports")}</h3>
       <ul className="flex flex-col gap-2">
         {imports.map((imp) => (
           <li
             key={imp.id}
-            className="flex flex-wrap items-center gap-3 border border-line px-3 py-2 text-sm"
+            className="flex flex-wrap items-center gap-3 border border-nq-line px-3 py-2 text-sm"
             data-whatsapp-import={imp.id}
           >
-            <MessagesSquareIcon className="size-4 shrink-0 text-grid-muted" />
+            <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 truncate">
               <Ltr>{imp.filename}</Ltr>
             </span>
-            <span className="text-grid-muted">
+            <span className="text-muted-foreground">
               {t("contactContext.importCounts", {
                 messages: imp.message_count,
                 media: imp.media_count,
               })}
             </span>
-            <span className="text-xs text-grid-muted">
+            <span className="text-xs text-muted-foreground">
               <Ltr>{when.format(new Date(imp.created_at))}</Ltr>
             </span>
             {canWrite ? (
@@ -246,7 +246,7 @@ function AskPanel({ contactId }: { contactId: string }) {
 
   return (
     <div data-contact-context-ask>
-      <h3 className="mb-2 text-sm font-medium text-grid-muted">{t("contactContext.askTitle")}</h3>
+      <h3 className="mb-2 text-sm font-medium text-muted-foreground">{t("contactContext.askTitle")}</h3>
       <div className="flex flex-wrap items-end gap-3">
         <Field className="min-w-0 flex-1">
           <FieldLabel htmlFor="cc-question" className="sr-only">
@@ -276,13 +276,13 @@ function AskPanel({ contactId }: { contactId: string }) {
 
       {answer ? (
         <div
-          className="mt-3 border border-line bg-grid-bg p-4 text-sm"
+          className="mt-3 border border-nq-line bg-nq-bg p-4 text-sm"
           data-testid="contact-context-answer"
           data-no-provider={answer.no_provider}
         >
           {answer.no_provider ? (
             <p
-              className="mb-2 flex items-center gap-1.5 text-xs text-grid-muted"
+              className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground"
               data-answer-no-provider
             >
               <SparklesIcon className="size-3.5" />
@@ -292,13 +292,13 @@ function AskPanel({ contactId }: { contactId: string }) {
           <p className="whitespace-pre-wrap">{answer.text}</p>
           {answer.citations.length > 0 ? (
             <ul
-              className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3"
+              className="mt-3 flex flex-col gap-1.5 border-t border-nq-line pt-3"
               data-testid="contact-context-citations"
             >
               {answer.citations.map((c, i) => (
                 <li
                   key={i}
-                  className="flex flex-wrap items-start gap-2 text-xs text-grid-muted"
+                  className="flex flex-wrap items-start gap-2 text-xs text-muted-foreground"
                   data-citation-kind={c.kind}
                 >
                   <Badge variant="secondary">{t(`contactContext.citationKind.${c.kind}`)}</Badge>
@@ -390,7 +390,7 @@ function ReportsPanel({
   return (
     <div data-contact-context-reports>
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <h3 className="text-sm font-medium text-grid-muted">{t("contactContext.reportsTitle")}</h3>
+        <h3 className="text-sm font-medium text-muted-foreground">{t("contactContext.reportsTitle")}</h3>
         {canWrite ? (
           <Button
             variant="outline"
@@ -418,7 +418,7 @@ function ReportsPanel({
           {reports.map((r) => (
             <li
               key={r.id}
-              className="border border-line"
+              className="border border-nq-line"
               data-contact-report={r.id}
               data-report-version={r.version}
             >
@@ -436,10 +436,10 @@ function ReportsPanel({
                     {t("contactContext.noProviderShort")}
                   </Badge>
                 ) : null}
-                <span className="ms-auto text-xs text-grid-muted">{open === r.id ? "▲" : "▼"}</span>
+                <span className="ms-auto text-xs text-muted-foreground">{open === r.id ? "▲" : "▼"}</span>
               </button>
               {open === r.id ? (
-                <div className="border-t border-line px-3 py-3">
+                <div className="border-t border-nq-line px-3 py-3">
                   <pre
                     className="max-h-96 overflow-auto whitespace-pre-wrap font-sans text-sm"
                     data-testid="contact-report-markdown"
@@ -581,7 +581,7 @@ function WhatsAppImportSheet({
               <UploadIcon />
               {t("contactContext.chooseFile")}
             </Button>
-            <span className="min-w-0 truncate text-sm text-grid-muted" data-whatsapp-file-name>
+            <span className="min-w-0 truncate text-sm text-muted-foreground" data-whatsapp-file-name>
               {fileName ?? t("contactContext.noFile")}
             </span>
           </div>
@@ -592,7 +592,7 @@ function WhatsAppImportSheet({
 
           {preview ? (
             <div className="flex flex-col gap-4" data-testid="whatsapp-preview">
-              <div className="flex flex-wrap gap-3 text-sm text-grid-muted">
+              <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
                 <span data-preview-message-count>
                   {t("contactContext.previewMessages", { count: preview.message_count })}
                 </span>
@@ -622,11 +622,11 @@ function WhatsAppImportSheet({
 
               {preview.sample.length > 0 ? (
                 <ul
-                  className="flex max-h-40 flex-col gap-1 overflow-auto border border-line p-2 text-xs"
+                  className="flex max-h-40 flex-col gap-1 overflow-auto border border-nq-line p-2 text-xs"
                   data-testid="whatsapp-sample"
                 >
                   {preview.sample.slice(0, 5).map((s, i) => (
-                    <li key={i} className="text-grid-muted">
+                    <li key={i} className="text-muted-foreground">
                       <Bdi>{s.sender ? `${s.sender}: ` : ""}</Bdi>
                       {s.text}
                     </li>
@@ -636,7 +636,7 @@ function WhatsAppImportSheet({
 
               {result ? (
                 <div
-                  className="border border-line p-3 text-sm"
+                  className="border border-nq-line p-3 text-sm"
                   data-testid="whatsapp-commit-result"
                 >
                   {t("contactContext.importDone", { count: result.messages_added })}

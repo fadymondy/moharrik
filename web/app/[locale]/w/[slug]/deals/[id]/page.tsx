@@ -91,7 +91,7 @@ export default function DealDetailPage() {
       />
 
       {deal.closed_at ? (
-        <p className="px-6 pb-4 -mt-2 text-sm text-grid-muted">
+        <p className="px-6 pb-4 -mt-2 text-sm text-muted-foreground">
           <Badge variant={closedTone[deal.stage_kind]}>
             {t(`deals.closed.${deal.stage_kind === "lost" ? "lost" : "won"}`)}
           </Badge>{" "}
@@ -118,7 +118,7 @@ export default function DealDetailPage() {
         </section>
       ) : null}
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <Timeline
         items={activities}
@@ -196,7 +196,7 @@ function ClosedOnEdit({
             />
             <FieldDescription>{t("deals.closedOnHint")}</FieldDescription>
           </Field>
-          {error ? <p className="text-sm text-grid-danger-text">{error}</p> : null}
+          {error ? <p className="text-sm text-nq-danger-text">{error}</p> : null}
           <Button type="submit" size="sm" disabled={busy || !day}>
             {t("common.save")}
           </Button>

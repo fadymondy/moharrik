@@ -80,7 +80,7 @@ export default function OverviewPage() {
       ) : (
         // Cards sit inside the page padding, each on its own frame with a gap between: the
         // first version drew every card as a cell of one hairline grid, bled 1px past the page
-        // edge (grid-cells-flush-x) and read as cramped and heavy.
+        // edge (cells-flush-x) and read as cramped and heavy.
         <div className="space-y-4 px-4 pb-10 sm:space-y-6 sm:px-6" data-overview>
           <TodayStrip today={o.today} base={base} />
 
@@ -165,7 +165,7 @@ function OverviewSkeleton() {
     <div className="space-y-4 px-4 sm:space-y-6 sm:px-6" aria-busy>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="space-y-2 border border-line bg-grid-card px-5 py-4">
+          <div key={i} className="space-y-2 border border-nq-line bg-card px-5 py-4">
             <Skeleton className="h-3 w-24" />
             <Skeleton className="h-8 w-12" />
             <Skeleton className="h-3 w-20" />
@@ -174,7 +174,7 @@ function OverviewSkeleton() {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="space-y-3 border border-line bg-grid-card px-5 py-4">
+          <div key={i} className="space-y-3 border border-nq-line bg-card px-5 py-4">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-3/4" />

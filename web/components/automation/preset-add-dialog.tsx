@@ -9,7 +9,7 @@ one, and confirms before anything that publishes, sends or submits.
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { isolate } from "@/components/bidi"
 import { PickSelect } from "@/components/crm/shared"
@@ -102,7 +102,7 @@ export function AddPresetDialog({
           </DialogHeader>
           <FieldGroup className="my-4">
             {p.writes ? (
-              <p className="border-s-2 border-grid-danger-text/60 ps-3 text-sm" data-add-writes>
+              <p className="border-s-2 border-nq-danger-text/60 ps-3 text-sm" data-add-writes>
                 {t("presets.writesNote")}
               </p>
             ) : null}
@@ -121,7 +121,7 @@ export function AddPresetDialog({
               </Field>
             ) : null}
             {p.needs_profile.length > 0 ? (
-              <p className="text-sm text-grid-muted" data-add-profile>
+              <p className="text-sm text-muted-foreground" data-add-profile>
                 {missingProfile.length === 0
                   ? t("presets.profileFilled")
                   : t("presets.profileMissing", {
@@ -155,13 +155,13 @@ export function AddPresetDialog({
                     <span>{t("presets.allowHosts", { hosts: missingHosts.join(", ") })}</span>
                   </label>
                 ) : (
-                  <p className="text-sm text-grid-muted">
+                  <p className="text-sm text-muted-foreground">
                     {t("presets.hostsAlready", { name: isolate(chosen?.name ?? "") })}
                   </p>
                 )}
               </>
             ) : p.hosts.length > 0 ? (
-              <p className="text-sm text-grid-muted">
+              <p className="text-sm text-muted-foreground">
                 {canManage
                   ? t("presets.noBrowser")
                   : t("presets.adminAllows", { hosts: p.hosts.join(", ") })}

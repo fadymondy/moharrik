@@ -178,7 +178,7 @@ export function StepEditor({
     <div data-step-editor>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={steps.map((s) => s.key)} strategy={verticalListSortingStrategy}>
-          <ol className="divide-y divide-line border-y border-line">
+          <ol className="divide-y divide-nq-line border-y border-nq-line">
             {steps.map((step, i) => (
               <StepRow
                 key={step.key}
@@ -271,7 +271,7 @@ function StepRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`relative bg-background px-6 py-4 ${isDragging ? "z-10 shadow-lg" : ""} ${status?.status === "running" ? "bg-grid-card" : ""}`}
+      className={`relative bg-background px-6 py-4 ${isDragging ? "z-10 shadow-lg" : ""} ${status?.status === "running" ? "bg-card" : ""}`}
       data-step-row={index}
       data-step-command={command}
       data-step-status={status?.status ?? ""}
@@ -283,13 +283,13 @@ function StepRow({
             ref={setActivatorNodeRef}
             {...attributes}
             {...listeners}
-            className="cursor-grab touch-none rounded p-1 text-grid-muted hover:text-grid-fg focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
+            className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
             aria-label={t("automation.editor.dragStep", { n: index + 1 })}
             data-drag-handle
           >
             <GripVerticalIcon className="size-4" />
           </button>
-          <span className="w-6 text-sm tabular-nums text-grid-muted">{index + 1}.</span>
+          <span className="w-6 text-sm tabular-nums text-muted-foreground">{index + 1}.</span>
         </div>
 
         <div className="min-w-0 flex-1 space-y-3">
@@ -308,7 +308,7 @@ function StepRow({
               </Badge>
             ) : null}
             {!known ? (
-              <span className="text-xs text-grid-danger-text">
+              <span className="text-xs text-nq-danger-text">
                 {t("automation.editor.unknownCommand")}
               </span>
             ) : null}
@@ -329,7 +329,7 @@ function StepRow({
             </div>
           ) : null}
 
-          <label className="flex w-fit items-center gap-2 text-xs text-grid-muted">
+          <label className="flex w-fit items-center gap-2 text-xs text-muted-foreground">
             <Checkbox
               checked={!!step.continue_on_error}
               onCheckedChange={(v) => onChange({ continue_on_error: !!v })}
@@ -337,9 +337,9 @@ function StepRow({
             {t("automation.editor.continueOnError")}
           </label>
 
-          {status?.error ? <p className="text-xs text-grid-danger-text">{status.error}</p> : null}
+          {status?.error ? <p className="text-xs text-nq-danger-text">{status.error}</p> : null}
           {status?.status === "ok" && status.summary ? (
-            <p className="text-xs text-grid-muted">{status.summary}</p>
+            <p className="text-xs text-muted-foreground">{status.summary}</p>
           ) : null}
         </div>
 
@@ -368,7 +368,7 @@ function StepRow({
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="text-grid-danger-text"
+            className="text-nq-danger-text"
             onClick={onRemove}
             aria-label={t("automation.editor.removeStep")}
           >
@@ -397,7 +397,7 @@ function FieldInput({
   const label = (
     <Label htmlFor={id} className="text-xs">
       {t(`automation.field.${def.name}`)}
-      {def.required ? null : <span className="text-grid-muted"> ({t("common.optional")})</span>}
+      {def.required ? null : <span className="text-muted-foreground"> ({t("common.optional")})</span>}
     </Label>
   )
   if (def.kind === "bool") {

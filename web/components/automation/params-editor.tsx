@@ -48,10 +48,10 @@ export function ParamsEditor({
     <div data-params-editor>
       {missing.length > 0 ? (
         <div
-          className="mx-6 mb-3 flex flex-wrap items-center gap-2 border border-line bg-grid-card px-3 py-2 text-sm"
+          className="mx-6 mb-3 flex flex-wrap items-center gap-2 border border-nq-line bg-card px-3 py-2 text-sm"
           data-missing-params
         >
-          <span className="text-grid-muted">
+          <span className="text-muted-foreground">
             {t("automation.params.undeclared", { names: missing.join(", ") })}
           </span>
           <Button
@@ -68,12 +68,12 @@ export function ParamsEditor({
       ) : null}
 
       {params.length === 0 ? (
-        <p className="px-6 pb-2 text-sm text-grid-muted">{t("automation.params.none")}</p>
+        <p className="px-6 pb-2 text-sm text-muted-foreground">{t("automation.params.none")}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="text-start text-xs text-grid-muted">
-              <tr className="border-b border-line">
+            <thead className="text-start text-xs text-muted-foreground">
+              <tr className="border-b border-nq-line">
                 <th className="px-6 py-2 text-start font-normal">{t("automation.params.name")}</th>
                 <th className="px-2 py-2 text-start font-normal">{t("automation.params.label")}</th>
                 <th className="px-2 py-2 text-start font-normal">
@@ -88,7 +88,7 @@ export function ParamsEditor({
                 <th className="px-6 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="divide-y divide-nq-line">
               {params.map((p, i) => (
                 <tr key={i} data-param={p.name}>
                   <td className="px-6 py-2 align-top">
@@ -101,7 +101,7 @@ export function ParamsEditor({
                       onChange={(e) => set(i, { name: e.target.value.trim() })}
                     />
                     {!used.includes(p.name) && validParamName(p.name) ? (
-                      <p className="mt-1 text-xs text-grid-muted">
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {t("automation.params.unused")}
                       </p>
                     ) : null}
@@ -115,7 +115,7 @@ export function ParamsEditor({
                   </td>
                   <td className="px-2 py-2 align-top">
                     {p.secret ? (
-                      <p className="pt-1.5 text-xs text-grid-muted">
+                      <p className="pt-1.5 text-xs text-muted-foreground">
                         {t("automation.params.secretNoDefault")}
                       </p>
                     ) : (
@@ -149,7 +149,7 @@ export function ParamsEditor({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="text-grid-danger-text"
+                      className="text-nq-danger-text"
                       aria-label={t("automation.params.remove")}
                       onClick={() => onChange(params.filter((_, j) => j !== i))}
                     >

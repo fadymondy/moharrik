@@ -17,16 +17,16 @@ export function ChannelTestBadge({
 }) {
   const { t, formatDate } = useTranslations()
   if (ok === null) {
-    return <span className="text-xs text-grid-muted">{t("channels.neverTested")}</span>
+    return <span className="text-xs text-muted-foreground">{t("channels.neverTested")}</span>
   }
   return (
     <span
-      className={`inline-flex items-center gap-1 text-xs ${ok ? "text-grid-muted" : "text-grid-danger-text"}`}
+      className={`inline-flex items-center gap-1 text-xs ${ok ? "text-muted-foreground" : "text-nq-danger-text"}`}
       title={error || undefined}
       data-test-ok={ok ? "yes" : "no"}
     >
       {ok ? (
-        <CheckCircle2Icon className="size-3.5 text-grid-brand" />
+        <CheckCircle2Icon className="size-3.5 text-nq-brand" />
       ) : (
         <XCircleIcon className="size-3.5" />
       )}

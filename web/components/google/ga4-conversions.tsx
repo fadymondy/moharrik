@@ -15,7 +15,7 @@
 import Link from "next/link"
 import { useEffect, useState, type FormEvent } from "react"
 import { ChartLineIcon, CheckCircle2Icon, SendIcon, TriangleAlertIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Ltr } from "@/components/copy-field"
 import { PickSelect } from "@/components/crm/shared"
@@ -157,10 +157,10 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
           <ChartLineIcon />
           {t("ga4conv.title")}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-grid-muted">{t("ga4conv.hint")}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("ga4conv.hint")}</p>
       </div>
 
-      <form onSubmit={save} className="border-y border-line px-6 py-5">
+      <form onSubmit={save} className="border-y border-nq-line px-6 py-5">
         <FieldGroup className="max-w-2xl">
           {list.length > 0 ? (
             <Field>
@@ -183,7 +183,7 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
             </Field>
           ) : null}
           {(streams?.errors ?? []).map((e) => (
-            <p key={e} className="text-xs text-grid-muted">
+            <p key={e} className="text-xs text-muted-foreground">
               <Ltr>{e}</Ltr>
             </p>
           ))}
@@ -223,7 +223,7 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="shrink-0 text-grid-danger-text"
+                  className="shrink-0 text-nq-danger-text"
                   onClick={() => void removeSecret()}
                   data-ga4-remove-secret
                 >
@@ -259,7 +259,7 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
           {error ? (
             <p
               role="alert"
-              className="flex items-start gap-2 text-sm text-grid-danger-text"
+              className="flex items-start gap-2 text-sm text-nq-danger-text"
               data-ga4-error
             >
               <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
@@ -284,7 +284,7 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
                 {testing ? t("common.working") : t("ga4conv.test")}
               </Button>
             ) : (
-              <span className="text-xs text-grid-muted">{t("ga4conv.testNeeds")}</span>
+              <span className="text-xs text-muted-foreground">{t("ga4conv.testNeeds")}</span>
             )}
           </div>
           {test ? <TestOutcome r={test} /> : null}
@@ -293,20 +293,20 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
 
       <div className="px-6 pt-5 pb-2">
         <h4 className="text-sm font-medium">{t("ga4conv.whatIsSent")}</h4>
-        <p className="mt-1 max-w-3xl text-sm text-grid-muted">{t("ga4conv.whatIsSentHint")}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("ga4conv.whatIsSentHint")}</p>
       </div>
-      <ul className="divide-y divide-line border-y border-line" data-ga4-event-map>
+      <ul className="divide-y divide-nq-line border-y border-nq-line" data-ga4-event-map>
         {page.data.events.map((e) => (
           <li
             key={e.name}
             className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-2.5 text-sm"
           >
             <span className="min-w-44">
-              <Ltr mono className="text-xs text-grid-fg">
+              <Ltr mono className="text-xs text-foreground">
                 {e.name}
               </Ltr>
             </span>
-            <span className="text-grid-body">{t(`ga4conv.when.${e.when}`)}</span>
+            <span className="text-nq-fg-body">{t(`ga4conv.when.${e.when}`)}</span>
           </li>
         ))}
       </ul>
@@ -346,27 +346,27 @@ function TestOutcome({ r }: { r: Ga4TestResult }) {
     return (
       <p
         role="status"
-        className="flex items-start gap-2 text-sm text-grid-fg"
+        className="flex items-start gap-2 text-sm text-foreground"
         data-ga4-test-result="sent"
       >
-        <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-grid-action" />
+        <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-nq-action" />
         {t("ga4conv.testSent")}
       </p>
     )
   }
   return (
     <div role="alert" className="space-y-1 text-sm" data-ga4-test-result="failed">
-      <p className="flex items-start gap-2 text-grid-danger-text">
+      <p className="flex items-start gap-2 text-nq-danger-text">
         <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
         {r.valid ? t("ga4conv.testNotSent") : t("ga4conv.testInvalid")}
       </p>
       {r.error ? (
-        <p className="text-grid-muted">
+        <p className="text-muted-foreground">
           <Ltr>{r.error}</Ltr>
         </p>
       ) : null}
       {(r.messages ?? []).map((m, i) => (
-        <p key={i} className="text-grid-muted">
+        <p key={i} className="text-muted-foreground">
           <Ltr>
             {m.fieldPath ? `${m.fieldPath}: ` : ""}
             {m.description}
@@ -395,11 +395,11 @@ function Recent({ list }: { list: Ga4ConversionEvent[] }) {
     <div className="pt-5 pb-10">
       <h4 className="px-6 pb-2 text-sm font-medium">{t("ga4conv.recent")}</h4>
       {list.length === 0 ? (
-        <p className="px-6 text-sm text-grid-muted" data-ga4-recent="empty">
+        <p className="px-6 text-sm text-muted-foreground" data-ga4-recent="empty">
           {t("ga4conv.recentEmpty")}
         </p>
       ) : (
-        <ul className="divide-y divide-line border-y border-line" data-ga4-recent={list.length}>
+        <ul className="divide-y divide-nq-line border-y border-nq-line" data-ga4-recent={list.length}>
           {list.map((e) => (
             <li
               key={e.id}
@@ -407,7 +407,7 @@ function Recent({ list }: { list: Ga4ConversionEvent[] }) {
               data-ga4-event={e.name}
               data-status={e.status}
             >
-              <Ltr mono className="text-xs text-grid-fg">
+              <Ltr mono className="text-xs text-foreground">
                 {e.name}
               </Ltr>
               <Badge variant={STATUS_VARIANT[e.status]}>{t(`ga4conv.status.${e.status}`)}</Badge>
@@ -421,15 +421,15 @@ function Recent({ list }: { list: Ga4ConversionEvent[] }) {
                     ? `/${locale}/w/${ws.slug}/leads/${e.subject_id}`
                     : `/${locale}/w/${ws.slug}/deals/${e.subject_id}`
                 }
-                className="text-xs text-grid-action underline-offset-4 hover:underline"
+                className="text-xs text-nq-action underline-offset-4 hover:underline"
               >
                 {t(`ga4conv.subject.${e.subject_kind}`)}
               </Link>
-              <span className="ms-auto text-xs text-grid-muted" title={f.exact(e.occurred_at)}>
+              <span className="ms-auto text-xs text-muted-foreground" title={f.exact(e.occurred_at)}>
                 {f.ago(e.sent_at ?? e.occurred_at)}
               </span>
               {e.error ? (
-                <p className="w-full text-xs text-grid-muted">
+                <p className="w-full text-xs text-muted-foreground">
                   <Ltr>{e.error}</Ltr>
                 </p>
               ) : null}

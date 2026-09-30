@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { MessageCircleIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { CopyField } from "@/components/copy-field"
@@ -225,7 +225,7 @@ function SettingsForm({
       {/* What the visitor sees first, in the colours chosen below. Inline
           styles only for the accent: it is the workspace's own brand colour,
           not a theme colour, and the widget itself paints with exactly it. */}
-      <div className="border border-line" aria-hidden data-widget-preview>
+      <div className="border border-nq-line" aria-hidden data-widget-preview>
         <div
           className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium"
           style={{ background: previewAccent, color: inkOn(previewAccent) }}
@@ -237,7 +237,7 @@ function SettingsForm({
         </div>
         <div className="flex flex-col gap-2 p-3">
           <p
-            className="max-w-[85%] self-start bg-grid-card px-3 py-2 text-sm whitespace-pre-wrap"
+            className="max-w-[85%] self-start bg-card px-3 py-2 text-sm whitespace-pre-wrap"
             dir="auto"
           >
             {previewGreeting}
@@ -245,7 +245,7 @@ function SettingsForm({
           {previewActions.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {previewActions.map((q, i) => (
-                <span key={i} className="border border-line px-2.5 py-1 text-xs" dir="auto">
+                <span key={i} className="border border-nq-line px-2.5 py-1 text-xs" dir="auto">
                   {q.label}
                 </span>
               ))}
@@ -349,7 +349,7 @@ function SettingsForm({
               <input
                 type="color"
                 aria-label={t("inbox.accent")}
-                className="size-9 shrink-0 cursor-pointer border border-line bg-transparent p-0.5"
+                className="size-9 shrink-0 cursor-pointer border border-nq-line bg-transparent p-0.5"
                 value={
                   accentOk && s.accent.length === 7
                     ? s.accent
@@ -458,7 +458,7 @@ function SettingsForm({
         <FieldDescription>{t("inbox.quickActionsHint")}</FieldDescription>
         <div className="flex flex-col gap-3">
           {s.quick_actions.map((q, i) => (
-            <div key={i} className="grid gap-2 border border-line p-3" data-quick-action={i}>
+            <div key={i} className="grid gap-2 border border-nq-line p-3" data-quick-action={i}>
               <div className="flex items-center gap-2">
                 <Input
                   aria-label={t("inbox.qaLabel")}

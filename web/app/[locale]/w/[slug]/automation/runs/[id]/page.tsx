@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { ArrowLeftIcon, SquareIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
@@ -104,19 +104,19 @@ export default function RunPage() {
             >
               {t(`automation.status.${run.status}`)}
             </Badge>
-            <span className="text-grid-muted">
+            <span className="text-muted-foreground">
               {t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })}
             </span>
-            <span className="text-grid-muted">· {t(`automation.trigger.${run.trigger}`)}</span>
+            <span className="text-muted-foreground">· {t(`automation.trigger.${run.trigger}`)}</span>
           </div>
           <RunNotes notes={run.notes} className="space-y-1 px-6 pb-4" />
           {run.error ? (
-            <p className="px-6 pb-4 text-sm text-grid-danger-text">
+            <p className="px-6 pb-4 text-sm text-nq-danger-text">
               <Bdi>{run.error}</Bdi>
             </p>
           ) : null}
 
-          <ol className="divide-y divide-line border-y border-line">
+          <ol className="divide-y divide-nq-line border-y border-nq-line">
             {detail.data.steps.map((s) => (
               <StepRow key={s.position} step={s} runId={id} workspaceId={ws.id} />
             ))}
@@ -163,14 +163,14 @@ function StepShot({
       if (url) URL.revokeObjectURL(url)
     }
   }, [runId, position, workspaceId])
-  if (failed) return <p className="mt-2 text-xs text-grid-muted">{t("automation.shotGone")}</p>
+  if (failed) return <p className="mt-2 text-xs text-muted-foreground">{t("automation.shotGone")}</p>
   if (!src) return null
   return (
     <a
       href={src}
       target="_blank"
       rel="noreferrer"
-      className="mt-2 block max-w-xl border border-line"
+      className="mt-2 block max-w-xl border border-nq-line"
       data-step-shot={position}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -192,7 +192,7 @@ function StepRow({
   return (
     <li className="px-6 py-4" data-step={step.position} data-step-status={step.status}>
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-        <span className="text-grid-muted">{step.position + 1}.</span>
+        <span className="text-muted-foreground">{step.position + 1}.</span>
         <span dir="ltr" className="font-mono">
           {step.command}
         </span>
@@ -204,19 +204,19 @@ function StepRow({
           {t(`automation.step.${step.status}`)}
         </Badge>
         {step.duration_ms > 0 ? (
-          <span className="text-xs text-grid-muted">{step.duration_ms} ms</span>
+          <span className="text-xs text-muted-foreground">{step.duration_ms} ms</span>
         ) : null}
       </p>
       {step.args && step.args !== "{}" && step.args !== "null" ? (
         <pre
           dir="ltr"
-          className="mt-2 overflow-x-auto bg-grid-card px-3 py-2 font-mono text-xs text-grid-muted"
+          className="mt-2 overflow-x-auto bg-card px-3 py-2 font-mono text-xs text-muted-foreground"
         >
           {step.args}
         </pre>
       ) : null}
       {step.error ? (
-        <p className="mt-2 text-sm text-grid-danger-text">
+        <p className="mt-2 text-sm text-nq-danger-text">
           <Bdi>{step.error}</Bdi>
         </p>
       ) : null}
@@ -229,12 +229,12 @@ function StepRow({
         // is byte-for-byte what came back.
         <pre
           dir="ltr"
-          className="mt-2 max-h-64 overflow-auto bg-grid-card px-3 py-2 font-mono text-xs"
+          className="mt-2 max-h-64 overflow-auto bg-card px-3 py-2 font-mono text-xs"
         >
           {step.result}
         </pre>
       ) : step.summary ? (
-        <p className="mt-2 text-sm text-grid-muted" dir="auto">
+        <p className="mt-2 text-sm text-muted-foreground" dir="auto">
           {step.summary}
         </p>
       ) : null}

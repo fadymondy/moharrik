@@ -62,20 +62,20 @@ export function ReasonList({
   return (
     <ul
       className={
-        compact ? "flex flex-wrap gap-x-3 gap-y-1 text-xs text-grid-muted" : "space-y-1.5 text-sm"
+        compact ? "flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground" : "space-y-1.5 text-sm"
       }
       data-reasons
     >
       {list.map((r, i) => (
         <li key={i} className="flex items-baseline gap-2" data-reason={r.dimension}>
           <span
-            className={`shrink-0 tabular-nums ${r.points < 0 ? "text-grid-danger-text" : "text-grid-ok-text"}`}
+            className={`shrink-0 tabular-nums ${r.points < 0 ? "text-nq-danger-text" : "text-nq-success-text"}`}
             dir="ltr"
           >
             {r.points > 0 ? "+" : ""}
             {formatNumber(Math.round(r.points))}
           </span>
-          <span className={compact ? "" : "text-grid-body"}>{text(r)}</span>
+          <span className={compact ? "" : "text-nq-fg-body"}>{text(r)}</span>
         </li>
       ))}
     </ul>

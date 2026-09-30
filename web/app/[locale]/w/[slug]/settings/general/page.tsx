@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -152,13 +152,13 @@ export default function GeneralSettingsPage() {
         description={t("generalSettings.hint")}
       />
       <WorkspaceProfileSection />
-      <div className="grid-separator-contained hatch-band" aria-hidden />
+      <div className="hatch h-8 border-y border-border" aria-hidden />
       <div className="px-6 py-6">
         <h2 className="text-base font-medium">{t("generalSettings.defaultCountry")}</h2>
         {!current.data ? (
           <LoadingRows rows={2} />
         ) : !canWrite ? (
-          <p className="py-6 text-sm text-grid-muted">{t("generalSettings.adminOnly")}</p>
+          <p className="py-6 text-sm text-muted-foreground">{t("generalSettings.adminOnly")}</p>
         ) : (
           <FieldGroup className="max-w-md pt-2">
             <Field>
@@ -199,7 +199,7 @@ export default function GeneralSettingsPage() {
           </FieldGroup>
         )}
       </div>
-      <div className="grid-separator-contained hatch-band" aria-hidden />
+      <div className="hatch h-8 border-y border-border" aria-hidden />
       <LeaveWorkspaceSection />
       <DeleteWorkspaceSection />
       <div className="pb-10" />

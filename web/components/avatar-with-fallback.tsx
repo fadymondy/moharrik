@@ -33,7 +33,7 @@ export function initials(name: string): string {
 
 // MH-588: "a colour derived from the id, using theme tokens only" — every
 // entry here is a CSS custom property this app already themes for both
-// light/dark (globals.css / app/styles/grid-tokens.css), never a literal hex.
+// light/dark (globals.css / Nasaq tokens), never a literal hex.
 // Mixed at low opacity over --card for the tile and used at full strength for
 // the initials so it reads in both themes without a contrast check per pair.
 const AVATAR_PALETTE = [
@@ -41,9 +41,9 @@ const AVATAR_PALETTE = [
   "--secondary",
   "--accent",
   "--destructive",
-  "--grid-ok",
-  "--grid-warn",
-  "--grid-danger",
+  "--nq-success",
+  "--nq-warning",
+  "--nq-danger",
 ] as const
 
 function hashString(id: string): number {

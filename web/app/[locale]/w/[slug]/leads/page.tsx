@@ -99,7 +99,7 @@ export default function LeadsPage() {
         </div>
         <div className="relative lg:ms-auto lg:w-72">
           <SearchIcon
-            className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-grid-muted"
+            className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden
           />
           <Input
@@ -140,7 +140,7 @@ export default function LeadsPage() {
           <EmptyState title={t("leads.noMatch")} />
         )
       ) : (
-        <ul className="divide-y divide-line border-y border-line" data-lead-list>
+        <ul className="divide-y divide-nq-line border-y border-nq-line" data-lead-list>
           {items.map((l) => (
             <LeadRow key={l.id} lead={l} href={`${base}/leads/${l.id}`} />
           ))}
@@ -175,7 +175,7 @@ function FilterButton({
     >
       {label}
       {count !== undefined ? (
-        <span className={active ? "opacity-80" : "text-grid-muted"}>{count}</span>
+        <span className={active ? "opacity-80" : "text-muted-foreground"}>{count}</span>
       ) : null}
     </Button>
   )
@@ -189,23 +189,23 @@ function LeadRow({ lead, href }: { lead: Lead; href: string }) {
     <li>
       <Link
         href={href}
-        className={`flex flex-col gap-1.5 px-6 py-4 transition-colors hover:bg-grid-soft ${lead.status === "new" ? "bg-grid-card" : ""}`}
+        className={`flex flex-col gap-1.5 px-6 py-4 transition-colors hover:bg-nq-surface-soft ${lead.status === "new" ? "bg-card" : ""}`}
         data-lead={lead.email}
         data-lead-status={lead.status}
       >
         <span className="flex min-w-0 items-center gap-2">
           <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
           {lead.company ? (
-            <span className="hidden truncate text-sm text-grid-muted sm:inline">
+            <span className="hidden truncate text-sm text-muted-foreground sm:inline">
               ·&nbsp;<bdi>{lead.company}</bdi>
             </span>
           ) : null}
           <LeadStatusBadge status={lead.status} className="ms-auto shrink-0" />
         </span>
-        <span className="line-clamp-2 text-sm text-grid-body break-words" dir="auto">
+        <span className="line-clamp-2 text-sm text-nq-fg-body break-words" dir="auto">
           {lead.message}
         </span>
-        <span className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-grid-muted">
+        <span className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {lead.name ? <Ltr>{lead.email}</Ltr> : null}
           {lead.name ? <span aria-hidden>·</span> : null}
           <bdi data-lead-source>{source}</bdi>

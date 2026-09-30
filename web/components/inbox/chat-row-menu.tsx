@@ -37,7 +37,7 @@ import {
   ZapIcon,
   type LucideProps,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -490,11 +490,11 @@ export function LabelsDialog({
         </DialogHeader>
         <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
           {labels.length === 0 ? (
-            <li className="py-2 text-sm text-grid-muted">{t("inbox.org.noLabels")}</li>
+            <li className="py-2 text-sm text-muted-foreground">{t("inbox.org.noLabels")}</li>
           ) : (
             labels.map((l) => (
               <li key={l.id} className="flex items-center gap-2">
-                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-grid-soft">
+                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-nq-surface-soft">
                   <input
                     type="checkbox"
                     className="size-4 accent-(--primary)"
@@ -504,7 +504,7 @@ export function LabelsDialog({
                   />
                   <span data-tag={l.color} className="size-2.5 shrink-0 rounded-full bg-(--tag)" aria-hidden />
                   <bdi className="truncate text-sm">{l.name}</bdi>
-                  <span className="ms-auto text-xs text-grid-muted">{l.count}</span>
+                  <span className="ms-auto text-xs text-muted-foreground">{l.count}</span>
                 </label>
                 {canDelete ? (
                   <Button
@@ -521,7 +521,7 @@ export function LabelsDialog({
           )}
         </ul>
         <form
-          className="flex flex-col gap-2 border-t border-grid-line pt-3"
+          className="flex flex-col gap-2 border-t border-nq-line pt-3"
           onSubmit={(e) => {
             e.preventDefault()
             void create()
@@ -550,7 +550,7 @@ export function LabelsDialog({
                 aria-label={t(`inbox.org.colors.${col}`)}
                 data-tag={col}
                 onClick={() => setColor(col)}
-                className="size-6 rounded-full bg-(--tag) ring-offset-2 ring-offset-(--grid-elevated) aria-checked:ring-2 aria-checked:ring-(--grid-fg)"
+                className="size-6 rounded-full bg-(--tag) ring-offset-2 ring-offset-(--nq-surface-overlay) aria-checked:ring-2 aria-checked:ring-(--nq-fg)"
               />
             ))}
           </div>

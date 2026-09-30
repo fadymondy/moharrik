@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import {
   AlertDialog,
@@ -171,7 +171,7 @@ export function EditListDialog({
             <Field>
               <FieldLabel htmlFor="edit-list-description">
                 {t("lists.description")}{" "}
-                <span className="text-grid-muted">({t("common.optional")})</span>
+                <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
               <Input
                 id="edit-list-description"

@@ -18,7 +18,7 @@ import {
   Trash2Icon,
   UserIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Button } from "@/components/ui/button"
 import {

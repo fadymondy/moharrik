@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { CombineIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { BdiBlock } from "@/components/bidi"
 import {
@@ -201,21 +201,21 @@ function MergeContactDialog({
               <DialogDescription>{t("contacts.mergeConfirmBody")}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 py-2 sm:grid-cols-2" data-merge-contact-preview>
-              <div className="border border-line bg-grid-card p-3" data-merge-survivor>
-                <p className="text-xs text-grid-muted">{t("contacts.mergeSurvivor")}</p>
+              <div className="border border-nq-line bg-card p-3" data-merge-survivor>
+                <p className="text-xs text-muted-foreground">{t("contacts.mergeSurvivor")}</p>
                 <p className="font-medium">
                   <BdiBlock>{contact.name || contactIdentity(contact)}</BdiBlock>
                 </p>
-                <p className="text-sm text-grid-muted">
+                <p className="text-sm text-muted-foreground">
                   <BdiBlock>{contactIdentity(contact)}</BdiBlock>
                 </p>
               </div>
-              <div className="border border-line bg-grid-card p-3" data-merge-source>
-                <p className="text-xs text-grid-muted">{t("contacts.mergeSource")}</p>
+              <div className="border border-nq-line bg-card p-3" data-merge-source>
+                <p className="text-xs text-muted-foreground">{t("contacts.mergeSource")}</p>
                 <p className="font-medium">
                   <BdiBlock>{source.name || contactIdentity(source)}</BdiBlock>
                 </p>
-                <p className="text-sm text-grid-muted">
+                <p className="text-sm text-muted-foreground">
                   <BdiBlock>{contactIdentity(source)}</BdiBlock>
                 </p>
               </div>

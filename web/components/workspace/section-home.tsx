@@ -63,7 +63,7 @@ export function SectionHome({ section }: { section: string }) {
       <div className="space-y-4 px-4 pb-10 sm:space-y-6 sm:px-6">
         {allowed ? <SectionFigures section={group.key} base={base} /> : null}
         <section aria-labelledby="section-pages" data-section-pages>
-          <h2 id="section-pages" className="grid-micro mb-3">
+          <h2 id="section-pages" className="eyebrow mb-3">
             {t("section.pages")}
           </h2>
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
@@ -74,19 +74,19 @@ export function SectionHome({ section }: { section: string }) {
                   <Link
                     href={`${base}/${item.path}`}
                     data-section-page={item.key}
-                    className="group flex h-full items-start gap-3 border border-line bg-grid-card px-5 py-4 transition-colors hover:bg-grid-soft"
+                    className="group flex h-full items-start gap-3 border border-nq-line bg-card px-5 py-4 transition-colors hover:bg-nq-surface-soft"
                   >
-                    <Icon className="mt-0.5 size-4 shrink-0 text-grid-muted" aria-hidden />
+                    <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 flex-1 space-y-1">
-                      <span className="block text-sm font-medium text-grid-fg">
+                      <span className="block text-sm font-medium text-foreground">
                         {t(item.labelKey)}
                       </span>
-                      <span className="block text-sm text-grid-muted">
+                      <span className="block text-sm text-muted-foreground">
                         {t(`section.desc.${item.key}`)}
                       </span>
                     </span>
                     <ArrowRightIcon
-                      className="mt-0.5 size-4 shrink-0 text-grid-muted transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5"
+                      className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5"
                       aria-hidden
                     />
                   </Link>
@@ -119,7 +119,7 @@ function OverviewSlice({ section, base }: { section: string; base: string }) {
     return (
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2" aria-busy>
         {Array.from({ length: 2 }, (_, i) => (
-          <div key={i} className="space-y-3 border border-line bg-grid-card px-5 py-4">
+          <div key={i} className="space-y-3 border border-nq-line bg-card px-5 py-4">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-3/4" />
@@ -265,7 +265,7 @@ function RecentAutomationRuns({ base }: { base: string }) {
           action={{ href: `${base}/automation/browsers`, label: t("automation.browsers") }}
         />
       ) : (
-        <ul className="divide-y divide-line">
+        <ul className="divide-y divide-nq-line">
           {list.map((r) => (
             <AutomationRunRow key={r.id} run={r} href={`${base}/automation/runs/${r.id}`} />
           ))}
@@ -297,7 +297,7 @@ function RecentResearch({ base }: { base: string }) {
           action={{ href: `${base}/research/runs`, label: t("research.tabRuns") }}
         />
       ) : (
-        <ul className="divide-y divide-line">
+        <ul className="divide-y divide-nq-line">
           {runs.map((r) => (
             <ResearchRunRow key={r.id} run={r} />
           ))}

@@ -116,8 +116,8 @@ export function ConnectClients({
 
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
-    <p className="flex gap-2.5 text-sm text-grid-body">
-      <span className="grid size-5 shrink-0 place-items-center border border-line font-mono text-[11px] text-grid-muted">
+    <p className="flex gap-2.5 text-sm text-nq-fg-body">
+      <span className="grid size-5 shrink-0 place-items-center border border-nq-line font-mono text-[11px] text-muted-foreground">
         {n}
       </span>
       <span className="min-w-0">{children}</span>
@@ -127,8 +127,8 @@ function Step({ n, children }: { n: number; children: React.ReactNode }) {
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-start gap-2 border border-line bg-grid-card p-3 text-sm text-grid-body">
-      <InfoIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" />
+    <p className="flex items-start gap-2 border border-nq-line bg-card p-3 text-sm text-nq-fg-body">
+      <InfoIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0">{children}</span>
     </p>
   )

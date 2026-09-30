@@ -86,7 +86,7 @@ export default function AutomationRunsPage() {
           body={hasBrowser ? undefined : t("automation.flow.runsNeedBrowser")}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-nq-line border-y border-nq-line">
           {(runs.data?.runs ?? []).map((r) => (
             <RunRow key={r.id} run={r} href={`/${locale}/w/${ws.slug}/automation/runs/${r.id}`} />
           ))}

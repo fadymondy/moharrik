@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useMemo, useState, type DragEvent, type FormEvent } from "react"
 import { ArrowRightLeftIcon, GripVerticalIcon, PencilIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import {
   formatMoney,
@@ -103,8 +103,8 @@ export function PipelineBoard({
   }
 
   return (
-    <ScrollX className="border-y border-line" data-board>
-      <div className="flex min-w-max divide-x divide-line rtl:divide-x-reverse">
+    <ScrollX className="border-y border-nq-line" data-board>
+      <div className="flex min-w-max divide-x divide-nq-line rtl:divide-x-reverse">
         {stages.map((s) => {
           const list = byStage.get(s.id) ?? []
           // The stage's own count and value, from the server: the whole column, not just the
@@ -118,7 +118,7 @@ export function PipelineBoard({
               data-stage={s.name}
               data-stage-id={s.id}
               aria-label={s.name}
-              className={`flex w-64 shrink-0 flex-col sm:w-auto sm:flex-[1_0_14rem] ${hot ? "bg-grid-card" : ""}`}
+              className={`flex w-64 shrink-0 flex-col sm:w-auto sm:flex-[1_0_14rem] ${hot ? "bg-card" : ""}`}
               onDragOver={(e) => {
                 e.preventDefault()
                 e.dataTransfer.dropEffect = "move"
@@ -126,7 +126,7 @@ export function PipelineBoard({
               }}
               onDrop={(e) => drop(e, s.id)}
             >
-              <header className="border-b border-line px-4 py-3">
+              <header className="border-b border-nq-line px-4 py-3">
                 <div className="flex items-center gap-2">
                   <span
                     className={`size-2 shrink-0 rounded-full ${stageTone[s.kind]}`}
@@ -136,13 +136,13 @@ export function PipelineBoard({
                     {s.name}
                   </BdiBlock>
                   <span
-                    className="ms-auto text-xs text-grid-muted tabular-nums"
+                    className="ms-auto text-xs text-muted-foreground tabular-nums"
                     data-stage-count={s.deal_count}
                   >
                     {formatNumber(s.deal_count)}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-grid-muted">
+                <p className="mt-1 text-xs text-muted-foreground">
                   <Ltr>{formatMoney(total, currency, useLocale())}</Ltr>
                 </p>
               </header>
@@ -161,7 +161,7 @@ export function PipelineBoard({
                     }}
                   >
                     {over?.before === d.id && dragging && dragging !== d.id ? (
-                      <div className="mb-2 h-0.5 rounded bg-grid-brand" aria-hidden />
+                      <div className="mb-2 h-0.5 rounded bg-nq-brand" aria-hidden />
                     ) : null}
                     <DealCard
                       deal={d}
@@ -184,10 +184,10 @@ export function PipelineBoard({
               </ol>
               {list.length < s.deal_count ? (
                 <div
-                  className="flex flex-col items-start gap-2 border-t border-line px-4 py-3"
+                  className="flex flex-col items-start gap-2 border-t border-nq-line px-4 py-3"
                   data-stage-more={`${list.length}/${s.deal_count}`}
                 >
-                  <span className="text-xs text-grid-muted">
+                  <span className="text-xs text-muted-foreground">
                     {tr("deals.showingInStage", {
                       shown: formatNumber(list.length),
                       total: formatNumber(s.deal_count),
@@ -245,11 +245,11 @@ function DealCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       data-deal-card={deal.title}
-      className={`rounded-lg border border-line bg-background p-3 text-sm shadow-xs ${canWrite ? "cursor-grab active:cursor-grabbing" : ""} ${dragging ? "opacity-40" : ""}`}
+      className={`rounded-lg border border-nq-line bg-background p-3 text-sm shadow-xs ${canWrite ? "cursor-grab active:cursor-grabbing" : ""} ${dragging ? "opacity-40" : ""}`}
     >
       <div className="flex items-start gap-1.5">
         {canWrite ? (
-          <GripVerticalIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" aria-hidden />
+          <GripVerticalIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
         ) : null}
         <Link
           href={`${base}/deals/${deal.id}`}
@@ -296,7 +296,7 @@ function DealCard({
         )}
       </div>
       {deal.company || deal.contact ? (
-        <p className="mt-1 truncate text-xs text-grid-muted">
+        <p className="mt-1 truncate text-xs text-muted-foreground">
           {[deal.company?.name, deal.contact ? deal.contact.name || deal.contact.email : null]
             .filter(Boolean)
             .map((part, i) => (
@@ -308,7 +308,7 @@ function DealCard({
         </p>
       ) : null}
       {deal.expected_close ? (
-        <p className="mt-1 text-xs text-grid-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           {t("deals.closesOn", { date: formatDate(deal.expected_close) })}
         </p>
       ) : null}
@@ -332,7 +332,7 @@ export function DealValue({
   const { t, locale } = useTranslations()
   if (!deal.value_minor) {
     return (
-      <span className={`text-grid-muted ${className ?? ""}`} data-deal-value="none">
+      <span className={`text-muted-foreground ${className ?? ""}`} data-deal-value="none">
         {t("deals.noValue")}
       </span>
     )
@@ -395,7 +395,7 @@ function DealValueEditor({ deal, onSaved }: { deal: Deal; onSaved?: () => void }
           <button
             type="button"
             draggable={false}
-            className="group inline-flex max-w-full items-center gap-1.5 rounded-sm font-medium outline-none hover:text-grid-brand focus-visible:ring-2 focus-visible:ring-ring"
+            className="group inline-flex max-w-full items-center gap-1.5 rounded-sm font-medium outline-none hover:text-nq-brand focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={deal.value_minor ? t("deals.editValue") : t("deals.setValue")}
             data-deal-value-edit
           />
@@ -403,7 +403,7 @@ function DealValueEditor({ deal, onSaved }: { deal: Deal; onSaved?: () => void }
       >
         <DealValue deal={deal} />
         <PencilIcon
-          className="size-3 shrink-0 text-grid-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+          className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           aria-hidden
         />
       </PopoverTrigger>
@@ -450,16 +450,16 @@ export function DealsTable({
   const base = `/${locale}/w/${ws.slug}`
   if (deals.length === 0)
     return (
-      <p className="border-y border-line px-6 py-6 text-sm text-grid-muted">
+      <p className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground">
         {empty ?? t("deals.empty")}
       </p>
     )
   return (
-    <div className="border-y border-line">
+    <div className="border-y border-nq-line">
       {total !== undefined && total > deals.length ? (
         // A contact or company page lists its first deals only; it says so (MH-467).
         <p
-          className="border-b border-line px-6 py-3 text-sm text-grid-muted"
+          className="border-b border-nq-line px-6 py-3 text-sm text-muted-foreground"
           data-deals-more={`${deals.length}/${total}`}
         >
           {t("deals.relatedMore", {
@@ -503,7 +503,7 @@ export function DealsTable({
                     <Bdi>{d.company.name}</Bdi>
                   </Link>
                 ) : (
-                  <span className="text-grid-muted">—</span>
+                  <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
               <TableCell>
@@ -512,13 +512,13 @@ export function DealsTable({
                     {d.contact.name ? <Bdi>{d.contact.name}</Bdi> : <Ltr>{d.contact.email}</Ltr>}
                   </Link>
                 ) : (
-                  <span className="text-grid-muted">—</span>
+                  <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
-              <TableCell className="text-grid-muted">
+              <TableCell className="text-muted-foreground">
                 <Ltr>{members.name(d.owner_user_id)}</Ltr>
               </TableCell>
-              <TableCell className="pe-6 text-grid-muted">
+              <TableCell className="pe-6 text-muted-foreground">
                 {d.expected_close ? formatDate(d.expected_close) : "—"}
               </TableCell>
             </TableRow>

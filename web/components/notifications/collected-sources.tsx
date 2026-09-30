@@ -8,7 +8,7 @@ import {
   RefreshCwIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -60,16 +60,16 @@ export function CollectedSources() {
   const over = data ? data.budget.runs_per_hour > data.budget.limit : false
 
   return (
-    <section className="border-b border-line pb-6" data-collected-sources>
+    <section className="border-b border-nq-line pb-6" data-collected-sources>
       <div className="flex flex-wrap items-end justify-between gap-3 px-6 pb-4">
         <div className="max-w-2xl">
           <h2 className="text-lg font-semibold">{t("notifications.collected")}</h2>
-          <p className="mt-1 text-sm text-grid-muted">{t("notifications.collectedHint")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("notifications.collectedHint")}</p>
         </div>
         <div className="flex items-center gap-3">
           {data ? (
             <span
-              className={`text-xs tabular-nums ${over ? "text-grid-warn-text" : "text-grid-muted"}`}
+              className={`text-xs tabular-nums ${over ? "text-nq-warning-text" : "text-muted-foreground"}`}
               data-budget={`${data.budget.runs_per_hour}/${data.budget.limit}`}
             >
               {t("notifications.budget", {
@@ -97,7 +97,7 @@ export function CollectedSources() {
           body={canManage ? t("notifications.noCollectedBody") : undefined}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-nq-line border-y border-nq-line">
           {data.sources.map((s) => (
             <CollectedRow
               key={s.id}
@@ -112,21 +112,21 @@ export function CollectedSources() {
 
       {unavailable.length ? (
         <div className="px-6 pt-5" data-not-configured>
-          <h3 className="grid-micro">{t("notifications.notConfigured")}</h3>
-          <p className="mt-1 max-w-2xl text-sm text-grid-muted">
+          <h3 className="eyebrow">{t("notifications.notConfigured")}</h3>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {t("notifications.notConfiguredHint")}
           </p>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {unavailable.map((c) => (
               <li
                 key={c.kind}
-                className="flex items-start gap-2 border border-line p-3"
+                className="flex items-start gap-2 border border-nq-line p-3"
                 data-kind-unavailable={c.kind}
               >
-                <LockIcon className="mt-0.5 size-4 shrink-0 text-grid-muted" />
+                <LockIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{t(`notifications.sourceKind.${c.kind}`)}</p>
-                  <p className="text-xs text-grid-muted">
+                  <p className="text-xs text-muted-foreground">
                     {t(`notifications.needs.${c.needs ?? "oauth_app"}`)}
                   </p>
                 </div>
@@ -242,7 +242,7 @@ function CollectedRow({
             {status}
           </p>
           <a
-            className="mt-0.5 inline-flex max-w-full items-center gap-1 text-xs break-all text-grid-muted underline-offset-4 hover:underline"
+            className="mt-0.5 inline-flex max-w-full items-center gap-1 text-xs break-all text-muted-foreground underline-offset-4 hover:underline"
             href={source.target_url}
             target="_blank"
             rel="noreferrer"
@@ -251,7 +251,7 @@ function CollectedRow({
             {source.target}
             <ExternalLinkIcon className="size-3 shrink-0" />
           </a>
-          <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-grid-muted">
+          <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>
               {t("notifications.itemCount", {
                 n: formatNumber(source.item_count),
@@ -273,7 +273,7 @@ function CollectedRow({
           </p>
           {source.last_status === "failed" && source.last_error ? (
             <p
-              className="mt-1 flex items-start gap-1 text-xs text-grid-danger-text"
+              className="mt-1 flex items-start gap-1 text-xs text-nq-danger-text"
               data-collected-error
             >
               <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" />
@@ -312,7 +312,7 @@ function CollectedRow({
       {canManage ? (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-grid-muted" id={`int-${source.id}`}>
+            <span className="text-xs text-muted-foreground" id={`int-${source.id}`}>
               {t("notifications.interval")}
             </span>
             <div className="w-40">
@@ -361,7 +361,7 @@ function CollectedRow({
           ) : null}
         </div>
       ) : (
-        <p className="text-xs text-grid-muted">
+        <p className="text-xs text-muted-foreground">
           {intervalLabel(t, source.interval_minutes)} ·{" "}
           {source.push_enabled ? t("notifications.pushEnabled") : t("notifications.pushOff")}
         </p>
@@ -473,7 +473,7 @@ function AddCollectedDialog({
             <Field>
               <FieldLabel htmlFor="collected-name">
                 {t("notifications.sourceName")}{" "}
-                <span className="text-grid-muted">({t("common.optional")})</span>
+                <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
               <Input
                 id="collected-name"

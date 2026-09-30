@@ -31,7 +31,7 @@ const stageVariant: Record<Exclude<Lifecycle, "">, "default" | "secondary" | "ou
 
 export function LifecycleBadge({ stage }: { stage: Lifecycle }) {
   const { t } = useTranslations()
-  if (!stage) return <span className="text-grid-muted">—</span>
+  if (!stage) return <span className="text-muted-foreground">—</span>
   return (
     <Badge variant={stageVariant[stage]} data-lifecycle={stage}>
       {t(`lifecycle.${stage}`)}
@@ -85,9 +85,9 @@ export function ScoreReasons({
   const { t } = useTranslations()
   const signed = useSigned()
   const sorted = [...reasons].sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
-  if (sorted.length === 0) return <p className="text-sm text-grid-muted">{t("icp.noReasons")}</p>
+  if (sorted.length === 0) return <p className="text-sm text-muted-foreground">{t("icp.noReasons")}</p>
   return (
-    <ul className={cn("divide-y divide-line", className)} data-score-reasons>
+    <ul className={cn("divide-y divide-nq-line", className)} data-score-reasons>
       {sorted.map((r) => (
         <li
           key={r.dimension}
@@ -97,15 +97,15 @@ export function ScoreReasons({
           <span
             className={cn(
               "mt-0.5 flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5",
-              r.value > 0 ? "text-grid-fg" : "text-grid-muted",
+              r.value > 0 ? "text-foreground" : "text-muted-foreground",
             )}
             aria-hidden
           >
             {r.value > 0 ? <CheckIcon /> : <MinusIcon />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block font-medium text-grid-fg">{dimensionLabel(r.dimension, t)}</span>
-            <span className="block text-grid-muted">
+            <span className="block font-medium text-foreground">{dimensionLabel(r.dimension, t)}</span>
+            <span className="block text-muted-foreground">
               <Bdi>{reasonLine(r, t)}</Bdi>
             </span>
           </span>
@@ -117,15 +117,15 @@ export function ScoreReasons({
               className={cn(
                 "font-medium",
                 r.contribution < 0
-                  ? "text-grid-danger-text"
+                  ? "text-nq-danger-text"
                   : r.contribution > 0
-                    ? "text-grid-fg"
-                    : "text-grid-muted",
+                    ? "text-foreground"
+                    : "text-muted-foreground",
               )}
             >
               {signed(r.contribution)}
             </Ltr>
-            <span className="block text-xs text-grid-muted">
+            <span className="block text-xs text-muted-foreground">
               {t("icp.ofWeight", { w: signed(r.weight) })}
             </span>
           </span>
@@ -138,11 +138,11 @@ export function ScoreReasons({
 /** The score as a small meter; the number is the text, the bar only echoes it. */
 export function ScoreMeter({ score }: { score: number | null }) {
   const { t, formatNumber } = useTranslations()
-  if (score === null) return <span className="text-grid-muted">{t("icp.unscored")}</span>
+  if (score === null) return <span className="text-muted-foreground">{t("icp.unscored")}</span>
   return (
     <span className="inline-flex items-center gap-2" data-score={score}>
       <span className="w-7 text-end font-medium tabular-nums">{formatNumber(score)}</span>
-      <span className="h-1.5 w-12 overflow-hidden rounded-full bg-grid-soft" aria-hidden>
+      <span className="h-1.5 w-12 overflow-hidden rounded-full bg-nq-surface-soft" aria-hidden>
         <span
           className="block h-full rounded-full"
           style={{ width: `${Math.max(2, score)}%`, background: "var(--chart-1)" }}
@@ -181,7 +181,7 @@ export function ScoreButton({
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">
         <p className="text-sm font-medium">{t("icp.scoreTitle", { score })}</p>
-        <p className="pb-1 text-xs text-grid-muted">{t("icp.scoreHow")}</p>
+        <p className="pb-1 text-xs text-muted-foreground">{t("icp.scoreHow")}</p>
         <ScoreReasons reasons={reasons ?? []} />
       </PopoverContent>
     </Popover>

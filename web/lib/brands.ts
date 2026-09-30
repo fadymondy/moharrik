@@ -206,5 +206,5 @@ export function brandForHosts(hosts: string[]): Brand {
 }
 
 export function brandTint(brand: Brand): string {
-  return brand.icon ? `#${brand.icon.hex}` : "var(--grid-muted)"
+  return brand.icon ? `#${brand.icon.hex}` : "var(--nq-fg-muted)"
 }

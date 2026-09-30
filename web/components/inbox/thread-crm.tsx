@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, type FormEvent } from "react"
 import { BriefcaseIcon, LinkIcon, SparklesIcon, UnlinkIcon, UserPlusIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { ContactPicker } from "@/components/crm/contact-picker"
 import { PickSelect, toMinor } from "@/components/crm/shared"
@@ -70,17 +70,17 @@ export function ThreadCRM({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-3 text-sm"
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-nq-line px-6 py-3 text-sm"
       data-thread-crm
       data-thread-channel={c.channel}
     >
-      <span className="grid-micro">{t("inbox.crm.title")}</span>
+      <span className="eyebrow">{t("inbox.crm.title")}</span>
       {c.contact ? (
         <span
           className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
           data-crm-contact={c.contact.id}
         >
-          <span className="text-grid-muted">{t("inbox.crm.contact")}:</span>
+          <span className="text-muted-foreground">{t("inbox.crm.contact")}:</span>
           <Link
             href={`${base}/contacts/${c.contact.id}`}
             className="truncate font-medium underline-offset-4 hover:underline"
@@ -89,7 +89,7 @@ export function ThreadCRM({
           </Link>
           {c.contact.company ? (
             <>
-              <span className="text-grid-muted" aria-hidden>
+              <span className="text-muted-foreground" aria-hidden>
                 ·
               </span>
               <Link
@@ -118,14 +118,14 @@ export function ThreadCRM({
           ) : null}
         </span>
       ) : (
-        <span className="text-grid-muted" data-crm-contact="">
+        <span className="text-muted-foreground" data-crm-contact="">
           {t("inbox.crm.notLinked")}
         </span>
       )}
 
       {c.deal ? (
         <span className="flex min-w-0 items-center gap-2" data-crm-deal={c.deal.id}>
-          <span className="text-grid-muted">{t("inbox.crm.deal")}:</span>
+          <span className="text-muted-foreground">{t("inbox.crm.deal")}:</span>
           <Link
             href={`${base}/deals/${c.deal.id}`}
             className="truncate font-medium underline-offset-4 hover:underline"
@@ -375,7 +375,7 @@ export function CreateContactForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="new-contact-email">
-            {t("contacts.email")} <span className="text-grid-muted">({t("common.optional")})</span>
+            {t("contacts.email")} <span className="text-muted-foreground">({t("common.optional")})</span>
           </FieldLabel>
           <Input
             id="new-contact-email"
@@ -388,7 +388,7 @@ export function CreateContactForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="new-contact-phone">
-            {t("contacts.phone")} <span className="text-grid-muted">({t("common.optional")})</span>
+            {t("contacts.phone")} <span className="text-muted-foreground">({t("common.optional")})</span>
           </FieldLabel>
           <Input
             id="new-contact-phone"
@@ -497,13 +497,13 @@ function OpenDealForm({ c, onDone }: { c: Conversation; onDone: Done }) {
     <form onSubmit={submit} noValidate className="flex flex-col gap-4" data-form="open-deal">
       {!c.contact ? (
         <p
-          className="rounded-md border border-line bg-grid-soft px-3 py-2 text-sm text-grid-muted"
+          className="rounded-md border border-nq-line bg-nq-surface-soft px-3 py-2 text-sm text-muted-foreground"
           data-deal-no-contact
         >
           {t("inbox.crm.dealNoContact")}
         </p>
       ) : (
-        <p className="text-sm text-grid-muted">
+        <p className="text-sm text-muted-foreground">
           {t("inbox.crm.contact")}: <Bdi>{c.contact.name || c.contact.email}</Bdi>
           {c.contact.company ? (
             <>

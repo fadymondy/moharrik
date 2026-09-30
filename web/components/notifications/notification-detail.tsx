@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import { BookmarkIcon, ExternalLinkIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { LoadingRows } from "@/components/states"
@@ -21,9 +21,9 @@ import { useTranslations } from "@/lib/i18n"
 import { useNotificationItem } from "@/lib/queries"
 
 export const severityTone: Record<NotificationSeverity, string> = {
-  info: "bg-grid-brand",
-  warning: "bg-grid-warn",
-  error: "bg-grid-danger",
+  info: "bg-nq-brand",
+  warning: "bg-nq-warning",
+  error: "bg-nq-danger",
 }
 
 export const severityVariant: Record<
@@ -126,14 +126,14 @@ export function NotificationDetailSheet({
           </SheetDescription>
         </SheetHeader>
         {detail.error ? (
-          <p className="px-4 text-sm text-grid-danger-text" role="alert">
+          <p className="px-4 text-sm text-nq-danger-text" role="alert">
             {detail.error instanceof ApiError ? detail.error.message : t("common.networkError")}
           </p>
         ) : !item ? (
           <LoadingRows rows={3} />
         ) : (
           <div className="flex flex-col gap-5 px-4 pb-6">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-grid-muted">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge variant={severityVariant[item.severity]}>
                 {t(`notifications.severity.${item.severity}`)}
               </Badge>
@@ -145,13 +145,13 @@ export function NotificationDetailSheet({
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
               {item.actor ? (
                 <>
-                  <dt className="text-grid-muted">{t("notifications.actor")}</dt>
+                  <dt className="text-muted-foreground">{t("notifications.actor")}</dt>
                   <dd className="min-w-0 break-words">
                     <Bdi>{item.actor}</Bdi>
                   </dd>
                 </>
               ) : null}
-              <dt className="text-grid-muted">{t("notifications.readState")}</dt>
+              <dt className="text-muted-foreground">{t("notifications.readState")}</dt>
               <dd>
                 {item.read_at
                   ? t("notifications.readAt", { date: formatDate(item.read_at) })
@@ -159,7 +159,7 @@ export function NotificationDetailSheet({
               </dd>
               {item.url ? (
                 <>
-                  <dt className="text-grid-muted">{t("notifications.link")}</dt>
+                  <dt className="text-muted-foreground">{t("notifications.link")}</dt>
                   <dd className="min-w-0">
                     <a
                       className="inline-flex max-w-full items-center gap-1 break-all underline underline-offset-4"
@@ -201,10 +201,10 @@ export function NotificationDetailSheet({
             ) : null}
 
             <section className="flex flex-col gap-2">
-              <h3 className="grid-micro">{t("notifications.payload")}</h3>
-              <p className="text-xs text-grid-muted">{t("notifications.payloadHint")}</p>
+              <h3 className="eyebrow">{t("notifications.payload")}</h3>
+              <p className="text-xs text-muted-foreground">{t("notifications.payloadHint")}</p>
               <pre
-                className="max-h-96 overflow-auto border border-line bg-grid-card p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all"
+                className="max-h-96 overflow-auto border border-nq-line bg-card p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all"
                 dir="ltr"
                 data-notification-payload
               >

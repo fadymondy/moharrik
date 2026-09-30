@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 import { useSWRConfig } from "swr"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
@@ -199,7 +199,7 @@ function ContactAvatarControl({
         {err ? (
           <FieldError>{err}</FieldError>
         ) : (
-          <p className="text-xs text-grid-muted">{t("contacts.avatar.hint")}</p>
+          <p className="text-xs text-muted-foreground">{t("contacts.avatar.hint")}</p>
         )}
       </div>
     </div>
@@ -365,7 +365,7 @@ export function ContactEditForm({
           />
         </Field>
       </FieldGroup>
-      <h3 className="text-sm font-medium text-grid-muted">{t("contacts.personDetails")}</h3>
+      <h3 className="text-sm font-medium text-muted-foreground">{t("contacts.personDetails")}</h3>
       <FieldGroup className="grid gap-4 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-name-prefix`}>{t("contacts.namePrefix")}</FieldLabel>

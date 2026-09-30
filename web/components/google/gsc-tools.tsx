@@ -17,7 +17,7 @@ import {
   TriangleAlertIcon,
   XCircleIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Ltr } from "@/components/copy-field"
 import { useFormat } from "@/components/overview/overview-cards"
@@ -42,13 +42,13 @@ function Verdict({ v }: { v: string }) {
   const { t } = useTranslations()
   const icon =
     v === "PASS" ? (
-      <CheckCircle2Icon className="size-3.5 text-grid-ok" />
+      <CheckCircle2Icon className="size-3.5 text-nq-success" />
     ) : v === "FAIL" ? (
-      <XCircleIcon className="size-3.5 text-grid-danger" />
+      <XCircleIcon className="size-3.5 text-nq-danger" />
     ) : v === "PARTIAL" ? (
-      <TriangleAlertIcon className="size-3.5 text-grid-warn" />
+      <TriangleAlertIcon className="size-3.5 text-nq-warning" />
     ) : (
-      <CircleDashedIcon className="size-3.5 text-grid-muted" />
+      <CircleDashedIcon className="size-3.5 text-muted-foreground" />
     )
   return (
     <span
@@ -100,7 +100,7 @@ export function InspectTab({ resourceId, siteLabel }: { resourceId: string; site
   return (
     <div className="pb-10" data-gsc-inspect>
       <div className="space-y-3 px-6 pb-5">
-        <p className="max-w-3xl text-sm text-grid-muted">{t("gsci.hint", { site: siteLabel })}</p>
+        <p className="max-w-3xl text-sm text-muted-foreground">{t("gsci.hint", { site: siteLabel })}</p>
         {data.data.can_write ? (
           <form onSubmit={inspect} className="flex max-w-3xl flex-col gap-2 sm:flex-row">
             <Input
@@ -119,9 +119,9 @@ export function InspectTab({ resourceId, siteLabel }: { resourceId: string; site
             </Button>
           </form>
         ) : (
-          <p className="text-sm text-grid-muted">{t("gsci.managerOnly")}</p>
+          <p className="text-sm text-muted-foreground">{t("gsci.managerOnly")}</p>
         )}
-        <p className="text-xs text-grid-muted" data-inspect-quota>
+        <p className="text-xs text-muted-foreground" data-inspect-quota>
           {t("gsci.quota", { used: f.n(q.used), limit: f.n(q.limit) })}
         </p>
       </div>
@@ -131,26 +131,26 @@ export function InspectTab({ resourceId, siteLabel }: { resourceId: string; site
           body={data.data.can_write ? t("gsci.noneBody") : undefined}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-nq-line border-y border-nq-line">
           {list.map((i) => (
             <li key={i.url} data-inspection={i.url}>
               <button
                 type="button"
                 onClick={() => setOpen(open === i.url ? null : i.url)}
-                className="flex w-full flex-col gap-1 px-6 py-3 text-start hover:bg-grid-soft sm:flex-row sm:items-center sm:gap-4"
+                className="flex w-full flex-col gap-1 px-6 py-3 text-start hover:bg-nq-surface-soft sm:flex-row sm:items-center sm:gap-4"
                 aria-expanded={open === i.url}
               >
                 <span
                   dir="ltr"
-                  className="min-w-0 flex-1 truncate font-mono text-sm text-grid-fg rtl:text-right"
+                  className="min-w-0 flex-1 truncate font-mono text-sm text-foreground rtl:text-right"
                   title={i.url}
                 >
                   {i.url}
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
                   <Verdict v={i.verdict} />
-                  <span className="text-xs text-grid-muted">{i.coverage_state || "—"}</span>
-                  <span className="text-xs text-grid-muted" title={f.exact(i.inspected_at)}>
+                  <span className="text-xs text-muted-foreground">{i.coverage_state || "—"}</span>
+                  <span className="text-xs text-muted-foreground" title={f.exact(i.inspected_at)}>
                     {f.ago(i.inspected_at)}
                   </span>
                 </span>
@@ -179,12 +179,12 @@ function InspectionDetail({ i }: { i: GscInspection }) {
     [t("gsci.rich"), i.rich_results_verdict ? <Verdict v={i.rich_results_verdict} /> : "—"],
   ]
   return (
-    <div className="border-t border-line bg-grid-card px-6 py-4" data-inspection-detail>
+    <div className="border-t border-nq-line bg-card px-6 py-4" data-inspection-detail>
       <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[12rem_1fr]">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
-            <dt className="text-grid-muted">{k}</dt>
-            <dd className="min-w-0 break-words text-grid-fg">{v}</dd>
+            <dt className="text-muted-foreground">{k}</dt>
+            <dd className="min-w-0 break-words text-foreground">{v}</dd>
           </div>
         ))}
       </dl>
@@ -239,7 +239,7 @@ export function SitemapsTab({ resourceId, site }: { resourceId: string; site: st
   return (
     <div className="pb-10" data-gsc-sitemaps>
       <div className="space-y-3 px-6 pb-5">
-        <p className="max-w-3xl text-sm text-grid-muted">{t("gscs.hint")}</p>
+        <p className="max-w-3xl text-sm text-muted-foreground">{t("gscs.hint")}</p>
         {data.data.can_write ? (
           <form onSubmit={submit} className="flex max-w-3xl flex-col gap-2 sm:flex-row">
             <Input
@@ -257,24 +257,24 @@ export function SitemapsTab({ resourceId, site }: { resourceId: string; site: st
             </Button>
           </form>
         ) : (
-          <p className="text-sm text-grid-muted">{t("gsci.managerOnly")}</p>
+          <p className="text-sm text-muted-foreground">{t("gsci.managerOnly")}</p>
         )}
       </div>
       {data.data.error ? (
         <div
           role="alert"
-          className="mx-6 mb-4 flex items-start gap-3 border border-line bg-grid-card px-4 py-3 text-sm"
+          className="mx-6 mb-4 flex items-start gap-3 border border-nq-line bg-card px-4 py-3 text-sm"
           data-data-error
         >
-          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-grid-danger" />
-          <p className="break-words text-grid-danger-text">
+          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-nq-danger" />
+          <p className="break-words text-nq-danger-text">
             <Ltr>{data.data.error}</Ltr>
           </p>
         </div>
       ) : list.length === 0 ? (
         <EmptyState title={t("gscs.none")} body={t("gscs.noneBody")} />
       ) : (
-        <div className="border-y border-line">
+        <div className="border-y border-nq-line">
           <Table className="table-fixed">
             <TableHeader>
               <TableRow>
@@ -301,14 +301,14 @@ export function SitemapsTab({ resourceId, site }: { resourceId: string; site: st
                       {m.path}
                     </span>
                   </TableCell>
-                  <TableCell className="hidden text-xs text-grid-muted md:table-cell">
+                  <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
                     {m.last_submitted ? f.ago(m.last_submitted) : "—"}
                   </TableCell>
                   <TableCell>
                     {m.is_pending ? (
                       <Badge variant="outline">{t("gscs.pending")}</Badge>
                     ) : m.last_downloaded ? (
-                      <span className="text-xs text-grid-muted" title={f.exact(m.last_downloaded)}>
+                      <span className="text-xs text-muted-foreground" title={f.exact(m.last_downloaded)}>
                         {t("gscs.read", { when: f.ago(m.last_downloaded) })}
                       </span>
                     ) : (

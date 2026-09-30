@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { BookmarkIcon, RadioIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
@@ -250,10 +250,10 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
           <div className="flex flex-col gap-6" data-trend-topics>
             {groups.map((g) => (
               <section key={g.day} aria-labelledby={`day-${g.day}`}>
-                <h2 id={`day-${g.day}`} className="grid-micro px-6 pb-1">
+                <h2 id={`day-${g.day}`} className="eyebrow px-6 pb-1">
                   {dayLabel(g.day)}
                 </h2>
-                <ul className="divide-y divide-line border-y border-line">
+                <ul className="divide-y divide-nq-line border-y border-nq-line">
                   {g.topics.map((topic) => (
                     <TopicCard
                       key={topic.id}
@@ -374,7 +374,7 @@ function ItemsTab() {
               total: formatNumber(total),
             })}
           </p>
-          <ul className="divide-y divide-line border-y border-line" data-news-list>
+          <ul className="divide-y divide-nq-line border-y border-nq-line" data-news-list>
             {items.map((item) => (
               <NewsRow key={item.id} item={item} onChange={() => void pages.mutate()} />
             ))}

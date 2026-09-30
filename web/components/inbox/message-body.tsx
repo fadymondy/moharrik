@@ -111,7 +111,7 @@ function FailedChip({ a }: { a: InboxAttachment }) {
   const { t } = useTranslations()
   return (
     <div
-      className="flex items-center gap-1.5 rounded-md border border-dashed border-grid-border bg-grid-soft px-2 py-1 text-xs text-grid-muted"
+      className="flex items-center gap-1.5 rounded-md border border-dashed border-nq-line bg-nq-surface-soft px-2 py-1 text-xs text-muted-foreground"
       data-attachment-failed
     >
       <TriangleAlertIcon className="size-3.5 shrink-0" />
@@ -224,7 +224,7 @@ function VoicePlayer({ a }: { a: InboxAttachment }) {
         aria-label={t("inbox.media.voiceNote")}
         className="h-1.5 min-w-0 flex-1 accent-primary"
       />
-      <span className="w-9 shrink-0 text-[0.6875rem] tabular-nums text-grid-muted">
+      <span className="w-9 shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">
         {fmt(playing || current > 0 ? current : duration)}
       </span>
     </div>
@@ -242,17 +242,17 @@ function LocationCard({ a }: { a: InboxAttachment }) {
       target="_blank"
       rel="noreferrer noopener"
       className={cn(
-        "flex min-w-48 items-center gap-2 rounded-md border border-grid-border bg-grid-soft px-2.5 py-2 text-xs hover:bg-grid-card",
+        "flex min-w-48 items-center gap-2 rounded-md border border-nq-line bg-nq-surface-soft px-2.5 py-2 text-xs hover:bg-card",
         !href && "pointer-events-none opacity-70",
       )}
       data-attachment-location
     >
       <MapPinIcon className="size-4 shrink-0 text-primary" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-grid-fg">
+        <span className="block truncate font-medium text-foreground">
           {a.meta?.name || t("inbox.media.location")}
         </span>
-        {a.meta?.address ? <span className="block truncate text-grid-muted">{a.meta.address}</span> : null}
+        {a.meta?.address ? <span className="block truncate text-muted-foreground">{a.meta.address}</span> : null}
         {href ? <span className="block text-primary">{t("inbox.media.openInMaps")}</span> : null}
       </span>
     </a>
@@ -263,15 +263,15 @@ function ContactCard({ a }: { a: InboxAttachment }) {
   const { t } = useTranslations()
   return (
     <div
-      className="flex min-w-48 items-center gap-2 rounded-md border border-grid-border bg-grid-soft px-2.5 py-2 text-xs"
+      className="flex min-w-48 items-center gap-2 rounded-md border border-nq-line bg-nq-surface-soft px-2.5 py-2 text-xs"
       data-attachment-contact
     >
       <UserRoundIcon className="size-4 shrink-0 text-primary" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-grid-fg">
+        <span className="block truncate font-medium text-foreground">
           {a.meta?.name || t("inbox.media.contactCard")}
         </span>
-        {a.meta?.number ? <span className="block truncate text-grid-muted" dir="ltr">{a.meta.number}</span> : null}
+        {a.meta?.number ? <span className="block truncate text-muted-foreground" dir="ltr">{a.meta.number}</span> : null}
       </span>
     </div>
   )
@@ -327,7 +327,7 @@ export function AttachmentList({ attachments }: { attachments?: InboxAttachment[
                   onClick={() => setOpenImage(i)}
                   title={a.filename}
                   aria-label={t("inbox.media.openImage")}
-                  className="block w-full overflow-hidden rounded-md border border-grid-border"
+                  className="block w-full overflow-hidden rounded-md border border-nq-line"
                 >
                   {/* Signed, short-lived attachment URLs: next/image would cache
                       past that window, so a plain <img> is correct here. */}
@@ -368,12 +368,12 @@ export function AttachmentList({ attachments }: { attachments?: InboxAttachment[
                 target="_blank"
                 rel="noreferrer noopener"
                 download={a.filename}
-                className="flex items-center gap-1.5 rounded-md border border-grid-border bg-grid-soft px-2 py-1 text-xs hover:bg-grid-card"
+                className="flex items-center gap-1.5 rounded-md border border-nq-line bg-nq-surface-soft px-2 py-1 text-xs hover:bg-card"
                 title={`${a.filename} (${Math.ceil(a.size_bytes / 1024)} KB)`}
               >
                 <PaperclipIcon className="size-3.5 shrink-0" />
                 <span className="max-w-40 truncate">{a.filename}</span>
-                <DownloadIcon className="size-3 shrink-0 text-grid-muted" />
+                <DownloadIcon className="size-3 shrink-0 text-muted-foreground" />
               </a>
             </li>
           ))}

@@ -31,7 +31,7 @@ import { intlTag } from "@/lib/i18n-locale"
 import { useWorkflows } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 export default function WorkflowsPage() {
   return (
@@ -151,7 +151,7 @@ function Workflows() {
         action={create}
       />
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-6">
+      <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-6">
         {(["workflows", "executions"] as const).map((id) => (
           <button
             key={id}
@@ -160,8 +160,8 @@ function Workflows() {
             className={cn(
               "-mb-px border-b-2 px-1 py-2.5 text-sm font-medium transition-colors",
               tab === id
-                ? "border-grid-action text-grid-fg"
-                : "border-transparent text-grid-muted hover:text-grid-fg",
+                ? "border-nq-action text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
             aria-current={tab === id ? "page" : undefined}
             data-list-tab={id}
@@ -175,7 +175,7 @@ function Workflows() {
         <section data-workflow-list>
           <div className="flex flex-wrap items-center gap-3 px-6 py-4">
             <div className="relative min-w-0 flex-1 sm:max-w-xs">
-              <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-grid-muted" />
+              <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -211,7 +211,7 @@ function Workflows() {
           ) : list.length === 0 ? (
             <EmptyState title={t("workflows.noMatch", { q })} />
           ) : (
-            <ul className="divide-y divide-line border-y border-line">
+            <ul className="divide-y divide-nq-line border-y border-nq-line">
               {list.map((w) => (
                 <WorkflowRow
                   key={w.id}
@@ -248,22 +248,22 @@ function Chain({ workflow }: { workflow: AutomationWorkflow }) {
   const shown = workflow.steps.slice(0, max)
   return (
     <div className="flex items-center" aria-hidden data-chain={workflow.steps.length}>
-      <span className="flex size-7 items-center justify-center rounded-s-full rounded-e-md border border-line bg-grid-card">
-        <ZapIcon className="size-3.5 text-grid-gold" />
+      <span className="flex size-7 items-center justify-center rounded-s-full rounded-e-md border border-nq-line bg-card">
+        <ZapIcon className="size-3.5 text-nq-accent" />
       </span>
       {shown.map((s, i) => {
         const Icon = specOf(kindOf(s)).icon
         return (
           <span key={i} className="flex items-center">
-            <span className="h-px w-2.5 bg-grid-muted/60" />
-            <span className="flex size-7 items-center justify-center rounded-md border border-line bg-grid-card">
-              <Icon className="size-3.5 text-grid-fg" />
+            <span className="h-px w-2.5 bg-nq-fg-muted/60" />
+            <span className="flex size-7 items-center justify-center rounded-md border border-nq-line bg-card">
+              <Icon className="size-3.5 text-foreground" />
             </span>
           </span>
         )
       })}
       {workflow.steps.length > max ? (
-        <span className="ms-1.5 text-xs text-grid-muted">
+        <span className="ms-1.5 text-xs text-muted-foreground">
           {t("workflows.moreSteps", { n: workflow.steps.length - max })}
         </span>
       ) : null}
@@ -305,7 +305,7 @@ function WorkflowRow({
 
   return (
     <li
-      className="group flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4 transition-colors hover:bg-grid-soft"
+      className="group flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4 transition-colors hover:bg-nq-surface-soft"
       data-workflow-row={workflow.name}
     >
       <Link
@@ -325,11 +325,11 @@ function WorkflowRow({
           ) : null}
         </p>
         {workflow.description ? (
-          <p className="line-clamp-1 text-sm text-grid-muted">
+          <p className="line-clamp-1 text-sm text-muted-foreground">
             <Bdi>{workflow.description}</Bdi>
           </p>
         ) : null}
-        <p className="text-xs text-grid-muted">
+        <p className="text-xs text-muted-foreground">
           {t("workflows.updated", { when: relative(workflow.updated_at) })} ·{" "}
           {t("workflows.created", { date: created })} ·{" "}
           {t("automation.stepCount", { n: workflow.steps.length })}
@@ -351,7 +351,7 @@ function WorkflowRow({
             </span>
           </Link>
         ) : (
-          <span className="text-grid-muted">{t("workflows.never")}</span>
+          <span className="text-muted-foreground">{t("workflows.never")}</span>
         )}
       </div>
       <div className="flex items-center gap-1">
@@ -406,8 +406,8 @@ function AllExecutions({
     <section className="pt-4" data-all-executions>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
-          <thead className="text-xs text-grid-muted">
-            <tr className="border-y border-line">
+          <thead className="text-xs text-muted-foreground">
+            <tr className="border-y border-nq-line">
               <th className="px-6 py-2 text-start font-normal">{t("workflows.exec.workflow")}</th>
               <th className="px-2 py-2 text-start font-normal">{t("workflows.exec.status")}</th>
               <th className="px-2 py-2 text-start font-normal">{t("workflows.exec.started")}</th>
@@ -415,11 +415,11 @@ function AllExecutions({
               <th className="px-6 py-2 text-start font-normal">{t("workflows.exec.how")}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line border-b border-line">
+          <tbody className="divide-y divide-nq-line border-b border-nq-line">
             {runs.map((r) => (
               <tr
                 key={r.id}
-                className="hover:bg-grid-soft"
+                className="hover:bg-nq-surface-soft"
                 data-execution-row={r.id}
                 data-execution-status={r.status}
               >
@@ -435,15 +435,15 @@ function AllExecutions({
                   <span className="flex items-center gap-1.5">
                     <ExecutionIcon status={r.status} className="size-3.5" />
                     {t(`automation.status.${r.status}`)}
-                    <span className="text-xs text-grid-muted">
+                    <span className="text-xs text-muted-foreground">
                       ({t("automation.stepsDone", { ok: r.ok_count, total: r.step_count })})
                     </span>
                   </span>
                 </td>
-                <td className="px-2 py-3 whitespace-nowrap text-grid-muted">
+                <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
                   {when.format(new Date(r.created_at))}
                 </td>
-                <td className="px-2 py-3 whitespace-nowrap text-grid-muted">
+                <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
                   {duration(r) || "—"}
                 </td>
                 <td className="px-6 py-3">

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { EyeIcon, FlaskConicalIcon, PencilLineIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -31,13 +31,13 @@ function Reachable({ listId, audience }: { listId: string; audience: Audience })
   const ws = useWorkspace()
   const aud = useWhatsAppAudience(ws.id, listId, audience)
   if (aud.error)
-    return <p className="text-sm text-grid-danger-text">{t("campaigns.reachableError")}</p>
+    return <p className="text-sm text-nq-danger-text">{t("campaigns.reachableError")}</p>
   return (
     <div className="text-sm" data-whatsapp-reachable={aud.data?.reachable ?? ""}>
       <p className="font-medium">
         {aud.data ? t("campaigns.reachable", { count: aud.data.reachable }) : t("common.working")}
       </p>
-      <p className="text-grid-muted">{t("campaigns.reachableRule")}</p>
+      <p className="text-muted-foreground">{t("campaigns.reachableRule")}</p>
     </div>
   )
 }
@@ -53,11 +53,11 @@ function EmailReach({ listId, audience }: { listId: string; audience: Audience }
   if (!aud.data) return null
   return (
     <>
-      <p className="text-sm text-grid-muted" data-email-reachable={aud.data.reachable}>
+      <p className="text-sm text-muted-foreground" data-email-reachable={aud.data.reachable}>
         {t("campaigns.emailReachable", { count: aud.data.reachable })}
       </p>
       {aud.data.skipped > 0 ? (
-        <p className="text-sm text-grid-warn-text" data-email-skipped={aud.data.skipped}>
+        <p className="text-sm text-nq-warning-text" data-email-skipped={aud.data.skipped}>
           {t("campaigns.emailSkipped", { count: aud.data.skipped })}
         </p>
       ) : null}
@@ -336,7 +336,7 @@ export function CampaignForm({
         ) : null}
         {wa ? (
           <div
-            className="flex flex-col gap-3 border border-line bg-grid-card px-4 py-3"
+            className="flex flex-col gap-3 border border-nq-line bg-card px-4 py-3"
             data-whatsapp-panel
           >
             <Reachable listId={chosen} audience={audience} />
@@ -429,7 +429,7 @@ export function CampaignForm({
             </Button>
           ) : null}
           {editing && dirty ? (
-            <span className="text-sm text-grid-muted" data-unsaved>
+            <span className="text-sm text-muted-foreground" data-unsaved>
               {t("campaigns.unsaved")}
             </span>
           ) : null}

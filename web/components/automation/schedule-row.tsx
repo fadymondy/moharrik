@@ -5,7 +5,7 @@
 
 import { Fragment, useState } from "react"
 import { PencilIcon, PlayIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { ScheduleForm } from "@/components/automation/schedule-form"
@@ -136,7 +136,7 @@ export function ScheduleRow({
             ) : null}
           </p>
           {schedule.job_key ? (
-            <p className="text-xs text-grid-muted" data-schedule-job={schedule.job_key}>
+            <p className="text-xs text-muted-foreground" data-schedule-job={schedule.job_key}>
               {t("automation.sched.runsJob", { name: t(`automation.job.${schedule.job_key}`) })}
               {Object.entries(schedule.values ?? {}).map(
                 ([k, v]) => ` · ${t(`automation.jobParam.${k}`)}: ${v}`,
@@ -144,7 +144,7 @@ export function ScheduleRow({
             </p>
           ) : null}
           {schedule.workflow_id ? (
-            <p className="text-xs text-grid-muted" data-schedule-workflow>
+            <p className="text-xs text-muted-foreground" data-schedule-workflow>
               {t("automation.sched.runs", {
                 name: schedule.workflow_name
                   ? isolate(schedule.workflow_name)
@@ -166,7 +166,7 @@ export function ScheduleRow({
               ))}
             </p>
           ) : null}
-          <p className="text-xs text-grid-muted">
+          <p className="text-xs text-muted-foreground">
             <Ltr mono>{schedule.cron}</Ltr> · <Ltr>{schedule.timezone}</Ltr>
             {schedule.job_key ? null : (
               <>
@@ -188,7 +188,7 @@ export function ScheduleRow({
               ? ` · ${t("automation.sched.missedCount", { n: schedule.missed_count })}`
               : ""}
           </p>
-          <p className="text-xs text-grid-muted">
+          <p className="text-xs text-muted-foreground">
             {schedule.next_run_at
               ? t("automation.nextRun", { date: formatDate(schedule.next_run_at) })
               : ""}
@@ -202,8 +202,8 @@ export function ScheduleRow({
             <p
               className={
                 schedule.last_status === "ok" || schedule.last_status === "skipped"
-                  ? "mt-1 text-xs text-grid-muted"
-                  : "mt-1 text-xs text-grid-danger-text"
+                  ? "mt-1 text-xs text-muted-foreground"
+                  : "mt-1 text-xs text-nq-danger-text"
               }
               data-schedule-error
             >

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { MessageSquareTextIcon, PencilIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
@@ -91,7 +91,7 @@ export default function SubscribeFormsPage() {
       />
 
       {canManage && lists.data && listItems.length === 0 ? (
-        <p className="px-6 pb-4 text-sm text-grid-muted">
+        <p className="px-6 pb-4 text-sm text-muted-foreground">
           <Link className="underline underline-offset-4" href={`/${locale}/w/${ws.slug}/contacts`}>
             {t("forms.needList")}
           </Link>
@@ -108,7 +108,7 @@ export default function SubscribeFormsPage() {
           body={canManage ? t("forms.emptyBody") : t("forms.readOnly")}
         />
       ) : (
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-nq-line border-y border-nq-line">
           {items.map((f) => (
             <FormRow
               key={f.id}
@@ -208,7 +208,7 @@ function FormRow({
           {form.enabled ? t("forms.enabled") : t("forms.disabled")}
         </Badge>
         {blocked ? (
-          <span className="flex items-center gap-1 text-xs text-grid-warn-text" data-no-origins>
+          <span className="flex items-center gap-1 text-xs text-nq-warning-text" data-no-origins>
             <TriangleAlertIcon className="size-3.5" />
             {t("forms.noOrigins")}
           </span>
@@ -238,10 +238,10 @@ function FormRow({
         ) : null}
       </div>
 
-      <dl className="mt-3 grid gap-1 text-xs text-grid-muted sm:grid-cols-[10rem_1fr]">
+      <dl className="mt-3 grid gap-1 text-xs text-muted-foreground sm:grid-cols-[10rem_1fr]">
         <dt>{t("forms.publicKey")}</dt>
         <dd className="min-w-0 break-all">
-          <Ltr mono className="text-grid-fg">
+          <Ltr mono className="text-foreground">
             {form.public_key}
           </Ltr>
         </dd>
@@ -252,9 +252,9 @@ function FormRow({
       </dl>
 
       <div className="mt-3 space-y-1.5">
-        <p className="grid-micro">{t("forms.embed")}</p>
+        <p className="eyebrow">{t("forms.embed")}</p>
         <CopyField value={form.embed} label={t("forms.embed")} />
-        <p className="text-xs text-grid-muted">
+        <p className="text-xs text-muted-foreground">
           {t(inquiry ? "forms.embedHintInquiry" : "forms.embedHint")}
         </p>
       </div>
@@ -384,7 +384,7 @@ function FormDialog({
               <FieldDescription>{t("forms.allowedOriginsHint")}</FieldDescription>
               {parsed.length === 0 ? (
                 <p
-                  className="flex items-center gap-1 text-xs text-grid-warn-text"
+                  className="flex items-center gap-1 text-xs text-nq-warning-text"
                   role="status"
                   data-no-origins-warning
                 >
@@ -396,7 +396,7 @@ function FormDialog({
             <Field>
               <FieldLabel htmlFor="form-thanks-en">
                 {t("forms.thanksEn")}{" "}
-                <span className="text-grid-muted">({t("common.optional")})</span>
+                <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
               <Input
                 id="form-thanks-en"
@@ -409,7 +409,7 @@ function FormDialog({
             <Field>
               <FieldLabel htmlFor="form-thanks-ar">
                 {t("forms.thanksAr")}{" "}
-                <span className="text-grid-muted">({t("common.optional")})</span>
+                <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
               <Input
                 id="form-thanks-ar"

@@ -63,19 +63,19 @@ export function NodeStatusIndicator({
       return <BorderLoadingIndicator radius={radius}>{children}</BorderLoadingIndicator>
     case "success":
       return (
-        <StatusBorder radius={radius} className="border-grid-ok">
+        <StatusBorder radius={radius} className="border-nq-success">
           {children}
         </StatusBorder>
       )
     case "error":
       return (
-        <StatusBorder radius={radius} className="border-grid-danger">
+        <StatusBorder radius={radius} className="border-nq-danger">
           {children}
         </StatusBorder>
       )
     case "skipped":
       return (
-        <StatusBorder radius={radius} className="border-dashed border-grid-muted/60">
+        <StatusBorder radius={radius} className="border-dashed border-nq-fg-muted/60">
           {children}
         </StatusBorder>
       )

@@ -118,7 +118,7 @@ export function ThreadSearch({
 
   return (
     <div
-      className="flex items-center gap-2 border-b border-line bg-grid-elevated px-6 py-2"
+      className="flex items-center gap-2 border-b border-nq-line bg-nq-surface-overlay px-6 py-2"
       data-thread-search
     >
       <Input
@@ -138,7 +138,7 @@ export function ThreadSearch({
           }
         }}
       />
-      <span className="min-w-0 truncate text-xs text-grid-muted" data-search-count>
+      <span className="min-w-0 truncate text-xs text-muted-foreground" data-search-count>
         {err
           ? err
           : q.trim() === ""

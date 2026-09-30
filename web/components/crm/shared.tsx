@@ -131,9 +131,9 @@ export function ActivityIcon({ kind }: { kind: ActivityKind }) {
 }
 
 export const stageTone: Record<StageKind, string> = {
-  open: "bg-grid-brand",
-  won: "bg-grid-ok",
-  lost: "bg-grid-danger",
+  open: "bg-nq-brand",
+  won: "bg-nq-success",
+  lost: "bg-nq-danger",
 }
 
 // ── forms ────────────────────────────────────────────────────────────────

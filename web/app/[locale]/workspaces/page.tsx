@@ -42,9 +42,9 @@ export default function WorkspacesPage() {
       title={t("workspaces.title")}
       description={t("workspaces.pickHint")}
     >
-      <section className="grid-screen-line-top grid-screen-line-bottom border-x border-line">
-        <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-2">
-          <span className="grid-micro">{t("workspaces.title")}</span>
+      <section className="border-y border-border border-x border-nq-line">
+        <div className="flex items-center justify-between gap-4 border-b border-nq-line px-4 py-2">
+          <span className="eyebrow">{t("workspaces.title")}</span>
           <UserMenu email={me.data.email} />
         </div>
 
@@ -55,7 +55,7 @@ export default function WorkspacesPage() {
         ) : workspaces.length === 0 ? (
           <EmptyState title={t("workspaces.emptyTitle")} body={t("workspaces.emptyBody")} />
         ) : (
-          <ul className="divide-y divide-line" data-workspace-list>
+          <ul className="divide-y divide-nq-line" data-workspace-list>
             {workspaces.map((w) => (
               <li
                 key={w.id}
@@ -69,7 +69,7 @@ export default function WorkspacesPage() {
                   <WorkspaceMark name={w.name} avatarUrl={w.avatar_url} />
                   <span className="min-w-0 flex-1">
                     <BdiBlock className="block truncate text-sm font-medium">{w.name}</BdiBlock>
-                    <span className="flex flex-wrap items-center gap-x-2 text-xs text-grid-muted">
+                    <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                       <Ltr mono>/{w.slug}</Ltr>
                       <span aria-hidden>·</span>
                       <span className="inline-flex items-center gap-1" data-member-count>
@@ -109,11 +109,11 @@ export default function WorkspacesPage() {
           </ul>
         )}
       </section>
-      <div className="grid-separator" aria-hidden />
-      <section className="grid-screen-line-top grid-screen-line-bottom grid border-x border-line md:grid-cols-2">
-        <div className="border-line p-4 max-md:border-b md:border-e">
+      <div className="hatch h-8 border-y border-border" aria-hidden />
+      <section className="border-y border-border grid border-x border-nq-line md:grid-cols-2">
+        <div className="border-nq-line p-4 max-md:border-b md:border-e">
           <h2 className="mb-1 text-xl font-medium">{t("workspaces.createTitle")}</h2>
-          <p className="text-sm text-grid-muted">{t("workspaces.createHint")}</p>
+          <p className="text-sm text-muted-foreground">{t("workspaces.createHint")}</p>
         </div>
         <div className="p-4">
           <CreateWorkspaceForm autoFocus={!list.isLoading && workspaces.length === 0} />

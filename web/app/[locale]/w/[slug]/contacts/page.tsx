@@ -11,7 +11,7 @@ import {
   PencilIcon,
   SearchIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import {
   AlertDialog,
@@ -154,12 +154,12 @@ export default function ContactsPage() {
         onChange={changed}
       />
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       {canWrite ? (
         <AddContact lists={listItems} onAdded={changed} />
       ) : ws.current ? (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("contacts.readOnly")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("contacts.readOnly")}</p>
       ) : null}
 
       <ContactsBrowser lists={listItems} version={version} onChange={changed} />
@@ -227,7 +227,7 @@ function ListsSection({
   return (
     <section>
       <h2 className="px-6 pb-1 text-base font-medium">{t("lists.title")}</h2>
-      <p className="px-6 pb-4 text-sm text-grid-muted">{t("lists.hint")}</p>
+      <p className="px-6 pb-4 text-sm text-muted-foreground">{t("lists.hint")}</p>
       {error ? (
         <ErrorState error={error} />
       ) : loading ? (
@@ -235,7 +235,7 @@ function ListsSection({
       ) : lists.length === 0 ? (
         <EmptyState title={t("lists.empty")} body={canWrite ? t("lists.emptyBody") : undefined} />
       ) : (
-        <div className="border-y border-line">
+        <div className="border-y border-nq-line">
           <Table>
             <TableHeader>
               <TableRow>
@@ -256,16 +256,16 @@ function ListsSection({
                       <Bdi>{l.name}</Bdi>
                     </div>
                     {l.description ? (
-                      <div className="text-xs text-grid-muted">
+                      <div className="text-xs text-muted-foreground">
                         <Bdi>{l.description}</Bdi>
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell className="text-grid-muted">
+                  <TableCell className="text-muted-foreground">
                     {l.double_opt_in ? t("lists.on") : t("lists.off")}
                   </TableCell>
                   <TableCell>{l.subscribed}</TableCell>
-                  <TableCell className="text-grid-muted">{l.pending}</TableCell>
+                  <TableCell className="text-muted-foreground">{l.pending}</TableCell>
                   <TableCell className="pe-6 text-end">
                     <div className="inline-flex items-center gap-1">
                       {canExport ? (
@@ -330,7 +330,7 @@ function ListsSection({
             <Field className="sm:flex-1">
               <FieldLabel htmlFor="list-description">
                 {t("lists.description")}{" "}
-                <span className="text-grid-muted">({t("common.optional")})</span>
+                <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
               <Input
                 id="list-description"
@@ -425,8 +425,8 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
     <section className="px-6 py-6">
       <h2 className="text-base font-medium">{t("contacts.addTitle")}</h2>
       {needsSmtp ? (
-        <p className="mt-1 flex items-start gap-2 text-sm text-grid-muted">
-          <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+        <p className="mt-1 flex items-start gap-2 text-sm text-muted-foreground">
+          <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
           <span>
             {t("contacts.smtpMissing")}{" "}
             <Link
@@ -439,14 +439,14 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
         </p>
       ) : null}
       {lists.length === 0 ? (
-        <p className="mt-2 text-sm text-grid-muted">{t("contacts.noListsHint")}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{t("contacts.noListsHint")}</p>
       ) : null}
       <form onSubmit={onSubmit} noValidate className="mt-5" data-form="add-contact">
         <FieldGroup className="sm:flex-row sm:items-end sm:flex-wrap">
           <Field className="sm:flex-1 sm:min-w-48">
             <FieldLabel htmlFor="contact-email">
               {t("contacts.email")}{" "}
-              <span className="text-grid-muted">({t("common.optional")})</span>
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="contact-email"
@@ -460,7 +460,7 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
           <Field className="sm:flex-1 sm:min-w-40">
             <FieldLabel htmlFor="contact-phone">
               {t("contacts.phone")}{" "}
-              <span className="text-grid-muted">({t("common.optional")})</span>
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="contact-phone"
@@ -474,7 +474,7 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
           <Field className="sm:flex-1 sm:min-w-40">
             <FieldLabel htmlFor="contact-handle">
               {t("contacts.handle")}{" "}
-              <span className="text-grid-muted">({t("common.optional")})</span>
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="contact-handle"
@@ -486,7 +486,7 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
           </Field>
           <Field className="sm:flex-1 sm:min-w-40">
             <FieldLabel htmlFor="contact-name">
-              {t("contacts.name")} <span className="text-grid-muted">({t("common.optional")})</span>
+              {t("contacts.name")} <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input id="contact-name" value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
@@ -513,7 +513,7 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
             <Field className="sm:w-44">
               <FieldLabel htmlFor="contact-list">
                 {t("contacts.list")}{" "}
-                <span className="text-grid-muted">({t("common.optional")})</span>
+                <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
               <PickSelect
                 id="contact-list"
@@ -726,7 +726,7 @@ function ContactsBrowser({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
-        <span className="text-sm text-grid-muted">{t("icp.sortBy")}</span>
+        <span className="text-sm text-muted-foreground">{t("icp.sortBy")}</span>
         <ToggleGroup
           variant="outline"
           size="sm"
@@ -761,14 +761,14 @@ function ContactsBrowser({
           >
             <ToggleGroupItem value="all" data-status-filter="all">
               {t("contacts.statusAll")}{" "}
-              <span className="text-grid-muted tabular-nums">
+              <span className="text-muted-foreground tabular-nums">
                 {counts ? formatNumber(counts.all) : ""}
               </span>
             </ToggleGroupItem>
             {STATUSES.map((st) => (
               <ToggleGroupItem key={st} value={st} data-status-filter={st}>
                 {t(`sub.${st}`)}{" "}
-                <span className="text-grid-muted tabular-nums">
+                <span className="text-muted-foreground tabular-nums">
                   {counts ? formatNumber(counts[st]) : ""}
                 </span>
               </ToggleGroupItem>
@@ -811,7 +811,7 @@ function ContactsBrowser({
       ) : (
         <>
           <p
-            className="px-6 pb-3 text-sm text-grid-muted"
+            className="px-6 pb-3 text-sm text-muted-foreground"
             aria-live="polite"
             data-contacts-summary={`${from}-${to}/${total}`}
           >
@@ -848,7 +848,7 @@ function ContactsBrowser({
                 </PaginationItem>
                 <PaginationItem>
                   <span
-                    className="px-2 text-sm text-grid-muted tabular-nums"
+                    className="px-2 text-sm text-muted-foreground tabular-nums"
                     data-page-of={`${pageIndex + 1}/${pages}`}
                   >
                     {t("contacts.pageOf", {
@@ -929,7 +929,7 @@ function ContactsTable({
   }
 
   return (
-    <div className="border-y border-line">
+    <div className="border-y border-nq-line">
       <Table>
         <TableHeader>
           <TableRow>
@@ -971,7 +971,7 @@ function ContactsTable({
                       <Bdi>{c.name}</Bdi>
                     </Link>
                   ) : (
-                    <span className="text-grid-muted">—</span>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -1018,7 +1018,7 @@ function ContactsTable({
                 <TableCell>
                   <WhatsAppConsent contact={c} onChange={onChange} />
                 </TableCell>
-                <TableCell className="text-grid-muted">
+                <TableCell className="text-muted-foreground">
                   <Ltr>{formatDate(c.created_at)}</Ltr>
                 </TableCell>
                 <TableCell className="pe-6 text-end">

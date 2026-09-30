@@ -60,10 +60,10 @@ export function CapabilityNotes({
       {notes.map((n) => (
         <p
           key={n.key}
-          className="flex items-start gap-2 text-sm text-grid-muted"
+          className="flex items-start gap-2 text-sm text-muted-foreground"
           data-capability={n.key}
         >
-          <InfoIcon className="mt-0.5 size-4 shrink-0 text-grid-warn" />
+          <InfoIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
           <span>{n.text}</span>
         </p>
       ))}

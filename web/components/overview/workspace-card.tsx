@@ -32,7 +32,7 @@ export function WorkspaceCard({
       className={limited ? "lg:col-span-2" : undefined}
     >
       {limited ? (
-        <p className="border-b border-line px-5 py-3 text-sm text-grid-muted">
+        <p className="border-b border-nq-line px-5 py-3 text-sm text-muted-foreground">
           {t("overview.limitedRole")}
         </p>
       ) : null}
@@ -68,8 +68,8 @@ export function WorkspaceCard({
           ],
         ].map(([label, value], i) => (
           <div key={i} className="min-w-0">
-            <dt className="grid-micro mb-1">{label}</dt>
-            <dd className="text-grid-fg [overflow-wrap:anywhere]">{value}</dd>
+            <dt className="eyebrow mb-1">{label}</dt>
+            <dd className="text-foreground [overflow-wrap:anywhere]">{value}</dd>
           </div>
         ))}
       </dl>

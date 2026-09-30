@@ -131,11 +131,11 @@ export function MarkdownEditor({
 
   return (
     <div
-      className={cn("flex flex-col border border-line bg-grid-card", className)}
+      className={cn("flex flex-col border border-nq-line bg-card", className)}
       data-markdown-editor
     >
       {toolbar ? (
-        <div className="flex items-center gap-2 border-b border-line px-2 py-1.5">
+        <div className="flex items-center gap-2 border-b border-nq-line px-2 py-1.5">
           <ButtonGroup aria-label={t("editor.toolbar")}>
             {tools.map(({ action, label, Icon }) => (
               <Button
@@ -154,7 +154,7 @@ export function MarkdownEditor({
               </Button>
             ))}
           </ButtonGroup>
-          <span className="ms-auto hidden text-xs text-grid-muted sm:inline">
+          <span className="ms-auto hidden text-xs text-muted-foreground sm:inline">
             {t("editor.markdown")}
           </span>
         </div>

@@ -55,7 +55,7 @@ export function PageSummary({
   const { from, to } = pageRange(index, pageSize, shown, total)
   return (
     <p
-      className="px-6 pb-3 text-sm text-grid-muted"
+      className="px-6 pb-3 text-sm text-muted-foreground"
       aria-live="polite"
       data-pager-summary={name}
       data-range={`${from}-${to}/${total}`}
@@ -104,7 +104,7 @@ export function PageNav({
         </PaginationItem>
         <PaginationItem>
           <span
-            className="px-2 text-sm text-grid-muted tabular-nums"
+            className="px-2 text-sm text-muted-foreground tabular-nums"
             data-page-of={`${index + 1}/${pages}`}
           >
             {t("common.pageOf", { page: formatNumber(index + 1), pages: formatNumber(pages) })}

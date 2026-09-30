@@ -16,7 +16,7 @@ take the answer with it.
 
 import { useEffect, useRef, useState } from "react"
 import { CrosshairIcon, LoaderCircleIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -143,7 +143,7 @@ export function PickControl({
                 placeholder="https://example.com/login"
               />
               {!usable(url) ? (
-                <p className="text-xs text-grid-muted">{t("automation.pick.needUrl")}</p>
+                <p className="text-xs text-muted-foreground">{t("automation.pick.needUrl")}</p>
               ) : null}
             </div>
             <Button
@@ -159,7 +159,7 @@ export function PickControl({
           </>
         )}
         {err ? (
-          <p className="text-xs text-grid-danger-text" role="alert" data-pick-error>
+          <p className="text-xs text-nq-danger-text" role="alert" data-pick-error>
             {err}
           </p>
         ) : null}

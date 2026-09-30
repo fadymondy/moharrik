@@ -18,7 +18,7 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Badge } from "@/components/ui/badge"
@@ -53,7 +53,7 @@ export function FlowStep({
             ? "border-primary bg-primary text-primary-foreground"
             : state === "current"
               ? "border-primary text-primary"
-              : "border-line text-grid-muted"
+              : "border-nq-line text-muted-foreground"
         }`}
         aria-hidden
       >
@@ -93,7 +93,7 @@ export function BrowsersStatus({
   ]
   return (
     <section
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-line bg-grid-card px-6 py-4"
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-nq-line bg-card px-6 py-4"
       data-browser-status
     >
       <span
@@ -111,7 +111,7 @@ export function BrowsersStatus({
             </Link>
           ) : null}
         </p>
-        <p className="flex items-start gap-1 text-xs text-grid-muted">
+        <p className="flex items-start gap-1 text-xs text-muted-foreground">
           <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
           <span className="min-w-0 break-words">
             {t("automation.mayVisit", { hosts: hosts.join(", ") })}
@@ -243,7 +243,7 @@ export function BrowserRow({
               </Link>
             ) : null}
           </p>
-          <p className="text-xs text-grid-muted">
+          <p className="text-xs text-muted-foreground">
             {[browser.platform, browser.browser_version, browser.extension_version]
               .filter(Boolean)
               .join(" · ") || t("automation.unknownPlatform")}
@@ -254,15 +254,15 @@ export function BrowserRow({
             className="mt-1 flex items-start gap-1 text-xs"
             data-hosts={browser.allowed_hosts.join(",")}
           >
-            <ShieldCheckIcon className="mt-0.5 size-3 shrink-0 text-grid-muted" />
+            <ShieldCheckIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
             {browser.allowed_hosts.length > 0 ? (
-              <span className="text-grid-muted">
+              <span className="text-muted-foreground">
                 {t("automation.mayVisit", { hosts: browser.allowed_hosts.join(", ") })}
               </span>
             ) : (
               // Not an error — it is the safe default, and saying so stops
               // someone "fixing" it by pasting in a wildcard.
-              <span className="text-grid-muted">{t("automation.noHostsYet")}</span>
+              <span className="text-muted-foreground">{t("automation.noHostsYet")}</span>
             )}
           </p>
           {/* Whether a site added here works at once, or waits for an OK in the
@@ -270,7 +270,7 @@ export function BrowserRow({
               the browser's own report. */}
           {browser.status === "online" && browser.site_access && !revoked ? (
             <p
-              className="mt-1 text-xs text-grid-muted"
+              className="mt-1 text-xs text-muted-foreground"
               data-site-access={browser.site_access}
               data-pending={browser.pending_hosts.join(",")}
             >

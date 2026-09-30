@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { LayoutGridIcon, ListIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { DealForm, DealsTable, PipelineBoard } from "@/components/crm/deals"
 import { PickSelect, stageTone } from "@/components/crm/shared"
@@ -178,9 +178,9 @@ export default function DealsPage() {
       ) : !deals.data ? (
         <LoadingRows rows={4} />
       ) : deals.data.total === 0 ? (
-        <div className="border-y border-line px-6 py-12 text-center">
+        <div className="border-y border-nq-line px-6 py-12 text-center">
           <p className="text-sm font-medium">{t("deals.empty")}</p>
-          {canWrite ? <p className="mt-1 text-sm text-grid-muted">{t("deals.emptyBody")}</p> : null}
+          {canWrite ? <p className="mt-1 text-sm text-muted-foreground">{t("deals.emptyBody")}</p> : null}
         </div>
       ) : view === "board" ? (
         <PipelineBoard
@@ -420,7 +420,7 @@ function ManagePipelineDialog({
                 type="button"
                 variant="ghost"
                 size="icon-xs"
-                className="text-grid-danger-text"
+                className="text-nq-danger-text"
                 aria-label={t("common.delete")}
                 disabled={rows.length <= 1}
                 onClick={() => remove(i)}

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { BellOffIcon, BookmarkIcon, CheckIcon, SearchIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { useDebounced } from "@/components/crm/contact-picker"
@@ -253,7 +253,7 @@ export default function NotificationsPage() {
         />
       ) : page.total === 0 ? (
         <p
-          className="border-y border-line px-6 py-6 text-sm text-grid-muted"
+          className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground"
           data-notifications-no-match
         >
           {t("notifications.noMatch")}
@@ -267,7 +267,7 @@ export default function NotificationsPage() {
             total={page.total}
             name="notifications"
           />
-          <ul className="divide-y divide-line border-y border-line">
+          <ul className="divide-y divide-nq-line border-y border-nq-line">
             {page.items.map((it) => (
               <NotificationRow
                 key={it.id}
@@ -336,7 +336,7 @@ function NotificationRow({
 
   return (
     <li
-      className={`flex items-start gap-3 px-6 py-4 ${isRead ? "" : "bg-grid-card"}`}
+      className={`flex items-start gap-3 px-6 py-4 ${isRead ? "" : "bg-card"}`}
       data-notification={item.title}
       data-notification-read={isRead ? "true" : "false"}
     >
@@ -355,13 +355,13 @@ function NotificationRow({
         </button>
         {item.body ? (
           <p
-            className="mt-1 line-clamp-3 text-sm break-words whitespace-pre-wrap text-grid-muted"
+            className="mt-1 line-clamp-3 text-sm break-words whitespace-pre-wrap text-muted-foreground"
             dir="auto"
           >
             {item.body}
           </p>
         ) : null}
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-grid-muted">
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <Badge variant={severityVariant[item.severity]}>
             {t(`notifications.severity.${item.severity}`)}
           </Badge>
@@ -402,7 +402,7 @@ function NotificationRow({
             aria-pressed={isSaved}
             aria-label={isSaved ? t("notifications.unsave") : t("notifications.save")}
             onClick={() => toggle("saved", !isSaved)}
-            className={isSaved ? "text-grid-brand" : undefined}
+            className={isSaved ? "text-nq-brand" : undefined}
           >
             <BookmarkIcon fill={isSaved ? "currentColor" : "none"} />
           </Button>

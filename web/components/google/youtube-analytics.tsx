@@ -83,11 +83,11 @@ export function YouTubeAnalytics({
   const a = out?.analytics
   return (
     <section
-      className={compact ? "border-t border-line" : "pt-6"}
+      className={compact ? "border-t border-nq-line" : "pt-6"}
       data-yt-analytics={video || "channel"}
     >
       <div className="flex flex-wrap items-center gap-3 px-6 pt-4 pb-3">
-        <h2 className="me-auto flex items-center gap-2 text-sm font-medium [&_svg]:size-4 [&_svg]:text-grid-muted">
+        <h2 className="me-auto flex items-center gap-2 text-sm font-medium [&_svg]:size-4 [&_svg]:text-muted-foreground">
           <ChartLineIcon />
           {t("yta.title")}
         </h2>
@@ -151,7 +151,7 @@ function Filled({
   return (
     <>
       <div
-        className={`grid-cells grid-cells-flush-x grid-cols-2 ${compact ? "" : "lg:grid-cols-4"}`}
+        className={`cells cells-flush-x grid-cols-2 ${compact ? "" : "lg:grid-cols-4"}`}
         data-yta-totals
       >
         <Stat id="yt-views" label={t("yt.views")} value={f.n(tot.views)} sub={range} />
@@ -203,23 +203,23 @@ function Filled({
           height={compact ? 180 : 240}
         />
         {pending > 0 ? (
-          <p className="mt-2 text-xs text-grid-muted" data-yta-pending>
+          <p className="mt-2 text-xs text-muted-foreground" data-yta-pending>
             {t("yta.pending", { n: f.n(pending) })}
           </p>
         ) : null}
       </div>
       <div
-        className={`grid-cells grid-cells-flush-x grid-cols-1 ${compact ? "" : "lg:grid-cols-2"}`}
+        className={`cells cells-flush-x grid-cols-1 ${compact ? "" : "lg:grid-cols-2"}`}
       >
         {!compact ? (
           <Panel
             id="yt-top"
             title={t("yta.topVideos")}
             icon={<PlayIcon />}
-            meta={<span className="ms-auto text-xs text-grid-muted">{t("yt.views")}</span>}
+            meta={<span className="ms-auto text-xs text-muted-foreground">{t("yt.views")}</span>}
           >
             {top.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-grid-muted">{t("yta.noTop")}</p>
+              <p className="px-5 py-6 text-sm text-muted-foreground">{t("yta.noTop")}</p>
             ) : (
               <BarList
                 label={t("yta.topVideos")}
@@ -248,10 +248,10 @@ function Filled({
           id="yt-traffic"
           title={t("yta.traffic")}
           icon={<SignpostIcon />}
-          meta={<span className="ms-auto text-xs text-grid-muted">{t("yt.views")}</span>}
+          meta={<span className="ms-auto text-xs text-muted-foreground">{t("yt.views")}</span>}
         >
           {traffic.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-grid-muted">{t("yta.noTraffic")}</p>
+            <p className="px-5 py-6 text-sm text-muted-foreground">{t("yta.noTraffic")}</p>
           ) : (
             <BarList
               label={t("yta.traffic")}

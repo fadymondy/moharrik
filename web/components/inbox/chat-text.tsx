@@ -61,7 +61,7 @@ function format(text: string, key: string): ReactNode[] {
     const [, mono, bold2, bold, italic, strike] = m
     if (mono !== undefined)
       out.push(
-        <code key={k} className="rounded-sm bg-grid-soft px-1 font-mono text-[0.92em]">
+        <code key={k} className="rounded-sm bg-nq-surface-soft px-1 font-mono text-[0.92em]">
           {mono}
         </code>,
       )

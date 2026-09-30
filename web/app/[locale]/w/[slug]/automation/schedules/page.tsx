@@ -117,7 +117,7 @@ export default function AutomationSchedulesPage() {
           />
         )
       ) : (schedules.data?.schedules ?? []).length > 0 ? (
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-nq-line border-y border-nq-line">
           {(schedules.data?.schedules ?? []).map((sc) => (
             <ScheduleRow
               key={sc.id}

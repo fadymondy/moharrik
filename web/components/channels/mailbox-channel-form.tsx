@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { PickSelect } from "@/components/crm/shared"
@@ -196,7 +196,7 @@ export function MailboxChannelForm({
               ]}
             />
             {tls === "none" ? (
-              <FieldDescription className="text-grid-danger-text">
+              <FieldDescription className="text-nq-danger-text">
                 {t("mailbox.noneWarning")}
               </FieldDescription>
             ) : null}

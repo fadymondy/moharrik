@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { CheckCircle2Icon, InfoIcon, MessageCircleIcon, XCircleIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import {
   AlertDialog,
@@ -70,13 +70,13 @@ export function ContactWhatsAppPanel({
       className="px-6 pb-6"
       data-contact-whatsapp={data ? (data.can_send ? "ready" : data.reason) : "loading"}
     >
-      <div className="flex flex-col gap-3 border border-line bg-grid-card px-4 py-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 border border-nq-line bg-card px-4 py-3 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <MessageCircleIcon className="size-4 shrink-0 text-grid-muted" />
+            <MessageCircleIcon className="size-4 shrink-0 text-muted-foreground" />
             <span className="font-medium">{t("contacts.whatsapp")}</span>
             {data?.phone ? (
-              <span className="text-grid-muted">
+              <span className="text-muted-foreground">
                 <Ltr>+{data.phone}</Ltr>
               </span>
             ) : null}
@@ -94,7 +94,7 @@ export function ContactWhatsAppPanel({
           {data && !data.can_send ? (
             <p
               id="wa-disabled-reason"
-              className="flex items-start gap-1.5 text-xs text-grid-muted"
+              className="flex items-start gap-1.5 text-xs text-muted-foreground"
               data-whatsapp-disabled-reason={data.reason}
             >
               <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
@@ -137,7 +137,7 @@ export function ContactWhatsAppPanel({
       </div>
 
       {data && data.recent.length > 0 ? (
-        <details className="mt-2 text-xs text-grid-muted" data-whatsapp-log>
+        <details className="mt-2 text-xs text-muted-foreground" data-whatsapp-log>
           <summary className="cursor-pointer select-none">
             {t("contactWa.log", { count: data.recent.length })}
           </summary>
@@ -145,14 +145,14 @@ export function ContactWhatsAppPanel({
             {data.recent.map((r, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2">
                 {r.ok ? (
-                  <CheckCircle2Icon className="size-3.5 text-grid-brand" />
+                  <CheckCircle2Icon className="size-3.5 text-nq-brand" />
                 ) : (
-                  <XCircleIcon className="size-3.5 text-grid-danger-text" />
+                  <XCircleIcon className="size-3.5 text-nq-danger-text" />
                 )}
                 <Ltr>{formatDate(r.at)}</Ltr>
                 <span>· {t(`contactWa.kind.${r.kind}`)}</span>
                 {!r.ok && r.error ? (
-                  <span className="text-grid-danger-text">· {r.error}</span>
+                  <span className="text-nq-danger-text">· {r.error}</span>
                 ) : null}
               </li>
             ))}
@@ -257,7 +257,7 @@ function MessageSheet({
           {sentTo ? (
             <div className="flex flex-col items-start gap-3 text-sm" data-whatsapp-sent>
               <p className="flex items-center gap-2">
-                <CheckCircle2Icon className="size-4 text-grid-brand" />
+                <CheckCircle2Icon className="size-4 text-nq-brand" />
                 {t("contactWa.sent", { who })}
               </p>
               <div className="flex flex-wrap gap-2">
@@ -320,7 +320,7 @@ function MessageSheet({
             <AlertDialogDescription>{t("contactWa.confirmBody")}</AlertDialogDescription>
           </AlertDialogHeader>
           <blockquote
-            className="max-h-48 overflow-y-auto border-s-2 border-line ps-3 text-sm whitespace-pre-wrap"
+            className="max-h-48 overflow-y-auto border-s-2 border-nq-line ps-3 text-sm whitespace-pre-wrap"
             dir="auto"
           >
             <Bdi>{text.trim()}</Bdi>

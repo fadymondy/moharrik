@@ -194,7 +194,7 @@ function SearchConsole() {
               {tab === "performance" ? (
                 <>
                   <WindowToggle value={days} onChange={(d) => set({ days: String(d) })} />
-                  <Label className="flex items-center gap-2 text-sm font-normal text-grid-body">
+                  <Label className="flex items-center gap-2 text-sm font-normal text-nq-fg-body">
                     <Switch
                       checked={compare}
                       onCheckedChange={(v) => set({ compare: v ? "" : "false" })}
@@ -210,7 +210,7 @@ function SearchConsole() {
       />
 
       {!ws.can("analytics:read") ? (
-        <p className="px-6 py-6 text-sm text-grid-muted">{t("gdata.noAccess")}</p>
+        <p className="px-6 py-6 text-sm text-muted-foreground">{t("gdata.noAccess")}</p>
       ) : enabled.error ? (
         <ErrorState error={enabled.error} />
       ) : !enabled.data ? (
@@ -245,11 +245,11 @@ function SearchConsole() {
               out.resource?.syncing ||
               (!out.resource?.last_error && !out.resource?.last_synced_at) ? (
                 <div
-                  className="flex items-center gap-3 border-y border-line bg-grid-card px-6 py-10 text-sm text-grid-body"
+                  className="flex items-center gap-3 border-y border-nq-line bg-card px-6 py-10 text-sm text-nq-fg-body"
                   role="status"
                   data-gsc-importing
                 >
-                  <LoaderIcon className="size-4 animate-spin text-grid-muted" />
+                  <LoaderIcon className="size-4 animate-spin text-muted-foreground" />
                   {t("gsc.importing")}
                 </div>
               ) : (
@@ -321,7 +321,7 @@ function Filters({
   return (
     <div className="flex flex-wrap items-end gap-3 px-6 pb-4" data-gsc-filters>
       <div className="w-full space-y-1 sm:w-56">
-        <Label htmlFor="gsc-query" className="text-xs text-grid-muted">
+        <Label htmlFor="gsc-query" className="text-xs text-muted-foreground">
           {t("gsc.filterQuery")}
         </Label>
         <Input
@@ -333,7 +333,7 @@ function Filters({
         />
       </div>
       <div className="w-full space-y-1 sm:w-56">
-        <Label htmlFor="gsc-page" className="text-xs text-grid-muted">
+        <Label htmlFor="gsc-page" className="text-xs text-muted-foreground">
           {t("gsc.filterPage")}
         </Label>
         <Input
@@ -346,7 +346,7 @@ function Filters({
         />
       </div>
       <div className="w-[calc(50%-0.375rem)] space-y-1 sm:w-44">
-        <Label className="text-xs text-grid-muted">{t("gsc.country")}</Label>
+        <Label className="text-xs text-muted-foreground">{t("gsc.country")}</Label>
         <Select
           items={countryItems}
           value={filters.country || ALL}
@@ -365,7 +365,7 @@ function Filters({
         </Select>
       </div>
       <div className="w-[calc(50%-0.375rem)] space-y-1 sm:w-40">
-        <Label className="text-xs text-grid-muted">{t("gsc.device")}</Label>
+        <Label className="text-xs text-muted-foreground">{t("gsc.device")}</Label>
         <Select
           items={deviceItems}
           value={filters.device || ALL}
@@ -400,7 +400,7 @@ function Coverage({ p, resource }: { p: GscPerformance; resource: GoogleResource
   const { t } = useTranslations()
   const f = useFormat()
   return (
-    <div className="space-y-2 px-6 pb-4 text-xs text-grid-muted">
+    <div className="space-y-2 px-6 pb-4 text-xs text-muted-foreground">
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1" data-gsc-coverage>
         <span>{t("gsc.range", { from: f.date(p.start_date), to: f.date(p.end_date) })}</span>
         <span>·</span>
@@ -419,7 +419,7 @@ function Coverage({ p, resource }: { p: GscPerformance; resource: GoogleResource
         {resource ? <SyncStatus r={resource} /> : null}
       </p>
       {resource?.last_error ? (
-        <p className="break-words text-grid-danger-text" data-last-error>
+        <p className="break-words text-nq-danger-text" data-last-error>
           <Ltr>{resource.last_error}</Ltr>
         </p>
       ) : null}
@@ -433,7 +433,7 @@ function Coverage({ p, resource }: { p: GscPerformance; resource: GoogleResource
         <p>{t("gsc.truncated", { n: f.n(p.coverage.truncated_days) })}</p>
       ) : null}
       {p.missing_days > 0 ? (
-        <p className="text-grid-warn-text" data-missing>
+        <p className="text-nq-warning-text" data-missing>
           {t("gsc.missing", { n: f.n(p.missing_days) })}
         </p>
       ) : null}
@@ -490,7 +490,7 @@ function Filled({ p }: { p: GscPerformance }) {
   }
   return (
     <>
-      <div className="grid-cells grid-cells-flush-x grid-cols-2 lg:grid-cols-4" data-gsc-totals>
+      <div className="cells cells-flush-x grid-cols-2 lg:grid-cols-4" data-gsc-totals>
         <Stat
           id="clicks"
           label={t("gsc.clicks")}
@@ -521,7 +521,7 @@ function Filled({ p }: { p: GscPerformance }) {
         />
       </div>
 
-      <div className="grid-cells grid-cells-flush-x mt-6 grid-cols-1">
+      <div className="cells cells-flush-x mt-6 grid-cols-1">
         <Panel
           id="gsc-trend"
           title={t("analytics.trend")}
@@ -554,13 +554,13 @@ function Filled({ p }: { p: GscPerformance }) {
               invert={metric === "position"}
             />
             {metric === "position" ? (
-              <p className="mt-2 text-xs text-grid-muted">{t("gsc.positionNote")}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{t("gsc.positionNote")}</p>
             ) : null}
           </div>
         </Panel>
       </div>
 
-      <div className="grid-cells grid-cells-flush-x mt-6 grid-cols-1 xl:grid-cols-2">
+      <div className="cells cells-flush-x mt-6 grid-cols-1 xl:grid-cols-2">
         <Panel id="gsc-queries" title={t("gsc.topQueries")} icon={<SearchIcon />}>
           <Ranked rows={p.top_queries ?? []} kind="query" pct={pct} dec={dec} />
         </Panel>
@@ -586,7 +586,7 @@ function Ranked({
   const { t } = useTranslations()
   const f = useFormat()
   if (rows.length === 0)
-    return <p className="px-5 py-6 text-sm text-grid-muted">{t("gsc.noRows")}</p>
+    return <p className="px-5 py-6 text-sm text-muted-foreground">{t("gsc.noRows")}</p>
   return (
     <Table data-gsc-rows={kind} className="table-fixed">
       <TableHeader>
@@ -644,7 +644,7 @@ function pathOf(u: string) {
 function PageSkeleton() {
   return (
     <div className="space-y-6 pb-10" aria-busy>
-      <div className="grid-cells grid-cells-flush-x grid-cols-2 lg:grid-cols-4">
+      <div className="cells cells-flush-x grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="space-y-2 px-5 py-4">
             <Skeleton className="h-3 w-20" />

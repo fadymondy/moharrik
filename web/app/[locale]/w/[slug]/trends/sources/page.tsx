@@ -16,7 +16,7 @@ import {
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
@@ -165,7 +165,7 @@ export default function TrendSourcesPage() {
             body={canManage ? t("trends.noFeedsBody") : undefined}
           />
         ) : (
-          <ul className="divide-y divide-line border-y border-line">
+          <ul className="divide-y divide-nq-line border-y border-nq-line">
             {list.map((s) => (
               <SourceRow key={s.id} source={s} canManage={canManage} onChange={refreshSources} />
             ))}
@@ -222,7 +222,7 @@ export default function TrendSourcesPage() {
             body={canManage ? t("trends.noTopicsBody") : undefined}
           />
         ) : (
-          <ul className="divide-y divide-line border-y border-line">
+          <ul className="divide-y divide-nq-line border-y border-nq-line">
             {topicList.map((tp) => (
               <TopicRow
                 key={tp.id}
@@ -274,7 +274,7 @@ function Section({
         <div className="min-w-0 space-y-1">
           <h2
             id={`section-${id}`}
-            className="flex items-center gap-2 text-lg font-medium [&_svg]:size-4 [&_svg]:text-grid-muted"
+            className="flex items-center gap-2 text-lg font-medium [&_svg]:size-4 [&_svg]:text-muted-foreground"
           >
             {icon}
             {title}
@@ -284,7 +284,7 @@ function Section({
               </Badge>
             ) : null}
           </h2>
-          <p className="max-w-2xl text-sm text-grid-muted">{hint}</p>
+          <p className="max-w-2xl text-sm text-muted-foreground">{hint}</p>
         </div>
         {action}
       </div>
@@ -387,13 +387,13 @@ function Budget({
 
   return (
     <section
-      className="mx-6 flex flex-col gap-3 rounded-lg border border-line p-4 sm:p-5"
+      className="mx-6 flex flex-col gap-3 rounded-lg border border-nq-line p-4 sm:p-5"
       data-section="budget"
       aria-labelledby="budget-title"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="budget-title" className="flex items-center gap-2 text-base font-medium">
-          <GaugeIcon className="size-4 text-grid-muted" aria-hidden />
+          <GaugeIcon className="size-4 text-muted-foreground" aria-hidden />
           {t("trends.budget")}
         </h2>
         <div className="flex items-center gap-3">
@@ -436,12 +436,12 @@ function Budget({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="text-sm text-grid-muted">
+      <p className="text-sm text-muted-foreground">
         {t("trends.budgetHint")}{" "}
         {t("trends.budgetScheduled", { n: formatNumber(settings.scheduled_per_day) })}
       </p>
       {short ? (
-        <p className="flex items-start gap-1.5 text-sm text-grid-danger-text" data-budget-short>
+        <p className="flex items-start gap-1.5 text-sm text-nq-danger-text" data-budget-short>
           <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           {t("trends.budgetShort")}
         </p>
@@ -503,7 +503,7 @@ function ProviderBadge({ provider }: { provider: string }) {
 function Fact({ label, children }: { label?: string; children: ReactNode }) {
   return (
     <span className="inline-flex min-w-0 items-baseline gap-1">
-      {label ? <span className="text-grid-muted">{label}</span> : null}
+      {label ? <span className="text-muted-foreground">{label}</span> : null}
       <span className="min-w-0">{children}</span>
     </span>
   )
@@ -566,7 +566,7 @@ function SourceRow({
           <ProviderBadge provider={source.provider} />
           <SourceStatus source={source} />
         </p>
-        <Ltr className="block truncate text-xs text-grid-muted" mono>
+        <Ltr className="block truncate text-xs text-muted-foreground" mono>
           {source.url}
         </Ltr>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
@@ -592,7 +592,7 @@ function SourceRow({
           {!canManage ? <Fact>{t(`trends.interval.${source.interval_minutes}`)}</Fact> : null}
         </p>
         {source.last_error && source.last_status !== "ok" ? (
-          <p className="flex items-start gap-1 text-xs text-grid-danger-text" data-source-error>
+          <p className="flex items-start gap-1 text-xs text-nq-danger-text" data-source-error>
             <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
             <bdi>
               {source.last_status === "over_budget"
@@ -823,7 +823,7 @@ function AddByUrlDialog({
             <Field>
               <FieldLabel htmlFor="feed-name">
                 {t("trends.feedName")}{" "}
-                <span className="text-grid-muted">({t("common.optional")})</span>
+                <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
               <Input
                 id="feed-name"
@@ -894,7 +894,7 @@ function Catalog({ entries, onAdded }: { entries: FeedCatalogEntry[]; onAdded: (
         if (list.length === 0) return null
         return (
           <section key={cat} aria-labelledby={`cat-${cat}`} data-category={cat}>
-            <h3 id={`cat-${cat}`} className="grid-micro pb-2">
+            <h3 id={`cat-${cat}`} className="eyebrow pb-2">
               {t(`trends.category.${cat}`)}
             </h3>
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -939,7 +939,7 @@ function CatalogCard({ entry, onAdded }: { entry: FeedCatalogEntry; onAdded: () 
 
   return (
     <li
-      className={`flex min-h-28 flex-col gap-2 rounded-lg border p-3.5 ${added ? "border-line bg-muted/40" : "border-line"}`}
+      className={`flex min-h-28 flex-col gap-2 rounded-lg border p-3.5 ${added ? "border-nq-line bg-muted/40" : "border-nq-line"}`}
       data-catalog-entry={entry.key}
       data-added={added ? "true" : "false"}
     >
@@ -948,13 +948,13 @@ function CatalogCard({ entry, onAdded }: { entry: FeedCatalogEntry; onAdded: () 
           <p className="text-sm font-medium">
             <bdi>{entry.name}</bdi>
           </p>
-          <p className="mt-0.5 text-xs text-grid-muted">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             <bdi>{entry.description}</bdi>
           </p>
         </div>
         {added ? (
           <span
-            className="flex shrink-0 items-center gap-1 text-xs text-grid-muted"
+            className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
             data-added-label
           >
             <CheckIcon className="size-3.5 text-primary" aria-hidden />
@@ -1021,7 +1021,7 @@ function TopicRow({
           {!topic.enabled ? <Badge variant="outline">{t("trends.status.off")}</Badge> : null}
           {/* The count is its own element, outside the keyword list: mixed
               Arabic and English keywords would otherwise pull it into their run (MH-465). */}
-          <span className="text-xs text-grid-muted tabular-nums" data-topic-count>
+          <span className="text-xs text-muted-foreground tabular-nums" data-topic-count>
             {t("trends.itemsMatched", { n: formatNumber(topic.item_count) })}
           </span>
         </p>
@@ -1040,7 +1040,7 @@ function TopicRow({
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-grid-muted">{t("trends.matchesOwnName")}</p>
+          <p className="text-xs text-muted-foreground">{t("trends.matchesOwnName")}</p>
         )}
       </div>
       {canManage ? (
@@ -1062,7 +1062,7 @@ function TopicRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-grid-danger-text"
+            className="text-nq-danger-text"
             aria-label={`${t("common.delete")}: ${topic.name}`}
             onClick={() => setDeleting(true)}
             data-action="delete-topic"

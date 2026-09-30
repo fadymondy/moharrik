@@ -14,7 +14,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useMemo } from "react"
 import { ChevronRightIcon, FilterIcon, PlusIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { actionIcon, TEMPLATES, triggerIcon } from "@/components/automation/rules/rule-model"
 import { RunLog, RunStatusIcon } from "@/components/automation/rules/run-view"
@@ -80,7 +80,7 @@ function Rules() {
         action={create}
       />
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-6">
+      <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-6">
         {(["rules", "runs"] as const).map((id) => (
           <button
             key={id}
@@ -89,8 +89,8 @@ function Rules() {
             className={cn(
               "-mb-px border-b-2 px-1 py-2.5 text-sm font-medium transition-colors",
               tab === id
-                ? "border-grid-action text-grid-fg"
-                : "border-transparent text-grid-muted hover:text-grid-fg",
+                ? "border-nq-action text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
             aria-current={tab === id ? "page" : undefined}
             data-rules-tab={id}
@@ -113,7 +113,7 @@ function Rules() {
               action={create}
             />
           ) : (
-            <ul className="divide-y divide-line border-y border-line">
+            <ul className="divide-y divide-nq-line border-y border-nq-line">
               {list.map((r) => (
                 <RuleRow
                   key={r.id}
@@ -128,17 +128,17 @@ function Rules() {
           {canRun ? (
             <div className="px-6 pt-8">
               <h2 className="text-sm font-medium">{t("rules.templates")}</h2>
-              <p className="mb-3 text-sm text-grid-muted">{t("rules.templatesHint")}</p>
+              <p className="mb-3 text-sm text-muted-foreground">{t("rules.templatesHint")}</p>
               <ul className="grid gap-3 md:grid-cols-3" data-templates>
                 {TEMPLATES.map((tpl) => (
                   <li key={tpl.id}>
                     <Link
                       href={`${base}/new?template=${tpl.id}`}
-                      className="block h-full rounded-lg border border-line bg-grid-card p-4 transition-colors hover:border-primary"
+                      className="block h-full rounded-lg border border-nq-line bg-card p-4 transition-colors hover:border-primary"
                       data-template={tpl.id}
                     >
                       <p className="text-sm font-medium">{t(`rules.tpl.${tpl.id}.name`)}</p>
-                      <p className="mt-1 text-xs text-grid-muted">
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {t(`rules.tpl.${tpl.id}.hint`)}
                       </p>
                     </Link>
@@ -169,19 +169,19 @@ function Chain({ rule }: { rule: Rule }) {
   const Trigger = triggerIcon(rule.trigger)
   return (
     <div className="flex items-center" aria-hidden data-chain={rule.actions.length}>
-      <span className="flex size-7 items-center justify-center rounded-s-full rounded-e-md border border-line bg-grid-card">
-        <Trigger className="size-3.5 text-grid-gold" />
+      <span className="flex size-7 items-center justify-center rounded-s-full rounded-e-md border border-nq-line bg-card">
+        <Trigger className="size-3.5 text-nq-accent" />
       </span>
-      <span className="h-px w-2.5 bg-grid-muted/60" />
-      <span className="flex size-7 items-center justify-center rounded-full border border-line bg-grid-card">
-        <FilterIcon className="size-3.5 text-grid-brand-accent" />
+      <span className="h-px w-2.5 bg-nq-fg-muted/60" />
+      <span className="flex size-7 items-center justify-center rounded-full border border-nq-line bg-card">
+        <FilterIcon className="size-3.5 text-nq-accent" />
       </span>
       {rule.actions.slice(0, 5).map((a, i) => {
         const Icon = actionIcon(a.type)
         return (
           <span key={i} className="flex items-center">
-            <span className="h-px w-2.5 bg-grid-muted/60" />
-            <span className="flex size-7 items-center justify-center rounded-md border border-line bg-grid-card">
+            <span className="h-px w-2.5 bg-nq-fg-muted/60" />
+            <span className="flex size-7 items-center justify-center rounded-md border border-nq-line bg-card">
               <Icon className="size-3.5 text-primary" />
             </span>
           </span>
@@ -238,7 +238,7 @@ function RuleRow({
   const status = rule.last_status
   return (
     <li
-      className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4 transition-colors hover:bg-grid-soft"
+      className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4 transition-colors hover:bg-nq-surface-soft"
       data-rule-row={rule.name}
       data-enabled={rule.enabled ? "true" : "false"}
     >
@@ -246,7 +246,7 @@ function RuleRow({
         <p className="text-sm font-medium">
           <Bdi>{rule.name}</Bdi>
         </p>
-        <p className="text-xs text-grid-muted">
+        <p className="text-xs text-muted-foreground">
           {t("rules.whenShort", { event: t(`rules.trigger.${rule.trigger}`) })} ·{" "}
           {t("rules.counts", { c: rule.conditions.length, a: rule.actions.length })}
         </p>
@@ -261,14 +261,14 @@ function RuleRow({
             <span className="min-w-0">
               {t(`rules.status.${status}`)}
               {rule.last_run_at ? (
-                <span className="block text-grid-muted">
+                <span className="block text-muted-foreground">
                   {when.format(new Date(rule.last_run_at))}
                 </span>
               ) : null}
             </span>
           </>
         ) : (
-          <span className="text-grid-muted">{t("rules.neverRan")}</span>
+          <span className="text-muted-foreground">{t("rules.neverRan")}</span>
         )}
       </div>
       <label className="flex items-center gap-2 text-xs">

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { DealsTable } from "@/components/crm/deals"
 import { ScoreMeter, ScoreReasons } from "@/components/crm/icp"
@@ -81,45 +81,45 @@ export default function CompanyDetailPage() {
       {canWrite ? <EditCompany company={company} onSaved={() => detail.mutate()} /> : null}
 
       <section className="px-6 pb-6" data-score-panel>
-        <div className="border border-line bg-grid-card">
-          <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
+        <div className="border border-nq-line bg-card">
+          <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-5 py-4">
             <h2 className="text-base font-medium">{t("icp.fit")}</h2>
             <ScoreMeter score={company.score} />
             <Link
-              className="ms-auto text-xs text-grid-muted hover:text-grid-fg hover:underline"
+              className="ms-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
               href={`${base}/settings/icp`}
             >
               {t("icp.editProfile")}
             </Link>
           </div>
-          <p className="px-5 pt-3 text-xs text-grid-muted">{t("icp.companyHow")}</p>
+          <p className="px-5 pt-3 text-xs text-muted-foreground">{t("icp.companyHow")}</p>
           <div className="px-5 pb-2">
             <ScoreReasons reasons={company.score_reasons ?? []} />
           </div>
         </div>
       </section>
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <section>
         <h2 className="px-6 pb-4 text-base font-medium">
           {t("companies.people", { count: contacts.length })}
         </h2>
         {contacts.length === 0 ? (
-          <p className="px-6 pb-6 text-sm text-grid-muted">{t("companies.noPeople")}</p>
+          <p className="px-6 pb-6 text-sm text-muted-foreground">{t("companies.noPeople")}</p>
         ) : (
-          <ul className="mb-6 divide-y divide-line border-y border-line">
+          <ul className="mb-6 divide-y divide-nq-line border-y border-nq-line">
             {contacts.map((c) => (
               <li key={c.id} className="px-6 py-3 text-sm">
                 <Link
-                  className="font-medium underline decoration-grid-muted underline-offset-4 hover:decoration-current"
+                  className="font-medium underline decoration-nq-fg-muted underline-offset-4 hover:decoration-current"
                   href={`${base}/contacts/${c.id}`}
                   data-person-link
                 >
                   {c.name ? <Bdi>{c.name}</Bdi> : <Ltr>{c.email}</Ltr>}
                 </Link>
                 {c.title ? (
-                  <span className="text-grid-muted">
+                  <span className="text-muted-foreground">
                     {" · "}
                     <Bdi>{c.title}</Bdi>
                   </span>
@@ -130,14 +130,14 @@ export default function CompanyDetailPage() {
         )}
       </section>
 
-      <div className="grid-separator-contained hatch-band" aria-hidden />
+      <div className="hatch h-8 border-y border-border" aria-hidden />
 
       <section>
         <h2 className="px-6 py-4 text-base font-medium">{t("nav.deals")}</h2>
         <DealsTable deals={deals} total={detail.data.deals_total} empty={t("companies.noDeals")} />
       </section>
 
-      <div className="grid-separator-contained hatch-band mt-8" aria-hidden />
+      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <Timeline
         items={activities}

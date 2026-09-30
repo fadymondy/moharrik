@@ -162,7 +162,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             <div className="mt-6 space-y-3">
               <div className="flex items-center gap-3">
                 <Separator className="flex-1" />
-                <span className="grid-micro">{t("auth.or")}</span>
+                <span className="eyebrow">{t("auth.or")}</span>
                 <Separator className="flex-1" />
               </div>
               {providers.map((p) => (
@@ -183,11 +183,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               ))}
             </div>
           ) : null}
-          <p className="mt-6 text-center text-sm text-grid-muted">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
             <Link
               href={otherHref}
-              className="font-medium text-grid-fg underline underline-offset-4"
+              className="font-medium text-foreground underline underline-offset-4"
             >
               {mode === "login" ? t("auth.createAccount") : t("auth.signIn")}
             </Link>

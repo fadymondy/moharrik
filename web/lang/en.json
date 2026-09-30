@@ -4397,5 +4397,7 @@
   "manage.deleteConfirmBody": "Every contact, conversation, campaign and setting in it is deleted for all members, and its WhatsApp number is unlinked. There is no undo.",
   "manage.deleteType": "To confirm, type",
   "manage.deleteForever": "Delete forever",
-  "manage.deleted": "{name} deleted"
+  "manage.deleted": "{name} deleted",
+  "shell.search": "Search…",
+  "shell.resizeSidebar": "Resize sidebar"
 }

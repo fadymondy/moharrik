@@ -43,8 +43,8 @@ function Figure({
 }) {
   return (
     <div className="min-w-0" data-traffic-figure={id}>
-      <p className="grid-micro truncate">{label}</p>
-      <p className="mt-1 text-2xl font-medium text-grid-fg tabular-nums">{value}</p>
+      <p className="eyebrow truncate">{label}</p>
+      <p className="mt-1 text-2xl font-medium text-foreground tabular-nums">{value}</p>
       {delta ? <div className="mt-1">{delta}</div> : null}
     </div>
   )
@@ -55,7 +55,7 @@ function Figure({
  * API never sends a raw "before" figure to reconstruct one from. */
 function PctBadge({ pct }: { pct: number | null }) {
   const { t, locale } = useTranslations()
-  if (pct == null) return <span className="text-xs text-grid-muted">{t("gdata.noCompare")}</span>
+  if (pct == null) return <span className="text-xs text-muted-foreground">{t("gdata.noCompare")}</span>
   const flat = Math.abs(pct) < 0.0005
   const good = flat ? null : pct > 0
   const Icon = flat ? MinusIcon : pct > 0 ? ArrowUpIcon : ArrowDownIcon
@@ -68,13 +68,13 @@ function PctBadge({ pct }: { pct: number | null }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 text-xs font-medium tabular-nums",
-        good == null ? "text-grid-muted" : good ? "text-grid-ok-text" : "text-grid-danger-text",
+        good == null ? "text-muted-foreground" : good ? "text-nq-success-text" : "text-nq-danger-text",
       )}
       data-delta={good == null ? "flat" : good ? "better" : "worse"}
     >
       <Icon className="size-3.5" aria-hidden />
       {text}
-      <span className="font-normal text-grid-muted">
+      <span className="font-normal text-muted-foreground">
         {t(good == null ? "gdata.flat" : good ? "gdata.better" : "gdata.worse")}
       </span>
     </span>
@@ -112,7 +112,7 @@ function Ga4Section({
   const num = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
     <div className="space-y-3 px-5 py-4" data-traffic-ga4>
-      <p className="text-xs font-medium text-grid-muted">
+      <p className="text-xs font-medium text-muted-foreground">
         {t("nav.analytics")} · {t("overview.propertiesCount", { n: f.n(ga4.properties_count) })}
       </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -161,7 +161,7 @@ function GscSection({
   const num = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
     <div className="space-y-3 px-5 py-4" data-traffic-gsc>
-      <p className="text-xs font-medium text-grid-muted">
+      <p className="text-xs font-medium text-muted-foreground">
         {t("nav.searchConsole")} · {t("overview.sitesCount", { n: f.n(gsc.sites_count) })}
       </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -199,7 +199,7 @@ function YoutubeSection({
   const num = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
     <div className="space-y-3 px-5 py-4" data-traffic-youtube>
-      <p className="text-xs font-medium text-grid-muted">{t("nav.youtube")}</p>
+      <p className="text-xs font-medium text-muted-foreground">{t("nav.youtube")}</p>
       <div className="grid grid-cols-2 gap-4">
         <Figure id="yt-views28" label={t("overview.views28")} value={num(yt.views_28)} />
         <Figure id="yt-subscribers" label={t("yt.subscribers")} value={num(yt.subscribers)} />
@@ -237,14 +237,14 @@ export function TrafficCard({ traffic, base }: { traffic: OverviewTraffic; base:
       title={t("overview.traffic")}
       icon={<ChartLineIcon />}
       href={`${base}/analytics`}
-      meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}
+      meta={<span className="text-xs text-muted-foreground">{t("overview.last28")}</span>}
     >
       {nothingConnected ? (
-        <p className="px-5 py-6 text-sm text-grid-muted" data-empty>
+        <p className="px-5 py-6 text-sm text-muted-foreground" data-empty>
           {t("overview.trafficPending")}
         </p>
       ) : (
-        <div className="divide-y divide-line">
+        <div className="divide-y divide-nq-line">
           {summary?.ga4 ? <Ga4Section ga4={summary.ga4} f={f} /> : null}
           {summary?.search_console ? <GscSection gsc={summary.search_console} f={f} /> : null}
           {summary?.youtube ? <YoutubeSection yt={summary.youtube} f={f} /> : null}
@@ -265,18 +265,18 @@ export function TrafficCard({ traffic, base }: { traffic: OverviewTraffic; base:
           ) : null}
           {summary && summary.top_properties.length > 0 ? (
             <div className="px-5 py-4" data-traffic-top>
-              <p className="grid-micro pb-2">{t("overview.topProperties")}</p>
+              <p className="eyebrow pb-2">{t("overview.topProperties")}</p>
               <ul className="space-y-2">
                 {summary.top_properties.slice(0, 5).map((p) => (
                   <li key={p.resource_id} className="flex items-center justify-between gap-3">
                     <Link
                       href={`${base}/analytics`}
-                      className="min-w-0 truncate text-sm text-grid-fg hover:underline"
+                      className="min-w-0 truncate text-sm text-foreground hover:underline"
                       data-top-property={p.name}
                     >
                       <Bdi>{p.name}</Bdi>
                     </Link>
-                    <span className="shrink-0 text-sm text-grid-muted tabular-nums">
+                    <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
                       {p.users == null ? "—" : f.n(p.users)}
                     </span>
                   </li>
@@ -296,17 +296,17 @@ export function YouTubeCard({ channels, base }: { channels: OverviewYouTube[]; b
   const num = (v: number | null) => (v == null ? "—" : f.n(v))
   return (
     <Panel id="youtube" title={t("nav.youtube")} icon={<YoutubeIcon />} href={`${base}/youtube`}>
-      <ul className="divide-y divide-line">
+      <ul className="divide-y divide-nq-line">
         {channels.map((c) => (
           <li key={c.resource_id} className="space-y-3 px-5 py-4" data-youtube-channel={c.title}>
-            <p className="truncate text-sm font-medium text-grid-fg">
+            <p className="truncate text-sm font-medium text-foreground">
               <bdi>{c.title}</bdi>
             </p>
             <div className="grid grid-cols-2 gap-4">
               <Figure id="subscribers" label={t("yt.subscribers")} value={num(c.subscribers)} />
               <Figure id="views28" label={t("overview.views28")} value={num(c.views_28)} />
             </div>
-            <p className="text-xs text-grid-muted">
+            <p className="text-xs text-muted-foreground">
               {c.last_error
                 ? c.last_error
                 : c.views_28 == null

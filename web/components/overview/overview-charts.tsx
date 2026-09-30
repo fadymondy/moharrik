@@ -34,7 +34,7 @@ import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
 
 /** The three series colours this page ever draws with, in series order. Never a hard-coded hex. */
-const SERIES_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--grid-brand)"] as const
+const SERIES_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--nq-brand)"] as const
 
 export type SeriesPoint = { date: string } & Record<string, number | string | null>
 
@@ -69,7 +69,7 @@ export function ViewToggle({
 export function NoChartData({ id }: { id: string }) {
   const { t } = useTranslations()
   return (
-    <p className="px-5 pt-2 pb-6 text-sm text-grid-muted" data-no-data={id}>
+    <p className="px-5 pt-2 pb-6 text-sm text-muted-foreground" data-no-data={id}>
       {t("overview.noChartData")}
     </p>
   )
@@ -105,7 +105,7 @@ export function TrendChart({
     <>
       {seriesKeys.length > 1 ? (
         <ul
-          className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-grid-muted"
+          className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-muted-foreground"
           data-legend
         >
           {seriesKeys.map((k, i) => (
@@ -157,7 +157,7 @@ export function TrendChart({
                 }
                 formatter={(value, name, item) => (
                   <div className="flex w-full items-center justify-between gap-4" dir={dir}>
-                    <span className="flex items-center gap-1.5 text-grid-muted">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
                       <span
                         className="size-2.5 rounded-full"
                         style={{ background: item.color }}
@@ -165,7 +165,7 @@ export function TrendChart({
                       />
                       {config[String(name)]?.label}
                     </span>
-                    <Ltr className="font-medium text-grid-fg tabular-nums">
+                    <Ltr className="font-medium text-foreground tabular-nums">
                       {value == null ? "—" : formatTick(Number(value))}
                     </Ltr>
                   </div>
@@ -286,7 +286,7 @@ export function LeadsChartCard({
       title={t("overview.leadsChart")}
       icon={<TrendingUpIcon />}
       href={`${base}/leads`}
-      meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}
+      meta={<span className="text-xs text-muted-foreground">{t("overview.last28")}</span>}
     >
       <ChartOrTable
         id="leads-trend"
@@ -328,7 +328,7 @@ export function ConversationsChartCard({
       title={t("overview.conversationsChart")}
       icon={<InboxIcon />}
       href={`${base}/inbox`}
-      meta={<span className="text-xs text-grid-muted">{t("overview.last28")}</span>}
+      meta={<span className="text-xs text-muted-foreground">{t("overview.last28")}</span>}
     >
       <ChartOrTable
         id="conversations-trend"
@@ -370,8 +370,8 @@ export function PipelineChartCard({
     label: f.money(s.value_minor, currency),
     tooltip: (
       <span className="flex flex-col gap-0.5">
-        <Bdi className="font-medium text-grid-fg">{s.name}</Bdi>
-        <span className="text-grid-muted">
+        <Bdi className="font-medium text-foreground">{s.name}</Bdi>
+        <span className="text-muted-foreground">
           <Ltr>{f.money(s.value_minor, currency)}</Ltr> ·{" "}
           {t("overview.deals", { n: f.n(s.deal_count) })}
         </span>

@@ -13,7 +13,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { TargetIcon, UsersIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
@@ -170,7 +170,7 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
     return (
       <div
         key={k}
-        className="grid gap-3 border-b border-line px-5 py-4 last:border-b-0 sm:grid-cols-[1fr_auto]"
+        className="grid gap-3 border-b border-nq-line px-5 py-4 last:border-b-0 sm:grid-cols-[1fr_auto]"
         data-criterion={k}
       >
         <Field>
@@ -208,18 +208,18 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
   return (
     <div className="grid gap-6 px-4 pb-10 sm:px-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <form onSubmit={save} noValidate className="flex min-w-0 flex-col gap-6" data-form="icp">
-        {readOnly ? <p className="text-sm text-grid-muted">{t("icp.readOnly")}</p> : null}
+        {readOnly ? <p className="text-sm text-muted-foreground">{t("icp.readOnly")}</p> : null}
         {!out.configured ? (
-          <p className="text-sm text-grid-muted" data-icp-defaults>
+          <p className="text-sm text-muted-foreground" data-icp-defaults>
             {t("icp.defaults")}
           </p>
         ) : null}
 
         <Panel id="icp-fit" title={t("icp.fitSection")} icon={<TargetIcon />}>
-          <p className="px-5 pt-3 text-xs text-grid-muted">{t("icp.fitHint")}</p>
+          <p className="px-5 pt-3 text-xs text-muted-foreground">{t("icp.fitHint")}</p>
           {textCriterion("industries")}
           <div
-            className="grid gap-3 border-b border-line px-5 py-4 sm:grid-cols-[1fr_auto]"
+            className="grid gap-3 border-b border-nq-line px-5 py-4 sm:grid-cols-[1fr_auto]"
             data-criterion="sizes"
           >
             <fieldset>
@@ -242,7 +242,7 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
                   </label>
                 ))}
               </div>
-              <p className="mt-2 text-sm text-grid-muted">{t("icp.crit.sizesHint")}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{t("icp.crit.sizesHint")}</p>
             </fieldset>
             <Field>
               <FieldLabel htmlFor="icp-sizes-weight">{t("icp.weight")}</FieldLabel>
@@ -256,13 +256,13 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
         </Panel>
 
         <Panel id="icp-signals" title={t("icp.signalsSection")} icon={<UsersIcon />}>
-          <p className="px-5 pt-3 text-xs text-grid-muted">{t("icp.signalsHint")}</p>
-          <ul className="divide-y divide-line">
+          <p className="px-5 pt-3 text-xs text-muted-foreground">{t("icp.signalsHint")}</p>
+          <ul className="divide-y divide-nq-line">
             {ICP_SIGNALS.map((s) => (
               <li key={s} className="flex items-center gap-4 px-5 py-3" data-signal={s}>
                 <label htmlFor={`icp-signal-${s}`} className="min-w-0 flex-1">
                   <span className="block text-sm font-medium">{t(`icp.signal.${s}`)}</span>
-                  <span className="block text-xs text-grid-muted">{t(`icp.signal.${s}.hint`)}</span>
+                  <span className="block text-xs text-muted-foreground">{t(`icp.signal.${s}.hint`)}</span>
                 </label>
                 {weightInput(`icp-signal-${s}`, draft.signals[s], (v) =>
                   setDraft((d) => ({ ...d, signals: { ...d.signals, [s]: v } })),
@@ -272,16 +272,16 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
           </ul>
         </Panel>
 
-        <p className="text-xs text-grid-muted">{t("icp.formula")}</p>
+        <p className="text-xs text-muted-foreground">{t("icp.formula")}</p>
         {!readOnly ? (
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={busy || !valid} data-save-icp>
               {busy ? t("common.working") : t("icp.save")}
             </Button>
             {!valid ? (
-              <span className="text-sm text-grid-danger-text">{t("icp.weightRange")}</span>
+              <span className="text-sm text-nq-danger-text">{t("icp.weightRange")}</span>
             ) : null}
-            {err ? <span className="text-sm text-grid-danger-text">{err}</span> : null}
+            {err ? <span className="text-sm text-nq-danger-text">{err}</span> : null}
           </div>
         ) : null}
       </form>
@@ -292,7 +292,7 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
           title={t("icp.ranking")}
           icon={<TargetIcon />}
           meta={
-            <span className="ms-auto text-xs text-grid-muted">
+            <span className="ms-auto text-xs text-muted-foreground">
               {t("icp.scoredOf", {
                 n: formatNumber(out.scored),
                 total: formatNumber(out.contacts),
@@ -305,15 +305,15 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
           ) : !ranking.data ? (
             <LoadingRows rows={4} />
           ) : (ranking.data.contacts ?? []).length === 0 ? (
-            <p className="px-5 py-6 text-sm text-grid-muted">{t("icp.noContacts")}</p>
+            <p className="px-5 py-6 text-sm text-muted-foreground">{t("icp.noContacts")}</p>
           ) : (
-            <ol className="divide-y divide-line" data-ranking>
+            <ol className="divide-y divide-nq-line" data-ranking>
               {(ranking.data.contacts ?? []).map((c, i) => (
                 <RankRow key={c.id} i={i} c={c} />
               ))}
             </ol>
           )}
-          <p className="border-t border-line px-5 py-2.5 text-xs text-grid-muted">
+          <p className="border-t border-nq-line px-5 py-2.5 text-xs text-muted-foreground">
             {t("icp.rankingHint")}
           </p>
         </Panel>
@@ -334,7 +334,7 @@ function RankRow({ i, c }: { i: number; c: Contact }) {
   )
   return (
     <li className="flex items-center gap-3 px-5 py-2.5" data-rank-row={c.email}>
-      <span className="w-5 shrink-0 text-end text-xs text-grid-muted tabular-nums">
+      <span className="w-5 shrink-0 text-end text-xs text-muted-foreground tabular-nums">
         {formatNumber(i + 1)}
       </span>
       <span className="min-w-0 flex-1">
@@ -344,7 +344,7 @@ function RankRow({ i, c }: { i: number; c: Contact }) {
         >
           {c.name ? <Bdi>{c.name}</Bdi> : <Ltr>{c.email}</Ltr>}
         </Link>
-        <span className="flex items-center gap-1.5 truncate text-xs text-grid-muted">
+        <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
           <LifecycleBadge stage={c.lifecycle ?? ""} />
           {top ? (
             <span className="truncate">

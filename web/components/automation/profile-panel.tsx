@@ -13,7 +13,7 @@ which links here rather than duplicating the form.
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -59,7 +59,7 @@ export function ProfilePanel({
 
   return (
     <section className="scroll-mt-20" id="profile" data-profile>
-      <form onSubmit={save} className="border-y border-line px-6 py-5" data-form="profile">
+      <form onSubmit={save} className="border-y border-nq-line px-6 py-5" data-form="profile">
         <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-2">
             {data.fields.map((f) => (
@@ -84,7 +84,7 @@ export function ProfilePanel({
               </Button>
             </div>
           ) : (
-            <p className="text-xs text-grid-muted">{t("presets.profileAdminOnly")}</p>
+            <p className="text-xs text-muted-foreground">{t("presets.profileAdminOnly")}</p>
           )}
         </FieldGroup>
       </form>

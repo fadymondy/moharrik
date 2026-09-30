@@ -6,7 +6,7 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { PlayIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
 import {
@@ -89,13 +89,13 @@ export function StartRun({
           </Button>
           {/* Say why the button is off rather than leaving a dead control. */}
           {paused ? (
-            <span className="text-xs text-grid-muted">{t("automation.pausedTitle")}</span>
+            <span className="text-xs text-muted-foreground">{t("automation.pausedTitle")}</span>
           ) : offline ? (
-            <span className="text-xs text-grid-muted">{t("automation.offlineHint")}</span>
+            <span className="text-xs text-muted-foreground">{t("automation.offlineHint")}</span>
           ) : null}
         </div>
       </FieldGroup>
-      <p className="pt-4 pb-2 text-sm text-grid-muted">{t("automation.stepsHint")}</p>
+      <p className="pt-4 pb-2 text-sm text-muted-foreground">{t("automation.stepsHint")}</p>
       <div className="-mx-6">
         <StepEditor steps={steps} onChange={setSteps} />
       </div>
@@ -128,13 +128,13 @@ export function RunRow({ run, href }: { run: AutomationRun; href: string }) {
             {t(`automation.status.${run.status}`)}
           </Badge>
         </p>
-        <p className="text-xs text-grid-muted">
+        <p className="text-xs text-muted-foreground">
           {t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })} ·{" "}
           {t(`automation.trigger.${run.trigger}`)} · {formatDate(run.created_at)}
         </p>
         <RunNotes notes={run.notes} className="mt-1 space-y-0.5" />
         {run.error ? (
-          <p className="mt-1 text-xs text-grid-danger-text">
+          <p className="mt-1 text-xs text-nq-danger-text">
             <Bdi>{run.error}</Bdi>
           </p>
         ) : null}

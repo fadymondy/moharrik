@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Badge } from "@/components/ui/badge"
@@ -96,14 +96,14 @@ export function IdentitiesPanel({
   }
 
   return (
-    <section className="border border-line bg-grid-card px-5 py-4" data-identities-panel>
+    <section className="border border-nq-line bg-card px-5 py-4" data-identities-panel>
       <h2 className="text-base font-medium">{t("contacts.identities")}</h2>
-      <p className="pt-1 text-xs text-grid-muted">{t("contacts.identitiesHint")}</p>
+      <p className="pt-1 text-xs text-muted-foreground">{t("contacts.identitiesHint")}</p>
 
       {sorted.length === 0 ? (
-        <p className="py-4 text-sm text-grid-muted">{t("contacts.identitiesEmpty")}</p>
+        <p className="py-4 text-sm text-muted-foreground">{t("contacts.identitiesEmpty")}</p>
       ) : (
-        <ul className="divide-y divide-line py-2" data-identity-list>
+        <ul className="divide-y divide-nq-line py-2" data-identity-list>
           {sorted.map((i) => (
             <li
               key={i.id}
@@ -112,7 +112,7 @@ export function IdentitiesPanel({
             >
               <Badge variant="secondary">{t(`channel.${i.channel}`)}</Badge>
               <Ltr className="text-sm">{i.external_id}</Ltr>
-              {i.label ? <span className="text-xs text-grid-muted">{i.label}</span> : null}
+              {i.label ? <span className="text-xs text-muted-foreground">{i.label}</span> : null}
               {i.is_primary ? (
                 <Badge variant="outline">{t("contacts.identityPrimary")}</Badge>
               ) : null}
@@ -134,7 +134,7 @@ export function IdentitiesPanel({
         <form
           onSubmit={link}
           noValidate
-          className="mt-3 border-t border-line pt-3"
+          className="mt-3 border-t border-nq-line pt-3"
           data-form="link-identity"
         >
           <FieldGroup className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -183,7 +183,7 @@ export function IdentitiesPanel({
             <Button type="submit" size="sm" disabled={busy || !externalId.trim()}>
               {busy ? t("common.working") : t("contacts.identityAdd")}
             </Button>
-            {err ? <span className="text-sm text-grid-danger-text">{err}</span> : null}
+            {err ? <span className="text-sm text-nq-danger-text">{err}</span> : null}
           </div>
         </form>
       ) : null}
@@ -250,12 +250,12 @@ export function MetaPanel({
   }
 
   return (
-    <section className="border border-line bg-grid-card px-5 py-4" data-meta-panel>
+    <section className="border border-nq-line bg-card px-5 py-4" data-meta-panel>
       <h2 className="text-base font-medium">{t("contacts.meta")}</h2>
-      <p className="pt-1 text-xs text-grid-muted">{t("contacts.metaHint")}</p>
+      <p className="pt-1 text-xs text-muted-foreground">{t("contacts.metaHint")}</p>
 
       {rows.length === 0 ? (
-        <p className="py-4 text-sm text-grid-muted">{t("contacts.metaEmpty")}</p>
+        <p className="py-4 text-sm text-muted-foreground">{t("contacts.metaEmpty")}</p>
       ) : null}
 
       <div className="flex flex-col gap-2 py-2" data-meta-rows>
@@ -294,7 +294,7 @@ export function MetaPanel({
           <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>
             {busy ? t("common.working") : t("common.save")}
           </Button>
-          {err ? <span className="text-sm text-grid-danger-text">{err}</span> : null}
+          {err ? <span className="text-sm text-nq-danger-text">{err}</span> : null}
         </div>
       ) : null}
     </section>

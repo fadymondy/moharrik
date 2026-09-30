@@ -107,7 +107,7 @@ export default function TrendTopicPage() {
       <div className="grid gap-8 px-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="flex min-w-0 flex-col gap-6">
           <section className="flex flex-col gap-2" aria-labelledby="topic-summary">
-            <h2 id="topic-summary" className="grid-micro">
+            <h2 id="topic-summary" className="eyebrow">
               {t("trends.summaryTitle")}
             </h2>
             {topic.summary ? (
@@ -124,7 +124,7 @@ export default function TrendTopicPage() {
           </section>
 
           <section className="flex flex-col gap-2" aria-labelledby="topic-why">
-            <h2 id="topic-why" className="grid-micro">
+            <h2 id="topic-why" className="eyebrow">
               {t("trends.whyRanked")}
             </h2>
             <ReasonChips reasons={topic.reasons} />
@@ -143,10 +143,10 @@ export default function TrendTopicPage() {
           </section>
 
           <section className="flex flex-col gap-2" aria-labelledby="topic-items">
-            <h2 id="topic-items" className="grid-micro">
+            <h2 id="topic-items" className="eyebrow">
               {t("trends.coverageCount", { n: formatNumber(topic.items.length) })}
             </h2>
-            <ul className="divide-y divide-line border-y border-line" data-topic-items>
+            <ul className="divide-y divide-nq-line border-y border-nq-line" data-topic-items>
               {topic.items.map((item) => (
                 <li key={item.id} className="py-3">
                   <ItemLine item={item} showSummary />
@@ -158,11 +158,11 @@ export default function TrendTopicPage() {
 
         <aside className="flex flex-col gap-6">
           <section className="flex flex-col gap-2" aria-labelledby="topic-outlets">
-            <h2 id="topic-outlets" className="grid-micro">
+            <h2 id="topic-outlets" className="eyebrow">
               {t("trends.outlets")}
             </h2>
             <ul
-              className="flex flex-col divide-y divide-line border-y border-line text-sm"
+              className="flex flex-col divide-y divide-nq-line border-y border-nq-line text-sm"
               data-topic-outlets
             >
               {(res.data?.outlets ?? []).map((o) => (

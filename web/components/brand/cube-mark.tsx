@@ -42,7 +42,7 @@ export function CubeMark({
           width={unit}
           height={unit}
           // Body follows the brand token, so the lifted dark-theme colour applies on dark grounds.
-          fill={accentSet.has(`${c},${r}`) ? mark.accent : `var(--grid-brand, ${mark.body})`}
+          fill={accentSet.has(`${c},${r}`) ? mark.accent : `var(--nq-brand, ${mark.body})`}
         />
       ))}
     </svg>

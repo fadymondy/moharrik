@@ -14,7 +14,7 @@ export function BaseHandle({ className, children, ...props }: ComponentProps<typ
     <Handle
       {...props}
       className={cn(
-        "size-[11px] rounded-full border border-grid-muted bg-grid-card transition",
+        "size-[11px] rounded-full border border-nq-fg-muted bg-card transition",
         className,
       )}
     >

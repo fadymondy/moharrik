@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { isolate } from "@/components/bidi"
 import { Button } from "@/components/ui/button"

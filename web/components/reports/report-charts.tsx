@@ -141,7 +141,7 @@ export function HorizontalBars({
                   y={y}
                   dy="0.35em"
                   textAnchor={isRtl ? "end" : "start"}
-                  className="fill-grid-fg"
+                  className="fill-nq-fg"
                   fontSize={12}
                 >
                   {String(p.value ?? "")}
@@ -183,7 +183,7 @@ export function WonLostChart({
     <>
       {/* The legend, in the series' own order (won, then lost); identity is never colour alone. */}
       <ul
-        className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-grid-muted"
+        className="flex flex-wrap items-center justify-center gap-4 pb-2 text-xs text-muted-foreground"
         data-legend
       >
         {(["won", "lost"] as const).map((k) => (
@@ -237,7 +237,7 @@ export function WonLostChart({
                 }
                 formatter={(value, name, item) => (
                   <div className="flex w-full items-center justify-between gap-4" dir={dir}>
-                    <span className="flex items-center gap-1.5 text-grid-muted">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
                       <span
                         className="size-2.5 rounded-[2px]"
                         style={{ background: item.color }}
@@ -245,7 +245,7 @@ export function WonLostChart({
                       />
                       {name === "won" ? wonLabel : lostLabel}
                     </span>
-                    <Ltr className="font-medium text-grid-fg tabular-nums">
+                    <Ltr className="font-medium text-foreground tabular-nums">
                       {format(Number(value))}
                     </Ltr>
                   </div>

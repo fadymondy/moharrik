@@ -38,7 +38,7 @@ export function NodeOutput({
 
   if (!step) {
     return (
-      <p className="px-4 py-6 text-sm text-grid-muted" data-node-output="none">
+      <p className="px-4 py-6 text-sm text-muted-foreground" data-node-output="none">
         {live ? t("canvas.output.waiting") : t("canvas.output.none")}
       </p>
     )
@@ -50,17 +50,17 @@ export function NodeOutput({
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Badge variant={tone}>{t(`automation.step.${step.status}`)}</Badge>
         {step.duration_ms > 0 ? (
-          <span className="flex items-center gap-1 text-xs text-grid-muted">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <ClockIcon className="size-3" />
             {t("canvas.output.ms", { n: step.duration_ms })}
           </span>
         ) : null}
         {rows ? (
-          <span className="text-xs text-grid-muted">{t("canvas.items", { n: rows.length })}</span>
+          <span className="text-xs text-muted-foreground">{t("canvas.items", { n: rows.length })}</span>
         ) : null}
       </div>
       {step.error ? (
-        <p className="flex items-start gap-2 text-sm text-grid-danger-text" data-node-error>
+        <p className="flex items-start gap-2 text-sm text-nq-danger-text" data-node-error>
           <CircleAlertIcon className="mt-0.5 size-4 shrink-0" />
           <span dir="auto">{step.error}</span>
         </p>
@@ -97,7 +97,7 @@ export function NodeOutput({
           ) : (
             <pre
               dir="ltr"
-              className="max-h-96 overflow-auto rounded-md border border-line bg-grid-card px-3 py-2 font-mono text-xs whitespace-pre-wrap break-all"
+              className="max-h-96 overflow-auto rounded-md border border-nq-line bg-card px-3 py-2 font-mono text-xs whitespace-pre-wrap break-all"
               data-output-json
             >
               {step.result}
@@ -105,7 +105,7 @@ export function NodeOutput({
           )}
         </>
       ) : step.summary ? (
-        <p className="text-sm text-grid-muted" dir="auto">
+        <p className="text-sm text-muted-foreground" dir="auto">
           {step.summary}
         </p>
       ) : null}
@@ -118,17 +118,17 @@ function OutputTable({ rows }: { rows: Record<string, unknown>[] }) {
   const cell = (v: unknown) =>
     v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v)
   return (
-    <div className="max-h-96 overflow-auto rounded-md border border-line" data-output-table>
+    <div className="max-h-96 overflow-auto rounded-md border border-nq-line" data-output-table>
       <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-grid-card">
+        <thead className="sticky top-0 bg-card">
           <tr>
-            <th className="w-8 border-b border-line px-2 py-1.5 text-start font-medium text-grid-muted">
+            <th className="w-8 border-b border-nq-line px-2 py-1.5 text-start font-medium text-muted-foreground">
               #
             </th>
             {cols.map((c) => (
               <th
                 key={c}
-                className="border-b border-line px-2 py-1.5 text-start font-medium"
+                className="border-b border-nq-line px-2 py-1.5 text-start font-medium"
                 dir="ltr"
               >
                 {c}
@@ -138,8 +138,8 @@ function OutputTable({ rows }: { rows: Record<string, unknown>[] }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="border-b border-line last:border-0">
-              <td className="px-2 py-1.5 text-grid-muted tabular-nums">{i + 1}</td>
+            <tr key={i} className="border-b border-nq-line last:border-0">
+              <td className="px-2 py-1.5 text-muted-foreground tabular-nums">{i + 1}</td>
               {cols.map((c) => (
                 <td key={c} className="max-w-60 truncate px-2 py-1.5" dir="auto" title={cell(r[c])}>
                   {cell(r[c])}
@@ -188,14 +188,14 @@ function Screenshot({
       if (url) URL.revokeObjectURL(url)
     }
   }, [runId, position, workspaceId])
-  if (failed) return <p className="text-xs text-grid-muted">{t("automation.shotGone")}</p>
+  if (failed) return <p className="text-xs text-muted-foreground">{t("automation.shotGone")}</p>
   if (!src) return null
   return (
     <a
       href={src}
       target="_blank"
       rel="noreferrer"
-      className="block overflow-hidden rounded-md border border-line"
+      className="block overflow-hidden rounded-md border border-nq-line"
       data-node-shot={position}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}

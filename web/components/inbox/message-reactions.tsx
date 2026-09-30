@@ -68,7 +68,7 @@ export function MessageActions({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="rounded-full text-grid-muted"
+                className="rounded-full text-muted-foreground"
                 data-action="react"
                 aria-label={t("inbox.reactions.react")}
               />
@@ -90,7 +90,7 @@ export function MessageActions({
                   <button
                     key={e}
                     type="button"
-                    className="flex size-9 items-center justify-center rounded-full text-xl transition-transform hover:scale-110 hover:bg-grid-elevated"
+                    className="flex size-9 items-center justify-center rounded-full text-xl transition-transform hover:scale-110 hover:bg-nq-surface-overlay"
                     data-quick-reaction={e}
                     onClick={() => pick(e)}
                   >
@@ -118,7 +118,7 @@ export function MessageActions({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="rounded-full text-grid-muted"
+          className="rounded-full text-muted-foreground"
           data-action="reply-to"
           aria-label={t("inbox.reactions.reply")}
           onClick={onReply}
@@ -173,7 +173,7 @@ export function ReactionChips({
                 type="button"
                 disabled={!onReact}
                 onClick={() => onReact?.(r.emoji)}
-                className={`flex h-6 items-center gap-1 rounded-full border bg-grid-elevated px-1.5 text-sm leading-none shadow-sm ${r.mine ? "border-primary" : "border-line"}`}
+                className={`flex h-6 items-center gap-1 rounded-full border bg-nq-surface-overlay px-1.5 text-sm leading-none shadow-sm ${r.mine ? "border-primary" : "border-nq-line"}`}
                 data-reaction={r.emoji}
                 data-reaction-mine={r.mine || undefined}
                 data-reaction-in-app={inAppOnly ? "" : undefined}
@@ -183,7 +183,7 @@ export function ReactionChips({
             }
           >
             <span>{r.emoji}</span>
-            {r.count > 1 ? <span className="text-xs text-grid-muted tabular-nums">{r.count}</span> : null}
+            {r.count > 1 ? <span className="text-xs text-muted-foreground tabular-nums">{r.count}</span> : null}
           </TooltipTrigger>
           <TooltipContent className="max-w-64">
             <span className="block">
@@ -232,12 +232,12 @@ export function QuoteBlock({
       <span className="block truncate text-xs font-medium text-primary">
         <Bdi>{author}</Bdi>
       </span>
-      <span className="line-clamp-2 text-xs break-words whitespace-pre-wrap text-grid-muted" dir="auto">
+      <span className="line-clamp-2 text-xs break-words whitespace-pre-wrap text-muted-foreground" dir="auto">
         {text}
       </span>
     </>
   )
-  const cls = `block w-full min-w-0 rounded-md border-s-4 border-s-primary bg-[color-mix(in_oklab,var(--grid-fg)_6%,transparent)] px-2 py-1 text-start ${className}`
+  const cls = `block w-full min-w-0 rounded-md border-s-4 border-s-primary bg-[color-mix(in_oklab,var(--nq-fg)_6%,transparent)] px-2 py-1 text-start ${className}`
   if (!canJump)
     return (
       <div className={cls} data-quote data-quote-id={q.message_id ?? undefined}>
@@ -247,7 +247,7 @@ export function QuoteBlock({
   return (
     <button
       type="button"
-      className={`${cls} cursor-pointer hover:bg-[color-mix(in_oklab,var(--grid-fg)_10%,transparent)]`}
+      className={`${cls} cursor-pointer hover:bg-[color-mix(in_oklab,var(--nq-fg)_10%,transparent)]`}
       onClick={(e) => {
         e.stopPropagation()
         onJump!(q.message_id!)

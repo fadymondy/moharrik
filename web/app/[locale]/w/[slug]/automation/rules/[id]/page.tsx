@@ -18,7 +18,7 @@ import {
   LoaderCircleIcon,
   SaveIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { RuleCanvas, type RuleSelection } from "@/components/automation/rules/rule-canvas"
 import {
@@ -385,7 +385,7 @@ function RuleBuilder() {
       data-dirty={dirty ? "true" : "false"}
       data-rule-id={ruleId ?? "new"}
     >
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-3 py-2 sm:px-4">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-nq-line px-3 py-2 sm:px-4">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -405,11 +405,11 @@ function RuleBuilder() {
             placeholder={t("rules.namePlaceholder")}
             aria-label={t("rules.name")}
             onChange={(e) => change({ name: e.target.value })}
-            className="h-8 min-w-0 border-transparent bg-transparent px-2 text-base font-medium shadow-none hover:border-line focus-visible:border-ring md:w-72"
+            className="h-8 min-w-0 border-transparent bg-transparent px-2 text-base font-medium shadow-none hover:border-nq-line focus-visible:border-ring md:w-72"
             data-rule-name
           />
           {dirty ? (
-            <span className="text-xs whitespace-nowrap text-grid-muted" data-unsaved>
+            <span className="text-xs whitespace-nowrap text-muted-foreground" data-unsaved>
               {t("canvas.unsaved")}
             </span>
           ) : null}
@@ -497,7 +497,7 @@ function RuleBuilder() {
       </header>
       {saveErr ? (
         <p
-          className="flex items-center gap-2 border-b border-line bg-grid-card px-4 py-2 text-sm text-grid-danger-text"
+          className="flex items-center gap-2 border-b border-nq-line bg-card px-4 py-2 text-sm text-nq-danger-text"
           role="alert"
           data-save-error
         >
@@ -506,7 +506,7 @@ function RuleBuilder() {
         </p>
       ) : current && !current.enabled && !dirty ? (
         <p
-          className="border-b border-line bg-grid-card px-4 py-2 text-xs text-grid-muted"
+          className="border-b border-nq-line bg-card px-4 py-2 text-xs text-muted-foreground"
           data-off-note
         >
           {t("rules.offNote")}
@@ -556,7 +556,7 @@ function RuleBuilder() {
             {canvasRun && test.run ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-16 z-10 flex justify-center px-4 md:bottom-6">
                 <p
-                  className="pointer-events-auto rounded-full border border-line bg-grid-card px-3 py-1 text-xs shadow-sm"
+                  className="pointer-events-auto rounded-full border border-nq-line bg-card px-3 py-1 text-xs shadow-sm"
                   data-canvas-test={test.run.status}
                 >
                   {t("rules.testedAs", { status: statusLabel(t, test.run) })}{" "}
@@ -570,7 +570,7 @@ function RuleBuilder() {
           {panelOpen && panel ? (
             <div
               className={cn(
-                "z-20 min-h-0 border-line bg-background",
+                "z-20 min-h-0 border-nq-line bg-background",
                 narrow ? "absolute inset-0" : "w-[26rem] shrink-0 border-s",
               )}
               dir={isRtl ? "rtl" : "ltr"}

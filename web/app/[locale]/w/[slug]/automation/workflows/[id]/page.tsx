@@ -37,7 +37,7 @@ import {
   SaveIcon,
   SquareIcon,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@fadymondy/nasaq/web"
 
 import { validParamName } from "@/components/automation/params-editor"
 import { ExecutionIcon, ExecutionsView } from "@/components/automation/canvas/executions-view"
@@ -504,7 +504,7 @@ function Editor({
       data-dirty={dirty || layoutDirty ? "true" : "false"}
     >
       {/* ---- the top bar ---- */}
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-3 py-2 sm:px-4">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-nq-line px-3 py-2 sm:px-4">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -525,7 +525,7 @@ function Editor({
             placeholder={t("canvas.namePlaceholder")}
             aria-label={t("automation.workflowName")}
             onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            className="h-8 min-w-0 border-transparent bg-transparent px-2 text-base font-medium shadow-none hover:border-line focus-visible:border-ring md:w-64"
+            className="h-8 min-w-0 border-transparent bg-transparent px-2 text-base font-medium shadow-none hover:border-nq-line focus-visible:border-ring md:w-64"
             data-workflow-name
           />
           {workflow ? (
@@ -534,7 +534,7 @@ function Editor({
             </Badge>
           ) : null}
           {dirty || layoutDirty ? (
-            <span className="text-xs whitespace-nowrap text-grid-muted" data-unsaved>
+            <span className="text-xs whitespace-nowrap text-muted-foreground" data-unsaved>
               {t("canvas.unsaved")}
             </span>
           ) : null}
@@ -621,7 +621,7 @@ function Editor({
       </header>
       {saveErr ? (
         <p
-          className="flex items-center gap-2 border-b border-line bg-grid-card px-4 py-2 text-sm text-grid-danger-text"
+          className="flex items-center gap-2 border-b border-nq-line bg-card px-4 py-2 text-sm text-nq-danger-text"
           role="alert"
           data-save-error
         >
@@ -643,10 +643,10 @@ function Editor({
           <div className="relative min-w-0 flex-1" data-canvas-area>
             {preview ? (
               <div
-                className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-center gap-2 border-b border-line bg-grid-card px-4 py-2 text-sm"
+                className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-center gap-2 border-b border-nq-line bg-card px-4 py-2 text-sm"
                 data-preview-banner={preview.version}
               >
-                <HistoryIcon className="size-4 text-grid-muted" />
+                <HistoryIcon className="size-4 text-muted-foreground" />
                 {t("canvas.previewBanner", { n: preview.version })}
                 <Button size="xs" variant="outline" onClick={() => setPreview(null)}>
                   {t("canvas.backToCurrent")}
@@ -713,7 +713,7 @@ function Editor({
                 </div>
                 {live && run.data ? (
                   <p
-                    className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-grid-card px-3 py-1 text-xs shadow-sm"
+                    className="pointer-events-auto flex items-center gap-2 rounded-full border border-nq-line bg-card px-3 py-1 text-xs shadow-sm"
                     data-run-live
                   >
                     <LoaderCircleIcon className="size-3.5 animate-spin text-primary" />
@@ -724,7 +724,7 @@ function Editor({
                   </p>
                 ) : done ? (
                   <p
-                    className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-full border border-line bg-grid-card px-3 py-1 text-xs shadow-sm"
+                    className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-full border border-nq-line bg-card px-3 py-1 text-xs shadow-sm"
                     data-test-status={done.status}
                   >
                     <ExecutionIcon status={done.status} className="size-3.5" />
@@ -733,7 +733,7 @@ function Editor({
                       total: done.step_count,
                     })}
                     {!current ? (
-                      <span className="text-grid-muted">· {t("automation.editor.testStale")}</span>
+                      <span className="text-muted-foreground">· {t("automation.editor.testStale")}</span>
                     ) : null}
                     {workflow ? (
                       <button
@@ -751,12 +751,12 @@ function Editor({
                     )}
                   </p>
                 ) : steps.length === 0 ? (
-                  <p className="pointer-events-auto rounded-full border border-line bg-grid-card px-3 py-1 text-xs text-grid-muted">
+                  <p className="pointer-events-auto rounded-full border border-nq-line bg-card px-3 py-1 text-xs text-muted-foreground">
                     {t("canvas.emptyHint")}
                   </p>
                 ) : browserBlocked ? (
                   <p
-                    className="pointer-events-auto rounded-full border border-line bg-grid-card px-3 py-1 text-xs text-grid-muted"
+                    className="pointer-events-auto rounded-full border border-nq-line bg-card px-3 py-1 text-xs text-muted-foreground"
                     data-run-blocked
                   >
                     {browserBlocked}
@@ -772,7 +772,7 @@ function Editor({
                 ) : null}
                 {runErr ? (
                   <p
-                    className="pointer-events-auto max-w-lg rounded-md border border-line bg-grid-card px-3 py-1.5 text-center text-xs text-grid-danger-text"
+                    className="pointer-events-auto max-w-lg rounded-md border border-nq-line bg-card px-3 py-1.5 text-center text-xs text-nq-danger-text"
                     role="alert"
                     data-test-error
                   >
@@ -786,7 +786,7 @@ function Editor({
           {panelOpen ? (
             <div
               className={cn(
-                "z-20 min-h-0 border-line bg-background",
+                "z-20 min-h-0 border-nq-line bg-background",
                 narrow ? "absolute inset-0" : "w-[26rem] shrink-0 border-s",
               )}
               dir={isRtl ? "rtl" : "ltr"}

@@ -86,12 +86,12 @@ function Badge({ state }: { state: NodeState }) {
   if (!state) return null
   const tone =
     state === "ok"
-      ? "bg-grid-ok text-background"
+      ? "bg-nq-success text-background"
       : state === "would"
-        ? "border border-grid-ok bg-grid-card text-grid-ok"
+        ? "border border-nq-success bg-card text-nq-success"
         : state === "failed"
-          ? "bg-grid-danger text-background"
-          : "border border-line bg-grid-card text-grid-muted"
+          ? "bg-nq-danger text-background"
+          : "border border-nq-line bg-card text-muted-foreground"
   const Icon = state === "failed" ? XIcon : state === "skipped" ? MinusIcon : CheckIcon
   return (
     <span
@@ -129,8 +129,8 @@ function Label({
       )}
       dir={dir}
     >
-      <p className="truncate text-sm font-medium text-grid-fg">{title}</p>
-      {subtitle ? <p className="line-clamp-2 text-[11px] text-grid-muted">{subtitle}</p> : null}
+      <p className="truncate text-sm font-medium text-foreground">{title}</p>
+      {subtitle ? <p className="line-clamp-2 text-[11px] text-muted-foreground">{subtitle}</p> : null}
     </div>
   )
 }
@@ -166,9 +166,9 @@ const RuleNode = memo(function RuleNode({ data, selected }: NodeProps<Node<NodeD
         : "rounded-lg"
   const tone =
     data.kind === "trigger"
-      ? "text-grid-gold"
+      ? "text-nq-accent"
       : data.kind === "conditions"
-        ? "text-grid-brand-accent"
+        ? "text-nq-accent"
         : "text-primary"
   return (
     <div
@@ -194,14 +194,14 @@ const RuleNode = memo(function RuleNode({ data, selected }: NodeProps<Node<NodeD
               type="target"
               position={h.target}
               isConnectable={false}
-              className="!size-3 !border-grid-muted !bg-grid-card"
+              className="!size-3 !border-nq-fg-muted !bg-card"
             />
           ) : null}
           <Handle
             type="source"
             position={h.source}
             isConnectable={false}
-            className="!size-3 !border-grid-muted !bg-grid-card"
+            className="!size-3 !border-nq-fg-muted !bg-card"
           />
           <Badge state={data.state} />
         </BaseNode>
@@ -220,7 +220,7 @@ const AddNode = memo(function AddNode() {
       <button
         type="button"
         onClick={() => c.onSelect("add")}
-        className="flex size-14 items-center justify-center rounded-lg border-2 border-dashed border-grid-muted/60 bg-grid-card text-grid-muted transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
+        className="flex size-14 items-center justify-center rounded-lg border-2 border-dashed border-nq-fg-muted/60 bg-card text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
         aria-label={t("rules.addAction")}
         title={t("rules.addAction")}
         data-add-action
@@ -229,7 +229,7 @@ const AddNode = memo(function AddNode() {
         <Handle type="target" position={h.target} isConnectable={false} className="!opacity-0" />
       </button>
       {c.count === 0 ? (
-        <p className="absolute top-full left-1/2 mt-2 w-40 -translate-x-1/2 text-center text-xs text-grid-muted">
+        <p className="absolute top-full left-1/2 mt-2 w-40 -translate-x-1/2 text-center text-xs text-muted-foreground">
           {t("rules.addFirstAction")}
         </p>
       ) : null}
@@ -351,7 +351,7 @@ function Canvas({
     const ids = ["trigger", "conditions", ...actions.map((_, i) => `a${i}`)]
     const out: Edge[] = []
     const lit = (s: NodeState) =>
-      s === "ok" || s === "would" ? "!stroke-grid-ok" : s === "failed" ? "!stroke-grid-danger" : ""
+      s === "ok" || s === "would" ? "!stroke-nq-success" : s === "failed" ? "!stroke-nq-danger" : ""
     for (let i = 1; i < ids.length; i++) {
       const before = i === 1 ? run?.trigger : i === 2 ? run?.conditions : run?.actions[i - 3]
       out.push({
