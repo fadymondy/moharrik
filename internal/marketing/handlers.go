@@ -870,13 +870,6 @@ func StartSend(ctx context.Context, a *app.App, wsID, campaignID string, svc *SM
 			return err
 		}
 	}
-	// A hub-linked workspace needs the `campaigns` feature and headroom on `emails_sent`
-	// (internal/circlexo); nil, and no check, unless the integration is on.
-	if BeforeCampaignSend != nil {
-		if err := BeforeCampaignSend(ctx, wsID); err != nil {
-			return err
-		}
-	}
 	// Over the stated limit is refused before the claim (MH-467), so the
 	// campaign stays a draft and nobody is half-sent to.
 	var tooLarge *AudienceTooLargeError

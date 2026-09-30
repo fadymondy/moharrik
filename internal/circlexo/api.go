@@ -11,8 +11,8 @@ import (
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
-// FeatureOut is one hub feature or meter as the hub reports it for a workspace.
-type FeatureOut struct {
+// CircleXOFeatureOut is one hub feature or meter as the hub reports it for a workspace.
+type CircleXOFeatureOut struct {
 	Key          string `json:"key"`
 	Kind         string `json:"kind" doc:"flag | limit | meter"`
 	Enabled      bool   `json:"enabled"`
@@ -22,8 +22,8 @@ type FeatureOut struct {
 	Enforced     bool   `json:"enforced" doc:"True when Moharrik itself refuses an action because of this feature (see internal/circlexo/entitlements.go)."`
 }
 
-// WorkspaceOut is GET /api/w/circlexo.
-type WorkspaceOut struct {
+// CircleXOOut is GET /api/w/circlexo.
+type CircleXOOut struct {
 	Enabled    bool         `json:"enabled" doc:"The CircleXO integration is switched on for this deployment."`
 	Linked     bool         `json:"linked" doc:"The workspace is served for a CircleXO org (an active link)."`
 	OrgSlug    string       `json:"org_slug,omitempty"`
@@ -34,7 +34,7 @@ type WorkspaceOut struct {
 	Unknown    bool         `json:"unknown" doc:"The hub could not confirm the entitlements at all."`
 	PaygOn     bool         `json:"payg_enabled"`
 	BillingURL string       `json:"billing_url,omitempty"`
-	Features   []FeatureOut `json:"features"`
+	Features   []CircleXOFeatureOut `json:"features"`
 }
 
 type wsHeader struct {
@@ -52,7 +52,7 @@ func RegisterAPI(api huma.API, a *app.App) {
 		OperationID: "w-circlexo", Method: http.MethodGet, Path: "/api/w/circlexo",
 		Summary: "The workspace's CircleXO link and the hub's entitlements for it (nothing when the integration is off or the workspace is not linked)",
 		Tags:    []string{"CircleXO"},
-	}, func(ctx context.Context, _ *wsHeader) (*struct{ Body WorkspaceOut }, error) {
+	}, func(ctx context.Context, _ *wsHeader) (*struct{ Body CircleXOOut }, error) {
 		s, ok := tenant.From(ctx)
 		if !ok {
 			return nil, huma.Error404NotFound("workspace not found")
@@ -60,10 +60,10 @@ func RegisterAPI(api huma.API, a *app.App) {
 		if !authz.Can(s.Role, authz.WorkspaceRead) {
 			return nil, huma.Error403Forbidden("your role cannot do this in this workspace")
 		}
-		out := WorkspaceOut{Features: []FeatureOut{}}
+		out := CircleXOOut{Features: []CircleXOFeatureOut{}}
 		svc := Current()
 		if svc == nil {
-			return &struct{ Body WorkspaceOut }{out}, nil
+			return &struct{ Body CircleXOOut }{out}, nil
 		}
 		out.Enabled = true
 		st, err := svc.StateOf(ctx, s.WorkspaceID)
@@ -71,22 +71,22 @@ func RegisterAPI(api huma.API, a *app.App) {
 			return nil, huma.Error500InternalServerError("could not read the CircleXO link")
 		}
 		if !st.Governed() {
-			return &struct{ Body WorkspaceOut }{out}, nil
+			return &struct{ Body CircleXOOut }{out}, nil
 		}
 		out.Linked, out.OrgSlug = true, st.Link.OrgSlug
 		out.BillingURL = svc.billingURL(st.Link.OrgSlug)
 		if st.Set == nil {
 			out.Unknown = true
-			return &struct{ Body WorkspaceOut }{out}, nil
+			return &struct{ Body CircleXOOut }{out}, nil
 		}
 		out.Active, out.Plan, out.Status = st.Set.Active, st.Set.Plan, st.Set.Status
 		out.ReadOnly, out.PaygOn = st.Set.ReadOnly, st.Set.PaygEnabled
 		for _, f := range st.Set.Features {
-			out.Features = append(out.Features, FeatureOut{
+			out.Features = append(out.Features, CircleXOFeatureOut{
 				Key: f.Key, Kind: f.Kind, Enabled: f.Enabled, Limit: f.Limit,
 				IncludedQty: f.IncludedQty, UsedInPeriod: f.UsedInPeriod, Enforced: enforced[f.Key],
 			})
 		}
-		return &struct{ Body WorkspaceOut }{out}, nil
+		return &struct{ Body CircleXOOut }{out}, nil
 	})
 }

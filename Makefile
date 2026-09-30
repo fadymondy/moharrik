@@ -29,7 +29,7 @@ test-e2e: ## Cross-workspace isolation sweep over every route (throwaway DB)
 	  docker exec moharrik-postgres psql -U postgres -c "CREATE DATABASE moharrik_test"
 	TEST_DATABASE_URL="postgres://postgres:postgres@localhost:55470/moharrik_test?sslmode=disable" \
 	TEST_APP_DATABASE_URL="postgres://moharrik_app_test:test@localhost:55470/moharrik_test?sslmode=disable" \
-	go test -count=1 ./internal/server/ -run Isolation -v
+	go test -count=1 ./internal/server/ -run 'Isolation|CircleXO' -v
 
 grid-check: ## Fail if the grid copies drifted from fadymondy.com-v2
 	cd web && npm run grid:check
