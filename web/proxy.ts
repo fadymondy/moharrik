@@ -31,6 +31,9 @@ function shouldSkip(pathname: string): boolean {
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/graphql") ||
+    // Sign in with CircleXO: rewritten to the API (next.config), never a localized page.
+    pathname.startsWith("/auth/circlexo/") ||
+    pathname === "/sso/circlexo" ||
     // The feedback routes (app/feedback): the report, the widget's look and the reporter token.
     // /feedback/config was once redirected to /{locale}/feedback/config and 404'd (MH-464).
     pathname === "/feedback" ||
