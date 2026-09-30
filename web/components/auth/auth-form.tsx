@@ -5,9 +5,19 @@ import { useState, type FormEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import useSWR, { useSWRConfig } from "swr"
 
-import { Button, Field, FieldDescription, FieldError, FieldLabel, Input, Separator } from "@fadymondy/nasaq/web"
+import {
+  AuthFooter,
+  AuthLayout,
+  Button,
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  Input,
+  OAuthDivider,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup } from "@/components/form-layout"
-import { PublicFrame, PublicPanel } from "@/components/public-frame"
+import { LanguageSwitcher, ThemeToggle } from "@/components/header-controls"
 import { api, ApiError, resetCsrf } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { safeNext } from "@/lib/use-require-auth"
@@ -74,6 +84,27 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   })
   const providers = oauthProviders(methods.data)
 
+  // Sign in with CircleXO: the API says whether the hub is configured; the button only exists
+  // when it is (no dead control). The link is a full navigation to the API's login route.
+  const hub = useSWR("/api/circlexo/config", (p: string) => api<{ enabled?: boolean }>(p), {
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+  })
+  const hubEnabled = mode === "login" && hub.data?.enabled === true
+  const hubCode = params.get("circlexo_error")
+  const hubError = hubCode
+    ? [
+        "failed",
+        "email_unverified",
+        "account_conflict",
+        "no_email",
+        "not_member",
+        "unavailable",
+      ].includes(hubCode)
+      ? t(`auth.circlexoError.${hubCode}`)
+      : t("auth.circlexoError.failed")
+    : null
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
@@ -107,91 +138,106 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const otherHref = `/${locale}/${other}${params.get("next") ? `?next=${encodeURIComponent(next)}` : ""}`
 
   return (
-    <PublicFrame
-      eyebrow={mode === "login" ? t("auth.welcomeBack") : t("auth.getStarted")}
+    <AuthLayout
       title={mode === "login" ? t("auth.signIn") : t("auth.createAccount")}
       description={mode === "login" ? t("auth.signInHint") : t("auth.registerHint")}
-    >
-      <PublicPanel className="flex justify-center py-10">
-        <div className="w-full max-w-sm" data-auth-form>
-          <form onSubmit={onSubmit} noValidate>
-            <FieldGroup>
-              <Field data-invalid={!!error || undefined}>
-                <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
-                <Input
-                  id="email"
-                  type="email"
-                  dir="ltr"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                />
-              </Field>
-              <Field data-invalid={!!error || undefined}>
-                <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
-                <Input
-                  id="password"
-                  type="password"
-                  dir="ltr"
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  required
-                  minLength={mode === "register" ? 8 : undefined}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                {mode === "register" ? (
-                  <FieldDescription>{t("auth.passwordHint")}</FieldDescription>
-                ) : null}
-              </Field>
-              {error ? <FieldError>{error}</FieldError> : null}
-              <Button type="submit" size="lg" disabled={busy || !email || !password}>
-                {busy
-                  ? t("common.working")
-                  : mode === "login"
-                    ? t("auth.signIn")
-                    : t("auth.createAccount")}
-              </Button>
-            </FieldGroup>
-          </form>
-
-          {providers.length > 0 ? (
-            <div className="mt-6 space-y-3">
-              <div className="flex items-center gap-3">
-                <Separator className="flex-1" />
-                <span className="eyebrow">{t("auth.or")}</span>
-                <Separator className="flex-1" />
-              </div>
-              {providers.map((p) => (
-                <Button
-                  key={p.id}
-                  variant="secondary"
-                  size="lg"
-                  className="w-full"
-                  nativeButton={false}
-                  render={
-                    <a
-                      href={`${p.href}${p.href.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`}
-                    />
-                  }
-                >
-                  {t("auth.continueWith", { provider: p.label })}
-                </Button>
-              ))}
+      footer={
+        <AuthFooter
+          end={
+            <div className="flex items-center gap-1">
+              <LanguageSwitcher />
+              <ThemeToggle />
             </div>
-          ) : null}
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
-            <Link
-              href={otherHref}
-              className="font-medium text-foreground underline underline-offset-4"
-            >
-              {mode === "login" ? t("auth.createAccount") : t("auth.signIn")}
-            </Link>
-          </p>
-        </div>
-      </PublicPanel>
-    </PublicFrame>
+          }
+        />
+      }
+    >
+      <div className="w-full" data-auth-form>
+        <form onSubmit={onSubmit} noValidate>
+          <FieldGroup>
+            <Field data-invalid={!!error || undefined}>
+              <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
+              <Input
+                id="email"
+                type="email"
+                dir="ltr"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+              />
+            </Field>
+            <Field data-invalid={!!error || undefined}>
+              <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
+              <Input
+                id="password"
+                type="password"
+                dir="ltr"
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                required
+                minLength={mode === "register" ? 8 : undefined}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              {mode === "register" ? (
+                <FieldDescription>{t("auth.passwordHint")}</FieldDescription>
+              ) : null}
+            </Field>
+            {error || hubError ? <FieldError role="alert">{error ?? hubError}</FieldError> : null}
+            <Button type="submit" size="lg" disabled={busy || !email || !password}>
+              {busy
+                ? t("common.working")
+                : mode === "login"
+                  ? t("auth.signIn")
+                  : t("auth.createAccount")}
+            </Button>
+          </FieldGroup>
+        </form>
+
+        {providers.length > 0 || hubEnabled ? (
+          <div className="mt-6 space-y-3">
+            <OAuthDivider>{t("auth.or")}</OAuthDivider>
+            {hubEnabled ? (
+              <Button
+                variant="secondary"
+                size="lg"
+                className="w-full"
+                nativeButton={false}
+                data-circlexo-login
+                render={<a href={`/auth/circlexo/login?return_to=${encodeURIComponent(next)}`} />}
+              >
+                {t("auth.circlexo")}
+              </Button>
+            ) : null}
+            {providers.map((p) => (
+              <Button
+                key={p.id}
+                variant="secondary"
+                size="lg"
+                className="w-full"
+                nativeButton={false}
+                render={
+                  <a
+                    href={`${p.href}${p.href.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`}
+                  />
+                }
+              >
+                {t("auth.continueWith", { provider: p.label })}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
+          <Link
+            href={otherHref}
+            className="font-medium text-foreground underline underline-offset-4"
+          >
+            {mode === "login" ? t("auth.createAccount") : t("auth.signIn")}
+          </Link>
+        </p>
+      </div>
+    </AuthLayout>
   )
 }

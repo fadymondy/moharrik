@@ -9,9 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test lib/**/*.test.mjs",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "grid:sync": "node ../../fadymondy.com-v2/packages/sync-grid.mjs web app/styles",
-    "grid:check": "node ../../fadymondy.com-v2/packages/sync-grid.mjs web app/styles --check"
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

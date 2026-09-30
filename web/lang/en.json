@@ -1,6 +1,13 @@
 {
   "brand.name": "Moharrik",
   "auth.continueWith": "Continue with {provider}",
+  "auth.circlexo": "Sign in with CircleXO",
+  "auth.circlexoError.failed": "CircleXO sign-in didn't complete. Try again.",
+  "auth.circlexoError.email_unverified": "Verify your email on CircleXO, then try again.",
+  "auth.circlexoError.account_conflict": "A Moharrik account with this email already exists and can't be linked automatically. Sign in with your password.",
+  "auth.circlexoError.no_email": "CircleXO didn't share an email address, so we can't sign you in.",
+  "auth.circlexoError.not_member": "Your CircleXO organisation hasn't added Moharrik, or you aren't a member of it.",
+  "auth.circlexoError.unavailable": "CircleXO is not reachable right now. Try again in a moment.",
   "auth.createAccount": "Create account",
   "auth.email": "Email",
   "auth.getStarted": "Get started",

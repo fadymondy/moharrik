@@ -1,6 +1,13 @@
 {
   "brand.name": "محرّك",
   "auth.continueWith": "المتابعة باستخدام {provider}",
+  "auth.circlexo": "الدخول عبر CircleXO",
+  "auth.circlexoError.failed": "لم يكتمل الدخول عبر CircleXO. حاول مرة أخرى.",
+  "auth.circlexoError.email_unverified": "أكّد بريدك الإلكتروني في CircleXO ثم حاول مرة أخرى.",
+  "auth.circlexoError.account_conflict": "يوجد حساب في محرّك بهذا البريد ولا يمكن ربطه تلقائيًا. سجّل الدخول بكلمة المرور.",
+  "auth.circlexoError.no_email": "لم يشارك CircleXO عنوان بريد إلكتروني، لذا لا يمكننا تسجيل دخولك.",
+  "auth.circlexoError.not_member": "لم تضف مؤسستك في CircleXO محرّك، أو أنك لست عضوًا فيها.",
+  "auth.circlexoError.unavailable": "تعذّر الوصول إلى CircleXO الآن. حاول بعد قليل.",
   "auth.createAccount": "إنشاء حساب",
   "auth.email": "البريد الإلكتروني",
   "auth.getStarted": "لنبدأ",

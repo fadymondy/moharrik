@@ -2,9 +2,7 @@
 
 import Link from "next/link"
 
-import { Button } from "@fadymondy/nasaq/web"
-import { CubeMark } from "@/components/brand/cube-mark"
-import { MOHARRIK_MARK } from "@/lib/brand/mark"
+import { Button, ProductMark } from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { useDocumentTitle } from "@/lib/title"
 
@@ -25,7 +23,7 @@ export function NotFoundState({
 
   return (
     <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
-      <CubeMark mark={MOHARRIK_MARK} size={40} />
+      <ProductMark brand="moharrik" size={40} />
       <p className="eyebrow">404</p>
       <h1 className="font-medium tracking-tight text-foreground text-2xl">{title ?? t("notFound.title")}</h1>
       <p className="leading-relaxed text-nq-fg-body max-w-md text-sm">{body ?? t("notFound.body")}</p>

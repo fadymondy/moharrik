@@ -1,9 +1,8 @@
 /* Design system: Nasaq (@fadymondy/nasaq), brand "moharrik" (set by <NasaqProvider> in
    components/providers.tsx). Tokens, the Tailwind theme bridge and the component styles come from
    the package; this file only adds what is specific to Moharrik's own screens.
-   app/styles/grid-* are the previous design system's generated copies (`npm run grid:sync`); only
-   the Lusail @font-face file is still imported (Nasaq's Arabic stack names Lusail but does not ship it). */
-@import "./styles/grid-fonts.css";
+   app/styles/fonts.css holds the Lusail @font-face (Nasaq's Arabic stack names Lusail but does not ship it). */
+@import "./styles/fonts.css";
 @import "tailwindcss" source(none);
 @source "../app";
 @source "../components";
