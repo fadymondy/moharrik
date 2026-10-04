@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState } from "react"
+import { useSWRConfig } from "swr"
 import { LogOutIcon } from "lucide-react"
 import { Badge, Button, toast } from "@fadymondy/nasaq/web"
 
@@ -37,6 +38,7 @@ import { ContactWhatsAppPanel } from "@/components/crm/contact-whatsapp"
 import { IdentitiesPanel, MetaPanel } from "@/components/crm/contact-identities"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
+import { C360Top } from "@/components/contacts/c360-sections"
 
 const statusVariant: Record<
   SubscriptionStatus,
@@ -57,6 +59,13 @@ export default function ContactDetailPage() {
   const canWrite = ws.can("contacts:write")
   const detail = useContact(ws.id, id)
   const [leaving, setLeaving] = useState<UnsubscribeTarget | null>(null)
+  const [reportsRev, setReportsRev] = useState(0)
+  const { mutate: mutateAny } = useSWRConfig()
+  // The contact record and the unified timeline are two requests; anything that changes the contact refreshes both.
+  const refresh = () => {
+    void detail.mutate()
+    void mutateAny((k) => Array.isArray(k) && typeof k[0] === "string" && k[0].endsWith("/timeline"))
+  }
   useDocumentTitle(
     detail.data
       ? `${detail.data.contact.name || identity(detail.data.contact)} · ${ws.summary.name}`
@@ -163,7 +172,15 @@ export default function ContactDetailPage() {
         onDone={() => detail.mutate()}
       />
 
-      <ContactFit contact={contact} canWrite={canWrite} onSaved={() => detail.mutate()} />
+      <C360Top
+        contact={contact}
+        canWrite={canWrite}
+        base={base}
+        onChanged={refresh}
+        onReportChanged={() => setReportsRev((n) => n + 1)}
+      />
+
+      <ContactFit contact={contact} canWrite={canWrite} onSaved={refresh} />
       <ContactWhatsAppPanel key={contact.phone} contact={contact} />
 
       {canWrite ? (
@@ -194,24 +211,30 @@ export default function ContactDetailPage() {
       <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <section>
-        <h2 className="px-6 py-4 text-base font-medium">{t("nav.deals")}</h2>
+        <h2 className="px-6 py-4 text-base font-medium" data-c360-opportunities>
+          {t("c360.opportunities")}
+        </h2>
         <DealsTable deals={deals} total={detail.data.deals_total} empty={t("contacts.noDeals")} />
       </section>
 
       <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
+      <div data-c360-activities>
       <Timeline
         items={activities}
         total={detail.data.activities_total}
         nextCursor={detail.data.activities_next_cursor}
         conversations={detail.data.conversations ?? []}
         target={{ contact_id: contact.id }}
-        onChange={() => detail.mutate()}
+        onChange={refresh}
       />
+      </div>
 
       <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <ContactContextPanel
+        reportsKey={reportsRev}
+        onReportsChanged={() => void mutateAny((k) => Array.isArray(k) && typeof k[0] === "string" && k[0].endsWith("/context/reports"))}
         contact={{ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone }}
       />
       <div className="pb-8" />

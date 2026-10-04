@@ -53,8 +53,14 @@ function readAsBase64(file: File): Promise<string> {
 
 export function ContactContextPanel({
   contact,
+  reportsKey,
+  onReportsChanged,
 }: {
   contact: { id: string; name: string; email: string; phone: string }
+  /** Bumped by the page when a report was generated elsewhere, so the list below reloads. */
+  reportsKey?: number
+  /** Called after a report is generated here, so the page's summary shows it too. */
+  onReportsChanged?: () => void
 }) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
@@ -102,7 +108,13 @@ export function ContactContextPanel({
               when={when}
             />
             <AskPanel contactId={contact.id} />
-            <ReportsPanel contactId={contact.id} canWrite={canWrite} when={when} />
+            <ReportsPanel
+              key={reportsKey ?? 0}
+              contactId={contact.id}
+              canWrite={canWrite}
+              when={when}
+              onGenerated={onReportsChanged}
+            />
           </div>
         ) : null}
       </div>
@@ -312,10 +324,12 @@ function ReportsPanel({
   contactId,
   canWrite,
   when,
+  onGenerated,
 }: {
   contactId: string
   canWrite: boolean
   when: { format: (d: Date | number) => string }
+  onGenerated?: () => void
 }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
@@ -354,6 +368,7 @@ function ReportsPanel({
       setReports((prev) => [res, ...(prev ?? [])])
       setOpen(res.id)
       toast.success(t("contactContext.reportGenerated", { version: res.version }))
+      onGenerated?.()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
