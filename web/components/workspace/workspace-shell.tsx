@@ -18,10 +18,12 @@ import {
   SearchTrigger,
   Sidebar,
   SidebarContent,
+  SidebarExpandedOnly,
   SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarItem,
+  SidebarSubItem,
   SidebarTrigger,
   Skeleton,
   UserMenu,
@@ -31,14 +33,7 @@ import {
   type Command,
   type Workspace,
 } from "@fadymondy/nasaq/web"
-import {
-  ArrowLeftIcon,
-  BookOpenIcon,
-  ChevronRightIcon,
-  LayoutDashboardIcon,
-  MessageSquarePlusIcon,
-  Settings2Icon,
-} from "lucide-react"
+import { BookOpenIcon, MessageSquarePlusIcon, Settings2Icon } from "lucide-react"
 import { useSWRConfig } from "swr"
 
 import { LiveAlerts } from "@/components/alerts/live-alerts"
@@ -55,13 +50,15 @@ import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-for
 import { WorkspaceContext } from "@/components/workspace/workspace-context"
 import { api, resetCsrf, type WorkspaceSummary } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
+import { itemActive, visibleEntries, visibleItems } from "@/lib/nav-config"
 import {
-  groupForPath,
-  itemActive,
-  visibleEntries,
-  visibleItems,
-  type NavGroup,
-} from "@/lib/nav-config"
+  FOOTER_NAV,
+  TOP_NAV,
+  allTopPages,
+  topForPath,
+  visibleTop,
+  type TopItem,
+} from "@/lib/nav-top"
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { mcpDocsHref } from "@/lib/mcp-docs"
@@ -229,6 +226,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       </SidebarHeader>
       <SidebarContent>{summary ? <ShellNav base={base} can={can} /> : null}</SidebarContent>
       <SidebarFooter>
+        {summary ? <ShellFooterNav base={base} can={can} /> : null}
         {me.data ? (
           <Account email={me.data.email} onReport={canReport ? () => openFeedback() : undefined} />
         ) : null}
@@ -331,6 +329,51 @@ function NavCommands({ base, can }: { base: string; can?: string[] }) {
         })
       }
     }
+    // Pages only the intent sidebar names (a section's own dashboard, Import customers, the browser
+    // extension): registered once, deduplicated by path against the loop above.
+    const seen = new Set<string>()
+    for (const e of visibleEntries(can)) {
+      if (e.type === "link") seen.add(e.item.path)
+      else for (const item of visibleItems(e.group.items, can)) seen.add(item.path)
+    }
+    const extras: {
+      id: string
+      label: string
+      hint?: string
+      path: string
+      icon: Command["icon"]
+    }[] = []
+    for (const sec of [...TOP_NAV.flatMap((s) => s.items), ...FOOTER_NAV]) {
+      if (sec.can && !can?.includes(sec.can)) continue
+      extras.push({
+        id: `nav.top.${sec.key}`,
+        label: t(sec.labelKey),
+        path: sec.path,
+        icon: sec.icon,
+      })
+    }
+    for (const { item, parent } of allTopPages()) {
+      if (item.can && !can?.includes(item.can)) continue
+      extras.push({
+        id: `nav.top.${parent.key}.${item.key}`,
+        label: t(item.labelKey),
+        hint: t(parent.labelKey),
+        path: item.path,
+        icon: item.icon,
+      })
+    }
+    for (const x of extras) {
+      if (seen.has(x.path)) continue
+      seen.add(x.path)
+      out.push({
+        id: x.id,
+        section: "navigation",
+        label: x.label,
+        hint: x.hint,
+        icon: x.icon,
+        perform: () => router.push(x.path ? `${base}/${x.path}` : base),
+      })
+    }
     out.push({
       id: "nav.mcp-docs",
       section: "navigation",
@@ -344,124 +387,149 @@ function NavCommands({ base, can }: { base: string; can?: string[] }) {
   return null
 }
 
+/** Where we are inside the workspace, and which sidebar item owns it. */
+function useNavState(base: string) {
+  const pathname = usePathname()
+  const rest = pathname.startsWith(base) ? pathname.slice(base.length).replace(/^\//, "") : ""
+  return { pathname, rest, top: topForPath(rest) }
+}
+
 /**
- * The workspace navigation (MH-526), inside Nasaq's Sidebar (a sheet below md, an icon rail when
- * collapsed). Two screens, not one long list —
+ * One sidebar row. The item that owns the current URL expands its sub-pages beneath it (Customers
+ * shows Companies, Leads, Import…); every other row stays a single line.
+ */
+function TopRow({
+  item,
+  base,
+  rest,
+  active,
+  can,
+  nested,
+}: {
+  item: TopItem
+  base: string
+  rest: string
+  active: boolean
+  can?: string[]
+  nested: boolean
+}) {
+  const { t } = useTranslations()
+  const go = useNavClick()
+  const Icon = item.icon
+  const href = item.path ? `${base}/${item.path}` : base
+  const subs = nested && active && item.subs ? visibleItems(item.subs, can) : []
+  return (
+    <>
+      <SidebarItem
+        href={href}
+        onClick={go(href)}
+        icon={<Icon />}
+        active={active && !subs.some((s) => itemActive(s, rest))}
+        aria-current={active ? "page" : undefined}
+        data-nav-item={item.key}
+      >
+        {t(item.labelKey)}
+      </SidebarItem>
+      {subs.length > 0 ? (
+        <SidebarExpandedOnly>
+          <div
+            className="ms-5 flex flex-col gap-0.5 border-s border-border ps-2"
+            data-nav-subs={item.key}
+          >
+            {subs.map((s) => {
+              const subHref = `${base}/${s.path}`
+              return (
+                <SidebarSubItem
+                  key={s.key}
+                  href={subHref}
+                  onClick={go(subHref)}
+                  active={itemActive(s, rest)}
+                  data-nav-item={s.key}
+                >
+                  {t(s.labelKey)}
+                </SidebarSubItem>
+              )
+            })}
+          </div>
+        </SidebarExpandedOnly>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * The workspace navigation (MH-1060), inside Nasaq's Sidebar (a sheet below md, an icon rail when
+ * collapsed): one flat list grouped by intent: Home, Customers, Inbox, Opportunities, Research;
+ * AUTOMATE; UNDERSTAND; CONNECT. Team and Settings sit in the footer (ShellFooterNav).
  *
- *   ROOT: Overview, then every group button (CRM, Marketing, Inbox, Automation,
- *   Research, Insights, Notifications), then Members, then Settings.
- *
- *   SECTION: a back link to the workspace overview, the section's name, its
- *   dashboard, and only that section's pages.
- *
- * Every row is a real link and which screen shows comes from the URL alone
- * (MH-673): a group row opens the section's own page (its dashboard), and the
- * sidebar follows because that page — like every page inside it — belongs to
- * the section. There is no client-only "drilled" state to get out of step.
+ * Every row is a real link and which one is active comes from the URL alone, by the longest
+ * matching prefix (nav-top.ts): /deals/<id> lights up Opportunities, /settings/mcp lights up MCP,
+ * not Settings. The active row opens its sub-pages beneath it, so each page of a section
+ * stays one click away without a second screen to get lost in.
  */
 function ShellNav({ base, can }: { base: string; can?: string[] }) {
   const { t, locale } = useTranslations()
-  const pathname = usePathname()
   const go = useNavClick()
-  const rest = pathname.startsWith(base) ? pathname.slice(base.length).replace(/^\//, "") : ""
-  const entries = visibleEntries(can)
-  const derivedGroup = groupForPath(rest)
-  // A section this role cannot see does not take over the sidebar.
-  const openGroup: NavGroup | null = entries.some(
-    (e) => e.type === "group" && e.group.key === derivedGroup?.key,
-  )
-    ? derivedGroup
-    : null
-
-  if (openGroup) {
-    const items = visibleItems(openGroup.items, can)
-    const home = `${base}/${openGroup.home}`
-    return (
-      <SidebarGroup data-nav-drilled={openGroup.key} label={t(openGroup.labelKey)}>
-        <SidebarItem
-          href={base}
-          onClick={go(base)}
-          icon={<ArrowLeftIcon className="rtl:rotate-180" />}
-          data-nav-back
-        >
-          {t("nav.back")}
-        </SidebarItem>
-        <SidebarItem
-          href={home}
-          onClick={go(home)}
-          icon={<LayoutDashboardIcon />}
-          active={rest === openGroup.home}
-          data-nav-item={`${openGroup.key}-home`}
-        >
-          {t("nav.sectionOverview")}
-        </SidebarItem>
-        {items.map((item) => {
-          const Icon = item.icon
-          const href = `${base}/${item.path}`
-          return (
-            <SidebarItem
-              key={item.key}
-              href={href}
-              onClick={go(href)}
-              icon={<Icon />}
-              active={itemActive(item, rest)}
-              data-nav-item={item.key}
-            >
-              {t(item.labelKey)}
-            </SidebarItem>
-          )
-        })}
-      </SidebarGroup>
-    )
-  }
-
+  const { pathname, rest, top } = useNavState(base)
   return (
-    <SidebarGroup data-nav-drilled="">
-      {entries.map((e) => {
-        if (e.type === "link") {
-          const Icon = e.item.icon
-          const href = e.item.path ? `${base}/${e.item.path}` : base
-          return (
-            <SidebarItem
-              key={e.item.key}
-              href={href}
-              onClick={go(href)}
-              icon={<Icon />}
-              active={itemActive(e.item, rest)}
-              data-nav-item={e.item.key}
-            >
-              {t(e.item.labelKey)}
-            </SidebarItem>
-          )
-        }
-        const Icon = e.group.icon
-        const href = `${base}/${e.group.home}`
+    <>
+      {TOP_NAV.map((section) => {
+        const items = visibleTop(section.items, can)
+        if (items.length === 0) return null
         return (
-          <SidebarItem
-            key={e.group.key}
-            href={href}
-            onClick={go(href)}
-            icon={<Icon />}
-            trailing={<ChevronRightIcon className="size-3.5 rtl:rotate-180" />}
-            data-nav-group={e.group.key}
-            className={e.group.key === "settings" ? "mt-2 border-t border-border pt-2" : undefined}
+          <SidebarGroup
+            key={section.key}
+            data-nav-section={section.key}
+            label={section.labelKey ? t(section.labelKey) : undefined}
           >
-            {t(e.group.labelKey)}
-          </SidebarItem>
+            {items.map((item) => (
+              <TopRow
+                key={item.key}
+                item={item}
+                base={base}
+                rest={rest}
+                active={top?.key === item.key}
+                can={can}
+                nested
+              />
+            ))}
+          </SidebarGroup>
         )
       })}
       {/* The public MCP reference (MH-428): every tool, its scope and an example.
-          Not a workspace page (it needs no group or workspace base), so it sits
-          here rather than in nav-config.ts's workspace-relative NAV table. */}
-      <SidebarItem
-        href={mcpDocsHref(locale)}
-        onClick={go(mcpDocsHref(locale))}
-        icon={<BookOpenIcon />}
-        active={pathname === mcpDocsHref(locale)}
-        data-nav-item="mcp-docs"
-      >
-        {t("nav.mcpDocs")}
-      </SidebarItem>
+          Not a workspace page (it needs no workspace base), so it sits here rather
+          than in the workspace-relative tables of nav-config.ts / nav-top.ts. */}
+      <SidebarGroup data-nav-section="docs">
+        <SidebarItem
+          href={mcpDocsHref(locale)}
+          onClick={go(mcpDocsHref(locale))}
+          icon={<BookOpenIcon />}
+          active={pathname === mcpDocsHref(locale)}
+          data-nav-item="mcp-docs"
+        >
+          {t("nav.mcpDocs")}
+        </SidebarItem>
+      </SidebarGroup>
+    </>
+  )
+}
+
+/** Team and Settings: pinned above the user menu. Their sub-pages are cards on the Settings page. */
+function ShellFooterNav({ base, can }: { base: string; can?: string[] }) {
+  const { rest, top } = useNavState(base)
+  return (
+    <SidebarGroup data-nav-section="footer">
+      {visibleTop(FOOTER_NAV, can).map((item) => (
+        <TopRow
+          key={item.key}
+          item={item}
+          base={base}
+          rest={rest}
+          active={top?.key === item.key}
+          can={can}
+          nested={false}
+        />
+      ))}
     </SidebarGroup>
   )
 }

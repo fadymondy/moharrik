@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useSyncExternalStore } from "react"
 
 /**
  * What the server publishes (internal/realtime/hub.go). A hint to refetch — the
@@ -45,6 +45,27 @@ type Listener = (e: WorkspaceEvent) => void
 type Stream = { listeners: Set<Listener>; stop: () => void }
 const streams = new Map<string, Stream>()
 
+// Whether the stream is up right now, per workspace: Home shows it as "Watching" (MH-1062).
+const connected = new Map<string, boolean>()
+const connectedListeners = new Set<() => void>()
+function setConnected(workspaceId: string, up: boolean) {
+  if (!!connected.get(workspaceId) === up) return
+  connected.set(workspaceId, up)
+  for (const l of [...connectedListeners]) l()
+}
+
+/** True while this tab's event stream for the workspace is connected. */
+export function useStreamConnected(workspaceId: string | null | undefined): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      connectedListeners.add(cb)
+      return () => void connectedListeners.delete(cb)
+    },
+    () => !!workspaceId && !!connected.get(workspaceId),
+    () => false,
+  )
+}
+
 function open(workspaceId: string, listeners: Set<Listener>): () => void {
   const abort = new AbortController()
   let stopped = false
@@ -64,6 +85,7 @@ function open(workspaceId: string, listeners: Set<Listener>): () => void {
         })
         if (!res.ok || !res.body) throw new Error(`stream ${res.status}`)
         attempt = 0
+        setConnected(workspaceId, true)
 
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
@@ -98,6 +120,7 @@ function open(workspaceId: string, listeners: Set<Listener>): () => void {
       } catch {
         if (stopped) return
       }
+      setConnected(workspaceId, false)
       if (stopped) return
       // A dropped stream is silent — nothing would notice the bell had stopped
       // updating — so it reconnects: 1s, 2s, 4s … capped at 30s.
@@ -110,6 +133,7 @@ function open(workspaceId: string, listeners: Set<Listener>): () => void {
   return () => {
     stopped = true
     abort.abort()
+    setConnected(workspaceId, false)
   }
 }
 

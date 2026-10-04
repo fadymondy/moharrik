@@ -1,167 +1,132 @@
 "use client"
 
-import { Badge, Skeleton } from "@fadymondy/nasaq/web"
-import { SectionHeader } from "@/components/public-frame"
+import { useCallback, useEffect, useRef } from "react"
+import { Skeleton } from "@fadymondy/nasaq/web"
+
 import {
-  InboxCard,
-  LeadsCard,
-  MarketingCard,
-  NotificationsCard,
-  PipelineCard,
-  SetupCard,
-  TodayStrip,
-  TrendsCard,
-  setupPending,
-} from "@/components/overview/overview-cards"
-import { TrafficCard, YouTubeCard } from "@/components/overview/google-cards"
-import { WorkspaceCard } from "@/components/overview/workspace-card"
-import {
-  ConversationsChartCard,
-  LeadsChartCard,
-  PipelineChartCard,
-} from "@/components/overview/overview-charts"
+  ActivityPanel,
+  AttentionPanel,
+  ConnectionsPanel,
+  HomeHeader,
+  HomeNextSteps,
+  HomeTiles,
+  JourneysPanel,
+  WorkingPanel,
+} from "@/components/home/home-sections"
+import { SetupCard, setupPending } from "@/components/overview/overview-cards"
 import { ErrorState } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { useWorkspaceEvents } from "@/lib/events"
+import { useWorkspaceEvents, useStreamConnected } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
-import { useOverview } from "@/lib/queries"
+import { useHome, useMe, useOverview } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
+
+// What on this page a stream event can change. A burst (an import, a campaign) refetches once.
+const REFRESH_KINDS = new Set(["message", "lead", "run", "rules", "conversation", "notification"])
+const DEBOUNCE_MS = 1500
 
 /**
- * The workspace's front page (MH-462): what is happening across leads, the
- * pipeline, the inbox, notifications, marketing and trends, and what is still
- * to set up — every figure from GET /api/w/overview, every count a link to the
- * page it came from. A section the viewer's role cannot read is not rendered.
+ * The workspace Home (MH-1062): a greeting, four numbers for today, what needs attention, what
+ * Moharrik is doing, today's activity, customer journeys and what is connected. Every figure is
+ * from GET /api/w/home; a section the role cannot read is left out. The setup checklist stays
+ * until a new workspace has finished it.
  */
-export default function OverviewPage() {
+export default function HomePage() {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
-  useDocumentTitle(`${t("nav.overview")} · ${ws.summary.name}`)
+  useDocumentTitle(`${t("nav.home")} · ${ws.summary.name}`)
   const base = `/${locale}/w/${ws.slug}`
 
+  const home = useHome(ws.id)
   const ov = useOverview(ws.id)
-  // A new lead or message changes the numbers on this page; the stream says so.
-  useWorkspaceEvents(ws.id, (e) => {
-    if (e.kind === "lead" || e.kind === "message") void ov.mutate()
-  })
-  const o = ov.data
+  const me = useMe()
+  const live = useStreamConnected(ws.id)
 
-  const sections = o
-    ? [
-        o.pipeline,
-        o.leads,
-        o.conversations,
-        o.notifications,
-        o.marketing,
-        o.trends,
-        o.traffic,
-        o.leads_daily,
-        o.conversations_daily,
-      ].filter((s) => s !== null && s !== undefined).length
-    : 0
-  const showSetup = !!o && setupPending(o.setup)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refresh = home.mutate
+  const refreshSoon = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => void refresh(), DEBOUNCE_MS)
+  }, [refresh])
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+    },
+    [],
+  )
+  useWorkspaceEvents(ws.id, (e) => {
+    if (REFRESH_KINDS.has(e.kind)) refreshSoon()
+  })
+
+  const h = home.data
+  const email = me.data?.email ?? ""
+  const local = email.split("@")[0] ?? ""
+  const name = local ? local.charAt(0).toUpperCase() + local.slice(1) : ws.summary.name
+  const setup = ov.data?.setup ?? null
+
+  if (home.error) {
+    return (
+      <div className="px-4 sm:px-6">
+        <ErrorState error={home.error} />
+      </div>
+    )
+  }
+  if (!h) return <HomeSkeleton />
 
   return (
-    <>
-      <SectionHeader
-        micro={t("nav.overview")}
-        title={<Bdi>{ws.summary.name}</Bdi>}
-        action={<Badge variant="outline">{t(`role.${ws.summary.role}`)}</Badge>}
-      />
+    <div className="space-y-4 pb-10 sm:space-y-6" data-home>
+      <HomeHeader home={h} name={name} live={live} />
+      <HomeTiles home={h} base={base} />
 
-      {ov.error ? (
-        <div className="mt-2">
-          <ErrorState error={ov.error} />
+      {setup && setupPending(setup) ? (
+        <div className="px-4 sm:px-6">
+          <SetupCard items={setup} base={base} can={ws.can} />
         </div>
-      ) : !o ? (
-        <OverviewSkeleton />
-      ) : (
-        // Cards sit inside the page padding, each on its own frame with a gap between: the
-        // first version drew every card as a cell of one hairline grid, bled 1px past the page
-        // edge (cells-flush-x) and read as cramped and heavy.
-        <div className="space-y-4 px-4 pb-10 sm:space-y-6 sm:px-6" data-overview>
-          <TodayStrip today={o.today} base={base} />
+      ) : null}
 
-          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2" data-overview-cards>
-            {showSetup && o.setup ? (
-              <SetupCard items={o.setup} base={base} can={ws.can} className="lg:col-span-2" />
-            ) : null}
-            {o.pipeline ? (
-              <PipelineCard
-                p={o.pipeline}
-                currency={o.currency}
-                base={base}
-                className="lg:col-span-2"
-              />
-            ) : null}
-            {o.leads ? (
-              <LeadsCard
-                leads={o.leads}
-                counts={o.today.leads}
-                base={base}
-                canAddForm={ws.can("campaigns:write")}
-              />
-            ) : null}
-            {o.conversations ? (
-              <InboxCard
-                items={o.conversations}
-                unread={o.today.unread_conversations}
-                base={base}
-                canAddWidget={ws.can("inbox:manage")}
-              />
-            ) : null}
-            {o.notifications ? (
-              <NotificationsCard
-                items={o.notifications}
-                unread={o.today.unread_notifications}
-                base={base}
-                canAddSource={ws.can("notifications:manage")}
-              />
-            ) : null}
-            {o.marketing ? (
-              <MarketingCard
-                m={o.marketing}
-                base={base}
-                canWriteContacts={ws.can("contacts:write")}
-                canWriteCampaigns={ws.can("campaigns:write")}
-              />
-            ) : null}
-            {o.trends ? (
-              <TrendsCard tr={o.trends} base={base} canManage={ws.can("trends:manage")} />
-            ) : null}
-            {o.traffic ? <TrafficCard traffic={o.traffic} base={base} /> : null}
-            {o.youtube && o.youtube.length ? (
-              <YouTubeCard channels={o.youtube} base={base} />
-            ) : null}
-            <WorkspaceCard
-              base={base}
-              timezone={o.timezone}
-              currency={o.currency}
-              limited={sections === 0}
-            />
-          </div>
+      <HomeNextSteps has={h.has} base={base} can={ws.can} />
 
-          {/* Real charts (MH-567): traffic's own trend lives inside TrafficCard above; these
-              three cover what the rest of the page only ever showed as counts. */}
-          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2" data-overview-charts>
-            {o.leads_daily ? <LeadsChartCard leadsDaily={o.leads_daily} base={base} /> : null}
-            {o.conversations_daily ? (
-              <ConversationsChartCard conversationsDaily={o.conversations_daily} base={base} />
-            ) : null}
-            {o.pipeline ? (
-              <PipelineChartCard stages={o.pipeline.stages} currency={o.currency} base={base} />
-            ) : null}
-          </div>
+      <div
+        className="grid grid-cols-1 gap-4 px-4 sm:gap-6 sm:px-6 lg:grid-cols-3"
+        data-home-row="1"
+      >
+        {h.attention ? <AttentionPanel attention={h.attention} base={base} /> : null}
+        <WorkingPanel working={h.working} base={base} />
+        <ActivityPanel events={h.activity} base={base} />
+      </div>
+
+      {h.journeys || h.connections ? (
+        <div
+          className="grid grid-cols-1 gap-4 px-4 sm:gap-6 sm:px-6 lg:grid-cols-5"
+          data-home-row="2"
+        >
+          {h.journeys ? (
+            <div className="min-w-0 lg:col-span-3 [&>section]:h-full">
+              <JourneysPanel journeys={h.journeys} base={base} />
+            </div>
+          ) : null}
+          {h.connections ? (
+            <div className="min-w-0 lg:col-span-2 [&>section]:h-full">
+              <ConnectionsPanel
+                connections={h.connections}
+                base={base}
+                canManage={ws.can("inbox:manage")}
+              />
+            </div>
+          ) : null}
         </div>
-      )}
-    </>
+      ) : null}
+    </div>
   )
 }
 
-function OverviewSkeleton() {
+function HomeSkeleton() {
   return (
     <div className="space-y-4 px-4 sm:space-y-6 sm:px-6" aria-busy>
+      <div className="space-y-2 pt-2">
+        <Skeleton className="h-8 w-72" />
+        <Skeleton className="h-4 w-96 max-w-full" />
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="space-y-2 border border-nq-line bg-card px-5 py-4">
@@ -171,8 +136,8 @@ function OverviewSkeleton() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
-        {Array.from({ length: 4 }, (_, i) => (
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+        {Array.from({ length: 3 }, (_, i) => (
           <div key={i} className="space-y-3 border border-nq-line bg-card px-5 py-4">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-4 w-full" />
