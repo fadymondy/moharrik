@@ -87,43 +87,64 @@ func normalizeSpace(s string) string {
 	return strings.TrimSpace(strings.Join(out, "\n"))
 }
 
-// cssRuleStart matches a leaked stylesheet at the very start of a text: an
-// at-rule, or `selector { property: value ...}`. A bare "a { b }" has no
-// property:value, so ordinary prose with braces never matches.
-var cssRuleStart = regexp.MustCompile(`^\s*(?:@[a-zA-Z-]+[^{};]*\{|[*.#:\[][^{}]{0,120}\{\s*[a-zA-Z-]+\s*:[^{}]*\}|[a-z][a-z0-9 ,>+~:.#_-]{0,80}\{\s*[a-zA-Z-]+\s*:[^{}]*\})`)
+// cssRule matches one leaked stylesheet rule: an at-rule, or
+// `selector { property: value ...}`. A bare "a { b }" has no property:value,
+// so ordinary prose with braces never matches.
+var cssRule = regexp.MustCompile(`(?:@[a-zA-Z-]+[^{};]*\{|[*.#:\[][^{}]{0,120}\{\s*[a-zA-Z-]+\s*:[^{}]*\}|[a-z][a-z0-9 ,>+~:.#_*="\[\]-]{0,80}\{\s*[a-zA-Z-]+\s*:[^{}]*\})`)
 
-// previewText cleans text that was stored with a stylesheet in front of it
-// (rows written before stripHTML learned to drop <style>). Only leading rule
-// blocks are removed; text after them is untouched.
+// previewText cleans text that was stored with a stylesheet inside it (rows
+// written before stripHTML learned to drop <style>; the CSS is often behind a
+// preheader fragment, not at the very start). A run of rules is removed when
+// it is clearly a stylesheet: two or more rules, an at-rule, or a selector
+// that prose never starts with (*, ., #, [). Text around the run is kept.
 func previewText(s string) string {
-	for i := 0; i < 500; i++ {
-		loc := cssRuleStart.FindStringIndex(s)
+	for guard := 0; guard < 50; guard++ {
+		loc := cssRule.FindStringIndex(s)
 		if loc == nil {
 			break
 		}
-		open := strings.IndexByte(s[:loc[1]], '{')
-		if open < 0 {
-			break
-		}
-		depth, end := 0, -1
-		for j := open; j < len(s); j++ {
-			switch s[j] {
-			case '{':
-				depth++
-			case '}':
-				depth--
-				if depth == 0 {
-					end = j + 1
-				}
-			}
-			if end >= 0 {
+		first := strings.TrimSpace(s[loc[0]:loc[1]])
+		start, end, rules := loc[0], loc[0], 0
+		for rules < 2000 {
+			m := cssRule.FindStringIndex(s[end:])
+			if m == nil || strings.TrimSpace(s[end:end+m[0]]) != "" {
 				break
 			}
+			e := blockEnd(s, end+strings.IndexByte(s[end+m[0]:], '{')+m[0])
+			if e < 0 {
+				end = len(s) // unterminated stylesheet: nothing readable follows
+				rules++
+				break
+			}
+			end, rules = e, rules+1
 		}
-		if end < 0 {
-			return "" // unterminated stylesheet: nothing readable follows
+		obvious := rules >= 2 || strings.ContainsAny(first[:1], "@*.#[")
+		if !obvious {
+			// Not a stylesheet; look for one after this rule only.
+			sep := ""
+			if end < len(s) && strings.TrimLeft(s[end:], " \t\n") != s[end:] {
+				sep = " "
+			}
+			return strings.TrimSpace(s[:end] + sep + previewText(s[end:]))
 		}
-		s = s[end:]
+		s = strings.TrimSpace(s[:start]) + " " + strings.TrimSpace(s[end:])
 	}
 	return strings.TrimSpace(s)
+}
+
+// blockEnd returns the index just past the brace block opening at open, or -1.
+func blockEnd(s string, open int) int {
+	depth := 0
+	for j := open; j < len(s); j++ {
+		switch s[j] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return j + 1
+			}
+		}
+	}
+	return -1
 }

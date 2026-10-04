@@ -41,7 +41,9 @@ func TestPreviewText(t *testing.T) {
 		"Use a { b } in a sentence":         "Use a { b } in a sentence",
 		"Please Set a { color: red } later": "Please Set a { color: red } later",
 		"مرحبا { } فادي":                    "مرحبا { } فادي",
-		"  plain text  ":                    "plain text",
+		"96  *{box-sizing:border-box}body{margin:0;padding:0}a[x-apple-data-detectors]{color:inherit!important}#MessageViewBody a{color:inherit} 5 kids. 1 decision.": "96 5 kids. 1 decision.",
+		"Hello {name}, welcome": "Hello {name}, welcome",
+		"  plain text  ":        "plain text",
 	}
 	for in, want := range cases {
 		if got := previewText(in); got != want {
