@@ -114,7 +114,7 @@ func scanConversation(wsID string, row interface{ Scan(...any) error }) (Convers
 	c.ContactID = strp(contactID)
 	c.AssigneeUserID = strp(assignee)
 	c.MailboxID = strp(mailboxID)
-	c.Preview = trim(preview, 140)
+	c.Preview = trim(previewText(preview), 140)
 	if contactID.Valid {
 		c.Contact = &LinkedContact{ID: contactID.String, Name: ctName.String, Email: ctEmail.String}
 		if companyID.Valid {

@@ -284,36 +284,6 @@ func contains(list []string, v string) bool {
 	return false
 }
 
-// stripHTML is the same shape as the trends parser's clean(): enough to read a
-// message as text, and not a renderer.
-func stripHTML(s string) string {
-	var b strings.Builder
-	depth := 0
-	for _, r := range s {
-		switch {
-		case r == '<':
-			depth++
-		case r == '>':
-			if depth > 0 {
-				depth--
-			}
-			b.WriteByte(' ')
-		case depth == 0:
-			b.WriteRune(r)
-		}
-	}
-	return decodeEntities(b.String())
-}
-
-func decodeEntities(s string) string {
-	for from, to := range map[string]string{
-		"&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": `"`, "&#39;": "'",
-	} {
-		s = strings.ReplaceAll(s, from, to)
-	}
-	return s
-}
-
 // collapseBlankLines keeps paragraph breaks but drops the runs of empty lines
 // that quoted replies and signatures leave behind.
 func collapseBlankLines(s string) string {

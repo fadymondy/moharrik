@@ -95,6 +95,9 @@ func threadPage(ctx context.Context, db *sql.DB, wsID, convID, cursor string, li
 			return nil, err
 		}
 		m.AuthorUserID = strp(author)
+		if m.BodyHTML == "" {
+			m.Body = previewText(m.Body)
+		}
 		m.MailboxID = strp(mailboxID)
 		m.SenderContactID = strp(senderContactID)
 		newestFirst = append(newestFirst, m)
