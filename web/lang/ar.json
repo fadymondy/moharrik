@@ -4452,8 +4452,11 @@
   "home.attn.hot_lead": "عميل محتمل ساخن",
   "home.attn.at_risk": "صفقة معرّضة للخسارة",
   "home.attn.new_prospects": "{n} جهات مستهدفة جديدة للمراجعة",
+  "home.attn.new_prospects.one": "جهة مستهدفة جديدة واحدة للمراجعة",
   "home.attn.failed_automation": "فشلت {n} أتمتة خلال آخر يوم",
+  "home.attn.failed_automation.one": "فشلت أتمتة واحدة خلال آخر يوم",
   "home.attn.unanswered": "{n} محادثات تنتظر ردًّا",
+  "home.attn.unanswered.one": "محادثة واحدة تنتظر ردًّا",
   "home.why.replied": "ردّ عبر {channel} {when}",
   "home.why.replied_nochannel": "ردّ {when}",
   "home.why.new_lead": "عميل محتمل جديد {when}",
@@ -4479,9 +4482,13 @@
   "home.lane.understand": "الفهم",
   "home.lane.act": "التنفيذ",
   "home.lane.discover.head": "{n} اكتُشف اليوم",
+  "home.lane.discover.head.one": "اكتُشفت جهة واحدة اليوم",
   "home.lane.listen.head": "{n} قنوات متصلة",
+  "home.lane.listen.head.one": "قناة واحدة متصلة",
   "home.lane.understand.head": "{n} رؤى اليوم",
+  "home.lane.understand.head.one": "رؤية واحدة اليوم",
   "home.lane.act.head": "{n} إجراءات اليوم",
+  "home.lane.act.head.one": "إجراء واحد اليوم",
   "home.lane.noAccess": "غير متاح لدورك",
   "home.lane.live_runs": "{n} بحث قيد التشغيل",
   "home.lane.schedules": "{n} جداول مفعّلة",
@@ -4573,5 +4580,6 @@
   "home.empty.automationsBody": "ابدأ من قالب جاهز ودع محرّك يتولّى العمل المتكرر.",
   "home.empty.browsePresets": "استعرض القوالب",
   "home.error": "تعذّر تحميل الصفحة الرئيسية.",
-  "home.ago.now": "الآن"
+  "home.ago.now": "الآن",
+  "home.attention.showing": "الأكثر إلحاحًا: {shown} من {total}"
 }

@@ -276,6 +276,14 @@ export function AttentionPanel({
           ))}
         </ul>
       )}
+      {attention.items.length > 0 && attention.total > attention.items.length ? (
+        <p className="border-t border-nq-line px-5 py-3 text-xs text-muted-foreground" data-home-attention-more>
+          {t("home.attention.showing", {
+            shown: f.n(attention.items.length),
+            total: f.n(attention.total),
+          })}
+        </p>
+      ) : null}
     </Panel>
   )
 }
@@ -283,7 +291,7 @@ export function AttentionPanel({
 function AttentionRow({ it, base }: { it: HomeAttentionItem; base: string }) {
   const { t } = useTranslations()
   const f = useFormat()
-  const title = it.title ? it.title : t(`home.attn.${it.kind}`, { n: f.n(it.count ?? 0) })
+  const title = it.title ? it.title : t(`home.attn.${it.kind}${it.count === 1 ? ".one" : ""}`, { n: f.n(it.count ?? 0) })
   const lead = it.title ? t(`home.attn.${it.kind}`, { n: "" }).trim() : null
   const money = it.value && it.value.minor > 0 ? f.money(it.value.minor, it.value.currency) : null
   return (
@@ -373,7 +381,7 @@ export function WorkingPanel({ working, base }: { working: Home["working"]; base
                   <p className="text-sm text-foreground">
                     {lane.headline == null
                       ? t("home.lane.noAccess")
-                      : t(`home.lane.${lane.key}.head`, { n: f.n(lane.headline) })}
+                      : t(`home.lane.${lane.key}.head${lane.headline === 1 ? ".one" : ""}`, { n: f.n(lane.headline) })}
                   </p>
                   {subs.length ? (
                     <p className="text-xs text-muted-foreground">{subs.join(" · ")}</p>

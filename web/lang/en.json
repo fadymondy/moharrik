@@ -4452,8 +4452,11 @@
   "home.attn.hot_lead": "Hot lead",
   "home.attn.at_risk": "Deal at risk",
   "home.attn.new_prospects": "{n} new prospects to review",
+  "home.attn.new_prospects.one": "1 new prospect to review",
   "home.attn.failed_automation": "{n} automations failed in the last day",
+  "home.attn.failed_automation.one": "1 automation failed in the last day",
   "home.attn.unanswered": "{n} conversations are waiting for a reply",
+  "home.attn.unanswered.one": "1 conversation is waiting for a reply",
   "home.why.replied": "Replied on {channel} {when}",
   "home.why.replied_nochannel": "Replied {when}",
   "home.why.new_lead": "New lead {when}",
@@ -4479,9 +4482,13 @@
   "home.lane.understand": "Understand",
   "home.lane.act": "Act",
   "home.lane.discover.head": "{n} found today",
+  "home.lane.discover.head.one": "1 found today",
   "home.lane.listen.head": "{n} channels connected",
+  "home.lane.listen.head.one": "1 channel connected",
   "home.lane.understand.head": "{n} insights today",
+  "home.lane.understand.head.one": "1 insight today",
   "home.lane.act.head": "{n} actions today",
+  "home.lane.act.head.one": "1 action today",
   "home.lane.noAccess": "Not available to your role",
   "home.lane.live_runs": "{n} research running",
   "home.lane.schedules": "{n} schedules on",
@@ -4573,5 +4580,6 @@
   "home.empty.automationsBody": "Start from a ready-made preset and let Moharrik handle the repetitive work.",
   "home.empty.browsePresets": "Browse presets",
   "home.error": "Home could not be loaded.",
-  "home.ago.now": "just now"
+  "home.ago.now": "just now",
+  "home.attention.showing": "Showing the {shown} most urgent of {total}"
 }
