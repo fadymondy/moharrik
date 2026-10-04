@@ -1,8 +1,10 @@
 package inbox
 
 import (
+	"html"
 	"regexp"
 	"strings"
+	"unicode"
 
 	xhtml "golang.org/x/net/html"
 )
@@ -147,4 +149,29 @@ func blockEnd(s string, open int) int {
 		}
 	}
 	return -1
+}
+
+// previewLine is the one-line list preview: previewText, then the entities
+// older rows kept encoded (&#8202;), the invisible filler marketing emails pad
+// their preheader with (U+034F, zero-width joiners, soft hyphens), and runs
+// of whitespace collapsed to one space.
+func previewLine(s string) string {
+	s = html.UnescapeString(previewText(s))
+	var b strings.Builder
+	space := false
+	for _, r := range s {
+		switch {
+		case r == 0x034f || r == 0x00ad || r == 0xfeff || (r >= 0x200b && r <= 0x200f) || r == 0x2060: // CGJ, soft hyphen, BOM, zero-width and direction marks, word joiner
+			continue
+		case unicode.IsSpace(r):
+			space = true
+			continue
+		}
+		if space && b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		space = false
+		b.WriteRune(r)
+	}
+	return b.String()
 }

@@ -51,3 +51,16 @@ func TestPreviewText(t *testing.T) {
 		}
 	}
 }
+
+func TestPreviewLine(t *testing.T) {
+	cases := map[string]string{
+		"sup, &#8202;   \n\n  مرحباً   بك":              "sup, مرحباً بك",
+		"\u034f \u200c \u034f \u200c Hello\u00ad there": "Hello there",
+		"Here's what worked.         Start":             "Here's what worked. Start",
+	}
+	for in, want := range cases {
+		if got := previewLine(in); got != want {
+			t.Errorf("previewLine(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
