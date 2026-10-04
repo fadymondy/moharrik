@@ -3,6 +3,8 @@
 import useSWR, { type SWRConfiguration } from "swr"
 import useSWRInfinite from "swr/infinite"
 
+import type { Home } from "@/lib/home-types"
+
 import {
   type Ga4ConversionsPage,
   type ReactionResult,
@@ -1357,3 +1359,14 @@ export const useCrmReport = (id: string | null | undefined, range: string) =>
 
 export const useIcpProfile = (id: string | null | undefined) =>
   useScoped<IcpProfileOut>("/api/w/icp", id)
+
+// ── Home (MH-1062) ──────────────────────────────────────────────────────
+
+/** The workspace Home. Refetched on stream events by the page (debounced), not on a timer. */
+export function useHome(workspaceId: string | null | undefined) {
+  return useSWR<Home>(
+    workspaceId ? ["/api/w/home", workspaceId] : null,
+    ([p, id]: [string, string]) => api<Home>(p, { workspaceId: id }),
+    noRetryOn4xx,
+  )
+}
