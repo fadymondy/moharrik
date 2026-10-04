@@ -1544,6 +1544,8 @@ export type ContactReport = {
   no_provider: boolean
   provider?: string
   model?: string
+  /** When the report was stored; absent on the response to a fresh POST. */
+  created_at?: string
 }
 
 export type WhatsAppExportPreview = {

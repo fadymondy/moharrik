@@ -197,6 +197,18 @@ var docsCRM = map[string]ToolDoc{
 			`"summary":"Delta Freight — fleet tracking rollout — 18000.00 USD"}],` +
 			`"activities_total":1,"deals_total":1,"conversations_included":true,"next_cursor":""}`,
 	},
+	"contact_timeline": {
+		AR: "كل ما جرى مع جهة اتصال واحدة، الأحدث أولًا، صفحةً بعد صفحة: الأنشطة (ومنها ما على صفقاتها)، وفتح الصفقات ونقلها وفوزها " +
+			"وخسارتها، وتغيّرات دورة الحياة، وتقديمات العملاء المحتملين مع UTM، والقواعد الآلية التي عملت عليها، ومحادثات صندوق الوارد " +
+			"(إن كان الرمز يملك صلاحية قراءته). لكل حدث رمز نوعه ومعرّف السجل ومعطياته، وتسمّي sources ما يقرؤه الرمز. إرساليات الحملات " +
+			"لا تُسجَّل لكل جهة اتصال. تحمل الصفحة الأولى أيضًا overview (محادثاتها وأتمتتها). لجلب الأقدم مرِّر next_cursor في cursor.",
+		Example: map[string]any{"id": "3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23", "limit": 20},
+		Result: `{"contact":{"id":"3f9a2c1e-7b4d-4e8a-9c21-5d6e8f0a1b23","name":"Layla Nasser"},"events":[` +
+			`{"at":"2026-09-18T13:40:00Z","kind":"activity.call","id":"7a9c1e3b-5d7f-4a9b-8c1d-3e5f7a9b1c3d","data":{"body":"Walked through the pilot scope.","on_deal":false}},` +
+			`{"at":"2026-09-02T11:25:00Z","kind":"deal.opened","id":"a1c3e5f7-0b2d-4f6a-8c9e-1d3f5a7b9c0e","data":{"title":"Fleet tracking rollout","value_minor":1800000,"currency":"USD","stage":"Qualified","stage_kind":"open"}}],` +
+			`"next_cursor":"","sources":["contact","activities","deals","lifecycle","conversations","leads","automations"],` +
+			`"overview":{"conversations":[],"automations":[]}}`,
+	},
 	"list_activities": {
 		AR: "السجل الزمني لسجل واحد، الأحدث أولًا، صفحةً بعد صفحة؛ حدِّد واحدًا فقط من contact_id أو company_id أو deal_id. لكل نشاط " +
 			"معرّفه ونوعه ونصّه وموعد استحقاقه ووقت إنجازه وما يرتبط به، ويَعُدّ total الأنشطة كلها. وتأتي معه محادثات صندوق الوارد " +

@@ -21,6 +21,7 @@ type ContactReport struct {
 	NoProvider bool   `json:"no_provider"`
 	Provider   string `json:"provider,omitempty"`
 	Model      string `json:"model,omitempty"`
+	CreatedAt  *time.Time `json:"created_at,omitempty"`
 }
 
 // timelineEntry is one dated fact the report can cite by id.
@@ -111,7 +112,7 @@ func GenerateReport(ctx context.Context, a *app.App, aiClient *ai.Client, worksp
 func ListReports(ctx context.Context, a *app.App, workspaceID, contactID string) ([]ContactReport, error) {
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
 	rows, err := a.SQLDB.QueryContext(sctx, `
-		SELECT id, version, markdown, no_model, provider, model FROM contact_context_reports
+		SELECT id, version, markdown, no_model, provider, model, created_at FROM contact_context_reports
 		WHERE workspace_id=$1 AND contact_id=$2 ORDER BY version DESC`, workspaceID, contactID)
 	if err != nil {
 		return nil, err
@@ -120,9 +121,11 @@ func ListReports(ctx context.Context, a *app.App, workspaceID, contactID string)
 	out := []ContactReport{}
 	for rows.Next() {
 		var r ContactReport
-		if err := rows.Scan(&r.ID, &r.Version, &r.Markdown, &r.NoProvider, &r.Provider, &r.Model); err != nil {
+		var created time.Time
+		if err := rows.Scan(&r.ID, &r.Version, &r.Markdown, &r.NoProvider, &r.Provider, &r.Model, &created); err != nil {
 			return nil, err
 		}
+		r.CreatedAt = &created
 		out = append(out, r)
 	}
 	return out, rows.Err()

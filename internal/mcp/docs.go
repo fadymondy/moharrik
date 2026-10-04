@@ -164,6 +164,7 @@ func argAR() map[string]string {
 var argsARCommon = map[string]string{
 	"next_cursor from the previous answer": "قيمة next_cursor من الإجابة السابقة",
 	"next_cursor from the previous page":   "قيمة next_cursor من الصفحة السابقة",
+	"Events per page, default 30, at most 100": "عدد الأحداث في الصفحة، الافتراضي 30 وبحد أقصى 100",
 }
 
 // ---- the catalog --------------------------------------------------------
