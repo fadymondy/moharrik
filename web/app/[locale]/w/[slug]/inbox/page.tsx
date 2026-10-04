@@ -10,15 +10,17 @@ import {
   BellOffIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  PanelRightOpenIcon,
   PinIcon,
   StarIcon,
 } from "lucide-react"
-import { Badge, Button, ContextMenu, ContextMenuTrigger, Tabs, TabsList, TabsTab, toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, ContextMenu, ContextMenuTrigger, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Tabs, TabsList, TabsTab, toast } from "@fadymondy/nasaq/web"
 
 import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { ChatIcon, ChatRowMenu, isMuted, LabelChip } from "@/components/inbox/chat-row-menu"
 import { ChatThread } from "@/components/inbox/chat-thread"
+import { CustomerPanel } from "@/components/inbox/customer-panel"
 import { ConversationContactDialog } from "@/components/inbox/contact-row-dialog"
 import { ContactInfoPanel } from "@/components/inbox/contact-info-panel"
 import { SnoozeControl, SnoozedNote } from "@/components/inbox/snooze-control"
@@ -436,7 +438,7 @@ export default function InboxPage() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 border-y border-nq-line lg:grid-cols-[22rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 border-y border-nq-line lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)_20rem]">
         {/* The chat list column (MH-592): its own search on top, so what you
             search is right above what it finds, and the list below it. The
             search stays put while the list loads, errors or comes back empty,
@@ -578,9 +580,37 @@ export default function InboxPage() {
             <p className="px-6 py-10 text-center text-sm text-muted-foreground">{t("inbox.pickOne")}</p>
           )}
         </div>
+        {/* The customer-intelligence panel (MH-1063): the third column from 1280px;
+            below that it is a drawer, opened from the thread header. */}
+        <aside
+          className="hidden min-w-0 overflow-y-auto xl:block xl:border-s xl:border-nq-line"
+          style={{ height: "min(70vh, 44rem)" }}
+          aria-label={t("inbox.intel.title")}
+          data-intel-column
+        >
+          {selected ? (
+            <CustomerPanel key={selected} id={selected} onChanged={() => list.mutate()} />
+          ) : (
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+              {t("inbox.intel.pickOne")}
+            </p>
+          )}
+        </aside>
       </div>
       <div className="pb-8" />
     </>
+  )
+}
+
+/** The channel as an icon in the info tone (MH-1063); the name stays beside it as text. */
+function RowChannelIcon({ channel, label }: { channel: string; label: string }) {
+  const Icon = channelIcon(channel)
+  return (
+    <Icon
+      className="me-1 inline size-3.5 align-text-bottom text-nq-info-text"
+      aria-label={label}
+      data-row-channel={channel}
+    />
   )
 }
 
@@ -699,7 +729,7 @@ function ConversationRow({
                   aria-label={t("inbox.unread")}
                 />
               ) : null}
-              <BdiBlock className="truncate text-sm font-medium">{who}</BdiBlock>
+              <BdiBlock className={`truncate text-sm ${c.unread ? "font-semibold" : "font-medium"}`}>{who}</BdiBlock>
               <span className="ms-auto flex shrink-0 items-center gap-1 text-muted-foreground">
                 {c.blocked ? (
                   <BanIcon
@@ -749,6 +779,7 @@ function ConversationRow({
               </BdiBlock>
             )}
             <span className="text-xs text-muted-foreground">
+              <RowChannelIcon channel={c.channel} label={t(`inbox.channel.${c.channel}`)} />
               {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> ·{" "}
               {t("inbox.messageCount", { n: c.message_count })}
             </span>
@@ -916,6 +947,8 @@ function Thread({
   // MH-662: thread header menu — search, select-messages and the Contact info panel.
   const [searchOpen, setSearchOpen] = useState(false)
   const [contactInfoOpen, setContactInfoOpen] = useState(false)
+  // MH-1063: below 1280px the customer panel is a drawer.
+  const [panelOpen, setPanelOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
@@ -1087,16 +1120,20 @@ function Thread({
         </div>
         {canWrite ? (
           <>
-            <div className="w-44">
-              <PickSelect
-                id="assignee"
-                value={c.assignee_user_id ?? ""}
-                onChange={(v) => patch({ assignee_user_id: v }, t("inbox.assigned"))}
-                options={assigneeOpts}
-                noneLabel={t("inbox.unassigned")}
-              />
+            {/* From 1280px the customer panel carries assign and snooze (MH-1063),
+                so the narrower thread column keeps room for the name. */}
+            <div className="contents xl:hidden">
+              <div className="w-44">
+                <PickSelect
+                  id="assignee"
+                  value={c.assignee_user_id ?? ""}
+                  onChange={(v) => patch({ assignee_user_id: v }, t("inbox.assigned"))}
+                  options={assigneeOpts}
+                  noneLabel={t("inbox.unassigned")}
+                />
+              </div>
+              <SnoozeControl c={c} onChanged={refresh} />
             </div>
-            <SnoozeControl c={c} onChanged={refresh} />
             <Button
               variant="secondary"
               size="sm"
@@ -1113,6 +1150,16 @@ function Thread({
           </>
         ) : null}
         <VisitorContext c={c} />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="xl:hidden"
+          aria-label={t("inbox.intel.open")}
+          onClick={() => setPanelOpen(true)}
+          data-intel-trigger
+        >
+          <PanelRightOpenIcon />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -1153,6 +1200,18 @@ function Thread({
           onChanged={refresh}
         />
       ) : null}
+
+      <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
+        <SheetContent side="end" className="w-full sm:w-[min(24rem,100vw)] xl:hidden" data-intel-drawer>
+          <SheetHeader>
+            <SheetTitle>{t("inbox.intel.title")}</SheetTitle>
+            <SheetDescription className="sr-only">{headerWho}</SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {panelOpen ? <CustomerPanel id={id} onChanged={onChanged} /> : null}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <ContactInfoPanel c={c} open={contactInfoOpen} onOpenChange={setContactInfoOpen} onChanged={refresh} />
 

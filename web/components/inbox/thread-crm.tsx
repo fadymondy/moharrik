@@ -211,7 +211,7 @@ type DialogProps = {
   onDone: Done
 }
 
-function LinkContactDialog({ open, onOpenChange, c, onDone }: DialogProps) {
+export function LinkContactDialog({ open, onOpenChange, c, onDone }: DialogProps) {
   const { t } = useTranslations()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -274,7 +274,7 @@ function LinkContactForm({ c, onDone }: { c: Conversation; onDone: Done }) {
   )
 }
 
-function CreateContactDialog({
+export function CreateContactDialog({
   open,
   onOpenChange,
   c,
@@ -412,7 +412,7 @@ export function CreateContactForm({
   )
 }
 
-function OpenDealDialog({ open, onOpenChange, c, onDone }: DialogProps) {
+export function OpenDealDialog({ open, onOpenChange, c, onDone }: DialogProps) {
   const { t } = useTranslations()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
