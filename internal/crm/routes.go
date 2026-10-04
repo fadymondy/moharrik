@@ -294,6 +294,27 @@ func Register(api huma.API, a *app.App) {
 	})
 
 	huma.Register(api, huma.Operation{
+		OperationID: "w-contact-timeline", Method: http.MethodGet, Path: "/api/w/contacts/{id}/timeline",
+		Summary: "One contact's unified timeline, newest first, a page at a time (MH-1064)",
+		Description: "Activities, inbox conversations, deal opened/stage/won/lost, lifecycle changes, lead submissions (with UTM) and the " +
+			"automation rules that ran for the contact, merged by time. Each kind is left out when the caller's role cannot read its source; " +
+			"`sources` lists what is included. Campaign sends are not recorded per contact and are not part of it. The first page also carries " +
+			"`overview` (the contact's conversations and automations).",
+		Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID     string `path:"id"`
+		Cursor string `query:"cursor" doc:"next_cursor from the previous page"`
+		Limit  int    `query:"limit" minimum:"0" maximum:"100" doc:"Page size (default 30, at most 100)"`
+	}) (*body[ContactTimelineOut], error) {
+		page, err := ContactTimeline(ctx, db(), in.ID, in.Cursor, in.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return out(*page), nil
+	})
+
+	huma.Register(api, huma.Operation{
 		OperationID: "w-update-contact", Method: http.MethodPatch, Path: "/api/w/contacts/{id}",
 		Summary: "Change a contact's CRM fields: name, phone, title, company, owner, tags", Tags: tags,
 	}, func(ctx context.Context, in *struct {

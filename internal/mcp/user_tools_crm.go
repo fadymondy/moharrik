@@ -538,6 +538,32 @@ func CrmTools() []Tool {
 			},
 		},
 		{
+			Name: "contact_timeline",
+			Description: "Everything that happened with one contact, newest first, one page at a time: activities (also those on its " +
+				"deals), deals opening, moving, won and lost, lifecycle changes, lead submissions with their UTM, the automation rules that " +
+				"ran for it, and its inbox conversations (when the token may read the inbox). Each event has a kind code, the id of the " +
+				"record it is about and its data; sources names what this token can read. Campaign sends are not recorded per contact. " +
+				"The first page also has overview (the contact's conversations and automations). Pass next_cursor back as cursor for older events.",
+			Scope: "contacts:read",
+			InputSchema: schema([]string{"id"}, map[string]any{
+				"id":     prop("string", "Contact id"),
+				"cursor": prop("string", "next_cursor from the previous answer"),
+				"limit":  prop("integer", "Events per page, default 30, at most 100"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				args := decodeArgs(raw)
+				id, err := required("id", str(args, "id"))
+				if err != nil {
+					return "", err
+				}
+				res, err := crm.ContactTimeline(ctx, a.SQLDB, id, str(args, "cursor"), intArg(args, "limit", 0))
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(res)
+			},
+		},
+		{
 			Name: "list_activities",
 			Description: "One record's timeline, newest first, one page at a time: name exactly one of contact_id, company_id or " +
 				"deal_id. Each activity has its id, kind, body, due and done times and what it is attached to; total counts them " +
