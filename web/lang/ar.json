@@ -4406,5 +4406,19 @@
   "manage.deleteForever": "حذف نهائي",
   "manage.deleted": "تم حذف {name}",
   "shell.search": "ابحث…",
-  "shell.resizeSidebar": "تغيير عرض الشريط الجانبي"
+  "shell.resizeSidebar": "تغيير عرض الشريط الجانبي",
+  "nav.home": "الرئيسية",
+  "nav.customers": "العملاء",
+  "nav.opportunities": "الفرص",
+  "nav.automations": "الأتمتة",
+  "nav.group.automate": "أتمتة",
+  "nav.group.understand": "فهم",
+  "nav.group.connect": "اتصال",
+  "nav.team": "الفريق",
+  "nav.mcp": "MCP",
+  "nav.importCustomers": "استيراد العملاء",
+  "nav.extension": "إضافة المتصفح",
+  "nav.top.inbox": "صندوق الوارد",
+  "nav.top.research": "الأبحاث",
+  "nav.top.schedules": "الجداول"
 }

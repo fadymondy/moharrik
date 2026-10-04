@@ -4406,5 +4406,19 @@
   "manage.deleteForever": "Delete forever",
   "manage.deleted": "{name} deleted",
   "shell.search": "Search…",
-  "shell.resizeSidebar": "Resize sidebar"
+  "shell.resizeSidebar": "Resize sidebar",
+  "nav.home": "Home",
+  "nav.customers": "Customers",
+  "nav.opportunities": "Opportunities",
+  "nav.automations": "Automations",
+  "nav.group.automate": "Automate",
+  "nav.group.understand": "Understand",
+  "nav.group.connect": "Connect",
+  "nav.team": "Team",
+  "nav.mcp": "MCP",
+  "nav.importCustomers": "Import customers",
+  "nav.extension": "Browser extension",
+  "nav.top.inbox": "Inbox",
+  "nav.top.research": "Research",
+  "nav.top.schedules": "Schedules"
 }
