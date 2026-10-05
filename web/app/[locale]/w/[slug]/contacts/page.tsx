@@ -251,7 +251,7 @@ function ListsSheet({
             <SheetTitle>{t("lists.title")}</SheetTitle>
             <SheetDescription>{t("lists.hint")}</SheetDescription>
           </SheetHeader>
-          <SheetBody className="min-h-0 flex-1 overflow-y-auto">
+          <SheetBody className="p-4">
             {error ? (
               <ErrorState error={error} />
             ) : loading ? (
@@ -262,7 +262,7 @@ function ListsSheet({
                 body={canWrite ? t("lists.emptyBody") : undefined}
               />
             ) : (
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col gap-3">
                 {lists.map((l) => (
                   <li
                     key={l.id}
