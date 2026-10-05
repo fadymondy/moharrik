@@ -5,6 +5,7 @@ import useSWRInfinite from "swr/infinite"
 
 import type { Home } from "@/lib/home-types"
 import type { OpportunitySignals } from "@/lib/opportunity-types"
+import type { ResearchOverview } from "@/lib/research-flow-types"
 
 import {
   type Ga4ConversionsPage,
@@ -1377,3 +1378,16 @@ export function useHome(workspaceId: string | null | undefined) {
 /** Quiet deals, new leads and high-fit prospects, each with its real reason. */
 export const useOpportunitySignals = (id: string | null | undefined, enabled = true) =>
   useScoped<OpportunitySignals>("/api/w/opportunities/signals", id, enabled)
+
+/** The research funnel and each recent run's stages (MH-1066). Follows a live run every 3 s. */
+export function useResearchOverview(workspaceId: string | null | undefined, enabled = true) {
+  return useSWR<ResearchOverview>(
+    workspaceId && enabled ? ["/api/w/research-overview", workspaceId] : null,
+    ([p, id]: [string, string]) => api<ResearchOverview>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) =>
+        data?.runs.some((r) => r.status === "queued" || r.status === "running") ? 3000 : 0,
+    },
+  )
+}
