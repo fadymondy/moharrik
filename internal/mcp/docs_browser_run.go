@@ -77,4 +77,8 @@ var argsARBrowserRun = map[string]string{
 	"name -> CSS selector. Append '|@href' to read an attribute, '|html' for markup.": "اسم ← مُحدِّد CSS. أضِف '|@href' لقراءة خاصية، أو '|html' لقراءة الترميز",
 	"Selector to wait for before extracting.":                                         "المُحدِّد الذي يُنتظر قبل الاستخراج",
 	"[{command, args, continue_on_error, timeout_seconds}]":                           "كل عنصر على الشكل {command, args, continue_on_error, timeout_seconds}",
+	"From list_workflows (an id or a slug)": "من list_workflows (معرّف أو slug)",
+	"Which browser to run on; defaults to the one the original ran on": "المتصفّح الذي يجري عليه التشغيل؛ الافتراضي هو الذي جرى عليه الأصل",
+	"Required for a workflow that publishes, sends or submits": "مطلوب لسير عمل ينشر أو يرسل أو يقدّم",
+	"The run to repeat, from get_browser_run": "التشغيل المراد تكراره، من get_browser_run",
 }

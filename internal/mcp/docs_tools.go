@@ -47,6 +47,16 @@ var docsAutomation = map[string]ToolDoc{
 			`{"id":"0c5b9e14-6f27-4a83-b1d9-8e3a2c7f5d40","name":"Download the monthly invoice","description":"","run_count":3,` +
 			`"params":[{"name":"month","required":true,"secret":false},{"name":"password","required":false,"secret":true}]}]}`,
 	},
+	"workflow_overview": {
+		AR:      "سجلّ سير عمل واحد من تشغيلاته الفعلية خلال آخر 30 يومًا: حالته كما هي مخزّنة (مفعّل أو متوقف)، وعدد التشغيلات حسب النتيجة، ونسبة النجاح (الناجح من المنتهي = الناجح + الفاشل، وتكون percent فارغة إن لم ينتهِ أي تشغيل)، وآخر تشغيل، وعدد العناصر المستخرجة (فارغ إن لم يستخرج شيئًا)، وجداوله، وسجلّ كل خطوة في النسخة الحالية.",
+		Example: map[string]any{"workflow_id": "check-supplier-prices"},
+		Result:  `{"workflow_id":"39b6ba0a-43ea-45d8-befd-32790b23fe94","name":"Check green-coffee supplier prices","version":1,"status":"enabled","workspace_paused":false,"paused_reason":"","window_days":30,"runs":{"total":3,"succeeded":2,"failed":1,"cancelled":0,"in_progress":0},"success_rate":{"succeeded":2,"finished":3,"percent":66.7},"last_run":{"id":"8a1d4f60-3e27-4b95-c0d8-7f2e6a9b1c34","status":"ok","trigger":"manual","version":1,"created_at":"2026-10-05T09:00:00Z","finished_at":"2026-10-05T09:00:04Z","duration_ms":4000,"error":"","items":12},"items":{"total":30,"runs":2},"schedules":{"total":1,"enabled":1,"next_run_at":"2026-10-06T09:00:00Z"},"steps":[{"position":1,"ran":3,"ok":2,"failed":1,"last_status":"ok","last_items":12,"last_duration_ms":900}],"sampled":false}`,
+	},
+	"rerun_workflow_run": {
+		AR:      "يشغّل تشغيلًا منتهيًا مرة أخرى كما جرى تمامًا: تُكرَّر الخطوات التي خزّنها، فتكون نسخة سير العمل التي جرى بها هي التي تعمل حتى لو عُدّل لاحقًا. ويسجّل التشغيل الجديد على أنه إعادة للأصل (rerun_of). التشغيل الذي استخدم قيمة سرية لا يمكن تكراره لأنها لا تُخزَّن أبدًا. سير العمل الذي ينشر أو يرسل أو يقدّم يحتاج confirm: true — بدونه يعيد needs_confirm: true ولا يشغّل شيئًا.",
+		Example: map[string]any{"run_id": "8a1d4f60-3e27-4b95-c0d8-7f2e6a9b1c34"},
+		Result:  `{"ok":true,"run_id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75","rerun_of":"8a1d4f60-3e27-4b95-c0d8-7f2e6a9b1c34"}`,
+	},
 	"start_workflow": {
 		AR: "يشغّل سير عمل محفوظًا على متصفّح مقترن، مع تزويده بقيم العناصر النائبة فيه. سير العمل الذي ينشر أو يرسل أو يقدّم " +
 			"يحتاج confirm: true — بدونه يعيد needs_confirm: true ولا يشغّل شيئًا.",

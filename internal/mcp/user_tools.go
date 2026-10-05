@@ -80,6 +80,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, TrendsTools()...)
 	tools = append(tools, AutomationTools()...)
 	tools = append(tools, WorkflowTools()...)
+	tools = append(tools, WorkflowRunTools()...) // workflow overview + run again (MH-1067)
 	tools = append(tools, BrowserTools()...)
 	tools = append(tools, RuleTools()...) // automation rules (MH-427)
 	tools = append(tools, BrowserRunTools()...)

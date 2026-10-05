@@ -282,6 +282,8 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterExtension(api)
 	automation.RegisterPick(api, a, automation.Default())
 	automation.RegisterCanvas(api, a) // the workflow canvas: layouts and executions (MH-480)
+	automation.RegisterOverview(api, a)                        // a workflow's header figures from its real runs (MH-1067)
+	automation.RegisterRerun(api, a, automation.Default())    // run a finished run again from its stored steps (MH-1067)
 	rules.Register(api, a)            // automation rules: event → conditions → actions (MH-427)
 	research.Register(api, a, researchEngine)
 	prospects.Register(api, a, researchEngine) // prospect discovery (MH-397)

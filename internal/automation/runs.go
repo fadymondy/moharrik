@@ -74,6 +74,9 @@ type Run struct {
 	// Lines about the run itself, first of all what was done before its first
 	// step: "Added news.google.com to Office Chrome's allowed sites" (MH-517).
 	Notes []string `json:"notes"`
+	// The run this one repeated, when started with "run again" (MH-1067). Empty
+	// when it is not a re-run or the original was pruned.
+	RerunOf string `json:"rerun_of"`
 }
 
 // runSelect is every column a Run is read from, joined with the names a
@@ -84,7 +87,8 @@ const runSelect = `
 	       r.workflow_id, COALESCE(w.name, r.params->>'workflow', ''), r.workflow_version, r.schedule_id, COALESCE(sc.name, ''),
 	       (SELECT count(*) FROM automation_run_steps st WHERE st.workspace_id = r.workspace_id AND st.run_id = r.id AND st.screenshot_path <> ''),
 	       (SELECT count(*) FROM automation_run_steps st WHERE st.workspace_id = r.workspace_id AND st.run_id = r.id AND st.status = 'ok' AND st.command IN ('extract', 'read')),
-	       r.notes
+	       r.notes,
+	       COALESCE((SELECT o.id FROM automation_runs o WHERE o.workspace_id = r.workspace_id AND o.id = r.rerun_of), '')
 	FROM automation_runs r
 	LEFT JOIN browser_agents b ON b.workspace_id = r.workspace_id AND b.id = r.agent_id
 	LEFT JOIN automation_workflows w ON w.workspace_id = r.workspace_id AND w.id = r.workflow_id
@@ -96,7 +100,7 @@ func scanRun(row rowScanner) (Run, error) {
 	var notes pgtext.Array
 	err := row.Scan(&r.ID, &r.AgentID, &r.AgentName, &r.Trigger, &r.RequestedBy, &r.Status, &r.Error,
 		&r.StepCount, &r.OKCount, &started, &finished, &r.CreatedAt,
-		&r.WorkflowID, &r.WorkflowName, &r.WorkflowVersion, &r.ScheduleID, &r.ScheduleName, &r.Screenshots, &r.Extracts, &notes)
+		&r.WorkflowID, &r.WorkflowName, &r.WorkflowVersion, &r.ScheduleID, &r.ScheduleName, &r.Screenshots, &r.Extracts, &notes, &r.RerunOf)
 	r.StartedAt, r.FinishedAt = timep(started), timep(finished)
 	r.Notes = notes
 	if r.Notes == nil {
