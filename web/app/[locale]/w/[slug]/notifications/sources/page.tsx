@@ -42,7 +42,6 @@ export default function WebhookSourcesPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("notifications.sources")}
         description={t("notifications.sourcesPageHint")}
       />

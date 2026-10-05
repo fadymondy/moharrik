@@ -15,7 +15,6 @@ import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useFeedSources, useNewsPages, useTrendTopics } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 
 const STATES = ["open", "saved", "reviewed", "dismissed", "all"] as const
 
@@ -47,7 +46,6 @@ export default function TrendsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.trends")}
         description={t("trends.hint")}
         action={

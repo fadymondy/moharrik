@@ -15,7 +15,7 @@ import { api, ApiError, INVITABLE_ROLES, type Invitation, type Member, type Role
 import { useTranslations } from "@/lib/i18n"
 import { useInvitations, useMe, useMembers } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi, isolate } from "@/components/bidi"
+import { isolate } from "@/components/bidi"
 
 export default function MembersPage() {
   const { t, formatDate } = useTranslations()
@@ -50,7 +50,6 @@ export default function MembersPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.members")}
         description={t("members.hint")}
       />

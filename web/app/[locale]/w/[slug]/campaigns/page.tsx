@@ -55,7 +55,6 @@ export default function CampaignsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.campaigns")}
         description={t("campaigns.hint")}
       />

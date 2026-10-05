@@ -238,7 +238,6 @@ export default function ChannelsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("channels.title")}
         description={t("channels.hint")}
         action={

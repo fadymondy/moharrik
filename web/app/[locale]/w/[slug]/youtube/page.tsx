@@ -73,7 +73,6 @@ function YouTube() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
         title={t("nav.youtube")}
         description={t("yt.hint")}
         action={

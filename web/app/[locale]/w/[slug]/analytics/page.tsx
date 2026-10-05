@@ -84,7 +84,6 @@ function Analytics() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
         title={t("nav.analytics")}
         description={t("analytics.hint")}
         action={

@@ -46,7 +46,6 @@ export default function ExtensionInstallPage() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
         title={t("automation.ext.title")}
         description={t("automation.ext.hint")}
         action={

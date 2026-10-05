@@ -32,7 +32,7 @@ import {
 import { useTranslations } from "@/lib/i18n"
 import { useGoogleConnections } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi, isolate } from "@/components/bidi"
+import { isolate } from "@/components/bidi"
 
 // What the callback can answer (internal/google, Result*). Anything else reads as "failed".
 const RESULTS = [
@@ -77,7 +77,6 @@ function Integrations() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.integrations")}
         description={t("integrations.hint")}
       />

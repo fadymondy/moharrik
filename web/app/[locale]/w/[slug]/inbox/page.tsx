@@ -332,7 +332,6 @@ export default function InboxPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.inbox")}
         description={t("inbox.hint")}
       />

@@ -142,7 +142,6 @@ function Workflows() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("workflows.title")}
         description={t("workflows.hint")}
         action={create}

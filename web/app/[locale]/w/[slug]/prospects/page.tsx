@@ -69,7 +69,6 @@ export default function ProspectsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.prospects")}
         description={t("prospects.hint")}
         action={

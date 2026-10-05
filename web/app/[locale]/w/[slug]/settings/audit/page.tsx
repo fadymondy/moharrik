@@ -96,7 +96,6 @@ function AuditLog() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("audit.title")}
         description={t("audit.hint")}
       />

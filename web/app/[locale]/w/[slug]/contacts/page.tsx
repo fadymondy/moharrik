@@ -90,7 +90,6 @@ export default function ContactsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.contacts")}
         description={t("contacts.hint")}
         action={

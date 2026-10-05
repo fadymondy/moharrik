@@ -17,7 +17,6 @@ import { useTranslations } from "@/lib/i18n"
 import { useDeals, useDealsList, useOpportunitySignals } from "@/lib/queries"
 import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 
 type View = "board" | "list" | "signals"
 const VIEWS: View[] = ["board", "list", "signals"]
@@ -140,7 +139,6 @@ function Opportunities() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.opportunities")}
         description={t("opps.hint")}
         action={

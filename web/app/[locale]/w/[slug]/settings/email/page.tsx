@@ -46,7 +46,6 @@ export default function EmailSettingsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.email")}
         description={t("smtp.hintMany")}
         action={

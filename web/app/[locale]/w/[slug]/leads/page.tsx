@@ -147,7 +147,6 @@ export default function LeadsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.leads")}
         description={t("leads.hint")}
         action={

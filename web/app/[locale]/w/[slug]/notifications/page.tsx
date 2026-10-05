@@ -142,7 +142,6 @@ export default function NotificationsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.notifications")}
         description={t("notifications.hint")}
         action={

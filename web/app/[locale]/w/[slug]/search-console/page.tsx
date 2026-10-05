@@ -160,7 +160,6 @@ function SearchConsole() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
         title={t("nav.searchConsole")}
         description={t("gsc.hint")}
         action={

@@ -58,7 +58,6 @@ export default function CompaniesPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.companies")}
         description={t("companies.hint")}
       />

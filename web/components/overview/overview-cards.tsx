@@ -1,7 +1,7 @@
 "use client"
 
 /*
-  The Overview's cards (MH-462). Every card is its own panel (one hairline frame on the card
+  The Overview's cards (MH-462). Every card is Nasaq's rounded Card (MH-1143; one frame on the card
   surface, spaced from its neighbours, rows divided inside), links to the page it summarises, and turns each count
   into a link to that page already filtered to it. An empty card says plainly
   what is missing and links to the action that fills it — only when the viewer
@@ -28,7 +28,17 @@ import {
 import { Ltr } from "@/components/copy-field"
 import { formatMoney } from "@/components/crm/shared"
 import { LeadStatusBadge, leadSource } from "@/components/leads/shared"
-import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@fadymondy/nasaq/web"
 import {
   LEAD_STATUSES,
   type NotificationSeverity,
@@ -96,14 +106,15 @@ export function Panel({
 }) {
   const { t } = useTranslations()
   return (
-    <section
+    <Card
+      role="region"
       aria-labelledby={`ov-${id}`}
       data-card={id}
-      className={cn("flex min-w-0 flex-col border border-nq-line bg-card", className)}
+      className={cn("min-w-0 gap-0 overflow-hidden py-0 shadow-xs", className)}
     >
-      <header className="flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 px-5 pt-4 pb-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
+      <CardHeader className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 px-5 py-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
         {icon}
-        <h2 id={`ov-${id}`} className="text-base font-medium text-foreground">
+        <CardTitle as="h2" id={`ov-${id}`} className="text-base font-medium">
           {href ? (
             <Link href={href} className="hover:underline hover:underline-offset-4">
               {title}
@@ -111,7 +122,7 @@ export function Panel({
           ) : (
             title
           )}
-        </h2>
+        </CardTitle>
         {meta}
         {href ? (
           <Link
@@ -123,9 +134,11 @@ export function Panel({
             <ArrowRightIcon className="size-3.5 rtl:-scale-x-100" aria-hidden />
           </Link>
         ) : null}
-      </header>
-      <div className="flex flex-1 flex-col border-t border-nq-line">{children}</div>
-    </section>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col border-t border-border px-0">
+        {children}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -211,11 +224,14 @@ function Tile({
   return (
     <Link
       href={href}
-      className="flex min-w-0 flex-col gap-2 border border-nq-line bg-card px-5 py-4 transition-colors hover:bg-nq-surface-soft"
+      className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-card px-5 py-4 shadow-xs transition-colors hover:bg-nq-surface-soft"
       data-tile={id}
     >
       <span className="eyebrow min-h-[2lh] text-balance lg:min-h-0">{label}</span>
-      <span className="text-4xl leading-none font-medium text-foreground tabular-nums" data-tile-value>
+      <span
+        className="text-4xl leading-none font-medium text-foreground tabular-nums"
+        data-tile-value
+      >
         {value}
       </span>
       <span className="truncate text-xs text-muted-foreground">{sub}</span>
@@ -427,7 +443,9 @@ export function PipelineCard({
           <div className="flex min-w-0 flex-col border-t border-nq-line lg:border-t-0">
             <p className="eyebrow px-5 pt-3 pb-1">{t("overview.nextCloses")}</p>
             {p.next_closes.length === 0 ? (
-              <p className="px-5 pb-4 text-sm text-muted-foreground">{t("overview.noNextCloses")}</p>
+              <p className="px-5 pb-4 text-sm text-muted-foreground">
+                {t("overview.noNextCloses")}
+              </p>
             ) : (
               <Rows label={t("overview.nextCloses")}>
                 {p.next_closes.map((d) => (
@@ -438,7 +456,10 @@ export function PipelineCard({
                     data-next-close={d.title}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="bidi-block block truncate text-sm text-foreground" dir="auto">
+                      <span
+                        className="bidi-block block truncate text-sm text-foreground"
+                        dir="auto"
+                      >
                         {d.title}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
@@ -492,11 +513,13 @@ export function LeadsCard({
             <Link
               key={s}
               href={`${base}/leads?status=${s}`}
-              className="inline-flex items-center gap-1.5 border border-nq-line px-2 py-0.5 text-xs text-nq-fg-body transition-colors hover:bg-nq-surface-soft"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 text-xs text-nq-fg-body transition-colors hover:bg-nq-surface-soft"
               data-lead-count={s}
             >
               {t(`leads.status.${s}`)}
-              <span className="font-medium text-foreground tabular-nums">{f.n(counts[s] ?? 0)}</span>
+              <span className="font-medium text-foreground tabular-nums">
+                {f.n(counts[s] ?? 0)}
+              </span>
             </Link>
           ))}
         </div>
@@ -516,7 +539,10 @@ export function LeadsCard({
           {leads.map((l) => (
             <RowLink key={l.id} href={`${base}/leads/${l.id}`} data-overview-lead={l.email}>
               <span className="flex min-w-0 items-center gap-2">
-                <span className="bidi-block truncate text-sm font-medium text-foreground" dir="auto">
+                <span
+                  className="bidi-block truncate text-sm font-medium text-foreground"
+                  dir="auto"
+                >
                   {l.name || l.email}
                 </span>
                 {l.company ? (
@@ -794,7 +820,10 @@ export function MarketingCard({
                       {f.n(l.subscribed)}
                     </Link>
                   </td>
-                  <td className="px-5 py-2.5 text-end tabular-nums text-muted-foreground" data-pending>
+                  <td
+                    className="px-5 py-2.5 text-end tabular-nums text-muted-foreground"
+                    data-pending
+                  >
                     <Link
                       href={`${base}/contacts`}
                       className="hover:underline hover:underline-offset-4"
@@ -846,7 +875,10 @@ export function MarketingCard({
               className="flex-row items-center gap-2"
               data-draft={d.subject}
             >
-              <span className="bidi-block min-w-0 flex-1 truncate text-sm text-foreground" dir="auto">
+              <span
+                className="bidi-block min-w-0 flex-1 truncate text-sm text-foreground"
+                dir="auto"
+              >
                 {d.subject}
               </span>
               <span className="hidden shrink-0 truncate text-xs text-muted-foreground sm:inline">
@@ -989,7 +1021,10 @@ export function SetupCard({
         >
           {t("overview.setupProgress", { done: f.n(done), total: f.n(doable.length) })}
           <span className="h-1.5 w-20 overflow-hidden rounded-full bg-nq-surface-soft" aria-hidden>
-            <span className="block h-full rounded-full bg-nq-success" style={{ width: `${pct}%` }} />
+            <span
+              className="block h-full rounded-full bg-nq-success"
+              style={{ width: `${pct}%` }}
+            />
           </span>
         </span>
       }

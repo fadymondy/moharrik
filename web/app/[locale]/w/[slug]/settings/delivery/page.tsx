@@ -19,7 +19,6 @@ import { api, ApiError, type PushDevice, type PushResult } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { usePushStatus } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 import { WhatsAppNotifySection } from "@/components/alerts/whatsapp-notify"
 import { TrendsDigestSection } from "@/components/alerts/trends-digest"
 
@@ -210,7 +209,6 @@ export default function DeliveryPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.delivery")}
         description={t("delivery.hint")}
       />

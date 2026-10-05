@@ -72,7 +72,6 @@ function Rules() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("rules.title")}
         description={t("rules.hint")}
         action={create}
