@@ -415,14 +415,14 @@ for (const locale of ["en", "ar"]) {
           `ar ${theme} ${width}: html dir`,
           await live.evaluate(() => document.documentElement.dir),
         )
-      await live.click("[data-bell]")
-      await live.waitForSelector("[data-bell-panel] [data-bell-item]", { timeout: 10000 })
+      await live.click("[data-bell] > button")
+      await live.waitForSelector("[data-slot=sheet-content] li", { timeout: 10000 })
       await sleep(500)
       const b = `mh378-bell-${locale}-${theme}-${width}.png`
       await live.screenshot({ path: path.join(shots, b) })
       out.shots.push(b)
       if (width === 390) {
-        const box = await live.$eval("[data-bell-panel]", (e) => {
+        const box = await live.$eval("[data-slot=sheet-content]", (e) => {
           const r = e.getBoundingClientRect()
           return { left: Math.round(r.left), right: Math.round(r.right) }
         })

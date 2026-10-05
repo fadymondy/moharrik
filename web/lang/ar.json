@@ -1804,6 +1804,8 @@
   "alerts.tabUnread": "غير المقروءة",
   "alerts.empty": "لا شيء هنا بعد",
   "alerts.caughtUp": "لا جديد لديك.",
+  "alerts.emptyBody": "تظهر هنا الرسائل والإشعارات الجديدة.",
+  "alerts.caughtUpBody": "لا يوجد شيء غير مقروء الآن.",
   "alerts.nothingToRead": "دورك لا يتضمن صندوق وارد أو إشعارات للتنبيه بها.",
   "alerts.openInbox": "فتح صندوق الوارد",
   "alerts.allNotifications": "كل الإشعارات",

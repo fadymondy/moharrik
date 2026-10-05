@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 import {
   BellIcon,
@@ -11,13 +12,18 @@ import {
   MessageSquareIcon,
   SettingsIcon,
 } from "lucide-react"
-import { Avatar, Badge, Button, Popover, PopoverContent, PopoverTrigger, ScrollArea, Tabs, TabsList, TabsPanel, TabsTab, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  NotificationCenter,
+  toast,
+  type ContextMenuAction,
+  type NotificationCenterItem,
+} from "@fadymondy/nasaq/web"
 
 import { useNotificationPermission } from "@/lib/alerts"
 import { api, ApiError, type BellItem } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
-import { relativeTimeFormat } from "@/lib/i18n-locale"
 import { useBell } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -25,10 +31,10 @@ import { cn } from "@/lib/utils"
 The header bell (MH-378): unread conversations plus unread notification items,
 the latest of both, a way to mark them read, and a link to each.
 
-Ported from the @shadcnspace/popover-03 registry item (notification list
-popover: unread badge, All/Unread tabs, mark-all-read), wired to /api/w/alerts
-and kept live by the workspace event stream — a customer's message or a webhook
-item moves the badge in every open tab without a reload.
+Nasaq's NotificationCenter as a side panel (MH-1112): All / Unread tabs, mark
+all read, "Mark read" on a row's context menu. Wired to /api/w/alerts and kept
+live by the workspace event stream, so a customer's message or a webhook item
+moves the badge in every open tab without a reload.
 
 The API decides what is in it: a member who cannot read the inbox gets no
 conversations, one who cannot read notifications gets no items, and a client
@@ -43,127 +49,30 @@ export function hrefFor(item: Pick<BellItem, "kind" | "id">, locale: string, slu
     : `/${locale}/w/${slug}/notifications`
 }
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  return (
-    parts.length > 1 ? parts[0][0] + parts[1][0] : (parts[0] ?? "?").slice(0, 2)
-  ).toUpperCase()
-}
-
-function useRelative() {
-  const { locale } = useTranslations()
-  return (iso: string) => {
-    const s = Math.round((new Date(iso).getTime() - Date.now()) / 1000)
-    const rtf = relativeTimeFormat(locale, { numeric: "auto", style: "short" })
-    const abs = Math.abs(s)
-    if (abs < 60) return rtf.format(s, "second")
-    if (abs < 3600) return rtf.format(Math.round(s / 60), "minute")
-    if (abs < 86400) return rtf.format(Math.round(s / 3600), "hour")
-    return rtf.format(Math.round(s / 86400), "day")
-  }
-}
-
 const severityTone: Record<string, string> = {
   info: "bg-nq-brand",
   warning: "bg-nq-warning",
   error: "bg-nq-danger",
 }
 
-function ItemIcon({ item }: { item: BellItem }) {
+function ChannelIcon({ item }: { item: BellItem }) {
   if (item.kind === "notification") return <BellIcon />
   if (item.channel === "email") return <MailIcon />
   if (item.channel === "whatsapp") return <MessageSquareIcon />
   return <MessageCircleIcon />
 }
 
-function Row({
-  item,
-  href,
-  userId,
-  canMark,
-  onOpen,
-  onMark,
-}: {
-  item: BellItem
-  href: string
-  userId?: string
-  canMark: boolean
-  onOpen: () => void
-  onMark: () => void
-}) {
-  const { t } = useTranslations()
-  const relative = useRelative()
-  const name =
-    item.title || (item.kind === "conversation" ? t("alerts.visitor") : t("alerts.notification"))
+/** A notification's icon: a bell in a circle, toned by severity. Conversations show the visitor's initials instead. */
+function NoteIcon({ item }: { item: BellItem }) {
   return (
-    <li
-      data-bell-item={item.kind}
-      data-bell-unread={item.unread ? "true" : "false"}
+    <span
       className={cn(
-        "group relative flex gap-3 px-4 py-3 transition-colors hover:bg-nq-surface-soft",
-        item.unread && "bg-card",
+        "grid size-9 place-items-center rounded-full text-white [&_svg]:size-4",
+        severityTone[item.severity ?? "info"] ?? "bg-nq-brand",
       )}
     >
-      <div className="relative h-fit shrink-0">
-        {item.kind === "conversation" ? (
-          <Avatar name={name} size="lg" />
-        ) : (
-          <span className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground">
-            <BellIcon className="size-4" />
-          </span>
-        )}
-        <span
-          className={cn(
-            "absolute -bottom-0.5 -end-0.5 flex size-4 items-center justify-center rounded-full text-white [&_svg]:size-2.5",
-            item.kind === "notification"
-              ? (severityTone[item.severity ?? "info"] ?? "bg-nq-brand")
-              : "bg-nq-action",
-          )}
-          aria-hidden
-        >
-          <ItemIcon item={item} />
-        </span>
-      </div>
-      <Link href={href} onClick={onOpen} className="min-w-0 flex-1 after:absolute after:inset-0">
-        <p className="bidi-block truncate text-sm leading-snug font-medium" dir="auto">
-          {name}
-        </p>
-        {item.snippet ? (
-          <p className="bidi-block mt-0.5 truncate text-xs text-muted-foreground" dir="auto">
-            {item.snippet}
-          </p>
-        ) : null}
-        <p className="mt-1 text-xs text-muted-foreground">
-          {item.kind === "conversation" && item.channel
-            ? `${t(`inbox.channel.${item.channel}`)} · `
-            : ""}
-          {relative(item.at)}
-          {item.assignee_user_id && item.assignee_user_id === userId
-            ? ` · ${t("alerts.assignedToMe")}`
-            : ""}
-        </p>
-      </Link>
-      {item.unread ? (
-        canMark ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="relative z-10 shrink-0 self-center"
-            aria-label={t("alerts.markRead")}
-            title={t("alerts.markRead")}
-            onClick={onMark}
-            data-bell-mark
-          >
-            <CheckIcon />
-          </Button>
-        ) : (
-          <span
-            className="mt-1.5 size-2 shrink-0 rounded-full bg-nq-action"
-            aria-label={t("inbox.unread")}
-          />
-        )
-      ) : null}
-    </li>
+      <ChannelIcon item={item} />
+    </span>
   )
 }
 
@@ -179,6 +88,7 @@ export function NotificationBell({
   can: (p: string) => boolean
 }) {
   const { t, locale } = useTranslations()
+  const router = useRouter()
   const bell = useBell(workspaceId)
   const [open, setOpen] = useState(false)
   const [perm, requestPerm] = useNotificationPermission()
@@ -188,12 +98,42 @@ export function NotificationBell({
   })
 
   const data = bell.data
-  const items = data?.items ?? []
-  const unreadItems = items.filter((i) => i.unread)
+  const raw = data?.items ?? []
   const count = (data?.unread_conversations ?? 0) + (data?.unread_notifications ?? 0)
   const canMarkConv = can("inbox:write")
   const canMarkNote = can("notifications:write")
   const nothing = data && !data.can_inbox && !data.can_notifications
+
+  const byKey = new Map(raw.map((i) => [`${i.kind}-${i.id}`, i]))
+  const items: NotificationCenterItem[] = raw.map((item) => {
+    const name =
+      item.title || (item.kind === "conversation" ? t("alerts.visitor") : t("alerts.notification"))
+    const meta = [
+      item.kind === "conversation" && item.channel ? t(`inbox.channel.${item.channel}`) : "",
+      item.assignee_user_id && item.assignee_user_id === userId ? t("alerts.assignedToMe") : "",
+    ]
+      .filter(Boolean)
+      .join(" · ")
+    return {
+      id: `${item.kind}-${item.id}`,
+      title: (
+        <span className="bidi-block" dir="auto">
+          {name}
+        </span>
+      ),
+      description:
+        item.snippet || meta ? (
+          <span className="bidi-block" dir="auto">
+            {[item.snippet, meta].filter(Boolean).join(" — ")}
+          </span>
+        ) : undefined,
+      ...(item.kind === "conversation"
+        ? { actor: { name } }
+        : { icon: <NoteIcon item={item} /> }),
+      time: item.at,
+      unread: item.unread,
+    }
+  })
 
   async function mark(item: BellItem) {
     try {
@@ -226,133 +166,41 @@ export function NotificationBell({
     }
   }
 
-  const list = (rows: BellItem[], empty: string) =>
-    rows.length ? (
-      <ul className="divide-y divide-nq-line">
-        {rows.map((item) => (
-          <Row
-            key={`${item.kind}-${item.id}`}
-            item={item}
-            href={hrefFor(item, locale, slug)}
-            userId={userId}
-            canMark={item.kind === "conversation" ? canMarkConv : canMarkNote}
-            onOpen={() => setOpen(false)}
-            onMark={() => void mark(item)}
-          />
-        ))}
-      </ul>
+  function itemActions(row: NotificationCenterItem): ContextMenuAction[] {
+    const item = byKey.get(row.id)
+    if (!item?.unread) return []
+    const allowed = item.kind === "conversation" ? canMarkConv : canMarkNote
+    return allowed
+      ? [{ id: "read", label: t("alerts.markRead"), icon: CheckIcon, onSelect: () => void mark(item) }]
+      : []
+  }
+
+  const close = () => setOpen(false)
+  const header =
+    nothing ? (
+      <p className="text-sm text-muted-foreground">{t("alerts.nothingToRead")}</p>
     ) : (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 px-6 text-center">
-        <BellIcon className="size-8 text-muted-foreground/50" />
-        <p className="text-sm text-muted-foreground">{empty}</p>
-      </div>
-    )
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="relative"
-            aria-label={count ? t("alerts.bellUnread", { n: count }) : t("alerts.bell")}
-            title={t("alerts.bell")}
-            data-bell
-          />
-        }
-      >
-        <BellIcon />
-        {count > 0 ? (
-          <span className="pointer-events-none absolute -top-1 -end-1">
-            <Badge
-              variant="brand"
-              className="h-4 min-w-4 justify-center rounded-full px-1 text-caption leading-none tabular-nums"
-              data-bell-count={count}
-            >
-              {count > 99 ? "99+" : count}
-            </Badge>
-          </span>
-        ) : null}
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-[22rem] max-w-[calc(100vw-1rem)] gap-0 p-0"
-        data-bell-panel
-      >
-        <div className="flex items-center justify-between gap-2 border-b border-nq-line px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{t("alerts.bell")}</span>
-            {count > 0 ? (
-              <Badge variant="neutral" className="px-1.5 py-0 text-xs">
-                {t("alerts.new", { n: count })}
-              </Badge>
-            ) : null}
-          </div>
-          {count > 0 && (canMarkConv || canMarkNote) ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={markAll}
-              className="text-muted-foreground hover:text-foreground"
-              data-bell-mark-all
-            >
-              {t("alerts.markAllRead")}
-            </Button>
-          ) : null}
-        </div>
-
-        {nothing ? (
-          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            {t("alerts.nothingToRead")}
-          </p>
-        ) : (
-          <Tabs defaultValue="all" className="gap-0">
-            <div className="border-b border-nq-line px-4 py-2">
-              <TabsList className="h-8 w-full">
-                <TabsTab value="all" className="flex-1 text-xs">
-                  {t("alerts.tabAll")}
-                </TabsTab>
-                <TabsTab value="unread" className="flex-1 text-xs">
-                  {t("alerts.tabUnread")}
-                  {unreadItems.length ? (
-                    <span className="text-xs">({unreadItems.length})</span>
-                  ) : null}
-                </TabsTab>
-              </TabsList>
-            </div>
-            <TabsPanel value="all" className="mt-0">
-              <ScrollArea className="h-72">{list(items, t("alerts.empty"))}</ScrollArea>
-            </TabsPanel>
-            <TabsPanel value="unread" className="mt-0">
-              <ScrollArea className="h-72">{list(unreadItems, t("alerts.caughtUp"))}</ScrollArea>
-            </TabsPanel>
-          </Tabs>
-        )}
-
+      <div className="flex flex-col gap-2">
         {perm === "default" ? (
-          <div className="border-t border-nq-line px-4 py-2">
-            {/* A click, never on load: see useNotificationPermission. */}
-            <Button
-              variant="secondary"
-              size="sm"
-              className="w-full"
-              onClick={() => void requestPerm()}
-              data-allow-desktop
-            >
-              <BellRingIcon />
-              {t("alerts.enableDesktop")}
-            </Button>
-          </div>
+          // A click, never on load: see useNotificationPermission.
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            onClick={() => void requestPerm()}
+            data-allow-desktop
+          >
+            <BellRingIcon />
+            {t("alerts.enableDesktop")}
+          </Button>
         ) : null}
-
-        <div className="flex flex-wrap items-center gap-1 border-t border-nq-line px-2 py-2">
+        <div className="flex flex-wrap items-center gap-1">
           {data?.can_inbox ? (
             <Button
               variant="ghost"
               size="sm"
               nativeButton={false}
-              render={<Link href={`/${locale}/w/${slug}/inbox`} onClick={() => setOpen(false)} />}
+              render={<Link href={`/${locale}/w/${slug}/inbox`} onClick={close} />}
             >
               {t("alerts.openInbox")}
             </Button>
@@ -362,9 +210,7 @@ export function NotificationBell({
               variant="ghost"
               size="sm"
               nativeButton={false}
-              render={
-                <Link href={`/${locale}/w/${slug}/notifications`} onClick={() => setOpen(false)} />
-              }
+              render={<Link href={`/${locale}/w/${slug}/notifications`} onClick={close} />}
             >
               {t("alerts.allNotifications")}
             </Button>
@@ -377,18 +223,44 @@ export function NotificationBell({
               aria-label={t("alerts.delivery")}
               title={t("alerts.delivery")}
               nativeButton={false}
-              render={
-                <Link
-                  href={`/${locale}/w/${slug}/settings/delivery`}
-                  onClick={() => setOpen(false)}
-                />
-              }
+              render={<Link href={`/${locale}/w/${slug}/settings/delivery`} onClick={close} />}
             >
               <SettingsIcon />
             </Button>
           ) : null}
         </div>
-      </PopoverContent>
-    </Popover>
+      </div>
+    )
+
+  return (
+    <NotificationCenter
+      variant="sheet"
+      items={items}
+      unreadCount={count}
+      open={open}
+      onOpenChange={setOpen}
+      header={header}
+      itemActions={itemActions}
+      onItemClick={(row) => {
+        const item = byKey.get(row.id)
+        if (!item) return
+        close()
+        router.push(hrefFor(item, locale, slug))
+      }}
+      onMarkAllRead={canMarkConv || canMarkNote ? () => void markAll() : undefined}
+      labels={{
+        title: t("alerts.bell"),
+        all: t("alerts.tabAll"),
+        unread: t("alerts.tabUnread"),
+        markAllRead: t("alerts.markAllRead"),
+        emptyAll: t("alerts.empty"),
+        emptyAllDescription: t("alerts.emptyBody"),
+        emptyUnread: t("alerts.caughtUp"),
+        emptyUnreadDescription: t("alerts.caughtUpBody"),
+        trigger: (n) => (n ? t("alerts.bellUnread", { n }) : t("alerts.bell")),
+      }}
+      data-bell
+      data-bell-count={count}
+    />
   )
 }

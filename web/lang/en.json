@@ -1804,6 +1804,8 @@
   "alerts.tabUnread": "Unread",
   "alerts.empty": "Nothing here yet",
   "alerts.caughtUp": "You're all caught up.",
+  "alerts.emptyBody": "New messages and notifications show up here.",
+  "alerts.caughtUpBody": "Nothing unread right now.",
   "alerts.nothingToRead": "Your role has no inbox or notifications to be alerted about.",
   "alerts.openInbox": "Open inbox",
   "alerts.allNotifications": "All notifications",
