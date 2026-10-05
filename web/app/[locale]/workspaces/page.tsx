@@ -3,10 +3,11 @@
 import Link from "next/link"
 import { ChevronRightIcon, Settings2Icon, UsersIcon } from "lucide-react"
 
-import { Badge, Button, Skeleton } from "@fadymondy/nasaq/web"
+import { Badge, Button } from "@fadymondy/nasaq/web"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form"
-import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
+import { EmptyState, ErrorState } from "@/components/states"
+import { AppSplash } from "@/components/workspace/app-splash"
 import { UserMenu } from "@/components/workspace/user-menu"
 import { WorkspaceMark } from "@/components/workspace/workspace-mark"
 import { Ltr } from "@/components/copy-field"
@@ -22,11 +23,13 @@ export default function WorkspacesPage() {
   const me = useRequireAuth()
   const list = useMyWorkspaces(!!me.data)
 
+  // The centred splash until the account and its workspaces are both in (MH-1122).
+  if (!me.error && (!me.data || list.isLoading)) return <AppSplash />
   if (!me.data) {
     return (
       <PublicFrame title={t("workspaces.title")}>
         <PublicPanel>
-          {me.error ? <ErrorState error={me.error} /> : <Skeleton className="h-24 w-full" />}
+          <ErrorState error={me.error} />
         </PublicPanel>
       </PublicFrame>
     )
@@ -48,8 +51,6 @@ export default function WorkspacesPage() {
 
         {list.error ? (
           <ErrorState error={list.error} />
-        ) : list.isLoading ? (
-          <LoadingRows rows={2} />
         ) : workspaces.length === 0 ? (
           <EmptyState title={t("workspaces.emptyTitle")} body={t("workspaces.emptyBody")} />
         ) : (

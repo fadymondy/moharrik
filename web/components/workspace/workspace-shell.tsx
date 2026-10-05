@@ -24,7 +24,6 @@ import {
   SidebarItem,
   SidebarSubItem,
   SidebarTrigger,
-  LogoLoader,
   Skeleton,
   UserMenu,
   WorkspaceSwitcher,
@@ -34,6 +33,7 @@ import {
   type Command,
   type Workspace,
 } from "@fadymondy/nasaq/web"
+import { AppSplash } from "@/components/workspace/app-splash"
 import { BookOpenIcon, MessageSquarePlusIcon, Settings2Icon } from "lucide-react"
 import { useSWRConfig } from "swr"
 
@@ -210,9 +210,18 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       }
     : null
 
+  // Until we know who you are, which workspaces you have and what you can do here, the
+  // centred boot splash stands in for the whole shell (MH-1122, as in Mahaam): no empty
+  // nav, no empty header, no loader inside a half-built frame.
+  const booting =
+    !me.error &&
+    !list.error &&
+    !current.error &&
+    (!me.data || !list.data || (!!summary && !current.data))
+  if (booting) return <AppSplash />
+
   let body: ReactNode
   if (me.error || list.error) body = <ErrorState error={me.error ?? list.error} />
-  else if (!me.data || !list.data) body = <ShellLoading />
   else if (!summary || !ctx)
     body = (
       <NotFoundState
@@ -291,15 +300,6 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         </WorkspaceContext.Provider>
       ) : null}
     </AppShell>
-  )
-}
-
-/** While the account and workspaces load: Nasaq's LogoLoader on the Moharrik mark (MH-1122). */
-function ShellLoading() {
-  return (
-    <div className="flex min-h-[60dvh] items-center justify-center" aria-busy data-shell-loading>
-      <LogoLoader size={64} />
-    </div>
   )
 }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import { LogoLoader } from "@fadymondy/nasaq/web"
+import { AppSplash } from "@/components/workspace/app-splash"
 
 import {
   ActivityPanel,
@@ -71,7 +71,8 @@ export default function HomePage() {
       </div>
     )
   }
-  if (!h) return <HomeLoading />
+  // The splash stays until the page can show itself whole (MH-1122).
+  if (!h) return <AppSplash overlay />
 
   return (
     <div className="space-y-4 pb-10 sm:space-y-6" data-home>
@@ -121,15 +122,6 @@ export default function HomePage() {
           ) : null}
         </div>
       ) : null}
-    </div>
-  )
-}
-
-/** While Home loads: Nasaq's LogoLoader around the Moharrik mark, as in the other products. */
-function HomeLoading() {
-  return (
-    <div className="flex min-h-[60dvh] items-center justify-center" aria-busy data-home-loading>
-      <LogoLoader size={64} />
     </div>
   )
 }
