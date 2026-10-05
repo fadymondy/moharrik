@@ -1783,6 +1783,8 @@
   "contacts.exported": "تم تنزيل الملف",
   "contacts.actionsFor": "إجراءات {who}",
   "contacts.unsubscribeFrom": "إلغاء الاشتراك من",
+  "contacts.company": "الشركة",
+  "contacts.unsubscribeFromList": "إلغاء الاشتراك من {list}",
   "contacts.unsubscribe": "إلغاء الاشتراك",
   "contacts.deleteContact": "حذف جهة الاتصال…",
   "contacts.unsubscribeTitle": "إلغاء الاشتراك من {list}؟",

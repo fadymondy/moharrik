@@ -1,21 +1,29 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useState, type FormEvent } from "react"
 import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
   DownloadIcon,
-  EllipsisIcon,
+  MailMinusIcon,
   MailWarningIcon,
   PencilIcon,
-  SearchIcon,
+  Trash2Icon,
+  UsersIcon,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, InputGroup, InputGroupAddon, InputGroupInput, CursorPager, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Field, FieldDescription, FieldLabel, Input, CursorPager, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import {
+  CardMeta,
+  EmptyState as NqEmptyState,
+  EntityIdentity,
+  EntityList,
+  type DataTableColumn,
+  type DataTableRowAction,
+  type EntityFacet,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { SectionHeader } from "@/components/public-frame"
-import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { useDebounced } from "@/components/crm/contact-picker"
@@ -47,8 +55,6 @@ import { Bdi, isolate } from "@/components/bidi"
 
 const PAGE_SIZE = 50
 const STATUSES: SubscriptionStatus[] = ["subscribed", "pending", "unsubscribed", "bounced"]
-const ALL_LISTS = "__all__"
-const ANY = "__any__"
 const MIN_SCORES = [25, 50, 75] as const
 
 const statusVariant: Record<
@@ -518,8 +524,10 @@ function ContactsBrowser({
   version: number
   onChange: () => void
 }) {
-  const { t, formatNumber } = useTranslations()
+  const { t, locale, formatNumber, formatDate } = useTranslations()
   const ws = useWorkspace()
+  const router = useRouter()
+  const base = `/${locale}/w/${ws.slug}`
   const canWrite = ws.can("contacts:write")
   const canExport = ws.can("contacts:export")
 
@@ -569,268 +577,8 @@ function ContactsBrowser({
   const from = rows.length ? pageIndex * PAGE_SIZE + 1 : 0
   const to = pageIndex * PAGE_SIZE + rows.length
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const filtered = !!(activeList || q || lifecycle || minScore)
   const counts = page.data?.counts ?? null
 
-  const listItems = [
-    { value: ALL_LISTS, label: t("contacts.allContacts") },
-    ...lists.map((l) => ({ value: l.id, label: l.name })),
-  ]
-  const stageItems = [
-    { value: ANY, label: t("lifecycle.any") },
-    ...LIFECYCLE_STAGES.map((st) => ({ value: st, label: t(`lifecycle.${st}`) })),
-    { value: "none", label: t("lifecycle.none") },
-  ]
-  const scoreItems = [
-    { value: ANY, label: t("icp.anyScore") },
-    ...MIN_SCORES.map((n) => ({
-      value: String(n),
-      label: t("icp.atLeast", { n: formatNumber(n) }),
-    })),
-  ]
-
-  return (
-    <section data-contacts-browser>
-      <div className="flex flex-col gap-3 px-6 pt-6 pb-4 sm:flex-row sm:items-end">
-        <Field className="sm:flex-1">
-          <FieldLabel htmlFor="contacts-search">{t("contacts.search")}</FieldLabel>
-          <InputGroup>
-            <InputGroupInput
-              id="contacts-search"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("contacts.searchPlaceholder")}
-              maxLength={200}
-            />
-            <InputGroupAddon>
-              <SearchIcon />
-            </InputGroupAddon>
-          </InputGroup>
-        </Field>
-        <Field className="sm:w-56">
-          <FieldLabel htmlFor="contacts-list-filter">{t("contacts.list")}</FieldLabel>
-          <Select
-            items={listItems}
-            value={activeList || ALL_LISTS}
-            onValueChange={(v) => setListId(v == null || v === ALL_LISTS ? "" : String(v))}
-          >
-            <SelectTrigger id="contacts-list-filter" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {listItems.map((i) => (
-                <SelectItem key={i.value} value={i.value}>
-                  <Bdi>{i.label}</Bdi>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field className="sm:w-44">
-          <FieldLabel htmlFor="contacts-stage-filter">{t("lifecycle.label")}</FieldLabel>
-          <Select
-            items={stageItems}
-            value={lifecycle || ANY}
-            onValueChange={(v) => setLifecycle(v == null || v === ANY ? "" : String(v))}
-          >
-            <SelectTrigger id="contacts-stage-filter" className="w-full" data-stage-filter>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {stageItems.map((i) => (
-                <SelectItem key={i.value} value={i.value}>
-                  {i.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field className="sm:w-40">
-          <FieldLabel htmlFor="contacts-score-filter">{t("icp.score")}</FieldLabel>
-          <Select
-            items={scoreItems}
-            value={minScore ? String(minScore) : ANY}
-            onValueChange={(v) => setMinScore(v == null || v === ANY ? 0 : Number(v))}
-          >
-            <SelectTrigger id="contacts-score-filter" className="w-full" data-score-filter>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {scoreItems.map((i) => (
-                <SelectItem key={i.value} value={i.value}>
-                  {i.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        {list && canExport ? (
-          <Button
-            variant="secondary"
-            data-export-view
-            onClick={() =>
-              exportList(
-                ws.id,
-                list,
-                { status: activeStatus, q },
-                { ok: t("contacts.exported"), fail: t("common.networkError") },
-              )
-            }
-          >
-            <DownloadIcon />
-            {t("contacts.exportView")}
-          </Button>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
-        <span className="text-sm text-muted-foreground">{t("icp.sortBy")}</span>
-        <ToggleGroup
-          value={[sort || "newest"]}
-          onValueChange={(v) => v[0] && setSort(v[0] === "score" ? "score" : "")}
-          aria-label={t("icp.sortBy")}
-        >
-          <Toggle value="newest" data-sort="newest">
-            {t("icp.sortNewest")}
-          </Toggle>
-          <Toggle value="score" data-sort="score">
-            {t("icp.sortScore")}
-          </Toggle>
-        </ToggleGroup>
-      </div>
-
-      {list ? (
-        <div className="px-6 pb-4">
-          <ToggleGroup
-            className="flex-wrap"
-            value={[activeStatus || "all"]}
-            onValueChange={(v) => {
-              const next = v[0]
-              if (next === undefined) return
-              setStatus(next === "all" ? "" : (next as SubscriptionStatus))
-            }}
-            aria-label={t("contacts.statusFilter")}
-          >
-            <Toggle value="all" data-status-filter="all">
-              {t("contacts.statusAll")}{" "}
-              <span className="text-muted-foreground tabular-nums">
-                {counts ? formatNumber(counts.all) : ""}
-              </span>
-            </Toggle>
-            {STATUSES.map((st) => (
-              <Toggle key={st} value={st} data-status-filter={st}>
-                {t(`sub.${st}`)}{" "}
-                <span className="text-muted-foreground tabular-nums">
-                  {counts ? formatNumber(counts[st]) : ""}
-                </span>
-              </Toggle>
-            ))}
-          </ToggleGroup>
-        </div>
-      ) : null}
-
-      {page.error ? (
-        <ErrorState error={page.error} />
-      ) : !page.data ? (
-        <LoadingRows />
-      ) : total === 0 ? (
-        filtered ? (
-          <EmptyState
-            title={t("contacts.noMatch")}
-            body={t("contacts.noMatchBody")}
-            action={
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setSearch("")
-                  setListId("")
-                  setStatus("")
-                  setLifecycle("")
-                  setMinScore(0)
-                }}
-              >
-                {t("contacts.clearFilters")}
-              </Button>
-            }
-          />
-        ) : (
-          <EmptyState
-            title={t("contacts.empty")}
-            body={canWrite ? t("contacts.emptyBody") : undefined}
-          />
-        )
-      ) : (
-        <>
-          <p
-            className="px-6 pb-3 text-sm text-muted-foreground"
-            aria-live="polite"
-            data-contacts-summary={`${from}-${to}/${total}`}
-          >
-            {t("contacts.showing", {
-              from: formatNumber(from),
-              to: formatNumber(to),
-              total: formatNumber(total),
-            })}
-          </p>
-          <div
-            className={page.current ? undefined : "opacity-60 transition-opacity"}
-            aria-busy={!page.current}
-            data-contacts-current={page.current ? "yes" : "no"}
-          >
-            <ContactsTable items={rows} canWrite={canWrite} onChange={onChange} />
-          </div>
-          {pages > 1 ? (
-            <CursorPager
-              className="px-6 pt-4"
-              from={0}
-              to={0}
-              summary={
-                <span data-page-of={`${pageIndex + 1}/${pages}`}>
-                  {t("contacts.pageOf", {
-                    page: formatNumber(pageIndex + 1),
-                    pages: formatNumber(pages),
-                  })}
-                </span>
-              }
-              previousLabel={t("contacts.prevPage")}
-              nextLabel={t("contacts.nextPage")}
-              hasPrevious={cursors.length > 1}
-              hasNext={!!page.data?.next_cursor}
-              loading={!page.current}
-              onPrevious={() =>
-                setCursors((c) =>
-                  c.length > 1 && c[c.length - 1] === shownCursor ? c.slice(0, -1) : c,
-                )
-              }
-              onNext={() => {
-                const next = page.data?.next_cursor
-                // Only from the page it belongs to: a second click before the
-                // re-render must not push the same cursor twice.
-                if (next && page.current)
-                  setCursors((c) => (c[c.length - 1] === shownCursor ? [...c, next] : c))
-              }}
-            />
-          ) : null}
-        </>
-      )}
-    </section>
-  )
-}
-
-function ContactsTable({
-  items,
-  canWrite,
-  onChange,
-}: {
-  items: Contact[]
-  canWrite: boolean
-  onChange: () => void
-}) {
-  const { t, locale, formatDate } = useTranslations()
-  const ws = useWorkspace()
-  const base = `/${locale}/w/${ws.slug}`
   const [leaving, setLeaving] = useState<UnsubscribeTarget | null>(null)
   const [deleting, setDeleting] = useState<Contact | null>(null)
   const [busy, setBusy] = useState(false)
@@ -864,157 +612,312 @@ function ContactsTable({
     }
   }
 
+  /*
+  The server takes one value per filter, so each facet behaves as a single
+  choice: picking a second value replaces the first.
+  */
+  const facets: EntityFacet<Contact>[] = [
+    {
+      id: "list",
+      title: t("contacts.list"),
+      options: lists.map((l) => ({ value: l.id, label: l.name })),
+      getValues: () => [],
+    },
+    ...(list
+      ? [
+          {
+            id: "status",
+            title: t("contacts.statusFilter"),
+            options: STATUSES.map((st) => ({
+              value: st,
+              label: counts
+                ? `${t(`sub.${st}`)} · ${formatNumber(counts[st])}`
+                : t(`sub.${st}`),
+            })),
+            getValues: () => [],
+          },
+        ]
+      : []),
+    {
+      id: "stage",
+      title: t("lifecycle.label"),
+      options: [
+        ...LIFECYCLE_STAGES.map((st) => ({ value: st, label: t(`lifecycle.${st}`) })),
+        { value: "none", label: t("lifecycle.none") },
+      ],
+      getValues: () => [],
+    },
+    {
+      id: "score",
+      title: t("icp.score"),
+      options: MIN_SCORES.map((n) => ({
+        value: String(n),
+        label: t("icp.atLeast", { n: formatNumber(n) }),
+      })),
+      getValues: () => [],
+    },
+  ]
+  const facetValues: Record<string, string[]> = {
+    list: activeList ? [activeList] : [],
+    status: activeStatus ? [activeStatus] : [],
+    stage: lifecycle ? [lifecycle] : [],
+    score: minScore ? [String(minScore)] : [],
+  }
+  const single = (next: string[] | undefined, prev: string[]) =>
+    (next ?? []).find((v) => !prev.includes(v)) ?? (next ?? [])[0] ?? ""
+  const onFacetValuesChange = (next: Record<string, string[]>) => {
+    const listNext = single(next.list, facetValues.list)
+    if (listNext !== activeList) {
+      setListId(listNext)
+      setStatus("")
+    } else {
+      setStatus(single(next.status, facetValues.status) as SubscriptionStatus | "")
+    }
+    setLifecycle(single(next.stage, facetValues.stage))
+    setMinScore(Number(single(next.score, facetValues.score)) || 0)
+  }
+
+  const columns: DataTableColumn<Contact>[] = [
+    {
+      id: "name",
+      header: t("contacts.name"),
+      hideable: false,
+      className: "min-w-56",
+      cell: (c) => (
+        <span data-contact-row={contactIdentity(c)} className="block min-w-0">
+          <EntityIdentity
+            name={c.name || contactIdentity(c)}
+            avatarName={c.name || contactIdentity(c)}
+            avatar={c.avatar_url || undefined}
+            subtitle={c.name ? <Ltr>{contactIdentity(c)}</Ltr> : undefined}
+          />
+        </span>
+      ),
+    },
+    {
+      id: "company",
+      header: t("contacts.company"),
+      cell: (c) =>
+        c.company_name || c.title ? (
+          <span className="flex min-w-0 flex-col">
+            <Bdi className="truncate">{c.company_name || "—"}</Bdi>
+            {c.title ? (
+              <Bdi className="truncate text-sm text-muted-foreground">{c.title}</Bdi>
+            ) : null}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      id: "stage",
+      header: t("lifecycle.label"),
+      cell: (c) => <LifecycleBadge stage={c.lifecycle ?? ""} />,
+    },
+    {
+      id: "score",
+      header: t("icp.score"),
+      // The server orders by score; the newest-first order is the default.
+      sortValue: (c) => c.score,
+      cell: (c) => (
+        <ScoreButton
+          score={c.score}
+          reasons={c.score_reasons}
+          who={isolate(c.name || contactIdentity(c))}
+        />
+      ),
+    },
+    {
+      id: "lists",
+      header: t("contacts.lists"),
+      cell: (c) => <Subscriptions contact={c} canWrite={canWrite} onResend={resend} />,
+    },
+    {
+      id: "whatsapp",
+      header: t("contacts.whatsapp"),
+      cell: (c) => <WhatsAppConsent contact={c} onChange={onChange} />,
+    },
+    {
+      id: "added",
+      header: t("contacts.added"),
+      align: "end",
+      cell: (c) => (
+        <span className="text-muted-foreground">
+          <Ltr>{formatDate(c.created_at)}</Ltr>
+        </span>
+      ),
+    },
+  ]
+
+  const rowActions = (c: Contact): DataTableRowAction[] =>
+    canWrite
+      ? [
+          ...(c.subscriptions ?? [])
+            .filter((s) => s.status !== "unsubscribed")
+            .map((s) => ({
+              id: `unsubscribe-${s.id}`,
+              label: t("contacts.unsubscribeFromList", { list: isolate(s.list_name) }),
+              icon: MailMinusIcon,
+              group: "lists",
+              onSelect: () =>
+                setLeaving({
+                  contactId: c.id,
+                  who: c.name || contactIdentity(c),
+                  listId: s.list_id,
+                  listName: s.list_name,
+                }),
+            })),
+          {
+            id: "delete",
+            label: t("contacts.deleteContact"),
+            icon: Trash2Icon,
+            danger: true,
+            group: "danger",
+            onSelect: () => setDeleting(c),
+          },
+        ]
+      : []
+
   return (
-    <div className="border-y border-nq-line">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="ps-6">{t("contacts.identity")}</TableHead>
-            <TableHead>{t("contacts.name")}</TableHead>
-            <TableHead>{t("lifecycle.label")}</TableHead>
-            <TableHead>{t("icp.score")}</TableHead>
-            <TableHead>{t("contacts.lists")}</TableHead>
-            <TableHead>{t("contacts.whatsapp")}</TableHead>
-            <TableHead>{t("contacts.added")}</TableHead>
-            <TableHead className="pe-6 text-end">
-              <span className="sr-only">{t("common.actions")}</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((c) => {
-            const leavable = (c.subscriptions ?? []).filter((s) => s.status !== "unsubscribed")
-            return (
-              <TableRow key={c.id} data-contact-row={contactIdentity(c)}>
-                <TableCell className="ps-6">
-                  <Link
-                    className="flex items-center gap-2 hover:underline"
-                    href={`${base}/contacts/${c.id}`}
-                  >
-                    <PersonAvatar
-                      id={c.id}
-                      name={c.name || contactIdentity(c)}
-                      photoUrl={c.avatar_url}
-                      size="sm"
-                      className="shrink-0"
-                    />
-                    <Ltr>{contactIdentity(c)}</Ltr>
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  {c.name ? (
-                    <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
-                      <Bdi>{c.name}</Bdi>
-                    </Link>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <LifecycleBadge stage={c.lifecycle ?? ""} />
-                </TableCell>
-                <TableCell>
-                  <ScoreButton
-                    score={c.score}
-                    reasons={c.score_reasons}
-                    who={isolate(c.name || contactIdentity(c))}
-                  />
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(c.subscriptions ?? []).map((s) => (
-                      <span key={s.id} className="inline-flex items-center gap-1">
-                        <Badge
-                          variant={statusVariant[s.status]}
-                          data-sub={`${s.list_name}:${s.status}`}
-                          title={
-                            s.status === "unsubscribed" && s.unsubscribed_by_workspace
-                              ? t("contacts.unsubscribedByTeam", {
-                                  date: formatDate(s.unsubscribed_at),
-                                })
-                              : t(`sub.${s.status}`)
-                          }
-                        >
-                          <Bdi>{s.list_name}</Bdi> · {t(`sub.${s.status}`)}
-                        </Badge>
-                        {canWrite && s.status === "pending" ? (
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="h-auto px-1 text-xs"
-                            onClick={() => resend(s.id)}
-                          >
-                            {t("contacts.resend")}
-                          </Button>
-                        ) : null}
-                      </span>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <WhatsAppConsent contact={c} onChange={onChange} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  <Ltr>{formatDate(c.created_at)}</Ltr>
-                </TableCell>
-                <TableCell className="pe-6 text-end">
-                  {canWrite ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("contacts.actionsFor", {
-                              who: isolate(contactIdentity(c)),
-                            })}
-                            data-row-actions={contactIdentity(c)}
-                          />
-                        }
-                      >
-                        <EllipsisIcon />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-56">
-                        {leavable.length > 0 ? (
-                          <>
-                            <DropdownMenuGroup>
-                              <DropdownMenuLabel>{t("contacts.unsubscribeFrom")}</DropdownMenuLabel>
-                              {leavable.map((s) => (
-                                <DropdownMenuItem
-                                  key={s.id}
-                                  data-unsubscribe-from={s.list_name}
-                                  onClick={() =>
-                                    setLeaving({
-                                      contactId: c.id,
-                                      who: c.name || contactIdentity(c),
-                                      listId: s.list_id,
-                                      listName: s.list_name,
-                                    })
-                                  }
-                                >
-                                  <Bdi>{s.list_name}</Bdi>
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuGroup>
-                            <DropdownMenuSeparator />
-                          </>
-                        ) : null}
-                        <DropdownMenuItem
-                          variant="danger"
-                          data-delete-contact
-                          onClick={() => setDeleting(c)}
-                        >
-                          {t("contacts.deleteContact")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : null}
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+    <section data-contacts-browser className="px-4 pt-6 sm:px-6">
+      <EntityList<Contact>
+        data={rows}
+        columns={columns}
+        getRowId={(c) => c.id}
+        rowLabel={(c) => c.name || contactIdentity(c)}
+        label={t("nav.contacts")}
+        manual
+        rowCount={total}
+        selectable={false}
+        query={{ value: search, onChange: setSearch }}
+        searchPlaceholder={t("contacts.searchPlaceholder")}
+        facets={facets}
+        facetValues={facetValues}
+        onFacetValuesChange={onFacetValuesChange}
+        sort={{
+          value: sort === "score" ? { id: "score", direction: "desc" } : null,
+          onChange: (s) => setSort(s ? "score" : ""),
+        }}
+        rowActions={canWrite ? rowActions : undefined}
+        onRowClick={(c) => router.push(`${base}/contacts/${c.id}`)}
+        loading={!page.data && !page.error}
+        error={page.error ? (page.error instanceof Error ? page.error.message : t("common.networkError")) : undefined}
+        onRetry={() => void mutate()}
+        empty={
+          <NqEmptyState
+            icon={UsersIcon}
+            title={t("contacts.empty")}
+            description={canWrite ? t("contacts.emptyBody") : undefined}
+            className="border-0"
+          />
+        }
+        toolbar={
+          list && canExport ? (
+            <Button
+              size="sm"
+              data-export-view
+              onClick={() =>
+                exportList(
+                  ws.id,
+                  list,
+                  { status: activeStatus, q },
+                  { ok: t("contacts.exported"), fail: t("common.networkError") },
+                )
+              }
+            >
+              <DownloadIcon />
+              {t("contacts.exportView")}
+            </Button>
+          ) : null
+        }
+        renderCard={(c) => (
+          <div className="flex min-w-0 flex-col gap-3" data-contact-card={contactIdentity(c)}>
+            <EntityIdentity
+              className="pe-(--entity-card-controls)"
+              name={c.name || contactIdentity(c)}
+              avatarName={c.name || contactIdentity(c)}
+              avatar={c.avatar_url || undefined}
+              size="lg"
+              subtitle={c.title || c.company_name || undefined}
+            />
+            {c.name ? (
+              <span className="truncate text-sm text-muted-foreground">
+                <Ltr>{contactIdentity(c)}</Ltr>
+              </span>
+            ) : null}
+            <div className="flex flex-col gap-1.5">
+              <CardMeta label={t("lifecycle.label")}>
+                <LifecycleBadge stage={c.lifecycle ?? ""} />
+              </CardMeta>
+              <CardMeta label={t("icp.score")}>
+                <ScoreButton
+                  score={c.score}
+                  reasons={c.score_reasons}
+                  who={isolate(c.name || contactIdentity(c))}
+                />
+              </CardMeta>
+              <CardMeta label={t("contacts.added")}>
+                <Ltr>{formatDate(c.created_at)}</Ltr>
+              </CardMeta>
+            </div>
+            <Subscriptions contact={c} canWrite={canWrite} onResend={resend} />
+          </div>
+        )}
+        pagination={
+          page.data && total > 0 ? (
+            <div
+              className="flex flex-wrap items-center justify-between gap-3"
+              data-contacts-current={page.current ? "yes" : "no"}
+            >
+              <p
+                className="text-sm text-muted-foreground"
+                aria-live="polite"
+                data-contacts-summary={`${from}-${to}/${total}`}
+              >
+                {t("contacts.showing", {
+                  from: formatNumber(from),
+                  to: formatNumber(to),
+                  total: formatNumber(total),
+                })}
+              </p>
+              {pages > 1 ? (
+                <CursorPager
+                  from={0}
+                  to={0}
+                  summary={
+                    <span data-page-of={`${pageIndex + 1}/${pages}`}>
+                      {t("contacts.pageOf", {
+                        page: formatNumber(pageIndex + 1),
+                        pages: formatNumber(pages),
+                      })}
+                    </span>
+                  }
+                  previousLabel={t("contacts.prevPage")}
+                  nextLabel={t("contacts.nextPage")}
+                  hasPrevious={cursors.length > 1}
+                  hasNext={!!page.data?.next_cursor}
+                  loading={!page.current}
+                  onPrevious={() =>
+                    setCursors((c) =>
+                      c.length > 1 && c[c.length - 1] === shownCursor ? c.slice(0, -1) : c,
+                    )
+                  }
+                  onNext={() => {
+                    const next = page.data?.next_cursor
+                    // Only from the page it belongs to: a second click before the
+                    // re-render must not push the same cursor twice.
+                    if (next && page.current)
+                      setCursors((c) => (c[c.length - 1] === shownCursor ? [...c, next] : c))
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : (
+            false
+          )
+        }
+        className={page.current ? undefined : "[&_[data-slot=table]]:opacity-60"}
+      />
 
       <UnsubscribeDialog target={leaving} onClose={() => setLeaving(null)} onDone={onChange} />
       <AlertDialog open={deleting !== null} onOpenChange={(v) => (v ? null : setDeleting(null))}>
@@ -1037,6 +940,50 @@ function ContactsTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </section>
+  )
+}
+
+/** A contact's list subscriptions as status badges, with "Resend" on a pending one. */
+function Subscriptions({
+  contact,
+  canWrite,
+  onResend,
+}: {
+  contact: Contact
+  canWrite: boolean
+  onResend: (subId: string) => void
+}) {
+  const { t, formatDate } = useTranslations()
+  const subs = contact.subscriptions ?? []
+  if (!subs.length) return <span className="text-muted-foreground">—</span>
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {subs.map((s) => (
+        <span key={s.id} className="inline-flex items-center gap-1">
+          <Badge
+            variant={statusVariant[s.status]}
+            data-sub={`${s.list_name}:${s.status}`}
+            title={
+              s.status === "unsubscribed" && s.unsubscribed_by_workspace
+                ? t("contacts.unsubscribedByTeam", { date: formatDate(s.unsubscribed_at) })
+                : t(`sub.${s.status}`)
+            }
+          >
+            <Bdi>{s.list_name}</Bdi> · {t(`sub.${s.status}`)}
+          </Badge>
+          {canWrite && s.status === "pending" ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto px-1 text-xs"
+              onClick={() => onResend(s.id)}
+            >
+              {t("contacts.resend")}
+            </Button>
+          ) : null}
+        </span>
+      ))}
     </div>
   )
 }

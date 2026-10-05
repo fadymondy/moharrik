@@ -1783,6 +1783,8 @@
   "contacts.exported": "Export downloaded",
   "contacts.actionsFor": "Actions for {who}",
   "contacts.unsubscribeFrom": "Unsubscribe from",
+  "contacts.company": "Company",
+  "contacts.unsubscribeFromList": "Unsubscribe from {list}",
   "contacts.unsubscribe": "Unsubscribe",
   "contacts.deleteContact": "Delete contact…",
   "contacts.unsubscribeTitle": "Unsubscribe from {list}?",
