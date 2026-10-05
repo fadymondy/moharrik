@@ -167,6 +167,7 @@ var argsARCommon = map[string]string{
 	"Events per page, default 30, at most 100": "عدد الأحداث في الصفحة، الافتراضي 30 وبحد أقصى 100",
 	"Signals per kind, default 25, at most 100": "عدد الإشارات لكل نوع، الافتراضي 25 وبحد أقصى 100",
 	"Only this kind of signal": "هذا النوع من الإشارات فقط",
+	"Recent runs to list, default 8, at most 25": "عدد عمليات البحث الأخيرة المطلوب إدراجها، الافتراضي 8 وبحد أقصى 25",
 }
 
 // ---- the catalog --------------------------------------------------------

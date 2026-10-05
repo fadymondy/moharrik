@@ -122,6 +122,21 @@ var docsResearch = map[string]ToolDoc{
 		Result: `{"ok":true,"run_id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75",` +
 			`"message":"Read it back with get_research once it has finished."}`,
 	},
+	"research_overview": {
+		AR: "أرقام الصفحة الرئيسية للبحث: القمع على مستوى مساحة العمل كلها (found الشركات التي سمّاها البحث، وevidence الأدلة المحفوظة، " +
+			"وprospects الجهات المحتملة التي قيّمها الاستكشاف، وhigh_fit ما بلغت درجته thresholds.high_fit_score فأكثر، وaccepted ما قُبل في " +
+			"إدارة العملاء) ولكل عملية بحث حديثة مراحلها كما خزّنها المحرّك تمامًا (stage وstatus وcount وnote وstarted_at وfinished_at) " +
+			"مع أرقامها هي. كل رقم عدّ لصفوف موجودة فعلًا، وprospects وhigh_fit لا تكونان غير صفر إلا في عمليات الاستكشاف لأنها وحدها " +
+			"تقيّم الجهات المحتملة. تبيّن schedules عدد جداول البحث والمفعّل منها. والحد limit هو عدد العمليات الأخيرة، الافتراضي 8 وبحد أقصى 25.",
+		Example: map[string]any{"limit": 5},
+		Result: `{"thresholds":{"high_fit_score":70},"totals":{"found":14,"evidence":31,"prospects":9,"high_fit":3,"accepted":1},` +
+			`"runs":[{"id":"2c7e9a14-5b3f-4d80-a6e1-9f0b4c8d2e75","topic":"Logistics companies hiring in Cairo","status":"ok","origin":"discovery",` +
+			`"mode":"search","stage":"","stages":[{"stage":"plan","status":"done","count":0,"note":"","started_at":"2026-10-05T09:00:00Z","finished_at":"2026-10-05T09:00:01Z"},` +
+			`{"stage":"search","status":"done","count":8,"note":"","started_at":"2026-10-05T09:00:01Z","finished_at":"2026-10-05T09:00:04Z"}],` +
+			`"error":"","counts":{"found":6,"evidence":12,"prospects":6,"high_fit":2,"accepted":0},"started_at":"2026-10-05T09:00:00Z",` +
+			`"finished_at":"2026-10-05T09:02:10Z","created_at":"2026-10-05T09:00:00Z"}],` +
+			`"schedules":{"total":2,"enabled":1,"next_run_at":"2026-10-06T09:00:00Z"}}`,
+	},
 	"list_research": {
 		AR:      "عمليات البحث السابقة في مساحة العمل هذه، من الأحدث إلى الأقدم، مع حالة كلٍّ منها وعدد المصادر التي عثرت عليها وقرأتها.",
 		Example: map[string]any{"limit": 5},

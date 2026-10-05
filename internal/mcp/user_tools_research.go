@@ -9,6 +9,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/research"
+	"github.com/fadymondy/moharrik/internal/researchflow"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
 
@@ -89,6 +90,26 @@ func ResearchTools(engine *research.Engine) []Tool {
 					return "", err
 				}
 				return jsonResult(map[string]any{"count": len(runs), "items": runs})
+			},
+		},
+		{
+			Name: "research_overview",
+			Description: "The Research home's numbers: the funnel for the whole workspace (found = companies research named, evidence = " +
+				"evidence rows kept, prospects = prospects discovery scored, high_fit = prospects scoring at least thresholds.high_fit_score, " +
+				"accepted = prospects already in the CRM) and, for each recent run, its stages exactly as the engine stored them " +
+				"(stage, status, count, note, started_at, finished_at) with that run's own counts. All counts are rows that exist; " +
+				"prospects and high_fit are non-zero only for discovery runs, because only discovery runs score prospects. " +
+				"schedules says how many research schedules exist and are enabled. limit is the number of recent runs, default 8, at most 25.",
+			Scope: "research:read",
+			InputSchema: schema(nil, map[string]any{
+				"limit": prop("integer", "Recent runs to list, default 8, at most 25"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				res, err := researchflow.Read(ctx, a.SQLDB, intArg(decodeArgs(raw), "limit", 0))
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(res)
 			},
 		},
 		{
