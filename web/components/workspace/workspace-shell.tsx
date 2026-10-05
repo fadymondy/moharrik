@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   AppHeader,
@@ -62,6 +62,7 @@ import {
 } from "@/lib/nav-top"
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
+import { rememberWorkspace } from "@/lib/last-workspace"
 import { mcpDocsHref } from "@/lib/mcp-docs"
 
 /**
@@ -191,6 +192,10 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   const summary = list.data?.find((w) => w.slug === slug)
   const current = useCurrentWorkspace(summary?.id)
+  // MH-1108: the next sign-in opens this workspace again.
+  useEffect(() => {
+    if (summary) rememberWorkspace(summary.slug)
+  }, [summary])
   const base = `/${locale}/w/${slug}`
   const can = current.data?.can
 

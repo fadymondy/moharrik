@@ -202,6 +202,8 @@ export type WorkspaceSummary = {
   avatar_url?: string
   /** Active members (MH-679). */
   member_count?: number
+  /** When I last acted here, or joined (MH-1108). Picks the workspace opened after sign-in. */
+  last_active_at?: string
 }
 
 /** The rename/picture endpoints' response (MH-679). */
