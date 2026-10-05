@@ -4903,5 +4903,16 @@
   "insq.risk.emptyBody": "Every open deal has had something recently.",
   "insq.risk.count": "{n} at risk",
   "insq.risk.quiet": "Quiet for {n} days",
-  "insq.risk.more": "{n} more on the Signals tab."
+  "insq.risk.more": "{n} more on the Signals tab.",
+  "connect.tryHint": "“Which conversations are waiting for a reply?”",
+  "connect.keyDefaultName": "My AI app",
+  "connect.keyName": "Key name",
+  "connect.access": "What can the app do?",
+  "connect.readOnly": "Read only",
+  "connect.readOnlyHint": "Look things up and answer questions. It cannot change anything.",
+  "connect.readWrite": "Read and change",
+  "connect.readWriteHint": "Also reply, create and update, as far as your role allows.",
+  "connect.keyExpires": "The key expires in 90 days.",
+  "connect.manageKeys": "Manage your keys",
+  "connect.createKey": "Create my key"
 }

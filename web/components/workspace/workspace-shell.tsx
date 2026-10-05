@@ -63,6 +63,7 @@ import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { rememberWorkspace } from "@/lib/last-workspace"
 import { mcpDocsHref } from "@/lib/mcp-docs"
+import { ConnectAgent } from "@/components/mcp/connect-agent"
 
 /**
  * SidebarItem is a native <a>: plain clicks route client-side, modified clicks keep the browser's
@@ -255,6 +256,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
               wait for them to open the inbox. */}
           {summary && current.data ? (
             <>
+              <ConnectAgent workspaceId={summary.id} slug={summary.slug} />
               <NotificationBell
                 workspaceId={summary.id}
                 slug={summary.slug}

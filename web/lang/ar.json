@@ -4903,5 +4903,16 @@
   "insq.risk.emptyBody": "كل صفقة مفتوحة حدث فيها شيء مؤخرًا.",
   "insq.risk.count": "{n} معرَّضة للخطر",
   "insq.risk.quiet": "راكدة منذ {n} يومًا",
-  "insq.risk.more": "{n} أخرى في تبويب الإشارات."
+  "insq.risk.more": "{n} أخرى في تبويب الإشارات.",
+  "connect.tryHint": "«ما المحادثات التي تنتظر ردًا؟»",
+  "connect.keyDefaultName": "تطبيق الذكاء الاصطناعي",
+  "connect.keyName": "اسم المفتاح",
+  "connect.access": "ماذا يستطيع التطبيق أن يفعل؟",
+  "connect.readOnly": "قراءة فقط",
+  "connect.readOnlyHint": "يبحث ويجيب عن الأسئلة، ولا يغيّر أي شيء.",
+  "connect.readWrite": "قراءة وتعديل",
+  "connect.readWriteHint": "ويرد أيضًا وينشئ ويعدّل، في حدود صلاحيات دورك.",
+  "connect.keyExpires": "تنتهي صلاحية المفتاح بعد 90 يومًا.",
+  "connect.manageKeys": "إدارة مفاتيحك",
+  "connect.createKey": "أنشئ مفتاحي"
 }
