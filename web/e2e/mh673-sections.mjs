@@ -1,7 +1,8 @@
-// MH-673: a sidebar section is a page. Each group row is a link to that section's dashboard; the
-// sidebar follows the URL (back, the section overview, the section's pages); back goes to the
-// workspace overview; a deep link opens its section; /research keeps its old ?tab= links. Runs
-// en/ar × light/dark × 1440/390 (390 through the mobile sheet) plus the mini rail at 1440.
+// MH-673, reworked for the intent sidebar (MH-1060/MH-1073): a section's dashboard is still a page.
+// Each section home renders its tiles, the sidebar row that owns it is current (with the section's
+// "Overview" sub current where the row has one), a deep link lights up its owner and sub, and
+// /research keeps its old ?tab= links. Runs en/ar × light/dark × 1440/390 (390 through the mobile
+// sheet, which must close after a row navigates).
 // Read-only: fails on any API write other than marking a thread read.
 //   DEMO_EMAIL=... DEMO_PASSWORD=... node e2e/mh673-sections.mjs <base> [shots]
 import { chromium } from "playwright-core"
@@ -20,23 +21,36 @@ const check = (k, ok, d) => {
 }
 const args = process.env.HOST_RULES ? [`--host-resolver-rules=${process.env.HOST_RULES}`] : []
 
-// Mirrors web/lib/nav-config.ts's group homes.
-const HOMES = {
-  crm: "crm",
-  marketing: "marketing",
-  inbox: "inbox/overview",
-  automation: "automation",
-  research: "research",
-  insights: "insights",
-  notifications: "notifications/overview",
-  settings: "settings",
-}
+// Section home (nav-config.ts) → the sidebar row that owns it (nav-top.ts) and its overview sub, if any.
+const HOMES = [
+  { key: "crm", path: "crm", row: "customers", sub: "crm-overview" },
+  { key: "marketing", path: "marketing", row: "campaigns", sub: "marketing-overview" },
+  { key: "inbox", path: "inbox/overview", row: "inbox", sub: "inbox-overview" },
+  { key: "automation", path: "automation", row: "automations", sub: null },
+  { key: "research", path: "research", row: "research", sub: null },
+  { key: "insights", path: "insights", row: "insights", sub: null },
+  { key: "notifications", path: "notifications/overview", row: null, sub: null },
+  // Footer rows do not nest: Settings' sub-pages are the cards on its page.
+  { key: "settings", path: "settings", row: "settings", sub: null },
+]
 
 async function settle(page) {
   // The workspace event stream stays open, so the page never goes fully idle: cap the wait.
   await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {})
   await page.waitForTimeout(800)
 }
+
+// The current row (not a sub) and the current subs, read from the visible sidebar or sheet.
+const readNav = (page, scope) =>
+  page.evaluate((scope) => {
+    const root = scope ? document.querySelector(scope) : document
+    if (!root) return null
+    const cur = [...root.querySelectorAll("a[data-nav-item][aria-current=page]")].filter((a) => a.offsetParent !== null)
+    return {
+      row: cur.filter((a) => !a.closest("[data-nav-subs]")).map((a) => a.dataset.navItem),
+      subs: cur.filter((a) => a.closest("[data-nav-subs]")).map((a) => a.dataset.navItem),
+    }
+  }, scope)
 
 for (const scheme of ["light", "dark"]) {
   const dir = mkdtempSync(path.join(tmpdir(), "mh673-"))
@@ -71,88 +85,66 @@ for (const scheme of ["light", "dark"]) {
       const k = `${loc}-${scheme}-${w}`
       const ws = `${base}/${loc}/w/${slug}`
       const mobile = w < 768
+      const sheet = "[data-slot=app-shell-sheet]"
+      const scope = mobile ? sheet : null
+      const openSheet = async () => {
+        if (!mobile) return
+        await page.locator("[data-nav-toggle]").filter({ visible: true }).first().click()
+        await page.waitForSelector(sheet, { timeout: 10000 })
+        await page.waitForTimeout(400)
+      }
+      const closeSheet = async () => {
+        if (mobile) await page.keyboard.press("Escape").catch(() => {})
+        await page.waitForTimeout(300)
+      }
       await page.setViewportSize({ width: w, height: 900 })
       await page.goto(ws, { waitUntil: "domcontentloaded" })
       await settle(page)
       const env = await page.evaluate(() => ({ dir: document.documentElement.dir, dark: document.documentElement.classList.contains("dark") }))
       check(`${k}-dir`, env.dir === (loc === "ar" ? "rtl" : "ltr"), env.dir)
       check(`${k}-theme`, env.dark === (scheme === "dark"), env.dark)
-      const nav = mobile ? "[data-mobile-nav]" : "aside"
-      const openSheet = async () => {
-        if (!mobile) return
-        await page.click("[data-mobile-nav-toggle]")
-        await page.waitForSelector("[data-mobile-nav]", { timeout: 10000 })
+
+      for (const h of HOMES) {
+        const hk = `${k}-${h.key}`
+        await page.goto(`${ws}/${h.path}`, { waitUntil: "domcontentloaded" })
+        const dash = await page.waitForSelector(`[data-section-home="${h.key}"] [data-section-page]`, { timeout: 20000 }).then(() => true, () => false)
+        check(`${hk}-dashboard`, dash)
+        await settle(page)
+        const body = await page.evaluate((key) => ({
+          tiles: document.querySelectorAll(`[data-section-home="${key}"] [data-section-page]`).length,
+          blankDesc: [...document.querySelectorAll("[data-section-page] span span:last-child")].filter((s) => !s.textContent.trim() || s.textContent.startsWith("section.")).length,
+          title: document.title,
+          h1: document.querySelector("main h1, h1")?.textContent,
+          overflow: document.documentElement.scrollWidth > innerWidth + 1,
+        }), h.key)
+        check(`${hk}-tiles`, body.tiles > 0, body.tiles)
+        check(`${hk}-descriptions`, body.blankDesc === 0, body.blankDesc)
+        check(`${hk}-title`, body.title.includes(body.h1 ?? "\u0000"), { title: body.title, h1: body.h1 })
+        check(`${hk}-no-overflow`, !body.overflow)
+        if (h.row) {
+          await openSheet()
+          const nav = await readNav(page, scope)
+          check(`${hk}-row`, nav?.row.join() === h.row, nav)
+          if (h.sub) check(`${hk}-overview-sub`, nav?.subs.join() === h.sub, nav)
+          await closeSheet()
+        }
+        if (shots) await page.screenshot({ path: `${shots}/mh673-${hk}.png` })
       }
 
-      const groups = await (async () => {
-        await openSheet()
-        const g = await page.$$eval(`${mobile ? "[data-mobile-nav] " : ""}[data-nav-group]`, (as) =>
-          as.filter((a) => a.offsetParent !== null).map((a) => ({ key: a.dataset.navGroup, tag: a.tagName, href: a.getAttribute("href") })),
-        )
-        if (mobile) await page.keyboard.press("Escape")
-        return g
-      })()
-      check(`${k}-groups-are-links`, groups.length >= 7 && groups.every((g) => g.tag === "A" && g.href === `/${loc}/w/${slug}/${HOMES[g.key]}`), groups)
+      // A page inside a section lights up its owner and its own sub.
+      await page.goto(`${ws}/leads`, { waitUntil: "domcontentloaded" })
+      await settle(page)
+      await openSheet()
+      const deep = await readNav(page, scope)
+      check(`${k}-deeplink`, deep?.row.join() === "customers" && deep.subs.join() === "leads", deep)
 
-      for (const g of groups) {
-        const gk = `${k}-${g.key}`
-        await page.goto(ws, { waitUntil: "domcontentloaded" })
-        await settle(page)
-        await openSheet()
-        await page.locator(`${mobile ? "[data-mobile-nav] " : ""}[data-nav-group="${g.key}"]`).filter({ visible: true }).first().click()
-        await page.waitForURL(`${ws}/${HOMES[g.key]}`, { timeout: 20000 }).catch(() => {})
-        check(`${gk}-navigates`, page.url() === `${ws}/${HOMES[g.key]}`, page.url())
-        const dash = await page.waitForSelector(`[data-section-home="${g.key}"] [data-section-page]`, { timeout: 20000 }).then(() => true, () => false)
-        check(`${gk}-dashboard`, dash)
-        await settle(page)
-        if (mobile) check(`${gk}-sheet-closed`, (await page.$("[data-mobile-nav]")) === null)
-        await openSheet()
-        const side = await page.evaluate(
-          ({ nav, key }) => {
-            const root = [...document.querySelectorAll(`${nav} [data-nav-drilled]`)].find((n) => n.offsetParent !== null)
-            if (!root) return null
-            const items = [...root.querySelectorAll("a[data-nav-item]")]
-            return {
-              drilled: root.dataset.navDrilled,
-              back: root.querySelector("[data-nav-back]")?.getAttribute("href"),
-              first: items[0]?.dataset.navItem,
-              current: items.filter((a) => a.getAttribute("aria-current") === "page").map((a) => a.dataset.navItem),
-              hrefs: items.slice(1).map((a) => a.getAttribute("href")),
-              tiles: [...document.querySelectorAll(`[data-section-home="${key}"] [data-section-page]`)].map((a) => a.getAttribute("href")),
-              title: document.title,
-              h1: document.querySelector("main h1, h1")?.textContent,
-              blankDesc: [...document.querySelectorAll("[data-section-page] span span:last-child")].filter((s) => !s.textContent.trim() || s.textContent.startsWith("section.")).length,
-            }
-          },
-          { nav, key: g.key },
-        )
-        check(`${gk}-sidebar`, !!side && side.drilled === g.key && side.back === `/${loc}/w/${slug}` && side.first === `${g.key}-home` && side.current.join() === `${g.key}-home`, side)
-        check(`${gk}-tiles-match-sidebar`, !!side && side.tiles.length > 0 && side.tiles.join() === side.hrefs.join(), side && { tiles: side.tiles, hrefs: side.hrefs })
-        check(`${gk}-descriptions`, !!side && side.blankDesc === 0, side?.blankDesc)
-        check(`${gk}-title`, !!side && side.title.includes(side.h1 ?? "\u0000"), side && { title: side.title, h1: side.h1 })
-        if (mobile) await page.keyboard.press("Escape")
-        await page.waitForTimeout(300)
-        check(`${gk}-no-overflow`, !(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)))
-        if (shots) await page.screenshot({ path: `${shots}/mh673-${gk}.png` })
-
-        // A page inside the section keeps the section in the sidebar, with that page current.
-        if (g.key === "crm" || g.key === "notifications") {
-          const item = g.key === "crm" ? "leads" : "notifications"
-          await page.goto(`${ws}/${item}`, { waitUntil: "domcontentloaded" })
-          await settle(page)
-          await openSheet()
-          const deep = await page.evaluate((nav) => {
-            const root = [...document.querySelectorAll(`${nav} [data-nav-drilled]`)].find((n) => n.offsetParent !== null)
-            return root && { drilled: root.dataset.navDrilled, current: [...root.querySelectorAll("a[aria-current=page]")].map((a) => a.dataset.navItem) }
-          }, nav)
-          const want = g.key === "crm" ? "leads" : "notifications-center"
-          check(`${gk}-deeplink`, deep?.drilled === g.key && deep.current.join() === want, deep)
-          // Back from inside a section goes to the workspace overview.
-          await page.locator(`${nav} [data-nav-back]`).filter({ visible: true }).first().click()
-          await page.waitForURL(ws, { timeout: 15000 }).catch(() => {})
-          check(`${gk}-back`, page.url() === ws, page.url())
-          if (mobile) await page.keyboard.press("Escape").catch(() => {})
-        }
+      // A row navigates (and on mobile, the sheet closes behind it).
+      await page.locator(`${scope ?? "body"} a[data-nav-item="inbox"]`).filter({ visible: true }).first().click()
+      await page.waitForURL(`${ws}/inbox`, { timeout: 15000 }).catch(() => {})
+      check(`${k}-row-link`, page.url() === `${ws}/inbox`, page.url())
+      if (mobile) {
+        await page.waitForTimeout(600)
+        check(`${k}-sheet-closed`, (await page.$(sheet)) === null)
       }
 
       // Old research tab links still land on the tab.
@@ -162,34 +154,6 @@ for (const scheme of ["light", "dark"]) {
         check(`${k}-research-tab-redirect`, page.url() === `${ws}/research/evidence`, page.url())
       }
     }
-
-  // The mini rail: the section's rows are icons with titles, the section overview first.
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.evaluate(() => localStorage.setItem("moharrik.nav", "mini"))
-  for (const loc of ["en", "ar"]) {
-    const k = `mini-${loc}-${scheme}`
-    await page.goto(`${base}/${loc}/w/${slug}/crm`, { waitUntil: "domcontentloaded" })
-    await settle(page)
-    const rail = await page.evaluate(() => {
-      const root = [...document.querySelectorAll("aside [data-nav-drilled]")].find((n) => n.offsetParent !== null)
-      const home = root?.querySelector('[data-nav-item="crm-home"]')
-      return {
-        mini: document.querySelector(".grid-shell")?.dataset.nav,
-        drilled: root?.dataset.navDrilled,
-        homeTitle: home?.getAttribute("title"),
-        homeCurrent: home?.getAttribute("aria-current"),
-        width: Math.round(root?.getBoundingClientRect().width ?? 0),
-      }
-    })
-    check(`${k}-rail`, rail.mini === "mini" && rail.drilled === "crm" && !!rail.homeTitle && rail.homeCurrent === "page", rail)
-    if (shots) await page.screenshot({ path: `${shots}/mh673-${k}.png` })
-    await page.locator('aside [data-nav-back]').filter({ visible: true }).first().click()
-    await page.waitForURL(`${base}/${loc}/w/${slug}`, { timeout: 15000 }).catch(() => {})
-    await page.locator('aside [data-nav-group="inbox"]').filter({ visible: true }).first().click()
-    await page.waitForURL(`${base}/${loc}/w/${slug}/inbox/overview`, { timeout: 15000 }).catch(() => {})
-    check(`${k}-rail-group-link`, page.url() === `${base}/${loc}/w/${slug}/inbox/overview`, page.url())
-  }
-  await page.evaluate(() => localStorage.removeItem("moharrik.nav"))
 
   check(`${scheme}-no-writes`, writes.length === 0, writes)
   check(`${scheme}-no-page-errors`, errs.length === 0, errs.slice(0, 3))

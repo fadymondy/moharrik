@@ -1,8 +1,8 @@
-// Read-only production check for MH-526 (drill-down sidebar) and MH-527 (the
-// presets marketplace). Signs in as the demo user; nothing is added, saved or
+// Read-only production check for the intent sidebar (MH-1060/MH-1073; was MH-526's
+// drill-down) and MH-527 (the presets marketplace). Signs in as the demo user; nothing is added, saved or
 // run — the preset detail sheet is opened and closed with Escape.
-// en/ar × light/dark × 1440/390 for the gallery and a drilled group; the full
-// group sweep runs once at en-dark-1440.
+// en/ar × light/dark × 1440/390 for the gallery and a nested page; the full
+// row/sub sweep runs once at en-dark-1440.
 //   DEMO_EMAIL=... DEMO_PASSWORD=... node e2e/nav-presets-live.mjs https://app.moharrik.com [shots]
 import { chromium } from "playwright-core"
 import { mkdtempSync } from "node:fs"
@@ -19,16 +19,20 @@ const check = (k, ok, d) => {
   if (!ok) fail.push(k)
 }
 const args = process.env.HOST_RULES ? [`--host-resolver-rules=${process.env.HOST_RULES}`] : []
-const GROUPS = [
-  "crm",
-  "marketing",
-  "inbox",
-  "automation",
-  "research",
-  "insights",
-  "notifications",
-  "settings",
-]
+// Rows with subs (nav-top.ts). Each sub loads and lights up its own row. Footer rows (Settings)
+// do not nest: their sub-pages are cards on the page.
+const ROWS = ["customers", "inbox", "research", "automations", "campaigns", "insights"]
+// The current row (not a sub) and current subs in the visible sidebar or the mobile sheet.
+const readNav = (page, scope) =>
+  page.evaluate((scope) => {
+    const root = scope ? document.querySelector(scope) : document
+    if (!root) return null
+    const cur = [...root.querySelectorAll("a[data-nav-item][aria-current=page]")].filter((a) => a.offsetParent !== null)
+    return {
+      row: cur.filter((a) => !a.closest("[data-nav-subs]")).map((a) => a.dataset.navItem).join(),
+      subs: cur.filter((a) => a.closest("[data-nav-subs]")).map((a) => a.dataset.navItem).join(),
+    }
+  }, scope)
 
 for (const scheme of ["dark", "light"]) {
   const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "navpre-")), {
@@ -49,47 +53,29 @@ for (const scheme of ["dark", "light"]) {
   const w = (loc, p = "") => `${base}/${loc}/w/${slug}${p ? "/" + p : ""}`
 
   if (scheme === "dark") {
-    // Full sweep: each group drills, shows a back arrow, and every item it lists loads and deep-links back into it.
-    for (const g of GROUPS) {
+    // Full sweep: each row lists its subs while active, and every sub loads under that row.
+    for (const r of ROWS) {
       await page.goto(w("en"), { waitUntil: "load" })
-      await page.waitForSelector("[data-nav-drilled]", { timeout: 20000 })
-      const btn = await page.$(`[data-nav-group="${g}"]`)
-      if (!btn) {
-        out[`group:${g}`] = "hidden for this role"
+      const row = await page.waitForSelector(`a[data-nav-item="${r}"]`, { timeout: 20000 }).catch(() => null)
+      if (!row) {
+        out[`row:${r}`] = "hidden for this role"
         continue
       }
-      await btn.click()
-      await page.waitForSelector(`[data-nav-drilled="${g}"]`, { timeout: 10000 })
-      check(`drill:${g}:back`, (await page.$("[data-nav-back]")) !== null)
-      const hrefs = await page.$$eval("[data-nav-drilled] a[data-nav-item]", (as) =>
-        as.map((a) => a.getAttribute("href")),
-      )
-      check(`drill:${g}:items`, hrefs.length > 0, hrefs)
+      await row.click()
+      await page.waitForSelector(`[data-nav-subs="${r}"] a[data-nav-item]`, { timeout: 15000 }).catch(() => {})
+      const hrefs = await page.$$eval(`[data-nav-subs="${r}"] a[data-nav-item]`, (as) => as.map((a) => a.getAttribute("href")))
+      check(`row:${r}:subs`, hrefs.length > 0, hrefs)
       for (const h of hrefs) {
         const resp = await page.goto(new URL(h, base).toString(), { waitUntil: "load" })
-        await page.waitForSelector("[data-nav-drilled]", { timeout: 20000 }).catch(() => {})
-        const drilled = await page
-          .getAttribute("[data-nav-drilled]", "data-nav-drilled")
-          .catch(() => null)
+        await page.waitForSelector("a[data-nav-item][aria-current=page]", { timeout: 20000 }).catch(() => {})
+        await page.waitForTimeout(400)
+        const nav = await readNav(page, null)
         const item = h.split(`/w/${slug}/`)[1]
-        check(`page:${item}`, (resp?.status() ?? 0) < 400 && drilled === g, {
-          status: resp?.status(),
-          drilled,
-        })
-        const ov = await page.evaluate(
-          () => document.documentElement.scrollWidth - window.innerWidth,
-        )
+        check(`page:${item}`, (resp?.status() ?? 0) < 400 && nav?.row === r, { status: resp?.status(), nav })
+        const ov = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         check(`overflow:${item}:1440`, ov <= 1, ov)
       }
     }
-    await page.goto(w("en", "automation/browsers"), { waitUntil: "load" })
-    await page.waitForSelector("[data-nav-back]", { timeout: 20000 })
-    await page.click("[data-nav-back]")
-    await page.waitForSelector('[data-nav-drilled=""]', { timeout: 10000 })
-    check("backArrow:staysOnPage", page.url() === w("en", "automation/browsers"), page.url())
-    await page.goto(w("en", "research"), { waitUntil: "load" })
-    await page.waitForURL(w("en", "research/runs"), { timeout: 10000 }).catch(() => {})
-    check("redirect:research", page.url() === w("en", "research/runs"), page.url())
   }
 
   for (const loc of ["en", "ar"])
@@ -137,23 +123,20 @@ for (const scheme of ["dark", "light"]) {
       check(`${k}-sheet`, sheet && collapsed, { sheet, collapsed })
       await page.keyboard.press("Escape")
 
-      // A drilled group at this size.
+      // A nested page at this size: its row and sub are current (at 390, inside the mobile sheet).
       await page.goto(w(loc, "automation/browsers"), { waitUntil: "load" })
-      await page.waitForSelector("[data-nav-drilled]", { timeout: 20000 }).catch(() => {})
+      await page.waitForSelector("a[data-nav-item][aria-current=page]", { timeout: 20000 }).catch(() => {})
+      let scope = null
       if (vw === 390) {
-        await page.click("[data-mobile-nav-toggle]").catch(() => {})
-        const ok = await page
-          .waitForSelector('[data-mobile-nav] [data-nav-drilled="automation"]', { timeout: 10000 })
-          .then(() => true)
-          .catch(() => false)
-        check(`${k}-mobile-drilled`, ok)
-      } else {
-        check(
-          `${k}-drilled`,
-          (await page.getAttribute("[data-nav-drilled]", "data-nav-drilled").catch(() => null)) ===
-            "automation",
-        )
+        await page.locator("[data-nav-toggle]").filter({ visible: true }).first().click().catch(() => {})
+        scope = (await page.waitForSelector("[data-slot=app-shell-sheet]", { timeout: 10000 }).then(() => true, () => false))
+          ? "[data-slot=app-shell-sheet]"
+          : null
+        check(`${k}-mobile-sheet`, scope !== null)
+        await page.waitForTimeout(400)
       }
+      const nav = await readNav(page, scope)
+      check(`${k}-nav-current`, nav?.row === "automations" && nav.subs === "automation-browsers", nav)
       if (shots) await page.screenshot({ path: path.join(shots, `mh526-live-${k}.png`) })
       await page.keyboard.press("Escape")
       ov = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)

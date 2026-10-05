@@ -29,6 +29,7 @@ import {
   UserMenu,
   WorkspaceSwitcher,
   toast,
+  useOptionalAppShell,
   useRegisterCommands,
   type Command,
   type Workspace,
@@ -63,13 +64,18 @@ import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
 import { mcpDocsHref } from "@/lib/mcp-docs"
 
-/** SidebarItem is a native <a>: plain clicks route client-side, modified clicks keep the browser's behaviour. */
+/**
+ * SidebarItem is a native <a>: plain clicks route client-side, modified clicks keep the browser's
+ * behaviour. Below md the sidebar is a sheet over the page, so a plain click also closes it (MH-1073).
+ */
 function useNavClick() {
   const router = useRouter()
+  const shell = useOptionalAppShell()
   return (href: string) => (e: MouseEvent<HTMLAnchorElement>) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
       return
     e.preventDefault()
+    shell?.setMobileOpen(false)
     router.push(href)
   }
 }
