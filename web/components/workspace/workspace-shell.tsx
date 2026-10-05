@@ -476,11 +476,28 @@ function ShellNav({ base, can }: { base: string; can?: string[] }) {
       {TOP_NAV.map((section) => {
         const items = visibleTop(section.items, can)
         if (items.length === 0) return null
+        // MH-1173: a group's label is a link too, to the first page in it the viewer can open
+        // (AUTOMATE → Automations, UNDERSTAND → Insights, CONNECT → Integrations).
+        const label = section.labelKey ? t(section.labelKey) : undefined
+        const first = items[0]
+        const groupHref = first.path ? `${base}/${first.path}` : base
         return (
           <SidebarGroup
             key={section.key}
             data-nav-section={section.key}
-            label={section.labelKey ? t(section.labelKey) : undefined}
+            aria-label={label}
+            label={
+              label ? (
+                <a
+                  href={groupHref}
+                  onClick={go(groupHref)}
+                  className="rounded-[3px] outline-none hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-nq-focus"
+                  data-nav-group-link={section.key}
+                >
+                  {label}
+                </a>
+              ) : undefined
+            }
           >
             {items.map((item) => (
               <TopRow
