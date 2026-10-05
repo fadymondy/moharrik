@@ -70,6 +70,8 @@ for (const scheme of ["light", "dark"]) {
           }),
           waiting: [...document.querySelectorAll("[data-waiting-list] [data-prospect]")].map((n) => n.dataset.prospect),
           hasDescribe: !!document.querySelector("[data-flagship-describe] [data-input=describe]"),
+          hasCapNote: !!document.querySelector("[data-flagship-cap], [data-research-flagship] [data-capability=search]"),
+          emptyText: [...document.querySelectorAll("[data-research-flagship] #research-flow, [data-research-flagship] #research-recent")].map((n) => n.textContent).join(" "),
           dir: document.documentElement.dir,
           dark: document.documentElement.classList.contains("dark"),
           overflow: document.documentElement.scrollWidth > innerWidth + 1,
@@ -83,10 +85,17 @@ for (const scheme of ["light", "dark"]) {
         const t = ov.totals
         check(`${k}-funnel-matches-api`, dom.funnel.join() === [t.found, t.evidence, t.prospects, t.high_fit].join(), { dom: dom.funnel, api: t })
         const flow = ov.runs.find((r) => r.status === "queued" || r.status === "running") ?? ov.runs[0]
+        if (!flow) {
+          // A workspace with no runs: no flow is drawn, and the empty state only points at the input if it is there.
+          check(`${k}-no-runs-empty`, !dom.flowRun && dom.runs.length === 0, { dom })
+          const pointsUp = /above|أعلاه/.test(dom.emptyText)
+          check(`${k}-empty-copy-honest`, pointsUp === dom.hasDescribe, { pointsUp, describe: dom.hasDescribe })
+        } else {
         check(`${k}-flow-run`, !!flow && dom.flowRun === flow.id, { dom: dom.flowRun, api: flow?.id })
         check(`${k}-stages-match-api`, !!flow && dom.stages.join() === flow.stages.map((s) => `${s.stage}:${s.status}`).join(), { dom: dom.stages })
         const want = ov.runs.slice(0, 6).map((r) => `${r.id}:${r.counts.found}/${r.counts.evidence}/${r.counts.prospects}/${r.counts.high_fit}`)
         check(`${k}-run-counts-match-api`, want.length > 0 && dom.runs.join() === want.join(), { dom: dom.runs, api: want })
+        }
       }
       const wantWaiting = (api.pr.prospects ?? [])
         .slice()
@@ -94,7 +103,8 @@ for (const scheme of ["light", "dark"]) {
         .slice(0, 5)
         .map((p) => p.id)
       check(`${k}-waiting-matches-api`, dom.waiting.join() === wantWaiting.join(), { dom: dom.waiting, api: wantWaiting })
-      check(`${k}-describe-input`, dom.hasDescribe)
+      // Without web search the input is not drawn; the page says so instead. Exactly one of the two.
+      check(`${k}-describe-or-cap-note`, dom.hasDescribe !== dom.hasCapNote, { describe: dom.hasDescribe, note: dom.hasCapNote })
       check(`${k}-dir`, dom.dir === (loc === "ar" ? "rtl" : "ltr"), dom.dir)
       check(`${k}-theme`, dom.dark === (scheme === "dark"), dom.dark)
       check(`${k}-no-overflow`, !dom.overflow)
@@ -105,7 +115,8 @@ for (const scheme of ["light", "dark"]) {
   // The sub-pages and the old ?tab= links keep working.
   for (const sub of ["runs", "evidence", "schedules"]) {
     await page.goto(`${base}/en/w/${slug}/research/${sub}`, { waitUntil: "domcontentloaded" })
-    await page.waitForTimeout(2500)
+    // A cold dev compile shows a loading shell first: wait for the page to fill in.
+    await page.waitForFunction(() => document.body.innerText.length > 200, null, { timeout: 30000 }).catch(() => {})
     const body = await page.evaluate(() => document.body.innerText.length)
     check(`${scheme}-sub-${sub}`, page.url().includes(`/research/${sub}`) && body > 200, { url: page.url(), body })
   }

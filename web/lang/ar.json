@@ -4716,6 +4716,7 @@
   "rflag.flowLatest": "آخر عملية بحث",
   "rflag.noRuns": "لا يوجد بحث بعد",
   "rflag.noRunsBody": "صف من تبحث عنه أعلاه وستظهر المراحل هنا أثناء تنفيذها.",
+  "rflag.noRunsBodyPast": "تظهر عمليات البحث ومراحلها هنا بعد تنفيذ أول عملية.",
   "rflag.noStages": "لم تحفظ هذه العملية أي مراحل.",
   "rflag.seconds": "{n} ث",
   "rflag.run.found": "{n} وُجدت",

@@ -76,6 +76,8 @@ export function ResearchFlagship({ base }: { base: string }) {
   if (ov.error) return <ErrorState error={ov.error} />
   const o = ov.data
   const canStart = !!caps.data && caps.data.can_search
+  // The empty states point at the describe input only when it is drawn.
+  const canDescribe = ws.can("research:run") && canStart
   return (
     <div className="space-y-4 sm:space-y-6" data-research-flagship>
       {ws.can("research:run") && canStart ? <Describe onStarted={refresh} /> : null}
@@ -89,10 +91,10 @@ export function ResearchFlagship({ base }: { base: string }) {
       ) : (
         <>
           <Funnel counts={o.totals} threshold={o.thresholds.high_fit_score} />
-          <Flow runs={o.runs} base={base} />
+          <Flow runs={o.runs} base={base} canDescribe={canDescribe} />
           <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
             <Waiting threshold={o.thresholds.high_fit_score} base={base} onChanged={refresh} />
-            <Runs runs={o.runs} base={base} schedules={o.schedules} onChanged={refresh} />
+            <Runs runs={o.runs} base={base} schedules={o.schedules} onChanged={refresh} canDescribe={canDescribe} />
           </div>
           {caps.data ? <CapabilityNotes caps={caps.data} /> : null}
         </>
@@ -206,7 +208,7 @@ function stageSeconds(s: ResearchStage): number | null {
   return Number.isFinite(d) && d >= 0 ? d : null
 }
 
-function Flow({ runs, base }: { runs: FlowRun[]; base: string }) {
+function Flow({ runs, base, canDescribe }: { runs: FlowRun[]; base: string; canDescribe: boolean }) {
   const { t } = useTranslations()
   const f = useFormat()
   const run = runs.find((r) => isLive(r.status)) ?? runs[0]
@@ -219,7 +221,7 @@ function Flow({ runs, base }: { runs: FlowRun[]; base: string }) {
       meta={run ? <ResearchStatusBadge status={run.status} /> : undefined}
     >
       {!run ? (
-        <Empty title={t("rflag.noRuns")} body={t("rflag.noRunsBody")} />
+        <Empty title={t("rflag.noRuns")} body={t(canDescribe ? "rflag.noRunsBody" : "rflag.noRunsBodyPast")} />
       ) : (
         <div className="space-y-3 px-5 py-4" data-flow-run={run.id} data-flow-status={run.status}>
           <p className="text-sm font-medium break-words" dir="auto">
@@ -403,11 +405,13 @@ function Runs({
   base,
   schedules,
   onChanged,
+  canDescribe,
 }: {
   runs: FlowRun[]
   base: string
   schedules: { total: number; enabled: number; next_run_at: string | null }
   onChanged: () => void
+  canDescribe: boolean
 }) {
   const { t } = useTranslations()
   const f = useFormat()
@@ -424,7 +428,7 @@ function Runs({
         </Link>
       </p>
       {runs.length === 0 ? (
-        <Empty title={t("rflag.noRuns")} body={t("rflag.noRunsBody")} />
+        <Empty title={t("rflag.noRuns")} body={t(canDescribe ? "rflag.noRunsBody" : "rflag.noRunsBodyPast")} />
       ) : (
         <ul className="divide-y divide-nq-line" data-recent-runs>
           {runs.slice(0, 6).map((r) => (
