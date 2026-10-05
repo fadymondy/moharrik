@@ -245,23 +245,30 @@ function Tile({
       data-home-tile={id}
       className="group min-w-0 rounded-card outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nq-focus"
     >
-      <Card className="h-full gap-3 px-4 py-4 shadow-xs transition-[background-color,box-shadow] group-hover:bg-nq-surface-soft group-hover:shadow-sm sm:px-5">
+      <Card className="h-full min-w-0 gap-3 px-4 py-4 shadow-xs transition-[background-color,box-shadow] group-hover:bg-nq-surface-soft group-hover:shadow-sm sm:px-5">
         <div className="flex items-start justify-between gap-2">
           <CardDescription className="min-h-[2lh] text-balance lg:min-h-0">{label}</CardDescription>
           <IconChip tone={tone}>
             <Icon />
           </IconChip>
         </div>
+        {/* A money figure ("EGP 1,250,000") is far longer than a count, so it steps down a size and
+            may wrap rather than run out of the card. */}
         <span
           className={cn(
-            "text-xl leading-none font-medium tabular-nums sm:text-3xl xl:text-4xl",
+            "min-w-0 leading-tight font-medium tabular-nums [overflow-wrap:anywhere]",
+            value.length > 7
+              ? "text-lg sm:text-2xl xl:text-3xl"
+              : "text-xl sm:text-3xl xl:text-4xl",
             tone === "warning" ? TONE_TEXT.warning : "text-foreground",
           )}
           data-tile-value
         >
           {value}
         </span>
-        <span className="min-h-4 text-xs text-muted-foreground">{sub}</span>
+        <span className="min-h-4 min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+          {sub}
+        </span>
       </Card>
     </Link>
   )

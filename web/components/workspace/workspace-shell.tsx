@@ -24,6 +24,7 @@ import {
   SidebarItem,
   SidebarSubItem,
   SidebarTrigger,
+  LogoLoader,
   Skeleton,
   UserMenu,
   WorkspaceSwitcher,
@@ -211,7 +212,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   let body: ReactNode
   if (me.error || list.error) body = <ErrorState error={me.error ?? list.error} />
-  else if (!me.data || !list.data) body = <ShellSkeleton />
+  else if (!me.data || !list.data) body = <ShellLoading />
   else if (!summary || !ctx)
     body = (
       <NotFoundState
@@ -293,12 +294,11 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   )
 }
 
-function ShellSkeleton() {
+/** While the account and workspaces load: Nasaq's LogoLoader on the Moharrik mark (MH-1122). */
+function ShellLoading() {
   return (
-    <div className="space-y-4 p-6">
-      <Skeleton className="h-8 w-56" />
-      <Skeleton className="h-4 w-96 max-w-full" />
-      <Skeleton className="h-32 w-full" />
+    <div className="flex min-h-[60dvh] items-center justify-center" aria-busy data-shell-loading>
+      <LogoLoader size={64} />
     </div>
   )
 }

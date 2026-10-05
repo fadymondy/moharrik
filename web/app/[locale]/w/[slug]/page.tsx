@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import { Card, Skeleton } from "@fadymondy/nasaq/web"
+import { LogoLoader } from "@fadymondy/nasaq/web"
 
 import {
   ActivityPanel,
@@ -71,7 +71,7 @@ export default function HomePage() {
       </div>
     )
   }
-  if (!h) return <HomeSkeleton />
+  if (!h) return <HomeLoading />
 
   return (
     <div className="space-y-4 pb-10 sm:space-y-6" data-home>
@@ -125,31 +125,11 @@ export default function HomePage() {
   )
 }
 
-function HomeSkeleton() {
+/** While Home loads: Nasaq's LogoLoader around the Moharrik mark, as in the other products. */
+function HomeLoading() {
   return (
-    <div className="space-y-4 px-4 sm:space-y-6 sm:px-6" aria-busy>
-      <div className="space-y-2 pt-2">
-        <Skeleton className="h-8 w-72" />
-        <Skeleton className="h-4 w-96 max-w-full" />
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Card key={i} className="gap-2 px-5 py-4 shadow-xs">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-8 w-12" />
-            <Skeleton className="h-3 w-20" />
-          </Card>
-        ))}
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
-        {Array.from({ length: 3 }, (_, i) => (
-          <Card key={i} className="gap-3 px-5 py-4 shadow-xs">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-          </Card>
-        ))}
-      </div>
+    <div className="flex min-h-[60dvh] items-center justify-center" aria-busy data-home-loading>
+      <LogoLoader size={64} />
     </div>
   )
 }
