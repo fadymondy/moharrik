@@ -127,6 +127,8 @@ func (s *Service) FinishLoginAs(ctx context.Context, w http.ResponseWriter, l *o
 	if lerr != nil {
 		return "", lerr
 	}
+	// The hub owns the person's address, name and picture (MH-1149).
+	s.SyncProfile(ctx, userID, id.Profile())
 
 	var email string
 	if err := s.DB.QueryRowContext(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email); err != nil {
@@ -229,7 +231,9 @@ func (s *Service) landing(ctx context.Context, l *oidc.Login, userID string) (st
 		if _, terr := s.Client.TenantByOrg(ctx, orgID); terr != nil {
 			return "/", nil
 		}
-		if link, err = s.Provision(ctx, ProvisionInput{OrgID: orgID, Slug: slugHint}); err != nil {
+		if link, err = s.Provision(ctx, ProvisionInput{OrgID: orgID, Slug: slugHint, SignIn: true}); errors.Is(err, ErrReleased) {
+			return "/", nil
+		} else if err != nil {
 			s.Log.Error("circlexo: provisioning at sign-in", "org", orgID, "err", err)
 			return "/", nil
 		}
