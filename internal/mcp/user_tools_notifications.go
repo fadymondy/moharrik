@@ -3,7 +3,9 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
+	"time"
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/notifications"
@@ -38,6 +40,7 @@ func itemSummary(it notifications.NotificationItemOut) map[string]any {
 		"id": it.ID, "source_id": it.SourceID, "source_key": it.SourceKey, "origin": it.Origin, "source": it.SourceName, "kind": it.Kind, "severity": it.Severity,
 		"title": it.Title, "body": clipText(it.Body, 300), "actor": it.Actor, "url": it.URL,
 		"occurred_at": it.OccurredAt, "read": it.ReadAt != nil, "saved": it.SavedAt != nil,
+		"state": it.State, "resolved_at": it.ResolvedAt, "snoozed_until": it.SnoozedUntil,
 	}
 }
 
@@ -46,7 +49,8 @@ func itemPage(res *notifications.ItemList) (string, error) {
 	for _, it := range res.Items {
 		list = append(list, itemSummary(it))
 	}
-	return jsonResult(map[string]any{"unread_count": res.UnreadCount, "total": res.Total, "count": len(list), "items": list,
+	return jsonResult(map[string]any{"unread_count": res.UnreadCount, "actionable_count": res.ActionableCount,
+		"snoozed_count": res.SnoozedCount, "resolved_count": res.ResolvedCount, "total": res.Total, "count": len(list), "items": list,
 		"next_cursor": res.NextCursor, "sources": res.Sources, "kinds": res.Kinds})
 }
 
@@ -93,10 +97,11 @@ func NotificationTools() []Tool {
 			Description: "The notification feed, newest first, a page at a time: each item's id, source, severity, title, actor, link, " +
 				"and whether it is read or saved. unread_only defaults to true. Search with q; filter by source_id (a source_key from " +
 				"an item or from sources), kind or severity; the answer also counts items per source and per kind. Pass next_cursor back " +
-				"as cursor for more. get_notification opens one in full.",
+				"as cursor for more. view picks actionable (the default: open and not snoozed), snoozed, resolved or all. get_notification opens one in full.",
 			Scope: "notifications:read",
 			InputSchema: schema(nil, map[string]any{
 				"unread_only": map[string]any{"type": "boolean", "description": "Default true"},
+				"view":        map[string]any{"type": "string", "enum": []string{"actionable", "snoozed", "resolved", "all"}, "description": "Default actionable: open and not snoozed"},
 				"q":           prop("string", "Search the title, body, actor and source"),
 				"source_id":   prop("string", "Only this source's items: a webhook source id, a collected source id, or internal:<label>"),
 				"kind":        prop("string", "Only this item kind (reply, video, post, issue, …)"),
@@ -107,6 +112,7 @@ func NotificationTools() []Tool {
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				var in struct {
 					UnreadOnly *bool  `json:"unread_only"`
+					View       string `json:"view"`
 					Q          string `json:"q"`
 					SourceID   string `json:"source_id"`
 					Kind       string `json:"kind"`
@@ -121,7 +127,7 @@ func NotificationTools() []Tool {
 					in.Limit = 50
 				}
 				res, err := notifications.ListItems(ctx, a, notifications.ItemFilter{
-					Unread: in.UnreadOnly == nil || *in.UnreadOnly, SourceID: in.SourceID, Severity: in.Severity, Limit: in.Limit, Cursor: in.Cursor,
+					View: in.View, Unread: in.UnreadOnly == nil || *in.UnreadOnly, SourceID: in.SourceID, Severity: in.Severity, Limit: in.Limit, Cursor: in.Cursor,
 					Q: in.Q, Kind: in.Kind,
 				})
 				if err != nil {
@@ -237,8 +243,77 @@ func NotificationTools() []Tool {
 			},
 		},
 		{
+			Name: "resolve_notification",
+			Description: "Resolve one notification (the default): it leaves the actionable list and the unread counts, and stays findable under " +
+				"view:resolved. resolved:false reopens it. Resolving is not reading: the read flag is left as it is.",
+			Scope: "notifications:write",
+			InputSchema: schema([]string{"id"}, map[string]any{
+				"id":       prop("string", "Notification id"),
+				"resolved": map[string]any{"type": "boolean", "description": "Default true; false reopens it"},
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					ID       string `json:"id"`
+					Resolved *bool  `json:"resolved"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("id", in.ID)
+				if err != nil {
+					return "", err
+				}
+				it, err := notifications.SetResolved(ctx, a, id, in.Resolved == nil || *in.Resolved)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"item": itemSummary(*it)})
+			},
+		},
+		{
+			Name: "snooze_notification",
+			Description: "Snooze one open notification until a time (until, RFC 3339, in the future and at most a year ahead): it leaves the " +
+				"actionable list and comes back by itself then. clear:true brings it back now. A resolved notification cannot be snoozed.",
+			Scope: "notifications:write",
+			InputSchema: schema([]string{"id"}, map[string]any{
+				"id":    prop("string", "Notification id"),
+				"until": prop("string", "RFC 3339, e.g. 2026-10-01T09:00:00+03:00; required unless clear is true"),
+				"clear": map[string]any{"type": "boolean", "description": "true ends the snooze now"},
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					ID    string `json:"id"`
+					Until string `json:"until"`
+					Clear bool   `json:"clear"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("id", in.ID)
+				if err != nil {
+					return "", err
+				}
+				var until *time.Time
+				if !in.Clear {
+					if strings.TrimSpace(in.Until) == "" {
+						return "", errors.New("until is required (RFC 3339), or pass clear:true to end a snooze")
+					}
+					t, err := time.Parse(time.RFC3339, strings.TrimSpace(in.Until))
+					if err != nil {
+						return "", errors.New("until must be RFC 3339, e.g. 2026-10-01T09:00:00+03:00")
+					}
+					until = &t
+				}
+				it, err := notifications.SetSnooze(ctx, a, id, until)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"item": itemSummary(*it)})
+			},
+		},
+		{
 			Name:        "mark_all_notifications_read",
-			Description: "Mark every unread notification read — or only one source's, with source_id. Saved items stay saved.",
+			Description: "Mark every unread, actionable notification read — or only one source's, with source_id. Saved items stay saved; snoozed and resolved ones are left alone.",
 			Scope:       "notifications:write",
 			InputSchema: schema(nil, map[string]any{"source_id": prop("string", "Only this source's items: a webhook source id, a collected source id, or internal:<label>")}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {

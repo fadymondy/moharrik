@@ -439,7 +439,7 @@ func Build(ctx context.Context, db *sql.DB, wsID, role string, env Env, now time
 		o.ConversationsDaily = b.conversationsDaily(o.Timezone, chartStart, chartEnd)
 	}
 	if can(authz.NotificationsRead) {
-		o.Today.UnreadNotifications = b.count(`SELECT count(*) FROM notification_items WHERE workspace_id = $1 AND read_at IS NULL`)
+		o.Today.UnreadNotifications = b.count(`SELECT count(*) FROM notification_items WHERE workspace_id = $1 AND read_at IS NULL AND (resolved_at IS NULL AND (snoozed_until IS NULL OR snoozed_until <= now()))`)
 		o.Notifications = b.latestNotifications()
 	}
 	if can(authz.ResearchRead) {
@@ -593,7 +593,7 @@ func (b *builder) latestNotifications() []NotificationItem {
 	list := []NotificationItem{}
 	b.each(`
 		SELECT id, severity, title, source_name, url, read_at IS NOT NULL, occurred_at
-		FROM notification_items WHERE workspace_id = $1
+		FROM notification_items WHERE workspace_id = $1 AND (resolved_at IS NULL AND (snoozed_until IS NULL OR snoozed_until <= now()))
 		ORDER BY occurred_at DESC, id LIMIT $2`, []any{Latest}, func(r *sql.Rows) error {
 		var n NotificationItem
 		if err := r.Scan(&n.ID, &n.Severity, &n.Title, &n.SourceName, &n.URL, &n.Read, &n.OccurredAt); err != nil {

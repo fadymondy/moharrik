@@ -6,6 +6,7 @@ import { Badge, Button, Sheet, SheetContent, SheetDescription, SheetHeader, Shee
 
 import { Bdi } from "@/components/bidi"
 import { LoadingRows } from "@/components/states"
+import { StateBadge, TriageActions } from "@/components/notifications/triage"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type NotificationSeverity } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -125,6 +126,7 @@ export function NotificationDetailSheet({
         ) : (
           <div className="flex flex-col gap-5 px-4 pb-6">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <StateBadge item={item} />
               <Badge variant={severityVariant[item.severity]}>
                 {t(`notifications.severity.${item.severity}`)}
               </Badge>
@@ -179,6 +181,14 @@ export function NotificationDetailSheet({
 
             {canWrite ? (
               <div className="flex flex-wrap gap-2">
+                <TriageActions
+                  item={item}
+                  size="sm"
+                  onChange={() => {
+                    void detail.mutate()
+                    onChange()
+                  }}
+                />
                 <Button
                   variant="secondary"
                   size="sm"

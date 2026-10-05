@@ -74,6 +74,8 @@ func classify(r *http.Request) tier {
 		// The MCP tool reference (MH-428): public docs, the same names and
 		// schemas tools/list hands any token, and no workspace data.
 		"/api/mcp/docs",
+		// The permission explainer (MH-1069): the same registry, summarised per scope.
+		"/api/mcp/permissions",
 		// Double opt-in and unsubscribe links from an email: the random token in
 		// the body is the authorization (internal/marketing).
 		"/api/mail/confirm",

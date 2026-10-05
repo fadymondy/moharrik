@@ -67,7 +67,7 @@ var UserScopes = []ScopeDef{
 	// enabling or disabling a webhook source changes what the whole workspace
 	// collects and shows a secret once, so it is a manager's (…:manage).
 	{"notifications:read", "Read the notification center, its webhook sources and its collected sources", authz.Member},
-	{"notifications:write", "Mark notifications read or unread, and save them for later", authz.Member},
+	{"notifications:write", "Mark notifications read or unread, save them for later, resolve them and snooze them", authz.Member},
 	{"notifications:manage", "Create, rotate, enable and disable webhook sources; add, change and collect collected sources", authz.Manager},
 	{"research:read", "Read research runs and collected evidence", authz.Member},
 	{"research:run", "Start research runs", authz.Member},

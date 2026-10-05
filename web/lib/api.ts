@@ -719,7 +719,16 @@ export type NotificationItem = {
   occurred_at: string
   read_at: string | null
   saved_at: string | null
+  /** MH-1069: set when someone marked it handled. */
+  resolved_at: string | null
+  /** MH-1069: hidden from the default list until this time. */
+  snoozed_until: string | null
+  /** actionable = open and not snoozed (the default list and every badge). */
+  state: NotificationState
 }
+
+export type NotificationState = "actionable" | "snoozed" | "resolved"
+export type NotificationView = "actionable" | "snoozed" | "resolved" | "all"
 
 export type NotificationOrigin = "webhook" | "collected" | "internal"
 
@@ -738,6 +747,10 @@ export type NotificationPage = {
   items: NotificationItem[]
   unread_count: number
   saved_count: number
+  /** MH-1069: how many items each view holds, whatever view is shown. */
+  actionable_count: number
+  snoozed_count: number
+  resolved_count: number
   total: number
   next_cursor: string
   sources: NotificationSourceFacet[]

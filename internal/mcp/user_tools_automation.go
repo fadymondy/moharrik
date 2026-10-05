@@ -240,6 +240,7 @@ func WorkflowTools() []Tool {
 			Name: "start_workflow",
 			Description: "Run a saved workflow on a paired browser, supplying values for its placeholders. " +
 				"A workflow that publishes, sends or submits needs confirm: true — without it, returns needs_confirm: true and runs nothing.",
+			Confirm: "A workflow that publishes, sends or submits only runs when the call carries confirm: true; without it nothing runs.",
 			Scope: "automation:run",
 			InputSchema: schema([]string{"workflow_id", "browser_id"}, map[string]any{
 				"workflow_id": map[string]any{"type": "string", "description": "From list_workflows"},

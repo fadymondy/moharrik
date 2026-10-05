@@ -11,6 +11,7 @@ import { CopyField, Ltr } from "@/components/copy-field"
 import Link from "next/link"
 import { ConnectClients } from "@/components/mcp/connect-clients"
 import { ConnectedApps } from "@/components/mcp/connected-apps"
+import { PermissionsExplainer } from "@/components/mcp/permissions-explainer"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type McpScope, type McpToken } from "@/lib/api"
@@ -114,6 +115,8 @@ export default function McpTokensPage() {
       )}
 
       <ConnectedApps grants={grants} />
+
+      <PermissionsExplainer />
 
       <section className="border-t border-nq-line px-6 py-8" aria-labelledby="mcp-connect">
         <div className="mb-4 max-w-2xl space-y-1.5">

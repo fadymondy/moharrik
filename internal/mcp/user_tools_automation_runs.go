@@ -41,6 +41,7 @@ func WorkflowRunTools() []Tool {
 				"A run that used a secret value cannot be repeated, because the value is never stored. A workflow that publishes, sends or submits " +
 				"needs confirm: true — without it, returns needs_confirm: true and runs nothing.",
 			Scope: "automation:run",
+			Confirm: "A workflow that publishes, sends or submits only runs when the call carries confirm: true; without it nothing runs.",
 			InputSchema: schema([]string{"run_id"}, map[string]any{
 				"run_id":     prop("string", "The run to repeat, from get_browser_run"),
 				"browser_id": prop("string", "Which browser to run on; defaults to the one the original ran on"),

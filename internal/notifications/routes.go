@@ -151,7 +151,8 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Unread   bool   `query:"unread" doc:"Only items not yet marked read."`
-		Saved    bool   `query:"saved" doc:"Only saved items."`
+		Saved    bool   `query:"saved" doc:"Only saved items (across every view unless view is given)."`
+		View     string `query:"view" enum:",actionable,snoozed,resolved,all" doc:"actionable (default): open and not snoozed. snoozed: hidden until their time. resolved. all."`
 		SourceID string `query:"source_id" doc:"A source key (an item's source_key, or a key from sources): a webhook source, a collected source, or internal:<label>."`
 		Severity string `query:"severity" enum:",info,warning,error"`
 		Kind     string `query:"kind" maxLength:"60" doc:"One item kind, e.g. reply, video, issue."`
@@ -159,7 +160,7 @@ func Register(api huma.API, a *app.App) {
 		Limit    int    `query:"limit" minimum:"1" maximum:"500"`
 		Cursor   string `query:"cursor" doc:"next_cursor from the previous page"`
 	}) (*body[ItemList], error) {
-		res, err := ListItems(ctx, a, ItemFilter{Unread: in.Unread, Saved: in.Saved, SourceID: in.SourceID, Severity: in.Severity,
+		res, err := ListItems(ctx, a, ItemFilter{View: in.View, Unread: in.Unread, Saved: in.Saved, SourceID: in.SourceID, Severity: in.Severity,
 			Kind: in.Kind, Q: in.Q, Limit: in.Limit, Cursor: in.Cursor})
 		if err != nil {
 			return nil, err
@@ -220,6 +221,53 @@ func Register(api huma.API, a *app.App) {
 		return out(struct {
 			Marked int64 `json:"marked"`
 		}{n}), nil
+	})
+
+	type itemOut = body[struct {
+		Item NotificationItemOut `json:"item"`
+	}]
+	wrap := func(it *NotificationItemOut, err error) (*itemOut, error) {
+		if err != nil {
+			return nil, err
+		}
+		return out(struct {
+			Item NotificationItemOut `json:"item"`
+		}{*it}), nil
+	}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-resolve-notification", Method: http.MethodPost, Path: "/api/w/notifications/{id}/resolve",
+		Summary: "Resolve an item: it leaves the actionable list and every unread count (does not mark it read)", Tags: tags,
+	}, func(ctx context.Context, in *idPath) (*itemOut, error) {
+		return wrap(SetResolved(ctx, a, in.ID, true))
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-unresolve-notification", Method: http.MethodPost, Path: "/api/w/notifications/{id}/unresolve",
+		Summary: "Reopen a resolved item", Tags: tags,
+	}, func(ctx context.Context, in *idPath) (*itemOut, error) {
+		return wrap(SetResolved(ctx, a, in.ID, false))
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-snooze-notification", Method: http.MethodPost, Path: "/api/w/notifications/{id}/snooze",
+		Summary: "Hide an open item from the actionable list until a time (at most a year ahead); it comes back by itself", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id"`
+		Body struct {
+			Until time.Time `json:"until" doc:"RFC 3339 time in the future, at most a year ahead."`
+		}
+	}) (*itemOut, error) {
+		u := in.Body.Until
+		return wrap(SetSnooze(ctx, a, in.ID, &u))
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-unsnooze-notification", Method: http.MethodPost, Path: "/api/w/notifications/{id}/unsnooze",
+		Summary: "Bring a snoozed item back now", Tags: tags,
+	}, func(ctx context.Context, in *idPath) (*itemOut, error) {
+		return wrap(SetSnooze(ctx, a, in.ID, nil))
 	})
 
 	registerCollected(api, a)

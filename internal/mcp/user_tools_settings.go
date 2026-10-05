@@ -141,6 +141,7 @@ func SettingsTools() []Tool {
 		{
 			Name:        "list_invitations",
 			Description: "The workspace's pending invitations: id, email, role, when each expires. Links are not shown again.",
+			ReadOnly: true,
 			Scope:       "members:manage",
 			InputSchema: schema(nil, map[string]any{}),
 			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
@@ -277,6 +278,7 @@ func SettingsTools() []Tool {
 				"gives campaign writers just the names): id, host, port, sender, TLS, which is the default " +
 				"(transactional mail) and the campaign default, and the last test's outcome. Passwords are never returned; " +
 				"has_password says whether one is stored.",
+			ReadOnly: true,
 			Scope:       "mail:settings",
 			InputSchema: schema(nil, map[string]any{}),
 			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
@@ -412,6 +414,7 @@ func SettingsTools() []Tool {
 			Description: "The Google accounts connected to the workspace, what each was granted (GA4, Search Console, YouTube), " +
 				"who connected it, and whether it needs reconnecting. Connecting a new account is done on the page: Google " +
 				"asks the person themselves.",
+			ReadOnly: true,
 			Scope:       "integrations:manage",
 			InputSchema: schema(nil, map[string]any{}),
 			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
@@ -460,6 +463,7 @@ func SettingsTools() []Tool {
 			Description: "Every GA4 property, Search Console site and YouTube channel the connected accounts can see, switched on " +
 				"or not, with the account it is read through. google_resources lists only the enabled ones. rediscover=true " +
 				"asks Google again first.",
+			ReadOnly: true,
 			Scope: "integrations:manage",
 			InputSchema: schema(nil, map[string]any{
 				"rediscover": prop("boolean", "Ask Google again what every connected account can see"),

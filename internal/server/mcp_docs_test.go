@@ -94,3 +94,61 @@ func TestMCPDocsMatchTheServer(t *testing.T) {
 		}
 	}
 }
+
+// The permission explainer (MH-1069) is public like the docs and lists exactly
+// the tools a token with every scope is served, each once.
+func TestMCPPermissionsMatchTheServer(t *testing.T) {
+	sf := bootSurface(t)
+	anon := newClient(t, sf.srv.URL)
+	agent, _ := mint(t, sf.alice, "permissions check", allUserScopes())
+	code, body := agent.do("POST", "/api/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+	if code != 200 {
+		t.Fatalf("tools/list: %d %s", code, body)
+	}
+	var listed struct {
+		Result struct {
+			Tools []struct {
+				Name string `json:"name"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &listed); err != nil {
+		t.Fatal(err)
+	}
+	for _, lang := range []string{"en", "ar"} {
+		code, body := anon.do("GET", "/api/mcp/permissions?lang="+lang, nil)
+		if code != 200 {
+			t.Fatalf("anonymous GET /api/mcp/permissions?lang=%s: %d %s", lang, code, body)
+		}
+		var raw struct {
+			Lang   string `json:"lang"`
+			Scopes []struct {
+				CanRead      []struct{ Name string } `json:"can_read"`
+				CanChange    []struct{ Name string } `json:"can_change"`
+				NeedsConfirm []struct{ Name string } `json:"needs_confirm"`
+			} `json:"scopes"`
+		}
+		if err := json.Unmarshal(body, &raw); err != nil {
+			t.Fatal(err)
+		}
+		if raw.Lang != lang {
+			t.Errorf("lang=%s answered in %q", lang, raw.Lang)
+		}
+		listedBy := map[string]int{}
+		for _, s := range raw.Scopes {
+			for _, l := range [][]struct{ Name string }{s.CanRead, s.CanChange, s.NeedsConfirm} {
+				for _, tool := range l {
+					listedBy[strings.ToLower(tool.Name)]++
+				}
+			}
+		}
+		if len(listedBy) != len(listed.Result.Tools) {
+			t.Errorf("%s: explainer covers %d tools, the server serves %d", lang, len(listedBy), len(listed.Result.Tools))
+		}
+		for _, tool := range listed.Result.Tools {
+			if listedBy[strings.ToLower(tool.Name)] != 1 {
+				t.Errorf("%s: %s is explained %d times", lang, tool.Name, listedBy[strings.ToLower(tool.Name)])
+			}
+		}
+	}
+}

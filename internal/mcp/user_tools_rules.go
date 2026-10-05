@@ -217,6 +217,7 @@ func RuleTools() []Tool {
 			Name: "test_rule",
 			Description: "Test a saved automation rule against a sample event. Nothing is sent or written: the answer says whether the " +
 				"conditions held and what each action would do, with its {{fields}} filled in. Fields left out come from the trigger's sample.",
+			ReadOnly: true,
 			Scope: "automation:run",
 			InputSchema: schema([]string{"id"}, map[string]any{
 				"id":         map[string]any{"type": "string"},

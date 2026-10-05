@@ -157,12 +157,12 @@ func Register(api huma.API, a *app.App) {
 			rows.Close()
 		}
 		if b.CanNotifications {
-			if err := db().QueryRowContext(ctx, `SELECT count(*) FROM notification_items WHERE workspace_id = $1 AND read_at IS NULL`, s.WorkspaceID).Scan(&b.UnreadNotifications); err != nil {
+			if err := db().QueryRowContext(ctx, `SELECT count(*) FROM notification_items WHERE workspace_id = $1 AND read_at IS NULL AND (resolved_at IS NULL AND (snoozed_until IS NULL OR snoozed_until <= now()))`, s.WorkspaceID).Scan(&b.UnreadNotifications); err != nil {
 				return nil, fail
 			}
 			rows, err := db().QueryContext(ctx, `
 				SELECT id, title, source_name, severity, read_at IS NULL, occurred_at
-				FROM notification_items WHERE workspace_id = $1
+				FROM notification_items WHERE workspace_id = $1 AND (resolved_at IS NULL AND (snoozed_until IS NULL OR snoozed_until <= now()))
 				ORDER BY occurred_at DESC LIMIT $2`, s.WorkspaceID, bellLimit)
 			if err != nil {
 				return nil, fail
@@ -215,7 +215,7 @@ func Register(api huma.API, a *app.App) {
 			}
 		}
 		if notes {
-			r, err := db().ExecContext(ctx, `UPDATE notification_items SET read_at = now() WHERE workspace_id = $1 AND read_at IS NULL`, s.WorkspaceID)
+			r, err := db().ExecContext(ctx, `UPDATE notification_items SET read_at = now() WHERE workspace_id = $1 AND read_at IS NULL AND (resolved_at IS NULL AND (snoozed_until IS NULL OR snoozed_until <= now()))`, s.WorkspaceID)
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not mark notifications read")
 			}
