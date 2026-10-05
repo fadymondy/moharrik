@@ -46,7 +46,7 @@ export default function CompanyDetailPage() {
       )
     return <ErrorState error={detail.error} />
   }
-  if (!detail.data) return <LoadingRows rows={6} />
+  if (!detail.data) return <LoadingRows rows={6} layout="detail" />
 
   const { company, contacts, deals, activities } = detail.data
 

@@ -116,7 +116,7 @@ export default function PresetsGalleryPage() {
       {presets.error ? (
         <ErrorState error={presets.error} />
       ) : presets.isLoading ? (
-        <LoadingRows rows={6} />
+        <LoadingRows rows={6} layout="cards" />
       ) : needle ? (
         searchCount === 0 ? (
           <EmptyState title={t("presets.noMatch", { q })} />

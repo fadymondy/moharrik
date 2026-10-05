@@ -88,7 +88,7 @@ export default function IcpSettingsPage() {
       {prof.error ? (
         <ErrorState error={prof.error} />
       ) : !prof.data ? (
-        <LoadingRows rows={6} />
+        <LoadingRows rows={6} layout="form" />
       ) : (
         <Editor out={prof.data} onSaved={(o) => prof.mutate(o, { revalidate: false })} />
       )}

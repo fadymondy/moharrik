@@ -86,7 +86,7 @@ export default function ContactDetailPage() {
       )
     return <ErrorState error={detail.error} />
   }
-  if (!detail.data) return <LoadingRows rows={6} />
+  if (!detail.data) return <LoadingRows rows={6} layout="detail" />
 
   const { contact, deals, activities } = detail.data
 

@@ -195,7 +195,7 @@ function AuditLog() {
           {page.error ? (
             <ErrorState error={page.error} />
           ) : !page.data ? (
-            <LoadingRows rows={6} />
+            <LoadingRows rows={6} layout="table" />
           ) : entries.length === 0 ? (
             <EmptyState
               title={filtered ? t("audit.noMatch") : t("audit.empty")}

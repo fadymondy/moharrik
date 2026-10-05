@@ -4978,5 +4978,6 @@
   "inbox.dock.close": "أغلق البريد الوارد",
   "inbox.dock.caughtUp": "لا رسائل غير مقروءة",
   "inbox.intel.close": "أغلق لوحة العميل",
-  "inbox.channel.allChannels": "كل القنوات"
+  "inbox.channel.allChannels": "كل القنوات",
+  "common.loading": "جارٍ التحميل…"
 }

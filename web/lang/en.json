@@ -4978,5 +4978,6 @@
   "inbox.dock.close": "Close inbox",
   "inbox.dock.caughtUp": "All caught up",
   "inbox.intel.close": "Close the customer panel",
-  "inbox.channel.allChannels": "All channels"
+  "inbox.channel.allChannels": "All channels",
+  "common.loading": "Loading…"
 }

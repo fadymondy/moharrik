@@ -514,7 +514,7 @@ export function InboxPanel({
           {list.error ? (
             <ErrorState error={list.error} />
           ) : !list.data ? (
-            <LoadingRows rows={5} />
+            <LoadingRows rows={7} layout="conversations" />
           ) : items.length === 0 ? (
             <EmptyState
               title={t("inbox.empty")}
@@ -1026,7 +1026,7 @@ function Thread({
   }
 
   if (detail.error) return <ErrorState error={detail.error} />
-  if (!detail.data) return <LoadingRows rows={4} />
+  if (!detail.data) return <LoadingRows rows={6} layout="chat" />
   const { conversation: c, visitor, reply_language: replyLang } = detail.data
   const total = detail.data.messages_total ?? detail.data.messages.length
   // `earlier` also holds a copy of the newest page from when it was loaded;

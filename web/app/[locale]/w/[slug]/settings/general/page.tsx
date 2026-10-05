@@ -147,7 +147,7 @@ export default function GeneralSettingsPage() {
       <div className="px-6 py-6">
         <h2 className="text-base font-medium">{t("generalSettings.defaultCountry")}</h2>
         {!current.data ? (
-          <LoadingRows rows={2} />
+          <LoadingRows rows={4} layout="form" />
         ) : !canWrite ? (
           <p className="py-6 text-sm text-muted-foreground">{t("generalSettings.adminOnly")}</p>
         ) : (

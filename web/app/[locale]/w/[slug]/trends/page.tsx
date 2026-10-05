@@ -207,7 +207,7 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
       {pages.error ? (
         <ErrorState error={pages.error} />
       ) : !pages.data ? (
-        <LoadingRows rows={5} />
+        <LoadingRows rows={6} layout="cards" />
       ) : topics.length === 0 ? (
         <EmptyState
           title={
@@ -358,7 +358,7 @@ function ItemsTab() {
       {pages.error ? (
         <ErrorState error={pages.error} />
       ) : !pages.data ? (
-        <LoadingRows rows={5} />
+        <LoadingRows rows={6} layout="cards" />
       ) : items.length === 0 ? (
         <EmptyState title={total === 0 ? t("trends.empty") : t("trends.noMatches")} />
       ) : (

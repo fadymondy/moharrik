@@ -45,7 +45,7 @@ export default function DealDetailPage() {
       )
     return <ErrorState error={detail.error} />
   }
-  if (!detail.data || !pipeline.data) return <LoadingRows rows={6} />
+  if (!detail.data || !pipeline.data) return <LoadingRows rows={6} layout="detail" />
 
   const { deal, activities } = detail.data
   const closedTone: Record<StageKind, "brand" | "neutral" | "outline"> = {

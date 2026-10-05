@@ -46,7 +46,7 @@ export default function LeadDetailPage() {
       )
     return <ErrorState error={detail.error} />
   }
-  if (!lead) return <LoadingRows rows={6} />
+  if (!lead) return <LoadingRows rows={6} layout="detail" />
 
   return (
     <>
