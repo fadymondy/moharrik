@@ -272,6 +272,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 		ccAI = contactcontext.ResolveAIClient(a.Log) // nil is a fully supported state (MH-586): every ask/report path works without one
 	}
 	contactcontext.Register(api, a, ccAI) // Contacts → WhatsApp export/notes/ask/report (MH-586)
+	contactcontext.RegisterBrief(api, a, ccAI) // the AI context brief on contacts, companies and leads (MH-1169)
 	trends.Register(api, a)
 	trends.RegisterDigest(api, a) // the trends digest (MH-389)
 	automation.Register(api, a, automation.Default())

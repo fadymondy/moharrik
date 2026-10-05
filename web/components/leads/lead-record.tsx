@@ -7,6 +7,7 @@ import { useParams, usePathname } from "next/navigation"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import {
   ArrowRightLeftIcon,
+  BrainIcon,
   Building2Icon,
   ClockIcon,
   FileTextIcon,
@@ -93,6 +94,12 @@ export function LeadRecord({ children }: { children: ReactNode }) {
       label: t("leads.attribution"),
       icon: RouteIcon,
       href: `${rec}/attribution`,
+    },
+    {
+      value: "context",
+      label: t("record.tab.context"),
+      icon: BrainIcon,
+      href: `${rec}/context`,
     },
   ]
 

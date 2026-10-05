@@ -8,6 +8,7 @@ import { createContext, useContext, useState, type ReactNode } from "react"
 import { useSWRConfig } from "swr"
 import {
   ActivityIcon,
+  BrainIcon,
   Building2Icon,
   CalendarIcon,
   HandshakeIcon,
@@ -184,6 +185,12 @@ export function ContactRecord({ children }: { children: ReactNode }) {
       label: t("record.tab.intelligence"),
       icon: SparklesIcon,
       href: `${rec}/intelligence`,
+    },
+    {
+      value: "context",
+      label: t("record.tab.context"),
+      icon: BrainIcon,
+      href: `${rec}/context`,
     },
   ]
 

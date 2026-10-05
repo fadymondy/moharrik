@@ -21,6 +21,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/ai"
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/authz"
 	"github.com/fadymondy/moharrik/internal/inbox"
 	"github.com/fadymondy/moharrik/internal/tenant"
 )
@@ -241,5 +242,115 @@ func Register(api huma.API, a *app.App, aiClient *ai.Client) {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
 		return out(list), nil
+	})
+}
+
+// briefKinds maps the REST path segment to the record kind and the
+// permissions that read and write it (MH-1169).
+var briefKinds = map[string]struct {
+	kind        BriefKind
+	read, write string
+}{
+	"contacts":  {BriefContact, authz.ContactsRead, authz.ContactsWrite},
+	"companies": {BriefCompany, authz.ContactsRead, authz.ContactsWrite},
+	"leads":     {BriefLead, authz.LeadsRead, authz.LeadsWrite},
+}
+
+func briefScope(ctx context.Context, collection string, write bool) (BriefKind, string, error) {
+	k, ok := briefKinds[collection]
+	if !ok {
+		return "", "", huma.Error404NotFound("not found")
+	}
+	s, ok := tenant.From(ctx)
+	if !ok {
+		return "", "", huma.Error404NotFound("workspace not found")
+	}
+	action := k.read
+	if write {
+		action = k.write
+	}
+	if !authz.Can(s.Role, action) {
+		return "", "", huma.Error403Forbidden("your role cannot do this in this workspace")
+	}
+	return k.kind, s.WorkspaceID, nil
+}
+
+func briefErr(err error) error {
+	if errors.Is(err, ErrBriefNotFound) {
+		return huma.Error404NotFound("not found")
+	}
+	return huma.Error422UnprocessableEntity(err.Error())
+}
+
+// RegisterBrief mounts the AI context brief routes for contacts, companies and
+// leads (MH-1169): one explicit path per collection.
+func RegisterBrief(api huma.API, a *app.App, aiClient *ai.Client) {
+	for _, collection := range []string{"contacts", "companies", "leads"} {
+		registerBrief(api, a, aiClient, collection)
+	}
+}
+
+func registerBrief(api huma.API, a *app.App, aiClient *ai.Client, collection string) {
+	type path struct {
+		wsHeader
+		ID string `path:"id"`
+	}
+	tags := []string{"Contacts"}
+	if collection == "leads" {
+		tags = []string{"Leads"}
+	}
+	base := "/api/w/" + collection + "/{id}/ai-context"
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-" + collection + "-ai-context", Method: http.MethodGet, Path: base,
+		Summary: "Read the AI context brief: who they are and how we speak to them.", Tags: tags,
+	}, func(ctx context.Context, in *path) (*body[Brief], error) {
+		kind, ws, err := briefScope(ctx, collection, false)
+		if err != nil {
+			return nil, err
+		}
+		b, err := GetBrief(ctx, a, ws, kind, in.ID)
+		if err != nil {
+			return nil, briefErr(err)
+		}
+		return out(*b), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-" + collection + "-ai-context-save", Method: http.MethodPut, Path: base,
+		Summary: "Save (replace) the AI context brief. Empty markdown clears it.", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		path
+		Body struct {
+			Markdown string `json:"markdown" maxLength:"20000"`
+		}
+	}) (*body[Brief], error) {
+		kind, ws, err := briefScope(ctx, collection, true)
+		if err != nil {
+			return nil, err
+		}
+		b, err := SaveBrief(ctx, a, ws, kind, in.ID, in.Body.Markdown, userID(ctx))
+		if err != nil {
+			return nil, briefErr(err)
+		}
+		return out(*b), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-" + collection + "-ai-context-draft", Method: http.MethodPost, Path: base + "/draft",
+		Summary: "Draft the AI context brief from the record's own history. Saves nothing; works with no AI provider configured.", Tags: tags,
+	}, func(ctx context.Context, in *path) (*body[BriefDraft], error) {
+		kind, ws, err := briefScope(ctx, collection, true)
+		if err != nil {
+			return nil, err
+		}
+		if !CheckRateLimit(ws) {
+			return nil, huma.Error429TooManyRequests("too many drafts at once; try again in a minute")
+		}
+		d, err := DraftBrief(ctx, a, aiClient, ws, kind, in.ID)
+		if err != nil {
+			return nil, briefErr(err)
+		}
+		return out(*d), nil
 	})
 }

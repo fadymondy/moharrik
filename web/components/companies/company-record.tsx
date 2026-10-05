@@ -7,6 +7,7 @@ import { useParams, usePathname } from "next/navigation"
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react"
 import {
   ActivityIcon,
+  BrainIcon,
   Building2Icon,
   CalendarIcon,
   FactoryIcon,
@@ -111,6 +112,12 @@ export function CompanyRecord({ children }: { children: ReactNode }) {
       icon: ActivityIcon,
       href: `${rec}/activity`,
       count: data.activities_total || undefined,
+    },
+    {
+      value: "context",
+      label: t("record.tab.context"),
+      icon: BrainIcon,
+      href: `${rec}/context`,
     },
     { value: "details", label: t("record.tab.details"), icon: PencilIcon, href: `${rec}/details` },
   ]
