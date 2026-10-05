@@ -460,6 +460,9 @@ func RegisterConnect(api huma.API, a *app.App, hub *Hub) {
 		if errors.Is(err, tenant.ErrNotMember) {
 			return nil, huma.Error404NotFound("workspace not found")
 		}
+		if errors.Is(err, tenant.ErrSuspended) || errors.Is(err, tenant.ErrAccountSuspended) {
+			return nil, huma.Error403Forbidden(err.Error())
+		}
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not resolve the workspace")
 		}

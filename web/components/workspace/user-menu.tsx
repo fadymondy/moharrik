@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
-import { LogOutIcon, MessageSquarePlusIcon, UserIcon } from "lucide-react"
+import { LogOutIcon, MessageSquarePlusIcon, ShieldCheckIcon, UserIcon } from "lucide-react"
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
 
+import { usePlatform } from "@/lib/admin"
 import { api, resetCsrf } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -12,6 +13,7 @@ export function UserMenu({ email, onReport }: { email: string; onReport?: () => 
   const { t, locale } = useTranslations()
   const router = useRouter()
   const { mutate } = useSWRConfig()
+  const platform = usePlatform()
 
   async function signOut() {
     try {
@@ -43,6 +45,12 @@ export function UserMenu({ email, onReport }: { email: string; onReport?: () => 
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        {platform.data?.is_admin ? (
+          <DropdownMenuItem onClick={() => router.push(`/${locale}/admin`)} data-admin-link>
+            <ShieldCheckIcon />
+            {t("admin.panel")}
+          </DropdownMenuItem>
+        ) : null}
         {onReport ? (
           <DropdownMenuItem onClick={onReport}>
             <MessageSquarePlusIcon />

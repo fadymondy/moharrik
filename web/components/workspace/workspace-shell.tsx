@@ -34,7 +34,7 @@ import {
   type Workspace,
 } from "@fadymondy/nasaq/web"
 import { AppSplash } from "@/components/workspace/app-splash"
-import { BookOpenIcon, MessageSquarePlusIcon, Settings2Icon } from "lucide-react"
+import { BookOpenIcon, MessageSquarePlusIcon, Settings2Icon, ShieldCheckIcon } from "lucide-react"
 import { useSWRConfig } from "swr"
 
 import { LiveAlerts } from "@/components/alerts/live-alerts"
@@ -50,6 +50,7 @@ import { ErrorState } from "@/components/states"
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form"
 import { WorkspaceContext } from "@/components/workspace/workspace-context"
 import { api, resetCsrf, type WorkspaceSummary } from "@/lib/api"
+import { usePlatform } from "@/lib/admin"
 import { useTranslations } from "@/lib/i18n"
 import { itemActive, visibleEntries, visibleItems } from "@/lib/nav-config"
 import {
@@ -155,6 +156,7 @@ function Account({ email, onReport }: { email: string; onReport?: () => void }) 
   const { t, locale } = useTranslations()
   const router = useRouter()
   const { mutate } = useSWRConfig()
+  const platform = usePlatform()
 
   async function signOut() {
     try {
@@ -171,6 +173,12 @@ function Account({ email, onReport }: { email: string; onReport?: () => void }) 
 
   return (
     <UserMenu user={{ name: email.split("@")[0] || email, email }} onSignOut={signOut}>
+      {platform.data?.is_admin ? (
+        <DropdownMenuItem onClick={() => router.push(`/${locale}/admin`)} data-admin-link>
+          <ShieldCheckIcon />
+          {t("admin.panel")}
+        </DropdownMenuItem>
+      ) : null}
       {onReport ? (
         <DropdownMenuItem onClick={onReport}>
           <MessageSquarePlusIcon />
