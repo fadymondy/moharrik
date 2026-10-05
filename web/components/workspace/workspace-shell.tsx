@@ -6,7 +6,6 @@ import {
   AppHeader,
   AppMain,
   AppShell,
-  Button,
   CommandPalette,
   Dialog,
   DialogContent,
@@ -239,6 +238,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       <SidebarFooter>
         {summary ? <ShellFooterNav base={base} can={can} /> : null}
         {me.data ? (
+          // "Report a problem" lives only in this menu (MH-1111).
           <Account email={me.data.email} onReport={canReport ? () => openFeedback() : undefined} />
         ) : null}
       </SidebarFooter>
@@ -250,17 +250,6 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       <AppHeader>
         <SidebarTrigger label={t("shell.toggleSidebar")} data-nav-toggle />
         <div className="ms-auto flex shrink-0 items-center gap-1">
-          {me.data && canReport ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => openFeedback()}
-              aria-label={t("feedback.report")}
-            >
-              <MessageSquarePlusIcon />
-              <span className="hidden sm:inline">{t("feedback.report")}</span>
-            </Button>
-          ) : null}
           {/* The bell and the live alerts ride on every workspace page (MH-378):
               a customer who writes while the member is on Contacts must not
               wait for them to open the inbox. */}
