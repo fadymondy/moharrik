@@ -80,3 +80,52 @@ export function useExecutions(
     { ...quiet, refreshInterval: (pages) => (live(pages) ? 2000 : 0) },
   )
 }
+
+/** One step's record across runs of the current version (MH-1067). */
+export type WorkflowStepStat = {
+  position: number
+  ran: number
+  ok: number
+  failed: number
+  last_status: string
+  last_items: number | null
+  last_duration_ms: number | null
+}
+
+/** The workflow page's header numbers, all counted from real run rows. */
+export type WorkflowOverview = {
+  workflow_id: string
+  name: string
+  version: number
+  status: "enabled" | "paused"
+  workspace_paused: boolean
+  paused_reason?: string
+  window_days: number
+  runs: { total: number; succeeded: number; failed: number; cancelled: number; in_progress: number }
+  success_rate: { succeeded: number; finished: number; percent: number | null }
+  last_run: null | {
+    id: string
+    status: string
+    trigger: string
+    version: number
+    created_at: string
+    finished_at: string | null
+    duration_ms: number | null
+    error: string
+    items: number | null
+  }
+  items: { total: number | null; runs: number }
+  schedules: { total: number; enabled: number; next_run_at: string | null }
+  steps: WorkflowStepStat[]
+  sampled: boolean
+}
+
+export function useWorkflowOverview(workspaceId: string | null | undefined, id?: string) {
+  return useSWR<WorkflowOverview>(
+    workspaceId && id && id !== "new"
+      ? [`/api/w/workflows/${encodeURIComponent(id)}/overview`, workspaceId]
+      : null,
+    ([p, ws]: [string, string]) => api<WorkflowOverview>(p, { workspaceId: ws }),
+    quiet,
+  )
+}

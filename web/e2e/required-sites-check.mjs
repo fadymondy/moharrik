@@ -185,7 +185,7 @@ try {
   if (card) await page.screenshot({ path: `${SHOTS}/${card}-run-note.png` })
 
   // ---- C: the canvas trigger shows the sites ----
-  await page.goto(`${base}/en/w/${slug}/automation/workflows/${wf.id}`, { waitUntil: "load" })
+  await page.goto(`${base}/en/w/${slug}/automation/workflows/${wf.id}?view=editor`, { waitUntil: "load" })
   await page.waitForSelector("[data-trigger-sites]", { timeout: 30000 })
   out.triggerNodeShowsSites = /roaster\.test · added when it runs/.test(
     await page.textContent("[data-trigger-sites]"),
@@ -212,7 +212,7 @@ try {
       wsID,
     )
   ).workflow
-  await page.goto(`${base}/en/w/${slug}/automation/workflows/${wf2.id}`, { waitUntil: "load" })
+  await page.goto(`${base}/en/w/${slug}/automation/workflows/${wf2.id}?view=editor`, { waitUntil: "load" })
   await page.waitForSelector("[data-test-run]:not([disabled])", { timeout: 30000 })
   await page.click("[data-test-run]")
   for (let i = 0; i < 30 && !(await hostsOf(a.browser.id)).includes("beans.test"); i++)

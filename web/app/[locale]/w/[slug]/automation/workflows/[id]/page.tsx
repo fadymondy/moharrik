@@ -70,7 +70,8 @@ import {
   type WorkflowStep,
   type WorkflowVersion,
 } from "@/lib/api"
-import { useWorkflowLayout, type WorkflowLayout } from "@/lib/canvas-queries"
+import { WorkflowOverviewTab, WorkflowSettingsTab } from "@/components/automation/workflow-overview"
+import { useWorkflowLayout, useWorkflowOverview, type WorkflowLayout } from "@/lib/canvas-queries"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { requiredSites } from "@/lib/required-sites"
@@ -201,12 +202,19 @@ function Editor({
   const [insertIndex, setInsertIndex] = useState(0)
   const [tab, setTab] = useState<PanelTab>("parameters")
   const [preview, setPreview] = useState<WorkflowVersion | null>(null)
-  const view = search.get("view") === "executions" && workflow ? "executions" : "editor"
+  // Overview / Builder / Runs / Settings (MH-1067). A saved workflow opens on its
+  // overview; the builder is ?view=editor. A new one has only the builder.
+  const asked = search.get("view")
+  const view: "overview" | "editor" | "executions" | "settings" = !workflow
+    ? "editor"
+    : asked === "editor" || asked === "executions" || asked === "settings"
+      ? asked
+      : "overview"
+  const overview = useWorkflowOverview(ws.id, workflow?.id)
   const runParam = search.get("run")
   const go = (next: { view?: string; run?: string | null }) => {
     const q = new URLSearchParams(search.toString())
-    if (next.view !== undefined)
-      next.view === "editor" ? q.delete("view") : q.set("view", next.view)
+    if (next.view !== undefined) q.set("view", next.view)
     if (next.run !== undefined) next.run ? q.set("run", next.run) : q.delete("run")
     const s = q.toString()
     router.replace(`${base}/workflows/${workflow?.id ?? "new"}${s ? `?${s}` : ""}`, {
@@ -391,7 +399,7 @@ function Editor({
           }).catch(() => {})
         }
         toast.success(t("automation.editor.created"))
-        router.replace(`${base}/workflows/${created.id}`)
+        router.replace(`${base}/workflows/${created.id}?view=editor`)
         return
       }
       if (snapshot(draft) === snapshot(initial)) {
@@ -478,6 +486,15 @@ function Editor({
     return ""
   }
 
+  // The overview's per-step record, drawn on the node cards, only while the
+  // steps on the canvas are the ones the record was counted for.
+  const cardStats = useMemo(
+    () =>
+      !preview && workflow && overview.data?.version === workflow.version && snapshot(draft) === snapshot(initial)
+        ? Object.fromEntries(overview.data.steps.map((x) => [x.position, x]))
+        : undefined,
+    [preview, workflow, overview.data, draft, initial],
+  )
   const done = run.data && !live ? run.data.run : null
   const panelOpen =
     view === "editor" &&
@@ -532,36 +549,34 @@ function Editor({
           aria-label={t("canvas.views")}
         >
           <div className="inline-flex rounded-lg bg-muted p-[3px]">
-            <button
-              type="button"
-              onClick={() => go({ view: "editor", run: null })}
-              className={cn(
-                "rounded-md px-3 py-1 text-sm font-medium transition-colors",
-                view === "editor"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-foreground/60 hover:text-foreground",
-              )}
-              aria-current={view === "editor" ? "page" : undefined}
-              data-view-tab="editor"
-            >
-              {t("canvas.view.editor")}
-            </button>
-            {workflow ? (
+            {(workflow
+              ? (["overview", "editor", "executions", "settings"] as const)
+              : (["editor"] as const)
+            ).map((id) => (
               <button
+                key={id}
                 type="button"
-                onClick={() => go({ view: "executions" })}
+                onClick={() => go({ view: id, run: null })}
                 className={cn(
                   "rounded-md px-3 py-1 text-sm font-medium transition-colors",
-                  view === "executions"
+                  view === id
                     ? "bg-background text-foreground shadow-sm"
                     : "text-foreground/60 hover:text-foreground",
                 )}
-                aria-current={view === "executions" ? "page" : undefined}
-                data-view-tab="executions"
+                aria-current={view === id ? "page" : undefined}
+                data-view-tab={id}
               >
-                {t("canvas.view.executions")}
+                {t(
+                  id === "overview"
+                    ? "wfo.tab.overview"
+                    : id === "editor"
+                      ? "wfo.tab.builder"
+                      : id === "executions"
+                        ? "wfo.tab.runs"
+                        : "wfo.tab.settings",
+                )}
               </button>
-            ) : null}
+            ))}
           </div>
         </nav>
 
@@ -617,7 +632,30 @@ function Editor({
         </p>
       ) : null}
 
-      {view === "executions" && workflow ? (
+      {view === "overview" && workflow ? (
+        <WorkflowOverviewTab
+          workflow={workflow}
+          overview={overview.data}
+          error={overview.error}
+          base={base}
+          onOpen={(v) => go({ view: v, run: null })}
+        />
+      ) : view === "settings" && workflow ? (
+        <WorkflowSettingsTab
+          workflow={workflow}
+          overview={overview.data}
+          workspaceId={ws.id}
+          base={base}
+          canEdit={canEdit}
+          sites={requiredHere}
+          autoAdd={autoAdd}
+          onChanged={onSaved}
+          onOpenHistory={() => {
+            setPanel("versions")
+            go({ view: "editor", run: null })
+          }}
+        />
+      ) : view === "executions" && workflow ? (
         <ExecutionsView
           workflowId={workflow.id}
           runId={runParam}
@@ -644,6 +682,7 @@ function Editor({
               steps={canvasSteps}
               layout={canvasLayout}
               runs={preview ? undefined : runs}
+              stats={cardStats}
               triggerState={
                 !preview && runs && run.data && run.data.run.status !== "queued" ? "ok" : undefined
               }

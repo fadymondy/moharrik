@@ -348,7 +348,7 @@ try {
   out.editSavedAsVersion2 = true
 
   // ---- the legacy workflow opens as a readable graph and runs unchanged ----
-  await page.goto(`${base_}/workflows/${legacy.id}`, { waitUntil: "load" })
+  await page.goto(`${base_}/workflows/${legacy.id}?view=editor`, { waitUntil: "load" })
   await page.waitForSelector("[data-canvas-node=step]")
   const legacyKinds = await page.$$eval("[data-canvas-node=step]", (els) =>
     els.map((e) => e.getAttribute("data-node-kind")),
@@ -400,7 +400,7 @@ try {
   if (card) await page.screenshot({ path: `${SHOTS}/${card}-replay-en-light-1440.png` })
 
   // ---- version history previews an old version ----
-  await page.goto(`${base_}/workflows/${id}`, { waitUntil: "load" })
+  await page.goto(`${base_}/workflows/${id}?view=editor`, { waitUntil: "load" })
   await page.click("[data-open-versions]")
   await page.click('[data-preview-version="1"]')
   out.versionPreview =
@@ -420,7 +420,7 @@ try {
     const shooter = await chromium.launch({ executablePath: CHROME })
     const pages = [
       ["list", `/automation/workflows`, "[data-workflow-row]"],
-      ["canvas", `/automation/workflows/${id}`, "[data-canvas-node=step]"],
+      ["canvas", `/automation/workflows/${id}?view=editor`, "[data-canvas-node=step]"],
       [
         "executions",
         `/automation/workflows/${id}?view=executions`,

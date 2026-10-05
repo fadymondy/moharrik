@@ -1309,6 +1309,7 @@ export type RunStep = {
 export type AutomationRun = {
   /** Lines about the run itself, e.g. the sites it added before its first step (MH-517). */
   notes?: string[]
+  rerun_of?: string
   id: string
   agent_id: string
   agent_name: string

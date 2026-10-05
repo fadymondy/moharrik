@@ -64,10 +64,12 @@ import { ButtonEdge } from "@/components/flow/button-edge"
 import { NodeStatusIndicator, type NodeStatus } from "@/components/flow/node-status-indicator"
 import { ZoomSlider } from "@/components/flow/zoom-slider"
 import { Button } from "@fadymondy/nasaq/web"
+import type { WorkflowStepStat } from "@/lib/canvas-queries"
 import type { WorkflowStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
+import { describeStep } from "./describe"
 import {
   GAP,
   NODE_SIZE,
@@ -89,6 +91,8 @@ export type CanvasProps = {
   layout: Layout
   /** Run state per step position: a live test run, or a past one being replayed. */
   runs?: Record<number, NodeRun>
+  /** What real runs did at each step (the overview's record); drawn on the node cards. */
+  stats?: Record<number, WorkflowStepStat>
   /** Whether the trigger has fired in the run being shown. */
   triggerState?: NodeRun["state"]
   trigger: { title: string; subtitle: string; sites?: string[]; autoAdd?: boolean }
@@ -372,7 +376,16 @@ const StepNode = memo(function StepNode({ data, selected }: NodeProps<Node<StepD
           <StateBadge state={run?.state} />
         </BaseNode>
       </NodeStatusIndicator>
-      <NodeLabel title={title} subtitle={subtitleOf(step)} dir={dir} beside={c.vertical} />
+      <NodeLabel
+        title={title}
+        subtitle={subtitleOf(step)}
+        dir={dir}
+        beside={c.vertical}
+        category={t(`canvas.cat.${spec.category}`)}
+        categoryTone={CATEGORY_TONE[spec.category]}
+        say={kind === "unknown" ? "" : describeStep(step, t)}
+        record={c.stats ? recordOf(c.stats[index], t) : undefined}
+      />
     </div>
   )
 })
@@ -403,13 +416,40 @@ const AddNode = memo(function AddNode({ data }: NodeProps<Node<AddData>>) {
   )
 })
 
+type NodeRecord = { text: string; tone: "ok" | "failed" | "idle"; items?: string }
+
+/** One line of what real runs did at a step: only counts that exist. */
+function recordOf(
+  st: WorkflowStepStat | undefined,
+  t: (k: string, v?: Record<string, string | number>) => string,
+): NodeRecord {
+  if (!st || st.ran === 0) return { text: t("wfo.node.never"), tone: "idle" }
+  return {
+    text:
+      st.failed > 0
+        ? t("wfo.node.failed", { n: st.failed })
+        : t("wfo.node.record", { ok: st.ok, ran: st.ran }),
+    tone: st.failed > 0 ? "failed" : "ok",
+    items: st.last_items != null ? t("wfo.node.items", { n: st.last_items }) : undefined,
+  }
+}
+
 function NodeLabel({
   title,
   subtitle,
   dir,
   beside,
   note,
+  category,
+  categoryTone,
+  say,
+  record,
 }: {
+  category?: string
+  categoryTone?: string
+  /** The step in plain words (MH-1067). */
+  say?: string
+  record?: NodeRecord
   title: string
   subtitle: string
   dir: "ltr" | "rtl"
@@ -432,10 +472,35 @@ function NodeLabel({
       )}
       dir={dir}
     >
+      {category ? (
+        <p className={cn("truncate text-[10px] font-semibold tracking-wide uppercase", categoryTone)}>
+          {category}
+        </p>
+      ) : null}
       <p className="truncate text-sm font-medium text-foreground">{title}</p>
-      {subtitle ? (
+      {say ? (
+        <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground" data-node-say>
+          {say}
+        </p>
+      ) : subtitle ? (
         <p dir="ltr" className="truncate font-mono text-[11px] text-muted-foreground">
           {subtitle}
+        </p>
+      ) : null}
+      {record ? (
+        <p
+          className={cn(
+            "mt-0.5 truncate text-[11px] font-medium",
+            record.tone === "ok" && "text-nq-success-text",
+            record.tone === "failed" && "text-nq-danger-text",
+            record.tone === "idle" && "text-muted-foreground",
+          )}
+          data-node-record={record.tone}
+        >
+          {record.text}
+          {record.items ? (
+            <span className="font-normal text-muted-foreground"> · {record.items}</span>
+          ) : null}
         </p>
       ) : null}
       {note ? (
