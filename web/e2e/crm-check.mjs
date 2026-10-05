@@ -44,8 +44,9 @@ out.slugA = slugA
 // ---- companies ----
 await pageA.goto(`${base}/en/w/${slugA}/companies`, { waitUntil: "networkidle" })
 out.addCompanyFormPresent = await pageA.evaluate(
-  () => document.querySelector("[data-form=add-company]") != null,
+  () => document.querySelector("[data-open=add-company]") != null,
 )
+await pageA.click('[data-open="add-company"]')
 await pageA.fill("#company-name", "Acme Corp")
 await pageA.fill("#company-domain", "acme.test")
 await pageA.click("[data-form=add-company] button[type=submit]")
@@ -83,9 +84,11 @@ out.taskMarkedDone = await pageA.evaluate(() => !document.querySelector("[data-o
 
 // ---- contacts: add one, link to the company ----
 await pageA.goto(`${base}/en/w/${slugA}/contacts`, { waitUntil: "networkidle" })
+await pageA.click('[data-open="create-list"]')
 await pageA.fill("#list-name", "Prospects")
 await pageA.click("[data-form=create-list] button[type=submit]")
 await pageA.waitForSelector('[data-list-row="Prospects"]', { timeout: 10000 })
+await pageA.click('[data-open="add-contact"]')
 await pageA.fill("#contact-email", "jane@acme.test")
 await pageA.fill("#contact-name", "Jane Doe")
 await pageA.click("[data-form=add-contact] button[type=submit]")

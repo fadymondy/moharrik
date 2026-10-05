@@ -2,8 +2,21 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { SettingsIcon } from "lucide-react"
-import { Button, Tabs, TabsList, TabsTab, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, toast } from "@fadymondy/nasaq/web"
+import { PlusIcon, SettingsIcon } from "lucide-react"
+import {
+  Button,
+  Tabs,
+  TabsList,
+  TabsTab,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldError } from "@/components/form-layout"
 
 import { DealForm, DealsTable, PipelineBoard } from "@/components/crm/deals"
@@ -44,7 +57,8 @@ function Opportunities() {
   const search = useSearchParams()
   const asked = search.get("view")
   const view: View = VIEWS.includes(asked as View) ? (asked as View) : "board"
-  const setView = (next: View) => router.replace(next === "board" ? pathname : `${pathname}?view=${next}`, { scroll: false })
+  const setView = (next: View) =>
+    router.replace(next === "board" ? pathname : `${pathname}?view=${next}`, { scroll: false })
   const signals = useOpportunitySignals(ws.id)
   const signalCount = signalTotal(signals.data)
   // Board: cards past each stage's first page, fetched per stage on demand (MH-467: the board
@@ -150,7 +164,10 @@ function Opportunities() {
               </Button>
             ) : null}
             {canWrite ? (
-              <Button onClick={() => setCreating(true)}>{t("deals.newDeal")}</Button>
+              <Button onClick={() => setCreating(true)} data-open="new-deal">
+                <PlusIcon />
+                {t("deals.newDeal")}
+              </Button>
             ) : null}
           </div>
         }
@@ -163,7 +180,9 @@ function Opportunities() {
               <TabsTab key={v} value={v} data-tab={v}>
                 {t(`opps.view.${v}`)}
                 {v === "signals" && signalCount ? (
-                  <span className="ms-1 text-muted-foreground tabular-nums" data-signal-total>{signalCount}</span>
+                  <span className="ms-1 text-muted-foreground tabular-nums" data-signal-total>
+                    {signalCount}
+                  </span>
                 ) : null}
               </TabsTab>
             ))}
@@ -180,7 +199,9 @@ function Opportunities() {
       ) : deals.data.total === 0 ? (
         <div className="border-y border-nq-line px-6 py-12 text-center">
           <p className="text-sm font-medium">{t("deals.empty")}</p>
-          {canWrite ? <p className="mt-1 text-sm text-muted-foreground">{t("deals.emptyBody")}</p> : null}
+          {canWrite ? (
+            <p className="mt-1 text-sm text-muted-foreground">{t("deals.emptyBody")}</p>
+          ) : null}
         </div>
       ) : view === "board" ? (
         <PipelineBoard

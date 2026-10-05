@@ -5,13 +5,51 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState, type FormEvent } from "react"
 import {
   DownloadIcon,
+  FileUpIcon,
+  ListPlusIcon,
   MailMinusIcon,
   MailWarningIcon,
   PencilIcon,
+  PlusIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Field, FieldDescription, FieldLabel, Input, CursorPager, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  CursorPager,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  toast,
+} from "@fadymondy/nasaq/web"
 import {
   CardMeta,
   EmptyState as NqEmptyState,
@@ -57,10 +95,7 @@ const PAGE_SIZE = 50
 const STATUSES: SubscriptionStatus[] = ["subscribed", "pending", "unsubscribed", "bounced"]
 const MIN_SCORES = [25, 50, 75] as const
 
-const statusVariant: Record<
-  SubscriptionStatus,
-  "brand" | "neutral" | "outline" | "danger"
-> = {
+const statusVariant: Record<SubscriptionStatus, "brand" | "neutral" | "outline" | "danger"> = {
   subscribed: "brand",
   pending: "neutral",
   unsubscribed: "outline",
@@ -86,6 +121,9 @@ export default function ContactsPage() {
   useWorkspaceEvents(ws.id, (e) => {
     if (e.kind === "contacts") changed()
   })
+  // MH-1144: the create forms are dialogs opened from the header.
+  const [adding, setAdding] = useState(false)
+  const [creatingList, setCreatingList] = useState(false)
 
   return (
     <>
@@ -93,21 +131,41 @@ export default function ContactsPage() {
         title={t("nav.contacts")}
         description={t("contacts.hint")}
         action={
-          <div className="flex items-center gap-4">
-            <Link
-              className="text-sm underline underline-offset-4"
-              href={`/${locale}/w/${ws.slug}/contacts/import`}
-              data-nav="import"
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${ws.slug}/contacts/import`} data-nav="import" />}
             >
-              {t("import.title")}
-            </Link>
-            <Link
-              className="text-sm underline underline-offset-4"
-              href={`/${locale}/w/${ws.slug}/contacts/vcard`}
-              data-nav="vcard"
+              <FileUpIcon />
+              {t("import.hubTitle")}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${ws.slug}/contacts/vcard`} data-nav="vcard" />}
             >
               {t("vcard.navLink")}
-            </Link>
+            </Button>
+            {canWrite ? (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCreatingList(true)}
+                  data-open="create-list"
+                >
+                  <ListPlusIcon />
+                  {t("lists.new")}
+                </Button>
+                <Button size="sm" onClick={() => setAdding(true)} data-open="add-contact">
+                  <PlusIcon />
+                  {t("contacts.new")}
+                </Button>
+              </>
+            ) : null}
           </div>
         }
       />
@@ -120,14 +178,24 @@ export default function ContactsPage() {
 
       <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
-      {canWrite ? (
-        <AddContact lists={listItems} onAdded={changed} />
-      ) : ws.current ? (
-        <p className="px-6 py-6 text-sm text-muted-foreground">{t("contacts.readOnly")}</p>
-      ) : null}
-
       <ContactsBrowser lists={listItems} version={version} onChange={changed} />
       <div className="pb-8" />
+
+      {canWrite ? (
+        <>
+          <AddContactDialog
+            open={adding}
+            onOpenChange={setAdding}
+            lists={listItems}
+            onAdded={changed}
+          />
+          <CreateListDialog
+            open={creatingList}
+            onOpenChange={setCreatingList}
+            onCreated={changed}
+          />
+        </>
+      ) : null}
     </>
   )
 }
@@ -149,31 +217,6 @@ function ListsSection({
   const canDelete = ws.can("campaigns:write")
   const canExport = ws.can("contacts:export")
   const [editing, setEditing] = useState<MailList | null>(null)
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
-  const [doi, setDoi] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function create(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setErr(null)
-    try {
-      await api("/api/w/mail/lists", {
-        json: { name: name.trim(), description: description.trim(), double_opt_in: doi },
-        workspaceId: ws.id,
-      })
-      toast.success(t("lists.created"))
-      setName("")
-      setDescription("")
-      onChange()
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function remove(id: string) {
     try {
@@ -279,19 +322,76 @@ function ListsSection({
         </div>
       )}
 
-      {canWrite ? (
-        <form onSubmit={create} noValidate className="px-6 pt-6" data-form="create-list">
-          <FieldGroup className="sm:flex-row sm:items-end">
-            <Field className="sm:flex-1">
+      <EditListDialog list={editing} onClose={() => setEditing(null)} onSaved={onChange} />
+    </section>
+  )
+}
+
+/** New list (MH-1144): a dialog opened from the page header. */
+function CreateListDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreated: () => void
+}) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [doi, setDoi] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function create(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setErr(null)
+    try {
+      await api("/api/w/mail/lists", {
+        json: { name: name.trim(), description: description.trim(), double_opt_in: doi },
+        workspaceId: ws.id,
+      })
+      toast.success(t("lists.created"))
+      setName("")
+      setDescription("")
+      onCreated()
+      onOpenChange(false)
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setErr(null)
+        onOpenChange(v)
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("lists.new")}</DialogTitle>
+          <DialogDescription>{t("lists.hint")}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={create} noValidate data-form="create-list">
+          <FieldGroup>
+            <Field>
               <FieldLabel htmlFor="list-name">{t("lists.name")}</FieldLabel>
               <Input
                 id="list-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={80}
+                autoFocus
               />
             </Field>
-            <Field className="sm:flex-1">
+            <Field>
               <FieldLabel htmlFor="list-description">
                 {t("lists.description")}{" "}
                 <span className="text-muted-foreground">({t("common.optional")})</span>
@@ -303,26 +403,41 @@ function ListsSection({
                 maxLength={500}
               />
             </Field>
+            <Field className="flex-row items-center gap-3">
+              <Switch id="list-doi" checked={doi} onCheckedChange={(v) => setDoi(!!v)} />
+              <div>
+                <FieldLabel htmlFor="list-doi">{t("lists.doubleOptIn")}</FieldLabel>
+                <FieldDescription>{t("lists.doubleOptInHint")}</FieldDescription>
+              </div>
+            </Field>
+          </FieldGroup>
+          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
             <Button type="submit" disabled={busy || !name.trim()}>
               {busy ? t("common.working") : t("lists.create")}
             </Button>
-          </FieldGroup>
-          <Field className="flex-row items-center gap-3 mt-4">
-            <Switch id="list-doi" checked={doi} onCheckedChange={(v) => setDoi(!!v)} />
-            <div>
-              <FieldLabel htmlFor="list-doi">{t("lists.doubleOptIn")}</FieldLabel>
-              <FieldDescription>{t("lists.doubleOptInHint")}</FieldDescription>
-            </div>
-          </Field>
-          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+          </DialogFooter>
         </form>
-      ) : null}
-      <EditListDialog list={editing} onClose={() => setEditing(null)} onSaved={onChange} />
-    </section>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void }) {
+/** New contact (MH-1144): a dialog opened from the page header, not a form between the lists and the contacts. */
+function AddContactDialog({
+  open,
+  onOpenChange,
+  lists,
+  onAdded,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  lists: MailList[]
+  onAdded: () => void
+}) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const isAdmin = ws.can("mail:settings")
@@ -378,6 +493,7 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
       setHandle("")
       setName("")
       onAdded()
+      onOpenChange(false)
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -386,121 +502,138 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
   }
 
   return (
-    <section className="px-6 py-6">
-      <h2 className="text-base font-medium">{t("contacts.addTitle")}</h2>
-      {needsSmtp ? (
-        <p className="mt-1 flex items-start gap-2 text-sm text-muted-foreground">
-          <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
-          <span>
-            {t("contacts.smtpMissing")}{" "}
-            <Link
-              className="underline underline-offset-4"
-              href={`/${locale}/w/${ws.slug}/settings/email`}
-            >
-              {t("contacts.smtpLink")}
-            </Link>
-          </span>
-        </p>
-      ) : null}
-      {lists.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">{t("contacts.noListsHint")}</p>
-      ) : null}
-      <form onSubmit={onSubmit} noValidate className="mt-5" data-form="add-contact">
-        <FieldGroup className="sm:flex-row sm:items-end sm:flex-wrap">
-          <Field className="sm:flex-1 sm:min-w-48">
-            <FieldLabel htmlFor="contact-email">
-              {t("contacts.email")}{" "}
-              <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input
-              id="contact-email"
-              type="email"
-              dir="ltr"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@company.com"
-            />
-          </Field>
-          <Field className="sm:flex-1 sm:min-w-40">
-            <FieldLabel htmlFor="contact-phone">
-              {t("contacts.phone")}{" "}
-              <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input
-              id="contact-phone"
-              type="tel"
-              dir="ltr"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+20 101 234 5678"
-            />
-          </Field>
-          <Field className="sm:flex-1 sm:min-w-40">
-            <FieldLabel htmlFor="contact-handle">
-              {t("contacts.handle")}{" "}
-              <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input
-              id="contact-handle"
-              dir="ltr"
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              placeholder="@handle"
-            />
-          </Field>
-          <Field className="sm:flex-1 sm:min-w-40">
-            <FieldLabel htmlFor="contact-name">
-              {t("contacts.name")} <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input id="contact-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field className="sm:w-36">
-            <FieldLabel htmlFor="contact-lang">{t("contacts.language")}</FieldLabel>
-            <Select
-              items={langItems}
-              value={lang}
-              onValueChange={(v) => setLang(String(v ?? "en"))}
-            >
-              <SelectTrigger id="contact-lang" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {langItems.map((i) => (
-                  <SelectItem key={i.value} value={i.value}>
-                    {i.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          {lists.length > 0 ? (
-            <Field className="sm:w-44">
-              <FieldLabel htmlFor="contact-list">
-                {t("contacts.list")}{" "}
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setErr(null)
+        onOpenChange(v)
+      }}
+    >
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{t("contacts.addTitle")}</DialogTitle>
+        </DialogHeader>
+        {needsSmtp ? (
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
+            <span>
+              {t("contacts.smtpMissing")}{" "}
+              <Link
+                className="underline underline-offset-4"
+                href={`/${locale}/w/${ws.slug}/settings/email`}
+              >
+                {t("contacts.smtpLink")}
+              </Link>
+            </span>
+          </p>
+        ) : null}
+        {lists.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("contacts.noListsHint")}</p>
+        ) : null}
+        <form onSubmit={onSubmit} noValidate data-form="add-contact">
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="contact-email">
+                {t("contacts.email")}{" "}
                 <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
-              <PickSelect
-                id="contact-list"
-                value={listId}
-                onChange={setListId}
-                options={listItems}
-                noneLabel={t("contacts.noList")}
+              <Input
+                id="contact-email"
+                type="email"
+                autoFocus
+                dir="ltr"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@company.com"
               />
             </Field>
+            <Field>
+              <FieldLabel htmlFor="contact-phone">
+                {t("contacts.phone")}{" "}
+                <span className="text-muted-foreground">({t("common.optional")})</span>
+              </FieldLabel>
+              <Input
+                id="contact-phone"
+                type="tel"
+                dir="ltr"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+20 101 234 5678"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="contact-handle">
+                {t("contacts.handle")}{" "}
+                <span className="text-muted-foreground">({t("common.optional")})</span>
+              </FieldLabel>
+              <Input
+                id="contact-handle"
+                dir="ltr"
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                placeholder="@handle"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="contact-name">
+                {t("contacts.name")}{" "}
+                <span className="text-muted-foreground">({t("common.optional")})</span>
+              </FieldLabel>
+              <Input id="contact-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="contact-lang">{t("contacts.language")}</FieldLabel>
+              <Select
+                items={langItems}
+                value={lang}
+                onValueChange={(v) => setLang(String(v ?? "en"))}
+              >
+                <SelectTrigger id="contact-lang" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {langItems.map((i) => (
+                    <SelectItem key={i.value} value={i.value}>
+                      {i.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {lists.length > 0 ? (
+              <Field>
+                <FieldLabel htmlFor="contact-list">
+                  {t("contacts.list")}{" "}
+                  <span className="text-muted-foreground">({t("common.optional")})</span>
+                </FieldLabel>
+                <PickSelect
+                  id="contact-list"
+                  value={listId}
+                  onChange={setListId}
+                  options={listItems}
+                  noneLabel={t("contacts.noList")}
+                />
+              </Field>
+            ) : null}
+          </FieldGroup>
+          {listBlocked ? (
+            <FormHint className="mt-2">{t("contacts.listNeedsEmail")}</FormHint>
           ) : null}
-          <Button type="submit" disabled={busy || !hasIdentity || listBlocked}>
-            {busy ? t("common.working") : t("contacts.add")}
-          </Button>
-        </FieldGroup>
-        {listBlocked ? (
-          <FormHint className="mt-2">{t("contacts.listNeedsEmail")}</FormHint>
-        ) : null}
-        {!hasIdentity ? (
-          <FormHint className="mt-2">{t("contacts.needsIdentity")}</FormHint>
-        ) : null}
-        {err ? <FieldError className="mt-3">{err}</FieldError> : null}
-      </form>
-    </section>
+          {!hasIdentity ? (
+            <FormHint className="mt-2">{t("contacts.needsIdentity")}</FormHint>
+          ) : null}
+          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={busy || !hasIdentity || listBlocked}>
+              {busy ? t("common.working") : t("contacts.add")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -629,9 +762,7 @@ function ContactsBrowser({
             title: t("contacts.statusFilter"),
             options: STATUSES.map((st) => ({
               value: st,
-              label: counts
-                ? `${t(`sub.${st}`)} · ${formatNumber(counts[st])}`
-                : t(`sub.${st}`),
+              label: counts ? `${t(`sub.${st}`)} · ${formatNumber(counts[st])}` : t(`sub.${st}`),
             })),
             getValues: () => [],
           },
@@ -800,7 +931,13 @@ function ContactsBrowser({
         rowActions={canWrite ? rowActions : undefined}
         onRowClick={(c) => router.push(`${base}/contacts/${c.id}`)}
         loading={!page.data && !page.error}
-        error={page.error ? (page.error instanceof Error ? page.error.message : t("common.networkError")) : undefined}
+        error={
+          page.error
+            ? page.error instanceof Error
+              ? page.error.message
+              : t("common.networkError")
+            : undefined
+        }
         onRetry={() => void mutate()}
         empty={
           <NqEmptyState

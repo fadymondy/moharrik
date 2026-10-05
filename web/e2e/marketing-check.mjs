@@ -93,9 +93,11 @@ out.nav = await a.evaluate(() =>
 )
 
 await a.goto(`${base}/en/w/${A.slug}/contacts`, { waitUntil: "networkidle" })
+await a.click('[data-open="create-list"]')
 await a.fill("#list-name", "Newsletter")
 await a.click('[data-form="create-list"] button[type=submit]')
 await a.waitForSelector('[data-list-row="Newsletter"]')
+await a.click('[data-open="create-list"]')
 await a.fill("#list-name", "Customers")
 await a.locator("[data-form=create-list]").getByRole("switch").click()
 await a.click('[data-form="create-list"] button[type=submit]')
@@ -105,6 +107,7 @@ out.lists = await a.$$eval("[data-list-row]", (r) =>
 )
 
 // Contact on the double opt-in list, before SMTP exists: pending, confirmation not sent.
+await a.click('[data-open="add-contact"]')
 await a.fill("#contact-email", "reader@example.test")
 await a.fill("#contact-name", "Reader")
 await a.click("#contact-list")
@@ -114,7 +117,10 @@ await a.waitForSelector('[data-contact-row="reader@example.test"]')
 out.contactPending = await a.$eval('[data-contact-row="reader@example.test"]', (r) =>
   r.innerText.replace(/\s+/g, " "),
 )
+// The SMTP hint lives in the add-contact dialog (MH-1144).
+await a.click('[data-open="add-contact"]')
 out.smtpMissingHintOnContacts = await a.locator("text=Confirmation emails need SMTP").count()
+await a.keyboard.press("Escape")
 
 // ---- SMTP settings page ----
 await a.goto(`${base}/en/w/${A.slug}/settings/email`, { waitUntil: "networkidle" })
@@ -154,6 +160,7 @@ out.contactAfterConfirm = await a.$eval('[data-contact-row="reader@example.test"
   r.innerText.replace(/\s+/g, " "),
 )
 // A second contact straight onto the list without double opt-in.
+await a.click('[data-open="add-contact"]')
 await a.fill("#contact-email", "buyer@example.test")
 await a.click("#contact-list")
 await a.getByRole("option", { name: "Customers" }).click()

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useEffect, useState, type FormEvent } from "react"
-import { Building2Icon, Trash2Icon } from "lucide-react"
+import { Building2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +15,11 @@ import {
   Button,
   CardMeta,
   CursorPager,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   EmptyState as NqEmptyState,
   EntityIdentity,
   EntityList,
@@ -54,27 +59,32 @@ export default function CompaniesPage() {
   const canWrite = ws.can("contacts:write")
   const [version, setVersion] = useState(0)
   const changed = () => setVersion((v) => v + 1)
+  const [adding, setAdding] = useState(false)
 
   return (
     <>
       <SectionHeader
         title={t("nav.companies")}
         description={t("companies.hint")}
+        action={
+          canWrite ? (
+            <Button onClick={() => setAdding(true)} data-open="add-company">
+              <PlusIcon />
+              {t("companies.new")}
+            </Button>
+          ) : undefined
+        }
       />
 
       {/* What research found (MH-388): suggestions only, never added on their own. */}
       <SuggestionsPanel onAccepted={changed} />
 
       <CompaniesBrowser version={version} onChange={changed} />
-
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
+      <div className="pb-8" />
 
       {canWrite ? (
-        <AddCompany onAdded={changed} />
-      ) : (
-        <p className="px-6 py-6 text-sm text-muted-foreground">{t("companies.readOnly")}</p>
-      )}
-      <div className="pb-8" />
+        <AddCompanyDialog open={adding} onOpenChange={setAdding} onAdded={changed} />
+      ) : null}
     </>
   )
 }
@@ -373,7 +383,16 @@ function CompaniesBrowser({ version, onChange }: { version: number; onChange: ()
   )
 }
 
-function AddCompany({ onAdded }: { onAdded: () => void }) {
+/** New company (MH-1144): a dialog opened from the page header, not a form at the foot of the page. */
+function AddCompanyDialog({
+  open,
+  onOpenChange,
+  onAdded,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onAdded: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState("")
@@ -394,6 +413,7 @@ function AddCompany({ onAdded }: { onAdded: () => void }) {
       setName("")
       setDomain("")
       onAdded()
+      onOpenChange(false)
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -402,38 +422,54 @@ function AddCompany({ onAdded }: { onAdded: () => void }) {
   }
 
   return (
-    <section className="px-6 py-6" data-form="add-company">
-      <h2 className="text-base font-medium">{t("companies.addTitle")}</h2>
-      <form onSubmit={submit} noValidate className="mt-5">
-        <FieldGroup className="sm:flex-row sm:items-end">
-          <Field className="sm:flex-1">
-            <FieldLabel htmlFor="company-name">{t("companies.name")}</FieldLabel>
-            <Input
-              id="company-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={200}
-            />
-          </Field>
-          <Field className="sm:flex-1">
-            <FieldLabel htmlFor="company-domain">
-              {t("companies.domain")}{" "}
-              <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input
-              id="company-domain"
-              dir="ltr"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              placeholder="company.com"
-            />
-          </Field>
-          <Button type="submit" disabled={busy || !name.trim()}>
-            {busy ? t("common.working") : t("companies.create")}
-          </Button>
-        </FieldGroup>
-        {err ? <FieldError className="mt-3">{err}</FieldError> : null}
-      </form>
-    </section>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setErr(null)
+        onOpenChange(v)
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("companies.addTitle")}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={submit} noValidate data-form="add-company">
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="company-name">{t("companies.name")}</FieldLabel>
+              <Input
+                id="company-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={200}
+                autoFocus
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="company-domain">
+                {t("companies.domain")}{" "}
+                <span className="text-muted-foreground">({t("common.optional")})</span>
+              </FieldLabel>
+              <Input
+                id="company-domain"
+                dir="ltr"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="company.com"
+              />
+            </Field>
+          </FieldGroup>
+          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={busy || !name.trim()}>
+              {busy ? t("common.working") : t("companies.create")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
