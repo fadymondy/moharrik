@@ -82,7 +82,6 @@ for (const scheme of ["light", "dark"]) {
           rounded: cs
             ? parseFloat(cs.borderTopLeftRadius) > 4 || parseFloat(cs.borderTopRightRadius) > 4
             : false,
-          launcher: !!document.querySelector("[data-chat-dock-launcher]"),
           dir: document.documentElement.dir,
           dark: document.documentElement.classList.contains("dark"),
           overflow: document.documentElement.scrollWidth - window.innerWidth,
@@ -95,64 +94,12 @@ for (const scheme of ["light", "dark"]) {
         inbox.thread &&
           inbox.bubbles > 0 &&
           inbox.rounded &&
-          !inbox.launcher &&
           inbox.dir === (loc === "ar" ? "rtl" : "ltr") &&
           inbox.dark === (scheme === "dark") &&
           inbox.overflow <= 1,
         inbox,
       )
       await shot(page, `${k}-inbox`)
-      // Another page: the dock launcher is there, opens a compact list, and
-      // opening a conversation from it docks a small window at the bottom.
-      await page.goto(`${base}/${loc}/w/${slug}/inbox/channels`, { waitUntil: "domcontentloaded" })
-      await page.goto(`${base}/${loc}/w/${slug}`, { waitUntil: "domcontentloaded" })
-      await page.waitForSelector("[data-chat-dock-launcher]", { timeout: 30000 }).catch(() => {})
-      await page
-        .locator("[data-chat-dock-launcher]")
-        .first()
-        .click()
-        .catch(() => {})
-      await page.waitForSelector("[data-dock-list]", { timeout: 15000 }).catch(() => {})
-      await page.waitForSelector("[data-dock-list-item]", { timeout: 15000 }).catch(() => {})
-      const list = await page.evaluate(() => {
-        const p = document.querySelector("[data-dock-list]")
-        return { list: !!p, rows: document.querySelectorAll("[data-dock-list-item]").length }
-      })
-      check(`${k}-launcher`, list.list && list.rows > 0, list)
-      await shot(page, `${k}-launcher`)
-      await page
-        .locator("[data-dock-list-item]")
-        .first()
-        .click()
-        .catch(() => {})
-      const windowSel = w === 390 ? "[data-dock-sheet]" : "[data-dock-window]"
-      await page.waitForSelector(`${windowSel} [data-message]`, { timeout: 20000 }).catch(() => {})
-      const opened = await page.evaluate((sel) => {
-        const win = document.querySelector(sel)
-        const r = win?.getBoundingClientRect()
-        return {
-          bubbles: document.querySelectorAll(`${sel} [data-message]`).length,
-          window: !!win,
-          // Desktop: the window docks toward the inline-end edge, beside the
-          // launcher pill (MH-663). Mobile: it's a full-width sheet.
-          fullWidth: r ? Math.round(window.innerWidth - r.width) <= 4 : false,
-          right: r ? Math.round(window.innerWidth - r.right) : null,
-          left: r ? Math.round(r.left) : null,
-          // MH-663: the window sits beside the launcher pill, never over it.
-          overLauncher: (() => {
-            const l = document.querySelector("[data-chat-dock-launcher]")?.getBoundingClientRect()
-            return !!(r && l && r.left < l.right && l.left < r.right && r.top < l.bottom && l.top < r.bottom)
-          })(),
-        }
-      }, windowSel)
-      const docked =
-        opened.window &&
-        (w === 390
-          ? opened.fullWidth
-          : !opened.overLauncher && (loc === "ar" ? opened.left <= 200 : opened.right <= 200))
-      check(`${k}-launcher-thread`, opened.bubbles > 0 && docked, opened)
-      await shot(page, `${k}-launcher-thread`)
-      await page.keyboard.press("Escape").catch(() => {})
     }
   check(`noPageErrors-${scheme}`, errs.length === 0, errs)
   await ctx.close()

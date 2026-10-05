@@ -4973,5 +4973,8 @@
   "connect.readWriteHint": "Also reply, create and update, as far as your role allows.",
   "connect.keyExpires": "The key expires in 90 days.",
   "connect.manageKeys": "Manage your keys",
-  "connect.createKey": "Create my key"
+  "connect.createKey": "Create my key",
+  "inbox.dock.open": "Open inbox",
+  "inbox.dock.close": "Close inbox",
+  "inbox.dock.caughtUp": "All caught up"
 }

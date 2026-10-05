@@ -22,10 +22,18 @@ import {
   DataTable,
   HorizontalBars,
 } from "@/components/reports/report-charts"
-import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  Toggle,
+  ToggleGroup,
+} from "@fadymondy/nasaq/web"
 import type { OverviewConversationDay, OverviewCountDay, OverviewStage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
+import { inboxHref } from "@/lib/inbox-link"
 
 /** The three series colours this page ever draws with, in series order. Never a hard-coded hex. */
 const SERIES_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--nq-brand)"] as const
@@ -302,7 +310,7 @@ export function ConversationsChartCard({
       id="conversations-trend"
       title={t("overview.conversationsChart")}
       icon={<InboxIcon />}
-      href={`${base}/inbox`}
+      href={inboxHref()}
       meta={<span className="text-xs text-muted-foreground">{t("overview.last28")}</span>}
     >
       <ChartOrTable

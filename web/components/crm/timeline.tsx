@@ -22,6 +22,7 @@ import {
 } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMe } from "@/lib/queries"
+import { inboxHref } from "@/lib/inbox-link"
 import { Bdi } from "@/components/bidi"
 
 type Target = { contact_id?: string; company_id?: string; deal_id?: string }
@@ -159,7 +160,10 @@ export function Timeline({
       )}
       {total > items.length ? (
         <div className="flex flex-wrap items-center gap-3 px-6 pt-4" data-timeline-more>
-          <span className="text-sm text-muted-foreground" data-timeline-shown={`${all.length}/${total}`}>
+          <span
+            className="text-sm text-muted-foreground"
+            data-timeline-shown={`${all.length}/${total}`}
+          >
             {t("timeline.showing", { shown: formatNumber(all.length), total: formatNumber(total) })}
           </span>
           {fresh.cursor ? (
@@ -430,9 +434,7 @@ function ConversationItem({ c, target }: { c: ConversationRef; target: Target })
         ) : null}
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <Badge
-            variant={
-              c.status === "open" ? "brand" : c.status === "snoozed" ? "neutral" : "outline"
-            }
+            variant={c.status === "open" ? "brand" : c.status === "snoozed" ? "neutral" : "outline"}
           >
             {t(`inbox.status.${c.status}`)}
           </Badge>
@@ -448,11 +450,7 @@ function ConversationItem({ c, target }: { c: ConversationRef; target: Target })
             </>
           ) : null}
           <span aria-hidden>·</span>
-          <Link
-            className="underline underline-offset-4"
-            href={`${base}/inbox?c=${encodeURIComponent(c.id)}`}
-            data-open-in-inbox
-          >
+          <Link className="underline underline-offset-4" href={inboxHref(c.id)} data-open-in-inbox>
             {t("timeline.openInInbox")}
           </Link>
         </p>

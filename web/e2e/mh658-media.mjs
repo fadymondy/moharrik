@@ -163,7 +163,7 @@ const { slug } = await signUpAndEnterWorkspace(page, "MH658 " + Date.now())
 // MH-571 folded the dedicated /inbox/whatsapp page into a unified channels
 // list; adding a WhatsApp channel is now: open the channels page, "Add
 // channel", pick WhatsApp from the dropdown, then the same form as before.
-await page.goto(`${base}/en/w/${slug}/inbox/channels`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/integrations`, { waitUntil: "domcontentloaded" })
 await page.click("[data-add-channel]")
 await page.click('[data-add-type="whatsapp"]')
 await page.waitForSelector("[data-whatsapp-state]", { timeout: 20000 })
@@ -294,7 +294,7 @@ await ctx.close()
 const ctxAr = await newCtx({ width: 390, height: 844 }, "dark")
 const pageAr = ctxAr.pages()[0]
 const { slug: slugAr } = await signUpAndEnterWorkspace(pageAr, "MH658 AR " + Date.now())
-await pageAr.goto(`${base}/en/w/${slugAr}/inbox/channels`, { waitUntil: "domcontentloaded" })
+await pageAr.goto(`${base}/en/w/${slugAr}/settings/integrations`, { waitUntil: "domcontentloaded" })
 await pageAr.click("[data-add-channel]")
 await pageAr.click('[data-add-type="whatsapp"]')
 await pageAr.waitForSelector("[data-whatsapp-state]", { timeout: 20000 })

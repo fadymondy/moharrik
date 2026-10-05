@@ -11,9 +11,24 @@ import {
   XIcon,
   YoutubeIcon,
 } from "lucide-react"
-import { Badge, Button, Checkbox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tabs,
+  TabsList,
+  TabsTab,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { Label } from "@/components/form-layout"
 
+import { ChannelsSection } from "@/components/channels/channels-section"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ga4Conversions } from "@/components/google/ga4-conversions"
 import { ResourcePicker } from "@/components/google/resource-picker"
@@ -64,10 +79,45 @@ export default function IntegrationsPage() {
   )
 }
 
+type IntegrationsTab = "channels" | "google"
+
+/*
+Two tabs (MH-1148): the messaging channels the inbox dock reads from (they used to be
+the Inbox's own Channels page), and Google. ?tab=google opens on Google, and so does
+Google's OAuth callback, which lands here with ?google=<outcome>.
+*/
 function Integrations() {
   const { t } = useTranslations()
   const ws = useWorkspace()
   useDocumentTitle(`${t("nav.integrations")} · ${ws.summary.name}`)
+  const params = useSearchParams()
+  const [tab, setTab] = useState<IntegrationsTab>(() =>
+    params.get("google") || params.get("tab") === "google" ? "google" : "channels",
+  )
+
+  return (
+    <>
+      <SectionHeader title={t("nav.integrations")} description={t("integrations.hint")} />
+      <div className="overflow-x-auto border-b border-border px-6">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as IntegrationsTab)}>
+          <TabsList variant="underline" className="w-max">
+            <TabsTab value="channels" data-integrations-tab="channels">
+              {t("channels.title")}
+            </TabsTab>
+            <TabsTab value="google" data-integrations-tab="google">
+              {t("integrations.google")}
+            </TabsTab>
+          </TabsList>
+        </Tabs>
+      </div>
+      {tab === "channels" ? <ChannelsSection /> : <GoogleIntegrations />}
+    </>
+  )
+}
+
+function GoogleIntegrations() {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
   const canManage = ws.can("integrations:manage")
   const google = useGoogleConnections(ws.id, canManage)
   const outcome = useCallbackOutcome()
@@ -76,10 +126,6 @@ function Integrations() {
 
   return (
     <>
-      <SectionHeader
-        title={t("nav.integrations")}
-        description={t("integrations.hint")}
-      />
       {outcome.result ? (
         <OutcomeBanner result={outcome.result} product={outcome.product} onClose={outcome.clear} />
       ) : null}
@@ -96,12 +142,14 @@ function Integrations() {
         <LoadingRows rows={3} />
       ) : (
         <>
-          <section className="px-6 pb-2">
+          <section className="px-6 pt-6 pb-2">
             <h2 className="flex items-center gap-2 text-base font-medium">
               <GoogleMark />
               {t("integrations.google")}
             </h2>
-            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("integrations.googleHint")}</p>
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+              {t("integrations.googleHint")}
+            </p>
           </section>
 
           {!google.data.configured ? (
@@ -279,7 +327,10 @@ function ConnectProducts() {
   }
 
   return (
-    <ul className="mt-4 divide-y divide-nq-line border-y border-nq-line" data-google-configured="true">
+    <ul
+      className="mt-4 divide-y divide-nq-line border-y border-nq-line"
+      data-google-configured="true"
+    >
       {GOOGLE_PRODUCTS.map((p) => (
         <li
           key={p}

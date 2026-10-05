@@ -167,7 +167,7 @@ sql(
 )
 
 // ---- email templates settings page: add, with a deliberate unknown placeholder ----
-await page.goto(`${base}/en/w/${slug}/inbox/email-templates`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/email-templates`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-action="add-email-template"]', { timeout: 15000 })
 await page.click('[data-action="add-email-template"]')
 const form = page.locator('[data-form="email-template"]')
@@ -236,7 +236,7 @@ check("branded-workspace-footer", raw.includes("MH661"), raw.slice(0, 4000))
 check("branded-subject-line", /Subject:.*pricing/i.test(raw), raw.slice(0, 800))
 
 // ---- delete it: settings page ----
-await page.goto(`${base}/en/w/${slug}/inbox/email-templates`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/email-templates`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-email-template-row="Pricing info"]', { timeout: 15000 })
 page.once("dialog", (d) => d.accept())
 await page.locator('[data-email-template-row="Pricing info"]').getByText("Delete", { exact: true }).click()
@@ -262,7 +262,7 @@ for (const scheme of ["light", "dark"])
       await page.evaluate((s) => localStorage.setItem("theme", s), scheme)
       await page.emulateMedia({ colorScheme: scheme })
       await page.setViewportSize({ width: wd, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/inbox/email-templates`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/settings/email-templates`, { waitUntil: "domcontentloaded" })
       await page.waitForSelector("[data-email-template-row]", { timeout: 15000 })
       await page.waitForTimeout(600)
       const m = await page.evaluate(() => {

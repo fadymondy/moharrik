@@ -9,7 +9,6 @@ import { RunRow as AutomationRunRow } from "@/components/automation/run-controls
 import { RunRow as ResearchRunRow } from "@/components/research/tabs"
 import {
   Empty,
-  InboxCard,
   LeadsCard,
   MarketingCard,
   NotificationsCard,
@@ -20,11 +19,7 @@ import {
   setupPending,
 } from "@/components/overview/overview-cards"
 import { TrafficCard, YouTubeCard } from "@/components/overview/google-cards"
-import {
-  ConversationsChartCard,
-  LeadsChartCard,
-  PipelineChartCard,
-} from "@/components/overview/overview-charts"
+import { LeadsChartCard, PipelineChartCard } from "@/components/overview/overview-charts"
 import { WorkspaceCard } from "@/components/overview/workspace-card"
 import { InsightQuestions } from "@/components/insights/questions"
 import { ErrorState, LoadingRows } from "@/components/states"
@@ -184,26 +179,6 @@ function OverviewSlice({ section, base }: { section: string; base: string }) {
             base={base}
             canWriteContacts={ws.can("contacts:write")}
             canWriteCampaigns={ws.can("campaigns:write")}
-          />,
-        )
-      break
-    case "inbox":
-      if (o.conversations)
-        cards.push(
-          <InboxCard
-            key="inbox"
-            items={o.conversations}
-            unread={o.today.unread_conversations}
-            base={base}
-            canAddWidget={ws.can("inbox:manage")}
-          />,
-        )
-      if (o.conversations_daily)
-        cards.push(
-          <ConversationsChartCard
-            key="inbox-chart"
-            conversationsDaily={o.conversations_daily}
-            base={base}
           />,
         )
       break

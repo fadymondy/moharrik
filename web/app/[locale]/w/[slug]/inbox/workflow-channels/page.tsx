@@ -13,7 +13,7 @@ export default function WorkflowChannelsRedirect() {
   const router = useRouter()
   const { locale, slug } = useParams<{ locale: string; slug: string }>()
   useEffect(() => {
-    router.replace(`/${locale}/w/${slug}/inbox/channels?type=workflow`)
+    router.replace(`/${locale}/w/${slug}/settings/integrations?type=workflow`)
   }, [router, locale, slug])
   return null
 }

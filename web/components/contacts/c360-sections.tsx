@@ -73,6 +73,7 @@ import {
 import { useTranslations } from "@/lib/i18n"
 import { useCurrentWorkspace, usePipelineStages } from "@/lib/queries"
 import { cn } from "@/lib/utils"
+import { inboxHref } from "@/lib/inbox-link"
 import { channelName, eventView, lifecycleName, type EventIcon, type Tone } from "./c360-text"
 
 const TONE_TEXT: Record<Tone, string> = {
@@ -178,7 +179,9 @@ export function C360Header({
             <Bdi>{contact.company.name}</Bdi>
           </Link>
         ) : null}
-        {contact.source ? <span>{t("c360.source", { source: isolate(contact.source) })}</span> : null}
+        {contact.source ? (
+          <span>{t("c360.source", { source: isolate(contact.source) })}</span>
+        ) : null}
         <span title={f.exact(contact.created_at)}>
           {t("c360.since", { when: dateOnly(locale, contact.created_at) })}
         </span>
@@ -204,15 +207,16 @@ export function JourneyPanel({ contact }: { contact: ContactDetail }) {
   }
   return (
     <Panel id="c360-journey" title={t("c360.journey.title")} icon={<RouteIcon />}>
-      <div className="relative overflow-x-auto px-5 py-5" data-c360-journey={contact.lifecycle || "none"}>
+      <div
+        className="relative overflow-x-auto px-5 py-5"
+        data-c360-journey={contact.lifecycle || "none"}
+      >
         <Stepper current={current} className="pointer-events-none min-w-[26rem]">
           {LIFECYCLE_STAGES.map((s) => (
             <StepperItem
               key={s}
               title={lifecycleName(t, s)}
-              description={
-                reached.has(s) ? dateOnly(locale, reached.get(s) as string) : undefined
-              }
+              description={reached.has(s) ? dateOnly(locale, reached.get(s) as string) : undefined}
             />
           ))}
         </Stepper>
@@ -255,7 +259,8 @@ export function useGenerateReport(contactId: string, onGenerated?: () => void) {
 function leadLine(markdown: string): string {
   for (const raw of markdown.split("\n")) {
     const line = raw.replace(/^\s*(?:[-*>]|\d+[.)])\s+/, "").trim()
-    if (line && !line.startsWith("#") && !/^[-=_*]{3,}$/.test(line)) return line.replace(/\*\*/g, "")
+    if (line && !line.startsWith("#") && !/^[-=_*]{3,}$/.test(line))
+      return line.replace(/\*\*/g, "")
   }
   return ""
 }
@@ -275,11 +280,25 @@ export function AiSummaryPanel({
   const latest = reports.data?.[0]
 
   let body: ReactNode
-  if (reports.error) body = <div className="p-5"><ErrorState error={reports.error} /></div>
-  else if (!reports.data) body = <div className="p-5"><LoadingRows rows={2} /></div>
+  if (reports.error)
+    body = (
+      <div className="p-5">
+        <ErrorState error={reports.error} />
+      </div>
+    )
+  else if (!reports.data)
+    body = (
+      <div className="p-5">
+        <LoadingRows rows={2} />
+      </div>
+    )
   else if (!latest)
     body = (
-      <div className="flex flex-1 flex-col items-start justify-center gap-1.5 px-5 py-6" data-empty data-c360-ai="empty">
+      <div
+        className="flex flex-1 flex-col items-start justify-center gap-1.5 px-5 py-6"
+        data-empty
+        data-c360-ai="empty"
+      >
         <p className="text-sm font-medium text-foreground">{t("c360.ai.emptyTitle")}</p>
         <p className="max-w-md text-sm text-muted-foreground">{t("c360.ai.emptyBody")}</p>
         {canWrite ? (
@@ -302,13 +321,19 @@ export function AiSummaryPanel({
     body = (
       <div className="px-5 py-4" data-c360-ai="report" data-report-version={latest.version}>
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <Badge variant="neutral">{t("contactContext.reportVersion", { version: latest.version })}</Badge>
+          <Badge variant="neutral">
+            {t("contactContext.reportVersion", { version: latest.version })}
+          </Badge>
           <Badge variant="neutral">{t("contactContext.noProviderShort")}</Badge>
           {latest.created_at ? (
-            <span className="text-xs text-muted-foreground">{dateOnly(locale, latest.created_at)}</span>
+            <span className="text-xs text-muted-foreground">
+              {dateOnly(locale, latest.created_at)}
+            </span>
           ) : null}
         </div>
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-sans text-sm">{latest.markdown}</pre>
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-sans text-sm">
+          {latest.markdown}
+        </pre>
       </div>
     )
   else
@@ -316,7 +341,10 @@ export function AiSummaryPanel({
       <div className="px-4 py-4" data-c360-ai="report" data-report-version={latest.version}>
         <AiSummary
           title={t("c360.ai.reportTitle", { version: latest.version })}
-          tldr={leadLine(latest.markdown) || t("contactContext.reportVersion", { version: latest.version })}
+          tldr={
+            leadLine(latest.markdown) ||
+            t("contactContext.reportVersion", { version: latest.version })
+          }
           full={latest.markdown}
           model={latest.model}
           onRegenerate={canWrite && !generating ? generate : undefined}
@@ -342,7 +370,8 @@ function jumpTo(anchor: string, focus?: string) {
   const el = document.querySelector(anchor)
   if (!el) return
   el.scrollIntoView({ behavior: "smooth", block: "start" })
-  if (focus) window.setTimeout(() => (document.getElementById(focus) as HTMLElement | null)?.focus(), 350)
+  if (focus)
+    window.setTimeout(() => (document.getElementById(focus) as HTMLElement | null)?.focus(), 350)
 }
 
 /** Existing actions only: each one does what the same control lower on the page does. */
@@ -558,7 +587,7 @@ export function UnifiedTimeline({
               <li key={`${e.kind}-${e.id}-${e.at}-${i}`} data-event={e.kind}>
                 {v.href ? (
                   <Link
-                    href={`${base}/${v.href}`}
+                    href={v.href.startsWith("?") ? v.href : `${base}/${v.href}`}
                     className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-nq-surface-soft"
                   >
                     {body}
@@ -620,13 +649,16 @@ export function ConversationsPanel({
       meta={rows.length ? <Badge variant="neutral">{formatNumber(rows.length)}</Badge> : null}
     >
       {rows.length === 0 ? (
-        <Empty title={t("c360.conversations.emptyTitle")} body={t("c360.conversations.emptyBody")} />
+        <Empty
+          title={t("c360.conversations.emptyTitle")}
+          body={t("c360.conversations.emptyBody")}
+        />
       ) : (
         <ul className="divide-y divide-nq-line" data-c360-conversations>
           {rows.map((c) => (
             <li key={c.id} data-conversation={c.id}>
               <Link
-                href={`${base}/inbox?c=${c.id}`}
+                href={inboxHref(c.id)}
                 className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-nq-surface-soft"
               >
                 <IconChip tone="info">
@@ -639,7 +671,9 @@ export function ConversationsPanel({
                   <p className="text-xs text-muted-foreground">
                     {channelName(t, c.channel)} ·{" "}
                     {t("c360.conversations.messages", { n: formatNumber(c.messages) })}
-                    {c.last_direction ? ` · ${t(`c360.conversations.last.${c.last_direction}`)}` : ""}
+                    {c.last_direction
+                      ? ` · ${t(`c360.conversations.last.${c.last_direction}`)}`
+                      : ""}
                   </p>
                 </div>
                 {c.unread ? (
@@ -669,13 +703,7 @@ const RUN_VARIANT: Record<string, "success" | "danger" | "neutral"> = {
   failed: "danger",
 }
 
-export function AutomationsPanel({
-  rows,
-  base,
-}: {
-  rows: ContactAutomationRow[]
-  base: string
-}) {
+export function AutomationsPanel({ rows, base }: { rows: ContactAutomationRow[]; base: string }) {
   const { t, formatNumber } = useTranslations()
   const f = useFormat()
   return (
@@ -747,7 +775,11 @@ export function C360Top({
   const canRead = ws.can("contacts:read")
   return (
     <>
-      <C360Header contact={contact} conversations={timeline.data?.overview?.conversations} base={base} />
+      <C360Header
+        contact={contact}
+        conversations={timeline.data?.overview?.conversations}
+        base={base}
+      />
       <div className="mb-6 grid gap-4 px-6 lg:grid-cols-3">
         {canRead ? (
           <div className="min-w-0 lg:col-span-2">
@@ -796,4 +828,3 @@ export function C360Top({
     </>
   )
 }
-

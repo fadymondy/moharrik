@@ -4,7 +4,7 @@ list: a handful of top-level links plus a handful of GROUPS. Each group is a
 section with its own page at `home` (MH-673): opening it shows that section's
 dashboard, and the sidebar — derived from the URL alone — shows only that
 section's pages, with a back link to the workspace overview. A crowded area
-(Automation, Research, Inbox, Notifications) reads as one screen at a time
+(Automation, Research, Notifications) reads as one screen at a time
 instead of forty rows.
 
 Every entry here owns exactly one route. A page that used to live at a since-
@@ -13,17 +13,14 @@ entry, so "every existing page has exactly one home" and no old link 404s.
 */
 
 import {
-  BarChart3Icon,
   BellIcon,
   BotIcon,
   Building2Icon,
   ChartColumnBigIcon,
-  CableIcon,
   ChartLineIcon,
   ClipboardListIcon,
   GlobeIcon,
   HandshakeIcon,
-  InboxIcon,
   KeyRoundIcon,
   LaptopIcon,
   LayoutGridIcon,
@@ -127,48 +124,6 @@ export const NAV: NavEntry[] = [
           labelKey: "nav.subscribeForms",
           icon: ClipboardListIcon,
           path: "subscribe-forms",
-        },
-      ],
-    },
-  },
-  {
-    type: "group",
-    group: {
-      key: "inbox",
-      home: "inbox/overview",
-      labelKey: "nav.inbox",
-      icon: InboxIcon,
-      items: [
-        {
-          key: "inbox-messages",
-          labelKey: "nav.inbox",
-          icon: InboxIcon,
-          path: "inbox",
-          exact: true,
-        },
-        { key: "inbox-stats", labelKey: "inbox.stats", icon: BarChart3Icon, path: "inbox/stats" },
-        {
-          key: "inbox-canned",
-          labelKey: "inbox.canned",
-          icon: MessageSquareQuoteIcon,
-          path: "inbox/canned",
-          can: "inbox:manage",
-        },
-        {
-          key: "inbox-email-templates",
-          labelKey: "inbox.emailTemplates.title",
-          icon: MailIcon,
-          path: "inbox/email-templates",
-          can: "inbox:manage",
-        },
-        // MH-571: the seven per-type setup pages (email/whatsapp/widgets/telegram/slack/discord/
-        // workflow-channels) collapsed into this one list+filter page; each old path now redirects here.
-        {
-          key: "inbox-channels",
-          labelKey: "channels.title",
-          icon: CableIcon,
-          path: "inbox/channels",
-          can: "inbox:manage",
         },
       ],
     },
@@ -341,6 +296,21 @@ export const NAV: NavEntry[] = [
           path: "settings/general",
         },
         { key: "settings-email", labelKey: "nav.email", icon: ServerIcon, path: "settings/email" },
+        // MH-1148: the inbox is a dock now (MH-1147), so its setup pages live here.
+        {
+          key: "settings-canned",
+          labelKey: "inbox.canned",
+          icon: MessageSquareQuoteIcon,
+          path: "settings/canned",
+          can: "inbox:manage",
+        },
+        {
+          key: "settings-email-templates",
+          labelKey: "inbox.emailTemplates.title",
+          icon: MailIcon,
+          path: "settings/email-templates",
+          can: "inbox:manage",
+        },
         {
           key: "settings-icp",
           labelKey: "nav.icp",

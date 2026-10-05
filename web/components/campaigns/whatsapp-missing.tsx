@@ -22,7 +22,7 @@ export function WhatsAppMissing() {
           {t("campaigns.whatsappMissing")}{" "}
           <Link
             className="underline underline-offset-4"
-            href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}
+            href={`/${locale}/w/${ws.slug}/settings/integrations?type=whatsapp`}
           >
             {t("campaigns.whatsappLink")}
           </Link>

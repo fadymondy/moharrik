@@ -25,7 +25,6 @@ const args = process.env.HOST_RULES ? [`--host-resolver-rules=${process.env.HOST
 const HOMES = [
   { key: "crm", path: "crm", row: "customers", sub: "crm-overview" },
   { key: "marketing", path: "marketing", row: "campaigns", sub: "marketing-overview" },
-  { key: "inbox", path: "inbox/overview", row: "inbox", sub: "inbox-overview" },
   { key: "automation", path: "automation", row: "automations", sub: null },
   { key: "research", path: "research", row: "research", sub: null },
   { key: "insights", path: "insights", row: "insights", sub: null },
@@ -147,9 +146,9 @@ for (const scheme of ["light", "dark"]) {
       check(`${k}-deeplink`, deep?.row.join() === "customers" && deep.subs.join() === "leads", deep)
 
       // A row navigates (and on mobile, the sheet closes behind it).
-      await page.locator(`${scope ?? "body"} a[data-nav-item="inbox"]`).filter({ visible: true }).first().click()
-      await page.waitForURL(`${ws}/inbox`, { timeout: 15000 }).catch(() => {})
-      check(`${k}-row-link`, page.url() === `${ws}/inbox`, page.url())
+      await page.locator(`${scope ?? "body"} a[data-nav-item="opportunities"]`).filter({ visible: true }).first().click()
+      await page.waitForURL(`${ws}/deals`, { timeout: 15000 }).catch(() => {})
+      check(`${k}-row-link`, page.url() === `${ws}/deals`, page.url())
       if (mobile) {
         await page.waitForTimeout(600)
         check(`${k}-sheet-closed`, (await page.$(sheet)) === null)

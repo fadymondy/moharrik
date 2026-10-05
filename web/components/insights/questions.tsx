@@ -32,7 +32,12 @@ function useDuration() {
   const { locale } = useTranslations()
   return useMemo(() => {
     const unit = (u: string, d: number) =>
-      numberFormat(locale, { style: "unit", unit: u, unitDisplay: "short", maximumFractionDigits: d })
+      numberFormat(locale, {
+        style: "unit",
+        unit: u,
+        unitDisplay: "short",
+        maximumFractionDigits: d,
+      })
     const sec = unit("second", 0)
     const min = unit("minute", 0)
     const hr = unit("hour", 1)
@@ -54,7 +59,10 @@ export function InsightQuestions({ base }: { base: string }) {
   const report = useCrmReport(can ? ws.id : null, `days=${days}`)
   const signals = useOpportunitySignals(ws.id, can)
   const n = useMemo(() => numberFormat(locale), [locale])
-  const pct = useMemo(() => numberFormat(locale, { style: "percent", maximumFractionDigits: 0 }), [locale])
+  const pct = useMemo(
+    () => numberFormat(locale, { style: "percent", maximumFractionDigits: 0 }),
+    [locale],
+  )
   const dur = useDuration()
   if (!can) return null
   const rep = report.data
@@ -68,7 +76,12 @@ export function InsightQuestions({ base }: { base: string }) {
           </h2>
           <p className="text-sm text-muted-foreground" data-insq-window>
             {rep
-              ? t("insq.window", { n: n.format(rep.days), from: rep.from, to: rep.to, tz: rep.timezone })
+              ? t("insq.window", {
+                  n: n.format(rep.days),
+                  from: rep.from,
+                  to: rep.to,
+                  tz: rep.timezone,
+                })
               : t("insq.windowLoading")}
           </p>
         </div>
@@ -94,7 +107,12 @@ export function InsightQuestions({ base }: { base: string }) {
           <LeadSourcesCard rep={rep} base={base} n={n} pct={pct} />
           <FirstResponseCard rep={rep} base={base} n={n} dur={dur} />
           <DropOffCard rep={rep} base={base} n={n} pct={pct} />
-          <AtRiskCard base={base} signals={signals} currencyFallback={rep.currency} locale={locale} />
+          <AtRiskCard
+            base={base}
+            signals={signals}
+            currencyFallback={rep.currency}
+            locale={locale}
+          />
         </div>
       )}
     </section>
@@ -121,7 +139,12 @@ function LeadSourcesCard({ rep, base, n, pct }: { rep: CrmReport; base: string; 
   const rest = sources.slice(6)
   const max = Math.max(1, ...top.map((s) => s.leads))
   return (
-    <Panel id="insq-leads" title={t("insq.leads.q")} icon={<UserPlusIcon />} href={`${base}/reports`}>
+    <Panel
+      id="insq-leads"
+      title={t("insq.leads.q")}
+      icon={<UserPlusIcon />}
+      href={`${base}/reports`}
+    >
       <Basis>
         {t("insq.leads.basis", {
           n: n.format(ls.leads),
@@ -134,7 +157,13 @@ function LeadSourcesCard({ rep, base, n, pct }: { rep: CrmReport; base: string; 
       ) : (
         <ul className="divide-y divide-nq-line border-t border-nq-line" data-insq-sources>
           {top.map((s) => (
-            <li key={s.source} className="space-y-1.5 px-5 py-2.5" data-insq-source={s.source} data-leads={s.leads} data-converted={s.converted}>
+            <li
+              key={s.source}
+              className="space-y-1.5 px-5 py-2.5"
+              data-insq-source={s.source}
+              data-leads={s.leads}
+              data-converted={s.converted}
+            >
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <Bdi className="min-w-0 truncate font-medium">{s.source}</Bdi>
                 <span className="shrink-0 tabular-nums text-muted-foreground">
@@ -148,7 +177,10 @@ function LeadSourcesCard({ rep, base, n, pct }: { rep: CrmReport; base: string; 
                 <div className="h-full bg-nq-info" style={{ width: `${(s.leads / max) * 100}%` }} />
               </div>
               <p className="text-xs text-muted-foreground">
-                {t("insq.leads.sub", { converted: n.format(s.converted), won: n.format(s.won_deals) })}
+                {t("insq.leads.sub", {
+                  converted: n.format(s.converted),
+                  won: n.format(s.won_deals),
+                })}
               </p>
             </li>
           ))}
@@ -182,7 +214,7 @@ function FirstResponseCard({
   if (!inbox) return null
   const tot = inbox.total
   return (
-    <Panel id="insq-reply" title={t("insq.reply.q")} icon={<TimerIcon />} href={`${base}/inbox/stats`}>
+    <Panel id="insq-reply" title={t("insq.reply.q")} icon={<TimerIcon />}>
       <Basis>{t("insq.reply.basis", { n: n.format(tot.conversations) })}</Basis>
       {tot.conversations === 0 ? (
         <Empty title={t("insq.reply.empty")} body={t("insq.reply.emptyBody")} />
@@ -197,7 +229,10 @@ function FirstResponseCard({
             <p className="text-xs text-muted-foreground">{t("insq.reply.median")}</p>
             <p className="text-2xl font-medium tabular-nums">{dur(tot.median_seconds)}</p>
             <p className="text-xs text-muted-foreground">
-              {t("insq.reply.answered", { n: n.format(tot.answered), total: n.format(tot.conversations) })}
+              {t("insq.reply.answered", {
+                n: n.format(tot.answered),
+                total: n.format(tot.conversations),
+              })}
             </p>
           </div>
           <div className="space-y-1 px-5 py-4" data-insq-awaiting data-value={tot.awaiting}>
@@ -233,7 +268,12 @@ function DropOffCard({ rep, base, n, pct }: { rep: CrmReport; base: string; n: N
   const w: Worst | null = worst
   const max = Math.max(1, ...steps.map((s) => s.reached))
   return (
-    <Panel id="insq-dropoff" title={t("insq.drop.q")} icon={<FilterIcon />} href={`${base}/reports`}>
+    <Panel
+      id="insq-dropoff"
+      title={t("insq.drop.q")}
+      icon={<FilterIcon />}
+      href={`${base}/reports`}
+    >
       <Basis>{t("insq.drop.basis", { n: n.format(c.opened), lost: n.format(c.lost) })}</Basis>
       {c.opened === 0 || steps.length === 0 ? (
         <Empty title={t("insq.drop.empty")} body={t("insq.drop.emptyBody")} />
@@ -241,7 +281,12 @@ function DropOffCard({ rep, base, n, pct }: { rep: CrmReport; base: string; n: N
         <>
           <ul className="divide-y divide-nq-line border-t border-nq-line" data-insq-steps>
             {steps.map((s) => (
-              <li key={s.stage_id} className="space-y-1.5 px-5 py-2.5" data-insq-step={s.name} data-reached={s.reached}>
+              <li
+                key={s.stage_id}
+                className="space-y-1.5 px-5 py-2.5"
+                data-insq-step={s.name}
+                data-reached={s.reached}
+              >
                 <div className="flex items-baseline justify-between gap-3 text-sm">
                   <Bdi className="min-w-0 truncate font-medium">{s.name}</Bdi>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
@@ -259,7 +304,10 @@ function DropOffCard({ rep, base, n, pct }: { rep: CrmReport; base: string; n: N
             ))}
           </ul>
           {w ? (
-            <p className="border-t border-nq-line px-5 py-3 text-sm text-nq-warning-text" data-insq-worst>
+            <p
+              className="border-t border-nq-line px-5 py-3 text-sm text-nq-warning-text"
+              data-insq-worst
+            >
               {t("insq.drop.worst", { from: w.from, to: w.to, rate: pct.format(w.rate) })}
             </p>
           ) : null}
@@ -326,7 +374,11 @@ function AtRiskCard({
                         </Link>
                         {i.value ? (
                           <span className="shrink-0 tabular-nums text-muted-foreground">
-                            {formatMoney(i.value.minor, i.value.currency || currencyFallback, locale)}
+                            {formatMoney(
+                              i.value.minor,
+                              i.value.currency || currencyFallback,
+                              locale,
+                            )}
                           </span>
                         ) : null}
                       </div>

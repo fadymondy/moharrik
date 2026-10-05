@@ -7,6 +7,7 @@ violet = Moharrik's own work (automation), warning = needs a look, danger = lost
 
 import { isolate } from "@/components/bidi"
 import type { ContactEvent } from "@/lib/contact-timeline"
+import { inboxHref } from "@/lib/inbox-link"
 
 export type T = (key: string, vars?: Record<string, string | number>) => string
 export type Tone = "success" | "info" | "violet" | "warning" | "danger" | "muted"
@@ -61,7 +62,13 @@ export function eventView(t: T, e: ContactEvent, ctx: Ctx): EventView {
 
   switch (e.kind) {
     case "contact.created":
-      return { tone: "muted", icon: "contact", title: t("c360.ev.contact.created"), detail: null, href: null }
+      return {
+        tone: "muted",
+        icon: "contact",
+        title: t("c360.ev.contact.created"),
+        detail: null,
+        href: null,
+      }
 
     case "activity.note":
     case "activity.call":
@@ -91,8 +98,13 @@ export function eventView(t: T, e: ContactEvent, ctx: Ctx): EventView {
           channel: channelName(t, str(d.channel)),
           subject: clip(str(d.subject)) || t("c360.ev.noSubject"),
         }),
-        detail: t("c360.ev.conversation.detail", { n, inbound: num(d.inbound), outbound: Math.max(0, n - num(d.inbound)) }),
-        href: `inbox?c=${e.id}`,
+        detail: t("c360.ev.conversation.detail", {
+          n,
+          inbound: num(d.inbound),
+          outbound: Math.max(0, n - num(d.inbound)),
+        }),
+        // A query-only href opens the inbox dock over this page (MH-1147).
+        href: inboxHref(e.id),
       }
     }
 
@@ -100,8 +112,14 @@ export function eventView(t: T, e: ContactEvent, ctx: Ctx): EventView {
     case "deal.stage_changed":
     case "deal.won":
     case "deal.lost": {
-      const value = num(d.value_minor) > 0 ? ctx.money(num(d.value_minor), str(d.currency) || "USD") : ""
-      const vars = { title: clip(str(d.title)), stage: clip(str(d.stage)), from: clip(str(d.from_stage)), value }
+      const value =
+        num(d.value_minor) > 0 ? ctx.money(num(d.value_minor), str(d.currency) || "USD") : ""
+      const vars = {
+        title: clip(str(d.title)),
+        stage: clip(str(d.stage)),
+        from: clip(str(d.from_stage)),
+        value,
+      }
       const key = e.kind
       const tone: Tone = key === "deal.won" ? "success" : key === "deal.lost" ? "danger" : "info"
       const icon: EventIcon = key === "deal.won" ? "won" : key === "deal.lost" ? "lost" : "deal"
@@ -138,7 +156,9 @@ export function eventView(t: T, e: ContactEvent, ctx: Ctx): EventView {
     }
 
     case "lead.submitted": {
-      const utm = [str(d.utm_source), str(d.utm_medium), str(d.utm_campaign)].filter(Boolean).join(" / ")
+      const utm = [str(d.utm_source), str(d.utm_medium), str(d.utm_campaign)]
+        .filter(Boolean)
+        .join(" / ")
       const parts = [
         utm ? t("c360.ev.lead.utm", { utm: isolate(utm) }) : "",
         str(d.message) ? isolate(str(d.message)) : "",

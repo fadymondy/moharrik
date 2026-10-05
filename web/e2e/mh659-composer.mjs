@@ -191,7 +191,7 @@ async function call(method, p, json) {
 }
 
 // ---- WhatsApp channel: link a number, exactly like MH-658's stub flow ----
-await page.goto(`${base}/en/w/${slug}/inbox/channels`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/integrations`, { waitUntil: "domcontentloaded" })
 await page.click("[data-add-channel]")
 await page.click('[data-add-type="whatsapp"]')
 await page.waitForSelector("[data-whatsapp-state]", { timeout: 20000 })
@@ -386,37 +386,8 @@ check(
   (await page.locator("[data-attachment-files] a, [data-attachment-images] img").count()) > 0,
 )
 
-// ---- the docked chat: the same composer works there too ----
-await page.goto(`${base}/en/w/${slug}`, { waitUntil: "domcontentloaded" })
-const launcher = page.locator("[data-chat-dock-launcher]")
-await launcher.waitFor({ state: "visible", timeout: 20000 }).catch(() => {})
-if (await launcher.count()) {
-  await launcher.click()
-  await page.waitForSelector("[data-dock-list]", { timeout: 10000 })
-  const item = page.locator("[data-dock-list-item]", { hasText: "Dana" }).first()
-  if (await item.count()) {
-    await item.click()
-    await page.waitForSelector('[data-dock-window] [data-form="reply"]', { timeout: 15000 })
-    check("dock-attach-menu-present", (await page.locator('[data-dock-window] [data-action="attach"]').count()) > 0)
-    check("dock-emoji-present", (await page.locator('[data-dock-window] [data-action="emoji"]').count()) > 0)
-    check("dock-mic-present", (await page.locator('[data-dock-window] [data-action="mic"]').count()) > 0)
-    // The location/emoji Popover content is portalled to <body>, not nested
-    // under [data-dock-window] — same as the main thread's own picker.
-    await page.locator('[data-dock-window] [data-action="location"]').click()
-    await page.waitForSelector('[data-location-picker]', { timeout: 10000 })
-    await page.fill("#location-lat", "29.9")
-    await page.fill("#location-lng", "31.1")
-    await page.click('[data-action="location-use"]')
-    await new Promise((r) => setTimeout(r, 1000))
-    check("dock-sendLocation-called", evo.sendLocation.length > 1, evo.sendLocation.length)
-    await page.screenshot({ path: path.join(shots, "en-light-1440-dock.png") })
-  } else {
-    check("dock-list-has-item", false, "no dock item named Dana")
-  }
-} else {
-  check("dock-launcher-present", false, "launcher not found")
-}
-
+// (MH-1147: the floating chat dock is gone — the inbox itself is the dock now, so the
+// thread checks above already cover it.)
 // ---- en/ar x light/dark x 1440/390, WhatsApp thread + dock ----
 for (const scheme of ["light", "dark"])
   for (const loc of ["en", "ar"])

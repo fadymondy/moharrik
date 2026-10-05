@@ -105,7 +105,7 @@ const widget = made.body.widget
 const channelRow = `[data-channel-row="${widget.id}"]`
 
 async function openSheet(p, locale) {
-  await p.goto(`${base}/${locale}/w/${ws.slug}/inbox/channels`)
+  await p.goto(`${base}/${locale}/w/${ws.slug}/settings/integrations`)
   await p.locator(channelRow).waitFor({ timeout: 20000 })
   await p.locator(`${channelRow} [data-edit-channel]`).click()
   await p.locator("[data-widget-settings-form]").waitFor()
@@ -195,7 +195,7 @@ try {
       }
 
   // The create form refuses the same inputs.
-  await page.goto(`${base}/en/w/${ws.slug}/inbox/channels`)
+  await page.goto(`${base}/en/w/${ws.slug}/settings/integrations`)
   await page.locator("[data-add-channel]").click()
   await page.locator('[data-add-type="chat"]').click()
   const createOrigins = page.locator("#widget-origins")

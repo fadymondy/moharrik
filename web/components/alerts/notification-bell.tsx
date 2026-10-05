@@ -26,6 +26,7 @@ import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useBell } from "@/lib/queries"
 import { cn } from "@/lib/utils"
+import { inboxHref } from "@/lib/inbox-link"
 
 /*
 The header bell (MH-378): unread conversations plus unread notification items,
@@ -43,10 +44,9 @@ gets neither.
 
 const REFRESH_KINDS = new Set(["message", "conversation", "notification", "notifications"])
 
+/** Where a bell row goes. A conversation opens in the inbox dock over this page (MH-1147). */
 export function hrefFor(item: Pick<BellItem, "kind" | "id">, locale: string, slug: string) {
-  return item.kind === "conversation"
-    ? `/${locale}/w/${slug}/inbox?c=${encodeURIComponent(item.id)}`
-    : `/${locale}/w/${slug}/notifications`
+  return item.kind === "conversation" ? inboxHref(item.id) : `/${locale}/w/${slug}/notifications`
 }
 
 const severityTone: Record<string, string> = {
@@ -127,9 +127,7 @@ export function NotificationBell({
             {[item.snippet, meta].filter(Boolean).join(" — ")}
           </span>
         ) : undefined,
-      ...(item.kind === "conversation"
-        ? { actor: { name } }
-        : { icon: <NoteIcon item={item} /> }),
+      ...(item.kind === "conversation" ? { actor: { name } } : { icon: <NoteIcon item={item} /> }),
       time: item.at,
       unread: item.unread,
     }
@@ -171,66 +169,72 @@ export function NotificationBell({
     if (!item?.unread) return []
     const allowed = item.kind === "conversation" ? canMarkConv : canMarkNote
     return allowed
-      ? [{ id: "read", label: t("alerts.markRead"), icon: CheckIcon, onSelect: () => void mark(item) }]
+      ? [
+          {
+            id: "read",
+            label: t("alerts.markRead"),
+            icon: CheckIcon,
+            onSelect: () => void mark(item),
+          },
+        ]
       : []
   }
 
   const close = () => setOpen(false)
-  const header =
-    nothing ? (
-      <p className="text-sm text-muted-foreground">{t("alerts.nothingToRead")}</p>
-    ) : (
-      <div className="flex flex-col gap-2">
-        {perm === "default" ? (
-          // A click, never on load: see useNotificationPermission.
+  const header = nothing ? (
+    <p className="text-sm text-muted-foreground">{t("alerts.nothingToRead")}</p>
+  ) : (
+    <div className="flex flex-col gap-2">
+      {perm === "default" ? (
+        // A click, never on load: see useNotificationPermission.
+        <Button
+          variant="secondary"
+          size="sm"
+          className="w-full"
+          onClick={() => void requestPerm()}
+          data-allow-desktop
+        >
+          <BellRingIcon />
+          {t("alerts.enableDesktop")}
+        </Button>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-1">
+        {data?.can_inbox ? (
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            className="w-full"
-            onClick={() => void requestPerm()}
-            data-allow-desktop
+            nativeButton={false}
+            render={<Link href={inboxHref()} onClick={close} />}
           >
-            <BellRingIcon />
-            {t("alerts.enableDesktop")}
+            {t("alerts.openInbox")}
           </Button>
         ) : null}
-        <div className="flex flex-wrap items-center gap-1">
-          {data?.can_inbox ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              nativeButton={false}
-              render={<Link href={`/${locale}/w/${slug}/inbox`} onClick={close} />}
-            >
-              {t("alerts.openInbox")}
-            </Button>
-          ) : null}
-          {data?.can_notifications ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              nativeButton={false}
-              render={<Link href={`/${locale}/w/${slug}/notifications`} onClick={close} />}
-            >
-              {t("alerts.allNotifications")}
-            </Button>
-          ) : null}
-          {can("push:manage") ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="ms-auto"
-              aria-label={t("alerts.delivery")}
-              title={t("alerts.delivery")}
-              nativeButton={false}
-              render={<Link href={`/${locale}/w/${slug}/settings/delivery`} onClick={close} />}
-            >
-              <SettingsIcon />
-            </Button>
-          ) : null}
-        </div>
+        {data?.can_notifications ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={`/${locale}/w/${slug}/notifications`} onClick={close} />}
+          >
+            {t("alerts.allNotifications")}
+          </Button>
+        ) : null}
+        {can("push:manage") ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="ms-auto"
+            aria-label={t("alerts.delivery")}
+            title={t("alerts.delivery")}
+            nativeButton={false}
+            render={<Link href={`/${locale}/w/${slug}/settings/delivery`} onClick={close} />}
+          >
+            <SettingsIcon />
+          </Button>
+        ) : null}
       </div>
-    )
+    </div>
+  )
 
   return (
     <NotificationCenter

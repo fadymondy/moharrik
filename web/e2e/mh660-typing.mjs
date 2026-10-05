@@ -125,11 +125,11 @@ out.slug = slug
 
 // ---- (a) link WhatsApp against the stub: assert the fresh subscription includes PRESENCE_UPDATE ----
 // The old dedicated /inbox/whatsapp page is now just a redirect shim to
-// /inbox/channels?type=whatsapp, where WhatsAppChannelForm renders inside a
+// /settings/integrations?type=whatsapp, where WhatsAppChannelForm renders inside a
 // sheet opened from the "Add channel" dropdown (see
 // web/components/channels/whatsapp-channel-form.tsx and
-// web/app/[locale]/w/[slug]/inbox/channels/page.tsx).
-await page.goto(`${base}/en/w/${slug}/inbox/channels`, { waitUntil: "domcontentloaded" })
+// web/app/[locale]/w/[slug]/settings/integrations/page.tsx).
+await page.goto(`${base}/en/w/${slug}/settings/integrations`, { waitUntil: "domcontentloaded" })
 await page.click("[data-add-channel]")
 await page.click('[data-add-type="whatsapp"]')
 await page.waitForSelector('[data-add-channel-sheet="whatsapp"] [data-whatsapp-state]', { timeout: 20000 })
@@ -259,7 +259,7 @@ function servePage(port) {
 // see web/components/channels/widget-channel-form.tsx) — same restructure as
 // WhatsApp above. Create it there, then open the row's edit sheet
 // (WidgetSettingsSheet) to read the embed snippet's data-key.
-await page.goto(`${base}/en/w/${slug}/inbox/channels`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/integrations`, { waitUntil: "domcontentloaded" })
 await page.click("[data-add-channel]")
 await page.click('[data-add-type="chat"]')
 await page.waitForSelector("#widget-name", { timeout: 10000 })
@@ -390,23 +390,8 @@ out.agentTypingReachesWidgetVisitor = sseFrames.some(
   (f) => f.includes('"typing"') && f.includes('"composing"'),
 )
 
-// ---- (f) the chat dock also shows the indicator ----
-// ChatDock hides itself on /inbox (that page already IS the chat UI, see
-// workspace-shell.tsx) but renders on every other workspace page — there is
-// no /crm route in this app, so go straight to the workspace overview.
-await page.goto(`${base}/en/w/${slug}`, { waitUntil: "domcontentloaded" })
-await page.waitForSelector("[data-chat-dock-launcher]", { timeout: 15000 }).catch(() => {})
-await page.click("[data-chat-dock-launcher]").catch(() => {})
-await page.waitForSelector("[data-dock-list]", { timeout: 10000 }).catch(() => {})
-await page.click('[data-dock-list-item]').catch(() => {})
-await page.waitForSelector("[data-dock-window]", { timeout: 10000 }).catch(() => {})
-await post({ event: "presence.update", data: { id: `${CUSTOMER}@s.whatsapp.net`, presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "composing" } } } })
-out.dockShowsTyping = await page
-  .waitForSelector("[data-dock-window] [data-typing-indicator]", { timeout: 8000 })
-  .then(() => true)
-  .catch(() => false)
-await post({ event: "presence.update", data: { id: `${CUSTOMER}@s.whatsapp.net`, presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "paused" } } } })
-
+// (MH-1147: the floating chat dock is gone — the inbox itself is the dock now, so the
+// thread checks above already cover it.)
 out.pageErrors = errs
 await ctx.close()
 
@@ -416,7 +401,7 @@ async function shot(locale, scheme, width, height, name) {
   const c = await newCtx({ colorScheme: scheme, viewport: { width, height } })
   const p = c.pages()[0]
   const { slug: s } = await signUpAndEnterWorkspace(p, "MH660shot " + Date.now() + name)
-  await p.goto(`${base}/${locale}/w/${s}/inbox/channels`, { waitUntil: "domcontentloaded" })
+  await p.goto(`${base}/${locale}/w/${s}/settings/integrations`, { waitUntil: "domcontentloaded" })
   await p.click("[data-add-channel]")
   await p.click('[data-add-type="whatsapp"]')
   await p.waitForSelector('[data-add-channel-sheet="whatsapp"] [data-whatsapp-state]', { timeout: 20000 })

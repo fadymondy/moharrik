@@ -13,7 +13,7 @@ export default function DiscordChannelsRedirect() {
   const router = useRouter()
   const { locale, slug } = useParams<{ locale: string; slug: string }>()
   useEffect(() => {
-    router.replace(`/${locale}/w/${slug}/inbox/channels?type=discord`)
+    router.replace(`/${locale}/w/${slug}/settings/integrations?type=discord`)
   }, [router, locale, slug])
   return null
 }

@@ -110,7 +110,7 @@ export function EmailTemplatePicker({
         {ws.can("inbox:manage") ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href={`/${locale}/w/${ws.slug}/inbox/email-templates`} />}>
+            <DropdownMenuItem render={<Link href={`/${locale}/w/${ws.slug}/settings/email-templates`} />}>
               {t("inbox.emailTemplates.manage")}
             </DropdownMenuItem>
           </>

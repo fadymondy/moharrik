@@ -99,12 +99,12 @@ const SOURCE_BRAND: Record<string, Brand> = {
 
 /** Where each connection source is set up. */
 const CONNECT_PATH: Record<string, string> = {
-  whatsapp: "inbox/whatsapp",
-  email: "inbox/email",
-  slack: "inbox/slack",
-  discord: "inbox/discord",
-  telegram: "inbox/telegram",
-  workflow: "inbox/workflow-channels",
+  whatsapp: "settings/integrations?type=whatsapp",
+  email: "settings/integrations?type=email",
+  slack: "settings/integrations?type=slack",
+  discord: "settings/integrations?type=discord",
+  telegram: "settings/integrations?type=telegram",
+  workflow: "settings/integrations?type=workflow",
 }
 
 type Picked = { source: string; connectionId: string }

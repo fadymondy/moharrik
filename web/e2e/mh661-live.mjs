@@ -69,7 +69,7 @@ for (const scheme of ["light", "dark"]) {
       await page.setViewportSize({ width: w, height: 900 })
 
       // The management page.
-      await page.goto(`${base}/${loc}/w/${slug}/inbox/email-templates`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/settings/email-templates`, { waitUntil: "domcontentloaded" })
       await page.waitForLoadState("networkidle").catch(() => {})
       await page.waitForTimeout(500)
       const pg = await page.evaluate(() => ({

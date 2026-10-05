@@ -48,6 +48,7 @@ import {
 import type { Home, HomeAttentionItem, HomeEvent, HomeLane } from "@/lib/home-types"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { inboxHref } from "@/lib/inbox-link"
 import {
   channelLabel,
   entityRoute,
@@ -145,7 +146,9 @@ function HomeCard({
           </Button>
         ) : null}
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col border-t border-border px-0">{children}</CardContent>
+      <CardContent className="flex flex-1 flex-col border-t border-border px-0">
+        {children}
+      </CardContent>
     </Card>
   )
 }
@@ -171,7 +174,12 @@ function HomeEmpty({
       data-empty
       actions={
         action ? (
-          <Button variant="secondary" size="sm" nativeButton={false} render={<Link href={action.href} />}>
+          <Button
+            variant="secondary"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={action.href} />}
+          >
             {action.label}
           </Button>
         ) : undefined
@@ -407,7 +415,10 @@ export function AttentionPanel({
         </ul>
       )}
       {attention.items.length > 0 && attention.total > attention.items.length ? (
-        <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground" data-home-attention-more>
+        <p
+          className="border-t border-border px-5 py-3 text-xs text-muted-foreground"
+          data-home-attention-more
+        >
           {t("home.attention.showing", {
             shown: f.n(attention.items.length),
             total: f.n(attention.total),
@@ -421,7 +432,9 @@ export function AttentionPanel({
 function AttentionRow({ it, base }: { it: HomeAttentionItem; base: string }) {
   const { t } = useTranslations()
   const f = useFormat()
-  const title = it.title ? it.title : t(`home.attn.${it.kind}${it.count === 1 ? ".one" : ""}`, { n: f.n(it.count ?? 0) })
+  const title = it.title
+    ? it.title
+    : t(`home.attn.${it.kind}${it.count === 1 ? ".one" : ""}`, { n: f.n(it.count ?? 0) })
   const lead = it.title ? t(`home.attn.${it.kind}`, { n: "" }).trim() : null
   const money = it.value && it.value.minor > 0 ? f.money(it.value.minor, it.value.currency) : null
   return (
@@ -469,7 +482,7 @@ function AttentionRow({ it, base }: { it: HomeAttentionItem; base: string }) {
 
 const LANE: Record<HomeLane["key"], { icon: ReactNode; tone: Tone; route: string }> = {
   discover: { icon: <SearchIcon />, tone: "violet", route: "research" },
-  listen: { icon: <EarIcon />, tone: "info", route: "inbox" },
+  listen: { icon: <EarIcon />, tone: "info", route: inboxHref() },
   understand: { icon: <LightbulbIcon />, tone: "violet", route: "insights" },
   act: { icon: <PlayIcon />, tone: "success", route: "automation/runs" },
 }
@@ -491,7 +504,7 @@ export function WorkingPanel({ working, base }: { working: Home["working"]; base
           return (
             <li key={lane.key} data-lane={lane.key} data-active={lane.active ? "true" : "false"}>
               <Link
-                href={`${base}/${m.route}`}
+                href={m.route.startsWith("?") ? m.route : `${base}/${m.route}`}
                 className="flex gap-3 px-5 py-3 transition-colors hover:bg-nq-surface-soft"
               >
                 <IconChip tone={lane.active ? m.tone : "info"}>{m.icon}</IconChip>
@@ -511,7 +524,9 @@ export function WorkingPanel({ working, base }: { working: Home["working"]; base
                   <p className="text-sm text-foreground">
                     {lane.headline == null
                       ? t("home.lane.noAccess")
-                      : t(`home.lane.${lane.key}.head${lane.headline === 1 ? ".one" : ""}`, { n: f.n(lane.headline) })}
+                      : t(`home.lane.${lane.key}.head${lane.headline === 1 ? ".one" : ""}`, {
+                          n: f.n(lane.headline),
+                        })}
                   </p>
                   {subs.length ? (
                     <p className="text-xs text-muted-foreground">{subs.join(" · ")}</p>
@@ -594,7 +609,7 @@ export function ActivityPanel({ events, base }: { events: HomeEvent[]; base: str
               <li key={`${e.kind}-${e.occurred_at}-${i}`} data-event={e.kind}>
                 {route ? (
                   <Link
-                    href={`${base}/${route}`}
+                    href={route.startsWith("?") ? route : `${base}/${route}`}
                     className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-nq-surface-soft"
                   >
                     {body}
@@ -706,7 +721,7 @@ export function ConnectionsPanel({
       id="home-connections"
       title={t("home.connections.title")}
       icon={<CableIcon />}
-      href={canManage ? `${base}/inbox/channels` : `${base}/settings/integrations`}
+      href={`${base}/settings/integrations`}
     >
       {empty ? (
         <HomeEmpty
@@ -715,7 +730,10 @@ export function ConnectionsPanel({
           body={t("home.connections.emptyBody")}
           action={
             canManage
-              ? { href: `${base}/inbox/channels`, label: t("home.connections.connectWhatsapp") }
+              ? {
+                  href: `${base}/settings/integrations?type=whatsapp`,
+                  label: t("home.connections.connectWhatsapp"),
+                }
               : undefined
           }
         />
@@ -812,7 +830,7 @@ export function ConnectionsPanel({
       )}
       <div className="mt-auto border-t border-border px-5 py-2.5">
         <Link
-          href={canManage ? `${base}/inbox/channels` : `${base}/settings/integrations`}
+          href={`${base}/settings/integrations`}
           className="inline-flex items-center gap-1 text-xs font-medium text-nq-action hover:underline hover:underline-offset-4"
         >
           {t("home.connections.manage")}
@@ -846,7 +864,10 @@ export function HomeNextSteps({
     if (can("contacts:write"))
       actions.push({ href: `${base}/contacts/import`, label: t("home.empty.importCustomers") })
     if (can("inbox:manage"))
-      actions.push({ href: `${base}/inbox/widgets`, label: t("home.empty.connectWebsite") })
+      actions.push({
+        href: `${base}/settings/integrations?type=chat`,
+        label: t("home.empty.connectWebsite"),
+      })
     steps.push({
       title: t("home.empty.customersTitle"),
       body: t("home.empty.customersBody"),
@@ -856,8 +877,14 @@ export function HomeNextSteps({
   if (has.conversations === false) {
     const actions = can("inbox:manage")
       ? [
-          { href: `${base}/inbox/whatsapp`, label: t("home.connections.connectWhatsapp") },
-          { href: `${base}/inbox/email`, label: t("home.connections.connectEmail") },
+          {
+            href: `${base}/settings/integrations?type=whatsapp`,
+            label: t("home.connections.connectWhatsapp"),
+          },
+          {
+            href: `${base}/settings/integrations?type=email`,
+            label: t("home.connections.connectEmail"),
+          },
         ]
       : []
     steps.push({

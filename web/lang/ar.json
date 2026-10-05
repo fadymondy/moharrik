@@ -4973,5 +4973,8 @@
   "connect.readWriteHint": "ويرد أيضًا وينشئ ويعدّل، في حدود صلاحيات دورك.",
   "connect.keyExpires": "تنتهي صلاحية المفتاح بعد 90 يومًا.",
   "connect.manageKeys": "إدارة مفاتيحك",
-  "connect.createKey": "أنشئ مفتاحي"
+  "connect.createKey": "أنشئ مفتاحي",
+  "inbox.dock.open": "افتح البريد الوارد",
+  "inbox.dock.close": "أغلق البريد الوارد",
+  "inbox.dock.caughtUp": "لا رسائل غير مقروءة"
 }

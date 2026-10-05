@@ -3,7 +3,22 @@
 import Link from "next/link"
 import { useEffect, useState, type FormEvent } from "react"
 import { CheckCircle2Icon, MessageCircleIcon, SendIcon, XCircleIcon } from "lucide-react"
-import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
@@ -64,7 +79,7 @@ export function WhatsAppNotifySection() {
               {ws.can("inbox:manage") ? (
                 <Link
                   className="underline underline-offset-4"
-                  href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}
+                  href={`/${locale}/w/${ws.slug}/settings/integrations?type=whatsapp`}
                 >
                   {t("contactWa.linkNumber")}
                 </Link>
@@ -310,7 +325,11 @@ function Settings({
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-sm font-medium">{t("waNotify.kinds")}</legend>
             {data.all_kinds.map((k) => (
-              <Field key={k.kind} data-disabled={!k.allowed || undefined} className="flex-row items-center gap-3">
+              <Field
+                key={k.kind}
+                data-disabled={!k.allowed || undefined}
+                className="flex-row items-center gap-3"
+              >
                 <Checkbox
                   id={`wa-kind-${k.kind}`}
                   checked={kinds.includes(k.kind)}
@@ -327,7 +346,10 @@ function Settings({
                   <span>
                     {t(`waNotify.kind.${k.kind}`)}
                     {!k.allowed ? (
-                      <span className="text-muted-foreground"> · {t("waNotify.kindNotAllowed")}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {t("waNotify.kindNotAllowed")}
+                      </span>
                     ) : null}
                   </span>
                 </FieldLabel>
@@ -374,9 +396,7 @@ function Settings({
                 </Field>
               </div>
             ) : null}
-            <FormHint>
-              {t("waNotify.quietHint", { zone: data.effective_timezone })}
-            </FormHint>
+            <FormHint>{t("waNotify.quietHint", { zone: data.effective_timezone })}</FormHint>
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row">
@@ -475,9 +495,7 @@ function Settings({
                     ? t("waNotify.logTest")
                     : t("waNotify.logBatch", { n: r.events })}
                 </span>
-                {!r.ok && r.error ? (
-                  <span className="text-nq-danger-text">· {r.error}</span>
-                ) : null}
+                {!r.ok && r.error ? <span className="text-nq-danger-text">· {r.error}</span> : null}
               </li>
             ))}
           </ul>

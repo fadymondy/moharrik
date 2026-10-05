@@ -15,7 +15,7 @@ export default function ChatWidgetsRedirect() {
   const router = useRouter()
   const { locale, slug } = useParams<{ locale: string; slug: string }>()
   useEffect(() => {
-    router.replace(`/${locale}/w/${slug}/inbox/channels?type=chat`)
+    router.replace(`/${locale}/w/${slug}/settings/integrations?type=chat`)
   }, [router, locale, slug])
   return null
 }

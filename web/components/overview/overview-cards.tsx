@@ -56,6 +56,7 @@ import {
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat, numberFormat, relativeTimeFormat } from "@/lib/i18n-locale"
 import { cn } from "@/lib/utils"
+import { inboxHref } from "@/lib/inbox-link"
 
 // ── formatting ───────────────────────────────────────────────────────────
 
@@ -261,7 +262,7 @@ export function TodayStrip({ today, base }: { today: OverviewToday; base: string
       <Tile
         key="inbox"
         id="unread-conversations"
-        href={`${base}/inbox?unread=1`}
+        href={inboxHref("unread")}
         label={t("overview.unreadConversations")}
         value={f.n(today.unread_conversations)}
         sub={today.unread_conversations === 0 ? t("overview.allClear") : t("nav.inbox")}
@@ -587,11 +588,11 @@ export function InboxCard({
       id="inbox"
       title={t("nav.inbox")}
       icon={<InboxIcon />}
-      href={`${base}/inbox`}
+      href={inboxHref()}
       meta={
         unread ? (
           <Link
-            href={`${base}/inbox?unread=1`}
+            href={inboxHref("unread")}
             className="text-xs text-muted-foreground hover:text-foreground hover:underline"
             data-unread-link
           >
@@ -607,7 +608,7 @@ export function InboxCard({
           body={t("overview.noConversationsBody")}
           action={
             canAddWidget
-              ? { href: `${base}/inbox/widgets`, label: t("inbox.addWidget") }
+              ? { href: `${base}/settings/integrations?type=chat`, label: t("inbox.addWidget") }
               : undefined
           }
         />
@@ -616,7 +617,7 @@ export function InboxCard({
           {items.map((c) => (
             <RowLink
               key={c.id}
-              href={`${base}/inbox?c=${encodeURIComponent(c.id)}`}
+              href={inboxHref(c.id)}
               className={c.unread ? "bg-card" : undefined}
               data-overview-conversation={c.id}
             >
@@ -980,8 +981,8 @@ export function TrendsCard({
 const SETUP: Record<SetupKey, { path: string; perm: string; role: "admin" | "manager" }> = {
   inquiry_form: { path: "subscribe-forms", perm: "campaigns:write", role: "manager" },
   smtp: { path: "settings/email", perm: "mail:settings", role: "admin" },
-  chat_widget: { path: "inbox/widgets", perm: "inbox:manage", role: "manager" },
-  whatsapp: { path: "inbox/whatsapp", perm: "inbox:manage", role: "manager" },
+  chat_widget: { path: "settings/integrations?type=chat", perm: "inbox:manage", role: "manager" },
+  whatsapp: { path: "settings/integrations?type=whatsapp", perm: "inbox:manage", role: "manager" },
   google: { path: "settings/integrations", perm: "integrations:manage", role: "admin" },
   browser: { path: "automation", perm: "automation:manage", role: "admin" },
 }

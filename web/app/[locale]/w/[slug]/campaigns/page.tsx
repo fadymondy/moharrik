@@ -380,7 +380,7 @@ function CampaignTable({
                     ws.can("inbox:manage") ? (
                       <Link
                         className="me-2 text-xs underline underline-offset-4"
-                        href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}
+                        href={`/${locale}/w/${ws.slug}/settings/integrations?type=whatsapp`}
                         data-send-blocked="whatsapp"
                       >
                         {t("campaigns.whatsappLinkToSend")}

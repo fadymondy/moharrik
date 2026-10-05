@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { Suspense, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   AppHeader,
@@ -39,7 +39,7 @@ import { useSWRConfig } from "swr"
 
 import { LiveAlerts } from "@/components/alerts/live-alerts"
 import { NotificationBell } from "@/components/alerts/notification-bell"
-import { ChatDock } from "@/components/inbox/chat-dock"
+import { InboxDock } from "@/components/inbox/inbox-dock"
 import {
   MahaamFeedbackWidget,
   openFeedback,
@@ -184,7 +184,6 @@ function Account({ email, onReport }: { email: string; onReport?: () => void }) 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const { slug } = useParams<{ slug: string }>()
   const { t, locale } = useTranslations()
-  const pathname = usePathname()
   const me = useRequireAuth()
   // "Report a problem" shows only once the widget can actually send (MH-464): a deployment with
   // no Mahaam key, or a widget script that failed to load, gets no button rather than a dead one.
@@ -278,25 +277,24 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           ) : null}
         </div>
       </AppHeader>
-      {/* MH-663: reserve room for the chat dock's launcher pill so it never
-          sits over the last row of page content — the dock itself hides on
-          the inbox route, so no padding is needed there either. */}
-      <AppMain className={pathname?.includes("/inbox") ? "p-0" : "p-0 pb-16"}>{body}</AppMain>
+      {/* MH-663/MH-1147: reserve room for the inbox bar so it never sits over
+          the last row of page content. */}
+      <AppMain className="p-0 pb-16">{body}</AppMain>
 
       {summary ? <NavCommands base={base} can={can} /> : null}
       <CommandPalette />
 
       {me.data ? <MahaamFeedbackWidget /> : null}
 
-      {/* Every workspace page except the inbox itself (ChatDock hides itself
-          there — the inbox already IS the chat UI, MH-587/MH-663). Its own
-          WorkspaceContext.Provider: this dock is a sibling of `body` above,
-          not a descendant, so it needs the same context re-supplied —
-          CannedPicker (reused inside ChatThread) calls useWorkspace() and
-          throws outside one. */}
+      {/* The inbox (MH-1147): a bar on every workspace page that opens into the
+          whole inbox. Its own WorkspaceContext.Provider: the dock is a sibling of
+          `body` above, not a descendant, so it needs the same context re-supplied —
+          the inbox reads useWorkspace() throughout. */}
       {summary && current.data && ctx ? (
         <WorkspaceContext.Provider value={ctx}>
-          <ChatDock workspaceId={summary.id} slug={summary.slug} can={ctx.can} />
+          <Suspense fallback={null}>
+            <InboxDock />
+          </Suspense>
         </WorkspaceContext.Provider>
       ) : null}
     </AppShell>
