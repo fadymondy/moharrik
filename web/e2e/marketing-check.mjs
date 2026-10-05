@@ -92,7 +92,9 @@ out.nav = await a.evaluate(() =>
   ),
 )
 
+// MH-1156: lists live in a sideover opened from the header.
 await a.goto(`${base}/en/w/${A.slug}/contacts`, { waitUntil: "networkidle" })
+await a.click('[data-open="lists"]')
 await a.click('[data-open="create-list"]')
 await a.fill("#list-name", "Newsletter")
 await a.click('[data-form="create-list"] button[type=submit]')
@@ -105,6 +107,8 @@ await a.waitForSelector('[data-list-row="Customers"]')
 out.lists = await a.$$eval("[data-list-row]", (r) =>
   r.map((x) => x.innerText.replace(/\s+/g, " ").trim()),
 )
+await a.keyboard.press("Escape")
+await a.waitForSelector("[data-lists-sheet]", { state: "detached" })
 
 // Contact on the double opt-in list, before SMTP exists: pending, confirmation not sent.
 await a.click('[data-open="add-contact"]')
@@ -207,6 +211,8 @@ out.unsubscribeResult = await (
 ).getAttribute("data-mail-result")
 await p3.close()
 await a.goto(`${base}/en/w/${A.slug}/contacts`, { waitUntil: "networkidle" })
+await a.click('[data-open="lists"]')
+await a.waitForSelector("[data-list-row]")
 out.listsAfter = await a.$$eval("[data-list-row]", (r) =>
   r.map((x) => x.innerText.replace(/\s+/g, " ").trim()),
 )
@@ -226,6 +232,7 @@ const b = ctxB.pages()[0]
 const B = await signUp(b, "mkb")
 out.workspaceB = B.slug
 await b.goto(`${base}/en/w/${B.slug}/contacts`, { waitUntil: "networkidle" })
+await b.click('[data-open="lists"]')
 await b.waitForSelector("text=No lists yet")
 out.bContactsRows = await b.locator("[data-contact-row]").count()
 out.bListRows = await b.locator("[data-list-row]").count()

@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent } from "react"
 import {
   DownloadIcon,
   FileUpIcon,
+  ListIcon,
   ListPlusIcon,
   MailMinusIcon,
   MailWarningIcon,
@@ -41,13 +42,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   toast,
 } from "@fadymondy/nasaq/web"
 import {
@@ -124,6 +126,8 @@ export default function ContactsPage() {
   // MH-1144: the create forms are dialogs opened from the header.
   const [adding, setAdding] = useState(false)
   const [creatingList, setCreatingList] = useState(false)
+  // MH-1156: lists are managed in a sideover, not above the contacts.
+  const [listsOpen, setListsOpen] = useState(false)
 
   return (
     <>
@@ -149,34 +153,35 @@ export default function ContactsPage() {
             >
               {t("vcard.navLink")}
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setListsOpen(true)}
+              data-open="lists"
+              aria-haspopup="dialog"
+            >
+              <ListIcon />
+              {t("lists.title")}
+              {listItems.length ? <Badge variant="neutral">{listItems.length}</Badge> : null}
+            </Button>
             {canWrite ? (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setCreatingList(true)}
-                  data-open="create-list"
-                >
-                  <ListPlusIcon />
-                  {t("lists.new")}
-                </Button>
-                <Button size="sm" onClick={() => setAdding(true)} data-open="add-contact">
-                  <PlusIcon />
-                  {t("contacts.new")}
-                </Button>
-              </>
+              <Button size="sm" onClick={() => setAdding(true)} data-open="add-contact">
+                <PlusIcon />
+                {t("contacts.new")}
+              </Button>
             ) : null}
           </div>
         }
       />
-      <ListsSection
+      <ListsSheet
+        open={listsOpen}
+        onOpenChange={setListsOpen}
+        onCreate={() => setCreatingList(true)}
         lists={listItems}
         loading={lists.isLoading}
         error={lists.error}
         onChange={changed}
       />
-
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
 
       <ContactsBrowser lists={listItems} version={version} onChange={changed} />
       <div className="pb-8" />
@@ -200,12 +205,19 @@ export default function ContactsPage() {
   )
 }
 
-function ListsSection({
+/** MH-1156: create, edit, export and delete lists in a sideover, beside the contacts. */
+function ListsSheet({
+  open,
+  onOpenChange,
+  onCreate,
   lists,
   loading,
   error,
   onChange,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreate: () => void
   lists: MailList[]
   loading: boolean
   error: unknown
@@ -232,98 +244,119 @@ function ListsSection({
   }
 
   return (
-    <section>
-      <h2 className="px-6 pb-1 text-base font-medium">{t("lists.title")}</h2>
-      <p className="px-6 pb-4 text-sm text-muted-foreground">{t("lists.hint")}</p>
-      {error ? (
-        <ErrorState error={error} />
-      ) : loading ? (
-        <LoadingRows rows={2} />
-      ) : lists.length === 0 ? (
-        <EmptyState title={t("lists.empty")} body={canWrite ? t("lists.emptyBody") : undefined} />
-      ) : (
-        <div className="border-y border-nq-line">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="ps-6">{t("lists.name")}</TableHead>
-                <TableHead>{t("lists.doubleOptIn")}</TableHead>
-                <TableHead>{t("lists.subscribed")}</TableHead>
-                <TableHead>{t("lists.pending")}</TableHead>
-                <TableHead className="pe-6 text-end">
-                  <span className="sr-only">{t("common.actions")}</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lists.map((l) => (
-                <TableRow key={l.id} data-list-row={l.name}>
-                  <TableCell className="ps-6">
-                    <div className="font-medium">
-                      <Bdi>{l.name}</Bdi>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="end" className="w-full sm:w-[min(30rem,100vw)]" data-lists-sheet>
+          <SheetHeader>
+            <SheetTitle>{t("lists.title")}</SheetTitle>
+            <SheetDescription>{t("lists.hint")}</SheetDescription>
+          </SheetHeader>
+          <SheetBody className="min-h-0 flex-1 overflow-y-auto">
+            {error ? (
+              <ErrorState error={error} />
+            ) : loading ? (
+              <LoadingRows rows={3} />
+            ) : lists.length === 0 ? (
+              <EmptyState
+                title={t("lists.empty")}
+                body={canWrite ? t("lists.emptyBody") : undefined}
+              />
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {lists.map((l) => (
+                  <li
+                    key={l.id}
+                    data-list-row={l.name}
+                    className="flex flex-col gap-3 rounded-xl border border-nq-line bg-card p-4"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <UsersIcon className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">
+                          <Bdi>{l.name}</Bdi>
+                        </p>
+                        {l.description ? (
+                          <p className="line-clamp-2 text-xs text-muted-foreground">
+                            <Bdi>{l.description}</Bdi>
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                    {l.description ? (
-                      <div className="text-xs text-muted-foreground">
-                        <Bdi>{l.description}</Bdi>
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <Badge variant="brand">
+                        {t("lists.subscribed")} · {l.subscribed}
+                      </Badge>
+                      <Badge variant="neutral">
+                        {t("lists.pending")} · {l.pending}
+                      </Badge>
+                      <Badge variant="outline">
+                        {t("lists.doubleOptIn")} ·{" "}
+                        {l.double_opt_in ? t("lists.on") : t("lists.off")}
+                      </Badge>
+                    </div>
+                    {canExport || canWrite || canDelete ? (
+                      <div className="flex flex-wrap items-center gap-1 border-t border-nq-line pt-2">
+                        {canExport ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-export-list={l.name}
+                            onClick={() =>
+                              exportList(
+                                ws.id,
+                                l,
+                                {},
+                                { ok: t("contacts.exported"), fail: t("common.networkError") },
+                              )
+                            }
+                          >
+                            <DownloadIcon />
+                            {t("contacts.export")}
+                          </Button>
+                        ) : null}
+                        {canWrite ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-edit-list={l.name}
+                            onClick={() => setEditing(l)}
+                          >
+                            <PencilIcon />
+                            {t("common.edit")}
+                          </Button>
+                        ) : null}
+                        {canDelete ? (
+                          <span className="ms-auto">
+                            <ConfirmButton
+                              label={t("common.delete")}
+                              title={t("lists.deleteTitle")}
+                              description={t("lists.deleteBody", { name: isolate(l.name) })}
+                              confirmLabel={t("common.delete")}
+                              onConfirm={() => remove(l.id)}
+                            />
+                          </span>
+                        ) : null}
                       </div>
                     ) : null}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {l.double_opt_in ? t("lists.on") : t("lists.off")}
-                  </TableCell>
-                  <TableCell>{l.subscribed}</TableCell>
-                  <TableCell className="text-muted-foreground">{l.pending}</TableCell>
-                  <TableCell className="pe-6 text-end">
-                    <div className="inline-flex items-center gap-1">
-                      {canExport ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          data-export-list={l.name}
-                          onClick={() =>
-                            exportList(
-                              ws.id,
-                              l,
-                              {},
-                              { ok: t("contacts.exported"), fail: t("common.networkError") },
-                            )
-                          }
-                        >
-                          <DownloadIcon />
-                          {t("contacts.export")}
-                        </Button>
-                      ) : null}
-                      {canWrite ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          data-edit-list={l.name}
-                          onClick={() => setEditing(l)}
-                        >
-                          <PencilIcon />
-                          {t("common.edit")}
-                        </Button>
-                      ) : null}
-                      {canDelete ? (
-                        <ConfirmButton
-                          label={t("common.delete")}
-                          title={t("lists.deleteTitle")}
-                          description={t("lists.deleteBody", { name: isolate(l.name) })}
-                          confirmLabel={t("common.delete")}
-                          onConfirm={() => remove(l.id)}
-                        />
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SheetBody>
+          {canWrite ? (
+            <SheetFooter>
+              <Button onClick={onCreate} data-open="create-list">
+                <ListPlusIcon />
+                {t("lists.new")}
+              </Button>
+            </SheetFooter>
+          ) : null}
+        </SheetContent>
+      </Sheet>
       <EditListDialog list={editing} onClose={() => setEditing(null)} onSaved={onChange} />
-    </section>
+    </>
   )
 }
 

@@ -83,11 +83,15 @@ await pageA
 out.taskMarkedDone = await pageA.evaluate(() => !document.querySelector("[data-open-tasks]"))
 
 // ---- contacts: add one, link to the company ----
+// MH-1156: lists live in a sideover opened from the header.
 await pageA.goto(`${base}/en/w/${slugA}/contacts`, { waitUntil: "networkidle" })
+await pageA.click('[data-open="lists"]')
 await pageA.click('[data-open="create-list"]')
 await pageA.fill("#list-name", "Prospects")
 await pageA.click("[data-form=create-list] button[type=submit]")
 await pageA.waitForSelector('[data-list-row="Prospects"]', { timeout: 10000 })
+await pageA.keyboard.press("Escape")
+await pageA.waitForSelector("[data-lists-sheet]", { state: "detached" })
 await pageA.click('[data-open="add-contact"]')
 await pageA.fill("#contact-email", "jane@acme.test")
 await pageA.fill("#contact-name", "Jane Doe")
