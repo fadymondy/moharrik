@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import { Skeleton } from "@fadymondy/nasaq/web"
+import { Card, Skeleton } from "@fadymondy/nasaq/web"
 
 import {
   ActivityPanel,
@@ -80,7 +80,12 @@ export default function HomePage() {
 
       {setup && setupPending(setup) ? (
         <div className="px-4 sm:px-6">
-          <SetupCard items={setup} base={base} can={ws.can} />
+          <SetupCard
+            items={setup}
+            base={base}
+            can={ws.can}
+            className="overflow-hidden rounded-card border-border shadow-xs"
+          />
         </div>
       ) : null}
 
@@ -101,12 +106,12 @@ export default function HomePage() {
           data-home-row="2"
         >
           {h.journeys ? (
-            <div className="min-w-0 lg:col-span-3 [&>section]:h-full">
+            <div className="min-w-0 lg:col-span-3 [&>*]:h-full">
               <JourneysPanel journeys={h.journeys} base={base} />
             </div>
           ) : null}
           {h.connections ? (
-            <div className="min-w-0 lg:col-span-2 [&>section]:h-full">
+            <div className="min-w-0 lg:col-span-2 [&>*]:h-full">
               <ConnectionsPanel
                 connections={h.connections}
                 base={base}
@@ -129,20 +134,20 @@ function HomeSkeleton() {
       </div>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="space-y-2 border border-nq-line bg-card px-5 py-4">
+          <Card key={i} className="gap-2 px-5 py-4 shadow-xs">
             <Skeleton className="h-3 w-24" />
             <Skeleton className="h-8 w-12" />
             <Skeleton className="h-3 w-20" />
-          </div>
+          </Card>
         ))}
       </div>
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
         {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="space-y-3 border border-nq-line bg-card px-5 py-4">
+          <Card key={i} className="gap-3 px-5 py-4 shadow-xs">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-3/4" />
-          </div>
+          </Card>
         ))}
       </div>
     </div>

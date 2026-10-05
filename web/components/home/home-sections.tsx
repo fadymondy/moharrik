@@ -7,25 +7,44 @@ active, info = a channel, violet = Moharrik's own work, warning = needs a look, 
 */
 
 import Link from "next/link"
-import type { ReactNode } from "react"
+import type { ComponentType, ReactNode } from "react"
 import {
   ActivityIcon,
   ArrowRightIcon,
+  BellRingIcon,
   BotIcon,
   CableIcon,
   CircleAlertIcon,
+  CircleCheckIcon,
   EarIcon,
   HandshakeIcon,
   LightbulbIcon,
   MessageSquareIcon,
   PlayIcon,
+  RadarIcon,
   SearchIcon,
   SparklesIcon,
+  TrendingUpIcon,
   WorkflowIcon,
+  ZapIcon,
+  type LucideIcon,
 } from "lucide-react"
 
-import { Empty, Panel, useFormat } from "@/components/overview/overview-cards"
-import { Badge, Button, Sparkline, Stepper, StepperItem } from "@fadymondy/nasaq/web"
+import { useFormat } from "@/components/overview/overview-cards"
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  Sparkline,
+  Stepper,
+  StepperItem,
+} from "@fadymondy/nasaq/web"
 import type { Home, HomeAttentionItem, HomeEvent, HomeLane } from "@/lib/home-types"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -66,7 +85,7 @@ function IconChip({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
     <span
       className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-md [&>svg]:size-4",
+        "flex size-8 shrink-0 items-center justify-center rounded-control [&>svg]:size-4",
         TONE_SOFT[tone],
         TONE_TEXT[tone],
       )}
@@ -77,43 +96,127 @@ function IconChip({ tone, children }: { tone: Tone; children: ReactNode }) {
   )
 }
 
+// ── card ─────────────────────────────────────────────────────────────────
+
+/** One Home section on Nasaq's rounded Card (MH-1122): icon, title, meta and "View all", then its rows. */
+function HomeCard({
+  id,
+  title,
+  icon,
+  href,
+  meta,
+  className,
+  children,
+}: {
+  id: string
+  title: string
+  icon: ReactNode
+  href?: string
+  meta?: ReactNode
+  className?: string
+  children: ReactNode
+}) {
+  const { t } = useTranslations()
+  return (
+    <Card
+      role="region"
+      aria-labelledby={`ov-${id}`}
+      data-card={id}
+      className={cn("min-w-0 gap-0 overflow-hidden py-0 shadow-xs", className)}
+    >
+      <CardHeader className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 px-5 py-3">
+        <span className="text-muted-foreground [&>svg]:size-4" aria-hidden>
+          {icon}
+        </span>
+        <CardTitle as="h2" id={`ov-${id}`} className="text-base font-medium">
+          {title}
+        </CardTitle>
+        {meta}
+        {href ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ms-auto"
+            nativeButton={false}
+            render={<Link href={href} data-view-all={id} />}
+          >
+            {t("overview.viewAll")}
+            <ArrowRightIcon className="rtl:-scale-x-100" />
+          </Button>
+        ) : null}
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col border-t border-border px-0">{children}</CardContent>
+    </Card>
+  )
+}
+
+/** A section with nothing in it yet: Nasaq's EmptyState, with the one action that fills it. */
+function HomeEmpty({
+  icon,
+  title,
+  body,
+  action,
+}: {
+  icon: LucideIcon
+  title: string
+  body?: string
+  action?: { href: string; label: string }
+}) {
+  return (
+    <EmptyState
+      icon={icon}
+      title={title}
+      description={body}
+      className="m-4 flex-1 py-8"
+      data-empty
+      actions={
+        action ? (
+          <Button variant="secondary" size="sm" nativeButton={false} render={<Link href={action.href} />}>
+            {action.label}
+          </Button>
+        ) : undefined
+      }
+    />
+  )
+}
+
 // ── header ───────────────────────────────────────────────────────────────
 
 export function HomeHeader({ home, name, live }: { home: Home; name: string; live: boolean }) {
   const { t } = useTranslations()
   const active = live || home.working.lanes.some((l) => l.active)
   return (
-    <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 px-4 pt-2 pb-5 sm:px-6">
-      <div className="min-w-0 space-y-1.5">
-        <h1 className="text-balance text-3xl font-medium text-foreground" data-home-greeting>
-          {t(greetingKey(home.timezone), { name })}
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">{t("home.subtitle")}</p>
-      </div>
-      <span
-        className="inline-flex items-center gap-2 rounded-full border border-nq-line bg-card px-3 py-1.5 text-xs font-medium text-foreground"
-        title={live ? t("home.watchingLive") : active ? t("home.watchingLanes") : undefined}
-        data-watching={active ? "on" : "off"}
-      >
-        <span className="relative flex size-2" aria-hidden>
-          {active ? (
+    <PageHeader
+      className="px-4 pt-2 pb-2 sm:px-6"
+      title={<span data-home-greeting>{t(greetingKey(home.timezone), { name })}</span>}
+      description={t("home.subtitle")}
+      actions={
+        <Badge
+          variant="outline"
+          className="h-8 gap-2 rounded-full px-3"
+          title={live ? t("home.watchingLive") : active ? t("home.watchingLanes") : undefined}
+          data-watching={active ? "on" : "off"}
+        >
+          <span className="relative flex size-2" aria-hidden>
+            {active ? (
+              <span
+                className={cn(
+                  "absolute inline-flex size-full animate-ping rounded-full opacity-60 motion-reduce:animate-none",
+                  TONE_DOT.success,
+                )}
+              />
+            ) : null}
             <span
               className={cn(
-                "absolute inline-flex size-full animate-ping rounded-full opacity-60 motion-reduce:animate-none",
-                TONE_DOT.success,
+                "relative inline-flex size-2 rounded-full",
+                active ? TONE_DOT.success : "bg-nq-fg-muted",
               )}
             />
-          ) : null}
-          <span
-            className={cn(
-              "relative inline-flex size-2 rounded-full",
-              active ? TONE_DOT.success : "bg-nq-fg-muted",
-            )}
-          />
-        </span>
-        {active ? t("home.watching") : t("home.idle")}
-      </span>
-    </header>
+          </span>
+          {active ? t("home.watching") : t("home.idle")}
+        </Badge>
+      }
+    />
   )
 }
 
@@ -125,6 +228,7 @@ function Tile({
   value,
   sub,
   href,
+  icon: Icon,
   tone,
 }: {
   id: string
@@ -132,25 +236,33 @@ function Tile({
   value: string
   sub?: string
   href: string
-  tone?: Tone
+  icon: ComponentType
+  tone: Tone
 }) {
   return (
     <Link
       href={href}
       data-home-tile={id}
-      className="flex min-w-0 flex-col gap-2 border border-nq-line bg-card px-5 py-4 transition-colors hover:bg-nq-surface-soft"
+      className="group min-w-0 rounded-card outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nq-focus"
     >
-      <span className="eyebrow min-h-[2lh] text-balance lg:min-h-0">{label}</span>
-      <span
-        className={cn(
-          "text-xl leading-none font-medium tabular-nums sm:text-3xl xl:text-4xl",
-          tone ? TONE_TEXT[tone] : "text-foreground",
-        )}
-        data-tile-value
-      >
-        {value}
-      </span>
-      <span className="min-h-4 text-xs text-muted-foreground">{sub}</span>
+      <Card className="h-full gap-3 px-4 py-4 shadow-xs transition-[background-color,box-shadow] group-hover:bg-nq-surface-soft group-hover:shadow-sm sm:px-5">
+        <div className="flex items-start justify-between gap-2">
+          <CardDescription className="min-h-[2lh] text-balance lg:min-h-0">{label}</CardDescription>
+          <IconChip tone={tone}>
+            <Icon />
+          </IconChip>
+        </div>
+        <span
+          className={cn(
+            "text-xl leading-none font-medium tabular-nums sm:text-3xl xl:text-4xl",
+            tone === "warning" ? TONE_TEXT.warning : "text-foreground",
+          )}
+          data-tile-value
+        >
+          {value}
+        </span>
+        <span className="min-h-4 text-xs text-muted-foreground">{sub}</span>
+      </Card>
     </Link>
   )
 }
@@ -211,6 +323,8 @@ export function HomeTiles({ home, base }: { home: Home; base: string }) {
         value={f.n(signals.total)}
         sub={sigSub}
         href={`${base}/leads`}
+        icon={RadarIcon}
+        tone="violet"
       />
       <Tile
         id="opportunities"
@@ -218,6 +332,8 @@ export function HomeTiles({ home, base }: { home: Home; base: string }) {
         value={oppValue ?? f.n(opportunities.open ?? 0)}
         sub={oppSub}
         href={`${base}/deals`}
+        icon={TrendingUpIcon}
+        tone="success"
       />
       <Tile
         id="actions"
@@ -225,6 +341,8 @@ export function HomeTiles({ home, base }: { home: Home; base: string }) {
         value={f.n(actions.total)}
         sub={actSub}
         href={`${base}/automation/runs`}
+        icon={ZapIcon}
+        tone="info"
       />
       <Tile
         id="attention"
@@ -232,7 +350,8 @@ export function HomeTiles({ home, base }: { home: Home; base: string }) {
         value={f.n(attn)}
         sub={attn > 0 ? t("home.attention.items", { n: f.n(attn) }) : t("home.attention.clear")}
         href="#ov-home-attention"
-        tone={attn > 0 ? "warning" : undefined}
+        icon={attn > 0 ? BellRingIcon : CircleCheckIcon}
+        tone={attn > 0 ? "warning" : "success"}
       />
     </div>
   )
@@ -258,7 +377,7 @@ export function AttentionPanel({
   const { t } = useTranslations()
   const f = useFormat()
   return (
-    <Panel
+    <HomeCard
       id="home-attention"
       title={t("home.attention.title")}
       icon={<CircleAlertIcon />}
@@ -268,23 +387,27 @@ export function AttentionPanel({
       className="lg:col-span-1"
     >
       {attention.items.length === 0 ? (
-        <Empty title={t("home.attention.emptyTitle")} body={t("home.attention.emptyBody")} />
+        <HomeEmpty
+          icon={CircleCheckIcon}
+          title={t("home.attention.emptyTitle")}
+          body={t("home.attention.emptyBody")}
+        />
       ) : (
-        <ul className="divide-y divide-nq-line" data-home-attention-list>
+        <ul className="divide-y divide-border" data-home-attention-list>
           {attention.items.map((it, i) => (
             <AttentionRow key={`${it.kind}-${it.entity?.id ?? i}`} it={it} base={base} />
           ))}
         </ul>
       )}
       {attention.items.length > 0 && attention.total > attention.items.length ? (
-        <p className="border-t border-nq-line px-5 py-3 text-xs text-muted-foreground" data-home-attention-more>
+        <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground" data-home-attention-more>
           {t("home.attention.showing", {
             shown: f.n(attention.items.length),
             total: f.n(attention.total),
           })}
         </p>
       ) : null}
-    </Panel>
+    </HomeCard>
   )
 }
 
@@ -349,8 +472,8 @@ export function WorkingPanel({ working, base }: { working: Home["working"]; base
   const f = useFormat()
   const pulse = working.pulse
   return (
-    <Panel id="home-working" title={t("home.working.title")} icon={<BotIcon />}>
-      <ul className="divide-y divide-nq-line" data-home-lanes>
+    <HomeCard id="home-working" title={t("home.working.title")} icon={<BotIcon />}>
+      <ul className="divide-y divide-border" data-home-lanes>
         {working.lanes.map((lane) => {
           const m = LANE[lane.key]
           const subs = lane.subs
@@ -392,7 +515,7 @@ export function WorkingPanel({ working, base }: { working: Home["working"]; base
           )
         })}
       </ul>
-      <div className="mt-auto flex items-center gap-3 border-t border-nq-line px-5 py-3">
+      <div className="mt-auto flex items-center gap-3 border-t border-border px-5 py-3">
         <Sparkline
           data={pulse.buckets}
           color="var(--nq-tag-violet)"
@@ -405,7 +528,7 @@ export function WorkingPanel({ working, base }: { working: Home["working"]; base
             : t("home.working.pulseNone")}
         </span>
       </div>
-    </Panel>
+    </HomeCard>
   )
 }
 
@@ -424,11 +547,15 @@ export function ActivityPanel({ events, base }: { events: HomeEvent[]; base: str
   const { t } = useTranslations()
   const f = useFormat()
   return (
-    <Panel id="home-activity" title={t("home.activity.title")} icon={<ActivityIcon />}>
+    <HomeCard id="home-activity" title={t("home.activity.title")} icon={<ActivityIcon />}>
       {events.length === 0 ? (
-        <Empty title={t("home.activity.emptyTitle")} body={t("home.activity.emptyBody")} />
+        <HomeEmpty
+          icon={ActivityIcon}
+          title={t("home.activity.emptyTitle")}
+          body={t("home.activity.emptyBody")}
+        />
       ) : (
-        <ul className="max-h-[32rem] divide-y divide-nq-line overflow-y-auto" data-home-activity>
+        <ul className="max-h-[32rem] divide-y divide-border overflow-y-auto" data-home-activity>
           {events.map((e, i) => {
             const { tone, icon } = eventTone(e)
             const { text, by } = eventText(t, e, f.n)
@@ -473,7 +600,7 @@ export function ActivityPanel({ events, base }: { events: HomeEvent[]; base: str
           })}
         </ul>
       )}
-    </Panel>
+    </HomeCard>
   )
 }
 
@@ -489,20 +616,21 @@ export function JourneysPanel({
   const { t } = useTranslations()
   const f = useFormat()
   return (
-    <Panel
+    <HomeCard
       id="home-journeys"
       title={t("home.journeys.title")}
       icon={<HandshakeIcon />}
       href={`${base}/deals`}
     >
       {journeys.deals.length === 0 ? (
-        <Empty
+        <HomeEmpty
+          icon={HandshakeIcon}
           title={t("home.journeys.emptyTitle")}
           body={t("home.journeys.emptyBody")}
           action={{ href: `${base}/deals`, label: t("home.journeys.emptyAction") }}
         />
       ) : (
-        <ul className="divide-y divide-nq-line" data-home-journeys>
+        <ul className="divide-y divide-border" data-home-journeys>
           {journeys.deals.map((d) => (
             <li key={d.id} data-journey={d.id}>
               <Link
@@ -545,7 +673,7 @@ export function JourneysPanel({
           ))}
         </ul>
       )}
-    </Panel>
+    </HomeCard>
   )
 }
 
@@ -567,14 +695,15 @@ export function ConnectionsPanel({
   const statusTone = (s: string, err: boolean): Tone =>
     err || s === "error" ? "danger" : s === "paused" ? "warning" : "success"
   return (
-    <Panel
+    <HomeCard
       id="home-connections"
       title={t("home.connections.title")}
       icon={<CableIcon />}
       href={canManage ? `${base}/inbox/channels` : `${base}/settings/integrations`}
     >
       {empty ? (
-        <Empty
+        <HomeEmpty
+          icon={CableIcon}
           title={t("home.connections.emptyTitle")}
           body={t("home.connections.emptyBody")}
           action={
@@ -584,7 +713,7 @@ export function ConnectionsPanel({
           }
         />
       ) : (
-        <ul className="divide-y divide-nq-line" data-home-connections>
+        <ul className="divide-y divide-border" data-home-connections>
           {channels.map((c) => {
             const tone = statusTone(c.status, c.has_error)
             return (
@@ -674,7 +803,7 @@ export function ConnectionsPanel({
           ) : null}
         </ul>
       )}
-      <div className="mt-auto border-t border-nq-line px-5 py-2.5">
+      <div className="mt-auto border-t border-border px-5 py-2.5">
         <Link
           href={canManage ? `${base}/inbox/channels` : `${base}/settings/integrations`}
           className="inline-flex items-center gap-1 text-xs font-medium text-nq-action hover:underline hover:underline-offset-4"
@@ -683,7 +812,7 @@ export function ConnectionsPanel({
           <ArrowRightIcon className="size-3 rtl:-scale-x-100" aria-hidden />
         </Link>
       </div>
-    </Panel>
+    </HomeCard>
   )
 }
 
@@ -741,12 +870,11 @@ export function HomeNextSteps({
   return (
     <div className="grid grid-cols-1 gap-4 px-4 sm:gap-6 sm:px-6 lg:grid-cols-3" data-home-next>
       {steps.map((s) => (
-        <section
-          key={s.title}
-          className="flex flex-col gap-2 border border-nq-line bg-card px-5 py-4"
-        >
-          <h2 className="text-sm font-medium text-foreground">{s.title}</h2>
-          <p className="text-sm text-muted-foreground">{s.body}</p>
+        <Card key={s.title} className="gap-2 px-5 py-4 shadow-xs">
+          <CardTitle as="h2" className="text-sm font-medium">
+            {s.title}
+          </CardTitle>
+          <CardDescription>{s.body}</CardDescription>
           {s.actions.length ? (
             <div className="mt-1 flex flex-wrap gap-2">
               {s.actions.map((a, i) => (
@@ -762,7 +890,7 @@ export function HomeNextSteps({
               ))}
             </div>
           ) : null}
-        </section>
+        </Card>
       ))}
     </div>
   )
