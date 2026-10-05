@@ -26,17 +26,12 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   KanbanBoard,
   toast,
   type KanbanCardData,
   type KanbanColumnData,
 } from "@fadymondy/nasaq/web"
+import { RowsTable } from "@/components/nq-table"
 import { FieldGroup, FieldError, Label } from "@/components/form-layout"
 
 import {
@@ -501,63 +496,92 @@ export function DealsTable({
           })}
         </p>
       ) : null}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="ps-6">{t("deals.dealTitle")}</TableHead>
-            <TableHead>{t("deals.stage")}</TableHead>
-            <TableHead>{t("deals.value")}</TableHead>
-            <TableHead>{t("deals.company")}</TableHead>
-            <TableHead>{t("deals.contact")}</TableHead>
-            <TableHead>{t("crm.owner")}</TableHead>
-            <TableHead className="pe-6">{t("deals.expectedClose")}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {deals.map((d) => (
-            <TableRow key={d.id} data-deal-row={d.title}>
-              <TableCell className="min-w-56 ps-6 font-medium whitespace-normal">
-                <Link className="hover:underline" href={`${base}/deals/${d.id}`}>
-                  <Bdi>{d.title}</Bdi>
+      <RowsTable<Deal>
+        data={deals}
+        getRowId={(d) => d.id}
+        rowLabel={(d) => d.title}
+        label={t("nav.deals")}
+        frame={false}
+        columns={[
+          {
+            id: "title",
+            header: t("deals.dealTitle"),
+            hideable: false,
+            sortValue: (d) => d.title,
+            className: "min-w-56 font-medium whitespace-normal",
+            cell: (d) => (
+              <Link
+                className="hover:underline"
+                href={`${base}/deals/${d.id}`}
+                data-deal-row={d.title}
+              >
+                <Bdi>{d.title}</Bdi>
+              </Link>
+            ),
+          },
+          {
+            id: "stage",
+            header: t("deals.stage"),
+            sortValue: (d) => d.stage_name,
+            cell: (d) => (
+              <span className="inline-flex items-center gap-2">
+                <span className={`size-2 rounded-full ${stageTone[d.stage_kind]}`} aria-hidden />
+                <Bdi>{d.stage_name}</Bdi>
+              </span>
+            ),
+          },
+          {
+            id: "value",
+            header: t("deals.value"),
+            className: "tabular-nums",
+            cell: (d) => <DealValue deal={d} />,
+          },
+          {
+            id: "company",
+            header: t("deals.company"),
+            sortValue: (d) => d.company?.name,
+            cell: (d) =>
+              d.company ? (
+                <Link className="hover:underline" href={`${base}/companies/${d.company.id}`}>
+                  <Bdi>{d.company.name}</Bdi>
                 </Link>
-              </TableCell>
-              <TableCell>
-                <span className="inline-flex items-center gap-2">
-                  <span className={`size-2 rounded-full ${stageTone[d.stage_kind]}`} aria-hidden />
-                  <Bdi>{d.stage_name}</Bdi>
-                </span>
-              </TableCell>
-              <TableCell className="tabular-nums">
-                <DealValue deal={d} />
-              </TableCell>
-              <TableCell>
-                {d.company ? (
-                  <Link className="hover:underline" href={`${base}/companies/${d.company.id}`}>
-                    <Bdi>{d.company.name}</Bdi>
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell>
-                {d.contact ? (
-                  <Link className="hover:underline" href={`${base}/contacts/${d.contact.id}`}>
-                    {d.contact.name ? <Bdi>{d.contact.name}</Bdi> : <Ltr>{d.contact.email}</Ltr>}
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                <Ltr>{members.name(d.owner_user_id)}</Ltr>
-              </TableCell>
-              <TableCell className="pe-6 text-muted-foreground">
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              ),
+          },
+          {
+            id: "contact",
+            header: t("deals.contact"),
+            sortValue: (d) => d.contact?.name || d.contact?.email,
+            cell: (d) =>
+              d.contact ? (
+                <Link className="hover:underline" href={`${base}/contacts/${d.contact.id}`}>
+                  {d.contact.name ? <Bdi>{d.contact.name}</Bdi> : <Ltr>{d.contact.email}</Ltr>}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              ),
+          },
+          {
+            id: "owner",
+            header: t("crm.owner"),
+            sortValue: (d) => members.name(d.owner_user_id),
+            cell: (d) => (
+              <Ltr className="text-muted-foreground">{members.name(d.owner_user_id)}</Ltr>
+            ),
+          },
+          {
+            id: "expectedClose",
+            header: t("deals.expectedClose"),
+            sortValue: (d) => d.expected_close,
+            cell: (d) => (
+              <span className="text-muted-foreground">
                 {d.expected_close ? formatDate(d.expected_close) : "—"}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              </span>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

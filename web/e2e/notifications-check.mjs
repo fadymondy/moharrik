@@ -203,7 +203,7 @@ out.unreadAfterMarkAll = await pageA.evaluate(
 
 // disable the source, confirm further deliveries are refused
 await pageA.goto(`${base}/en/w/${slugA}/notifications/sources`, { waitUntil: "networkidle" })
-await pageA.click('[data-source-row="GitHub"] [role="switch"]')
+await pageA.click('tr:has([data-source-row="GitHub"]) [role="switch"]')
 await pageA.waitForTimeout(500)
 const disabledDelivery = await fetch(deliverURL, {
   method: "POST",

@@ -3,13 +3,31 @@
 import Link from "next/link"
 import { useState } from "react"
 import { MailWarningIcon, PencilIcon, SendIcon } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CampaignForm } from "@/components/campaigns/campaign-form"
 import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import { Ltr } from "@/components/copy-field"
+import { RowsTable, type RowsColumn } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Campaign, type CampaignStatus, type MailList } from "@/lib/api"
@@ -54,10 +72,7 @@ export default function CampaignsPage() {
 
   return (
     <>
-      <SectionHeader
-        title={t("nav.campaigns")}
-        description={t("campaigns.hint")}
-      />
+      <SectionHeader title={t("nav.campaigns")} description={t("campaigns.hint")} />
 
       {campaigns.data && !smtpReady ? (
         <p
@@ -245,7 +260,11 @@ function EditCampaignSheet({
               onCancel={onClose}
             />
           ) : campaign ? (
-            <p className="text-sm text-muted-foreground" role="status" data-edit-locked={campaign.status}>
+            <p
+              className="text-sm text-muted-foreground"
+              role="status"
+              data-edit-locked={campaign.status}
+            >
               {t("campaigns.editLocked", { status: t(`campaigns.status.${campaign.status}`) })}
             </p>
           ) : null}
@@ -292,138 +311,174 @@ function CampaignTable({
     }
   }
 
+  const columns: RowsColumn<Campaign>[] = [
+    {
+      id: "subject",
+      header: t("campaigns.subject"),
+      hideable: false,
+      sortValue: (c) => c.subject,
+      className: "min-w-56 whitespace-normal",
+      cell: (c) => (
+        <div data-campaign-row={c.subject}>
+          <div className="font-medium">
+            <Bdi>{c.subject}</Bdi>
+          </div>
+          {c.last_error ? (
+            <div className="max-w-md truncate text-xs text-nq-danger-text" title={c.last_error}>
+              {t("campaigns.lastError", { error: c.last_error })}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      id: "channel",
+      header: t("campaigns.channel"),
+      sortValue: (c) => c.channel,
+      cell: (c) => {
+        const wa = c.channel === "whatsapp"
+        return (
+          <>
+            <Badge variant="outline" data-channel={wa ? "whatsapp" : "email"}>
+              {t(wa ? "campaigns.channel.whatsapp" : "campaigns.channel.email")}
+            </Badge>
+            {c.audience_locale ? (
+              <div
+                className="mt-1 text-xs text-muted-foreground"
+                data-campaign-audience={c.audience_locale}
+              >
+                {t(`campaigns.audienceOnly.${c.audience_locale}`)}
+              </div>
+            ) : null}
+            {!wa && c.smtp_service_name ? (
+              <div
+                className="mt-1 text-xs text-muted-foreground"
+                data-campaign-service={c.smtp_service_name}
+              >
+                {t("campaigns.via", { name: isolate(c.smtp_service_name) })}
+              </div>
+            ) : null}
+          </>
+        )
+      },
+    },
+    {
+      id: "list",
+      header: t("campaigns.list"),
+      sortValue: (c) => c.list_name,
+      cell: (c) => <Bdi>{c.list_name}</Bdi>,
+    },
+    {
+      id: "status",
+      header: t("campaigns.status"),
+      sortValue: (c) => c.status,
+      cell: (c) => (
+        <Badge variant={statusVariant[c.status]}>{t(`campaigns.status.${c.status}`)}</Badge>
+      ),
+    },
+    {
+      id: "progress",
+      header: t("campaigns.progress"),
+      sortValue: (c) => c.sent_count,
+      cell: (c) => (
+        <span className="text-muted-foreground">
+          <Ltr>
+            {c.status === "draft"
+              ? "—"
+              : `${c.sent_count} / ${c.recipient_count}${c.failed_count ? ` (−${c.failed_count})` : ""}`}
+          </Ltr>
+          {c.channel !== "whatsapp" && c.skipped_count > 0 ? (
+            <span
+              className="block text-xs text-nq-warning-text"
+              data-campaign-skipped={c.skipped_count}
+            >
+              {t("campaigns.skippedNoEmail", { count: c.skipped_count })}
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      id: "created",
+      header: t("campaigns.createdAt"),
+      sortValue: (c) => c.sent_at ?? c.created_at,
+      cell: (c) => (
+        <span className="text-muted-foreground">
+          <Ltr>{formatDate(c.sent_at ?? c.created_at)}</Ltr>
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: <span className="sr-only">{t("common.actions")}</span>,
+      label: t("common.actions"),
+      align: "end",
+      hideable: false,
+      className: "whitespace-nowrap",
+      cell: (c) => {
+        const subscribed = lists.find((l) => l.id === c.list_id)?.subscribed ?? 0
+        const wa = c.channel === "whatsapp"
+        const sendable = c.status === "draft" || c.status === "failed"
+        return (
+          <>
+            {canSend && sendable && wa && !whatsappLinked ? (
+              ws.can("inbox:manage") ? (
+                <Link
+                  className="me-2 text-xs underline underline-offset-4"
+                  href={`/${locale}/w/${ws.slug}/settings/integrations?type=whatsapp`}
+                  data-send-blocked="whatsapp"
+                >
+                  {t("campaigns.whatsappLinkToSend")}
+                </Link>
+              ) : (
+                <span className="me-2 text-xs text-muted-foreground" data-send-blocked="whatsapp">
+                  {t("campaigns.whatsappNotLinkedShort")}
+                </span>
+              )
+            ) : canSend && sendable && (wa || smtpReady) ? (
+              <SendButton
+                campaign={c}
+                count={subscribed}
+                maxAudience={maxAudience}
+                onSent={onChange}
+              />
+            ) : null}
+            {canWrite && sendable ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(c)}
+                data-edit-campaign={c.subject}
+              >
+                <PencilIcon />
+                {t("campaigns.edit")}
+              </Button>
+            ) : null}
+            {canWrite && c.status !== "sending" ? (
+              <ConfirmButton
+                label={t("common.delete")}
+                title={t("campaigns.deleteTitle")}
+                description={t("campaigns.deleteBody", { subject: isolate(c.subject) })}
+                confirmLabel={t("common.delete")}
+                onConfirm={() => remove(c.id)}
+              />
+            ) : null}
+          </>
+        )
+      },
+    },
+  ]
+
   return (
-    <div className="border-y border-nq-line">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="ps-6">{t("campaigns.subject")}</TableHead>
-            <TableHead>{t("campaigns.channel")}</TableHead>
-            <TableHead>{t("campaigns.list")}</TableHead>
-            <TableHead>{t("campaigns.status")}</TableHead>
-            <TableHead>{t("campaigns.progress")}</TableHead>
-            <TableHead>{t("campaigns.createdAt")}</TableHead>
-            <TableHead className="pe-6 text-end">
-              <span className="sr-only">{t("common.actions")}</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((c) => {
-            const subscribed = lists.find((l) => l.id === c.list_id)?.subscribed ?? 0
-            const wa = c.channel === "whatsapp"
-            const sendable = c.status === "draft" || c.status === "failed"
-            return (
-              <TableRow key={c.id} data-campaign-row={c.subject}>
-                <TableCell className="min-w-56 ps-6 whitespace-normal">
-                  <div className="font-medium">
-                    <Bdi>{c.subject}</Bdi>
-                  </div>
-                  {c.last_error ? (
-                    <div
-                      className="max-w-md truncate text-xs text-nq-danger-text"
-                      title={c.last_error}
-                    >
-                      {t("campaigns.lastError", { error: c.last_error })}
-                    </div>
-                  ) : null}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" data-channel={wa ? "whatsapp" : "email"}>
-                    {t(wa ? "campaigns.channel.whatsapp" : "campaigns.channel.email")}
-                  </Badge>
-                  {c.audience_locale ? (
-                    <div
-                      className="mt-1 text-xs text-muted-foreground"
-                      data-campaign-audience={c.audience_locale}
-                    >
-                      {t(`campaigns.audienceOnly.${c.audience_locale}`)}
-                    </div>
-                  ) : null}
-                  {!wa && c.smtp_service_name ? (
-                    <div
-                      className="mt-1 text-xs text-muted-foreground"
-                      data-campaign-service={c.smtp_service_name}
-                    >
-                      {t("campaigns.via", { name: isolate(c.smtp_service_name) })}
-                    </div>
-                  ) : null}
-                </TableCell>
-                <TableCell>
-                  <Bdi>{c.list_name}</Bdi>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={statusVariant[c.status]}>
-                    {t(`campaigns.status.${c.status}`)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  <Ltr>
-                    {c.status === "draft"
-                      ? "—"
-                      : `${c.sent_count} / ${c.recipient_count}${c.failed_count ? ` (−${c.failed_count})` : ""}`}
-                  </Ltr>
-                  {!wa && c.skipped_count > 0 ? (
-                    <div
-                      className="text-xs text-nq-warning-text"
-                      data-campaign-skipped={c.skipped_count}
-                    >
-                      {t("campaigns.skippedNoEmail", { count: c.skipped_count })}
-                    </div>
-                  ) : null}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  <Ltr>{formatDate(c.sent_at ?? c.created_at)}</Ltr>
-                </TableCell>
-                <TableCell className="pe-6 text-end whitespace-nowrap">
-                  {canSend && sendable && wa && !whatsappLinked ? (
-                    ws.can("inbox:manage") ? (
-                      <Link
-                        className="me-2 text-xs underline underline-offset-4"
-                        href={`/${locale}/w/${ws.slug}/settings/integrations?type=whatsapp`}
-                        data-send-blocked="whatsapp"
-                      >
-                        {t("campaigns.whatsappLinkToSend")}
-                      </Link>
-                    ) : (
-                      <span className="me-2 text-xs text-muted-foreground" data-send-blocked="whatsapp">
-                        {t("campaigns.whatsappNotLinkedShort")}
-                      </span>
-                    )
-                  ) : canSend && sendable && (wa || smtpReady) ? (
-                    <SendButton
-                      campaign={c}
-                      count={subscribed}
-                      maxAudience={maxAudience}
-                      onSent={onChange}
-                    />
-                  ) : null}
-                  {canWrite && sendable ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEdit(c)}
-                      data-edit-campaign={c.subject}
-                    >
-                      <PencilIcon />
-                      {t("campaigns.edit")}
-                    </Button>
-                  ) : null}
-                  {canWrite && c.status !== "sending" ? (
-                    <ConfirmButton
-                      label={t("common.delete")}
-                      title={t("campaigns.deleteTitle")}
-                      description={t("campaigns.deleteBody", { subject: isolate(c.subject) })}
-                      confirmLabel={t("common.delete")}
-                      onConfirm={() => remove(c.id)}
-                    />
-                  ) : null}
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+    <div className="px-6">
+      <RowsTable<Campaign>
+        data={items}
+        columns={columns}
+        getRowId={(c) => c.id}
+        rowLabel={(c) => c.subject}
+        label={t("nav.campaigns")}
+        data-campaigns
+      />
     </div>
   )
 }

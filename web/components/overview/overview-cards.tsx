@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 
 import { Ltr } from "@/components/copy-field"
+import { RowsTable } from "@/components/nq-table"
 import { formatMoney } from "@/components/crm/shared"
 import { LeadStatusBadge, leadSource } from "@/components/leads/shared"
 import {
@@ -359,29 +360,26 @@ export function PipelineCard({
       ) : (
         <div className="grid flex-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:divide-x lg:divide-nq-line rtl:lg:divide-x-reverse">
           <div className="min-w-0">
-            <table className="w-full text-sm" data-pipeline-stages>
-              <thead>
-                <tr className="border-b border-nq-line text-start text-xs text-muted-foreground">
-                  <th scope="col" className="w-full px-5 py-2 text-start font-normal">
-                    {t("overview.stage")}
-                  </th>
-                  <th scope="col" className="px-2 py-2 text-end font-normal">
-                    {t("overview.deals")}
-                  </th>
-                  <th scope="col" className="px-5 py-2 text-end font-normal">
-                    {t("overview.value")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-nq-line">
-                {p.stages.map((s) => (
-                  <tr key={s.id} data-stage={s.name}>
-                    <th scope="row" className="px-5 pt-2.5 pb-3 text-start align-top font-normal">
+            <RowsTable<(typeof p.stages)[number]>
+              data={p.stages}
+              getRowId={(st) => st.id}
+              rowLabel={(st) => st.name}
+              label={t("overview.stage")}
+              frame={false}
+              data-pipeline-stages
+              columns={[
+                {
+                  id: "stage",
+                  header: t("overview.stage"),
+                  hideable: false,
+                  className: "w-full align-top",
+                  cell: (st) => (
+                    <div data-stage={st.name}>
                       <Link
                         href={`${base}/deals`}
                         className="hover:underline hover:underline-offset-4"
                       >
-                        <bdi className="text-foreground">{s.name}</bdi>
+                        <bdi className="text-foreground">{st.name}</bdi>
                       </Link>
                       {/* One hue, 8px, 4px rounded data-end, square at the baseline. */}
                       <div className="mt-2 h-2" aria-hidden title={t("overview.stageBarLabel")}>
@@ -389,32 +387,45 @@ export function PipelineCard({
                           className="h-2 rounded-e-[4px] bg-nq-brand"
                           style={{
                             width:
-                              max > 0 && s.value_minor > 0
-                                ? `max(2px, ${(s.value_minor / max) * 100}%)`
+                              max > 0 && st.value_minor > 0
+                                ? `max(2px, ${(st.value_minor / max) * 100}%)`
                                 : 0,
                           }}
                         />
                       </div>
-                    </th>
-                    <td className="px-2 pt-2.5 text-end align-top tabular-nums">
-                      <Link
-                        href={`${base}/deals`}
-                        className="hover:underline hover:underline-offset-4"
-                        data-stage-count
-                      >
-                        {f.n(s.deal_count)}
-                      </Link>
-                    </td>
-                    <td
-                      className="px-5 pt-2.5 text-end align-top whitespace-nowrap tabular-nums text-foreground"
-                      data-stage-value
+                    </div>
+                  ),
+                },
+                {
+                  id: "deals",
+                  header: t("overview.deals"),
+                  align: "end",
+                  sortValue: (st) => st.deal_count,
+                  className: "align-top tabular-nums",
+                  cell: (st) => (
+                    <Link
+                      href={`${base}/deals`}
+                      className="hover:underline hover:underline-offset-4"
+                      data-stage-count
                     >
-                      <Ltr>{f.money(s.value_minor, currency)}</Ltr>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      {f.n(st.deal_count)}
+                    </Link>
+                  ),
+                },
+                {
+                  id: "value",
+                  header: t("overview.value"),
+                  align: "end",
+                  sortValue: (st) => st.value_minor,
+                  className: "align-top whitespace-nowrap tabular-nums text-foreground",
+                  cell: (st) => (
+                    <span data-stage-value>
+                      <Ltr>{f.money(st.value_minor, currency)}</Ltr>
+                    </span>
+                  ),
+                },
+              ]}
+            />
             {p.other_currency_deals > 0 ? (
               <p
                 className="border-t border-nq-line px-5 py-2.5 text-xs text-muted-foreground"
@@ -788,54 +799,66 @@ export function MarketingCard({
             }
           />
         ) : (
-          <table className="w-full text-sm" data-marketing-lists>
-            <thead>
-              <tr className="border-b border-nq-line text-xs text-muted-foreground">
-                <th scope="col" className="w-full px-5 py-2 text-start font-normal">
-                  {t("lists.title")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-end font-normal whitespace-nowrap">
-                  {t("lists.subscribed")}
-                </th>
-                <th scope="col" className="px-5 py-2 text-end font-normal whitespace-nowrap">
-                  {t("lists.pending")}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-nq-line">
-              {m.lists.map((l) => (
-                <tr key={l.id} data-list={l.name}>
-                  <th scope="row" className="max-w-0 truncate px-5 py-2.5 text-start font-normal">
-                    <Link
-                      href={`${base}/contacts`}
-                      className="text-foreground hover:underline hover:underline-offset-4"
-                    >
-                      <bdi>{l.name}</bdi>
-                    </Link>
-                  </th>
-                  <td className="px-2 py-2.5 text-end tabular-nums" data-subscribed>
-                    <Link
-                      href={`${base}/contacts`}
-                      className="hover:underline hover:underline-offset-4"
-                    >
-                      {f.n(l.subscribed)}
-                    </Link>
-                  </td>
-                  <td
-                    className="px-5 py-2.5 text-end tabular-nums text-muted-foreground"
+          <RowsTable<(typeof m.lists)[number]>
+            data={m.lists}
+            getRowId={(l) => l.id}
+            rowLabel={(l) => l.name}
+            label={t("lists.title")}
+            frame={false}
+            data-marketing-lists
+            columns={[
+              {
+                id: "list",
+                header: t("lists.title"),
+                hideable: false,
+                sortValue: (l) => l.name,
+                className: "w-full max-w-0 truncate",
+                cell: (l) => (
+                  <Link
+                    href={`${base}/contacts`}
+                    className="text-foreground hover:underline hover:underline-offset-4"
+                    data-list={l.name}
+                  >
+                    <bdi>{l.name}</bdi>
+                  </Link>
+                ),
+              },
+              {
+                id: "subscribed",
+                header: t("lists.subscribed"),
+                align: "end",
+                sortValue: (l) => l.subscribed,
+                headerClassName: "whitespace-nowrap",
+                className: "tabular-nums",
+                cell: (l) => (
+                  <Link
+                    href={`${base}/contacts`}
+                    className="hover:underline hover:underline-offset-4"
+                    data-subscribed
+                  >
+                    {f.n(l.subscribed)}
+                  </Link>
+                ),
+              },
+              {
+                id: "pending",
+                header: t("lists.pending"),
+                align: "end",
+                sortValue: (l) => l.pending,
+                headerClassName: "whitespace-nowrap",
+                className: "tabular-nums text-muted-foreground",
+                cell: (l) => (
+                  <Link
+                    href={`${base}/contacts`}
+                    className="hover:underline hover:underline-offset-4"
                     data-pending
                   >
-                    <Link
-                      href={`${base}/contacts`}
-                      className="hover:underline hover:underline-offset-4"
-                    >
-                      {f.n(l.pending)}
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {f.n(l.pending)}
+                  </Link>
+                ),
+              },
+            ]}
+          />
         )
       ) : null}
       <div

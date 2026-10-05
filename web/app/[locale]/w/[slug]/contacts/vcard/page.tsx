@@ -3,11 +3,28 @@
 import Link from "next/link"
 import { RefreshCwIcon, TriangleAlertIcon, UploadIcon } from "lucide-react"
 import { useRef, useState } from "react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Field, FieldDescription, FieldLabel, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Textarea,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -253,9 +270,7 @@ export default function VcardPage() {
         {/* Import only, and it reads the connected Google account's address book. */}
         {canWrite ? <GoogleContactsPanel /> : null}
 
-        {!canWrite ? (
-          <FormHint className="pb-4">{t("contacts.readOnly")}</FormHint>
-        ) : null}
+        {!canWrite ? <FormHint className="pb-4">{t("contacts.readOnly")}</FormHint> : null}
 
         <Field className="mb-4">
           <FieldLabel>{t("vcard.source")}</FieldLabel>
@@ -412,34 +427,51 @@ export default function VcardPage() {
                   {t("vcard.invalidCount", { count: preview.invalid_count })}
                 </span>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="ps-6">{t("vcard.name")}</TableHead>
-                    <TableHead>{t("vcard.phones")}</TableHead>
-                    <TableHead>{t("vcard.emails")}</TableHead>
-                    <TableHead className="pe-6">{t("vcard.status")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {preview.rows.map((row) => (
-                    <TableRow key={row.index} data-vcard-row={row.index}>
-                      <TableCell className="ps-6">
+              <RowsTable<(typeof preview.rows)[number]>
+                data={preview.rows}
+                getRowId={(row) => String(row.index)}
+                rowLabel={(row) => row.name || t("vcard.noName")}
+                label={t("vcard.name")}
+                columns={[
+                  {
+                    id: "name",
+                    header: t("vcard.name"),
+                    hideable: false,
+                    sortValue: (row) => row.name,
+                    cell: (row) => (
+                      <span data-vcard-row={row.index}>
                         <Bdi>{row.name || t("vcard.noName")}</Bdi>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{row.phones.join(", ")}</TableCell>
-                      <TableCell className="text-muted-foreground">{row.emails.join(", ")}</TableCell>
-                      <TableCell className="pe-6">
-                        <Badge variant={statusVariant[row.status]} data-vcard-status={row.status}>
-                          {row.status === "invalid"
-                            ? row.invalid || t(`vcard.status.${row.status}`)
-                            : t(`vcard.status.${row.status}`)}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "phones",
+                    header: t("vcard.phones"),
+                    cell: (row) => (
+                      <span className="text-muted-foreground">{row.phones.join(", ")}</span>
+                    ),
+                  },
+                  {
+                    id: "emails",
+                    header: t("vcard.emails"),
+                    cell: (row) => (
+                      <span className="text-muted-foreground">{row.emails.join(", ")}</span>
+                    ),
+                  },
+                  {
+                    id: "status",
+                    header: t("vcard.status"),
+                    sortValue: (row) => row.status,
+                    cell: (row) => (
+                      <Badge variant={statusVariant[row.status]} data-vcard-status={row.status}>
+                        {row.status === "invalid"
+                          ? row.invalid || t(`vcard.status.${row.status}`)
+                          : t(`vcard.status.${row.status}`)}
+                      </Badge>
+                    ),
+                  },
+                ]}
+              />
             </div>
           )
         ) : null}
@@ -630,7 +662,10 @@ function GoogleContactsConnectionRow({
           </p>
         ) : null}
         {result ? (
-          <p className="mt-1 text-xs text-muted-foreground" data-testid="google-contacts-sync-result">
+          <p
+            className="mt-1 text-xs text-muted-foreground"
+            data-testid="google-contacts-sync-result"
+          >
             {t("vcard.google.syncResult", {
               added: result.added,
               updated: result.updated,

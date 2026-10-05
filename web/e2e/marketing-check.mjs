@@ -182,19 +182,21 @@ await a.fill(
   "# Hello\n\nWe shipped **email marketing**.\n\n- lists\n- campaigns\n\n[Read more](https://moharrik.com)",
 )
 await a.click('[data-form="new-campaign"] button[type=submit]')
-await a.waitForSelector('[data-campaign-row="September update"]')
-out.campaignDraft = await a.$eval('[data-campaign-row="September update"]', (r) =>
+await a.waitForSelector('tr:has([data-campaign-row="September update"])')
+out.campaignDraft = await a.$eval('tr:has([data-campaign-row="September update"])', (r) =>
   r.innerText.replace(/\s+/g, " "),
 )
 const beforeSend = inbox.length
-await a.click('[data-campaign-row="September update"] >> text=Send')
+await a.click('tr:has([data-campaign-row="September update"]) >> text=Send')
 await a.getByRole("alertdialog").getByRole("button", { name: "Send" }).click()
 await waitFor(
   async () =>
-    /Sent/.test(await a.$eval('[data-campaign-row="September update"]', (r) => r.innerText)),
+    /Sent/.test(
+      await a.$eval('tr:has([data-campaign-row="September update"])', (r) => r.innerText),
+    ),
   30000,
 )
-out.campaignSent = await a.$eval('[data-campaign-row="September update"]', (r) =>
+out.campaignSent = await a.$eval('tr:has([data-campaign-row="September update"])', (r) =>
   r.innerText.replace(/\s+/g, " "),
 )
 const campaignMails = inbox.slice(beforeSend).filter((m) => /September update/.test(m.body))

@@ -11,21 +11,7 @@ import {
   XIcon,
   YoutubeIcon,
 } from "lucide-react"
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Tabs,
-  TabsList,
-  TabsTab,
-  toast,
-} from "@fadymondy/nasaq/web"
+import { Badge, Button, Checkbox, Tabs, TabsList, TabsTab, toast } from "@fadymondy/nasaq/web"
 import { Label } from "@/components/form-layout"
 
 import { ChannelsSection } from "@/components/channels/channels-section"
@@ -34,6 +20,7 @@ import { Ga4Conversions } from "@/components/google/ga4-conversions"
 import { ResourcePicker } from "@/components/google/resource-picker"
 import { Ltr } from "@/components/copy-field"
 import { SectionHeader } from "@/components/public-frame"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -171,34 +158,88 @@ function GoogleIntegrations() {
                 body={google.data.configured ? t("integrations.noneBody") : undefined}
               />
             ) : (
-              <div className="border-y border-nq-line">
-                <Table data-google-connections={list.length}>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="ps-6">{t("integrations.account")}</TableHead>
-                      <TableHead>{t("integrations.products")}</TableHead>
-                      <TableHead className="hidden sm:table-cell">
-                        {t("integrations.status")}
-                      </TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        {t("integrations.connectedBy")}
-                      </TableHead>
-                      <TableHead className="pe-6 text-end">
-                        <span className="sr-only">{t("common.actions")}</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {list.map((c) => (
-                      <ConnectionRow
-                        key={c.id}
-                        connection={c}
-                        configured={google.data!.configured}
-                        onChange={() => google.mutate()}
-                      />
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="px-6">
+                <RowsTable<GoogleConnection>
+                  data={list}
+                  getRowId={(c) => c.id}
+                  rowLabel={(c) => c.email}
+                  label={t("integrations.connected")}
+                  data-google-connections={list.length}
+                  columns={[
+                    {
+                      id: "account",
+                      header: t("integrations.account"),
+                      hideable: false,
+                      sortValue: (c) => c.email,
+                      cell: (c) => (
+                        <span
+                          className="font-medium"
+                          data-google-connection={c.email}
+                          data-status={c.status || "ok"}
+                        >
+                          <Ltr>{c.email || "—"}</Ltr>
+                          {/* Narrow screens: the status column is hidden, so it sits under the account. */}
+                          <span className="mt-1 block font-normal sm:hidden">
+                            <ConnectionStatus connection={c} />
+                          </span>
+                        </span>
+                      ),
+                    },
+                    {
+                      id: "products",
+                      header: t("integrations.products"),
+                      cell: (c) => (
+                        <span className="flex flex-wrap gap-1">
+                          {(c.products ?? []).length === 0 ? (
+                            <span className="text-muted-foreground">
+                              {t("integrations.noProducts")}
+                            </span>
+                          ) : null}
+                          {(c.products ?? []).map((p) => (
+                            <Badge key={p} variant="neutral">
+                              {t(`integrations.product.${p}`)}
+                            </Badge>
+                          ))}
+                          {c.revenue ? (
+                            <Badge variant="outline">{t("integrations.revenueBadge")}</Badge>
+                          ) : null}
+                        </span>
+                      ),
+                    },
+                    {
+                      id: "status",
+                      header: t("integrations.status"),
+                      sortValue: (c) => c.status,
+                      className: "hidden sm:table-cell",
+                      headerClassName: "hidden sm:table-cell",
+                      cell: (c) => <ConnectionStatus connection={c} />,
+                    },
+                    {
+                      id: "by",
+                      header: t("integrations.connectedBy"),
+                      sortValue: (c) => c.connected_by_email,
+                      className: "hidden md:table-cell",
+                      headerClassName: "hidden md:table-cell",
+                      cell: (c) => (
+                        <Ltr className="text-muted-foreground">{c.connected_by_email || "—"}</Ltr>
+                      ),
+                    },
+                    {
+                      id: "actions",
+                      header: <span className="sr-only">{t("common.actions")}</span>,
+                      label: t("common.actions"),
+                      align: "end",
+                      hideable: false,
+                      cell: (c) => (
+                        <ConnectionActions
+                          connection={c}
+                          configured={google.data!.configured}
+                          onChange={() => google.mutate()}
+                        />
+                      ),
+                    },
+                  ]}
+                />
               </div>
             )}
           </section>
@@ -368,7 +409,21 @@ function ConnectProducts() {
   )
 }
 
-function ConnectionRow({
+function ConnectionStatus({ connection: c }: { connection: GoogleConnection }) {
+  const { t } = useTranslations()
+  return c.status === "reauth" ? (
+    <span className="block space-y-1 whitespace-normal">
+      <Badge variant="danger">{t("integrations.statusReauth")}</Badge>
+      <span className="block max-w-56 text-xs text-muted-foreground">
+        {t("integrations.statusReauthHint")}
+      </span>
+    </span>
+  ) : (
+    <Badge variant="outline">{t("integrations.statusOk")}</Badge>
+  )
+}
+
+function ConnectionActions({
   connection: c,
   configured,
   onChange,
@@ -408,57 +463,22 @@ function ConnectionRow({
     }
   }
 
-  const status = reauth ? (
-    <div className="space-y-1 whitespace-normal">
-      <Badge variant="danger">{t("integrations.statusReauth")}</Badge>
-      <p className="max-w-56 text-xs text-muted-foreground">{t("integrations.statusReauthHint")}</p>
-    </div>
-  ) : (
-    <Badge variant="outline">{t("integrations.statusOk")}</Badge>
-  )
-
   return (
-    <TableRow data-google-connection={c.email} data-status={c.status || "ok"}>
-      <TableCell className="ps-6 font-medium">
-        <Ltr>{c.email || "—"}</Ltr>
-        {/* Narrow screens: the status column is hidden, so it sits under the account. */}
-        <div className="mt-1 font-normal sm:hidden">{status}</div>
-      </TableCell>
-      <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {products.length === 0 ? (
-            <span className="text-muted-foreground">{t("integrations.noProducts")}</span>
-          ) : null}
-          {products.map((p) => (
-            <Badge key={p} variant="neutral">
-              {t(`integrations.product.${p}`)}
-            </Badge>
-          ))}
-          {c.revenue ? <Badge variant="outline">{t("integrations.revenueBadge")}</Badge> : null}
-        </div>
-      </TableCell>
-      <TableCell className="hidden sm:table-cell">{status}</TableCell>
-      <TableCell className="hidden text-muted-foreground md:table-cell">
-        <Ltr>{c.connected_by_email || "—"}</Ltr>
-      </TableCell>
-      <TableCell className="pe-6 text-end">
-        <div className="flex flex-wrap items-center justify-end gap-1">
-          {reauth && configured ? (
-            <Button variant="secondary" size="sm" onClick={reconnect} disabled={busy}>
-              <RefreshCwIcon />
-              {busy ? t("integrations.redirecting") : t("integrations.reconnect")}
-            </Button>
-          ) : null}
-          <ConfirmButton
-            label={t("integrations.disconnect")}
-            title={t("integrations.disconnectTitle", { email: isolate(c.email) })}
-            description={t("integrations.disconnectBody")}
-            confirmLabel={t("integrations.disconnect")}
-            onConfirm={disconnect}
-          />
-        </div>
-      </TableCell>
-    </TableRow>
+    <div className="flex flex-wrap items-center justify-end gap-1">
+      {reauth && configured ? (
+        <Button variant="secondary" size="sm" onClick={reconnect} disabled={busy}>
+          <RefreshCwIcon />
+          {busy ? t("integrations.redirecting") : t("integrations.reconnect")}
+        </Button>
+      ) : null}
+      <ConfirmButton
+        label={t("integrations.disconnect")}
+        title={t("integrations.disconnectTitle", { email: isolate(c.email) })}
+        description={t("integrations.disconnectBody")}
+        confirmLabel={t("integrations.disconnect")}
+        onConfirm={disconnect}
+      />
+    </div>
   )
 }
 

@@ -35,18 +35,13 @@ import {
   Status,
   Stepper,
   StepperItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   toast,
   type StatusTone,
 } from "@fadymondy/nasaq/web"
 import { FormHint } from "@/components/form-layout"
 
 import { BrandIcon } from "@/components/automation/brand-icon"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -244,11 +239,7 @@ export default function ImportPage() {
                           data-action="choose-import"
                           data-source={s.source}
                         >
-                          {ready.length > 1 && c.label ? (
-                            <Ltr>{c.label}</Ltr>
-                          ) : (
-                            t("import.choose")
-                          )}
+                          {ready.length > 1 && c.label ? <Ltr>{c.label}</Ltr> : t("import.choose")}
                         </Button>
                       ))}
                     </div>
@@ -433,9 +424,7 @@ function ImportFlow({
         <CardHeader className="flex flex-wrap items-center gap-3">
           <BrandIcon brand={SOURCE_BRAND[source] ?? SOURCE_BRAND.email} size={32} />
           <div className="flex min-w-0 flex-1 flex-col">
-            <CardTitle>
-              {t("import.flowTitle", { source: t(`import.source.${source}`) })}
-            </CardTitle>
+            <CardTitle>{t("import.flowTitle", { source: t(`import.source.${source}`) })}</CardTitle>
             {conn.label ? (
               <CardDescription>
                 <Ltr>{conn.label}</Ltr>
@@ -453,7 +442,10 @@ function ImportFlow({
           </Button>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
-          <Stepper current={step} aria-label={t("import.flowTitle", { source: t(`import.source.${source}`) })}>
+          <Stepper
+            current={step}
+            aria-label={t("import.flowTitle", { source: t(`import.source.${source}`) })}
+          >
             <StepperItem title={t("import.flowStep.connect")} />
             <StepperItem title={t("import.flowStep.pick")} />
             <StepperItem title={t("import.flowStep.import")} />
@@ -524,68 +516,88 @@ function ImportFlow({
           ) : items.length === 0 ? (
             <EmptyState title={t("import.empty")} body={t("import.emptyBody")} />
           ) : (
-            <div className="overflow-hidden rounded-card border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10 ps-4">
-                      <Checkbox
-                        aria-label={t("import.selectAll")}
-                        checked={allSelected}
-                        onCheckedChange={(v) => setSelected(v ? new Set(selectableIds) : new Set())}
-                        disabled={selectableIds.length === 0}
-                      />
-                    </TableHead>
-                    <TableHead>{t("import.name")}</TableHead>
-                    <TableHead>{t("import.identity")}</TableHead>
-                    <TableHead>{t("import.lastMessage")}</TableHead>
-                    <TableHead className="pe-4">{t("import.status")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((it: ImportItem) => (
-                    <TableRow key={it.id} data-import-item={it.identity}>
-                      <TableCell className="ps-4">
-                        <Checkbox
-                          checked={selected.has(it.id)}
-                          disabled={it.already_imported}
-                          onCheckedChange={() => toggle(it.id)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {it.kind === "group" ? (
-                            <UsersIcon className="size-4 text-muted-foreground" />
-                          ) : (
-                            <MessageCircleIcon className="size-4 text-muted-foreground" />
-                          )}
-                          <Bdi>{it.name || it.identity}</Bdi>
+            <RowsTable<ImportItem>
+              data={items}
+              getRowId={(it) => it.id}
+              rowLabel={(it) => it.name || it.identity}
+              label={t("import.name")}
+              data-import-items={items.length}
+              columns={[
+                {
+                  id: "select",
+                  header: (
+                    <Checkbox
+                      aria-label={t("import.selectAll")}
+                      checked={allSelected}
+                      onCheckedChange={(v) => setSelected(v ? new Set(selectableIds) : new Set())}
+                      disabled={selectableIds.length === 0}
+                    />
+                  ),
+                  label: t("import.selectAll"),
+                  hideable: false,
+                  className: "w-10",
+                  headerClassName: "w-10",
+                  cell: (it) => (
+                    <Checkbox
+                      aria-label={it.name || it.identity}
+                      checked={selected.has(it.id)}
+                      disabled={it.already_imported}
+                      onCheckedChange={() => toggle(it.id)}
+                    />
+                  ),
+                },
+                {
+                  id: "name",
+                  header: t("import.name"),
+                  hideable: false,
+                  sortValue: (it) => it.name || it.identity,
+                  cell: (it) => (
+                    <div data-import-item={it.identity}>
+                      <div className="flex items-center gap-2">
+                        {it.kind === "group" ? (
+                          <UsersIcon className="size-4 text-muted-foreground" />
+                        ) : (
+                          <MessageCircleIcon className="size-4 text-muted-foreground" />
+                        )}
+                        <Bdi>{it.name || it.identity}</Bdi>
+                      </div>
+                      {it.kind === "group" && it.participants?.length ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {t("import.participantsCount", { count: it.participants.length })}
                         </div>
-                        {it.kind === "group" && it.participants?.length ? (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {t("import.participantsCount", { count: it.participants.length })}
-                          </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <Ltr>{it.identity}</Ltr>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate text-muted-foreground">
-                        <Bdi>{it.last_message}</Bdi>
-                      </TableCell>
-                      <TableCell className="pe-4">
-                        {it.already_imported ? (
-                          <Badge variant="outline" data-already-imported={it.identity}>
-                            <CheckIcon />
-                            {t("import.alreadyImported")}
-                          </Badge>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      ) : null}
+                    </div>
+                  ),
+                },
+                {
+                  id: "identity",
+                  header: t("import.identity"),
+                  cell: (it) => <Ltr className="text-muted-foreground">{it.identity}</Ltr>,
+                },
+                {
+                  id: "lastMessage",
+                  header: t("import.lastMessage"),
+                  className: "max-w-xs truncate",
+                  cell: (it) => (
+                    <span className="text-muted-foreground">
+                      <Bdi>{it.last_message}</Bdi>
+                    </span>
+                  ),
+                },
+                {
+                  id: "status",
+                  header: t("import.status"),
+                  sortValue: (it) => (it.already_imported ? 1 : 0),
+                  cell: (it) =>
+                    it.already_imported ? (
+                      <Badge variant="outline" data-already-imported={it.identity}>
+                        <CheckIcon />
+                        {t("import.alreadyImported")}
+                      </Badge>
+                    ) : null,
+                },
+              ]}
+            />
           )}
         </CardContent>
         <CardFooter className="flex flex-wrap items-center gap-4">
@@ -599,7 +611,10 @@ function ImportFlow({
           </Button>
           {!canWrite ? <FormHint>{t("contacts.readOnly")}</FormHint> : null}
           {job.data?.job ? (
-            <div className="text-sm text-muted-foreground" data-import-job-status={job.data.job.status}>
+            <div
+              className="text-sm text-muted-foreground"
+              data-import-job-status={job.data.job.status}
+            >
               {job.data.job.status === "running"
                 ? t("import.progress", { done: job.data.job.done, total: job.data.job.total })
                 : job.data.job.status === "done"

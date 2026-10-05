@@ -18,7 +18,13 @@ import { useSyncExternalStore, type ReactNode } from "react"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
-import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@fadymondy/nasaq/web"
+import { RowsTable } from "@/components/nq-table"
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 /** True below the sm breakpoint: narrow charts give the labels more room. */
@@ -98,12 +104,7 @@ export function HorizontalBars({
           tick={{ fontSize: 12 }}
           interval={0}
         />
-        <ChartTooltip
-          cursor={false}
-          content={
-            <ChartTooltipContent config={config} hideLabel />
-          }
-        />
+        <ChartTooltip cursor={false} content={<ChartTooltipContent config={config} hideLabel />} />
         <Bar
           dataKey="value"
           fill="var(--color-value)"
@@ -265,31 +266,19 @@ export function DataTable<T>({
   id: string
 }) {
   return (
-    <Table data-table={id} aria-label={caption}>
-      <TableHeader>
-        <TableRow>
-          {columns.map((c) => (
-            <TableHead key={c.key} className={c.numeric ? "text-end" : undefined}>
-              {c.head}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((r) => (
-          <TableRow key={rowKey(r)}>
-            {columns.map((c) => (
-              <TableCell
-                key={c.key}
-                className={c.numeric ? "text-end tabular-nums" : "max-w-64 truncate"}
-              >
-                {c.cell(r)}
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <RowsTable<T>
+      data={rows}
+      getRowId={rowKey}
+      label={caption}
+      data-table={id}
+      columns={columns.map((c) => ({
+        id: c.key,
+        header: c.head,
+        align: c.numeric ? "end" : undefined,
+        className: c.numeric ? "tabular-nums" : "max-w-64 truncate",
+        cell: c.cell,
+      }))}
+    />
   )
 }
 

@@ -12,7 +12,17 @@ workflow and in every version of it.
 
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
-import { Button, Checkbox, Input } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Checkbox,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@fadymondy/nasaq/web"
 import type { WorkflowParam, WorkflowStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -68,28 +78,29 @@ export function ParamsEditor({
       {params.length === 0 ? (
         <p className="px-6 pb-2 text-sm text-muted-foreground">{t("automation.params.none")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="text-start text-xs text-muted-foreground">
-              <tr className="border-b border-nq-line">
-                <th className="px-6 py-2 text-start font-normal">{t("automation.params.name")}</th>
-                <th className="px-2 py-2 text-start font-normal">{t("automation.params.label")}</th>
-                <th className="px-2 py-2 text-start font-normal">
-                  {t("automation.params.default")}
-                </th>
-                <th className="px-2 py-2 text-center font-normal">
-                  {t("automation.params.required")}
-                </th>
-                <th className="px-2 py-2 text-center font-normal">
-                  {t("automation.params.secret")}
-                </th>
-                <th className="px-6 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-nq-line">
+        <div className="px-6">
+          <Table
+            frame
+            density="compact"
+            className="min-w-[640px]"
+            label={t("automation.params.title")}
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("automation.params.name")}</TableHead>
+                <TableHead>{t("automation.params.label")}</TableHead>
+                <TableHead>{t("automation.params.default")}</TableHead>
+                <TableHead className="text-center">{t("automation.params.required")}</TableHead>
+                <TableHead className="text-center">{t("automation.params.secret")}</TableHead>
+                <TableHead>
+                  <span className="sr-only">{t("common.actions")}</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {params.map((p, i) => (
-                <tr key={i} data-param={p.name}>
-                  <td className="px-6 py-2 align-top">
+                <TableRow key={i} data-param={p.name}>
+                  <TableCell className="align-top">
                     <Input
                       dir="ltr"
                       className="font-mono text-xs"
@@ -103,15 +114,15 @@ export function ParamsEditor({
                         {t("automation.params.unused")}
                       </p>
                     ) : null}
-                  </td>
-                  <td className="px-2 py-2 align-top">
+                  </TableCell>
+                  <TableCell className="align-top">
                     <Input
                       aria-label={t("automation.params.label")}
                       value={p.label ?? ""}
                       onChange={(e) => set(i, { label: e.target.value })}
                     />
-                  </td>
-                  <td className="px-2 py-2 align-top">
+                  </TableCell>
+                  <TableCell className="align-top">
                     {p.secret ? (
                       <p className="pt-1.5 text-xs text-muted-foreground">
                         {t("automation.params.secretNoDefault")}
@@ -123,16 +134,16 @@ export function ParamsEditor({
                         onChange={(e) => set(i, { default: e.target.value })}
                       />
                     )}
-                  </td>
-                  <td className="px-2 py-2 text-center align-top">
+                  </TableCell>
+                  <TableCell className="text-center align-top">
                     <Checkbox
                       className="mt-2"
                       aria-label={t("automation.params.required")}
                       checked={!!p.required}
                       onCheckedChange={(v) => set(i, { required: !!v })}
                     />
-                  </td>
-                  <td className="px-2 py-2 text-center align-top">
+                  </TableCell>
+                  <TableCell className="text-center align-top">
                     <Checkbox
                       className="mt-2"
                       aria-label={t("automation.params.secret")}
@@ -141,8 +152,8 @@ export function ParamsEditor({
                         set(i, { secret: !!v, ...(v ? { default: "" } : {}) })
                       }
                     />
-                  </td>
-                  <td className="px-6 py-2 text-end align-top">
+                  </TableCell>
+                  <TableCell className="text-end align-top">
                     <Button
                       type="button"
                       variant="ghost"
@@ -153,11 +164,11 @@ export function ParamsEditor({
                     >
                       <Trash2Icon />
                     </Button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
       <div className="px-6 pt-3">
