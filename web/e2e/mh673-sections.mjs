@@ -80,8 +80,8 @@ for (const scheme of ["light", "dark"]) {
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
-  for (const loc of ["en", "ar"])
-    for (const w of [1440, 390]) {
+  for (const loc of (process.env.LOCS ?? "en,ar").split(","))
+    for (const w of (process.env.WIDTHS ?? "1440,390").split(",").map(Number)) {
       const k = `${loc}-${scheme}-${w}`
       const ws = `${base}/${loc}/w/${slug}`
       const mobile = w < 768
@@ -89,9 +89,15 @@ for (const scheme of ["light", "dark"]) {
       const scope = mobile ? sheet : null
       const openSheet = async () => {
         if (!mobile) return
-        await page.locator("[data-nav-toggle]").filter({ visible: true }).first().click()
-        await page.waitForSelector(sheet, { timeout: 10000 })
-        await page.waitForTimeout(400)
+        // A dev server can still be hydrating when the toggle first renders: retry the click.
+        for (let i = 0; i < 4; i++) {
+          await page.locator("[data-nav-toggle]").filter({ visible: true }).first().click().catch(() => {})
+          if (await page.waitForSelector(sheet, { timeout: 5000 }).then(() => true, () => false)) {
+            await page.waitForTimeout(400)
+            return
+          }
+        }
+        check(`${k}-sheet-opens@${page.url()}`, false)
       }
       const closeSheet = async () => {
         if (mobile) await page.keyboard.press("Escape").catch(() => {})
@@ -135,6 +141,8 @@ for (const scheme of ["light", "dark"]) {
       await page.goto(`${ws}/leads`, { waitUntil: "domcontentloaded" })
       await settle(page)
       await openSheet()
+      // The sidebar renders after the page's first paint on a cold dev compile: wait for a current link.
+      await page.waitForSelector(`${scope ?? "body"} a[data-nav-item][aria-current=page]`, { timeout: 20000 }).catch(() => {})
       const deep = await readNav(page, scope)
       check(`${k}-deeplink`, deep?.row.join() === "customers" && deep.subs.join() === "leads", deep)
 
