@@ -44,6 +44,16 @@ type Tool struct {
 	// Scope is REQUIRED. A token must carry it (after narrowing to its user's
 	// current role) to call the tool. Empty is a bug and is denied at dispatch.
 	Scope       string
+	// ReadOnly marks a tool that only reads although its scope is a write scope
+	// (a manage scope that also lists things, a dry-run test). It changes no
+	// stored data, so it is not audited as a write and the permission explainer
+	// lists it under "can read" (MH-1069).
+	ReadOnly bool
+	// Confirm, when set, is the plain-language rule a caller must satisfy before
+	// this tool changes anything: the confirmation the tool itself demands. The
+	// permission explainer lists the tool under "changes needing confirmation"
+	// with this text. Empty = the tool acts as soon as it is called.
+	Confirm     string
 	InputSchema map[string]any
 	// Run returns the text handed back to the model. ctx carries the caller:
 	// tenant.Scope for the user server, adminCaller for the admin server.
@@ -102,6 +112,9 @@ func Mount(k *togo.Kernel, a *app.App, researchEngine *research.Engine) {
 	k.Router.Handle("/api/mcp", wrap(user.handler(a)))
 	// The public tool reference (MH-428), generated from this same registry.
 	k.Router.Get("/api/mcp/docs", docsHandler(user.tools))
+	// What each scope can read, change, change only after a confirmation, and
+	// never do (MH-1069), derived from the same registry.
+	k.Router.Get("/api/mcp/permissions", permissionsHandler(user.tools))
 	MountOAuth(k, a) // OAuth 2.1 for connectors (MH-391)
 	k.Router.Handle("/api/admin/mcp", wrap(admin.handler(a)))
 }
@@ -356,6 +369,14 @@ func prop(typ, desc string) map[string]any {
 // audited unless its scope says it only reads.
 func IsWriteTool(t Tool) bool {
 	return !strings.HasSuffix(t.Scope, ":read")
+}
+
+// ChangesData reports whether a tool can change stored data or send something:
+// a write-scope tool not marked ReadOnly. IsWriteTool stays the audit rule (a
+// ReadOnly tool in a write scope is still logged); this is the question the
+// permission explainer asks.
+func ChangesData(t Tool) bool {
+	return IsWriteTool(t) && !t.ReadOnly
 }
 
 // auditCall writes the request row for a write tool's call when it changed no

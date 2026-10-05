@@ -48,3 +48,23 @@ export type McpDocsCatalog = {
 export function mcpDocsHref(locale: string, anchor?: string) {
   return `/${locale}/docs/mcp${anchor ? `#${anchor}` : ""}`
 }
+
+// The permission explainer (MH-1069): GET /api/mcp/permissions, derived by the API from the
+// same tool registry (internal/mcp/permissions.go). Nothing here is a frontend-side list.
+export type McpPermTool = { name: string; summary: string; confirm?: string }
+
+export type McpPermScope = {
+  scope: string
+  description: string
+  min_role: string
+  can_read: McpPermTool[]
+  can_change: McpPermTool[]
+  needs_confirm: McpPermTool[]
+}
+
+export type McpPermissions = {
+  lang: string
+  tool_count: number
+  scopes: McpPermScope[]
+  never: { id: string; label: string }[]
+}

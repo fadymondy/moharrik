@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { BellOffIcon, BookmarkIcon, CheckIcon, SearchIcon, SettingsIcon } from "lucide-react"
-import { Badge, Button, InputGroup, InputGroupAddon, InputGroupInput, toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, InputGroup, InputGroupAddon, InputGroupInput, Toggle, ToggleGroup, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { useDebounced } from "@/components/crm/contact-picker"
@@ -16,10 +16,11 @@ import {
   severityVariant,
   useKindLabel,
 } from "@/components/notifications/notification-detail"
+import { StateBadge, TriageActions } from "@/components/notifications/triage"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type NotificationItem } from "@/lib/api"
+import { api, ApiError, type NotificationItem, type NotificationView } from "@/lib/api"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useNotifications, type NotificationFilter } from "@/lib/queries"
@@ -33,6 +34,13 @@ one source, and an item's full detail with the raw payload it was made from.
 
 const PAGE_SIZE = 25
 
+/*
+MH-1069: the feed opens on what still needs a person (open and not snoozed).
+Snoozed, Resolved and All are one click away, and every count on this page,
+the sidebar bell and the Overview uses that same definition.
+*/
+const VIEWS: NotificationView[] = ["actionable", "snoozed", "resolved", "all"]
+
 export default function NotificationsPage() {
   const { t, locale, formatNumber } = useTranslations()
   const ws = useWorkspace()
@@ -44,6 +52,7 @@ export default function NotificationsPage() {
   // ?unread=1 opens the feed already filtered — the Overview links its count here.
   const [unread, setUnread] = useState(useSearchParams().get("unread") === "1")
   const [saved, setSaved] = useState(false)
+  const [view, setView] = useState<NotificationView>("actionable")
   const [sourceId, setSourceId] = useState("")
   const [kind, setKind] = useState("")
   const [severity, setSeverity] = useState("")
@@ -52,8 +61,9 @@ export default function NotificationsPage() {
   const [openId, setOpenId] = useState<string | null>(null)
 
   // A cursor belongs to one filter: any change starts again at page one.
-  const pager = useCursorStack([unread, saved, sourceId, kind, severity, q].join("|"))
+  const pager = useCursorStack([view, unread, saved, sourceId, kind, severity, q].join("|"))
   const filter: NotificationFilter = {
+    view,
     unread,
     saved,
     sourceId: sourceId || undefined,
@@ -95,7 +105,23 @@ export default function NotificationsPage() {
   ]
   const selectedSource = page?.sources.find((s) => s.key === sourceId)
   const filtered = unread || saved || !!sourceId || !!kind || !!severity || !!q
-  const nothingAtAll = !!page && page.total === 0 && !filtered
+  const everything = page ? page.actionable_count + page.snoozed_count + page.resolved_count : 0
+  const nothingAtAll = !!page && everything === 0 && !filtered
+  const viewCount = (v: NotificationView) =>
+    !page
+      ? null
+      : v === "actionable"
+        ? page.actionable_count
+        : v === "snoozed"
+          ? page.snoozed_count
+          : v === "resolved"
+            ? page.resolved_count
+            : everything
+  function pickView(v: NotificationView) {
+    setView(v)
+    // The unread count is the actionable one, so the unread filter belongs to that view.
+    if (v !== "actionable") setUnread(false)
+  }
 
   async function markAllRead() {
     try {
@@ -169,26 +195,53 @@ export default function NotificationsPage() {
               data-notification-search
             />
           </InputGroup>
+          <ToggleGroup
+            value={[view]}
+            onValueChange={(v) => v[0] && pickView(v[0] as NotificationView)}
+            aria-label={t("ntf.views")}
+            className="flex-wrap"
+            data-notification-views
+          >
+            {VIEWS.map((v) => {
+              const n = viewCount(v)
+              return (
+                <Toggle key={v} value={v} data-view={v}>
+                  {t(`ntf.view.${v}`)}
+                  {n !== null ? (
+                    <span className="tabular-nums opacity-80" data-view-count={v}>
+                      {formatNumber(n)}
+                    </span>
+                  ) : null}
+                </Toggle>
+              )
+            })}
+          </ToggleGroup>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={unread ? "primary" : "secondary"}
-              aria-pressed={unread}
-              onClick={() => setUnread((v) => !v)}
-              data-filter="unread"
-            >
-              {t("notifications.filterUnread")}
-              {page ? (
-                <span className="tabular-nums opacity-80">{formatNumber(page.unread_count)}</span>
-              ) : null}
-            </Button>
+            {view === "actionable" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={unread ? "primary" : "secondary"}
+                aria-pressed={unread}
+                onClick={() => setUnread((v) => !v)}
+                data-filter="unread"
+              >
+                {t("notifications.filterUnread")}
+                {page ? (
+                  <span className="tabular-nums opacity-80">{formatNumber(page.unread_count)}</span>
+                ) : null}
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
               variant={saved ? "primary" : "secondary"}
               aria-pressed={saved}
-              onClick={() => setSaved((v) => !v)}
+              onClick={() => {
+                // Saved is a shelf across every view: switching it on shows them all.
+                if (!saved) setView("all")
+                setSaved((v) => !v)
+              }}
               data-filter="saved"
             >
               {t("notifications.filterSaved")}
@@ -253,7 +306,7 @@ export default function NotificationsPage() {
           className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground"
           data-notifications-no-match
         >
-          {t("notifications.noMatch")}
+          {!filtered && view !== "all" ? t(`ntf.empty.${view}`) : t("notifications.noMatch")}
         </p>
       ) : (
         <>
@@ -336,6 +389,7 @@ function NotificationRow({
       className={`flex items-start gap-3 px-6 py-4 ${isRead ? "" : "bg-card"}`}
       data-notification={item.title}
       data-notification-read={isRead ? "true" : "false"}
+      data-notification-state={item.state}
     >
       <span
         className={`mt-1.5 size-2 shrink-0 rounded-full ${severityTone[item.severity]}`}
@@ -359,6 +413,7 @@ function NotificationRow({
           </p>
         ) : null}
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <StateBadge item={item} />
           <Badge variant={severityVariant[item.severity]}>
             {t(`notifications.severity.${item.severity}`)}
           </Badge>
@@ -393,6 +448,7 @@ function NotificationRow({
       </div>
       {canWrite ? (
         <div className="flex shrink-0 items-center gap-1">
+          <TriageActions item={item} onChange={onChange} />
           <Button
             variant="ghost"
             size="icon-sm"

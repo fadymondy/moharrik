@@ -6,7 +6,7 @@ package mcp
 var docsNotifications = map[string]ToolDoc{
 	"list_notifications": {
 		AR: "موجز الإشعارات، الأحدث أولًا، صفحةً بعد صفحة: لكل عنصر معرّفه ومصدره ودرجة خطورته وعنوانه والجهة التي أحدثته ورابطه، " +
-			"وهل قُرئ أو حُفظ. القيمة الافتراضية لـ unread_only هي true. ابحث بـ q، أو صفِّ النتائج حسب source_id (قيمة source_key " +
+			"وهل قُرئ أو حُفظ أو سُوّي أو أُجِّل. القيمة الافتراضية لـ unread_only هي true، وview يختار actionable (الافتراضي: المفتوحة وغير المؤجَّلة) أو snoozed أو resolved أو all. ابحث بـ q، أو صفِّ النتائج حسب source_id (قيمة source_key " +
 			"من عنصر أو من قائمة sources) أو kind أو severity؛ وتتضمّن الإجابة أيضًا عدد العناصر لكل مصدر ولكل نوع. أعِد next_cursor " +
 			"في cursor لجلب المزيد، وافتح أي عنصر كاملًا بـ get_notification.",
 		Example: map[string]any{"unread_only": true, "limit": 2},
@@ -65,8 +65,24 @@ var docsNotifications = map[string]ToolDoc{
 			`"source_id":null,"source_key":"e71b4d92-3a6c-4f08-b5e2-9d0c8a1f6b27","title":"Nour Haddad replied: Does the Arabic plan include WhatsApp?",` +
 			`"url":"https://bsky.app/profile/nour.bsky.social/post/3lb7xk2m4c22a"}}`,
 	},
+	"resolve_notification": {
+		AR:      "تسوية إشعار واحد (الافتراضي): يخرج من قائمة ما يحتاج إجراءً ومن عدّادات غير المقروء، ويبقى متاحًا عبر view:resolved. القيمة resolved:false تعيد فتحه. التسوية ليست قراءة: علامة القراءة تبقى كما هي.",
+		Example: map[string]any{"id": "4e2a9c71-8b3d-4f60-a1e5-7c9d2b8f0a13"},
+		Result: `{"item":{"actor":"sara-dev","body":"Fix VAT rounding on checkout totals","id":"4e2a9c71-8b3d-4f60-a1e5-7c9d2b8f0a13","kind":"push",` +
+			`"occurred_at":"2026-09-24T07:58:12Z","origin":"webhook","read":false,"resolved_at":"2026-09-24T10:05:00Z","saved":false,"severity":"warning","snoozed_until":null,"source":"Storefront repo",` +
+			`"source_id":"5d8c1a3e-7f29-4b6e-9a04-2e1c8b7d6f35","source_key":"5d8c1a3e-7f29-4b6e-9a04-2e1c8b7d6f35","state":"resolved",` +
+			`"title":"sara-dev force-pushed 3 commits to main in acme/storefront","url":"https://github.com/acme/storefront/compare/1a2b3c4d...5e6f7a8b"}}`,
+	},
+	"snooze_notification": {
+		AR:      "تأجيل إشعار مفتوح إلى وقت محدد (until بصيغة RFC 3339، في المستقبل وبحد أقصى سنة): يخرج من قائمة ما يحتاج إجراءً ويعود من تلقاء نفسه في ذلك الوقت. القيمة clear:true تعيده الآن. لا يمكن تأجيل إشعار مُسوّى.",
+		Example: map[string]any{"id": "4e2a9c71-8b3d-4f60-a1e5-7c9d2b8f0a13", "until": "2026-09-25T09:00:00+03:00"},
+		Result: `{"item":{"actor":"sara-dev","body":"Fix VAT rounding on checkout totals","id":"4e2a9c71-8b3d-4f60-a1e5-7c9d2b8f0a13","kind":"push",` +
+			`"occurred_at":"2026-09-24T07:58:12Z","origin":"webhook","read":false,"resolved_at":null,"saved":false,"severity":"warning","snoozed_until":"2026-09-25T06:00:00Z","source":"Storefront repo",` +
+			`"source_id":"5d8c1a3e-7f29-4b6e-9a04-2e1c8b7d6f35","source_key":"5d8c1a3e-7f29-4b6e-9a04-2e1c8b7d6f35","state":"snoozed",` +
+			`"title":"sara-dev force-pushed 3 commits to main in acme/storefront","url":"https://github.com/acme/storefront/compare/1a2b3c4d...5e6f7a8b"}}`,
+	},
 	"mark_all_notifications_read": {
-		AR:      "تعليم كل الإشعارات غير المقروءة مقروءةً، أو إشعارات مصدر واحد فقط عبر source_id. العناصر المحفوظة تبقى محفوظة.",
+		AR:      "تعليم كل الإشعارات غير المقروءة التي تحتاج إجراءً مقروءةً، أو إشعارات مصدر واحد فقط عبر source_id. العناصر المحفوظة تبقى محفوظة، والمؤجَّلة والمُسوّاة لا تُمَسّ.",
 		Example: map[string]any{"source_id": "5d8c1a3e-7f29-4b6e-9a04-2e1c8b7d6f35"},
 		Result:  `{"marked":3}`,
 	},
@@ -312,6 +328,10 @@ var argsARNotifications = map[string]string{
 	"Default true":                                                                              "الافتراضي true",
 	"Default true; false marks it unread":                                                       "الافتراضي true؛ والقيمة false تعلّمه غير مقروء",
 	"true saves it, false unsaves it; omit to leave it":                                         "true تحفظه وfalse تزيله من المحفوظات؛ أغفِله ليبقى كما هو",
+	"Default actionable: open and not snoozed":                                                  "الافتراضي actionable: المفتوحة وغير المؤجَّلة",
+	"Default true; false reopens it":                                                            "الافتراضي true؛ والقيمة false تعيد فتحه",
+	"RFC 3339, e.g. 2026-10-01T09:00:00+03:00; required unless clear is true":                  "بصيغة RFC 3339 مثل 2026-10-01T09:00:00+03:00؛ مطلوب ما لم تكن clear تساوي true",
+	"true ends the snooze now":                                                                  "القيمة true تُنهي التأجيل الآن",
 	"Webhook source id (list_webhook_sources)":                                                  "معرّف مصدر Webhook (من list_webhook_sources)",
 	"Default generic":                                                                           "الافتراضي generic",
 	"sentry only: the integration's Client Secret, from Sentry":                                 "لمصادر sentry فقط: قيمة Client Secret الخاصة بالتكامل، من Sentry",

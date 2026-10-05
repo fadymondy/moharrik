@@ -87,6 +87,14 @@ type NotificationItemOut struct {
 	OccurredAt time.Time  `json:"occurred_at"`
 	ReadAt     *time.Time `json:"read_at"`
 	SavedAt    *time.Time `json:"saved_at"`
+	// ResolvedAt is when someone marked it dealt with; null while open (MH-1069).
+	ResolvedAt *time.Time `json:"resolved_at"`
+	// SnoozedUntil is when a snoozed item comes back; it can be in the past,
+	// which means the snooze is over. State is the derived answer.
+	SnoozedUntil *time.Time `json:"snoozed_until"`
+	// State is actionable (open, not snoozed), snoozed (open, hidden until
+	// snoozed_until) or resolved.
+	State string `json:"state" enum:"actionable,snoozed,resolved"`
 }
 
 type wsHeader struct {
@@ -173,14 +181,14 @@ func scanSource(row scanner, base string) (WebhookSourceOut, error) {
 }
 
 const notificationItemSelect = `
-	SELECT id, source_id, feed_source_id, source_name, kind, severity, title, body, actor, url, payload, occurred_at, read_at, saved_at
+	SELECT id, source_id, feed_source_id, source_name, kind, severity, title, body, actor, url, payload, occurred_at, read_at, saved_at, resolved_at, snoozed_until
 	FROM notification_items WHERE workspace_id = $1`
 
 func scanItem(row scanner) (NotificationItemOut, error) {
 	var it NotificationItemOut
 	var sourceID, feedID sql.NullString
-	var readAt, savedAt sql.NullTime
-	if err := row.Scan(&it.ID, &sourceID, &feedID, &it.SourceName, &it.Kind, &it.Severity, &it.Title, &it.Body, &it.Actor, &it.URL, &it.Payload, &it.OccurredAt, &readAt, &savedAt); err != nil {
+	var readAt, savedAt, resolvedAt, snoozedUntil sql.NullTime
+	if err := row.Scan(&it.ID, &sourceID, &feedID, &it.SourceName, &it.Kind, &it.Severity, &it.Title, &it.Body, &it.Actor, &it.URL, &it.Payload, &it.OccurredAt, &readAt, &savedAt, &resolvedAt, &snoozedUntil); err != nil {
 		return it, err
 	}
 	it.SourceID = strp(sourceID)
@@ -188,6 +196,9 @@ func scanItem(row scanner) (NotificationItemOut, error) {
 	it.Origin, it.SourceKey = originOf(sourceID, feedID, it.SourceName)
 	it.ReadAt = timep(readAt)
 	it.SavedAt = timep(savedAt)
+	it.ResolvedAt = timep(resolvedAt)
+	it.SnoozedUntil = timep(snoozedUntil)
+	it.State = StateOf(it.ResolvedAt, it.SnoozedUntil, time.Now())
 	return it, nil
 }
 
@@ -219,3 +230,58 @@ func originOf(sourceID, feedID sql.NullString, name string) (string, string) {
 }
 
 const internalKeyPrefix = "internal:"
+
+// ---- actionable (MH-1069) -----------------------------------------------------
+
+// The three states an item is in. There is ONE definition of "actionable" and
+// every count, badge and default list uses it: resolved_at IS NULL AND
+// (snoozed_until IS NULL OR snoozed_until <= now()). Snooze expiry is derived
+// at read time, so no job has to wake anything.
+const (
+	StateActionable = "actionable"
+	StateSnoozed    = "snoozed"
+	StateResolved   = "resolved"
+)
+
+// Views the feed can be asked for. ViewActionable is the default.
+const (
+	ViewActionable = "actionable"
+	ViewSnoozed    = "snoozed"
+	ViewResolved   = "resolved"
+	ViewAll        = "all"
+)
+
+// ActionableSQL is the actionable predicate for a notification_items row,
+// qualified with alias when the query has one (alias "" or "i").
+func ActionableSQL(alias string) string {
+	if alias != "" {
+		alias += "."
+	}
+	return `(` + alias + `resolved_at IS NULL AND (` + alias + `snoozed_until IS NULL OR ` + alias + `snoozed_until <= now()))`
+}
+
+// StateOf is ActionableSQL in Go, for one scanned row.
+func StateOf(resolvedAt, snoozedUntil *time.Time, now time.Time) string {
+	switch {
+	case resolvedAt != nil:
+		return StateResolved
+	case snoozedUntil != nil && snoozedUntil.After(now):
+		return StateSnoozed
+	}
+	return StateActionable
+}
+
+// viewSQL is the predicate for one view ("" = the default, actionable).
+func viewSQL(view string) (string, bool) {
+	switch view {
+	case "", ViewActionable:
+		return ` AND ` + ActionableSQL(""), true
+	case ViewResolved:
+		return ` AND resolved_at IS NOT NULL`, true
+	case ViewSnoozed:
+		return ` AND resolved_at IS NULL AND snoozed_until > now()`, true
+	case ViewAll:
+		return ``, true
+	}
+	return ``, false
+}

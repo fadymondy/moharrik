@@ -47,7 +47,7 @@ func likeEscape(s string) string {
 func facets(ctx context.Context, a *app.App, wsID string) ([]SourceFacet, []Facet, error) {
 	rows, err := a.SQLDB.QueryContext(ctx, `
 		SELECT i.source_id, i.feed_source_id, i.source_name, max(w.name), max(f.name),
-		       count(*), count(*) FILTER (WHERE i.read_at IS NULL)
+		       count(*), count(*) FILTER (WHERE i.read_at IS NULL AND ` + ActionableSQL("i") + `)
 		FROM notification_items i
 		LEFT JOIN webhook_sources w ON w.workspace_id = i.workspace_id AND w.id = i.source_id
 		LEFT JOIN notification_sources f ON f.workspace_id = i.workspace_id AND f.id = i.feed_source_id
@@ -94,7 +94,7 @@ func facets(ctx context.Context, a *app.App, wsID string) ([]SourceFacet, []Face
 	// By label, so the menu reads alphabetically whatever the map did.
 	sortFacets(sources)
 
-	krows, err := a.SQLDB.QueryContext(ctx, `SELECT kind, count(*), count(*) FILTER (WHERE read_at IS NULL)
+	krows, err := a.SQLDB.QueryContext(ctx, `SELECT kind, count(*), count(*) FILTER (WHERE read_at IS NULL AND `+ActionableSQL("")+`)
 		FROM notification_items WHERE workspace_id = $1 AND kind <> '' GROUP BY kind ORDER BY kind`, wsID)
 	if err != nil {
 		return nil, nil, err

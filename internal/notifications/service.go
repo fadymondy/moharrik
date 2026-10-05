@@ -29,6 +29,10 @@ status errors: REST returns them as they are, MCP hands back their message.
 
 // ItemFilter narrows the feed. Every field is optional.
 type ItemFilter struct {
+	// View is actionable (the default: open and not snoozed), snoozed, resolved
+	// or all. A saved-only filter with no view looks across all of them: saved
+	// is a shelf, not a to-do.
+	View   string
 	Unread bool
 	Saved  bool
 	// SourceID is a source key: a webhook source id, a collected source id, or
@@ -47,7 +51,13 @@ type ItemFilter struct {
 // ItemList is one page of the feed.
 type ItemList struct {
 	Items       []NotificationItemOut `json:"items"`
-	UnreadCount int64                 `json:"unread_count"`
+	// UnreadCount is unread AND actionable: the number the bell shows.
+	UnreadCount int64 `json:"unread_count"`
+	// ActionableCount, SnoozedCount and ResolvedCount are the three states
+	// across the whole workspace (they sum to everything).
+	ActionableCount int64 `json:"actionable_count"`
+	SnoozedCount    int64 `json:"snoozed_count"`
+	ResolvedCount   int64 `json:"resolved_count"`
 	// Total is how many items match the filter, across every page.
 	Total int64 `json:"total"`
 	// SavedCount is how many items are saved, across the workspace.
@@ -79,7 +89,14 @@ func ListItems(ctx context.Context, a *app.App, f ItemFilter) (*ItemList, error)
 	if f.Severity != "" && !severities[f.Severity] {
 		return nil, huma.Error422UnprocessableEntity("severity must be info, warning or error")
 	}
-	q := notificationItemSelect
+	if f.View == "" && f.Saved {
+		f.View = ViewAll
+	}
+	viewQ, ok := viewSQL(f.View)
+	if !ok {
+		return nil, huma.Error422UnprocessableEntity("view must be actionable, snoozed, resolved or all")
+	}
+	q := notificationItemSelect + viewQ
 	args := []any{s.WorkspaceID}
 	if f.Unread {
 		q += ` AND read_at IS NULL`
@@ -143,8 +160,12 @@ func ListItems(ctx context.Context, a *app.App, f ItemFilter) (*ItemList, error)
 		last := res.Items[limit-1]
 		res.NextCursor = encodeCursor(last.OccurredAt, last.ID)
 	}
-	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE read_at IS NULL), count(*) FILTER (WHERE saved_at IS NOT NULL)
-		FROM notification_items WHERE workspace_id = $1`, s.WorkspaceID).Scan(&res.UnreadCount, &res.SavedCount); err != nil {
+	if err := a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE read_at IS NULL AND `+ActionableSQL("")+`),
+			count(*) FILTER (WHERE saved_at IS NOT NULL),
+			count(*) FILTER (WHERE `+ActionableSQL("")+`),
+			count(*) FILTER (WHERE resolved_at IS NULL AND snoozed_until > now()),
+			count(*) FILTER (WHERE resolved_at IS NOT NULL)
+		FROM notification_items WHERE workspace_id = $1`, s.WorkspaceID).Scan(&res.UnreadCount, &res.SavedCount, &res.ActionableCount, &res.SnoozedCount, &res.ResolvedCount); err != nil {
 		return nil, huma.Error500InternalServerError("could not count unread notifications")
 	}
 	if err := a.SQLDB.QueryRowContext(ctx, countQ, countArgs...).Scan(&res.Total); err != nil {
@@ -213,14 +234,15 @@ func UpdateItem(ctx context.Context, a *app.App, id string, read, saved *bool) (
 	return &it, nil
 }
 
-// MarkAllRead marks every unread item read (saved items stay saved), or only
-// one source's when sourceID is given, and returns how many it marked.
+// MarkAllRead marks every unread ACTIONABLE item read (saved items stay saved;
+// snoozed and resolved ones are not what the bell counts, so they are left),
+// or only one source's when sourceID is given, and returns how many it marked.
 func MarkAllRead(ctx context.Context, a *app.App, sourceID string) (int64, error) {
 	s, err := scope(ctx, authz.NotificationsWrite)
 	if err != nil {
 		return 0, err
 	}
-	q := `UPDATE notification_items SET read_at = now() WHERE workspace_id = $1 AND read_at IS NULL`
+	q := `UPDATE notification_items SET read_at = now() WHERE workspace_id = $1 AND read_at IS NULL AND ` + ActionableSQL("")
 	args := []any{s.WorkspaceID}
 	if sourceID = strings.TrimSpace(sourceID); sourceID != "" {
 		pred, v := sourcePredicate(sourceID, 2)
@@ -236,6 +258,78 @@ func MarkAllRead(ctx context.Context, a *app.App, sourceID string) (int64, error
 		alerts.Emit(ctx, a, s.WorkspaceID, realtime.Event{Kind: "notifications", AuthorUserID: s.UserID, Permission: authz.NotificationsRead})
 	}
 	return n, nil
+}
+
+// MaxSnooze is how far ahead a snooze may reach. A year is "not this quarter";
+// further out is a different tool.
+const MaxSnooze = 366 * 24 * time.Hour
+
+// SetResolved resolves an item (it leaves the actionable list and every
+// badge) or reopens it. Resolving is not reading: read_at is untouched, and a
+// resolved item that was snoozed loses its snooze, which no longer means
+// anything.
+func SetResolved(ctx context.Context, a *app.App, id string, resolved bool) (*NotificationItemOut, error) {
+	s, err := scope(ctx, authz.NotificationsWrite)
+	if err != nil {
+		return nil, err
+	}
+	q := `UPDATE notification_items SET resolved_at = NULL WHERE workspace_id = $1 AND id = $2`
+	if resolved {
+		// Keep the first resolution time if it is already resolved.
+		q = `UPDATE notification_items SET resolved_at = COALESCE(resolved_at, now()), snoozed_until = NULL WHERE workspace_id = $1 AND id = $2`
+	}
+	return changeItem(ctx, a, s.WorkspaceID, s.UserID, id, q, "could not update the notification")
+}
+
+// SetSnooze hides an item from the actionable list until the given time, or
+// (until == nil) brings it back now. Snooze needs a future time within
+// MaxSnooze, and only an open item can be snoozed.
+func SetSnooze(ctx context.Context, a *app.App, id string, until *time.Time) (*NotificationItemOut, error) {
+	s, err := scope(ctx, authz.NotificationsWrite)
+	if err != nil {
+		return nil, err
+	}
+	if until == nil {
+		return changeItem(ctx, a, s.WorkspaceID, s.UserID, id,
+			`UPDATE notification_items SET snoozed_until = NULL WHERE workspace_id = $1 AND id = $2`, "could not update the notification")
+	}
+	now := time.Now()
+	if !until.After(now) {
+		return nil, huma.Error422UnprocessableEntity("snooze until a time in the future")
+	}
+	if until.After(now.Add(MaxSnooze)) {
+		return nil, huma.Error422UnprocessableEntity("a notification can be snoozed for at most a year")
+	}
+	var resolved bool
+	err = a.SQLDB.QueryRowContext(ctx, `SELECT resolved_at IS NOT NULL FROM notification_items WHERE workspace_id = $1 AND id = $2`, s.WorkspaceID, id).Scan(&resolved)
+	if notFound(err) {
+		return nil, huma.Error404NotFound("notification not found")
+	} else if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the notification")
+	}
+	if resolved {
+		return nil, huma.Error409Conflict("this notification is resolved; reopen it before snoozing")
+	}
+	return changeItem(ctx, a, s.WorkspaceID, s.UserID, id,
+		`UPDATE notification_items SET snoozed_until = $3 WHERE workspace_id = $1 AND id = $2`, "could not update the notification", until.UTC())
+}
+
+// changeItem runs one state UPDATE, tells every tab's bell to recount, and
+// returns the item as it now is.
+func changeItem(ctx context.Context, a *app.App, wsID, userID, id, q, failMsg string, extra ...any) (*NotificationItemOut, error) {
+	res, err := a.SQLDB.ExecContext(ctx, q, append([]any{wsID, id}, extra...)...)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(failMsg)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, huma.Error404NotFound("notification not found")
+	}
+	alerts.Emit(ctx, a, wsID, realtime.Event{Kind: "notifications", ItemID: id, AuthorUserID: userID, Permission: authz.NotificationsRead})
+	it, err := scanItem(a.SQLDB.QueryRowContext(ctx, notificationItemSelect+` AND id = $2`, wsID, id))
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the notification")
+	}
+	return &it, nil
 }
 
 // ---- webhook sources ---------------------------------------------------------

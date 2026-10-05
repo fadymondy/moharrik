@@ -437,6 +437,8 @@ export const useWebhookSources = (id?: string | null) =>
   useScoped<{ sources: WebhookSource[] | null }>("/api/w/webhook_sources", id)
 
 export type NotificationFilter = {
+  /** MH-1069: defaults to actionable on the server. */
+  view?: "actionable" | "snoozed" | "resolved" | "all"
   unread?: boolean
   saved?: boolean
   /** A source key (NotificationItem.source_key). */
@@ -454,6 +456,7 @@ export function useNotifications(
   filter: NotificationFilter = {},
 ) {
   const qs = new URLSearchParams()
+  if (filter.view) qs.set("view", filter.view)
   if (filter.unread) qs.set("unread", "true")
   if (filter.saved) qs.set("saved", "true")
   if (filter.sourceId) qs.set("source_id", filter.sourceId)

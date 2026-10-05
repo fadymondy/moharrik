@@ -173,6 +173,7 @@ func BrowserTools() []Tool {
 				"A workflow that publishes, sends or submits needs confirm: true — run its -dryrun twin first where " +
 				"there is one. Waits about 25 seconds and answers with the run's steps and extracted data; a run still going " +
 				"by then answers with its id, to poll with browser_result.",
+			Confirm: "A workflow that publishes, sends or submits only runs when the call carries confirm: true; without it nothing runs.",
 			Scope: "automation:run",
 			InputSchema: schema([]string{"plugin"}, map[string]any{
 				"plugin":  map[string]any{"type": "string", "description": "slug or id"},

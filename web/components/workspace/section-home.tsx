@@ -27,6 +27,7 @@ import {
   PipelineChartCard,
 } from "@/components/overview/overview-charts"
 import { WorkspaceCard } from "@/components/overview/workspace-card"
+import { InsightQuestions } from "@/components/insights/questions"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { Skeleton } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -105,6 +106,13 @@ export function SectionHome({ section }: { section: string }) {
 function SectionFigures({ section, base }: { section: string; base: string }) {
   if (section === "automation") return <RecentAutomationRuns base={base} />
   if (section === "research") return <ResearchFlagship base={base} />
+  if (section === "insights")
+    return (
+      <>
+        <InsightQuestions base={base} />
+        <OverviewSlice section={section} base={base} />
+      </>
+    )
   return <OverviewSlice section={section} base={base} />
 }
 

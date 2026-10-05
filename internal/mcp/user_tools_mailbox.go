@@ -144,6 +144,7 @@ func MailboxTools() []Tool {
 			Name: "test_mailbox",
 			Description: "Check a mailbox's IMAP credentials by logging in and opening its folder — nothing is collected or " +
 				"marked. Use before relying on a newly configured mailbox, or after changing its password.",
+			ReadOnly: true,
 			Scope:       "inbox:manage",
 			InputSchema: schema([]string{"id"}, map[string]any{"id": prop("string", "Mailbox id")}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {

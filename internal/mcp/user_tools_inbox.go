@@ -584,6 +584,7 @@ func WhatsAppTools() []Tool {
 				"is sent on it at once. If not, it takes two calls: the first returns confirmation_required with a 6-digit code (valid 10 minutes); " +
 				"repeat the call with the same contact_id and text plus that code to send it and open the thread. Sends are paced like broadcasts. " +
 				"To answer a conversation, use reply instead.",
+			Confirm: "The first message to a contact with no WhatsApp thread yet needs a 6-digit code from a first call (valid 10 minutes), repeated with the same text.",
 			Scope: "whatsapp:send",
 			InputSchema: schema([]string{"contact_id", "text"}, map[string]any{
 				"contact_id": prop("string", "The CRM contact's id (search_contacts, get_contact)"),

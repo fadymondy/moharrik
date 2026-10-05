@@ -99,7 +99,7 @@ const collectedSelect = `
 	SELECT s.id, s.kind, s.name, s.target, s.enabled, s.interval_minutes, s.push_enabled, s.push_kinds,
 	       s.last_run_at, s.last_collected_at, s.next_run_at, s.last_status, s.last_error, s.last_item_count, s.created_at,
 	       (SELECT count(*) FROM notification_items i WHERE i.workspace_id = s.workspace_id AND i.feed_source_id = s.id),
-	       (SELECT count(*) FROM notification_items i WHERE i.workspace_id = s.workspace_id AND i.feed_source_id = s.id AND i.read_at IS NULL)
+	       (SELECT count(*) FROM notification_items i WHERE i.workspace_id = s.workspace_id AND i.feed_source_id = s.id AND i.read_at IS NULL AND (i.resolved_at IS NULL AND (i.snoozed_until IS NULL OR i.snoozed_until <= now())))
 	FROM notification_sources s WHERE s.workspace_id = $1`
 
 func scanCollected(row scanner) (NotificationSource, error) {
