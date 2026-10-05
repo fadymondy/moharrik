@@ -4996,5 +4996,14 @@
   "record.openDeals": "صفقات مفتوحة",
   "record.dealsTotal": "{n} إجمالًا",
   "record.updated": "حُدّث {when}",
-  "record.since": "أُضيفت {when}"
+  "record.since": "أُضيفت {when}",
+  "record.stagePath": "مسار البيع",
+  "record.stageOf": "المرحلة {n} من {total}",
+  "record.related": "مرتبط",
+  "record.noRelated": "لا توجد جهة اتصال أو شركة على هذه الصفقة بعد.",
+  "record.close": "تاريخ الإغلاق",
+  "record.noClose": "غير محدد",
+  "record.added": "أُضيفت",
+  "record.recentActivity": "آخر النشاطات",
+  "record.noActivity": "لم يُسجَّل شيء بعد."
 }

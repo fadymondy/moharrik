@@ -4996,5 +4996,14 @@
   "record.openDeals": "Open deals",
   "record.dealsTotal": "{n} in total",
   "record.updated": "Updated {when}",
-  "record.since": "Added {when}"
+  "record.since": "Added {when}",
+  "record.stagePath": "Pipeline",
+  "record.stageOf": "Stage {n} of {total}",
+  "record.related": "Related",
+  "record.noRelated": "No contact or company on this deal yet.",
+  "record.close": "Close date",
+  "record.noClose": "Not set",
+  "record.added": "Added",
+  "record.recentActivity": "Recent activity",
+  "record.noActivity": "Nothing logged yet."
 }
