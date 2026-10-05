@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/crm"
 	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/marketing"
+	"github.com/fadymondy/moharrik/internal/opportunities"
 )
 
 func pgCode(err error) string {
@@ -557,6 +559,29 @@ func CrmTools() []Tool {
 					return "", err
 				}
 				res, err := crm.ContactTimeline(ctx, a.SQLDB, id, str(args, "cursor"), intArg(args, "limit", 0))
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(res)
+			},
+		},
+		{
+			Name: "opportunity_signals",
+			Description: "The Signals view of Opportunities: what is worth a look now, each with its real reason. at_risk_deal: an open deal " +
+				"with no activity, stage move or message for thresholds.quiet_days or more; new_lead: a lead from the last " +
+				"thresholds.new_lead_days days that is not converted or spam; high_fit_prospect: a prospect waiting for a decision whose " +
+				"score is at least thresholds.high_fit_score. Nothing is scored by Moharrik: each item carries why (codes with the data " +
+				"behind them) and the actions that exist for it (open, convert_lead, accept_prospect, dismiss_prospect). counts says how " +
+				"many there are per kind; sources names the kinds this token may read (deals need contacts:read, leads leads:read, " +
+				"prospects research:read). Filter with kind; limit is per kind, default 25, at most 100.",
+			Scope: "contacts:read",
+			InputSchema: schema(nil, map[string]any{
+				"kind":  map[string]any{"type": "string", "enum": []string{"at_risk_deal", "new_lead", "high_fit_prospect"}, "description": "Only this kind of signal"},
+				"limit": prop("integer", "Signals per kind, default 25, at most 100"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				args := decodeArgs(raw)
+				res, err := opportunities.Read(ctx, a.SQLDB, str(args, "kind"), intArg(args, "limit", 0), time.Now())
 				if err != nil {
 					return "", err
 				}

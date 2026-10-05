@@ -26,7 +26,7 @@ func (b *builder) journeys() *HomeJourneys {
 		JOIN pipeline_stages s ON s.workspace_id = d.workspace_id AND s.id = d.stage_id AND s.kind = 'open'
 		LEFT JOIN contacts ct ON ct.workspace_id = d.workspace_id AND ct.id = d.contact_id
 		LEFT JOIN companies co ON co.workspace_id = d.workspace_id AND co.id = d.company_id
-		CROSS JOIN LATERAL (SELECT `+lastActivitySQL+` AS at) x
+		CROSS JOIN LATERAL (SELECT `+LastActivitySQL+` AS at) x
 		WHERE d.workspace_id = $1
 		ORDER BY x.at DESC, d.id
 		LIMIT `+itoa(JourneyLimit), nil, func(r *sql.Rows) error {
