@@ -1,9 +1,42 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState, type DragEvent, type FormEvent } from "react"
-import { ArrowRightLeftIcon, GripVerticalIcon, PencilIcon } from "lucide-react"
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, Field, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { useRouter } from "next/navigation"
+import { useMemo, useState, type FormEvent, type SyntheticEvent } from "react"
+import {
+  ArrowRightLeftIcon,
+  Building2Icon,
+  CalendarClockIcon,
+  ExternalLinkIcon,
+  PencilIcon,
+  UserRoundIcon,
+} from "lucide-react"
+import {
+  Avatar,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+  Field,
+  FieldLabel,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  KanbanBoard,
+  toast,
+  type KanbanCardData,
+  type KanbanColumnData,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError, Label } from "@/components/form-layout"
 
 import {
@@ -15,25 +48,33 @@ import {
   useMemberNames,
 } from "@/components/crm/shared"
 import { Ltr } from "@/components/copy-field"
-import { ScrollX } from "@/components/scroll-x"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { CompanyPicker } from "@/components/crm/company-picker"
 import { ContactPicker } from "@/components/crm/contact-picker"
-import { Bdi, BdiBlock } from "@/components/bidi"
+import { Bdi } from "@/components/bidi"
+import { cn } from "@/lib/utils"
 
 // ── board ────────────────────────────────────────────────────────────────
 
 export type MoveFn = (dealId: string, stageId: string, position?: number) => void
 
+type BoardCard = KanbanCardData & { deal: Deal }
+
+// Keys and pointer presses inside a card's own controls (the title link, the value editor, the move
+// menu, and their portalled popups) must not reach the card's drag handle: Space in the value input
+// would lift the card instead of typing a space.
+const own = {
+  onKeyDown: (e: SyntheticEvent) => e.stopPropagation(),
+  onPointerDown: (e: SyntheticEvent) => e.stopPropagation(),
+}
+
 /**
- * The pipeline as columns. Cards drag between (and within) stages with native
- * drag and drop; every card also has a "Move to" menu, which is the keyboard
- * and touch path (HTML drag and drop does not fire on touch screens). The row
- * follows the document direction, so in Arabic the first stage sits on the right.
- * Columns share the width (at least 14rem each), so the default five stages fit a 1440 screen;
- * past that the board scrolls inside ScrollX, which shows that it does (MH-463).
+ * MH-1170: the pipeline on Nasaq's KanbanBoard. Cards drag between and within stages by pointer, touch
+ * or keyboard (Space to lift, arrows, Space to drop); every card also has a "Move to" menu, and the same
+ * actions on context-click. Each column shows the stage's real count and value from the server, since a
+ * column may hold only its first page of cards (MH-467), and loads the rest on demand.
  */
 export function PipelineBoard({
   stages,
@@ -55,243 +96,256 @@ export function PipelineBoard({
   onLoadMore?: (stageId: string) => void
   loadingStage?: string | null
 }) {
-  const { t: tr, formatNumber } = useTranslations()
-  const [dragging, setDragging] = useState<string | null>(null)
-  const [over, setOver] = useState<{ stage: string; before: string | null } | null>(null)
-  const byStage = useMemo(() => {
-    const m = new Map<string, Deal[]>()
-    for (const s of stages) m.set(s.id, [])
-    for (const d of deals) m.get(d.stage_id)?.push(d)
-    for (const list of m.values()) list.sort((a, b) => a.position - b.position)
-    return m
-  }, [stages, deals])
+  const { t, locale, formatNumber } = useTranslations()
+  const ws = useWorkspace()
+  const router = useRouter()
+  const canWrite = ws.can("contacts:write")
+  const members = useMemberNames(ws.id)
+  const base = `/${locale}/w/${ws.slug}`
 
-  function drop(e: DragEvent, stageId: string) {
-    e.preventDefault()
-    const id = e.dataTransfer.getData("text/x-deal") || dragging
-    const before = over?.stage === stageId ? over.before : null
-    setDragging(null)
-    setOver(null)
-    if (!id) return
-    const list = (byStage.get(stageId) ?? []).filter((d) => d.id !== id)
-    let position: number
-    const i = before ? list.findIndex((d) => d.id === before) : -1
-    if (i < 0) position = list.length ? list[list.length - 1].position + 1 : 1
-    else position = i === 0 ? list[0].position - 1 : (list[i - 1].position + list[i].position) / 2
-    const deal = deals.find((d) => d.id === id)
-    if (deal && deal.stage_id === stageId && Math.abs(deal.position - position) < 1e-9) return
-    onMove(id, stageId, position)
+  // Cards in board order: by stage, then by position inside it.
+  const sorted = useMemo(() => {
+    const order = new Map(stages.map((s, i) => [s.id, i]))
+    return deals
+      .filter((d) => order.has(d.stage_id))
+      .sort((a, b) => order.get(a.stage_id)! - order.get(b.stage_id)! || a.position - b.position)
+  }, [stages, deals])
+  const cards: BoardCard[] = useMemo(
+    () => sorted.map((d) => ({ id: d.id, columnId: d.stage_id, title: d.title, deal: d })),
+    [sorted],
+  )
+
+  const columns: KanbanColumnData[] = stages.map((s) => {
+    const shown = sorted.filter((d) => d.stage_id === s.id).length
+    const more = cursorOf?.(s.id) ?? ""
+    return {
+      id: s.id,
+      title: s.name,
+      count: s.deal_count,
+      accent: (
+        <span
+          className={cn("size-2 rounded-full", stageTone[s.kind])}
+          data-stage-id={s.id}
+          data-stage-name={s.name}
+          data-stage-count={s.deal_count}
+        />
+      ),
+      meta: (
+        <span className="tabular-nums" data-stage-value={s.value_minor}>
+          <Ltr>{formatMoney(s.value_minor, currency, locale)}</Ltr>
+        </span>
+      ),
+      footer:
+        shown < s.deal_count ? (
+          <div
+            className="flex flex-col items-start gap-2 border-t border-border pt-3"
+            data-stage-more={`${shown}/${s.deal_count}`}
+          >
+            <span className="text-xs text-muted-foreground">
+              {t("deals.showingInStage", {
+                shown: formatNumber(shown),
+                total: formatNumber(s.deal_count),
+              })}
+            </span>
+            {more && onLoadMore ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onLoadMore(s.id)}
+                disabled={loadingStage === s.id}
+                data-stage-load-more
+              >
+                {loadingStage === s.id ? t("common.working") : t("common.loadMore")}
+              </Button>
+            ) : null}
+          </div>
+        ) : undefined,
+    }
+  })
+
+  // The board reports the index the card takes in its new column; the server orders by a
+  // fractional position, so the card goes halfway between its new neighbours.
+  function move(cardId: string, toColumn: string, toIndex: number) {
+    if (!canWrite) return
+    const list = sorted.filter((d) => d.stage_id === toColumn && d.id !== cardId)
+    const before = list[toIndex - 1]
+    const after = list[toIndex]
+    const position =
+      before && after
+        ? (before.position + after.position) / 2
+        : before
+          ? before.position + 1
+          : after
+            ? after.position - 1
+            : 1
+    onMove(cardId, toColumn, position)
   }
 
   return (
-    <ScrollX className="border-y border-nq-line" data-board>
-      <div className="flex min-w-max divide-x divide-nq-line rtl:divide-x-reverse">
-        {stages.map((s) => {
-          const list = byStage.get(s.id) ?? []
-          // The stage's own count and value, from the server: the whole column, not just the
-          // cards on screen, which since MH-467 may be the first page of it.
-          const total = s.value_minor
-          const more = cursorOf?.(s.id) ?? ""
-          const hot = over?.stage === s.id && dragging
-          return (
-            <section
-              key={s.id}
-              data-stage={s.name}
-              data-stage-id={s.id}
-              aria-label={s.name}
-              className={`flex w-64 shrink-0 flex-col sm:w-auto sm:flex-[1_0_14rem] ${hot ? "bg-card" : ""}`}
-              onDragOver={(e) => {
-                e.preventDefault()
-                e.dataTransfer.dropEffect = "move"
-                if (over?.stage !== s.id) setOver({ stage: s.id, before: null })
-              }}
-              onDrop={(e) => drop(e, s.id)}
-            >
-              <header className="border-b border-nq-line px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`size-2 shrink-0 rounded-full ${stageTone[s.kind]}`}
-                    aria-hidden
-                  />
-                  <BdiBlock as="h3" className="truncate text-sm font-medium">
-                    {s.name}
-                  </BdiBlock>
-                  <span
-                    className="ms-auto text-xs text-muted-foreground tabular-nums"
-                    data-stage-count={s.deal_count}
-                  >
-                    {formatNumber(s.deal_count)}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  <Ltr>{formatMoney(total, currency, useLocale())}</Ltr>
-                </p>
-              </header>
-              <ol className="flex min-h-40 flex-1 flex-col gap-2 p-3">
-                {list.map((d) => (
-                  <li
-                    key={d.id}
-                    onDragOver={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      if (over?.before !== d.id) setOver({ stage: s.id, before: d.id })
-                    }}
-                    onDrop={(e) => {
-                      e.stopPropagation()
-                      drop(e, s.id)
-                    }}
-                  >
-                    {over?.before === d.id && dragging && dragging !== d.id ? (
-                      <div className="mb-2 h-0.5 rounded bg-nq-brand" aria-hidden />
-                    ) : null}
-                    <DealCard
-                      deal={d}
-                      stages={stages}
-                      dragging={dragging === d.id}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/x-deal", d.id)
-                        e.dataTransfer.effectAllowed = "move"
-                        setDragging(d.id)
-                      }}
-                      onDragEnd={() => {
-                        setDragging(null)
-                        setOver(null)
-                      }}
-                      onMove={onMove}
-                      onChanged={onChanged}
-                    />
-                  </li>
-                ))}
-              </ol>
-              {list.length < s.deal_count ? (
-                <div
-                  className="flex flex-col items-start gap-2 border-t border-nq-line px-4 py-3"
-                  data-stage-more={`${list.length}/${s.deal_count}`}
-                >
-                  <span className="text-xs text-muted-foreground">
-                    {tr("deals.showingInStage", {
-                      shown: formatNumber(list.length),
-                      total: formatNumber(s.deal_count),
-                    })}
-                  </span>
-                  {more && onLoadMore ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => onLoadMore(s.id)}
-                      disabled={loadingStage === s.id}
-                      data-stage-load-more
-                    >
-                      {loadingStage === s.id ? tr("common.working") : tr("common.loadMore")}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </section>
-          )
-        })}
-      </div>
-    </ScrollX>
+    <div className="px-4 sm:px-6" data-board>
+      <KanbanBoard<BoardCard>
+        columns={columns}
+        cards={cards}
+        onMove={move}
+        label={t("deals.boardLabel")}
+        emptyLabel={t("deals.stageEmpty")}
+        columnClassName="w-72 sm:w-auto sm:flex-[1_0_15rem]"
+        cardActions={(c) => [
+          {
+            id: "open",
+            label: t("deals.openDeal"),
+            icon: ExternalLinkIcon,
+            onSelect: () => router.push(`${base}/deals/${c.deal.id}`),
+          },
+          ...(canWrite
+            ? stages
+                .filter((s) => s.id !== c.deal.stage_id)
+                .map((s) => ({
+                  id: `move-${s.id}`,
+                  label: t("deals.moveToStage", { stage: s.name }),
+                  icon: ArrowRightLeftIcon,
+                  group: "move",
+                  onSelect: () => onMove(c.deal.id, s.id),
+                }))
+            : []),
+        ]}
+        renderCard={(c, state) => (
+          <DealCard
+            deal={c.deal}
+            stages={stages}
+            owner={c.deal.owner_user_id ? members.name(c.deal.owner_user_id) : null}
+            overlay={state.overlay}
+            canWrite={canWrite}
+            href={`${base}/deals/${c.deal.id}`}
+            onMove={onMove}
+            onChanged={onChanged}
+          />
+        )}
+      />
+    </div>
   )
-}
-
-function useLocale() {
-  return useTranslations().locale
 }
 
 function DealCard({
   deal,
   stages,
-  dragging,
-  onDragStart,
-  onDragEnd,
+  owner,
+  overlay,
+  canWrite,
+  href,
   onMove,
   onChanged,
 }: {
   deal: Deal
   stages: Stage[]
-  dragging: boolean
-  onDragStart: (e: DragEvent) => void
-  onDragEnd: () => void
+  owner: string | null
+  overlay: boolean
+  canWrite: boolean
+  href: string
   onMove: MoveFn
   onChanged?: () => void
 }) {
-  const { t, locale, formatDate } = useTranslations()
-  const ws = useWorkspace()
-  const canWrite = ws.can("contacts:write")
-  const base = `/${locale}/w/${ws.slug}`
+  const { t, formatDate } = useTranslations()
+  const today = new Date().toISOString().slice(0, 10)
+  const overdue = deal.stage_kind === "open" && !!deal.expected_close && deal.expected_close < today
+  const who = [deal.company?.name, deal.contact ? deal.contact.name || deal.contact.email : null]
+  // The copy that follows the pointer is a picture of the card: no links, menus or editors in it.
+  const live = canWrite && !overlay
   return (
     <article
-      draggable={canWrite}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      data-deal-card={deal.title}
-      className={`rounded-lg border border-nq-line bg-background p-3 text-sm shadow-xs ${canWrite ? "cursor-grab active:cursor-grabbing" : ""} ${dragging ? "opacity-40" : ""}`}
+      data-deal-card={overlay ? undefined : deal.title}
+      data-deal-stage={deal.stage_id}
+      className={cn(
+        "flex flex-col gap-2.5 rounded-card border border-border bg-card p-3 text-sm text-card-foreground shadow-xs transition-shadow hover:shadow-sm",
+        overlay && "shadow-lg",
+      )}
     >
       <div className="flex items-start gap-1.5">
-        {canWrite ? (
-          <GripVerticalIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-        ) : null}
-        <Link
-          href={`${base}/deals/${deal.id}`}
-          className="min-w-0 flex-1 font-medium break-words hover:underline"
-          draggable={false}
-        >
-          <Bdi>{deal.title}</Bdi>
-        </Link>
-        {canWrite ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("deals.moveTo")}
-                  data-move-menu
-                />
-              }
-            >
-              <ArrowRightLeftIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-44">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>{t("deals.moveTo")}</DropdownMenuLabel>
-                {stages
-                  .filter((s) => s.id !== deal.stage_id)
-                  .map((s) => (
-                    <DropdownMenuItem key={s.id} onClick={() => onMove(deal.id, s.id)}>
-                      <span className={`size-2 rounded-full ${stageTone[s.kind]}`} aria-hidden />
-                      <Bdi>{s.name}</Bdi>
-                    </DropdownMenuItem>
-                  ))}
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {overlay ? (
+          <span className="min-w-0 flex-1 font-medium break-words">
+            <Bdi>{deal.title}</Bdi>
+          </span>
+        ) : (
+          <Link
+            href={href}
+            draggable={false}
+            className="min-w-0 flex-1 font-medium break-words hover:underline"
+            onKeyDown={own.onKeyDown}
+          >
+            <Bdi>{deal.title}</Bdi>
+          </Link>
+        )}
+        {live ? (
+          <span {...own} className="-me-1 -mt-1 shrink-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("deals.moveTo")}
+                    data-move-menu
+                  />
+                }
+              >
+                <ArrowRightLeftIcon />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-44">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>{t("deals.moveTo")}</DropdownMenuLabel>
+                  {stages
+                    .filter((s) => s.id !== deal.stage_id)
+                    .map((s) => (
+                      <DropdownMenuItem key={s.id} onClick={() => onMove(deal.id, s.id)}>
+                        <span className={`size-2 rounded-full ${stageTone[s.kind]}`} aria-hidden />
+                        <Bdi>{s.name}</Bdi>
+                      </DropdownMenuItem>
+                    ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </span>
         ) : null}
       </div>
-      <div className="mt-2">
-        {canWrite ? (
-          <DealValueEditor deal={deal} onSaved={onChanged} />
+
+      <div className="flex items-center justify-between gap-2">
+        {live ? (
+          <span {...own} className="min-w-0">
+            <DealValueEditor deal={deal} onSaved={onChanged} />
+          </span>
         ) : (
           <DealValue deal={deal} className="font-medium" />
         )}
+        {owner ? <Avatar name={owner} size="xs" title={owner} data-deal-owner /> : null}
       </div>
-      {deal.company || deal.contact ? (
-        <p className="mt-1 truncate text-xs text-muted-foreground">
-          {[deal.company?.name, deal.contact ? deal.contact.name || deal.contact.email : null]
-            .filter(Boolean)
-            .map((part, i) => (
-              <span key={i}>
-                {i ? " · " : null}
-                <Bdi>{part}</Bdi>
+
+      {deal.company || deal.contact || deal.expected_close ? (
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0">
+          {deal.company || deal.contact ? (
+            <p className="flex min-w-0 items-center gap-1.5">
+              {deal.company ? <Building2Icon /> : <UserRoundIcon />}
+              <span className="truncate">
+                {who.filter(Boolean).map((part, i) => (
+                  <span key={i}>
+                    {i ? " · " : null}
+                    <Bdi>{part}</Bdi>
+                  </span>
+                ))}
               </span>
-            ))}
-        </p>
-      ) : null}
-      {deal.expected_close ? (
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("deals.closesOn", { date: formatDate(deal.expected_close) })}
-        </p>
+            </p>
+          ) : null}
+          {deal.expected_close ? (
+            <p
+              className={cn("flex items-center gap-1.5", overdue && "text-nq-danger-text")}
+              data-deal-overdue={overdue || undefined}
+            >
+              <CalendarClockIcon />
+              {t(overdue ? "deals.overdueOn" : "deals.closesOn", {
+                date: formatDate(deal.expected_close),
+              })}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </article>
   )
@@ -390,9 +444,7 @@ function DealValueEditor({ deal, onSaved }: { deal: Deal; onSaved?: () => void }
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64" data-deal-value-popover>
         <form onSubmit={save} noValidate className="flex flex-col gap-2">
-          <Label htmlFor={inputId}>
-            {t("deals.valueIn", { currency: deal.currency })}
-          </Label>
+          <Label htmlFor={inputId}>{t("deals.valueIn", { currency: deal.currency })}</Label>
           <div className="flex gap-2">
             <Input
               id={inputId}

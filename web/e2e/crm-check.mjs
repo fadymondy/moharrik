@@ -133,11 +133,11 @@ const stagesBefore = await pageA.evaluate(() =>
 const firstStage = stagesBefore[0]
 const secondStage = stagesBefore[1]
 const stageName = await pageA.evaluate(
-  (id) => document.querySelector(`[data-stage-id="${id}"] h3`)?.textContent,
+  (id) => document.querySelector(`[data-stage-id="${id}"]`)?.getAttribute("data-stage-name"),
   secondStage,
 )
 await pageA.click(
-  `[data-stage-id="${firstStage}"] [data-deal-card="Acme renewal"] [data-move-menu]`,
+  `[data-deal-card="Acme renewal"][data-deal-stage="${firstStage}"] [data-move-menu]`,
 )
 await pageA
   .getByRole("menuitem", { name: stageName ?? "" })
@@ -148,7 +148,7 @@ await pageA
   })
 await pageA.waitForTimeout(800)
 out.dealMoved = await pageA.evaluate(
-  (id) => !!document.querySelector(`[data-stage-id="${id}"] [data-deal-card="Acme renewal"]`),
+  (id) => !!document.querySelector(`[data-deal-card="Acme renewal"][data-deal-stage="${id}"]`),
   secondStage,
 )
 
