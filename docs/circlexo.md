@@ -80,7 +80,16 @@ normal one, so every existing login method keeps working (dual login).
 
 **Landing.** After sign-in the user lands in the workspace mapped to the token's org (or the org
 named by the launch URL), added with their hub role. If the hub confirms the org has the app but
-the install webhook has not arrived, the workspace is provisioned on the spot.
+the install webhook has not arrived, the workspace is provisioned on the spot, but only while the
+hub still has the install `provisioning` (MH-1149). A lost link to a workspace the hub already
+names is restored. If the workspace was deleted in Moharrik, the sign-in creates nothing: it calls
+`ReleaseTenant`, the hub shows the app as not installed, and the user lands on `/`. Installing it
+again from the hub provisions a fresh workspace. A new workspace adopts the owner's own unlinked
+workspace with the org's slug instead of making `<slug>-2`.
+
+**Profile.** Every CircleXO sign-in and every `user.updated` webhook copies the hub's verified
+address onto the account (unless another account holds it) and keeps the hub's display name,
+picture URL and locale on `circlexo_user_links`.
 
 **Org to workspace.** One active workspace per org. Provision is idempotent: the same org returns
 the same workspace, reactivating an inactive link. It reads the org and members from the hub,

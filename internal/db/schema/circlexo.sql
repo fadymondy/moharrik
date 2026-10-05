@@ -13,6 +13,10 @@ CREATE TABLE IF NOT EXISTS circlexo_user_links (
     linked_via text        NOT NULL DEFAULT 'email' CHECK (linked_via IN ('email', 'created')),
     created_at timestamptz NOT NULL DEFAULT now()
 );
+-- The person's hub profile as of their last sign-in or user.updated (MH-1149).
+ALTER TABLE circlexo_user_links ADD COLUMN IF NOT EXISTS display_name text NOT NULL DEFAULT '';
+ALTER TABLE circlexo_user_links ADD COLUMN IF NOT EXISTS picture_url text NOT NULL DEFAULT '';
+ALTER TABLE circlexo_user_links ADD COLUMN IF NOT EXISTS locale text NOT NULL DEFAULT '';
 
 -- A hub org and the workspace that serves it. Unique both ways. `status` goes inactive on
 -- deprovision (org.app_removed): the workspace and its data stay, the link stops mapping.

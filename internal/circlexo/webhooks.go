@@ -43,6 +43,7 @@ func (s *Service) Events() http.Handler {
 		}
 		return s.revokeSession(ctx, d.User.ID, d.SessionID)
 	})
+	h.Handle(webhooks.UserUpdated, s.onUserUpdated)
 	h.Handle(webhooks.EntitlementChanged, func(ctx context.Context, e *webhooks.Envelope) error {
 		d, _ := e.Entitlement()
 		s.entitlementsChanged(ctx, e.OrgID, d.Version)
@@ -68,6 +69,28 @@ func (s *Service) entitlementsChanged(ctx context.Context, orgID string, version
 	if link, err := s.OrgByID(ctx, orgID); err == nil {
 		s.changed(link.WorkspaceID)
 	}
+}
+
+// onUserUpdated copies a person's hub profile onto their linked Moharrik account. A person who
+// has never signed in to Moharrik with CircleXO has no link and nothing to update. The hub sends
+// one event per org they belong to, so this runs (harmlessly) more than once per change.
+func (s *Service) onUserUpdated(ctx context.Context, e *webhooks.Envelope) error {
+	d, err := e.User()
+	if err != nil || d.User.ID == "" {
+		return nil // malformed: retrying will not fix it
+	}
+	userID, err := s.UserBySubject(ctx, d.User.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	u := d.User
+	s.SyncProfile(ctx, userID, circlexo.Profile{
+		Name: u.DisplayName, Email: u.Email, EmailVerified: u.EmailVerified, Picture: u.AvatarURL, Locale: u.Locale,
+	})
+	return nil
 }
 
 func (s *Service) onInstalled(ctx context.Context, e *webhooks.Envelope) error {

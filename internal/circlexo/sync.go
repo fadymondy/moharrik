@@ -49,7 +49,16 @@ type ProvisionInput struct {
 	Slug   string
 	Name   string
 	Locale string
+	// SignIn is set when a member's sign-in (not the hub's install) asks for the workspace. A
+	// sign-in only creates one while the hub is still provisioning the install; once the install
+	// is active, a missing workspace means someone deleted it in Moharrik (MH-1149).
+	SignIn bool
 }
+
+// ErrReleased: the org's workspace was deleted in Moharrik, so a sign-in does not make a new one.
+// The hub has been told (Client.ReleaseTenant) and shows the app as not installed; installing it
+// again from the hub provisions a fresh workspace.
+var ErrReleased = errors.New("circlexo: the org's workspace was deleted in Moharrik")
 
 // Provision is idempotent: any number of calls for one org leave one workspace, one link and the
 // current members, and always end by confirming the tenant.
@@ -68,6 +77,20 @@ func (s *Service) Provision(ctx context.Context, in ProvisionInput) (*OrgLink, e
 	link, err := s.OrgByID(ctx, in.OrgID)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
+		if link, err = s.relink(ctx, in, org.Tenant.ProductTenantID); err != nil {
+			return nil, err
+		}
+		if link != nil {
+			break
+		}
+		if in.SignIn && org.Tenant.Status != "provisioning" {
+			if org.Tenant.ProductTenantID != "" {
+				if _, err := s.Client.ReleaseTenant(ctx, in.OrgID, org.Tenant.ProductTenantID); err != nil {
+					s.Log.Warn("circlexo: releasing a deleted workspace's tenant", "org", in.OrgID, "err", err)
+				}
+			}
+			return nil, ErrReleased
+		}
 		owner, err := s.ownerFor(ctx, org.Members)
 		if err != nil {
 			return nil, err
@@ -152,6 +175,26 @@ func (s *Service) ownerFor(ctx context.Context, members []circlexo.Member) (stri
 	return id, nil
 }
 
+// relink restores a lost link to the workspace the hub already knows serves the org, when that
+// workspace still exists and no other org holds it. nil, nil when there is nothing to restore.
+func (s *Service) relink(ctx context.Context, in ProvisionInput, workspaceID string) (*OrgLink, error) {
+	if workspaceID == "" {
+		return nil, nil
+	}
+	res, err := s.DB.ExecContext(ctx, `
+		INSERT INTO circlexo_org_links (org_id, workspace_id, org_slug, status)
+		SELECT $1, w.id::text, $3, 'active' FROM workspaces w
+		WHERE w.id::text = $2 AND NOT EXISTS (SELECT 1 FROM circlexo_org_links l WHERE l.workspace_id = w.id::text)
+		ON CONFLICT DO NOTHING`, in.OrgID, workspaceID, in.Slug)
+	if err != nil {
+		return nil, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, nil
+	}
+	return s.OrgByID(ctx, in.OrgID)
+}
+
 // createLinked makes the workspace and its link in one transaction, under an advisory lock on the
 // org, so two concurrent installs of one org cannot make two workspaces.
 func (s *Service) createLinked(ctx context.Context, in ProvisionInput, ownerID string) (*OrgLink, error) {
@@ -178,7 +221,25 @@ func (s *Service) createLinked(ctx context.Context, in ProvisionInput, ownerID s
 		locale = "ar"
 	}
 	base := workspaces.Slugify(firstNonEmpty(in.Slug, name))
+	// The owner already has a workspace by the org's name that no org governs (they made it
+	// before installing, or an earlier link was lost): adopt it rather than making "<slug>-2".
 	var wsID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT w.id FROM workspaces w
+		JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $2 AND m.role = 'owner' AND m.status = 'active'
+		WHERE w.slug = $1 AND NOT EXISTS (SELECT 1 FROM circlexo_org_links l WHERE l.workspace_id = w.id::text)`, base, ownerID).Scan(&wsID)
+	if err == nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO circlexo_org_links (org_id, workspace_id, org_slug, status) VALUES ($1, $2, $3, 'active')`, in.OrgID, wsID, in.Slug); err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return s.OrgByID(ctx, in.OrgID)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
 	for i := 0; ; i++ {
 		slug := base
 		switch {
