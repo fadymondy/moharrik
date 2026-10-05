@@ -209,6 +209,18 @@ var docsCRM = map[string]ToolDoc{
 			`"next_cursor":"","sources":["contact","activities","deals","lifecycle","conversations","leads","automations"],` +
 			`"overview":{"conversations":[],"automations":[]}}`,
 	},
+	"opportunity_signals": {
+		AR: "ما يستحق نظرة الآن في الفرص، مع سببه الحقيقي: صفقة مفتوحة بلا نشاط أو نقل مرحلة أو رسالة منذ thresholds.quiet_days يومًا " +
+			"فأكثر، وعميل محتمل وصل في آخر thresholds.new_lead_days أيام ولم يُحوَّل ولم يُصنَّف رسالة مزعجة، وجهة محتملة تنتظر القرار " +
+			"ودرجتها thresholds.high_fit_score فأكثر. لا يضع Moharrik أي تقييم من عنده: لكل عنصر why (رموز مع البيانات التي بُني عليها) " +
+			"والإجراءات الموجودة فعلًا له. يبيّن counts عدد كل نوع، وتسمّي sources ما يقرؤه الرمز. تُصفّى النتيجة بـ kind، والحد limit لكل نوع.",
+		Example: map[string]any{"kind": "at_risk_deal", "limit": 10},
+		Result: `{"currency":"USD","thresholds":{"quiet_days":7,"new_lead_days":7,"high_fit_score":70},` +
+			`"counts":{"at_risk_deals":1,"new_leads":null,"high_fit_prospects":null},"sources":["deals"],"items":[` +
+			`{"kind":"at_risk_deal","tone":"warning","id":"a1c3e5f7-0b2d-4f6a-8c9e-1d3f5a7b9c0e","title":"Fleet tracking rollout",` +
+			`"subtitle":"Delta Freight","value":{"currency":"USD","minor":1800000},"why":[{"code":"quiet_days","n":18,"at":"2026-09-18T13:40:00Z"},` +
+			`{"code":"in_stage","text":"Proposal","at":"2026-09-18T13:40:00Z"}],"occurred_at":"2026-09-18T13:40:00Z","actions":["open"]}]}`,
+	},
 	"list_activities": {
 		AR: "السجل الزمني لسجل واحد، الأحدث أولًا، صفحةً بعد صفحة؛ حدِّد واحدًا فقط من contact_id أو company_id أو deal_id. لكل نشاط " +
 			"معرّفه ونوعه ونصّه وموعد استحقاقه ووقت إنجازه وما يرتبط به، ويَعُدّ total الأنشطة كلها. وتأتي معه محادثات صندوق الوارد " +

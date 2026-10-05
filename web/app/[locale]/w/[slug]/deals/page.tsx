@@ -1,34 +1,53 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { LayoutGridIcon, ListIcon, SettingsIcon } from "lucide-react"
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, toast } from "@fadymondy/nasaq/web"
+import { Suspense, useEffect, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { SettingsIcon } from "lucide-react"
+import { Button, Tabs, TabsList, TabsTab, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, toast } from "@fadymondy/nasaq/web"
 import { FieldError } from "@/components/form-layout"
 
 import { DealForm, DealsTable, PipelineBoard } from "@/components/crm/deals"
+import { SignalsPanel, signalTotal } from "@/components/opportunities/signals"
 import { PickSelect, stageTone } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useDeals, useDealsList } from "@/lib/queries"
+import { useDeals, useDealsList, useOpportunitySignals } from "@/lib/queries"
 import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi } from "@/components/bidi"
 
-type View = "board" | "list"
+type View = "board" | "list" | "signals"
+const VIEWS: View[] = ["board", "list", "signals"]
 
 const LIST_PAGE = 50
 
 export default function DealsPage() {
+  return (
+    <Suspense fallback={<LoadingRows rows={4} />}>
+      <Opportunities />
+    </Suspense>
+  )
+}
+
+function Opportunities() {
   const { t } = useTranslations()
   const ws = useWorkspace()
-  useDocumentTitle(`${t("nav.deals")} · ${ws.summary.name}`)
+  useDocumentTitle(`${t("nav.opportunities")} · ${ws.summary.name}`)
   const canWrite = ws.can("contacts:write")
   const canManagePipeline = ws.can("pipeline:manage")
   const deals = useDeals(ws.id)
-  const [view, setView] = useState<View>("board")
+  // Board stays the default; ?view=list|signals deep-links the other two.
+  const router = useRouter()
+  const pathname = usePathname()
+  const search = useSearchParams()
+  const asked = search.get("view")
+  const view: View = VIEWS.includes(asked as View) ? (asked as View) : "board"
+  const setView = (next: View) => router.replace(next === "board" ? pathname : `${pathname}?view=${next}`, { scroll: false })
+  const signals = useOpportunitySignals(ws.id)
+  const signalCount = signalTotal(signals.data)
   // Board: cards past each stage's first page, fetched per stage on demand (MH-467: the board
   // used to stop at 2,000 deals without saying so). The fresh first page wins over these by id.
   const [extra, setExtra] = useState<Record<string, { deals: Deal[]; cursor: string }>>({})
@@ -122,34 +141,10 @@ export default function DealsPage() {
     <>
       <SectionHeader
         micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("nav.deals")}
-        description={t("deals.hint")}
+        title={t("nav.opportunities")}
+        description={t("opps.hint")}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <div role="radiogroup" aria-label={t("deals.viewLabel")} className="flex gap-1">
-              <Button
-                type="button"
-                size="icon-sm"
-                variant={view === "board" ? "primary" : "secondary"}
-                role="radio"
-                aria-checked={view === "board"}
-                aria-label={t("deals.viewBoard")}
-                onClick={() => setView("board")}
-              >
-                <LayoutGridIcon />
-              </Button>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant={view === "list" ? "primary" : "secondary"}
-                role="radio"
-                aria-checked={view === "list"}
-                aria-label={t("deals.viewList")}
-                onClick={() => setView("list")}
-              >
-                <ListIcon />
-              </Button>
-            </div>
             {canManagePipeline ? (
               <Button type="button" variant="secondary" size="sm" onClick={() => setManaging(true)}>
                 <SettingsIcon />
@@ -163,7 +158,24 @@ export default function DealsPage() {
         }
       />
 
-      {deals.error ? (
+      <Tabs value={view} onValueChange={(v) => setView(String(v) as View)} className="gap-0">
+        <div className="px-4 pb-3 sm:px-6">
+          <TabsList variant="underline" aria-label={t("deals.viewLabel")}>
+            {VIEWS.map((v) => (
+              <TabsTab key={v} value={v} data-tab={v}>
+                {t(`opps.view.${v}`)}
+                {v === "signals" && signalCount ? (
+                  <span className="ms-1 text-muted-foreground tabular-nums" data-signal-total>{signalCount}</span>
+                ) : null}
+              </TabsTab>
+            ))}
+          </TabsList>
+        </div>
+      </Tabs>
+
+      {view === "signals" ? (
+        <SignalsPanel onChanged={() => deals.mutate()} />
+      ) : deals.error ? (
         <ErrorState error={deals.error} />
       ) : !deals.data ? (
         <LoadingRows rows={4} />

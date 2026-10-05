@@ -131,10 +131,10 @@ func (b *builder) hotLeads() ([]HomeAttentionItem, int64) {
 	return items, total
 }
 
-// lastActivitySQL is the moment a deal last moved: its creation, its latest stage entry, its
+// LastActivitySQL is the moment a deal last moved: its creation, its latest stage entry, its
 // latest logged activity (on the deal or its contact) or its latest message on a conversation
 // linked to the deal or its contact. Shared by at-risk and journeys. Expects the deal as d.
-const lastActivitySQL = `greatest(
+const LastActivitySQL = `greatest(
 	d.created_at,
 	coalesce((SELECT max(e.entered_at) FROM deal_stage_events e WHERE e.workspace_id = d.workspace_id AND e.deal_id = d.id), d.created_at),
 	coalesce((SELECT max(a.created_at) FROM activities a WHERE a.workspace_id = d.workspace_id
@@ -151,7 +151,7 @@ func (b *builder) atRisk() ([]HomeAttentionItem, int64) {
 		SELECT d.id, d.title, d.value_minor, d.currency, s.name, x.at, count(*) OVER ()
 		FROM deals d
 		JOIN pipeline_stages s ON s.workspace_id = d.workspace_id AND s.id = d.stage_id AND s.kind = 'open'
-		CROSS JOIN LATERAL (SELECT `+lastActivitySQL+` AS at) x
+		CROSS JOIN LATERAL (SELECT `+LastActivitySQL+` AS at) x
 		WHERE d.workspace_id = $1 AND x.at < $2
 		ORDER BY d.value_minor DESC, x.at, d.id
 		LIMIT 2`, []any{b.now.Add(-QuietAfter)}, func(r *sql.Rows) error {
