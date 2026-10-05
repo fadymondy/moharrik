@@ -2,56 +2,375 @@
 
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
-import { CheckIcon, MessageCircleIcon, UsersIcon } from "lucide-react"
-import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  CheckIcon,
+  ContactRoundIcon,
+  MailIcon,
+  MessageCircleIcon,
+  MessagesSquareIcon,
+  Share2Icon,
+  SlackIcon,
+  UsersIcon,
+  XIcon,
+} from "lucide-react"
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Field,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Status,
+  Stepper,
+  StepperItem,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  toast,
+  type StatusTone,
+} from "@fadymondy/nasaq/web"
 import { FormHint } from "@/components/form-layout"
 
+import { BrandIcon } from "@/components/automation/brand-icon"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { SectionHeader } from "@/components/public-frame"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type ImportItem } from "@/lib/api"
+import { api, ApiError, type ImportConnection, type ImportItem } from "@/lib/api"
+import { BRANDS, type Brand } from "@/lib/brands"
 import { useTranslations } from "@/lib/i18n"
 import { useDebounced } from "@/components/crm/contact-picker"
-import { useImportJob, useImportPreview, useImportSources } from "@/lib/queries"
+import {
+  useGoogleContactsConnections,
+  useImportJob,
+  useImportPreview,
+  useImportSources,
+} from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
 import { Bdi } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
 
 /*
-Contacts → "Import from a connection" (MH-562): pick a source and connection,
-preview what it has with filters, select some of it, import — in the
-background, with progress. One page for every source on internal/imports'
-Provider interface; today that is WhatsApp, with email and MH-563/564's
-Telegram/Slack/Discord to follow on the same shape.
+Contacts → Import (MH-1128): every way in, always on screen, as integration
+cards with numbered steps — so somebody who has connected nothing yet still
+sees how each source works and what to do first. The connection sources come
+from internal/imports' Provider list (MH-562); a ready connection opens the
+preview / select / import flow below the cards. Telegram and the browser
+workflows have no history to import (their API says so), so their cards say
+how chats arrive instead of offering a button that cannot work.
 */
+
+type CardState = "ready" | "notConnected" | "reauth" | "live"
+
+const STATE_TONE: Record<CardState, StatusTone> = {
+  ready: "success",
+  notConnected: "neutral",
+  reauth: "warning",
+  live: "info",
+}
+
+/** Sources whose history the API cannot list: chats arrive by themselves. */
+const LIVE_ONLY = new Set(["telegram", "workflow"])
+
+const SOURCE_BRAND: Record<string, Brand> = {
+  vcard: { key: "vcard", name: "vCard", fallbackIcon: ContactRoundIcon },
+  google: BRANDS.google,
+  whatsapp: BRANDS.whatsapp,
+  email: { key: "email", name: "Email", fallbackIcon: MailIcon },
+  slack: { key: "slack", name: "Slack", fallbackIcon: SlackIcon },
+  discord: { key: "discord", name: "Discord", fallbackIcon: MessagesSquareIcon },
+  telegram: BRANDS.telegram,
+  workflow: { key: "workflow", name: "Social", fallbackIcon: Share2Icon },
+}
+
+/** Where each connection source is set up. */
+const CONNECT_PATH: Record<string, string> = {
+  whatsapp: "inbox/whatsapp",
+  email: "inbox/email",
+  slack: "inbox/slack",
+  discord: "inbox/discord",
+  telegram: "inbox/telegram",
+  workflow: "inbox/workflow-channels",
+}
+
+type Picked = { source: string; connectionId: string }
+
 export default function ImportPage() {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const search = useSearchParams()
-  useDocumentTitle(`${t("import.title")} · ${ws.summary.name}`)
+  useDocumentTitle(`${t("import.hubTitle")} · ${ws.summary.name}`)
   const base = `/${locale}/w/${ws.slug}`
-  const canWrite = ws.can("inbox:write")
 
   const sources = useImportSources(ws.id)
-  const [source, setSource] = useState<string>(search.get("source") ?? "")
-  useEffect(() => {
-    if (!source && sources.data?.sources?.length) setSource(sources.data.sources[0].source)
-  }, [source, sources.data])
+  const google = useGoogleContactsConnections(ws.id)
+  const [picked, setPicked] = useState<Picked | null>(null)
+  const flowRef = useRef<HTMLDivElement>(null)
 
-  const conn = sources.data?.sources.find((s) => s.source === source)?.connections[0]
+  // ?source=whatsapp (the WhatsApp channel form links here) opens that source's
+  // first ready connection.
+  const wanted = search.get("source")
+  const [usedWanted, setUsedWanted] = useState(false)
+  useEffect(() => {
+    if (usedWanted || !wanted || !sources.data) return
+    const conn = sources.data.sources
+      .find((s) => s.source === wanted)
+      ?.connections.find((c) => c.ready)
+    if (conn) setPicked({ source: wanted, connectionId: conn.id })
+    setUsedWanted(true)
+  }, [usedWanted, wanted, sources.data])
+
+  function choose(p: Picked) {
+    setPicked(p)
+    requestAnimationFrame(() =>
+      flowRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    )
+  }
+
+  const pickedConn = picked
+    ? sources.data?.sources
+        .find((s) => s.source === picked.source)
+        ?.connections.find((c) => c.id === picked.connectionId && c.ready)
+    : undefined
+
+  const googleList = google.data?.connections ?? []
+  const googleState: CardState = googleList.some((c) => c.status === "")
+    ? "ready"
+    : googleList.length
+      ? "reauth"
+      : "notConnected"
+
+  return (
+    <>
+      <SectionHeader
+        micro={t("nav.contacts")}
+        title={t("import.hubTitle")}
+        description={t("import.hubHint")}
+        action={
+          <Link className="text-sm underline underline-offset-4" href={`${base}/contacts`}>
+            {t("contacts.backToList")}
+          </Link>
+        }
+      />
+
+      <section
+        className="grid gap-4 px-4 pb-6 sm:grid-cols-2 sm:px-6 xl:grid-cols-3"
+        data-import-sources
+      >
+        <SourceCard
+          source="vcard"
+          state="ready"
+          action={
+            <Button
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`${base}/contacts/vcard`} />}
+              data-action="open-vcard"
+            >
+              {t("import.openVcard")}
+            </Button>
+          }
+        />
+        <SourceCard
+          source="google"
+          state={google.data ? googleState : "notConnected"}
+          detail={googleList.map((c) => c.email).join(", ") || undefined}
+          action={
+            <Button
+              size="sm"
+              variant={googleState === "ready" ? "primary" : "secondary"}
+              nativeButton={false}
+              render={<Link href={`${base}/contacts/vcard#google-contacts`} />}
+              data-action="open-google"
+            >
+              {googleState === "ready" ? t("import.openGoogle") : t("import.connectGoogle")}
+            </Button>
+          }
+        />
+
+        {!sources.data ? (
+          sources.error ? (
+            <div className="sm:col-span-2 xl:col-span-3">
+              <ErrorState error={sources.error} />
+            </div>
+          ) : (
+            <div className="sm:col-span-2 xl:col-span-3">
+              <LoadingRows rows={2} />
+            </div>
+          )
+        ) : (
+          sources.data.sources.map((s) => {
+            const ready = s.connections.filter((c) => c.ready)
+            const live = LIVE_ONLY.has(s.source)
+            const state: CardState = live ? "live" : ready.length ? "ready" : "notConnected"
+            const connectHref = CONNECT_PATH[s.source]
+              ? `${base}/${CONNECT_PATH[s.source]}`
+              : undefined
+            return (
+              <SourceCard
+                key={s.source}
+                source={s.source}
+                state={state}
+                detail={
+                  s.connections
+                    .map((c) => c.label)
+                    .filter(Boolean)
+                    .join(", ") || undefined
+                }
+                active={picked?.source === s.source}
+                action={
+                  state === "ready" ? (
+                    <div className="flex flex-wrap gap-2">
+                      {ready.map((c) => (
+                        <Button
+                          key={c.id}
+                          size="sm"
+                          onClick={() => choose({ source: s.source, connectionId: c.id })}
+                          aria-pressed={picked?.connectionId === c.id}
+                          data-action="choose-import"
+                          data-source={s.source}
+                        >
+                          {ready.length > 1 && c.label ? (
+                            <Ltr>{c.label}</Ltr>
+                          ) : (
+                            t("import.choose")
+                          )}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : connectHref ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      nativeButton={false}
+                      render={<Link href={connectHref} />}
+                      data-action="connect-source"
+                      data-source={s.source}
+                    >
+                      {live
+                        ? t("import.setUp", { source: t(`import.source.${s.source}`) })
+                        : t("import.connect", { source: t(`import.source.${s.source}`) })}
+                    </Button>
+                  ) : null
+                }
+              />
+            )
+          })
+        )}
+      </section>
+
+      <div ref={flowRef} className="scroll-mt-4">
+        {picked && pickedConn ? (
+          <ImportFlow
+            key={`${picked.source}|${picked.connectionId}`}
+            source={picked.source}
+            conn={pickedConn}
+            onClose={() => setPicked(null)}
+          />
+        ) : null}
+      </div>
+    </>
+  )
+}
+
+/** One way in: its mark, where it stands, the steps, and the one thing to do next. */
+function SourceCard({
+  source,
+  state,
+  detail,
+  active,
+  action,
+}: {
+  source: string
+  state: CardState
+  detail?: string
+  active?: boolean
+  action?: React.ReactNode
+}) {
+  const { t } = useTranslations()
+  const brand = SOURCE_BRAND[source] ?? {
+    key: source,
+    name: source,
+    fallbackIcon: MessageCircleIcon,
+  }
+  // Connected sources are past step one; a file is always at step one.
+  const current = state === "ready" && source !== "vcard" ? 1 : 0
+  return (
+    <Card
+      className={active ? "ring-2 ring-primary" : undefined}
+      data-import-source={source}
+      data-import-state={state}
+    >
+      <CardHeader className="flex items-center gap-3">
+        <BrandIcon brand={brand} size={40} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <CardTitle className="truncate">{t(`import.source.${source}`)}</CardTitle>
+          <Status tone={STATE_TONE[state]} className="text-xs">
+            {t(`import.state.${state}`)}
+          </Status>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col gap-4">
+        <CardDescription>{t(`import.desc.${source}`)}</CardDescription>
+        {detail ? (
+          <p className="truncate text-xs text-muted-foreground" data-import-detail>
+            <Ltr>{detail}</Ltr>
+          </p>
+        ) : null}
+        <Stepper
+          current={current}
+          orientation="vertical"
+          aria-label={t("import.stepsLabel", { source: t(`import.source.${source}`) })}
+        >
+          {[1, 2, 3].map((n) => (
+            <StepperItem key={n} title={t(`import.steps.${source}.${n}`)} />
+          ))}
+        </Stepper>
+      </CardContent>
+      {action ? <CardFooter>{action}</CardFooter> : null}
+    </Card>
+  )
+}
+
+/** Preview a connection's chats or senders, pick some, import them in the background (MH-562). */
+function ImportFlow({
+  source,
+  conn,
+  onClose,
+}: {
+  source: string
+  conn: ImportConnection
+  onClose: () => void
+}) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const canWrite = ws.can("inbox:write")
 
   const [kind, setKind] = useState<"" | "direct" | "group">("")
   const [q, setQ] = useState("")
   const debouncedQ = useDebounced(q, 300)
-  const preview = useImportPreview(ws.id, conn?.ready ? source : null, {
-    connection_id: conn?.id,
+  const preview = useImportPreview(ws.id, source, {
+    connection_id: conn.id,
     kind,
     q: debouncedQ,
   })
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  useEffect(() => setSelected(new Set()), [source, kind, debouncedQ])
+  useEffect(() => setSelected(new Set()), [kind, debouncedQ])
   const items = preview.data?.items ?? []
   const anyGroupSelected = items.some((it) => selected.has(it.id) && it.kind === "group")
   const [importParticipants, setImportParticipants] = useState(false)
@@ -90,7 +409,7 @@ export default function ImportPage() {
         `/api/w/import/${encodeURIComponent(source)}`,
         {
           json: {
-            connection_id: conn?.id,
+            connection_id: conn.id,
             items: [...selected],
             history_depth: historyDepth ? Number(historyDepth) : undefined,
             import_participants: importParticipants,
@@ -106,59 +425,42 @@ export default function ImportPage() {
     }
   }
 
+  const step = job.data?.job.status === "done" ? 3 : selected.size > 0 || running ? 2 : 1
+
   return (
-    <>
-      <SectionHeader
-        micro={t("nav.contacts")}
-        title={t("import.title")}
-        description={t("import.hint")}
-        action={
-          <Link className="text-sm underline underline-offset-4" href={`${base}/contacts`}>
-            {t("contacts.backToList")}
-          </Link>
-        }
-      />
-
-      <div className="flex flex-wrap items-end gap-4 px-6 pb-4">
-        <Field className="w-56">
-          <FieldLabel htmlFor="import-source">{t("import.source")}</FieldLabel>
-          <Select
-            items={(sources.data?.sources ?? []).map((s) => ({
-              value: s.source,
-              label: t(`import.source.${s.source}`),
-            }))}
-            value={source}
-            onValueChange={(v) => setSource(String(v ?? ""))}
-          >
-            <SelectTrigger id="import-source" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(sources.data?.sources ?? []).map((s) => (
-                <SelectItem key={s.source} value={s.source}>
-                  {t(`import.source.${s.source}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-
-        {conn && !conn.ready ? (
-          <FormHint className="text-nq-warning-text" data-import-not-ready={source}>
-            {conn.note || t("import.notReady")}{" "}
-            {source === "whatsapp" ? (
-              <Link className="underline underline-offset-4" href={`${base}/inbox/whatsapp`}>
-                {t("import.linkWhatsApp")}
-              </Link>
+    <section className="px-4 pb-8 sm:px-6" data-import-flow={source}>
+      <Card>
+        <CardHeader className="flex flex-wrap items-center gap-3">
+          <BrandIcon brand={SOURCE_BRAND[source] ?? SOURCE_BRAND.email} size={32} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <CardTitle>
+              {t("import.flowTitle", { source: t(`import.source.${source}`) })}
+            </CardTitle>
+            {conn.label ? (
+              <CardDescription>
+                <Ltr>{conn.label}</Ltr>
+              </CardDescription>
             ) : null}
-          </FormHint>
-        ) : null}
-      </div>
+          </div>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={onClose}
+            aria-label={t("common.close")}
+            data-action="close-import"
+          >
+            <XIcon />
+          </Button>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <Stepper current={step} aria-label={t("import.flowTitle", { source: t(`import.source.${source}`) })}>
+            <StepperItem title={t("import.flowStep.connect")} />
+            <StepperItem title={t("import.flowStep.pick")} />
+            <StepperItem title={t("import.flowStep.import")} />
+          </Stepper>
 
-      {conn?.ready ? (
-        <>
-          <div className="flex flex-wrap items-end gap-4 px-6 pb-4">
-            <Field className="w-72">
+          <div className="flex flex-wrap items-end gap-4">
+            <Field className="w-72 max-w-full">
               <FieldLabel htmlFor="import-q">{t("import.search")}</FieldLabel>
               <Input
                 id="import-q"
@@ -203,34 +505,30 @@ export default function ImportPage() {
           </div>
 
           {anyGroupSelected ? (
-            <div className="px-6 pb-4">
-              <Field className="flex-row items-center gap-3">
-                <Checkbox
-                  id="import-participants"
-                  checked={importParticipants}
-                  onCheckedChange={(v) => setImportParticipants(!!v)}
-                />
-                <FieldLabel htmlFor="import-participants" className="font-normal">
-                  {t("import.importParticipants")}
-                </FieldLabel>
-              </Field>
-            </div>
+            <Field className="flex-row items-center gap-3">
+              <Checkbox
+                id="import-participants"
+                checked={importParticipants}
+                onCheckedChange={(v) => setImportParticipants(!!v)}
+              />
+              <FieldLabel htmlFor="import-participants" className="font-normal">
+                {t("import.importParticipants")}
+              </FieldLabel>
+            </Field>
           ) : null}
 
           {preview.error ? (
-            <div className="px-6">
-              <ErrorState error={preview.error} />
-            </div>
+            <ErrorState error={preview.error} />
           ) : !preview.data ? (
             <LoadingRows rows={4} />
           ) : items.length === 0 ? (
             <EmptyState title={t("import.empty")} body={t("import.emptyBody")} />
           ) : (
-            <div className="border-y border-nq-line">
+            <div className="overflow-hidden rounded-card border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="ps-6 w-10">
+                    <TableHead className="w-10 ps-4">
                       <Checkbox
                         aria-label={t("import.selectAll")}
                         checked={allSelected}
@@ -241,13 +539,13 @@ export default function ImportPage() {
                     <TableHead>{t("import.name")}</TableHead>
                     <TableHead>{t("import.identity")}</TableHead>
                     <TableHead>{t("import.lastMessage")}</TableHead>
-                    <TableHead className="pe-6">{t("import.status")}</TableHead>
+                    <TableHead className="pe-4">{t("import.status")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {items.map((it: ImportItem) => (
                     <TableRow key={it.id} data-import-item={it.identity}>
-                      <TableCell className="ps-6">
+                      <TableCell className="ps-4">
                         <Checkbox
                           checked={selected.has(it.id)}
                           disabled={it.already_imported}
@@ -275,7 +573,7 @@ export default function ImportPage() {
                       <TableCell className="max-w-xs truncate text-muted-foreground">
                         <Bdi>{it.last_message}</Bdi>
                       </TableCell>
-                      <TableCell className="pe-6">
+                      <TableCell className="pe-4">
                         {it.already_imported ? (
                           <Badge variant="outline" data-already-imported={it.identity}>
                             <CheckIcon />
@@ -289,36 +587,33 @@ export default function ImportPage() {
               </Table>
             </div>
           )}
-
-          <div className="flex flex-wrap items-center gap-4 px-6 py-6">
-            <Button
-              type="button"
-              disabled={!canWrite || selected.size === 0 || running}
-              onClick={startImport}
-              data-action="start-import"
-            >
-              {running
-                ? t("import.importing")
-                : t("import.importSelected", { count: selected.size })}
-            </Button>
-            {!canWrite ? <FormHint>{t("contacts.readOnly")}</FormHint> : null}
-            {job.data?.job ? (
-              <div className="text-sm text-muted-foreground" data-import-job-status={job.data.job.status}>
-                {job.data.job.status === "running"
-                  ? t("import.progress", { done: job.data.job.done, total: job.data.job.total })
-                  : job.data.job.status === "done"
-                    ? t("import.summary", {
-                        contacts: job.data.job.contacts_created,
-                        conversations: job.data.job.conversations_created,
-                        messages: job.data.job.messages_imported,
-                        skipped: job.data.job.skipped,
-                      })
-                    : t("import.failed", { error: job.data.job.last_error ?? "" })}
-              </div>
-            ) : null}
-          </div>
-        </>
-      ) : null}
-    </>
+        </CardContent>
+        <CardFooter className="flex flex-wrap items-center gap-4">
+          <Button
+            type="button"
+            disabled={!canWrite || selected.size === 0 || running}
+            onClick={startImport}
+            data-action="start-import"
+          >
+            {running ? t("import.importing") : t("import.importSelected", { count: selected.size })}
+          </Button>
+          {!canWrite ? <FormHint>{t("contacts.readOnly")}</FormHint> : null}
+          {job.data?.job ? (
+            <div className="text-sm text-muted-foreground" data-import-job-status={job.data.job.status}>
+              {job.data.job.status === "running"
+                ? t("import.progress", { done: job.data.job.done, total: job.data.job.total })
+                : job.data.job.status === "done"
+                  ? t("import.summary", {
+                      contacts: job.data.job.contacts_created,
+                      conversations: job.data.job.conversations_created,
+                      messages: job.data.job.messages_imported,
+                      skipped: job.data.job.skipped,
+                    })
+                  : t("import.failed", { error: job.data.job.last_error ?? "" })}
+            </div>
+          ) : null}
+        </CardFooter>
+      </Card>
+    </section>
   )
 }

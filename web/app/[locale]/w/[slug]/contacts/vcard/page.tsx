@@ -483,7 +483,11 @@ function GoogleContactsPanel() {
   }
 
   return (
-    <div className="mb-6 border-y border-nq-line py-4" data-testid="google-contacts-panel">
+    <div
+      id="google-contacts"
+      className="mb-6 scroll-mt-4 border-y border-nq-line py-4"
+      data-testid="google-contacts-panel"
+    >
       <h2 className="text-base font-medium">{t("vcard.google.title")}</h2>
       <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("vcard.google.hint")}</p>
 
