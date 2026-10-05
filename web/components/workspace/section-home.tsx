@@ -34,6 +34,7 @@ import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { NAV, type NavGroup } from "@/lib/nav-config"
 import { useOverview, useResearchRuns, useRuns } from "@/lib/queries"
+import { ResearchFlagship } from "@/components/research/flagship"
 import { useDocumentTitle } from "@/lib/title"
 
 /**
@@ -103,7 +104,7 @@ export function SectionHome({ section }: { section: string }) {
 /** The section's figures: the overview cards that belong to it, or its latest runs. */
 function SectionFigures({ section, base }: { section: string; base: string }) {
   if (section === "automation") return <RecentAutomationRuns base={base} />
-  if (section === "research") return <RecentResearch base={base} />
+  if (section === "research") return <ResearchFlagship base={base} />
   return <OverviewSlice section={section} base={base} />
 }
 
@@ -275,34 +276,3 @@ function RecentAutomationRuns({ base }: { base: string }) {
   )
 }
 
-function RecentResearch({ base }: { base: string }) {
-  const { t } = useTranslations()
-  const ws = useWorkspace()
-  const list = useResearchRuns(ws.id)
-  const runs = (list.data?.runs ?? []).slice(0, 5)
-  return (
-    <Panel
-      id="research-runs"
-      title={t("section.recentResearch")}
-      icon={<SearchCheckIcon />}
-      href={`${base}/research/runs`}
-    >
-      {list.error ? (
-        <ErrorState error={list.error} />
-      ) : !list.data ? (
-        <LoadingRows rows={3} />
-      ) : runs.length === 0 ? (
-        <Empty
-          title={t("research.empty")}
-          action={{ href: `${base}/research/runs`, label: t("research.tabRuns") }}
-        />
-      ) : (
-        <ul className="divide-y divide-nq-line">
-          {runs.map((r) => (
-            <ResearchRunRow key={r.id} run={r} />
-          ))}
-        </ul>
-      )}
-    </Panel>
-  )
-}
