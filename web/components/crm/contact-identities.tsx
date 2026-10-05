@@ -92,7 +92,7 @@ export function IdentitiesPanel({
   }
 
   return (
-    <section className="border border-nq-line bg-card px-5 py-4" data-identities-panel>
+    <section className="rounded-xl border border-nq-line bg-card px-5 py-4" data-identities-panel>
       <h2 className="text-base font-medium">{t("contacts.identities")}</h2>
       <p className="pt-1 text-xs text-muted-foreground">{t("contacts.identitiesHint")}</p>
 
@@ -246,7 +246,7 @@ export function MetaPanel({
   }
 
   return (
-    <section className="border border-nq-line bg-card px-5 py-4" data-meta-panel>
+    <section className="rounded-xl border border-nq-line bg-card px-5 py-4" data-meta-panel>
       <h2 className="text-base font-medium">{t("contacts.meta")}</h2>
       <p className="pt-1 text-xs text-muted-foreground">{t("contacts.metaHint")}</p>
 

@@ -4979,5 +4979,22 @@
   "inbox.dock.caughtUp": "All caught up",
   "inbox.intel.close": "Close the customer panel",
   "inbox.channel.allChannels": "All channels",
-  "common.loading": "Loading…"
+  "common.loading": "Loading…",
+  "record.tab.overview": "Overview",
+  "record.tab.activity": "Activity",
+  "record.tab.deals": "Deals",
+  "record.tab.profile": "Profile",
+  "record.tab.intelligence": "Intelligence",
+  "record.tab.people": "People",
+  "record.tab.details": "Details",
+  "record.message": "Message",
+  "record.conversations": "Conversations",
+  "record.subscriptions": "Subscriptions",
+  "record.noSubscriptions": "Not on any list yet.",
+  "record.details": "Details",
+  "record.viewAll": "View all",
+  "record.openDeals": "Open deals",
+  "record.dealsTotal": "{n} in total",
+  "record.updated": "Updated {when}",
+  "record.since": "Added {when}"
 }

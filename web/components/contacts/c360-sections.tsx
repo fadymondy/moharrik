@@ -9,6 +9,7 @@ not read is left out, never zeroed.
 */
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 import {
   BotIcon,
@@ -46,9 +47,7 @@ import {
   toast,
 } from "@fadymondy/nasaq/web"
 
-import { Bdi, isolate } from "@/components/bidi"
 import { DealForm } from "@/components/crm/deals"
-import { LifecycleBadge, ScoreMeter } from "@/components/crm/icp"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { Empty, Panel, useFormat } from "@/components/overview/overview-cards"
 import { ErrorState, LoadingRows } from "@/components/states"
@@ -64,7 +63,6 @@ import {
 import {
   contactTimelinePath,
   useContactReports,
-  useContactTimeline,
   type ContactAutomationRow,
   type ContactConversationRow,
   type ContactEvent,
@@ -121,73 +119,6 @@ const EVENT_ICON: Record<EventIcon, ReactNode> = {
   lifecycle: <WaypointsIcon />,
   lead: <UserPlusIcon />,
   rule: <WorkflowIcon />,
-}
-
-// ── header strip ─────────────────────────────────────────────────────────
-
-/** Lifecycle, fit and every channel the contact is reachable on or has talked on. */
-export function C360Header({
-  contact,
-  conversations,
-  base,
-}: {
-  contact: ContactDetail
-  conversations: ContactConversationRow[] | null | undefined
-  base: string
-}) {
-  const { t, locale } = useTranslations()
-  const f = useFormat()
-  // Channels that are real: the email and phone on the record, each linked identity, and the channel
-  // of every inbox conversation linked to the contact.
-  const channels = new Set<string>()
-  if (contact.email) channels.add("email")
-  if (contact.phone) channels.add("phone")
-  for (const i of contact.identities ?? []) channels.add(i.channel)
-  for (const c of conversations ?? []) channels.add(c.channel)
-
-  return (
-    <section
-      className="mx-6 mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 border border-nq-line bg-card px-5 py-4"
-      data-c360-header
-    >
-      <div className="flex items-center gap-2" data-c360-lifecycle>
-        <span className="text-xs text-muted-foreground">{t("lifecycle.label")}</span>
-        <LifecycleBadge stage={contact.lifecycle} />
-      </div>
-      <div className="flex items-center gap-2" data-c360-fit>
-        <span className="text-xs text-muted-foreground">{t("icp.fit")}</span>
-        <ScoreMeter score={contact.score} />
-      </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2" data-c360-channels>
-        <span className="text-xs text-muted-foreground">{t("c360.channels")}</span>
-        {channels.size === 0 ? (
-          <span className="text-sm text-muted-foreground">{t("c360.noChannels")}</span>
-        ) : (
-          [...channels].map((c) => (
-            <Badge key={c} variant="info" data-channel={c}>
-              {channelName(t, c)}
-            </Badge>
-          ))
-        )}
-      </div>
-      <div className="ms-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {contact.company ? (
-          <Link
-            className="hover:text-foreground hover:underline"
-            href={`${base}/companies/${contact.company.id}`}
-          >
-            <Bdi>{contact.company.name}</Bdi>
-          </Link>
-        ) : null}
-        {contact.source ? (
-          <span>{t("c360.source", { source: isolate(contact.source) })}</span>
-        ) : null}
-        <span title={f.exact(contact.created_at)}>
-          {t("c360.since", { when: dateOnly(locale, contact.created_at) })}
-        </span>
-      </div>
-    </section>
-  )
 }
 
 function dateOnly(locale: string, iso: string): string {
@@ -366,30 +297,26 @@ export function AiSummaryPanel({
 
 // ── next actions ─────────────────────────────────────────────────────────
 
-function jumpTo(anchor: string, focus?: string) {
-  const el = document.querySelector(anchor)
-  if (!el) return
-  el.scrollIntoView({ behavior: "smooth", block: "start" })
-  if (focus)
-    window.setTimeout(() => (document.getElementById(focus) as HTMLElement | null)?.focus(), 350)
-}
-
-/** Existing actions only: each one does what the same control lower on the page does. */
+/** Existing actions only: each one does what the same control on another tab does. */
 export function NextActionsPanel({
   contact,
   canWrite,
+  rec,
   generate,
   generating,
   onChanged,
 }: {
   contact: ContactDetail
   canWrite: boolean
+  /** The contact's record root (MH-1157): the forms these actions stand for live on its tabs. */
+  rec: string
   generate: () => void
   generating: boolean
   onChanged: () => void
 }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
+  const router = useRouter()
   const [dealOpen, setDealOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const stages = usePipelineStages(ws.id, canWrite && dealOpen)
@@ -427,7 +354,7 @@ export function NextActionsPanel({
             variant="secondary"
             size="sm"
             data-action="c360-log-activity"
-            onClick={() => jumpTo("[data-c360-activities]", "activity-body")}
+            onClick={() => router.push(`${rec}/activity?focus=activity-body`)}
           >
             <StickyNoteIcon />
             {t("c360.actions.logActivity")}
@@ -445,7 +372,7 @@ export function NextActionsPanel({
             variant="secondary"
             size="sm"
             data-action="c360-link-identity"
-            onClick={() => jumpTo("[data-identities-panel]", "identity-value")}
+            onClick={() => router.push(`${rec}/accounts?focus=identity-value`)}
           >
             <LinkIcon />
             {t("c360.actions.linkIdentity")}
@@ -750,81 +677,5 @@ export function AutomationsPanel({ rows, base }: { rows: ContactAutomationRow[];
         </ul>
       )}
     </Panel>
-  )
-}
-
-// ── the block the page mounts ────────────────────────────────────────────
-
-/** Header, AI summary, journey, next actions, then the timeline with conversations and automations. */
-export function C360Top({
-  contact,
-  canWrite,
-  base,
-  onChanged,
-  onReportChanged,
-}: {
-  contact: ContactDetail
-  canWrite: boolean
-  base: string
-  onChanged: () => void
-  onReportChanged: () => void
-}) {
-  const ws = useWorkspace()
-  const timeline = useContactTimeline(ws.id, contact.id)
-  const { reports, generate, generating } = useGenerateReport(contact.id, onReportChanged)
-  const canRead = ws.can("contacts:read")
-  return (
-    <>
-      <C360Header
-        contact={contact}
-        conversations={timeline.data?.overview?.conversations}
-        base={base}
-      />
-      <div className="mb-6 grid gap-4 px-6 lg:grid-cols-3">
-        {canRead ? (
-          <div className="min-w-0 lg:col-span-2">
-            <AiSummaryPanel generate={generate} generating={generating} reports={reports} />
-          </div>
-        ) : null}
-        <div className={cn("min-w-0", canRead ? "" : "lg:col-span-3")}>
-          <NextActionsPanel
-            contact={contact}
-            canWrite={canWrite}
-            generate={generate}
-            generating={generating}
-            onChanged={() => {
-              onChanged()
-              void timeline.mutate()
-            }}
-          />
-        </div>
-      </div>
-      <div className="mb-6 px-6">
-        <JourneyPanel contact={contact} />
-      </div>
-      {timeline.error ? (
-        <div className="px-6 pb-6">
-          <ErrorState error={timeline.error} />
-        </div>
-      ) : !timeline.data ? (
-        <div className="px-6 pb-6">
-          <LoadingRows rows={4} />
-        </div>
-      ) : (
-        <div className="mb-6 grid gap-4 px-6 lg:grid-cols-3">
-          <div className="min-w-0 lg:col-span-2">
-            <UnifiedTimeline contactId={contact.id} page={timeline.data} base={base} />
-          </div>
-          <div className="flex min-w-0 flex-col gap-4">
-            {timeline.data.overview?.conversations ? (
-              <ConversationsPanel rows={timeline.data.overview.conversations} base={base} />
-            ) : null}
-            {timeline.data.overview?.automations ? (
-              <AutomationsPanel rows={timeline.data.overview.automations} base={base} />
-            ) : null}
-          </div>
-        </div>
-      )}
-    </>
   )
 }

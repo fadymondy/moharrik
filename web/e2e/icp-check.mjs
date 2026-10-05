@@ -186,7 +186,7 @@ check(customers === apiCustomers, `lifecycle=customer: ${customers} rows = API $
 // ---- a contact's stage, by hand, recorded as the member's ------------------------------------
 const target = ((await apiGet("/api/w/contacts?lifecycle=none&limit=1")).contacts ?? [])[0]
 if (target) {
-  await page.goto(`${base}/en/w/${ws.slug}/contacts/${target.id}`, { waitUntil: "load" })
+  await page.goto(`${base}/en/w/${ws.slug}/contacts/${target.id}/profile`, { waitUntil: "load" })
   await page.waitForSelector("[data-lifecycle-panel]", { timeout: 20000 })
   await page.click("#contact-lifecycle")
   await page.click("[role=option] >> text=Lead")
@@ -232,7 +232,7 @@ if (fresh) {
     },
     [ws.id, fresh.id],
   )
-  await page.goto(`${base}/en/w/${ws.slug}/contacts/${fresh.id}`, { waitUntil: "load" })
+  await page.goto(`${base}/en/w/${ws.slug}/contacts/${fresh.id}/profile`, { waitUntil: "load" })
   await page.waitForSelector("[data-lifecycle-history] [data-lifecycle-event=deal_opened]", {
     timeout: 15000,
   })
@@ -262,9 +262,9 @@ const someContact = ((await apiGet("/api/w/contacts?sort=score&limit=1")).contac
 const pages = [
   ["icp", "settings/icp", "[data-ranking] [data-rank-row]"],
   ["contacts", "contacts", "[data-contact-row]"],
-  ["contact", `contacts/${someContact.id}`, "[data-score-panel] [data-reason]"],
+  ["contact", `contacts/${someContact.id}/profile`, "[data-score-panel] [data-reason]"],
   ["companies", "companies", "[data-score-button]"],
-  ["company", `companies/${someCompany.id}`, "[data-score-panel] [data-reason]"],
+  ["company", `companies/${someCompany.id}/details`, "[data-score-panel] [data-reason]"],
 ]
 for (const [name, route, ready] of pages) {
   for (const lang of ["en", "ar"]) {

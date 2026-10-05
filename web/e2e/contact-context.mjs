@@ -170,7 +170,7 @@ await pageAr.goto(`${base}/ar/login`, { waitUntil: "load" }).catch(() => {})
 // contacts list unauthenticated-safe route to confirm the locale boots and
 // the panel's static strings render RTL on a real page that has one: reuse
 // pageA's own contact by switching its locale prefix (same session cookie).
-await page.goto(`${base.replace(/\/$/, "")}/ar/w/${slug}/contacts/${contactId}`, {
+await page.goto(`${base.replace(/\/$/, "")}/ar/w/${slug}/contacts/${contactId}/intelligence`, {
   waitUntil: "load",
 })
 await page.waitForSelector("[data-contact-context-panel]", { timeout: 20000 })

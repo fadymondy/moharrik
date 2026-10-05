@@ -4979,5 +4979,22 @@
   "inbox.dock.caughtUp": "لا رسائل غير مقروءة",
   "inbox.intel.close": "أغلق لوحة العميل",
   "inbox.channel.allChannels": "كل القنوات",
-  "common.loading": "جارٍ التحميل…"
+  "common.loading": "جارٍ التحميل…",
+  "record.tab.overview": "نظرة عامة",
+  "record.tab.activity": "النشاط",
+  "record.tab.deals": "الصفقات",
+  "record.tab.profile": "الملف",
+  "record.tab.intelligence": "المعرفة",
+  "record.tab.people": "الأشخاص",
+  "record.tab.details": "التفاصيل",
+  "record.message": "مراسلة",
+  "record.conversations": "المحادثات",
+  "record.subscriptions": "الاشتراكات",
+  "record.noSubscriptions": "غير مشترك في أي قائمة بعد.",
+  "record.details": "التفاصيل",
+  "record.viewAll": "عرض الكل",
+  "record.openDeals": "صفقات مفتوحة",
+  "record.dealsTotal": "{n} إجمالًا",
+  "record.updated": "حُدّث {when}",
+  "record.since": "أُضيفت {when}"
 }

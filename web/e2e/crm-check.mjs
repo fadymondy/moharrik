@@ -56,6 +56,8 @@ await pageA.click('[data-company-row="Acme Corp"] a')
 await pageA.waitForURL(/\/companies\/[^/]+$/, { timeout: 10000 })
 const companyUrl = pageA.url()
 const companyId = companyUrl.split("/companies/")[1]
+// MH-1157: the record is tabbed: the form lives on Details, the timeline on Activity.
+await pageA.goto(`${companyUrl}/details`, { waitUntil: "networkidle" })
 await pageA.waitForSelector('[data-form="edit-company"]', { timeout: 10000 })
 out.companyDetailLoaded = true
 await pageA.fill("#edit-company-industry", "Software")
@@ -63,6 +65,7 @@ await pageA.click('[data-form="edit-company"] button[type=submit]')
 await pageA.waitForTimeout(600)
 
 // log a note + task on the company timeline
+await pageA.goto(`${companyUrl}/activity`, { waitUntil: "networkidle" })
 await pageA.click("[data-kind=note]")
 await pageA.fill("#activity-body", "First contact made")
 await pageA.click("[data-form=activity] button[type=submit]")
@@ -99,6 +102,7 @@ await pageA.click("[data-form=add-contact] button[type=submit]")
 await pageA.waitForSelector('[data-contact-row="jane@acme.test"]', { timeout: 10000 })
 await pageA.click('[data-contact-row="jane@acme.test"] a')
 await pageA.waitForURL(/\/contacts\/[^/]+$/, { timeout: 10000 })
+await pageA.goto(`${pageA.url()}/details`, { waitUntil: "networkidle" })
 await pageA.waitForSelector('[data-form="edit-contact"]', { timeout: 10000 })
 out.contactCompanySelectPresent = await pageA.evaluate(
   () => document.querySelector("#edit-contact-company") != null,
