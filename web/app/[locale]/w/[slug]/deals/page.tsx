@@ -5,8 +5,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   CoinsIcon,
   HandshakeIcon,
+  KanbanIcon,
+  ListIcon,
   PercentIcon,
   PlusIcon,
+  RadarIcon,
   SettingsIcon,
   TrophyIcon,
 } from "lucide-react"
@@ -44,6 +47,7 @@ import { useDocumentTitle } from "@/lib/title"
 
 type View = "board" | "list" | "signals"
 const VIEWS: View[] = ["board", "list", "signals"]
+const VIEW_ICON = { board: <KanbanIcon />, list: <ListIcon />, signals: <RadarIcon /> } as const
 
 const LIST_PAGE = 50
 
@@ -192,6 +196,7 @@ function Opportunities() {
           <TabsList variant="underline" aria-label={t("deals.viewLabel")}>
             {VIEWS.map((v) => (
               <TabsTab key={v} value={v} data-tab={v}>
+                {VIEW_ICON[v]}
                 {t(`opps.view.${v}`)}
                 {v === "signals" && signalCount ? (
                   <span className="ms-1 text-muted-foreground tabular-nums" data-signal-total>

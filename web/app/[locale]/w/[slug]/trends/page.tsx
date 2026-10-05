@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { BookmarkIcon, RadioIcon, SettingsIcon } from "lucide-react"
+import { BookmarkIcon, NewspaperIcon, RadioIcon, SettingsIcon, TrendingUpIcon } from "lucide-react"
 import { Button, Input, Tabs, TabsList, TabsPanel, TabsTab, toast } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
@@ -66,9 +66,11 @@ export default function TrendsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-3">
           <TabsList variant="underline">
             <TabsTab value="topics" data-tab="topics">
+              <TrendingUpIcon />
               {t("trends.tabTopics")}
             </TabsTab>
             <TabsTab value="items" data-tab="items">
+              <NewspaperIcon />
               {t("trends.tabItems")}
             </TabsTab>
           </TabsList>

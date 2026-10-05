@@ -12,7 +12,15 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ChartLineIcon, FileTextIcon, InfoIcon, LoaderIcon, SearchIcon } from "lucide-react"
+import {
+  ChartLineIcon,
+  FileTextIcon,
+  InfoIcon,
+  LoaderIcon,
+  NetworkIcon,
+  ScanSearchIcon,
+  SearchIcon,
+} from "lucide-react"
 
 import { TrendChart, type TrendSeries } from "@/components/charts/trend-chart"
 import { Ltr } from "@/components/copy-field"
@@ -222,12 +230,15 @@ function SearchConsole() {
           <div className="px-6 pb-4">
             <TabsList variant="underline">
               <TabsTab value="performance" data-tab="performance">
+                <ChartLineIcon />
                 {t("gsc.tabPerformance")}
               </TabsTab>
               <TabsTab value="inspect" data-tab="inspect">
+                <ScanSearchIcon />
                 {t("gsc.tabInspect")}
               </TabsTab>
               <TabsTab value="sitemaps" data-tab="sitemaps">
+                <NetworkIcon />
                 {t("gsc.tabSitemaps")}
               </TabsTab>
             </TabsList>

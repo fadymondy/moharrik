@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   ChartLineIcon,
   CheckCircle2Icon,
+  MessagesSquareIcon,
   RefreshCwIcon,
   SearchIcon,
   TriangleAlertIcon,
@@ -89,9 +90,11 @@ function Integrations() {
         <Tabs value={tab} onValueChange={(v) => setTab(v as IntegrationsTab)}>
           <TabsList variant="underline" className="w-max">
             <TabsTab value="channels" data-integrations-tab="channels">
+              <MessagesSquareIcon />
               {t("channels.title")}
             </TabsTab>
             <TabsTab value="google" data-integrations-tab="google">
+              <GoogleMark />
               {t("integrations.google")}
             </TabsTab>
           </TabsList>

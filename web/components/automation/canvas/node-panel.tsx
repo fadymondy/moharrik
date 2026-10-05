@@ -30,6 +30,9 @@ import {
   HandIcon,
   PlayIcon,
   PlusIcon,
+  Settings2Icon,
+  SlidersHorizontalIcon,
+  SquareArrowOutUpRightIcon,
   Trash2Icon,
   WorkflowIcon,
   XIcon,
@@ -39,7 +42,20 @@ import {
 import { PickControl } from "@/components/automation/pick-control"
 import { placeholdersIn, validParamName } from "@/components/automation/params-editor"
 import { PickSelect } from "@/components/crm/shared"
-import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, Tabs, TabsList, TabsPanel, TabsTab, Textarea } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Tabs,
+  TabsList,
+  TabsPanel,
+  TabsTab,
+  Textarea,
+} from "@fadymondy/nasaq/web"
 import { Label } from "@/components/form-layout"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { AutomationSchedule, RunStep, WorkflowParam, WorkflowStep } from "@/lib/api"
@@ -188,12 +204,15 @@ export function StepPanel({
       >
         <TabsList variant="underline" className="w-full justify-start border-b border-nq-line px-2">
           <TabsTab value="parameters" className="flex-none" data-panel-tab="parameters">
+            <SlidersHorizontalIcon />
             {t("canvas.tab.parameters")}
           </TabsTab>
           <TabsTab value="settings" className="flex-none" data-panel-tab="settings">
+            <Settings2Icon />
             {t("canvas.tab.settings")}
           </TabsTab>
           <TabsTab value="output" className="flex-none" data-panel-tab="output">
+            <SquareArrowOutUpRightIcon />
             {t("canvas.tab.output")}
             {output && output.status !== "pending" ? (
               <span
@@ -346,7 +365,9 @@ function FieldInput({
   const label = (
     <Label htmlFor={id} className="text-xs">
       {t(`automation.field.${def.name}`)}
-      {def.required ? null : <span className="text-muted-foreground"> ({t("common.optional")})</span>}
+      {def.required ? null : (
+        <span className="text-muted-foreground"> ({t("common.optional")})</span>
+      )}
     </Label>
   )
   if (def.kind === "textarea") {
@@ -748,7 +769,9 @@ export function TriggerPanel({
                 onChange={(e) => set(i, { label: e.target.value })}
               />
               {p.secret ? (
-                <p className="text-xs text-muted-foreground">{t("automation.params.secretNoDefault")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("automation.params.secretNoDefault")}
+                </p>
               ) : (
                 <Input
                   aria-label={t("automation.params.default")}

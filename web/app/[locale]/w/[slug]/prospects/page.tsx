@@ -2,7 +2,17 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { ArrowRightIcon, InfoIcon, LoaderCircleIcon, RadarIcon, UserIcon } from "lucide-react"
+import {
+  ArrowRightIcon,
+  CircleCheckIcon,
+  CircleXIcon,
+  InfoIcon,
+  ListIcon,
+  LoaderCircleIcon,
+  RadarIcon,
+  SparklesIcon,
+  UserIcon,
+} from "lucide-react"
 import { Button, Tabs, TabsList, TabsTab, toast } from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
@@ -19,6 +29,12 @@ import { useProspectProfile, useProspects, useResearchRuns } from "@/lib/queries
 import { useDocumentTitle } from "@/lib/title"
 
 const STATUSES = ["new", "accepted", "rejected", "all"] as const
+const STATUS_ICON = {
+  new: <SparklesIcon />,
+  accepted: <CircleCheckIcon />,
+  rejected: <CircleXIcon />,
+  all: <ListIcon />,
+} as const
 
 /**
  * Prospect discovery (MH-397): companies research found that look like the
@@ -120,6 +136,7 @@ export default function ProspectsPage() {
           <TabsList variant="underline">
             {STATUSES.map((s) => (
               <TabsTab key={s} value={s} data-tab={s}>
+                {STATUS_ICON[s]}
                 {t(`prospects.status.${s}`)}
                 {counts && s !== "all" ? (
                   <span className="ms-1 text-muted-foreground tabular-nums">
