@@ -4976,5 +4976,7 @@
   "connect.createKey": "Create my key",
   "inbox.dock.open": "Open inbox",
   "inbox.dock.close": "Close inbox",
-  "inbox.dock.caughtUp": "All caught up"
+  "inbox.dock.caughtUp": "All caught up",
+  "inbox.intel.close": "Close the customer panel",
+  "inbox.channel.allChannels": "All channels"
 }

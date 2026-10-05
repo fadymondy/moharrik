@@ -3,6 +3,9 @@
 // into the list + thread, Escape closes it; ?inbox=all opens it in place and leaves the URL;
 // /inbox?c= redirects to the home with that thread open; the sidebar has no Inbox row and
 // Settings carries Canned replies and Email templates; Integrations has the Channels tab.
+// Review round: the filters sit under the search in the list column, the customer panel stays
+// closed until the person in the thread header is clicked, and the docked edge resizes along
+// one axis only (checked from the keyboard, so no drag maths).
 // Runs en/ar × light/dark × 1440/390. Read-only: fails on any API write other than marking a
 // thread read.
 //   DEMO_EMAIL=... DEMO_PASSWORD=... node e2e/mh1147-inbox-dock.mjs <base> [shots]
@@ -87,12 +90,34 @@ for (const scheme of ["light", "dark"]) {
         await page.click(BAR)
         const opened = await page.waitForSelector(`${DOCK} [data-inbox-panel]`, { timeout: 15000 }).then(() => true, () => false)
         check(`${pk}-opens`, opened)
+        const shape = await page.evaluate((dock) => {
+          const d = document.querySelector(dock)
+          const handle = d?.querySelector("[data-slot=copilot-dock-resize]")
+          return {
+            side: d?.getAttribute("data-side"),
+            handle: handle?.getAttribute("aria-orientation") ?? null,
+            filtersInColumn: !!d?.querySelector("[data-conversation-column] [data-filter='all']") && !!d?.querySelector("[data-conversation-column] #inbox-status"),
+          }
+        }, DOCK)
+        check(`${pk}-filters-under-search`, shape.filtersInColumn, shape)
+        check(`${pk}-resize-axis`, shape.handle === (shape.side === "bottom" ? "horizontal" : "vertical"), shape)
+        if (shape.handle && p === "") {
+          const h0 = await page.locator(DOCK).evaluate((e) => e.getBoundingClientRect()[e.dataset.side === "bottom" ? "height" : "width"])
+          await page.focus(`${DOCK} [data-slot=copilot-dock-resize]`)
+          await page.keyboard.press(shape.side === "bottom" ? "ArrowDown" : loc === "ar" ? "ArrowRight" : "ArrowLeft")
+          await page.keyboard.press(shape.side === "bottom" ? "ArrowDown" : loc === "ar" ? "ArrowRight" : "ArrowLeft")
+          const h1 = await page.locator(DOCK).evaluate((e) => e.getBoundingClientRect()[e.dataset.side === "bottom" ? "height" : "width"])
+          check(`${pk}-resizes`, shape.side === "bottom" ? h1 < h0 : h1 > h0, { h0, h1 })
+          await page.dblclick(`${DOCK} [data-slot=copilot-dock-resize]`)
+        }
         const rows = await page.waitForSelector(`${DOCK} [data-conversation]`, { timeout: 20000 }).then(() => true, () => false)
         check(`${pk}-rows`, rows)
         if (rows) {
           await page.locator(`${DOCK} [data-conversation]`).first().click()
           const thread = await page.waitForSelector(`${DOCK} [data-thread]`, { timeout: 20000 }).then(() => true, () => false)
           check(`${pk}-thread`, thread)
+          const intelShut = await page.evaluate(() => !document.querySelector("[data-intel-column]") && !document.querySelector("[data-intel-drawer]"))
+          check(`${pk}-intel-closed-by-default`, intelShut)
           // Narrow docks show one column at a time: the thread replaces the list, with a back button.
           const cols = await page.evaluate((dock) => {
             const vis = (s) => {
@@ -103,6 +128,14 @@ for (const scheme of ["light", "dark"]) {
           }, DOCK)
           check(`${pk}-columns`, cols.thread && (narrow ? !cols.list && cols.back : true), cols)
           if (shots && p === "") await page.screenshot({ path: path.join(shots, `${k}-open.png`) })
+          // The person opens the customer panel: a column in a wide dock, a drawer otherwise.
+          await page.click(`${DOCK} [data-intel-trigger]`)
+          const intel = await page.waitForSelector("[data-intel-column], [data-intel-drawer]", { timeout: 15000 }).then(() => true, () => false)
+          check(`${pk}-intel-opens`, intel)
+          if (shots && p === "") await page.screenshot({ path: path.join(shots, `${k}-intel.png`) })
+          if (await page.locator("[data-intel-close]").count()) await page.click("[data-intel-close]")
+          else await page.keyboard.press("Escape")
+          await page.waitForTimeout(400)
         }
         await page.locator(`${DOCK} [data-inbox-dock-close]`).click()
         check(`${pk}-closes`, await page.waitForSelector(BAR, { timeout: 10000 }).then(() => true, () => false))

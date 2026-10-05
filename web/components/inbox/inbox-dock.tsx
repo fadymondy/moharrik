@@ -89,6 +89,10 @@ export function InboxDock() {
       persistKey="moharrik.inbox-dock.side"
       height="min(80vh, 48rem)"
       width="34rem"
+      // Drag the inner edge: height at the bottom, width on the side (MH-1147 review).
+      resizable
+      // A floating sheet a little off the edges rather than a slab glued to them.
+      className="data-[side=bottom]:inset-x-2 data-[side=bottom]:bottom-2 data-[side=bottom]:max-h-[calc(100%-1rem)] data-[side=end]:inset-y-2 data-[side=end]:end-2 data-[side=end]:max-w-[calc(100%-1rem)] rounded-card border"
       launcherIcon={<InboxIcon />}
       dockLabels={{
         open: t("inbox.dock.open"),

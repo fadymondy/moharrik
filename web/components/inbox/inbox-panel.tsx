@@ -18,9 +18,9 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   InboxIcon,
-  PanelRightOpenIcon,
   PinIcon,
   StarIcon,
+  XIcon,
 } from "lucide-react"
 import {
   Badge,
@@ -32,9 +32,6 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  Tabs,
-  TabsList,
-  TabsTab,
   toast,
 } from "@fadymondy/nasaq/web"
 
@@ -95,8 +92,9 @@ const statusVariant: Record<ConversationStatus, "brand" | "neutral" | "outline">
  * here and reset when the dock remounts the panel for a new link.
  *
  * Its columns follow the dock's width, not the screen's (container queries): docked to
- * the side it is one column, at the bottom of a laptop it is list + thread, and from
- * 72rem the customer panel joins as a third column.
+ * the side it is one column, at the bottom of a laptop it is list + thread. The customer
+ * panel opens only from the person in the thread header: a third column when the dock is
+ * 72rem or wider, a drawer when it is narrower.
  */
 export function InboxPanel({
   selected,
@@ -289,8 +287,8 @@ export function InboxPanel({
       document.getElementById("inbox-search")?.focus()
       return
     }
-    // Cycle channel tabs (MH-568): [ / ] step through All + whatever
-    // channel_counts lists, same order the tab strip renders them in.
+    // Cycle channels (MH-568): [ / ] step through All + whatever
+    // channel_counts lists, same order the channel select offers them in.
     if (e.key === "[" || e.key === "]") {
       e.preventDefault()
       const order = ["", ...channelCounts.map((c) => c.channel)]
@@ -323,6 +321,23 @@ export function InboxPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursorIdx])
 
+  // The customer panel is closed until the person in the thread header is clicked. Whether
+  // it can sit beside the thread depends on the dock's width, so measure the panel itself.
+  const [intelOpen, setIntelOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [wide, setWide] = useState(false)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+      setWide((entry?.contentRect.width ?? 0) >= 72 * rem)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const intelInline = intelOpen && wide
+
   const statusOpts = [
     { value: "open", label: t("inbox.status.open") },
     { value: "snoozed", label: t("inbox.status.snoozed") },
@@ -330,118 +345,30 @@ export function InboxPanel({
   ]
 
   return (
-    <div className="@container flex min-h-0 flex-1 flex-col" onKeyDown={onKey} data-inbox-panel>
-      <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-nq-line ps-4 pe-2">
-        <InboxIcon className="size-4 shrink-0 text-primary" aria-hidden />
-        <h2 className="shrink-0 text-sm font-medium">{t("nav.inbox")}</h2>
+    <div
+      ref={rootRef}
+      className="@container flex min-h-0 flex-1 flex-col"
+      onKeyDown={onKey}
+      data-inbox-panel
+      data-intel-open={intelOpen || undefined}
+    >
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-nq-line bg-nq-surface-soft/60 ps-4 pe-2">
+        <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary [&_svg]:size-4">
+          <InboxIcon aria-hidden />
+        </span>
+        <h2 className="shrink-0 text-sm font-semibold">{t("nav.inbox")}</h2>
         {list.data?.unread_count ? (
           <Badge variant="brand" data-inbox-unread={list.data.unread_count}>
             {list.data.unread_count}
           </Badge>
         ) : null}
-        {/* Channel tabs (MH-568): data-driven from channel_counts, not a fixed
-            list — a channel this workspace has never had a conversation on or a
-            connection for gets no tab at all. The strip scrolls sideways. */}
-        <div className="min-w-0 flex-1 overflow-x-auto">
-          {channelCounts.length > 0 ? (
-            <Tabs
-              value={channel || "all"}
-              onValueChange={(v) => setChannel(v === "all" ? "" : String(v))}
-            >
-              <TabsList variant="underline" className="w-max">
-                <TabsTab value="all" data-channel-tab="all">
-                  {t("inbox.channel.all")}
-                </TabsTab>
-                {channelCounts.map((c) => {
-                  const Icon = channelIcon(c.channel)
-                  return (
-                    <TabsTab key={c.channel} value={c.channel} data-channel-tab={c.channel}>
-                      <Icon />
-                      {channelLabel(c.channel, t)}
-                      {c.unread ? <Badge variant="neutral">{c.unread}</Badge> : null}
-                    </TabsTab>
-                  )
-                })}
-              </TabsList>
-            </Tabs>
-          ) : null}
-        </div>
+        <span className="flex-1" />
         <div className="flex shrink-0 items-center gap-0.5">{controls}</div>
       </header>
 
       <div
-        className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-nq-line px-4 py-2 [&>*]:shrink-0"
-        role="group"
-        aria-label={t("inbox.filters")}
+        className={`grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[20rem_minmax(0,1fr)] ${intelInline ? "@6xl:grid-cols-[20rem_minmax(0,1fr)_20rem]" : ""}`}
       >
-        <div className="w-40">
-          <PickSelect
-            id="inbox-status"
-            value={status}
-            onChange={setStatus}
-            options={statusOpts}
-            noneLabel={t("inbox.allStatuses")}
-          />
-        </div>
-        {channel === "email" && mailboxOpts.length > 1 ? (
-          <div className="w-44">
-            <PickSelect
-              id="inbox-mailbox"
-              value={mailboxFilter}
-              onChange={setMailboxFilter}
-              options={mailboxOpts.map((m) => ({ value: m.id, label: m.name }))}
-              noneLabel={t("inbox.mailbox.all")}
-            />
-          </div>
-        ) : null}
-        {(
-          [
-            ["", t("inbox.org.filter.all")],
-            [
-              "unread",
-              t("inbox.filterUnread") +
-                (list.data?.unread_count ? ` (${list.data.unread_count})` : ""),
-            ],
-            ["favourites", t("inbox.org.filter.favourites")],
-            ["groups", t("inbox.org.filter.groups")],
-          ] as const
-        ).map(([key, label]) => (
-          <Button
-            key={key || "all"}
-            type="button"
-            size="sm"
-            variant={chip === key ? "primary" : "secondary"}
-            aria-pressed={chip === key}
-            onClick={() => setChip(chip === key ? "" : key)}
-            data-filter={key || "all"}
-            className="rounded-full"
-          >
-            {label}
-          </Button>
-        ))}
-        {(labels.data?.labels ?? []).map((l) => {
-          const key = `label:${l.id}`
-          return (
-            <Button
-              key={key}
-              type="button"
-              size="sm"
-              variant={chip === key ? "primary" : "secondary"}
-              aria-pressed={chip === key}
-              onClick={() => setChip(chip === key ? "" : key)}
-              data-filter="label"
-              data-label-filter={l.id}
-              data-tag={l.color}
-              className="rounded-full"
-            >
-              <span className="size-2 rounded-full bg-(--tag)" aria-hidden />
-              <Bdi>{l.name}</Bdi>
-            </Button>
-          )
-        })}
-      </div>
-
-      <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[20rem_minmax(0,1fr)] @6xl:grid-cols-[20rem_minmax(0,1fr)_20rem]">
         {/* The chat list column (MH-592): its own search on top, so what you
             search is right above what it finds, and the list below it. The
             search stays put while the list loads, errors or comes back empty,
@@ -450,18 +377,111 @@ export function InboxPanel({
           className={`flex min-h-0 min-w-0 flex-col @3xl:border-e @3xl:border-nq-line ${selected ? "@max-3xl:hidden" : ""}`}
           data-conversation-column
         >
-          <div className="shrink-0 border-b border-nq-line p-2">
-            <input
-              id="inbox-search"
-              type="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t("inbox.searchPlaceholder")}
-              aria-label={t("inbox.searchPlaceholder")}
-              dir="auto"
-              data-search="conversations"
-              className="h-8 w-full border border-nq-line bg-card px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nq-brand"
-            />
+          {/* Search, then the filters under it (MH-1147 review): what narrows the list sits
+              right above the list, in the list's own column. */}
+          <div
+            className="shrink-0 space-y-2 border-b border-nq-line p-3"
+            role="group"
+            aria-label={t("inbox.filters")}
+          >
+            <div className="relative">
+              <SearchIcon
+                className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <input
+                id="inbox-search"
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t("inbox.searchPlaceholder")}
+                aria-label={t("inbox.searchPlaceholder")}
+                dir="auto"
+                data-search="conversations"
+                className="h-9 w-full rounded-full border border-nq-line bg-card ps-8 pe-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nq-brand"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <PickSelect
+                id="inbox-status"
+                value={status}
+                onChange={setStatus}
+                options={statusOpts}
+                noneLabel={t("inbox.allStatuses")}
+              />
+              {/* Channels (MH-568) stay data-driven from channel_counts: one never used here
+                  is not offered. [ and ] still step through them from the keyboard. */}
+              <div data-channel-filter={channel || "all"}>
+                <PickSelect
+                  id="inbox-channel"
+                  value={channel}
+                  onChange={setChannel}
+                  options={channelCounts.map((c) => ({
+                    value: c.channel,
+                    label: channelLabel(c.channel, t) + (c.unread ? ` (${c.unread})` : ""),
+                  }))}
+                  noneLabel={t("inbox.channel.allChannels")}
+                />
+              </div>
+              {channel === "email" && mailboxOpts.length > 1 ? (
+                <div className="col-span-2">
+                  <PickSelect
+                    id="inbox-mailbox"
+                    value={mailboxFilter}
+                    onChange={setMailboxFilter}
+                    options={mailboxOpts.map((m) => ({ value: m.id, label: m.name }))}
+                    noneLabel={t("inbox.mailbox.all")}
+                  />
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["", t("inbox.org.filter.all")],
+                  [
+                    "unread",
+                    t("inbox.filterUnread") +
+                      (list.data?.unread_count ? ` (${list.data.unread_count})` : ""),
+                  ],
+                  ["favourites", t("inbox.org.filter.favourites")],
+                  ["groups", t("inbox.org.filter.groups")],
+                ] as const
+              ).map(([key, label]) => (
+                <Button
+                  key={key || "all"}
+                  type="button"
+                  size="sm"
+                  variant={chip === key ? "primary" : "secondary"}
+                  aria-pressed={chip === key}
+                  onClick={() => setChip(chip === key ? "" : key)}
+                  data-filter={key || "all"}
+                  className="rounded-full"
+                >
+                  {label}
+                </Button>
+              ))}
+              {(labels.data?.labels ?? []).map((l) => {
+                const key = `label:${l.id}`
+                return (
+                  <Button
+                    key={key}
+                    type="button"
+                    size="sm"
+                    variant={chip === key ? "primary" : "secondary"}
+                    aria-pressed={chip === key}
+                    onClick={() => setChip(chip === key ? "" : key)}
+                    data-filter="label"
+                    data-label-filter={l.id}
+                    data-tag={l.color}
+                    className="rounded-full"
+                  >
+                    <span className="size-2 rounded-full bg-(--tag)" aria-hidden />
+                    <Bdi>{l.name}</Bdi>
+                  </Button>
+                )
+              })}
+            </div>
           </div>
           {archived ? (
             <button
@@ -581,6 +601,9 @@ export function InboxPanel({
               onChanged={() => list.mutate()}
               onBack={() => select(null)}
               typing={typingByConversation[selected]}
+              intelOpen={intelOpen}
+              intelInline={intelInline}
+              onIntelOpenChange={setIntelOpen}
             />
           ) : (
             <p className="px-6 py-10 text-center text-sm text-muted-foreground">
@@ -588,21 +611,32 @@ export function InboxPanel({
             </p>
           )}
         </div>
-        {/* The customer-intelligence panel (MH-1063): the third column from a 72rem
-            dock; narrower than that it is a drawer, opened from the thread header. */}
-        <aside
-          className="hidden min-h-0 min-w-0 overflow-y-auto @6xl:block @6xl:border-s @6xl:border-nq-line"
-          aria-label={t("inbox.intel.title")}
-          data-intel-column
-        >
-          {selected ? (
-            <CustomerPanel key={selected} id={selected} onChanged={() => list.mutate()} />
-          ) : (
-            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-              {t("inbox.intel.pickOne")}
-            </p>
-          )}
-        </aside>
+        {/* The customer-intelligence panel (MH-1063): opened from the person in the thread
+            header (MH-1147 review), never on its own. A third column in a 72rem dock;
+            narrower than that the thread shows it as a drawer instead. */}
+        {intelInline && selected ? (
+          <aside
+            className="hidden min-h-0 min-w-0 flex-col border-s border-nq-line @6xl:flex"
+            aria-label={t("inbox.intel.title")}
+            data-intel-column
+          >
+            <div className="flex h-12 shrink-0 items-center gap-2 border-b border-nq-line ps-4 pe-2">
+              <h3 className="flex-1 truncate text-sm font-semibold">{t("inbox.intel.title")}</h3>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("inbox.intel.close")}
+                onClick={() => setIntelOpen(false)}
+                data-intel-close
+              >
+                <XIcon />
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <CustomerPanel key={selected} id={selected} onChanged={() => list.mutate()} />
+            </div>
+          </aside>
+        ) : null}
       </div>
     </div>
   )
@@ -935,6 +969,9 @@ function Thread({
   onChanged,
   onBack,
   typing,
+  intelOpen,
+  intelInline,
+  onIntelOpenChange,
 }: {
   id: string
   onChanged: () => void
@@ -942,6 +979,11 @@ function Thread({
   onBack: () => void
   /** MH-660: "composing" | "recording" | undefined, from the page's shared typing map. */
   typing?: string
+  /** The customer panel: opened from the person in the header, shared across threads. */
+  intelOpen: boolean
+  /** It sits beside the thread (a wide dock), so the thread shows no drawer for it. */
+  intelInline: boolean
+  onIntelOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
@@ -963,8 +1005,6 @@ function Thread({
   // MH-662: thread header menu — search, select-messages and the Contact info panel.
   const [searchOpen, setSearchOpen] = useState(false)
   const [contactInfoOpen, setContactInfoOpen] = useState(false)
-  // MH-1063: below 1280px the customer panel is a drawer.
-  const [panelOpen, setPanelOpen] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
@@ -1088,128 +1128,145 @@ function Thread({
 
   return (
     <section data-thread={id} className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-nq-line px-4 py-3">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="@3xl:hidden"
-          aria-label={t("common.back")}
-          onClick={onBack}
-          data-thread-back
-        >
-          <ArrowLeftIcon className="rtl:rotate-180" />
-        </Button>
-        <PersonAvatar
-          id={c.contact_id || c.id}
-          name={headerWho}
-          photoUrl={c.avatar_url}
-          size="lg"
-          className="shrink-0"
-        />
-        {/* Its own row on a phone: beside the assignee and snooze controls it was cut to one letter. */}
-        <div className="min-w-0 flex-1 max-sm:basis-full">
-          <BdiBlock as="p" className="truncate text-sm font-medium" data-thread-title>
-            {headerWho}
-          </BdiBlock>
-          {/* On an email thread the SUBJECT is what the thread is about, and it
-              was nowhere on this page — the e2e caught that. Chat has no
-              subject worth showing, so it is only rendered when there is one. */}
-          {c.subject ? (
-            <BdiBlock as="p" className="truncate text-sm text-foreground" data-thread-subject>
-              {c.subject}
-            </BdiBlock>
-          ) : null}
-          {typing ? (
-            <p className="truncate text-xs text-primary" data-typing-indicator>
-              <Bdi>
-                {typing === "recording"
-                  ? t("inbox.thread.recordingAudio")
-                  : t("inbox.thread.typing")}
-              </Bdi>
-            </p>
-          ) : (
-            <p className="truncate text-xs text-muted-foreground">
-              {t(`inbox.channel.${c.channel}`)}
-              {c.customer_email ? (
+      {/* Narrow (a side dock): who and the icons on the first row, assign / snooze / close
+          on a second. Wide: one row. The person opens the customer panel (MH-1147 review). */}
+      <header className="@container/th shrink-0 border-b border-nq-line px-3 py-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="@3xl:hidden"
+            aria-label={t("common.back")}
+            onClick={onBack}
+            data-thread-back
+          >
+            <ArrowLeftIcon className="rtl:rotate-180" />
+          </Button>
+          <button
+            type="button"
+            onClick={() => onIntelOpenChange(!intelOpen)}
+            aria-expanded={intelOpen}
+            aria-label={`${t(intelOpen ? "inbox.intel.close" : "inbox.intel.open")}: ${headerWho}`}
+            title={t(intelOpen ? "inbox.intel.close" : "inbox.intel.open")}
+            className="-my-1 flex min-w-0 flex-[1_1_12rem] items-center gap-3 rounded-lg px-1.5 py-1 text-start transition-colors duration-150 hover:bg-nq-surface-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nq-focus aria-expanded:bg-nq-surface-soft"
+            data-intel-trigger
+          >
+            <PersonAvatar
+              id={c.contact_id || c.id}
+              name={headerWho}
+              photoUrl={c.avatar_url}
+              size="md"
+              className="shrink-0"
+            />
+            <span className="min-w-0 flex-1">
+              <BdiBlock
+                as="span"
+                className="block truncate text-sm font-semibold"
+                data-thread-title
+              >
+                {headerWho}
+              </BdiBlock>
+              {/* On an email thread the SUBJECT is what the thread is about; chat has none. */}
+              {c.subject ? (
+                <BdiBlock
+                  as="span"
+                  className="block truncate text-xs text-foreground"
+                  data-thread-subject
+                >
+                  {c.subject}
+                </BdiBlock>
+              ) : null}
+              {typing ? (
+                <span className="block truncate text-xs text-primary" data-typing-indicator>
+                  <Bdi>
+                    {typing === "recording"
+                      ? t("inbox.thread.recordingAudio")
+                      : t("inbox.thread.typing")}
+                  </Bdi>
+                </span>
+              ) : (
+                <span className="block truncate text-xs text-muted-foreground">
+                  {t(`inbox.channel.${c.channel}`)}
+                  {c.customer_email ? (
+                    <>
+                      {" · "}
+                      <Ltr>{c.customer_email}</Ltr>
+                    </>
+                  ) : null}
+                  {c.customer_phone ? (
+                    <>
+                      {" · "}
+                      <Ltr>{c.customer_phone}</Ltr>
+                    </>
+                  ) : null}
+                </span>
+              )}
+            </span>
+          </button>
+          {canWrite ? (
+            <div
+              className="order-last flex basis-full items-center gap-2 @2xl/th:order-none @2xl/th:basis-auto"
+              data-thread-actions
+            >
+              {/* The customer column carries assign and snooze when it sits beside the thread. */}
+              {!intelInline ? (
                 <>
-                  {" · "}
-                  <Ltr>{c.customer_email}</Ltr>
+                  <div className="min-w-0 flex-1 @2xl/th:w-44 @2xl/th:flex-none">
+                    <PickSelect
+                      id="assignee"
+                      value={c.assignee_user_id ?? ""}
+                      onChange={(v) => patch({ assignee_user_id: v }, t("inbox.assigned"))}
+                      options={assigneeOpts}
+                      noneLabel={t("inbox.unassigned")}
+                    />
+                  </div>
+                  <SnoozeControl c={c} onChanged={refresh} />
                 </>
               ) : null}
-              {c.customer_phone ? (
-                <>
-                  {" · "}
-                  <Ltr>{c.customer_phone}</Ltr>
-                </>
-              ) : null}
-            </p>
-          )}
-          <SnoozedNote c={c} />
-        </div>
-        {canWrite ? (
-          <>
-            {/* From 1280px the customer panel carries assign and snooze (MH-1063),
-                so the narrower thread column keeps room for the name. */}
-            <div className="contents @6xl:hidden">
-              <div className="w-44">
-                <PickSelect
-                  id="assignee"
-                  value={c.assignee_user_id ?? ""}
-                  onChange={(v) => patch({ assignee_user_id: v }, t("inbox.assigned"))}
-                  options={assigneeOpts}
-                  noneLabel={t("inbox.unassigned")}
-                />
-              </div>
-              <SnoozeControl c={c} onChanged={refresh} />
+              <Button
+                variant={c.status === "closed" ? "secondary" : "primary"}
+                size="sm"
+                className={intelInline ? "" : "shrink-0"}
+                data-action={c.status === "closed" ? "reopen" : "close"}
+                onClick={() =>
+                  patch(
+                    { status: c.status === "closed" ? "open" : "closed" },
+                    c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"),
+                  )
+                }
+              >
+                {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
+              </Button>
             </div>
+          ) : null}
+          <div className="flex shrink-0 items-center">
+            <VisitorContext c={c} />
             <Button
-              variant="secondary"
-              size="sm"
-              data-action={c.status === "closed" ? "reopen" : "close"}
-              onClick={() =>
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("inbox.menu.search")}
+              aria-pressed={searchOpen}
+              onClick={() => setSearchOpen((v) => !v)}
+              data-thread-search-trigger
+            >
+              <SearchIcon />
+            </Button>
+            <ThreadHeaderMenu
+              c={c}
+              onChanged={refresh}
+              onContactInfo={() => setContactInfoOpen(true)}
+              onSearch={() => setSearchOpen(true)}
+              onSelectMessages={() => setSelectMode(true)}
+              onToggleStatus={() =>
                 patch(
                   { status: c.status === "closed" ? "open" : "closed" },
                   c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"),
                 )
               }
-            >
-              {c.status === "closed" ? t("inbox.reopen") : t("inbox.close")}
-            </Button>
-          </>
-        ) : null}
-        <VisitorContext c={c} />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="@6xl:hidden"
-          aria-label={t("inbox.intel.open")}
-          onClick={() => setPanelOpen(true)}
-          data-intel-trigger
-        >
-          <PanelRightOpenIcon />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={t("inbox.menu.search")}
-          onClick={() => setSearchOpen((v) => !v)}
-          data-thread-search-trigger
-        >
-          <SearchIcon />
-        </Button>
-        <ThreadHeaderMenu
-          c={c}
-          onChanged={refresh}
-          onContactInfo={() => setContactInfoOpen(true)}
-          onSearch={() => setSearchOpen(true)}
-          onSelectMessages={() => setSelectMode(true)}
-          onToggleStatus={() =>
-            patch(
-              { status: c.status === "closed" ? "open" : "closed" },
-              c.status === "closed" ? t("inbox.reopened") : t("inbox.closed"),
-            )
-          }
-        />
+            />
+          </div>
+        </div>
+        <SnoozedNote c={c} />
       </header>
 
       {searchOpen ? (
@@ -1229,14 +1286,14 @@ function Thread({
         />
       ) : null}
 
-      <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
+      <Sheet open={intelOpen && !intelInline} onOpenChange={onIntelOpenChange}>
         <SheetContent side="end" className="w-full sm:w-[min(24rem,100vw)]" data-intel-drawer>
           <SheetHeader>
             <SheetTitle>{t("inbox.intel.title")}</SheetTitle>
             <SheetDescription className="sr-only">{headerWho}</SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {panelOpen ? <CustomerPanel id={id} onChanged={onChanged} /> : null}
+            {intelOpen && !intelInline ? <CustomerPanel id={id} onChanged={onChanged} /> : null}
           </div>
         </SheetContent>
       </Sheet>
@@ -1251,7 +1308,10 @@ function Thread({
       <ThreadCRM c={c} visitor={visitor} onChanged={refresh} />
 
       {total > detail.data.messages.length ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-3 px-6 pt-4" data-thread-paging>
+        <div
+          className="flex shrink-0 flex-wrap items-center justify-center gap-3 px-4 pt-3"
+          data-thread-paging
+        >
           <p className="text-xs text-muted-foreground" data-thread-count>
             {cursor
               ? t("inbox.shownOfTotal", { n: messages.length, total })

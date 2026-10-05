@@ -4,7 +4,24 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, type FormEvent } from "react"
 import { BriefcaseIcon, LinkIcon, SparklesIcon, UnlinkIcon, UserPlusIcon } from "lucide-react"
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, toast, TooltipRoot, TooltipContent, TooltipTrigger } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  toast,
+  TooltipRoot,
+  TooltipContent,
+  TooltipTrigger,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { ContactPicker } from "@/components/crm/contact-picker"
@@ -58,73 +75,81 @@ export function ThreadCRM({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-nq-line px-6 py-3 text-sm"
+      className="@container/crm flex items-center gap-x-3 border-b border-nq-line bg-nq-surface-soft/40 px-4 py-1.5 text-sm"
       data-thread-crm
       data-thread-channel={c.channel}
     >
-      <span className="eyebrow">{t("inbox.crm.title")}</span>
-      {c.contact ? (
-        <span
-          className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
-          data-crm-contact={c.contact.id}
-        >
-          <span className="text-muted-foreground">{t("inbox.crm.contact")}:</span>
-          <Link
-            href={`${base}/contacts/${c.contact.id}`}
-            className="truncate font-medium underline-offset-4 hover:underline"
-          >
-            <Bdi>{who}</Bdi>
-          </Link>
-          {c.contact.company ? (
-            <>
-              <span className="text-muted-foreground" aria-hidden>
-                ·
-              </span>
-              <Link
-                href={`${base}/companies/${c.contact.company.id}`}
-                className="truncate underline-offset-4 hover:underline"
-                data-crm-company
-              >
-                <Bdi>{c.contact.company.name}</Bdi>
-              </Link>
-            </>
-          ) : null}
-          {c.contact_link === "auto" ? (
-            <TooltipRoot>
-              <TooltipTrigger render={<Badge variant="neutral" data-crm-auto />}>
-                <SparklesIcon />
-                {t("inbox.crm.auto")}
-              </TooltipTrigger>
-              <TooltipContent>
-                {t(
-                  c.channel === "whatsapp"
-                    ? "inbox.crm.autoHint.phone"
-                    : "inbox.crm.autoHint.email",
-                )}
-              </TooltipContent>
-            </TooltipRoot>
-          ) : null}
-        </span>
-      ) : (
-        <span className="text-muted-foreground" data-crm-contact="">
-          {t("inbox.crm.notLinked")}
-        </span>
-      )}
+      <span className="eyebrow hidden shrink-0 @2xl/crm:inline">{t("inbox.crm.title")}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-x-3 overflow-hidden">
+        {c.contact ? (
+          <span className="flex min-w-0 items-center gap-x-2" data-crm-contact={c.contact.id}>
+            <span className="hidden shrink-0 text-muted-foreground @lg/crm:inline">
+              {t("inbox.crm.contact")}:
+            </span>
+            <Link
+              href={`${base}/contacts/${c.contact.id}`}
+              className="truncate font-medium underline-offset-4 hover:underline"
+            >
+              <Bdi>{who}</Bdi>
+            </Link>
+            {c.contact.company ? (
+              <>
+                <span className="text-muted-foreground max-@md/crm:hidden" aria-hidden>
+                  ·
+                </span>
+                <Link
+                  href={`${base}/companies/${c.contact.company.id}`}
+                  className="truncate underline-offset-4 hover:underline max-@md/crm:hidden"
+                  data-crm-company
+                >
+                  <Bdi>{c.contact.company.name}</Bdi>
+                </Link>
+              </>
+            ) : null}
+            {c.contact_link === "auto" ? (
+              <TooltipRoot>
+                <TooltipTrigger render={<Badge variant="neutral" data-crm-auto />}>
+                  <SparklesIcon />
+                  {t("inbox.crm.auto")}
+                </TooltipTrigger>
+                <TooltipContent>
+                  {t(
+                    c.channel === "whatsapp"
+                      ? "inbox.crm.autoHint.phone"
+                      : "inbox.crm.autoHint.email",
+                  )}
+                </TooltipContent>
+              </TooltipRoot>
+            ) : null}
+          </span>
+        ) : (
+          <span className="truncate text-muted-foreground" data-crm-contact="">
+            {t("inbox.crm.notLinked")}
+          </span>
+        )}
 
-      {c.deal ? (
-        <span className="flex min-w-0 items-center gap-2" data-crm-deal={c.deal.id}>
-          <span className="text-muted-foreground">{t("inbox.crm.deal")}:</span>
-          <Link
-            href={`${base}/deals/${c.deal.id}`}
-            className="truncate font-medium underline-offset-4 hover:underline"
-          >
-            <Bdi>{c.deal.title}</Bdi>
-          </Link>
-        </span>
-      ) : null}
+        {c.deal ? (
+          <span className="flex min-w-0 items-center gap-2" data-crm-deal={c.deal.id}>
+            <span className="hidden shrink-0 text-muted-foreground @lg/crm:inline">
+              {t("inbox.crm.deal")}:
+            </span>
+            <BriefcaseIcon
+              className="size-3.5 shrink-0 text-muted-foreground @lg/crm:hidden"
+              aria-hidden
+            />
+            <Link
+              href={`${base}/deals/${c.deal.id}`}
+              className="truncate font-medium underline-offset-4 hover:underline"
+            >
+              <Bdi>{c.deal.title}</Bdi>
+            </Link>
+          </span>
+        ) : null}
+      </span>
 
+      {/* Icon-only below a 28rem thread; the name stays as the tooltip and the label. */}
       {canWrite ? (
-        <span className="flex flex-wrap items-center gap-2 sm:ms-auto">
+        <span className="flex shrink-0 items-center gap-1 [&_[data-crm-label]]:hidden @md/crm:[&_[data-crm-label]]:inline">
           {c.contact ? (
             <>
               <Button
@@ -132,13 +157,22 @@ export function ThreadCRM({
                 size="sm"
                 onClick={() => setDialog("link")}
                 data-crm-action="change"
+                title={t("inbox.crm.change")}
+                aria-label={t("inbox.crm.change")}
               >
                 <LinkIcon />
-                {t("inbox.crm.change")}
+                <span data-crm-label>{t("inbox.crm.change")}</span>
               </Button>
-              <Button variant="ghost" size="sm" onClick={unlink} data-crm-action="unlink">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={unlink}
+                data-crm-action="unlink"
+                title={t("inbox.crm.unlink")}
+                aria-label={t("inbox.crm.unlink")}
+              >
                 <UnlinkIcon />
-                {t("inbox.crm.unlink")}
+                <span data-crm-label>{t("inbox.crm.unlink")}</span>
               </Button>
             </>
           ) : (
@@ -148,18 +182,22 @@ export function ThreadCRM({
                 size="sm"
                 onClick={() => setDialog("link")}
                 data-crm-action="link"
+                title={t("inbox.crm.link")}
+                aria-label={t("inbox.crm.link")}
               >
                 <LinkIcon />
-                {t("inbox.crm.link")}
+                <span data-crm-label>{t("inbox.crm.link")}</span>
               </Button>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => setDialog("create")}
                 data-crm-action="create"
+                title={t("inbox.crm.create")}
+                aria-label={t("inbox.crm.create")}
               >
                 <UserPlusIcon />
-                {t("inbox.crm.create")}
+                <span data-crm-label>{t("inbox.crm.create")}</span>
               </Button>
             </>
           )}
@@ -169,10 +207,12 @@ export function ThreadCRM({
               size="sm"
               onClick={() => setDialog("deal")}
               data-crm-action="deal"
+              title={t("inbox.crm.openDeal")}
+              aria-label={t("inbox.crm.openDeal")}
               disabled={c.message_count === 0}
             >
               <BriefcaseIcon />
-              {t("inbox.crm.openDeal")}
+              <span data-crm-label>{t("inbox.crm.openDeal")}</span>
             </Button>
           ) : null}
         </span>
@@ -363,7 +403,8 @@ export function CreateContactForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="new-contact-email">
-            {t("contacts.email")} <span className="text-muted-foreground">({t("common.optional")})</span>
+            {t("contacts.email")}{" "}
+            <span className="text-muted-foreground">({t("common.optional")})</span>
           </FieldLabel>
           <Input
             id="new-contact-email"
@@ -376,7 +417,8 @@ export function CreateContactForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="new-contact-phone">
-            {t("contacts.phone")} <span className="text-muted-foreground">({t("common.optional")})</span>
+            {t("contacts.phone")}{" "}
+            <span className="text-muted-foreground">({t("common.optional")})</span>
           </FieldLabel>
           <Input
             id="new-contact-phone"
@@ -399,9 +441,7 @@ export function CreateContactForm({
           />
         </Field>
       </FieldGroup>
-      {!email.trim() && !phone.trim() ? (
-        <FormHint>{t("contacts.needsIdentity")}</FormHint>
-      ) : null}
+      {!email.trim() && !phone.trim() ? <FormHint>{t("contacts.needsIdentity")}</FormHint> : null}
       {err ? <FieldError>{err}</FieldError> : null}
       <DialogFooter>
         <Button type="submit" disabled={busy || (!email.trim() && !phone.trim())}>

@@ -4976,5 +4976,7 @@
   "connect.createKey": "أنشئ مفتاحي",
   "inbox.dock.open": "افتح البريد الوارد",
   "inbox.dock.close": "أغلق البريد الوارد",
-  "inbox.dock.caughtUp": "لا رسائل غير مقروءة"
+  "inbox.dock.caughtUp": "لا رسائل غير مقروءة",
+  "inbox.intel.close": "أغلق لوحة العميل",
+  "inbox.channel.allChannels": "كل القنوات"
 }

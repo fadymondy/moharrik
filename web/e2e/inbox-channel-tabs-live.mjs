@@ -16,14 +16,9 @@ const check = (k, ok, d) => {
   if (!ok) fail.push(k)
 }
 const args = process.env.HOST_RULES ? [`--host-resolver-rules=${process.env.HOST_RULES}`] : []
+// MH-1147: the channel is a select under the search in the inbox dock, not a tab strip.
 const active = (page) =>
-  page.evaluate(() =>
-    document
-      .querySelector(
-        "[data-channel-tab][aria-selected=true], [data-channel-tab][data-active], [data-channel-tab][data-selected]",
-      )
-      ?.getAttribute("data-channel-tab"),
-  )
+  page.evaluate(() => document.querySelector("[data-channel-filter]")?.getAttribute("data-channel-filter"))
 for (const scheme of ["light", "dark"]) {
   const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "ict-")), {
     executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -43,34 +38,25 @@ for (const scheme of ["light", "dark"]) {
   for (const loc of ["en", "ar"])
     for (const w of [1440, 390]) {
       await page.setViewportSize({ width: w, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/inbox`, { waitUntil: "domcontentloaded" })
-      await page.waitForSelector("[data-channel-tab]", { timeout: 30000 }).catch(() => {})
+      await page.goto(`${base}/${loc}/w/${slug}?inbox=all`, { waitUntil: "domcontentloaded" })
+      await page.waitForSelector("[data-channel-filter]", { timeout: 30000 }).catch(() => {})
+      await page.waitForSelector("[data-conversation-list]", { timeout: 30000 }).catch(() => {})
       await page.waitForTimeout(1000)
       const k = `${loc}-${scheme}-${w}`
-      const tabs = await page.$$eval("[data-channel-tab]", (els) =>
-        els.map((e) => e.getAttribute("data-channel-tab")),
-      )
       const r = {
-        tabs,
-        overflow: await page.evaluate(
-          () => document.documentElement.scrollWidth - window.innerWidth,
-        ),
+        overflow: await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
       }
-      if (w === 1440) {
-        await page
-          .locator("body")
-          .click({ position: { x: 5, y: 5 } })
-          .catch(() => {})
-        r.start = await active(page)
-        await page.keyboard.press("]")
-        await page.waitForTimeout(600)
-        r.afterNext = await active(page)
-        await page.keyboard.press("[")
-        await page.waitForTimeout(600)
-        r.afterPrev = await active(page)
-        check(`${k}-keys`, tabs.length > 1 && r.afterNext === tabs[1] && r.afterPrev === tabs[0], r)
-      }
-      check(k, tabs[0] === "all" && tabs.length > 1 && r.overflow <= 1, r)
+      r.start = await active(page)
+      // [ and ] step through the channels while focus is in the list.
+      await page.focus("[data-conversation-list] button").catch(() => {})
+      await page.keyboard.press("]")
+      await page.waitForTimeout(600)
+      r.afterNext = await active(page)
+      await page.keyboard.press("[")
+      await page.waitForTimeout(600)
+      r.afterPrev = await active(page)
+      check(`${k}-keys`, r.start === "all" && r.afterNext && r.afterNext !== "all" && r.afterPrev === "all", r)
+      check(k, r.overflow <= 1, r)
       if (shots) await page.screenshot({ path: path.join(shots, `mh568-live-${k}.png`) })
     }
   check(`noPageErrors-${scheme}`, errs.length === 0, errs)
