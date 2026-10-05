@@ -39,7 +39,7 @@ export function DecideButtons({ p, onDone }: { p: Prospect; onDone: () => void }
   )
 }
 
-function AcceptDialog({
+export function AcceptDialog({
   p,
   onClose,
   onDone,
@@ -155,7 +155,7 @@ function AcceptDialog({
   )
 }
 
-function RejectDialog({
+export function RejectDialog({
   p,
   onClose,
   onDone,

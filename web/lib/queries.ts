@@ -4,6 +4,7 @@ import useSWR, { type SWRConfiguration } from "swr"
 import useSWRInfinite from "swr/infinite"
 
 import type { Home } from "@/lib/home-types"
+import type { OpportunitySignals } from "@/lib/opportunity-types"
 
 import {
   type Ga4ConversionsPage,
@@ -1370,3 +1371,9 @@ export function useHome(workspaceId: string | null | undefined) {
     noRetryOn4xx,
   )
 }
+
+// ── Opportunities (MH-1065) ─────────────────────────────────────────────
+
+/** Quiet deals, new leads and high-fit prospects, each with its real reason. */
+export const useOpportunitySignals = (id: string | null | undefined, enabled = true) =>
+  useScoped<OpportunitySignals>("/api/w/opportunities/signals", id, enabled)
