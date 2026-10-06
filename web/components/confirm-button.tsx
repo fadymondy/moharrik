@@ -2,7 +2,17 @@
 
 import { useState, type ReactNode } from "react"
 
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
+} from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 
 export function ConfirmButton({

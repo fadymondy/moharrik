@@ -13,7 +13,7 @@ export default function TelegramChannelsRedirect() {
   const router = useRouter()
   const { locale, slug } = useParams<{ locale: string; slug: string }>()
   useEffect(() => {
-    router.replace(`/${locale}/w/${slug}/inbox/channels?type=telegram`)
+    router.replace(`/${locale}/w/${slug}/settings/integrations?type=telegram`)
   }, [router, locale, slug])
   return null
 }

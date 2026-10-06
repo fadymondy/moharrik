@@ -204,9 +204,7 @@ function Filled({
           </p>
         ) : null}
       </div>
-      <div
-        className={`cells cells-flush-x grid-cols-1 ${compact ? "" : "lg:grid-cols-2"}`}
-      >
+      <div className={`cells cells-flush-x grid-cols-1 ${compact ? "" : "lg:grid-cols-2"}`}>
         {!compact ? (
           <Panel
             id="yt-top"

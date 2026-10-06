@@ -11,7 +11,38 @@ import {
   StarIcon,
   XCircleIcon,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { SectionHeader } from "@/components/public-frame"
@@ -46,7 +77,6 @@ export default function EmailSettingsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.email")}
         description={t("smtp.hintMany")}
         action={
@@ -463,7 +493,8 @@ function SmtpForm({
         <div className="flex flex-col gap-4 sm:flex-row">
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="smtp-username">
-              {t("smtp.username")} <span className="text-muted-foreground">({t("common.optional")})</span>
+              {t("smtp.username")}{" "}
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="smtp-username"
@@ -489,7 +520,8 @@ function SmtpForm({
         <div className="flex flex-col gap-4 sm:flex-row">
           <Field className="sm:flex-1">
             <FieldLabel htmlFor="smtp-from-name">
-              {t("smtp.fromName")} <span className="text-muted-foreground">({t("common.optional")})</span>
+              {t("smtp.fromName")}{" "}
+              <span className="text-muted-foreground">({t("common.optional")})</span>
             </FieldLabel>
             <Input
               id="smtp-from-name"

@@ -9,7 +9,21 @@ one, and confirms before anything that publishes, sends or submits.
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon } from "lucide-react"
-import { Button, Checkbox, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { isolate } from "@/components/bidi"

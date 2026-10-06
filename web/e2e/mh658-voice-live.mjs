@@ -35,7 +35,12 @@ for (const scheme of ["light", "dark"]) {
   page.on("pageerror", (e) => errs.push(String(e)))
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/") && !/\/read$/.test(u.pathname))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/") &&
+      !/\/read$/.test(u.pathname)
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -44,7 +49,9 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForTimeout(1500)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -79,10 +86,16 @@ for (const scheme of ["light", "dark"]) {
       const meta = await page.evaluate(async () => {
         // The player can re-render after hydration; look it up again until it is attached.
         let box
-        for (let i = 0; i < 100 && !(box = document.querySelector("[data-attachment-voice]"))?.querySelector("audio"); i++)
+        for (
+          let i = 0;
+          i < 100 &&
+          !(box = document.querySelector("[data-attachment-voice]"))?.querySelector("audio");
+          i++
+        )
           await new Promise((z) => setTimeout(z, 100))
         const au = box.querySelector("audio")
-        for (let i = 0; i < 100 && !(au.duration > 0); i++) await new Promise((z) => setTimeout(z, 100))
+        for (let i = 0; i < 100 && !(au.duration > 0); i++)
+          await new Promise((z) => setTimeout(z, 100))
         const r = await fetch(au.currentSrc || au.src)
         return {
           status: r.status,
@@ -96,24 +109,37 @@ for (const scheme of ["light", "dark"]) {
         }
       })
       out[`${k}-meta`] = meta
-      check(`${k}-audio-200`, meta.status === 200 && /audio|ogg|octet/.test(meta.type ?? "") && meta.bytes > 1000, meta)
+      check(
+        `${k}-audio-200`,
+        meta.status === 200 && /audio|ogg|octet/.test(meta.type ?? "") && meta.bytes > 1000,
+        meta,
+      )
       check(`${k}-duration`, meta.duration > 0 && meta.label !== "0:00", meta)
       check(`${k}-dir`, meta.dir === (loc === "ar" ? "rtl" : "ltr"), meta.dir)
       check(`${k}-theme`, meta.dark === (scheme === "dark"), meta.dark)
       check(`${k}-no-overflow`, !meta.overflowX)
-      const played = await page.locator("[data-attachment-voice] button").first().click({ timeout: 15000 }).then(() => true, async (e) => {
-        out[`${k}-click-state`] = await page.evaluate(() => ({
-          url: location.pathname + location.search,
-          players: document.querySelectorAll("[data-attachment-voice]").length,
-          buttons: document.querySelectorAll("[data-attachment-voice] button").length,
-        }))
-        if (shots) await page.screenshot({ path: `${shots}/mh658-voice-${k}-noclick.png` })
-        return false
-      })
+      const played = await page
+        .locator("[data-attachment-voice] button")
+        .first()
+        .click({ timeout: 15000 })
+        .then(
+          () => true,
+          async (e) => {
+            out[`${k}-click-state`] = await page.evaluate(() => ({
+              url: location.pathname + location.search,
+              players: document.querySelectorAll("[data-attachment-voice]").length,
+              buttons: document.querySelectorAll("[data-attachment-voice] button").length,
+            }))
+            if (shots) await page.screenshot({ path: `${shots}/mh658-voice-${k}-noclick.png` })
+            return false
+          },
+        )
       check(`${k}-play-button`, played)
       if (!played) continue
       await page.waitForTimeout(1500)
-      const t = await page.evaluate(() => document.querySelector("[data-attachment-voice] audio").currentTime)
+      const t = await page.evaluate(
+        () => document.querySelector("[data-attachment-voice] audio").currentTime,
+      )
       check(`${k}-plays`, t > 0, t)
       if (shots) {
         await page.locator("[data-attachment-voice]").first().scrollIntoViewIfNeeded()

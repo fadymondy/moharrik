@@ -3,7 +3,17 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { LoaderCircleIcon } from "lucide-react"
 import Link from "next/link"
-import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Switch, Textarea, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Switch,
+  Textarea,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldError } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
@@ -113,7 +123,9 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
                   ] as const
                 ).map(([key, values]) => (
                   <div key={key}>
-                    <p className="text-xs font-medium text-muted-foreground">{t(`prospects.${key}`)}</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {t(`prospects.${key}`)}
+                    </p>
                     <div className="mt-1 flex flex-wrap gap-1" dir="auto">
                       {values.length ? (
                         values.map((v) => (
@@ -122,7 +134,9 @@ export function ProfileForm({ data, onSaved }: { data: ProspectProfileOut; onSav
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-xs text-muted-foreground">{t("prospects.icpEmpty")}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {t("prospects.icpEmpty")}
+                        </span>
                       )}
                     </div>
                   </div>

@@ -16,7 +16,16 @@ take the answer with it.
 
 import { useEffect, useRef, useState } from "react"
 import { CrosshairIcon, LoaderCircleIcon } from "lucide-react"
-import { Button, Input, Popover, PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { Label } from "@/components/form-layout"
 
 import { useWorkspace } from "@/components/workspace/workspace-context"

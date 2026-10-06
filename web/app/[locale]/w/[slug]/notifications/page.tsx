@@ -4,7 +4,16 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { BellOffIcon, BookmarkIcon, CheckIcon, SearchIcon, SettingsIcon } from "lucide-react"
-import { Badge, Button, InputGroup, InputGroupAddon, InputGroupInput, Toggle, ToggleGroup, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  Toggle,
+  ToggleGroup,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { useDebounced } from "@/components/crm/contact-picker"
@@ -142,7 +151,6 @@ export default function NotificationsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.notifications")}
         description={t("notifications.hint")}
         action={

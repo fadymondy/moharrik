@@ -4,7 +4,6 @@
 
 import { Suspense } from "react"
 
-import { Bdi } from "@/components/bidi"
 import { SectionHeader } from "@/components/public-frame"
 import { CapabilityNotes } from "@/components/research/shared"
 import { SchedulesTab } from "@/components/research/tabs"
@@ -29,11 +28,7 @@ function ResearchSchedules() {
 
   return (
     <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("research.tabSchedules")}
-        description={t("research.hint")}
-      />
+      <SectionHeader title={t("research.tabSchedules")} description={t("research.hint")} />
       {list.data ? <CapabilityNotes caps={list.data} /> : null}
       <SchedulesTab caps={list.data} />
       <div className="pb-8" />

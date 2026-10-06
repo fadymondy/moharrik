@@ -2,20 +2,33 @@
 
 import { useState, type FormEvent } from "react"
 import { MailWarningIcon } from "lucide-react"
-import { Badge, Button, Field, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Field,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 import { mutate } from "swr"
 
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
+import { RowsTable, type RowsColumn } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, INVITABLE_ROLES, type Invitation, type Member, type Role } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useInvitations, useMe, useMembers } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi, isolate } from "@/components/bidi"
+import { isolate } from "@/components/bidi"
 
 export default function MembersPage() {
   const { t, formatDate } = useTranslations()
@@ -47,13 +60,76 @@ export default function MembersPage() {
     }
   }
 
+  const memberColumns: RowsColumn<Member>[] = [
+    {
+      id: "email",
+      header: t("members.email"),
+      hideable: false,
+      sortValue: (m) => m.email,
+      cell: (m) => (
+        <span data-member={m.email}>
+          <Ltr>{m.email}</Ltr>
+          {m.user_id === myId ? (
+            <span className="ms-2 text-xs text-muted-foreground">{t("members.you")}</span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      id: "role",
+      header: t("members.role"),
+      sortValue: (m) => ROLE_ORDER.indexOf(m.role),
+      cell: (m) =>
+        manageable(m) ? (
+          <MemberRoleSelect
+            member={m}
+            onChanged={(list) => members.mutate({ members: list }, false)}
+          />
+        ) : (
+          <Badge variant="outline">{t(`role.${m.role}`)}</Badge>
+        ),
+    },
+    {
+      id: "status",
+      header: t("members.status"),
+      cell: (m) => <span className="text-muted-foreground">{t(`status.${m.status}`)}</span>,
+    },
+    {
+      id: "joined",
+      header: t("members.joined"),
+      sortValue: (m) => m.joined_at,
+      cell: (m) => (
+        <span className="text-muted-foreground">
+          <Ltr>{formatDate(m.joined_at)}</Ltr>
+        </span>
+      ),
+    },
+    ...(canManage
+      ? [
+          {
+            id: "actions",
+            header: <span className="sr-only">{t("common.actions")}</span>,
+            label: t("common.actions"),
+            align: "end" as const,
+            hideable: false,
+            cell: (m: Member) =>
+              manageable(m) ? (
+                <ConfirmButton
+                  label={t("members.remove")}
+                  title={t("members.removeTitle")}
+                  description={t("members.removeBody", { email: isolate(m.email) })}
+                  confirmLabel={t("members.remove")}
+                  onConfirm={() => remove(m)}
+                />
+              ) : null,
+          },
+        ]
+      : []),
+  ]
+
   return (
     <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("nav.members")}
-        description={t("members.hint")}
-      />
+      <SectionHeader title={t("nav.members")} description={t("members.hint")} />
 
       {members.error ? (
         <ErrorState error={members.error} />
@@ -62,63 +138,15 @@ export default function MembersPage() {
       ) : (members.data?.members ?? []).length === 0 ? (
         <EmptyState title={t("members.empty")} />
       ) : (
-        <div className="border-y border-nq-line">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="ps-6">{t("members.email")}</TableHead>
-                <TableHead>{t("members.role")}</TableHead>
-                <TableHead>{t("members.status")}</TableHead>
-                <TableHead className={canManage ? undefined : "pe-6"}>
-                  {t("members.joined")}
-                </TableHead>
-                {canManage ? (
-                  <TableHead className="pe-6 text-end">
-                    <span className="sr-only">{t("common.actions")}</span>
-                  </TableHead>
-                ) : null}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(members.data?.members ?? []).map((m) => (
-                <TableRow key={m.user_id} data-member={m.email}>
-                  <TableCell className="ps-6">
-                    <Ltr>{m.email}</Ltr>
-                    {m.user_id === myId ? (
-                      <span className="ms-2 text-xs text-muted-foreground">{t("members.you")}</span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    {manageable(m) ? (
-                      <MemberRoleSelect
-                        member={m}
-                        onChanged={(list) => members.mutate({ members: list }, false)}
-                      />
-                    ) : (
-                      <Badge variant="outline">{t(`role.${m.role}`)}</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{t(`status.${m.status}`)}</TableCell>
-                  <TableCell className={canManage ? "text-muted-foreground" : "pe-6 text-muted-foreground"}>
-                    <Ltr>{formatDate(m.joined_at)}</Ltr>
-                  </TableCell>
-                  {canManage ? (
-                    <TableCell className="pe-6 text-end">
-                      {manageable(m) ? (
-                        <ConfirmButton
-                          label={t("members.remove")}
-                          title={t("members.removeTitle")}
-                          description={t("members.removeBody", { email: isolate(m.email) })}
-                          confirmLabel={t("members.remove")}
-                          onConfirm={() => remove(m)}
-                        />
-                      ) : null}
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="px-6">
+          <RowsTable<Member>
+            data={members.data?.members ?? []}
+            getRowId={(m) => m.user_id}
+            rowLabel={(m) => m.email}
+            label={t("nav.members")}
+            data-members
+            columns={memberColumns}
+          />
         </div>
       )}
 
@@ -342,43 +370,54 @@ function PendingInvitations({
       ) : items.length === 0 ? (
         <EmptyState title={t("members.noPending")} />
       ) : (
-        <div className="border-y border-nq-line">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="ps-6">{t("members.email")}</TableHead>
-                <TableHead>{t("members.role")}</TableHead>
-                <TableHead>{t("members.expires")}</TableHead>
-                <TableHead className="pe-6 text-end">
-                  <span className="sr-only">{t("common.actions")}</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="ps-6">
-                    <Ltr>{inv.email}</Ltr>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{t(`role.${inv.role}`)}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
+        <div className="px-6">
+          <RowsTable<Invitation>
+            data={items}
+            getRowId={(inv) => inv.id}
+            rowLabel={(inv) => inv.email}
+            label={t("members.pending")}
+            data-invitations
+            columns={[
+              {
+                id: "email",
+                header: t("members.email"),
+                hideable: false,
+                sortValue: (inv) => inv.email,
+                cell: (inv) => <Ltr>{inv.email}</Ltr>,
+              },
+              {
+                id: "role",
+                header: t("members.role"),
+                cell: (inv) => <Badge variant="outline">{t(`role.${inv.role}`)}</Badge>,
+              },
+              {
+                id: "expires",
+                header: t("members.expires"),
+                sortValue: (inv) => inv.expires_at,
+                cell: (inv) => (
+                  <span className="text-muted-foreground">
                     <Ltr>{formatDate(inv.expires_at)}</Ltr>
-                  </TableCell>
-                  <TableCell className="pe-6 text-end">
-                    <ConfirmButton
-                      label={t("common.revoke")}
-                      title={t("members.revokeTitle")}
-                      description={t("members.revokeBody", { email: isolate(inv.email) })}
-                      confirmLabel={t("common.revoke")}
-                      onConfirm={() => revoke(inv.id)}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </span>
+                ),
+              },
+              {
+                id: "actions",
+                header: <span className="sr-only">{t("common.actions")}</span>,
+                label: t("common.actions"),
+                align: "end",
+                hideable: false,
+                cell: (inv) => (
+                  <ConfirmButton
+                    label={t("common.revoke")}
+                    title={t("members.revokeTitle")}
+                    description={t("members.revokeBody", { email: isolate(inv.email) })}
+                    confirmLabel={t("common.revoke")}
+                    onConfirm={() => revoke(inv.id)}
+                  />
+                ),
+              },
+            ]}
+          />
         </div>
       )}
     </section>

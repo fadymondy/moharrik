@@ -63,7 +63,9 @@ export function NodePicker({
       <div className="flex items-start justify-between gap-2 border-b border-nq-line px-4 py-3">
         <div>
           <h2 className="text-base font-medium">{t("canvas.picker.title")}</h2>
-          <p className="text-xs text-muted-foreground">{t("canvas.picker.hint", { n: position + 1 })}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("canvas.picker.hint", { n: position + 1 })}
+          </p>
         </div>
         <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t("canvas.close")}>
           <XIcon />

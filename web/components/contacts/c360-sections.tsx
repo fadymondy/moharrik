@@ -9,6 +9,7 @@ not read is left out, never zeroed.
 */
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 import {
   BotIcon,
@@ -46,9 +47,7 @@ import {
   toast,
 } from "@fadymondy/nasaq/web"
 
-import { Bdi, isolate } from "@/components/bidi"
 import { DealForm } from "@/components/crm/deals"
-import { LifecycleBadge, ScoreMeter } from "@/components/crm/icp"
 import { PickSelect, useMemberNames } from "@/components/crm/shared"
 import { Empty, Panel, useFormat } from "@/components/overview/overview-cards"
 import { ErrorState, LoadingRows } from "@/components/states"
@@ -64,7 +63,6 @@ import {
 import {
   contactTimelinePath,
   useContactReports,
-  useContactTimeline,
   type ContactAutomationRow,
   type ContactConversationRow,
   type ContactEvent,
@@ -73,6 +71,7 @@ import {
 import { useTranslations } from "@/lib/i18n"
 import { useCurrentWorkspace, usePipelineStages } from "@/lib/queries"
 import { cn } from "@/lib/utils"
+import { inboxHref } from "@/lib/inbox-link"
 import { channelName, eventView, lifecycleName, type EventIcon, type Tone } from "./c360-text"
 
 const TONE_TEXT: Record<Tone, string> = {
@@ -122,71 +121,6 @@ const EVENT_ICON: Record<EventIcon, ReactNode> = {
   rule: <WorkflowIcon />,
 }
 
-// ── header strip ─────────────────────────────────────────────────────────
-
-/** Lifecycle, fit and every channel the contact is reachable on or has talked on. */
-export function C360Header({
-  contact,
-  conversations,
-  base,
-}: {
-  contact: ContactDetail
-  conversations: ContactConversationRow[] | null | undefined
-  base: string
-}) {
-  const { t, locale } = useTranslations()
-  const f = useFormat()
-  // Channels that are real: the email and phone on the record, each linked identity, and the channel
-  // of every inbox conversation linked to the contact.
-  const channels = new Set<string>()
-  if (contact.email) channels.add("email")
-  if (contact.phone) channels.add("phone")
-  for (const i of contact.identities ?? []) channels.add(i.channel)
-  for (const c of conversations ?? []) channels.add(c.channel)
-
-  return (
-    <section
-      className="mx-6 mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 border border-nq-line bg-card px-5 py-4"
-      data-c360-header
-    >
-      <div className="flex items-center gap-2" data-c360-lifecycle>
-        <span className="text-xs text-muted-foreground">{t("lifecycle.label")}</span>
-        <LifecycleBadge stage={contact.lifecycle} />
-      </div>
-      <div className="flex items-center gap-2" data-c360-fit>
-        <span className="text-xs text-muted-foreground">{t("icp.fit")}</span>
-        <ScoreMeter score={contact.score} />
-      </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2" data-c360-channels>
-        <span className="text-xs text-muted-foreground">{t("c360.channels")}</span>
-        {channels.size === 0 ? (
-          <span className="text-sm text-muted-foreground">{t("c360.noChannels")}</span>
-        ) : (
-          [...channels].map((c) => (
-            <Badge key={c} variant="info" data-channel={c}>
-              {channelName(t, c)}
-            </Badge>
-          ))
-        )}
-      </div>
-      <div className="ms-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {contact.company ? (
-          <Link
-            className="hover:text-foreground hover:underline"
-            href={`${base}/companies/${contact.company.id}`}
-          >
-            <Bdi>{contact.company.name}</Bdi>
-          </Link>
-        ) : null}
-        {contact.source ? <span>{t("c360.source", { source: isolate(contact.source) })}</span> : null}
-        <span title={f.exact(contact.created_at)}>
-          {t("c360.since", { when: dateOnly(locale, contact.created_at) })}
-        </span>
-      </div>
-    </section>
-  )
-}
-
 function dateOnly(locale: string, iso: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(iso))
 }
@@ -204,15 +138,16 @@ export function JourneyPanel({ contact }: { contact: ContactDetail }) {
   }
   return (
     <Panel id="c360-journey" title={t("c360.journey.title")} icon={<RouteIcon />}>
-      <div className="relative overflow-x-auto px-5 py-5" data-c360-journey={contact.lifecycle || "none"}>
+      <div
+        className="relative overflow-x-auto px-5 py-5"
+        data-c360-journey={contact.lifecycle || "none"}
+      >
         <Stepper current={current} className="pointer-events-none min-w-[26rem]">
           {LIFECYCLE_STAGES.map((s) => (
             <StepperItem
               key={s}
               title={lifecycleName(t, s)}
-              description={
-                reached.has(s) ? dateOnly(locale, reached.get(s) as string) : undefined
-              }
+              description={reached.has(s) ? dateOnly(locale, reached.get(s) as string) : undefined}
             />
           ))}
         </Stepper>
@@ -255,7 +190,8 @@ export function useGenerateReport(contactId: string, onGenerated?: () => void) {
 function leadLine(markdown: string): string {
   for (const raw of markdown.split("\n")) {
     const line = raw.replace(/^\s*(?:[-*>]|\d+[.)])\s+/, "").trim()
-    if (line && !line.startsWith("#") && !/^[-=_*]{3,}$/.test(line)) return line.replace(/\*\*/g, "")
+    if (line && !line.startsWith("#") && !/^[-=_*]{3,}$/.test(line))
+      return line.replace(/\*\*/g, "")
   }
   return ""
 }
@@ -275,11 +211,25 @@ export function AiSummaryPanel({
   const latest = reports.data?.[0]
 
   let body: ReactNode
-  if (reports.error) body = <div className="p-5"><ErrorState error={reports.error} /></div>
-  else if (!reports.data) body = <div className="p-5"><LoadingRows rows={2} /></div>
+  if (reports.error)
+    body = (
+      <div className="p-5">
+        <ErrorState error={reports.error} />
+      </div>
+    )
+  else if (!reports.data)
+    body = (
+      <div className="p-5">
+        <LoadingRows rows={2} />
+      </div>
+    )
   else if (!latest)
     body = (
-      <div className="flex flex-1 flex-col items-start justify-center gap-1.5 px-5 py-6" data-empty data-c360-ai="empty">
+      <div
+        className="flex flex-1 flex-col items-start justify-center gap-1.5 px-5 py-6"
+        data-empty
+        data-c360-ai="empty"
+      >
         <p className="text-sm font-medium text-foreground">{t("c360.ai.emptyTitle")}</p>
         <p className="max-w-md text-sm text-muted-foreground">{t("c360.ai.emptyBody")}</p>
         {canWrite ? (
@@ -302,13 +252,19 @@ export function AiSummaryPanel({
     body = (
       <div className="px-5 py-4" data-c360-ai="report" data-report-version={latest.version}>
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <Badge variant="neutral">{t("contactContext.reportVersion", { version: latest.version })}</Badge>
+          <Badge variant="neutral">
+            {t("contactContext.reportVersion", { version: latest.version })}
+          </Badge>
           <Badge variant="neutral">{t("contactContext.noProviderShort")}</Badge>
           {latest.created_at ? (
-            <span className="text-xs text-muted-foreground">{dateOnly(locale, latest.created_at)}</span>
+            <span className="text-xs text-muted-foreground">
+              {dateOnly(locale, latest.created_at)}
+            </span>
           ) : null}
         </div>
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-sans text-sm">{latest.markdown}</pre>
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-sans text-sm">
+          {latest.markdown}
+        </pre>
       </div>
     )
   else
@@ -316,7 +272,10 @@ export function AiSummaryPanel({
       <div className="px-4 py-4" data-c360-ai="report" data-report-version={latest.version}>
         <AiSummary
           title={t("c360.ai.reportTitle", { version: latest.version })}
-          tldr={leadLine(latest.markdown) || t("contactContext.reportVersion", { version: latest.version })}
+          tldr={
+            leadLine(latest.markdown) ||
+            t("contactContext.reportVersion", { version: latest.version })
+          }
           full={latest.markdown}
           model={latest.model}
           onRegenerate={canWrite && !generating ? generate : undefined}
@@ -338,29 +297,26 @@ export function AiSummaryPanel({
 
 // ── next actions ─────────────────────────────────────────────────────────
 
-function jumpTo(anchor: string, focus?: string) {
-  const el = document.querySelector(anchor)
-  if (!el) return
-  el.scrollIntoView({ behavior: "smooth", block: "start" })
-  if (focus) window.setTimeout(() => (document.getElementById(focus) as HTMLElement | null)?.focus(), 350)
-}
-
-/** Existing actions only: each one does what the same control lower on the page does. */
+/** Existing actions only: each one does what the same control on another tab does. */
 export function NextActionsPanel({
   contact,
   canWrite,
+  rec,
   generate,
   generating,
   onChanged,
 }: {
   contact: ContactDetail
   canWrite: boolean
+  /** The contact's record root (MH-1157): the forms these actions stand for live on its tabs. */
+  rec: string
   generate: () => void
   generating: boolean
   onChanged: () => void
 }) {
   const { t } = useTranslations()
   const ws = useWorkspace()
+  const router = useRouter()
   const [dealOpen, setDealOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const stages = usePipelineStages(ws.id, canWrite && dealOpen)
@@ -398,7 +354,7 @@ export function NextActionsPanel({
             variant="secondary"
             size="sm"
             data-action="c360-log-activity"
-            onClick={() => jumpTo("[data-c360-activities]", "activity-body")}
+            onClick={() => router.push(`${rec}/activity?focus=activity-body`)}
           >
             <StickyNoteIcon />
             {t("c360.actions.logActivity")}
@@ -416,7 +372,7 @@ export function NextActionsPanel({
             variant="secondary"
             size="sm"
             data-action="c360-link-identity"
-            onClick={() => jumpTo("[data-identities-panel]", "identity-value")}
+            onClick={() => router.push(`${rec}/accounts?focus=identity-value`)}
           >
             <LinkIcon />
             {t("c360.actions.linkIdentity")}
@@ -558,7 +514,7 @@ export function UnifiedTimeline({
               <li key={`${e.kind}-${e.id}-${e.at}-${i}`} data-event={e.kind}>
                 {v.href ? (
                   <Link
-                    href={`${base}/${v.href}`}
+                    href={v.href.startsWith("?") ? v.href : `${base}/${v.href}`}
                     className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-nq-surface-soft"
                   >
                     {body}
@@ -620,13 +576,16 @@ export function ConversationsPanel({
       meta={rows.length ? <Badge variant="neutral">{formatNumber(rows.length)}</Badge> : null}
     >
       {rows.length === 0 ? (
-        <Empty title={t("c360.conversations.emptyTitle")} body={t("c360.conversations.emptyBody")} />
+        <Empty
+          title={t("c360.conversations.emptyTitle")}
+          body={t("c360.conversations.emptyBody")}
+        />
       ) : (
         <ul className="divide-y divide-nq-line" data-c360-conversations>
           {rows.map((c) => (
             <li key={c.id} data-conversation={c.id}>
               <Link
-                href={`${base}/inbox?c=${c.id}`}
+                href={inboxHref(c.id)}
                 className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-nq-surface-soft"
               >
                 <IconChip tone="info">
@@ -639,7 +598,9 @@ export function ConversationsPanel({
                   <p className="text-xs text-muted-foreground">
                     {channelName(t, c.channel)} ·{" "}
                     {t("c360.conversations.messages", { n: formatNumber(c.messages) })}
-                    {c.last_direction ? ` · ${t(`c360.conversations.last.${c.last_direction}`)}` : ""}
+                    {c.last_direction
+                      ? ` · ${t(`c360.conversations.last.${c.last_direction}`)}`
+                      : ""}
                   </p>
                 </div>
                 {c.unread ? (
@@ -669,13 +630,7 @@ const RUN_VARIANT: Record<string, "success" | "danger" | "neutral"> = {
   failed: "danger",
 }
 
-export function AutomationsPanel({
-  rows,
-  base,
-}: {
-  rows: ContactAutomationRow[]
-  base: string
-}) {
+export function AutomationsPanel({ rows, base }: { rows: ContactAutomationRow[]; base: string }) {
   const { t, formatNumber } = useTranslations()
   const f = useFormat()
   return (
@@ -724,76 +679,3 @@ export function AutomationsPanel({
     </Panel>
   )
 }
-
-// ── the block the page mounts ────────────────────────────────────────────
-
-/** Header, AI summary, journey, next actions, then the timeline with conversations and automations. */
-export function C360Top({
-  contact,
-  canWrite,
-  base,
-  onChanged,
-  onReportChanged,
-}: {
-  contact: ContactDetail
-  canWrite: boolean
-  base: string
-  onChanged: () => void
-  onReportChanged: () => void
-}) {
-  const ws = useWorkspace()
-  const timeline = useContactTimeline(ws.id, contact.id)
-  const { reports, generate, generating } = useGenerateReport(contact.id, onReportChanged)
-  const canRead = ws.can("contacts:read")
-  return (
-    <>
-      <C360Header contact={contact} conversations={timeline.data?.overview?.conversations} base={base} />
-      <div className="mb-6 grid gap-4 px-6 lg:grid-cols-3">
-        {canRead ? (
-          <div className="min-w-0 lg:col-span-2">
-            <AiSummaryPanel generate={generate} generating={generating} reports={reports} />
-          </div>
-        ) : null}
-        <div className={cn("min-w-0", canRead ? "" : "lg:col-span-3")}>
-          <NextActionsPanel
-            contact={contact}
-            canWrite={canWrite}
-            generate={generate}
-            generating={generating}
-            onChanged={() => {
-              onChanged()
-              void timeline.mutate()
-            }}
-          />
-        </div>
-      </div>
-      <div className="mb-6 px-6">
-        <JourneyPanel contact={contact} />
-      </div>
-      {timeline.error ? (
-        <div className="px-6 pb-6">
-          <ErrorState error={timeline.error} />
-        </div>
-      ) : !timeline.data ? (
-        <div className="px-6 pb-6">
-          <LoadingRows rows={4} />
-        </div>
-      ) : (
-        <div className="mb-6 grid gap-4 px-6 lg:grid-cols-3">
-          <div className="min-w-0 lg:col-span-2">
-            <UnifiedTimeline contactId={contact.id} page={timeline.data} base={base} />
-          </div>
-          <div className="flex min-w-0 flex-col gap-4">
-            {timeline.data.overview?.conversations ? (
-              <ConversationsPanel rows={timeline.data.overview.conversations} base={base} />
-            ) : null}
-            {timeline.data.overview?.automations ? (
-              <AutomationsPanel rows={timeline.data.overview.automations} base={base} />
-            ) : null}
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-

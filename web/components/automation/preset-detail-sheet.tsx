@@ -24,7 +24,19 @@ import {
   PlusIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger, Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { AddPresetDialog } from "@/components/automation/preset-add-dialog"
 import { BrandIcon } from "@/components/automation/brand-icon"
@@ -95,11 +107,7 @@ export function PresetDetailSheet({
   return (
     <>
       <Sheet open onOpenChange={(v) => (v ? null : onClose())}>
-        <SheetContent
-          side="end"
-          className="w-full sm:max-w-md"
-          data-preset-sheet={p.slug}
-        >
+        <SheetContent side="end" className="w-full sm:max-w-md" data-preset-sheet={p.slug}>
           <SheetHeader className="flex-row items-start gap-3 space-y-0">
             <BrandIcon brand={brand} size={44} />
             <div className="min-w-0 flex-1">
@@ -140,7 +148,8 @@ export function PresetDetailSheet({
               </CollapsibleTrigger>
               <CollapsiblePanel className="mt-2 space-y-1 border-s-2 border-nq-line ps-3" dir="ltr">
                 <p className="text-xs font-medium text-foreground">
-                  {p.name} <span className="font-mono font-normal text-muted-foreground">({p.slug})</span>
+                  {p.name}{" "}
+                  <span className="font-mono font-normal text-muted-foreground">({p.slug})</span>
                 </p>
                 <p className="text-xs text-muted-foreground">{p.description}</p>
                 {p.inputs.length > 0 ? (

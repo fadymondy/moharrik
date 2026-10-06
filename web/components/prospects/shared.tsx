@@ -62,7 +62,9 @@ export function ReasonList({
   return (
     <ul
       className={
-        compact ? "flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground" : "space-y-1.5 text-sm"
+        compact
+          ? "flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"
+          : "space-y-1.5 text-sm"
       }
       data-reasons
     >

@@ -20,7 +20,8 @@ import { execFileSync } from "node:child_process"
 const base = process.argv[2] ?? "http://localhost:3142"
 const shots = process.argv[3]
 const dbUrl = process.argv[4] ?? process.env.DATABASE_URL
-if (/moharrik\.com/.test(base)) throw new Error("mh661-email-templates writes: run it against a local server")
+if (/moharrik\.com/.test(base))
+  throw new Error("mh661-email-templates writes: run it against a local server")
 if (!dbUrl) throw new Error("need a database URL: pass it as the 3rd argument or set DATABASE_URL")
 
 const out = {},
@@ -31,7 +32,10 @@ const check = (k, ok, d) => {
 }
 
 function sql(query, params = []) {
-  const escaped = params.reduce((q, p, i) => q.replaceAll(`$${i + 1}`, `'${String(p).replace(/'/g, "''")}'`), query)
+  const escaped = params.reduce(
+    (q, p, i) => q.replaceAll(`$${i + 1}`, `'${String(p).replace(/'/g, "''")}'`),
+    query,
+  )
   const res = execFileSync("psql", [dbUrl, "-t", "-A", "-c", escaped], { encoding: "utf8" }).trim()
   // -t -A still prints the "INSERT 0 1" command tag after a RETURNING value on
   // this psql build; the first non-empty line is always the real result.
@@ -114,7 +118,11 @@ async function call(method, p, json) {
       const csrf = (await (await fetch("/api/auth/csrf")).json()).csrf_token
       const r = await fetch(p, {
         method,
-        headers: { "X-Workspace-ID": slug, "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        headers: {
+          "X-Workspace-ID": slug,
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf,
+        },
         body: json !== undefined ? JSON.stringify(json) : undefined,
       })
       return { status: r.status, body: await r.json().catch(() => null) }
@@ -163,27 +171,40 @@ check("conversation-row", !!convID, convID)
 sql(
   `INSERT INTO messages (workspace_id, conversation_id, direction, mailbox_id, subject, body)
    VALUES ($1, $2, 'in', $3, $4, $5)`,
-  [wsID, convID, mailboxID, "Question about pricing", "Hi, could you tell me more about your plans?"],
+  [
+    wsID,
+    convID,
+    mailboxID,
+    "Question about pricing",
+    "Hi, could you tell me more about your plans?",
+  ],
 )
 
 // ---- email templates settings page: add, with a deliberate unknown placeholder ----
-await page.goto(`${base}/en/w/${slug}/inbox/email-templates`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/email-templates`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-action="add-email-template"]', { timeout: 15000 })
 await page.click('[data-action="add-email-template"]')
 const form = page.locator('[data-form="email-template"]')
 await form.waitFor({ state: "visible" })
 await form.locator("#email-template-name").fill("Pricing info")
 await form.locator("#email-template-subject-en").fill("Re: pricing for {{workspace.name}}")
-await form.locator("#email-template-body-en").fill(
-  "Hi {{contact.first_name}},\n\nThanks for reaching out to {{workspace.name}}. " +
-    "I'm {{agent.name}} and I'll help with {{deal.unknown}}.\n\nBest,\n{{agent.name}}",
-)
+await form
+  .locator("#email-template-body-en")
+  .fill(
+    "Hi {{contact.first_name}},\n\nThanks for reaching out to {{workspace.name}}. " +
+      "I'm {{agent.name}} and I'll help with {{deal.unknown}}.\n\nBest,\n{{agent.name}}",
+  )
 await page.click('[data-form="email-template"] button[type=submit]')
 await page.waitForSelector('[data-form="email-template"]', { state: "hidden", timeout: 10000 })
 await page.waitForTimeout(500)
 check(
   "template-listed",
-  (await page.locator("[data-email-template-row]").innerText().catch(() => "")).includes("Pricing info"),
+  (
+    await page
+      .locator("[data-email-template-row]")
+      .innerText()
+      .catch(() => "")
+  ).includes("Pricing info"),
 )
 
 // ---- edit it ----
@@ -205,7 +226,11 @@ await page.click('[data-action="preview-email-template"]')
 await page.waitForSelector("[data-email-template-preview]", { timeout: 10000 })
 const previewText = await page.locator("[data-email-template-preview]").innerText()
 check("preview-unknown-placeholder-verbatim", previewText.includes("{{deal.unknown}}"), previewText)
-check("preview-sample-contact", previewText.includes("Jamie Sample") || previewText.toLowerCase().includes("jamie"), previewText)
+check(
+  "preview-sample-contact",
+  previewText.includes("Jamie Sample") || previewText.toLowerCase().includes("jamie"),
+  previewText,
+)
 await page.keyboard.press("Escape")
 await page.waitForTimeout(300)
 
@@ -226,7 +251,9 @@ check("body-unknown-placeholder-verbatim", bodyVal.includes("{{deal.unknown}}"),
 
 // ---- send it, and check the branded HTML actually going out ----
 await page.click('[data-form="reply"] [data-action="send"]')
-await page.waitForFunction(() => document.querySelector("#reply-body")?.value === "", null, { timeout: 15000 })
+await page.waitForFunction(() => document.querySelector("#reply-body")?.value === "", null, {
+  timeout: 15000,
+})
 await page.waitForTimeout(1200)
 check("sink-received", sinkLog.length === 1, sinkLog.length)
 const raw = sinkLog[0]?.data ?? ""
@@ -236,11 +263,17 @@ check("branded-workspace-footer", raw.includes("MH661"), raw.slice(0, 4000))
 check("branded-subject-line", /Subject:.*pricing/i.test(raw), raw.slice(0, 800))
 
 // ---- delete it: settings page ----
-await page.goto(`${base}/en/w/${slug}/inbox/email-templates`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/email-templates`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-email-template-row="Pricing info"]', { timeout: 15000 })
 page.once("dialog", (d) => d.accept())
-await page.locator('[data-email-template-row="Pricing info"]').getByText("Delete", { exact: true }).click()
-await page.locator('[data-confirm-dialog] [data-confirm], [role="alertdialog"] button:has-text("Delete")').first().click()
+await page
+  .locator('[data-email-template-row="Pricing info"]')
+  .getByText("Delete", { exact: true })
+  .click()
+await page
+  .locator('[data-confirm-dialog] [data-confirm], [role="alertdialog"] button:has-text("Delete")')
+  .first()
+  .click()
 await page.waitForTimeout(600)
 check("template-deleted", !(await page.locator('[data-email-template-row="Pricing info"]').count()))
 
@@ -249,7 +282,9 @@ await page.click('[data-action="add-email-template"]')
 await form.waitFor({ state: "visible" })
 await form.locator("#email-template-name").fill("رد سريع")
 await form.locator("#email-template-subject-ar").fill("أهلاً {{contact.name}}")
-await form.locator("#email-template-body-ar").fill("مرحبًا {{contact.first_name}}، شكرًا لتواصلك مع {{workspace.name}}.")
+await form
+  .locator("#email-template-body-ar")
+  .fill("مرحبًا {{contact.first_name}}، شكرًا لتواصلك مع {{workspace.name}}.")
 await page.click('[data-form="email-template"] button[type=submit]')
 await page.waitForSelector('[data-form="email-template"]', { state: "hidden", timeout: 10000 })
 await page.waitForTimeout(500)
@@ -262,11 +297,15 @@ for (const scheme of ["light", "dark"])
       await page.evaluate((s) => localStorage.setItem("theme", s), scheme)
       await page.emulateMedia({ colorScheme: scheme })
       await page.setViewportSize({ width: wd, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/inbox/email-templates`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/settings/email-templates`, {
+        waitUntil: "domcontentloaded",
+      })
       await page.waitForSelector("[data-email-template-row]", { timeout: 15000 })
       await page.waitForTimeout(600)
       const m = await page.evaluate(() => {
-        const dark = document.documentElement.classList.contains("dark") || document.documentElement.dataset.theme === "dark"
+        const dark =
+          document.documentElement.classList.contains("dark") ||
+          document.documentElement.dataset.theme === "dark"
         const overflow = document.documentElement.scrollWidth > window.innerWidth + 1
         return { dark, rtl: document.documentElement.dir === "rtl", overflow }
       })

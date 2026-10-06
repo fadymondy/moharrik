@@ -68,7 +68,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter()
   const params = useSearchParams()
   const { mutate } = useSWRConfig()
-  const next = safeNext(params.get("next"), `/${locale}/workspaces`)
+  // MH-1108: /{locale} opens the last workspace's dashboard.
+  const next = safeNext(params.get("next"), `/${locale}`)
 
   useDocumentTitle(mode === "login" ? t("auth.signIn") : t("auth.createAccount"))
 
@@ -154,7 +155,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       <div className="w-full" data-auth-form>
         <form onSubmit={onSubmit} noValidate>
           <FieldGroup>
-            <Field invalid={!!(!!error)}>
+            <Field invalid={!!!!error}>
               <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
               <Input
                 id="email"
@@ -167,7 +168,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 placeholder="you@company.com"
               />
             </Field>
-            <Field invalid={!!(!!error)}>
+            <Field invalid={!!!!error}>
               <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
               <Input
                 id="password"

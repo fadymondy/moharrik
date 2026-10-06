@@ -2,7 +2,24 @@
 
 import { useState, type FormEvent } from "react"
 import { MessageCircleIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { Button, Field, FieldDescription, FieldLabel, Input, Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, Switch, Textarea, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Switch,
+  Textarea,
+  toast,
+  Toggle,
+  ToggleGroup,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldLegend, FieldSet, FieldError, FormHint } from "@/components/form-layout"
 
 import { Bdi } from "@/components/bidi"
@@ -322,7 +339,7 @@ function SettingsForm({
       <FieldSet>
         <FieldLegend>{t("inbox.widgetLook")}</FieldLegend>
         <FieldGroup>
-          <Field invalid={!!(!accentOk)}>
+          <Field invalid={!!!accentOk}>
             <FieldLabel htmlFor="ws-accent">{t("inbox.accent")}</FieldLabel>
             <div className="flex items-center gap-2">
               <input

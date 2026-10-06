@@ -118,7 +118,7 @@ const subject = `MH-413 Arabic only ${Date.now().toString(36)}`
 await page.fill("#campaign-subject", subject)
 await page.locator('[data-form="new-campaign"] textarea').first().fill("قهوة طازجة هذا الأسبوع.")
 await page.click('[data-form="new-campaign"] button[type=submit]')
-const row = page.locator(`[data-campaign-row="${subject}"]`)
+const row = page.locator(`tr:has([data-campaign-row="${subject}"])`)
 await row.waitFor({ timeout: 15000 })
 out.rowSaysArabicOnly =
   (await row.locator("[data-campaign-audience]").getAttribute("data-campaign-audience")) === "ar"

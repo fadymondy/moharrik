@@ -13,7 +13,16 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { TargetIcon, UsersIcon } from "lucide-react"
-import { Badge, Button, Checkbox, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { Bdi, isolate } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
@@ -88,7 +97,7 @@ export default function IcpSettingsPage() {
       {prof.error ? (
         <ErrorState error={prof.error} />
       ) : !prof.data ? (
-        <LoadingRows rows={6} />
+        <LoadingRows rows={6} layout="form" />
       ) : (
         <Editor out={prof.data} onSaved={(o) => prof.mutate(o, { revalidate: false })} />
       )}
@@ -257,7 +266,9 @@ function Editor({ out, onSaved }: { out: IcpProfileOut; onSaved: (o: IcpProfileO
               <li key={s} className="flex items-center gap-4 px-5 py-3" data-signal={s}>
                 <label htmlFor={`icp-signal-${s}`} className="min-w-0 flex-1">
                   <span className="block text-sm font-medium">{t(`icp.signal.${s}`)}</span>
-                  <span className="block text-xs text-muted-foreground">{t(`icp.signal.${s}.hint`)}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {t(`icp.signal.${s}.hint`)}
+                  </span>
                 </label>
                 {weightInput(`icp-signal-${s}`, draft.signals[s], (v) =>
                   setDraft((d) => ({ ...d, signals: { ...d.signals, [s]: v } })),

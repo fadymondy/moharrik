@@ -19,7 +19,6 @@ import { useTranslations } from "@/lib/i18n"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useAutomationSettings, useBrowsers, useRuns } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 
 export default function AutomationRunsPage() {
   const { t, locale } = useTranslations()
@@ -48,7 +47,6 @@ export default function AutomationRunsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("automation.runs")}
         description={t("automation.runsHint")}
         action={

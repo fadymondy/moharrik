@@ -603,7 +603,9 @@ if (want("mh446")) {
   })
   ok(
     (
-      await page.locator('[data-sitemap="https://demo.example/sitemap-blog.xml"]').innerText()
+      await page
+        .locator('tr:has([data-sitemap="https://demo.example/sitemap-blog.xml"])')
+        .innerText()
     ).includes("Waiting for Google"),
     "a submitted sitemap is pending",
   )

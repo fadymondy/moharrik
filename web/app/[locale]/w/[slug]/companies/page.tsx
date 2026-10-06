@@ -1,20 +1,46 @@
 "use client"
 
-import Link from "next/link"
-import { useState, type FormEvent } from "react"
-import { SearchIcon } from "lucide-react"
-import { Button, Field, FieldLabel, Input, InputGroup, InputGroupAddon, InputGroupInput, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import { useRouter } from "next/navigation"
+import { useEffect, useState, type FormEvent } from "react"
+import { Building2Icon, PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
+  CardMeta,
+  CursorPager,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  EmptyState as NqEmptyState,
+  EntityIdentity,
+  EntityList,
+  Field,
+  FieldLabel,
+  Input,
+  PersonCell,
+  toast,
+  type DataTableColumn,
+  type DataTableRowAction,
+  type EntityFacet,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { useDebounced } from "@/components/crm/contact-picker"
-import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
+import { pageRange, useCursorStack } from "@/components/cursor-pager"
 
 import { useMemberNames } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { SuggestionsPanel } from "@/components/research/suggestions"
-import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
-import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Company } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -24,13 +50,58 @@ import { useDocumentTitle } from "@/lib/title"
 import { Bdi, isolate } from "@/components/bidi"
 
 const PAGE_SIZE = 50
+const MIN_SCORES = [50, 75] as const
 
 export default function CompaniesPage() {
   const { t } = useTranslations()
   const ws = useWorkspace()
   useDocumentTitle(`${t("nav.companies")} · ${ws.summary.name}`)
   const canWrite = ws.can("contacts:write")
-  // Paged and searchable (MH-467): this list used to stop at 2,000 without saying so.
+  const [version, setVersion] = useState(0)
+  const changed = () => setVersion((v) => v + 1)
+  const [adding, setAdding] = useState(false)
+
+  return (
+    <>
+      <SectionHeader
+        title={t("nav.companies")}
+        description={t("companies.hint")}
+        action={
+          canWrite ? (
+            <Button onClick={() => setAdding(true)} data-open="add-company">
+              <PlusIcon />
+              {t("companies.new")}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {/* What research found (MH-388): suggestions only, never added on their own. */}
+      <SuggestionsPanel onAccepted={changed} />
+
+      <CompaniesBrowser version={version} onChange={changed} />
+      <div className="pb-8" />
+
+      {canWrite ? (
+        <AddCompanyDialog open={adding} onOpenChange={setAdding} onAdded={changed} />
+      ) : null}
+    </>
+  )
+}
+
+/*
+The companies on Nasaq's EntityList in server mode (MH-1126), the look of Nasaq's
+CompanyList: the server searches, filters by score, orders and pages (MH-467),
+the list only shows the page it was given.
+*/
+function CompaniesBrowser({ version, onChange }: { version: number; onChange: () => void }) {
+  const { t, locale, formatNumber, formatDate } = useTranslations()
+  const ws = useWorkspace()
+  const router = useRouter()
+  const members = useMemberNames(ws.id)
+  const base = `/${locale}/w/${ws.slug}`
+  const canWrite = ws.can("contacts:write")
+
   const [search, setSearch] = useState("")
   const q = useDebounced(search.trim())
   // MH-395: best fit first, and a minimum score.
@@ -44,123 +115,284 @@ export default function CompaniesPage() {
     cursor: pager.cursor,
     limit: PAGE_SIZE,
   })
-  const items = companies.data?.companies ?? []
+  const { mutate } = companies
+  useEffect(() => {
+    if (version > 0) void mutate()
+  }, [version, mutate])
+  const rows = companies.data?.companies ?? []
   const total = companies.data?.total ?? 0
+  const { from, to, pages } = pageRange(pager.index, PAGE_SIZE, rows.length, total)
+
+  const [deleting, setDeleting] = useState<Company | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function remove(c: Company) {
+    setBusy(true)
+    try {
+      await api(`/api/w/companies/${encodeURIComponent(c.id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
+      toast.success(t("companies.deleted"))
+      setDeleting(null)
+      onChange()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const owner = (c: Company) =>
+    c.owner_user_id ? { name: members.name(c.owner_user_id) } : undefined
+
+  // The server takes one minimum score: picking a second replaces the first.
+  const facets: EntityFacet<Company>[] = [
+    {
+      id: "score",
+      title: t("icp.score"),
+      options: MIN_SCORES.map((n) => ({
+        value: String(n),
+        label: t("icp.atLeast", { n: formatNumber(n) }),
+      })),
+      getValues: () => [],
+    },
+  ]
+  const facetValues: Record<string, string[]> = { score: minScore ? [String(minScore)] : [] }
+  const onFacetValuesChange = (next: Record<string, string[]>) => {
+    const values = next.score ?? []
+    const picked = values.find((v) => !facetValues.score.includes(v)) ?? values[0] ?? ""
+    setMinScore(Number(picked) || 0)
+  }
+
+  const columns: DataTableColumn<Company>[] = [
+    {
+      id: "name",
+      header: t("companies.title"),
+      hideable: false,
+      className: "min-w-56",
+      cell: (c) => (
+        <span data-company-row={c.name} className="block min-w-0">
+          <EntityIdentity
+            name={c.name}
+            avatarName={c.name}
+            shape="square"
+            subtitle={c.domain ? <Ltr>{c.domain}</Ltr> : undefined}
+          />
+        </span>
+      ),
+    },
+    {
+      id: "industry",
+      header: t("companies.industry"),
+      cell: (c) =>
+        c.industry ? <Bdi>{c.industry}</Bdi> : <span className="text-muted-foreground">—</span>,
+    },
+    {
+      id: "score",
+      header: t("icp.score"),
+      // The server orders by score; name order is the default.
+      sortValue: (c) => c.score,
+      cell: (c) => <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name)} />,
+    },
+    {
+      id: "contacts",
+      header: t("companies.contacts"),
+      align: "end",
+      cell: (c) => <span className="tabular-nums">{formatNumber(c.contact_count)}</span>,
+    },
+    {
+      id: "deals",
+      header: t("companies.openDeals"),
+      align: "end",
+      cell: (c) => <span className="tabular-nums">{formatNumber(c.open_deals)}</span>,
+    },
+    {
+      id: "owner",
+      header: t("crm.owner"),
+      cell: (c) => <PersonCell person={owner(c)} />,
+    },
+    {
+      id: "added",
+      header: t("contacts.added"),
+      align: "end",
+      defaultHidden: true,
+      cell: (c) => (
+        <span className="text-muted-foreground">
+          <Ltr>{formatDate(c.created_at)}</Ltr>
+        </span>
+      ),
+    },
+  ]
+
+  const rowActions = (c: Company): DataTableRowAction[] => [
+    {
+      id: "delete",
+      label: t("common.delete"),
+      icon: Trash2Icon,
+      danger: true,
+      group: "danger",
+      onSelect: () => setDeleting(c),
+    },
+  ]
+
+  const filtered = !!q || minScore > 0
 
   return (
-    <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("nav.companies")}
-        description={t("companies.hint")}
-      />
-
-      {/* What research found (MH-388): suggestions only, never added on their own. */}
-      <SuggestionsPanel onAccepted={() => companies.mutate()} />
-
-      {companies.error ? (
-        <ErrorState error={companies.error} />
-      ) : !companies.data ? (
-        <LoadingRows />
-      ) : total === 0 && !q && !minScore ? (
-        <EmptyState
-          title={t("companies.empty")}
-          body={canWrite ? t("companies.emptyBody") : undefined}
-        />
-      ) : (
-        <>
-          <div className="px-6 pb-4">
-            <InputGroup className="sm:max-w-sm">
-              <InputGroupAddon>
-                <SearchIcon />
-              </InputGroupAddon>
-              <InputGroupInput
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("companies.search")}
-                aria-label={t("companies.search")}
-                data-company-search
-              />
-            </InputGroup>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-muted-foreground">{t("icp.sortBy")}</span>
-              <ToggleGroup
-                value={[sort || "name"]}
-                onValueChange={(v) => v[0] && setSort(v[0] === "score" ? "score" : "")}
-                aria-label={t("icp.sortBy")}
-              >
-                <Toggle value="name" data-sort="name">
-                  {t("icp.sortName")}
-                </Toggle>
-                <Toggle value="score" data-sort="score">
-                  {t("icp.sortScore")}
-                </Toggle>
-              </ToggleGroup>
-              <ToggleGroup
-                value={[String(minScore)]}
-                onValueChange={(v) => v[0] !== undefined && setMinScore(Number(v[0]))}
-                aria-label={t("icp.score")}
-              >
-                {[0, 50, 75].map((n) => (
-                  <Toggle key={n} value={String(n)} data-min-score={n}>
-                    {n ? t("icp.atLeast", { n }) : t("icp.anyScore")}
-                  </Toggle>
-                ))}
-              </ToggleGroup>
+    <section data-companies-browser className="px-4 pt-6 sm:px-6">
+      <EntityList<Company>
+        data={rows}
+        columns={columns}
+        getRowId={(c) => c.id}
+        rowLabel={(c) => c.name}
+        label={t("nav.companies")}
+        manual
+        rowCount={total}
+        selectable={false}
+        query={{ value: search, onChange: setSearch }}
+        searchPlaceholder={t("companies.search")}
+        facets={facets}
+        facetValues={facetValues}
+        onFacetValuesChange={onFacetValuesChange}
+        sort={{
+          value: sort === "score" ? { id: "score", direction: "desc" } : null,
+          onChange: (s) => setSort(s ? "score" : ""),
+        }}
+        rowActions={canWrite ? rowActions : undefined}
+        onRowClick={(c) => router.push(`${base}/companies/${c.id}`)}
+        loading={!companies.data && !companies.error}
+        error={
+          companies.error
+            ? companies.error instanceof Error
+              ? companies.error.message
+              : t("common.networkError")
+            : undefined
+        }
+        onRetry={() => void mutate()}
+        empty={
+          <NqEmptyState
+            icon={Building2Icon}
+            title={filtered ? t("companies.noMatch") : t("companies.empty")}
+            description={!filtered && canWrite ? t("companies.emptyBody") : undefined}
+            className="border-0"
+          />
+        }
+        renderCard={(c) => (
+          <div className="flex min-w-0 flex-col gap-3" data-company-card={c.name}>
+            <EntityIdentity
+              className="pe-(--entity-card-controls)"
+              name={c.name}
+              avatarName={c.name}
+              shape="square"
+              size="lg"
+              subtitle={c.domain ? <Ltr>{c.domain}</Ltr> : c.industry || undefined}
+            />
+            <div className="flex flex-col gap-1.5">
+              {c.industry ? (
+                <CardMeta label={t("companies.industry")}>
+                  <Bdi>{c.industry}</Bdi>
+                </CardMeta>
+              ) : null}
+              <CardMeta label={t("icp.score")}>
+                <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name)} />
+              </CardMeta>
+              <CardMeta label={t("companies.contacts")}>
+                <span className="tabular-nums">{formatNumber(c.contact_count)}</span>
+              </CardMeta>
+              <CardMeta label={t("companies.openDeals")}>
+                <span className="tabular-nums">{formatNumber(c.open_deals)}</span>
+              </CardMeta>
+              <CardMeta label={t("crm.owner")}>
+                <PersonCell person={owner(c)} />
+              </CardMeta>
             </div>
           </div>
-          {total === 0 ? (
-            <p className="border-y border-nq-line px-6 py-6 text-sm text-muted-foreground">
-              {t("companies.noMatch")}
-            </p>
-          ) : (
-            <>
-              <PageSummary
-                index={pager.index}
-                pageSize={PAGE_SIZE}
-                shown={items.length}
-                total={total}
-                name="companies"
-              />
-              <div
-                className={companies.current ? undefined : "opacity-60 transition-opacity"}
-                aria-busy={!companies.current}
+        )}
+        pagination={
+          companies.data && total > 0 ? (
+            <div
+              className="flex flex-wrap items-center justify-between gap-3"
+              data-pager-current={companies.current ? "yes" : "no"}
+            >
+              <p
+                className="text-sm text-muted-foreground"
+                aria-live="polite"
+                data-pager-summary="companies"
+                data-range={`${from}-${to}/${total}`}
               >
-                <CompaniesTable
-                  items={items}
-                  canWrite={canWrite}
-                  onChange={() => companies.mutate()}
+                {t("common.showing", {
+                  from: formatNumber(from),
+                  to: formatNumber(to),
+                  total: formatNumber(total),
+                })}
+              </p>
+              {pages > 1 || pager.index > 0 ? (
+                <CursorPager
+                  data-pager="companies"
+                  from={0}
+                  to={0}
+                  summary={
+                    <span data-page-of={`${pager.index + 1}/${pages}`}>
+                      {t("common.pageOf", {
+                        page: formatNumber(pager.index + 1),
+                        pages: formatNumber(pages),
+                      })}
+                    </span>
+                  }
+                  previousLabel={t("common.prevPage")}
+                  nextLabel={t("common.nextPage")}
+                  hasPrevious={pager.index > 0}
+                  hasNext={!!companies.data.next_cursor}
+                  loading={!companies.current}
+                  onPrevious={pager.prev}
+                  onNext={() => {
+                    const next = companies.data?.next_cursor
+                    if (next && companies.current) pager.next(next)
+                  }}
                 />
-              </div>
-              <PageNav
-                index={pager.index}
-                pageSize={PAGE_SIZE}
-                total={total}
-                nextCursor={companies.data.next_cursor}
-                busy={!companies.current}
-                onNext={pager.next}
-                onPrev={pager.prev}
-                name="companies"
-              />
-            </>
-          )}
-        </>
-      )}
+              ) : null}
+            </div>
+          ) : (
+            false
+          )
+        }
+        className={companies.current ? undefined : "[&_[data-slot=table]]:opacity-60"}
+      />
 
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
-
-      {canWrite ? (
-        <AddCompany onAdded={() => companies.mutate()} />
-      ) : (
-        <p className="px-6 py-6 text-sm text-muted-foreground">{t("companies.readOnly")}</p>
-      )}
-      <div className="pb-8" />
-    </>
+      <AlertDialog open={deleting !== null} onOpenChange={(v) => (v ? null : setDeleting(null))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("companies.deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("companies.deleteBody", { name: isolate(deleting?.name ?? "") })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="danger"
+              disabled={busy}
+              onClick={() => deleting && remove(deleting)}
+            >
+              {busy ? t("common.working") : t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
   )
 }
 
-function AddCompany({ onAdded }: { onAdded: () => void }) {
+/** New company (MH-1144): a dialog opened from the page header, not a form at the foot of the page. */
+function AddCompanyDialog({
+  open,
+  onOpenChange,
+  onAdded,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onAdded: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [name, setName] = useState("")
@@ -181,6 +413,7 @@ function AddCompany({ onAdded }: { onAdded: () => void }) {
       setName("")
       setDomain("")
       onAdded()
+      onOpenChange(false)
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -189,124 +422,54 @@ function AddCompany({ onAdded }: { onAdded: () => void }) {
   }
 
   return (
-    <section className="px-6 py-6" data-form="add-company">
-      <h2 className="text-base font-medium">{t("companies.addTitle")}</h2>
-      <form onSubmit={submit} noValidate className="mt-5">
-        <FieldGroup className="sm:flex-row sm:items-end">
-          <Field className="sm:flex-1">
-            <FieldLabel htmlFor="company-name">{t("companies.name")}</FieldLabel>
-            <Input
-              id="company-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={200}
-            />
-          </Field>
-          <Field className="sm:flex-1">
-            <FieldLabel htmlFor="company-domain">
-              {t("companies.domain")}{" "}
-              <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input
-              id="company-domain"
-              dir="ltr"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              placeholder="company.com"
-            />
-          </Field>
-          <Button type="submit" disabled={busy || !name.trim()}>
-            {busy ? t("common.working") : t("companies.create")}
-          </Button>
-        </FieldGroup>
-        {err ? <FieldError className="mt-3">{err}</FieldError> : null}
-      </form>
-    </section>
-  )
-}
-
-function CompaniesTable({
-  items,
-  canWrite,
-  onChange,
-}: {
-  items: Company[]
-  canWrite: boolean
-  onChange: () => void
-}) {
-  const { t, locale } = useTranslations()
-  const ws = useWorkspace()
-  const members = useMemberNames(ws.id)
-  const base = `/${locale}/w/${ws.slug}`
-
-  async function remove(id: string) {
-    try {
-      await api(`/api/w/companies/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        workspaceId: ws.id,
-      })
-      toast.success(t("companies.deleted"))
-      onChange()
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
-    }
-  }
-
-  return (
-    <div className="border-y border-nq-line">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="ps-6">{t("companies.name")}</TableHead>
-            <TableHead>{t("icp.score")}</TableHead>
-            <TableHead>{t("companies.domain")}</TableHead>
-            <TableHead>{t("companies.contacts")}</TableHead>
-            <TableHead>{t("companies.openDeals")}</TableHead>
-            <TableHead>{t("crm.owner")}</TableHead>
-            <TableHead className="pe-6 text-end">
-              <span className="sr-only">{t("common.actions")}</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((c) => (
-            <TableRow key={c.id} data-company-row={c.name}>
-              <TableCell className="ps-6">
-                <Link className="font-medium hover:underline" href={`${base}/companies/${c.id}`}>
-                  <Bdi>{c.name}</Bdi>
-                </Link>
-                {c.industry ? (
-                  <div className="text-xs text-muted-foreground">
-                    <Bdi>{c.industry}</Bdi>
-                  </div>
-                ) : null}
-              </TableCell>
-              <TableCell>
-                <ScoreButton score={c.score} reasons={c.score_reasons} who={isolate(c.name)} />
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {c.domain ? <Ltr>{c.domain}</Ltr> : "—"}
-              </TableCell>
-              <TableCell>{c.contact_count}</TableCell>
-              <TableCell>{c.open_deals}</TableCell>
-              <TableCell className="text-muted-foreground">
-                <Ltr>{members.name(c.owner_user_id)}</Ltr>
-              </TableCell>
-              <TableCell className="pe-6 text-end">
-                {canWrite ? (
-                  <ConfirmButton
-                    label={t("common.delete")}
-                    title={t("companies.deleteTitle")}
-                    description={t("companies.deleteBody", { name: isolate(c.name) })}
-                    confirmLabel={t("common.delete")}
-                    onConfirm={() => remove(c.id)}
-                  />
-                ) : null}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setErr(null)
+        onOpenChange(v)
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("companies.addTitle")}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={submit} noValidate data-form="add-company">
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="company-name">{t("companies.name")}</FieldLabel>
+              <Input
+                id="company-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={200}
+                autoFocus
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="company-domain">
+                {t("companies.domain")}{" "}
+                <span className="text-muted-foreground">({t("common.optional")})</span>
+              </FieldLabel>
+              <Input
+                id="company-domain"
+                dir="ltr"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="company.com"
+              />
+            </Field>
+          </FieldGroup>
+          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={busy || !name.trim()}>
+              {busy ? t("common.working") : t("companies.create")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

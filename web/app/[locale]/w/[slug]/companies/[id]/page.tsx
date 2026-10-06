@@ -1,245 +1,78 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
-import { useState, type FormEvent } from "react"
-import { Button, Field, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
-import { FieldError } from "@/components/form-layout"
+import { ActivityIcon, GaugeIcon, HandshakeIcon, UsersIcon } from "lucide-react"
 
+import {
+  CompanyPeople,
+  CompanyScore,
+  useCompanyRecord,
+} from "@/components/companies/company-record"
 import { DealsTable } from "@/components/crm/deals"
-import { ScoreMeter, ScoreReasons } from "@/components/crm/icp"
-import { CompanyEditFields } from "@/components/crm/shared"
-import { Timeline } from "@/components/crm/timeline"
-import { ConfirmButton } from "@/components/confirm-button"
-import { Ltr } from "@/components/copy-field"
-import { NotFoundState } from "@/components/not-found-state"
-import { SectionHeader } from "@/components/public-frame"
-import { ErrorState, LoadingRows } from "@/components/states"
-import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError } from "@/lib/api"
+import { RecordBody, RecordCard, RecordStat } from "@/components/record/record"
 import { useTranslations } from "@/lib/i18n"
-import { useCompany } from "@/lib/queries"
-import { useDocumentTitle } from "@/lib/title"
-import { Bdi, isolate } from "@/components/bidi"
 
-export default function CompanyDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const { t, locale } = useTranslations()
-  const ws = useWorkspace()
-  const canWrite = ws.can("contacts:write")
-  const detail = useCompany(ws.id, id)
-  useDocumentTitle(
-    detail.data ? `${detail.data.company.name} · ${ws.summary.name}` : t("companies.title"),
+const PREVIEW = 5
+
+/** MH-1157: the company at a glance: the numbers, its fit, its people and its deals. */
+export default function CompanyOverviewPage() {
+  const { t, formatNumber } = useTranslations()
+  const { data, company, base, rec } = useCompanyRecord()
+  const viewAll = (href: string) => (
+    <Link href={href} className="text-muted-foreground hover:text-foreground hover:underline">
+      {t("record.viewAll")}
+    </Link>
   )
-  const base = `/${locale}/w/${ws.slug}`
-
-  if (detail.error) {
-    const notFound = detail.error instanceof ApiError && detail.error.status === 404
-    if (notFound)
-      return (
-        <NotFoundState
-          title={t("companies.notFound")}
-          body={t("companies.notFoundBody")}
-          backHref={`${base}/companies`}
-          backLabel={t("companies.backToList")}
-        />
-      )
-    return <ErrorState error={detail.error} />
-  }
-  if (!detail.data) return <LoadingRows rows={6} />
-
-  const { company, contacts, deals, activities } = detail.data
 
   return (
-    <>
-      <SectionHeader
-        micro={t("nav.companies")}
-        title={<Bdi>{company.name}</Bdi>}
-        description={company.domain ? <Ltr>{company.domain}</Ltr> : undefined}
-        action={
-          canWrite ? (
-            <ConfirmButton
-              label={t("common.delete")}
-              title={t("companies.deleteTitle")}
-              description={t("companies.deleteBody", { name: isolate(company.name) })}
-              confirmLabel={t("common.delete")}
-              onConfirm={async () => {
-                await api(`/api/w/companies/${encodeURIComponent(company.id)}`, {
-                  method: "DELETE",
-                  workspaceId: ws.id,
-                })
-                window.location.href = `${base}/companies`
-              }}
-            />
-          ) : undefined
-        }
-      />
-
-      {canWrite ? <EditCompany company={company} onSaved={() => detail.mutate()} /> : null}
-
-      <section className="px-6 pb-6" data-score-panel>
-        <div className="border border-nq-line bg-card">
-          <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-5 py-4">
-            <h2 className="text-base font-medium">{t("icp.fit")}</h2>
-            <ScoreMeter score={company.score} />
-            <Link
-              className="ms-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
-              href={`${base}/settings/icp`}
-            >
-              {t("icp.editProfile")}
-            </Link>
-          </div>
-          <p className="px-5 pt-3 text-xs text-muted-foreground">{t("icp.companyHow")}</p>
-          <div className="px-5 pb-2">
-            <ScoreReasons reasons={company.score_reasons ?? []} />
-          </div>
-        </div>
-      </section>
-
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
-
-      <section>
-        <h2 className="px-6 pb-4 text-base font-medium">
-          {t("companies.people", { count: contacts.length })}
-        </h2>
-        {contacts.length === 0 ? (
-          <p className="px-6 pb-6 text-sm text-muted-foreground">{t("companies.noPeople")}</p>
-        ) : (
-          <ul className="mb-6 divide-y divide-nq-line border-y border-nq-line">
-            {contacts.map((c) => (
-              <li key={c.id} className="px-6 py-3 text-sm">
-                <Link
-                  className="font-medium underline decoration-nq-fg-muted underline-offset-4 hover:decoration-current"
-                  href={`${base}/contacts/${c.id}`}
-                  data-person-link
-                >
-                  {c.name ? <Bdi>{c.name}</Bdi> : <Ltr>{c.email}</Ltr>}
-                </Link>
-                {c.title ? (
-                  <span className="text-muted-foreground">
-                    {" · "}
-                    <Bdi>{c.title}</Bdi>
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <div className="hatch h-8 border-y border-border" aria-hidden />
-
-      <section>
-        <h2 className="px-6 py-4 text-base font-medium">{t("nav.deals")}</h2>
-        <DealsTable deals={deals} total={detail.data.deals_total} empty={t("companies.noDeals")} />
-      </section>
-
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
-
-      <Timeline
-        items={activities}
-        total={detail.data.activities_total}
-        nextCursor={detail.data.activities_next_cursor}
-        conversations={detail.data.conversations ?? []}
-        target={{ company_id: company.id }}
-        onChange={() => detail.mutate()}
-      />
-      <div className="pb-8" />
-    </>
-  )
-}
-
-function EditCompany({
-  company,
-  onSaved,
-}: {
-  company: {
-    id: string
-    name: string
-    domain: string
-    industry: string
-    size: string
-    country: string
-    notes: string
-  }
-  onSaved: () => void
-}) {
-  const { t } = useTranslations()
-  const ws = useWorkspace()
-  const [name, setName] = useState(company.name)
-  const [domain, setDomain] = useState(company.domain)
-  const [industry, setIndustry] = useState(company.industry)
-  const [size, setSize] = useState(company.size)
-  const [country, setCountry] = useState(company.country ?? "")
-  const [notes, setNotes] = useState(company.notes)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setErr(null)
-    try {
-      await api(`/api/w/companies/${encodeURIComponent(company.id)}`, {
-        method: "PATCH",
-        json: {
-          name: name.trim(),
-          domain: domain.trim(),
-          industry: industry.trim(),
-          size,
-          country: country.trim(),
-          notes: notes.trim(),
-        },
-        workspaceId: ws.id,
-      })
-      toast.success(t("companies.saved"))
-      onSaved()
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} noValidate className="px-6 pb-6" data-form="edit-company">
-      <CompanyEditFields
-        idPrefix="edit-company"
-        name={name}
-        setName={setName}
-        domain={domain}
-        setDomain={setDomain}
-        industry={industry}
-        setIndustry={setIndustry}
-        size={size}
-        setSize={setSize}
-      />
-      <Field className="mt-4 sm:max-w-xs">
-        <FieldLabel htmlFor="edit-company-country">{t("companies.country")}</FieldLabel>
-        <Input
-          id="edit-company-country"
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
-          maxLength={80}
-          placeholder={t("companies.countryPlaceholder")}
+    <RecordBody>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-record-stats>
+        <RecordStat
+          icon={<GaugeIcon />}
+          label={t("icp.fit")}
+          value={company.score === null ? "—" : formatNumber(company.score)}
+          hint={company.score === null ? t("icp.unscored") : undefined}
         />
-      </Field>
-      <Field className="mt-4">
-        <FieldLabel htmlFor="edit-company-notes">{t("companies.notes")}</FieldLabel>
-        <Textarea
-          id="edit-company-notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          maxLength={4000}
-          rows={3}
+        <RecordStat
+          icon={<UsersIcon />}
+          label={t("record.tab.people")}
+          value={formatNumber(data.contacts.length)}
+          href={`${rec}/people`}
         />
-      </Field>
-      <div className="mt-4 flex items-center gap-3">
-        <Button type="submit" disabled={busy || !name.trim()}>
-          {busy ? t("common.working") : t("common.save")}
-        </Button>
-        {err ? <FieldError>{err}</FieldError> : null}
+        <RecordStat
+          icon={<HandshakeIcon />}
+          label={t("record.openDeals")}
+          value={formatNumber(company.open_deals)}
+          hint={t("record.dealsTotal", { n: formatNumber(data.deals_total) })}
+          href={`${rec}/deals`}
+        />
+        <RecordStat
+          icon={<ActivityIcon />}
+          label={t("record.tab.activity")}
+          value={formatNumber(data.activities_total)}
+          href={`${rec}/activity`}
+        />
       </div>
-    </form>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2">
+          <CompanyScore company={company} base={base} />
+        </div>
+        <RecordCard
+          title={t("companies.people", { count: data.contacts.length })}
+          action={data.contacts.length > PREVIEW ? viewAll(`${rec}/people`) : null}
+        >
+          <CompanyPeople contacts={data.contacts} base={base} limit={PREVIEW} />
+        </RecordCard>
+      </div>
+
+      <RecordCard
+        title={t("nav.deals")}
+        action={data.deals.length ? viewAll(`${rec}/deals`) : null}
+        bodyClassName="-mb-px"
+      >
+        <DealsTable deals={data.deals.slice(0, PREVIEW)} empty={t("companies.noDeals")} />
+      </RecordCard>
+    </RecordBody>
   )
 }

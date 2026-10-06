@@ -29,7 +29,22 @@ import {
 
 import { PickSelect } from "@/components/crm/shared"
 import { Bdi } from "@/components/bidi"
-import { Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, Switch, Textarea } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Checkbox,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Switch,
+  Textarea,
+} from "@fadymondy/nasaq/web"
 import { Label } from "@/components/form-layout"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
@@ -142,7 +157,10 @@ function InsertField({ fields, onInsert }: { fields: string[]; onInsert: (f: str
           {fields.map((f) => (
             <DropdownMenuItem key={f} onClick={() => onInsert(f)}>
               <span className="flex-1">{t(`rules.field.${f}`)}</span>
-              <code dir="ltr" className="font-mono text-[11px] text-muted-foreground">{`{{${f}}}`}</code>
+              <code
+                dir="ltr"
+                className="font-mono text-[11px] text-muted-foreground"
+              >{`{{${f}}}`}</code>
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
@@ -232,10 +250,7 @@ export function TriggerPanel({
         <p className="text-sm font-medium">{t("rules.carries")}</p>
         <ul className="flex flex-wrap gap-1.5" data-trigger-fields>
           {(def?.fields ?? []).map((f) => (
-            <li
-              key={f.name}
-              className="rounded-md border border-nq-line bg-card px-2 py-1 text-xs"
-            >
+            <li key={f.name} className="rounded-md border border-nq-line bg-card px-2 py-1 text-xs">
               {t(`rules.field.${f.name}`)}{" "}
               <code
                 dir="ltr"

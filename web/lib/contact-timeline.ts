@@ -77,7 +77,9 @@ export function useContactTimeline(wsId: string | null | undefined, id: string, 
 /** The stored relationship reports, newest version first (the same list the context panel shows). */
 export function useContactReports(wsId: string | null | undefined, id: string, enabled = true) {
   return useSWR<ContactReport[]>(
-    wsId && id && enabled ? [`/api/w/contacts/${encodeURIComponent(id)}/context/reports`, wsId] : null,
+    wsId && id && enabled
+      ? [`/api/w/contacts/${encodeURIComponent(id)}/context/reports`, wsId]
+      : null,
     ([p, w]: [string, string]) => api<ContactReport[]>(p, { workspaceId: w }).then((r) => r ?? []),
     { shouldRetryOnError: false },
   )

@@ -59,7 +59,9 @@ export function SetupGuide({
           {steps.map((step, i) => (
             <li key={i} className="ps-1">
               <p className="font-medium text-foreground">{t(step.titleKey)}</p>
-              {step.bodyKey ? <p className="mt-0.5 text-muted-foreground">{t(step.bodyKey)}</p> : null}
+              {step.bodyKey ? (
+                <p className="mt-0.5 text-muted-foreground">{t(step.bodyKey)}</p>
+              ) : null}
               {step.warningKey ? (
                 <p
                   className="mt-1.5 flex items-start gap-2 border border-nq-danger-text/40 bg-nq-danger-text/5 px-3 py-2 text-nq-danger-text"

@@ -1,12 +1,11 @@
 "use client"
 
-import { useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { Suspense, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import {
   AppHeader,
   AppMain,
   AppShell,
-  Button,
   CommandPalette,
   Dialog,
   DialogContent,
@@ -34,12 +33,13 @@ import {
   type Command,
   type Workspace,
 } from "@fadymondy/nasaq/web"
-import { BookOpenIcon, MessageSquarePlusIcon, Settings2Icon } from "lucide-react"
+import { AppSplash } from "@/components/workspace/app-splash"
+import { BookOpenIcon, MessageSquarePlusIcon, Settings2Icon, ShieldCheckIcon } from "lucide-react"
 import { useSWRConfig } from "swr"
 
 import { LiveAlerts } from "@/components/alerts/live-alerts"
 import { NotificationBell } from "@/components/alerts/notification-bell"
-import { ChatDock } from "@/components/inbox/chat-dock"
+import { InboxDock } from "@/components/inbox/inbox-dock"
 import {
   MahaamFeedbackWidget,
   openFeedback,
@@ -50,6 +50,7 @@ import { ErrorState } from "@/components/states"
 import { CreateWorkspaceForm } from "@/components/workspace/create-workspace-form"
 import { WorkspaceContext } from "@/components/workspace/workspace-context"
 import { api, resetCsrf, type WorkspaceSummary } from "@/lib/api"
+import { usePlatform } from "@/lib/admin"
 import { useTranslations } from "@/lib/i18n"
 import { itemActive, visibleEntries, visibleItems } from "@/lib/nav-config"
 import {
@@ -62,7 +63,9 @@ import {
 } from "@/lib/nav-top"
 import { useCurrentWorkspace, useMyWorkspaces } from "@/lib/queries"
 import { useRequireAuth } from "@/lib/use-require-auth"
+import { rememberWorkspace } from "@/lib/last-workspace"
 import { mcpDocsHref } from "@/lib/mcp-docs"
+import { ConnectAgent } from "@/components/mcp/connect-agent"
 
 /**
  * SidebarItem is a native <a>: plain clicks route client-side, modified clicks keep the browser's
@@ -153,6 +156,7 @@ function Account({ email, onReport }: { email: string; onReport?: () => void }) 
   const { t, locale } = useTranslations()
   const router = useRouter()
   const { mutate } = useSWRConfig()
+  const platform = usePlatform()
 
   async function signOut() {
     try {
@@ -169,6 +173,12 @@ function Account({ email, onReport }: { email: string; onReport?: () => void }) 
 
   return (
     <UserMenu user={{ name: email.split("@")[0] || email, email }} onSignOut={signOut}>
+      {platform.data?.is_admin ? (
+        <DropdownMenuItem onClick={() => router.push(`/${locale}/admin`)} data-admin-link>
+          <ShieldCheckIcon />
+          {t("admin.panel")}
+        </DropdownMenuItem>
+      ) : null}
       {onReport ? (
         <DropdownMenuItem onClick={onReport}>
           <MessageSquarePlusIcon />
@@ -182,7 +192,6 @@ function Account({ email, onReport }: { email: string; onReport?: () => void }) 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const { slug } = useParams<{ slug: string }>()
   const { t, locale } = useTranslations()
-  const pathname = usePathname()
   const me = useRequireAuth()
   // "Report a problem" shows only once the widget can actually send (MH-464): a deployment with
   // no Mahaam key, or a widget script that failed to load, gets no button rather than a dead one.
@@ -191,6 +200,10 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   const summary = list.data?.find((w) => w.slug === slug)
   const current = useCurrentWorkspace(summary?.id)
+  // MH-1108: the next sign-in opens this workspace again.
+  useEffect(() => {
+    if (summary) rememberWorkspace(summary.slug)
+  }, [summary])
   const base = `/${locale}/w/${slug}`
   const can = current.data?.can
 
@@ -204,9 +217,18 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       }
     : null
 
+  // Until we know who you are, which workspaces you have and what you can do here, the
+  // centred boot splash stands in for the whole shell (MH-1122, as in Mahaam): no empty
+  // nav, no empty header, no loader inside a half-built frame.
+  const booting =
+    !me.error &&
+    !list.error &&
+    !current.error &&
+    (!me.data || !list.data || (!!summary && !current.data))
+  if (booting) return <AppSplash />
+
   let body: ReactNode
   if (me.error || list.error) body = <ErrorState error={me.error ?? list.error} />
-  else if (!me.data || !list.data) body = <ShellSkeleton />
   else if (!summary || !ctx)
     body = (
       <NotFoundState
@@ -234,6 +256,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       <SidebarFooter>
         {summary ? <ShellFooterNav base={base} can={can} /> : null}
         {me.data ? (
+          // "Report a problem" lives only in this menu (MH-1111).
           <Account email={me.data.email} onReport={canReport ? () => openFeedback() : undefined} />
         ) : null}
       </SidebarFooter>
@@ -245,22 +268,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       <AppHeader>
         <SidebarTrigger label={t("shell.toggleSidebar")} data-nav-toggle />
         <div className="ms-auto flex shrink-0 items-center gap-1">
-          {me.data && canReport ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => openFeedback()}
-              aria-label={t("feedback.report")}
-            >
-              <MessageSquarePlusIcon />
-              <span className="hidden sm:inline">{t("feedback.report")}</span>
-            </Button>
-          ) : null}
           {/* The bell and the live alerts ride on every workspace page (MH-378):
               a customer who writes while the member is on Contacts must not
               wait for them to open the inbox. */}
           {summary && current.data ? (
             <>
+              <ConnectAgent workspaceId={summary.id} slug={summary.slug} />
               <NotificationBell
                 workspaceId={summary.id}
                 slug={summary.slug}
@@ -272,38 +285,27 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           ) : null}
         </div>
       </AppHeader>
-      {/* MH-663: reserve room for the chat dock's launcher pill so it never
-          sits over the last row of page content — the dock itself hides on
-          the inbox route, so no padding is needed there either. */}
-      <AppMain className={pathname?.includes("/inbox") ? "p-0" : "p-0 pb-16"}>{body}</AppMain>
+      {/* MH-663/MH-1147: reserve room for the inbox bar so it never sits over
+          the last row of page content. */}
+      <AppMain className="p-0 pb-16">{body}</AppMain>
 
       {summary ? <NavCommands base={base} can={can} /> : null}
       <CommandPalette />
 
       {me.data ? <MahaamFeedbackWidget /> : null}
 
-      {/* Every workspace page except the inbox itself (ChatDock hides itself
-          there — the inbox already IS the chat UI, MH-587/MH-663). Its own
-          WorkspaceContext.Provider: this dock is a sibling of `body` above,
-          not a descendant, so it needs the same context re-supplied —
-          CannedPicker (reused inside ChatThread) calls useWorkspace() and
-          throws outside one. */}
+      {/* The inbox (MH-1147): a bar on every workspace page that opens into the
+          whole inbox. Its own WorkspaceContext.Provider: the dock is a sibling of
+          `body` above, not a descendant, so it needs the same context re-supplied —
+          the inbox reads useWorkspace() throughout. */}
       {summary && current.data && ctx ? (
         <WorkspaceContext.Provider value={ctx}>
-          <ChatDock workspaceId={summary.id} slug={summary.slug} can={ctx.can} />
+          <Suspense fallback={null}>
+            <InboxDock />
+          </Suspense>
         </WorkspaceContext.Provider>
       ) : null}
     </AppShell>
-  )
-}
-
-function ShellSkeleton() {
-  return (
-    <div className="space-y-4 p-6">
-      <Skeleton className="h-8 w-56" />
-      <Skeleton className="h-4 w-96 max-w-full" />
-      <Skeleton className="h-32 w-full" />
-    </div>
   )
 }
 
@@ -482,11 +484,28 @@ function ShellNav({ base, can }: { base: string; can?: string[] }) {
       {TOP_NAV.map((section) => {
         const items = visibleTop(section.items, can)
         if (items.length === 0) return null
+        // MH-1173: a group's label is a link too, to the first page in it the viewer can open
+        // (AUTOMATE → Automations, UNDERSTAND → Insights, CONNECT → Integrations).
+        const label = section.labelKey ? t(section.labelKey) : undefined
+        const first = items[0]
+        const groupHref = first.path ? `${base}/${first.path}` : base
         return (
           <SidebarGroup
             key={section.key}
             data-nav-section={section.key}
-            label={section.labelKey ? t(section.labelKey) : undefined}
+            aria-label={label}
+            label={
+              label ? (
+                <a
+                  href={groupHref}
+                  onClick={go(groupHref)}
+                  className="rounded-[3px] outline-none hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-nq-focus"
+                  data-nav-group-link={section.key}
+                >
+                  {label}
+                </a>
+              ) : undefined
+            }
           >
             {items.map((item) => (
               <TopRow

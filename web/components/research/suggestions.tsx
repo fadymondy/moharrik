@@ -2,7 +2,19 @@
 
 import { useState, type FormEvent } from "react"
 import { CheckIcon, SparklesIcon, XIcon } from "lucide-react"
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldLabel,
+  Input,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { Bdi, isolate } from "@/components/bidi"
@@ -40,7 +52,9 @@ export function SuggestionsPanel({ onAccepted }: { onAccepted: () => void }) {
           {formatNumber(total)}
         </span>
       </h2>
-      <p className="px-6 pt-1 pb-3 text-sm text-muted-foreground">{t("research.suggestionsHint")}</p>
+      <p className="px-6 pt-1 pb-3 text-sm text-muted-foreground">
+        {t("research.suggestionsHint")}
+      </p>
       <ul className="divide-y divide-nq-line border-y border-nq-line">
         {items.map((s) => (
           <SuggestionRow

@@ -128,13 +128,15 @@ check(
 )
 await page.screenshot({ path: path.join(shots, "wh-sentry-dialog-en-light.png") })
 await page.click('button:has-text("Later")')
-await page.waitForSelector('[data-source-row="UI sentry"] [data-no-secret]', { timeout: 10000 })
+await page.waitForSelector('tr:has([data-source-row="UI sentry"]) [data-no-secret]', {
+  timeout: 10000,
+})
 out.sentryNoSecretFlag = true
-await page.click('[data-source-row="UI sentry"] button:has-text("Set client secret")')
+await page.click('tr:has([data-source-row="UI sentry"]) button:has-text("Set client secret")')
 const clientSecret = "sentry-client-secret-" + Date.now().toString(16) + "abcdef0123456789"
 await page.fill('input[id^="client-secret-"]', clientSecret)
 await page.click('button:has-text("Save secret")')
-await page.waitForSelector('[data-source-row="UI sentry"] [data-no-secret]', {
+await page.waitForSelector('tr:has([data-source-row="UI sentry"]) [data-no-secret]', {
   state: "detached",
   timeout: 10000,
 })
@@ -160,7 +162,7 @@ if (dbURL) {
   check(r.status === 202, "legacy source refused its old body-only signature")
 
   await page.reload({ waitUntil: "networkidle" })
-  const legacy = '[data-source-row="UI generic"] [data-legacy-signing]'
+  const legacy = 'tr:has([data-source-row="UI generic"]) [data-legacy-signing]'
   await page.waitForSelector(legacy, { timeout: 10000 })
   out.legacyText = (await page.textContent(legacy)).replace(/\s+/g, " ").trim()
   check(/Legacy signing, replayable/.test(out.legacyText), "legacy badge text missing")

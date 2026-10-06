@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react"
 import { CircleAlertIcon, ClockIcon } from "lucide-react"
 
 import { Badge, Button } from "@fadymondy/nasaq/web"
+import { RowsTable } from "@/components/nq-table"
 import type { RunStep } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -42,8 +43,7 @@ export function NodeOutput({
       </p>
     )
   }
-  const tone =
-    step.status === "ok" ? "brand" : step.status === "pending" ? "neutral" : "outline"
+  const tone = step.status === "ok" ? "brand" : step.status === "pending" ? "neutral" : "outline"
   return (
     <div className="space-y-3 px-4 py-4" data-node-output={step.status}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -55,7 +55,9 @@ export function NodeOutput({
           </span>
         ) : null}
         {rows ? (
-          <span className="text-xs text-muted-foreground">{t("canvas.items", { n: rows.length })}</span>
+          <span className="text-xs text-muted-foreground">
+            {t("canvas.items", { n: rows.length })}
+          </span>
         ) : null}
       </div>
       {step.error ? (
@@ -113,41 +115,40 @@ export function NodeOutput({
 }
 
 function OutputTable({ rows }: { rows: Record<string, unknown>[] }) {
+  const { t } = useTranslations()
   const cols = useMemo(() => [...new Set(rows.flatMap((r) => Object.keys(r)))], [rows])
   const cell = (v: unknown) =>
     v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v)
   return (
-    <div className="max-h-96 overflow-auto rounded-md border border-nq-line" data-output-table>
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-card">
-          <tr>
-            <th className="w-8 border-b border-nq-line px-2 py-1.5 text-start font-medium text-muted-foreground">
-              #
-            </th>
-            {cols.map((c) => (
-              <th
-                key={c}
-                className="border-b border-nq-line px-2 py-1.5 text-start font-medium"
-                dir="ltr"
-              >
-                {c}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className="border-b border-nq-line last:border-0">
-              <td className="px-2 py-1.5 text-muted-foreground tabular-nums">{i + 1}</td>
-              {cols.map((c) => (
-                <td key={c} className="max-w-60 truncate px-2 py-1.5" dir="auto" title={cell(r[c])}>
-                  {cell(r[c])}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="max-h-96 overflow-auto" data-output-table>
+      <RowsTable<{ i: number; r: Record<string, unknown> }>
+        data={rows.map((r, i) => ({ i, r }))}
+        getRowId={(x) => String(x.i)}
+        label={t("canvas.output.table")}
+        columns={[
+          {
+            id: "#",
+            header: "#",
+            hideable: false,
+            sortValue: (x) => x.i,
+            headerClassName: "w-8",
+            className: "text-muted-foreground tabular-nums",
+            cell: (x) => x.i + 1,
+          },
+          ...cols.map((c) => ({
+            id: `c:${c}`,
+            header: <span dir="ltr">{c}</span>,
+            label: c,
+            sortValue: (x: { r: Record<string, unknown> }) => cell(x.r[c]),
+            className: "max-w-60 truncate",
+            cell: (x: { r: Record<string, unknown> }) => (
+              <span dir="auto" title={cell(x.r[c])}>
+                {cell(x.r[c])}
+              </span>
+            ),
+          })),
+        ]}
+      />
     </div>
   )
 }

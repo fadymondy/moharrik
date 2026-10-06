@@ -17,7 +17,8 @@ const check = (k, ok, d) => {
   if (!ok) fail.push(k)
 }
 const args = process.env.HOST_RULES ? [`--host-resolver-rules=${process.env.HOST_RULES}`] : []
-const ACTIONS = "archive,mute,toggle-unread,favourite,toggle-status,color,icon,labels,block,clear,delete"
+const ACTIONS =
+  "archive,mute,toggle-unread,favourite,toggle-status,color,icon,labels,block,clear,delete"
 
 for (const scheme of ["light", "dark"]) {
   const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "mh657-")), {
@@ -34,7 +35,11 @@ for (const scheme of ["light", "dark"]) {
   const writes = []
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/"))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/")
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -80,7 +85,10 @@ for (const scheme of ["light", "dark"]) {
       await page.waitForTimeout(600)
       const r = await page.evaluate(() => {
         const chips = [...document.querySelectorAll("[data-filter]")]
-        const chev = document.querySelector("[data-conversation]")?.closest("li")?.querySelector("[data-row-menu-button]")
+        const chev = document
+          .querySelector("[data-conversation]")
+          ?.closest("li")
+          ?.querySelector("[data-row-menu-button]")
         return {
           dir: document.documentElement.dir,
           dark: document.documentElement.classList.contains("dark"),
@@ -101,7 +109,8 @@ for (const scheme of ["light", "dark"]) {
       )
       check(`${k}-chips-round`, r.round)
       check(`${k}-chevron`, r.chevron)
-      if (w === 390) check(`${k}-chevron-visible-mobile`, r.chevronOpacity === "1", r.chevronOpacity)
+      if (w === 390)
+        check(`${k}-chevron-visible-mobile`, r.chevronOpacity === "1", r.chevronOpacity)
       check(`${k}-no-overflow`, !r.overflowX)
 
       // Right-click the first row: the menu opens with every item. Escape closes it.
@@ -115,17 +124,21 @@ for (const scheme of ["light", "dark"]) {
       check(`${k}-menu-opens`, open)
       if (open) {
         await page.waitForTimeout(400)
-        const acts = await menu.locator("[data-action]").evaluateAll((els) => els.map((e) => e.dataset.action))
+        const acts = await menu
+          .locator("[data-action]")
+          .evaluateAll((els) => els.map((e) => e.dataset.action))
         const first = acts[0]
-        const rest = acts.slice(1).filter((a) => a !== "unmute").join(",")
+        const rest = acts
+          .slice(1)
+          .filter((a) => a !== "unmute")
+          .join(",")
         check(`${k}-menu-items`, ["pin"].includes(first) && rest === ACTIONS, acts.join(","))
         const inView = await menu.evaluate((m) => {
           const b = m.getBoundingClientRect()
           return b.left >= 0 && b.right <= innerWidth + 1
         })
         check(`${k}-menu-in-view`, inView)
-        if (loc === "ar")
-          check(`${k}-menu-arabic`, /[\u0600-\u06FF]/.test(await menu.innerText()))
+        if (loc === "ar") check(`${k}-menu-arabic`, /[\u0600-\u06FF]/.test(await menu.innerText()))
         if (shots) await page.screenshot({ path: `${shots}/mh657-live-${k}-menu.png` })
         await page.keyboard.press("Escape")
         await menu.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {})

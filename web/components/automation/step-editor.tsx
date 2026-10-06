@@ -394,7 +394,9 @@ function FieldInput({
   const label = (
     <Label htmlFor={id} className="text-xs">
       {t(`automation.field.${def.name}`)}
-      {def.required ? null : <span className="text-muted-foreground"> ({t("common.optional")})</span>}
+      {def.required ? null : (
+        <span className="text-muted-foreground"> ({t("common.optional")})</span>
+      )}
     </Label>
   )
   if (def.kind === "bool") {

@@ -36,7 +36,15 @@ import {
   XCircleIcon,
 } from "lucide-react"
 
-import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Skeleton } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Skeleton,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 import { PickSelect } from "@/components/crm/shared"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
@@ -280,7 +288,10 @@ export default function ConnectBrowserPage() {
               </div>
 
               <div>
-                <dl className="divide-y divide-nq-line border border-nq-line text-sm" data-connect-claims>
+                <dl
+                  className="divide-y divide-nq-line border border-nq-line text-sm"
+                  data-connect-claims
+                >
                   <Claim label={t("automation.connect.claimName")} value={r.requested_name} />
                   <Claim label={t("automation.connect.claimPlatform")} value={r.platform} ltr />
                   <Claim

@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/togo-framework/togo"
 
+	"github.com/fadymondy/moharrik/internal/admin"
 	"github.com/fadymondy/moharrik/internal/ai"
 	"github.com/fadymondy/moharrik/internal/alerts"
 	"github.com/fadymondy/moharrik/internal/analytics"
@@ -272,6 +273,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 		ccAI = contactcontext.ResolveAIClient(a.Log) // nil is a fully supported state (MH-586): every ask/report path works without one
 	}
 	contactcontext.Register(api, a, ccAI) // Contacts → WhatsApp export/notes/ask/report (MH-586)
+	contactcontext.RegisterBrief(api, a, ccAI) // the AI context brief on contacts, companies and leads (MH-1169)
 	trends.Register(api, a)
 	trends.RegisterDigest(api, a) // the trends digest (MH-389)
 	automation.Register(api, a, automation.Default())
@@ -304,6 +306,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	searchconsole.Register(api, a) // Search Console performance (MH-445)
 	youtube.Register(api, a)       // YouTube channel, videos, comments (MH-441)
 	audit.Register(api, a)         // the audit log (MH-392)
+	admin.Register(api, a)         // the superadmin panel API (MH-1184), behind the guard's admin tier
 }
 
 /*

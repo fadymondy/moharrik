@@ -44,8 +44,9 @@ out.slugA = slugA
 // ---- companies ----
 await pageA.goto(`${base}/en/w/${slugA}/companies`, { waitUntil: "networkidle" })
 out.addCompanyFormPresent = await pageA.evaluate(
-  () => document.querySelector("[data-form=add-company]") != null,
+  () => document.querySelector("[data-open=add-company]") != null,
 )
+await pageA.click('[data-open="add-company"]')
 await pageA.fill("#company-name", "Acme Corp")
 await pageA.fill("#company-domain", "acme.test")
 await pageA.click("[data-form=add-company] button[type=submit]")
@@ -55,6 +56,8 @@ await pageA.click('[data-company-row="Acme Corp"] a')
 await pageA.waitForURL(/\/companies\/[^/]+$/, { timeout: 10000 })
 const companyUrl = pageA.url()
 const companyId = companyUrl.split("/companies/")[1]
+// MH-1157: the record is tabbed: the form lives on Details, the timeline on Activity.
+await pageA.goto(`${companyUrl}/details`, { waitUntil: "networkidle" })
 await pageA.waitForSelector('[data-form="edit-company"]', { timeout: 10000 })
 out.companyDetailLoaded = true
 await pageA.fill("#edit-company-industry", "Software")
@@ -62,6 +65,7 @@ await pageA.click('[data-form="edit-company"] button[type=submit]')
 await pageA.waitForTimeout(600)
 
 // log a note + task on the company timeline
+await pageA.goto(`${companyUrl}/activity`, { waitUntil: "networkidle" })
 await pageA.click("[data-kind=note]")
 await pageA.fill("#activity-body", "First contact made")
 await pageA.click("[data-form=activity] button[type=submit]")
@@ -82,16 +86,23 @@ await pageA
 out.taskMarkedDone = await pageA.evaluate(() => !document.querySelector("[data-open-tasks]"))
 
 // ---- contacts: add one, link to the company ----
+// MH-1156: lists live in a sideover opened from the header.
 await pageA.goto(`${base}/en/w/${slugA}/contacts`, { waitUntil: "networkidle" })
+await pageA.click('[data-open="lists"]')
+await pageA.click('[data-open="create-list"]')
 await pageA.fill("#list-name", "Prospects")
 await pageA.click("[data-form=create-list] button[type=submit]")
 await pageA.waitForSelector('[data-list-row="Prospects"]', { timeout: 10000 })
+await pageA.keyboard.press("Escape")
+await pageA.waitForSelector("[data-lists-sheet]", { state: "detached" })
+await pageA.click('[data-open="add-contact"]')
 await pageA.fill("#contact-email", "jane@acme.test")
 await pageA.fill("#contact-name", "Jane Doe")
 await pageA.click("[data-form=add-contact] button[type=submit]")
 await pageA.waitForSelector('[data-contact-row="jane@acme.test"]', { timeout: 10000 })
 await pageA.click('[data-contact-row="jane@acme.test"] a')
 await pageA.waitForURL(/\/contacts\/[^/]+$/, { timeout: 10000 })
+await pageA.goto(`${pageA.url()}/details`, { waitUntil: "networkidle" })
 await pageA.waitForSelector('[data-form="edit-contact"]', { timeout: 10000 })
 out.contactCompanySelectPresent = await pageA.evaluate(
   () => document.querySelector("#edit-contact-company") != null,
@@ -122,11 +133,11 @@ const stagesBefore = await pageA.evaluate(() =>
 const firstStage = stagesBefore[0]
 const secondStage = stagesBefore[1]
 const stageName = await pageA.evaluate(
-  (id) => document.querySelector(`[data-stage-id="${id}"] h3`)?.textContent,
+  (id) => document.querySelector(`[data-stage-id="${id}"]`)?.getAttribute("data-stage-name"),
   secondStage,
 )
 await pageA.click(
-  `[data-stage-id="${firstStage}"] [data-deal-card="Acme renewal"] [data-move-menu]`,
+  `[data-deal-card="Acme renewal"][data-deal-stage="${firstStage}"] [data-move-menu]`,
 )
 await pageA
   .getByRole("menuitem", { name: stageName ?? "" })
@@ -137,7 +148,7 @@ await pageA
   })
 await pageA.waitForTimeout(800)
 out.dealMoved = await pageA.evaluate(
-  (id) => !!document.querySelector(`[data-stage-id="${id}"] [data-deal-card="Acme renewal"]`),
+  (id) => !!document.querySelector(`[data-deal-card="Acme renewal"][data-deal-stage="${id}"]`),
   secondStage,
 )
 

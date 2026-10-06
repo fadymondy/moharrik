@@ -1,7 +1,19 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { Button, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { Bdi } from "@/components/bidi"

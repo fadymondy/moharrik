@@ -88,6 +88,9 @@ func authHub(r *http.Request, a *app.App, token string) (context.Context, []stri
 	if errors.Is(err, tenant.ErrNotMember) {
 		return withDeny(ctx, http.StatusForbidden, "you are not a member of this workspace"), nil, true
 	}
+	if errors.Is(err, tenant.ErrSuspended) || errors.Is(err, tenant.ErrAccountSuspended) {
+		return withDeny(ctx, http.StatusForbidden, err.Error()), nil, true
+	}
 	if err != nil {
 		return nil, nil, false
 	}

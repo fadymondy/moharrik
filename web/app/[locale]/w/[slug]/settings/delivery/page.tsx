@@ -2,10 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { BellRingIcon, MonitorSmartphoneIcon, SendIcon, Volume2Icon } from "lucide-react"
-import { Badge, Button, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Switch, toast } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -19,7 +20,6 @@ import { api, ApiError, type PushDevice, type PushResult } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { usePushStatus } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 import { WhatsAppNotifySection } from "@/components/alerts/whatsapp-notify"
 import { TrendsDigestSection } from "@/components/alerts/trends-digest"
 
@@ -209,11 +209,7 @@ export default function DeliveryPage() {
 
   return (
     <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("nav.delivery")}
-        description={t("delivery.hint")}
-      />
+      <SectionHeader title={t("nav.delivery")} description={t("delivery.hint")} />
       {!ws.current ? (
         <LoadingRows rows={3} />
       ) : !allowed ? (
@@ -302,31 +298,26 @@ export default function DeliveryPage() {
             {devices.length === 0 ? (
               <EmptyState title={t("delivery.noDevices")} />
             ) : (
-              <div className="border-y border-nq-line">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="ps-6">{t("delivery.device")}</TableHead>
-                      <TableHead className="hidden sm:table-cell">{t("delivery.added")}</TableHead>
-                      <TableHead>{t("delivery.lastDelivered")}</TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        {t("delivery.lastError")}
-                      </TableHead>
-                      <TableHead className="pe-6 text-end">
-                        <span className="sr-only">{t("common.actions")}</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {devices.map((d) => {
-                      const self = d.endpoint === endpoint
-                      return (
-                        <TableRow
-                          key={d.id}
-                          data-device={d.id}
-                          data-device-self={self ? "true" : "false"}
-                        >
-                          <TableCell className="ps-6">
+              <div className="px-6">
+                <RowsTable<PushDevice>
+                  data={devices}
+                  getRowId={(d) => d.id}
+                  rowLabel={(d) => uaLabel(d.user_agent, t)}
+                  label={t("delivery.device")}
+                  data-devices
+                  columns={[
+                    {
+                      id: "device",
+                      header: t("delivery.device"),
+                      hideable: false,
+                      cell: (d) => {
+                        const self = d.endpoint === endpoint
+                        return (
+                          <span
+                            className="block"
+                            data-device={d.id}
+                            data-device-self={self ? "true" : "false"}
+                          >
                             <span className="flex items-center gap-2">
                               <span className="font-medium" title={d.user_agent}>
                                 {uaLabel(d.user_agent, t)}
@@ -341,39 +332,65 @@ export default function DeliveryPage() {
                                 {d.last_error}
                               </span>
                             ) : null}
-                          </TableCell>
-                          <TableCell className="hidden text-muted-foreground sm:table-cell">
-                            <Ltr>{formatDate(d.created_at)}</Ltr>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {d.last_ok_at ? (
-                              <Ltr>{formatDate(d.last_ok_at)}</Ltr>
-                            ) : (
-                              t("delivery.never")
-                            )}
-                          </TableCell>
-                          <TableCell
-                            className="hidden max-w-64 truncate text-muted-foreground md:table-cell"
-                            title={d.last_error}
-                          >
-                            {d.last_error || "—"}
-                          </TableCell>
-                          <TableCell className="pe-6 text-end">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-nq-danger-text"
-                              disabled={!!busy}
-                              onClick={() => void remove(d, self)}
-                            >
-                              {t("delivery.remove")}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                          </span>
+                        )
+                      },
+                    },
+                    {
+                      id: "added",
+                      header: t("delivery.added"),
+                      sortValue: (d) => d.created_at,
+                      className: "hidden sm:table-cell",
+                      headerClassName: "hidden sm:table-cell",
+                      cell: (d) => (
+                        <Ltr className="text-muted-foreground">{formatDate(d.created_at)}</Ltr>
+                      ),
+                    },
+                    {
+                      id: "lastOk",
+                      header: t("delivery.lastDelivered"),
+                      sortValue: (d) => d.last_ok_at,
+                      cell: (d) => (
+                        <span className="text-muted-foreground">
+                          {d.last_ok_at ? (
+                            <Ltr>{formatDate(d.last_ok_at)}</Ltr>
+                          ) : (
+                            t("delivery.never")
+                          )}
+                        </span>
+                      ),
+                    },
+                    {
+                      id: "lastError",
+                      header: t("delivery.lastError"),
+                      className: "hidden max-w-64 truncate md:table-cell",
+                      headerClassName: "hidden md:table-cell",
+                      cell: (d) => (
+                        <span className="text-muted-foreground" title={d.last_error}>
+                          {d.last_error || "—"}
+                        </span>
+                      ),
+                    },
+                    {
+                      id: "actions",
+                      header: <span className="sr-only">{t("common.actions")}</span>,
+                      label: t("common.actions"),
+                      align: "end",
+                      hideable: false,
+                      cell: (d) => (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-nq-danger-text"
+                          disabled={!!busy}
+                          onClick={() => void remove(d, d.endpoint === endpoint)}
+                        >
+                          {t("delivery.remove")}
+                        </Button>
+                      ),
+                    },
+                  ]}
+                />
               </div>
             )}
           </section>

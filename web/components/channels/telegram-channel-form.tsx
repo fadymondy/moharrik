@@ -113,7 +113,9 @@ export function TelegramChannelForm({
           <Field>
             <FieldLabel htmlFor="tg-token">
               {t("channels.telegram.botToken")}
-              {channel ? <span className="text-muted-foreground"> ({t("common.optional")})</span> : null}
+              {channel ? (
+                <span className="text-muted-foreground"> ({t("common.optional")})</span>
+              ) : null}
             </FieldLabel>
             <Input
               id="tg-token"

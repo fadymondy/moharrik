@@ -276,7 +276,7 @@ function MessageGroup({
             data-message={m.direction}
             data-message-id={m.id}
             data-message-layout="email"
-            className={`group/msg w-full min-w-0 border border-nq-line bg-card text-sm ${out ? "border-s-2 border-s-primary" : ""}`}
+            className={`group/msg w-full min-w-0 overflow-hidden rounded-xl border border-nq-line bg-card text-sm ${out ? "border-s-2 border-s-primary" : ""}`}
           >
             <header className="flex min-w-0 items-center gap-2 border-b border-nq-line px-4 py-2 text-xs text-muted-foreground">
               <Icon className="size-3 shrink-0" />
@@ -373,28 +373,6 @@ function MessageGroup({
 
 /** WhatsApp's bubble tail: the first bubble of a run gets one, on the side it
  *  was sent from, and loses that top corner's rounding. */
-function BubbleTail({ out }: { out: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 8 13"
-      width="8"
-      height="13"
-      aria-hidden
-      className={`absolute top-0 rtl:-scale-x-100 ${out ? "-end-2" : "-start-2"}`}
-      style={{ fill: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
-    >
-      <path
-        d={
-          out
-            ? "M5.188 1H0v11.193l6.467-8.625C7.526 2.156 6.958 1 5.188 1z"
-            : "M2.812 1H8v11.193L1.533 3.568C.474 2.156 1.042 1 2.812 1z"
-        }
-        transform="translate(0 -1)"
-      />
-    </svg>
-  )
-}
-
 /** The delivery tick on an outbound bubble (MH-656), from WhatsApp's own
  *  receipts: one grey tick sent, two delivered, two in the brand colour read. */
 function Ticks({ status }: { status: InboxMessage["status"] }) {
@@ -477,14 +455,15 @@ function ChatBubble({
       className={
         stickerOnly
           ? "relative flow-root max-w-[min(36rem,85%)] text-sm text-foreground"
-          : `relative flow-root max-w-[min(36rem,85%)] rounded-[0.5rem] px-2.5 pt-1.5 pb-2 text-sm text-foreground shadow-[0_1px_0.5px_color-mix(in_oklab,var(--nq-fg)_14%,transparent)] ${first ? (out ? "rounded-se-none" : "rounded-ss-none") : ""}`
+          : `relative flow-root max-w-[min(36rem,85%)] rounded-2xl px-3 pt-2 pb-2 text-sm text-foreground shadow-[0_1px_0.5px_color-mix(in_oklab,var(--nq-fg)_14%,transparent)] ${first ? (out ? "rounded-se-md" : "rounded-ss-md") : ""}`
       }
-      style={stickerOnly ? undefined : { background: out ? "var(--bubble-out)" : "var(--bubble-in)" }}
+      style={
+        stickerOnly ? undefined : { background: out ? "var(--bubble-out)" : "var(--bubble-in)" }
+      }
       onClick={selectMode ? () => onToggleSelect?.(m.id) : () => setActive((v) => !v)}
       role={selectMode ? "checkbox" : undefined}
       aria-checked={selectMode ? selected : undefined}
     >
-      {first && !stickerOnly ? <BubbleTail out={out} /> : null}
       {senderName ? (
         <p className="mb-0.5 truncate text-xs font-medium text-primary" data-bubble-sender>
           <Bdi>{senderName}</Bdi>
@@ -533,7 +512,9 @@ function ChatBubble({
         data-message-row={m.id}
         onMouseLeave={() => setActive(false)}
       >
-        <div className={`group/msg flex w-full items-center gap-1 ${out ? "flex-row-reverse" : ""}`}>
+        <div
+          className={`group/msg flex w-full items-center gap-1 ${out ? "flex-row-reverse" : ""}`}
+        >
           {bubble}
           {hasActions ? (
             <div
@@ -707,7 +688,8 @@ export function ChatThread({
   useEffect(() => {
     if (!onSendAttachment) return
     const guard = (e: globalThis.DragEvent) => {
-      if (!e.defaultPrevented && Array.from(e.dataTransfer?.types ?? []).includes("Files")) e.preventDefault()
+      if (!e.defaultPrevented && Array.from(e.dataTransfer?.types ?? []).includes("Files"))
+        e.preventDefault()
     }
     window.addEventListener("dragover", guard)
     window.addEventListener("drop", guard)
@@ -889,7 +871,9 @@ export function ChatThread({
     anchorRef.current = false
     virtualizer.scrollToIndex(idx, { align: "center" })
     requestAnimationFrame(() => {
-      const el = parentRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(targetId)}"]`)
+      const el = parentRef.current?.querySelector<HTMLElement>(
+        `[data-message-id="${CSS.escape(targetId)}"]`,
+      )
       if (!el) return
       el.scrollIntoView({ block: "center", behavior: "smooth" })
       el.classList.add("mh-search-hit")

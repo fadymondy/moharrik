@@ -18,7 +18,6 @@ the behaviour. Its own route, so the workflows list can still link
 import { useMemo, useState } from "react"
 import { SearchIcon } from "lucide-react"
 
-import { Bdi } from "@/components/bidi"
 import { BrandIcon } from "@/components/automation/brand-icon"
 import { BrandTile } from "@/components/automation/brand-tile"
 import { PresetCard, plainOf } from "@/components/automation/preset-card"
@@ -90,11 +89,7 @@ export default function PresetsGalleryPage() {
 
   return (
     <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("presets.title")}
-        description={t("presets.hint")}
-      />
+      <SectionHeader title={t("presets.title")} description={t("presets.hint")} />
 
       <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-6 py-4">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">
@@ -118,7 +113,7 @@ export default function PresetsGalleryPage() {
       {presets.error ? (
         <ErrorState error={presets.error} />
       ) : presets.isLoading ? (
-        <LoadingRows rows={6} />
+        <LoadingRows rows={6} layout="cards" />
       ) : needle ? (
         searchCount === 0 ? (
           <EmptyState title={t("presets.noMatch", { q })} />

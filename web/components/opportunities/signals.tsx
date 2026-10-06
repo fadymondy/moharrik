@@ -47,16 +47,31 @@ const TONE_SOFT: Record<Tone, string> = {
   warning: "bg-nq-warning-soft",
 }
 
-const KINDS: { kind: SignalKind; count: keyof OpportunitySignals["counts"]; icon: ReactNode; tone: Tone }[] = [
+const KINDS: {
+  kind: SignalKind
+  count: keyof OpportunitySignals["counts"]
+  icon: ReactNode
+  tone: Tone
+}[] = [
   { kind: "at_risk_deal", count: "at_risk_deals", icon: <HandshakeIcon />, tone: "warning" },
   { kind: "new_lead", count: "new_leads", icon: <UserPlusIcon />, tone: "info" },
-  { kind: "high_fit_prospect", count: "high_fit_prospects", icon: <SparklesIcon />, tone: "violet" },
+  {
+    kind: "high_fit_prospect",
+    count: "high_fit_prospects",
+    icon: <SparklesIcon />,
+    tone: "violet",
+  },
 ]
 
 type T = (key: string, vars?: Record<string, string | number>) => string
 
 /** One reason code, in words. Unknown codes fall back to the code itself, never to invented prose. */
-function whyText(t: T, r: HomeReason, ago: (iso: string) => string, n: (v: number) => string): string {
+function whyText(
+  t: T,
+  r: HomeReason,
+  ago: (iso: string) => string,
+  n: (v: number) => string,
+): string {
   const vars = { n: n(r.n ?? 0), text: r.text ?? "", when: r.at ? ago(r.at) : "" }
   switch (r.code) {
     case "lead_status":
@@ -114,10 +129,21 @@ export function SignalsPanel({ onChanged }: { onChanged?: () => void }) {
             id={`opps-${k.kind}`}
             title={t(`opps.kind.${k.kind}`)}
             icon={k.icon}
-            meta={total > 0 ? <Badge variant={k.tone === "violet" ? "brand" : k.tone}>{f.n(total)}</Badge> : undefined}
+            meta={
+              total > 0 ? (
+                <Badge variant={k.tone === "violet" ? "brand" : k.tone}>{f.n(total)}</Badge>
+              ) : undefined
+            }
           >
             {items.length === 0 ? (
-              <Empty title={t(`opps.empty.${k.kind}`)} body={t(`opps.emptyBody.${k.kind}`, { quiet: f.n(th.quiet_days), lead: f.n(th.new_lead_days), score: f.n(th.high_fit_score) })} />
+              <Empty
+                title={t(`opps.empty.${k.kind}`)}
+                body={t(`opps.emptyBody.${k.kind}`, {
+                  quiet: f.n(th.quiet_days),
+                  lead: f.n(th.new_lead_days),
+                  score: f.n(th.high_fit_score),
+                })}
+              />
             ) : (
               <ul className="divide-y divide-nq-line" data-signal-list={k.kind}>
                 {items.map((it) => (
@@ -144,7 +170,10 @@ function SignalRow({ item, onDone }: { item: SignalItem; onDone: () => void }) {
   const base = `/${locale}/w/${ws.slug}`
   const tone = item.tone as Tone
   const [busy, setBusy] = useState(false)
-  const [prospect, setProspect] = useState<{ mode: "accept" | "reject"; p: ProspectDetail["prospect"] } | null>(null)
+  const [prospect, setProspect] = useState<{
+    mode: "accept" | "reject"
+    p: ProspectDetail["prospect"]
+  } | null>(null)
 
   const openHref =
     item.kind === "at_risk_deal"
@@ -164,7 +193,9 @@ function SignalRow({ item, onDone }: { item: SignalItem; onDone: () => void }) {
         description: c.free_mail
           ? t("leads.convertedFreeMail")
           : c.company_id
-            ? t("leads.convertedWithCompany", { company: isolate(c.lead.converted_company?.name ?? "") })
+            ? t("leads.convertedWithCompany", {
+                company: isolate(c.lead.converted_company?.name ?? ""),
+              })
             : undefined,
       })
       onDone()
@@ -179,7 +210,9 @@ function SignalRow({ item, onDone }: { item: SignalItem; onDone: () => void }) {
   async function decide(mode: "accept" | "reject") {
     setBusy(true)
     try {
-      const d = await api<ProspectDetail>(`/api/w/prospects/${encodeURIComponent(item.id)}`, { workspaceId: ws.id })
+      const d = await api<ProspectDetail>(`/api/w/prospects/${encodeURIComponent(item.id)}`, {
+        workspaceId: ws.id,
+      })
       setProspect({ mode, p: d.prospect })
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -193,7 +226,11 @@ function SignalRow({ item, onDone }: { item: SignalItem; onDone: () => void }) {
   return (
     <li className="flex gap-3 px-5 py-3" data-signal={item.kind} data-signal-id={item.id}>
       <span
-        className={cn("flex size-8 shrink-0 items-center justify-center rounded-md [&>svg]:size-4", TONE_SOFT[tone], TONE_TEXT[tone])}
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-md [&>svg]:size-4",
+          TONE_SOFT[tone],
+          TONE_TEXT[tone],
+        )}
         aria-hidden
       >
         {icon}
@@ -223,7 +260,9 @@ function SignalRow({ item, onDone }: { item: SignalItem; onDone: () => void }) {
             </li>
           ))}
         </ul>
-        {item.reasons && item.reasons.length > 0 ? <ReasonList reasons={item.reasons} compact /> : null}
+        {item.reasons && item.reasons.length > 0 ? (
+          <ReasonList reasons={item.reasons} compact />
+        ) : null}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-0.5">
           {has("open") ? (
             <Link
@@ -236,19 +275,36 @@ function SignalRow({ item, onDone }: { item: SignalItem; onDone: () => void }) {
             </Link>
           ) : null}
           {has("convert_lead") ? (
-            <Button size="sm" variant="secondary" disabled={busy} onClick={convert} data-action="convert-lead">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={convert}
+              data-action="convert-lead"
+            >
               <ArrowRightLeftIcon />
               {busy ? t("common.working") : t("leads.convert")}
             </Button>
           ) : null}
           {has("accept_prospect") ? (
-            <Button size="sm" disabled={busy} onClick={() => decide("accept")} data-action="accept-prospect">
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => decide("accept")}
+              data-action="accept-prospect"
+            >
               <CheckIcon />
               {t("prospects.accept")}
             </Button>
           ) : null}
           {has("dismiss_prospect") ? (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => decide("reject")} data-action="dismiss-prospect">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => decide("reject")}
+              data-action="dismiss-prospect"
+            >
               <XIcon />
               {t("opps.dismiss")}
             </Button>

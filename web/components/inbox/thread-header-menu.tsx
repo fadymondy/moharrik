@@ -18,7 +18,26 @@ import {
   Trash2Icon,
   UserIcon,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { isMuted, LabelsDialog } from "@/components/inbox/chat-row-menu"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -79,7 +98,11 @@ export function ThreadHeaderMenu({
     setConfirm(null)
     try {
       if (what === "block") {
-        await api(`${path}/organise`, { method: "PATCH", json: { blocked: !c.blocked }, workspaceId: ws.id })
+        await api(`${path}/organise`, {
+          method: "PATCH",
+          json: { blocked: !c.blocked },
+          workspaceId: ws.id,
+        })
         toast.success(c.blocked ? t("inbox.org.unblocked") : t("inbox.org.blocked"))
         onChanged?.()
       } else if (what === "clear") {
@@ -122,7 +145,12 @@ export function ThreadHeaderMenu({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="icon" aria-label={t("inbox.menu.title")} data-thread-menu-trigger />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("inbox.menu.title")}
+              data-thread-menu-trigger
+            />
           }
         >
           <MoreVerticalIcon />
@@ -146,7 +174,10 @@ export function ThreadHeaderMenu({
           <DropdownMenuSeparator />
 
           {muted ? (
-            <DropdownMenuItem data-action="unmute" onClick={() => organise({ mute: "" }, t("inbox.org.unmuted"))}>
+            <DropdownMenuItem
+              data-action="unmute"
+              onClick={() => organise({ mute: "" }, t("inbox.org.unmuted"))}
+            >
               <BellIcon />
               {t("inbox.org.unmute")}
             </DropdownMenuItem>
@@ -223,15 +254,27 @@ export function ThreadHeaderMenu({
           {canManage ? (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem data-action="block" variant="danger" onClick={() => setConfirm("block")}>
+              <DropdownMenuItem
+                data-action="block"
+                variant="danger"
+                onClick={() => setConfirm("block")}
+              >
                 <BanIcon />
                 {c.blocked ? t("inbox.org.unblock") : t("inbox.org.block")}
               </DropdownMenuItem>
-              <DropdownMenuItem data-action="clear" variant="danger" onClick={() => setConfirm("clear")}>
+              <DropdownMenuItem
+                data-action="clear"
+                variant="danger"
+                onClick={() => setConfirm("clear")}
+              >
                 <EraserIcon />
                 {t("inbox.org.clear")}
               </DropdownMenuItem>
-              <DropdownMenuItem data-action="delete" variant="danger" onClick={() => setConfirm("delete")}>
+              <DropdownMenuItem
+                data-action="delete"
+                variant="danger"
+                onClick={() => setConfirm("delete")}
+              >
                 <Trash2Icon />
                 {t("inbox.org.delete")}
               </DropdownMenuItem>
@@ -240,7 +283,12 @@ export function ThreadHeaderMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <LabelsDialog c={c} open={labelsOpen} onOpenChange={setLabelsOpen} onDone={() => onChanged?.()} />
+      <LabelsDialog
+        c={c}
+        open={labelsOpen}
+        onOpenChange={setLabelsOpen}
+        onDone={() => onChanged?.()}
+      />
 
       <AlertDialog open={confirm != null} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent data-confirm-dialog={confirm ?? undefined}>

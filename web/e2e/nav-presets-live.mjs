@@ -27,10 +27,18 @@ const readNav = (page, scope) =>
   page.evaluate((scope) => {
     const root = scope ? document.querySelector(scope) : document
     if (!root) return null
-    const cur = [...root.querySelectorAll("a[data-nav-item][aria-current=page]")].filter((a) => a.offsetParent !== null)
+    const cur = [...root.querySelectorAll("a[data-nav-item][aria-current=page]")].filter(
+      (a) => a.offsetParent !== null,
+    )
     return {
-      row: cur.filter((a) => !a.closest("[data-nav-subs]")).map((a) => a.dataset.navItem).join(),
-      subs: cur.filter((a) => a.closest("[data-nav-subs]")).map((a) => a.dataset.navItem).join(),
+      row: cur
+        .filter((a) => !a.closest("[data-nav-subs]"))
+        .map((a) => a.dataset.navItem)
+        .join(),
+      subs: cur
+        .filter((a) => a.closest("[data-nav-subs]"))
+        .map((a) => a.dataset.navItem)
+        .join(),
     }
   }, scope)
 
@@ -56,23 +64,36 @@ for (const scheme of ["dark", "light"]) {
     // Full sweep: each row lists its subs while active, and every sub loads under that row.
     for (const r of ROWS) {
       await page.goto(w("en"), { waitUntil: "load" })
-      const row = await page.waitForSelector(`a[data-nav-item="${r}"]`, { timeout: 20000 }).catch(() => null)
+      const row = await page
+        .waitForSelector(`a[data-nav-item="${r}"]`, { timeout: 20000 })
+        .catch(() => null)
       if (!row) {
         out[`row:${r}`] = "hidden for this role"
         continue
       }
       await row.click()
-      await page.waitForSelector(`[data-nav-subs="${r}"] a[data-nav-item]`, { timeout: 15000 }).catch(() => {})
-      const hrefs = await page.$$eval(`[data-nav-subs="${r}"] a[data-nav-item]`, (as) => as.map((a) => a.getAttribute("href")))
+      await page
+        .waitForSelector(`[data-nav-subs="${r}"] a[data-nav-item]`, { timeout: 15000 })
+        .catch(() => {})
+      const hrefs = await page.$$eval(`[data-nav-subs="${r}"] a[data-nav-item]`, (as) =>
+        as.map((a) => a.getAttribute("href")),
+      )
       check(`row:${r}:subs`, hrefs.length > 0, hrefs)
       for (const h of hrefs) {
         const resp = await page.goto(new URL(h, base).toString(), { waitUntil: "load" })
-        await page.waitForSelector("a[data-nav-item][aria-current=page]", { timeout: 20000 }).catch(() => {})
+        await page
+          .waitForSelector("a[data-nav-item][aria-current=page]", { timeout: 20000 })
+          .catch(() => {})
         await page.waitForTimeout(400)
         const nav = await readNav(page, null)
         const item = h.split(`/w/${slug}/`)[1]
-        check(`page:${item}`, (resp?.status() ?? 0) < 400 && nav?.row === r, { status: resp?.status(), nav })
-        const ov = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+        check(`page:${item}`, (resp?.status() ?? 0) < 400 && nav?.row === r, {
+          status: resp?.status(),
+          nav,
+        })
+        const ov = await page.evaluate(
+          () => document.documentElement.scrollWidth - window.innerWidth,
+        )
         check(`overflow:${item}:1440`, ov <= 1, ov)
       }
     }
@@ -125,18 +146,32 @@ for (const scheme of ["dark", "light"]) {
 
       // A nested page at this size: its row and sub are current (at 390, inside the mobile sheet).
       await page.goto(w(loc, "automation/browsers"), { waitUntil: "load" })
-      await page.waitForSelector("a[data-nav-item][aria-current=page]", { timeout: 20000 }).catch(() => {})
+      await page
+        .waitForSelector("a[data-nav-item][aria-current=page]", { timeout: 20000 })
+        .catch(() => {})
       let scope = null
       if (vw === 390) {
-        await page.locator("[data-nav-toggle]").filter({ visible: true }).first().click().catch(() => {})
-        scope = (await page.waitForSelector("[data-slot=app-shell-sheet]", { timeout: 10000 }).then(() => true, () => false))
+        await page
+          .locator("[data-nav-toggle]")
+          .filter({ visible: true })
+          .first()
+          .click()
+          .catch(() => {})
+        scope = (await page.waitForSelector("[data-slot=app-shell-sheet]", { timeout: 10000 }).then(
+          () => true,
+          () => false,
+        ))
           ? "[data-slot=app-shell-sheet]"
           : null
         check(`${k}-mobile-sheet`, scope !== null)
         await page.waitForTimeout(400)
       }
       const nav = await readNav(page, scope)
-      check(`${k}-nav-current`, nav?.row === "automations" && nav.subs === "automation-browsers", nav)
+      check(
+        `${k}-nav-current`,
+        nav?.row === "automations" && nav.subs === "automation-browsers",
+        nav,
+      )
       if (shots) await page.screenshot({ path: path.join(shots, `mh526-live-${k}.png`) })
       await page.keyboard.press("Escape")
       ov = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)

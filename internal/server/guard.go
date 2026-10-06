@@ -25,6 +25,8 @@ Tiers, decided by path before any handler runs:
 	blocked    — plugin routes Moharrik does not offer; answered 404
 	public     — anonymous; enumerated below
 	signed-in  — any session; enumerated below (account-level, no workspace)
+	admin      — /api/admin/* (except the admin MCP): session + platform admin,
+	             404 otherwise, never 401 (MH-1184)
 	workspace  — EVERYTHING else under /api and /graphql: session + membership
 	             of X-Workspace-ID (404 otherwise) + authz for generated CRUD
 
@@ -40,6 +42,7 @@ const (
 	tierPublic
 	tierSignedIn
 	tierBlocked
+	tierAdmin
 )
 
 func classify(r *http.Request) tier {
@@ -206,6 +209,11 @@ func classify(r *http.Request) tier {
 		strings.HasPrefix(path, "/api/discord/hook/") {
 		return tierPublic
 	}
+	// The superadmin panel (MH-1184). /api/admin/mcp is matched exactly above
+	// and keeps its own token auth.
+	if strings.HasPrefix(path, "/api/admin/") {
+		return tierAdmin
+	}
 	if strings.HasPrefix(path, "/api/auth/") {
 		return tierPublic // the auth plugin guards its own routes
 	}
@@ -228,17 +236,21 @@ func installGuard(k *togo.Kernel, a *app.App) {
 	}
 
 	k.UseMiddleware(func(next http.Handler) http.Handler {
-		signedIn := svc.Middleware(hubSessionEnded(csrf(next)))
-		workspace := svc.Middleware(hubSessionEnded(csrf(tenant.Require(a.SysDB)(stampPresence(generatedAuthz(a, next))))))
+		signedIn := svc.Middleware(hubSessionEnded(accountGate(a, csrf(next))))
+		workspace := svc.Middleware(hubSessionEnded(accountGate(a, csrf(tenant.Require(a.SysDB)(stampPresence(generatedAuthz(a, next)))))))
+		admin := notFoundOn401(svc.Middleware(hubSessionEnded(accountGate(a, requirePlatformAdmin(a, csrf(next))))))
+		public := refuseSuspendedLogin(a, next)
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch classify(r) {
 			case tierBlocked:
 				writeError(w, http.StatusNotFound, "not found")
 			case tierPublic:
-				next.ServeHTTP(w, r)
+				public.ServeHTTP(w, r)
 			case tierSignedIn:
 				signedIn.ServeHTTP(w, r)
+			case tierAdmin:
+				admin.ServeHTTP(w, r)
 			default:
 				workspace.ServeHTTP(w, r)
 			}

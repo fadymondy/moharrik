@@ -85,7 +85,7 @@ if (picked >= 0) {
   if (shots)
     await page.screenshot({ path: path.join(shots, "contact-timeline.png"), fullPage: true })
   // deal: transcript as first note
-  await page.goto(`${W}/deals/${did}`, { waitUntil: "domcontentloaded" })
+  await page.goto(`${W}/deals/${did}/activity`, { waitUntil: "domcontentloaded" })
   await page.waitForTimeout(2500)
   const body = await page.evaluate(() => document.body.innerText)
   check("dealHasTranscript", /transcript|conversation|محادثة/i.test(body), body.slice(0, 400))

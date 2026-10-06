@@ -13,7 +13,15 @@ import {
   SquareIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger, Skeleton, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+  Skeleton,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
 import { CostLine, EvidenceItem, SignalBadge, StageList } from "@/components/research/evidence"

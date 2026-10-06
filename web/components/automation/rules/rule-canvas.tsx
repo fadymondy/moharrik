@@ -130,7 +130,9 @@ function Label({
       dir={dir}
     >
       <p className="truncate text-sm font-medium text-foreground">{title}</p>
-      {subtitle ? <p className="line-clamp-2 text-[11px] text-muted-foreground">{subtitle}</p> : null}
+      {subtitle ? (
+        <p className="line-clamp-2 text-[11px] text-muted-foreground">{subtitle}</p>
+      ) : null}
     </div>
   )
 }

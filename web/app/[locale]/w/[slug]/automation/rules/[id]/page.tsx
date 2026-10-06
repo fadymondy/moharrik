@@ -186,7 +186,7 @@ function RuleBuilder() {
     if (rule.error instanceof ApiError && rule.error.status === 404) return <NotFoundState />
     return <ErrorState error={rule.error} />
   }
-  if (!draft || !catalog.data) return <LoadingRows rows={5} />
+  if (!draft || !catalog.data) return <LoadingRows rows={5} layout="form" />
   const cat = catalog.data
 
   const change = (d: Partial<Draft>) => setDraft((x) => (x ? { ...x, ...d } : x))

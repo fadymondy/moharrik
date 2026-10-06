@@ -89,6 +89,10 @@ type WorkspaceOut struct {
 	// how many active members the workspace has. Filled by MyWorkspaces.
 	AvatarURL   string `json:"avatar_url"`
 	MemberCount int    `json:"member_count"`
+	// MH-1108: when this user last did something here (their latest audit entry), or when
+	// they joined if they never have. The app opens the most recent one after sign-in.
+	// Filled by MyWorkspaces only.
+	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
 }
 
 type memberOut struct {
@@ -487,7 +491,9 @@ func Register(api huma.API, a *app.App) {
 func MyWorkspaces(ctx context.Context, sys *sql.DB, userID string) ([]WorkspaceOut, error) {
 	rows, err := sys.QueryContext(ctx, `
 		SELECT w.id, w.slug, w.name, m.role, w.locale, a.updated_at,
-		       (SELECT count(*) FROM workspace_members c WHERE c.workspace_id = w.id AND c.status = 'active')
+		       (SELECT count(*) FROM workspace_members c WHERE c.workspace_id = w.id AND c.status = 'active'),
+		       GREATEST(m.created_at, (SELECT max(l.occurred_at) FROM audit_log l
+		                               WHERE l.workspace_id = w.id AND l.actor_id = m.user_id))
 		FROM workspace_members m JOIN workspaces w ON w.id = m.workspace_id
 		LEFT JOIN workspace_avatars a ON a.workspace_id = w.id
 		WHERE m.user_id = $1 AND m.status = 'active'
@@ -499,11 +505,15 @@ func MyWorkspaces(ctx context.Context, sys *sql.DB, userID string) ([]WorkspaceO
 	out := []WorkspaceOut{}
 	for rows.Next() {
 		var w WorkspaceOut
-		var avatarAt sql.NullTime
-		if err := rows.Scan(&w.ID, &w.Slug, &w.Name, &w.Role, &w.Locale, &avatarAt, &w.MemberCount); err != nil {
+		var avatarAt, activeAt sql.NullTime
+		if err := rows.Scan(&w.ID, &w.Slug, &w.Name, &w.Role, &w.Locale, &avatarAt, &w.MemberCount, &activeAt); err != nil {
 			return nil, err
 		}
 		w.AvatarURL = AvatarURL(w.ID, avatarAt)
+		if activeAt.Valid {
+			t := activeAt.Time
+			w.LastActiveAt = &t
+		}
 		out = append(out, w)
 	}
 	return out, rows.Err()

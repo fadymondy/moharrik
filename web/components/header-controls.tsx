@@ -4,7 +4,16 @@ import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { LanguagesIcon, MoonIcon, SunIcon } from "lucide-react"
 
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@fadymondy/nasaq/web"
 import { LOCALES, LOCALE_COOKIE, LOCALE_NAMES, isLocale } from "@/lib/i18n-locale"
 import { useTranslations } from "@/lib/i18n"
 

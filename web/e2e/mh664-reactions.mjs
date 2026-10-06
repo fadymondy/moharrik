@@ -30,7 +30,9 @@ const shots = process.argv[3] ?? path.join(__dirname, "shots", "mh664")
 const dbUrl = process.argv[4] ?? process.env.DATABASE_URL
 
 if (/moharrik\.com/.test(base)) {
-  console.error("refusing to run against moharrik.com — this script sends fake WhatsApp/SMTP traffic")
+  console.error(
+    "refusing to run against moharrik.com — this script sends fake WhatsApp/SMTP traffic",
+  )
   process.exit(1)
 }
 if (!dbUrl) throw new Error("need a database URL: pass it as the 3rd argument or set DATABASE_URL")
@@ -46,7 +48,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // Key order is Go's struct order, not ours: compare the JSON value, not its text.
 const canon = (v) =>
   v && typeof v === "object" && !Array.isArray(v)
-    ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])]))
+    ? Object.fromEntries(
+        Object.keys(v)
+          .sort()
+          .map((k) => [k, canon(v[k])]),
+      )
     : v
 const same = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b))
 // Poll the stub rather than guess how long a round trip takes.
@@ -60,7 +66,10 @@ async function until(fn, ms = 10000) {
 }
 
 function sql(query, params = []) {
-  const escaped = params.reduce((q, p, i) => q.replaceAll(`$${i + 1}`, `'${String(p).replace(/'/g, "''")}'`), query)
+  const escaped = params.reduce(
+    (q, p, i) => q.replaceAll(`$${i + 1}`, `'${String(p).replace(/'/g, "''")}'`),
+    query,
+  )
   const res = execFileSync("psql", [dbUrl, "-t", "-A", "-c", escaped], { encoding: "utf8" }).trim()
   return res.split(/\r?\n/).find((l) => l.trim() !== "") ?? ""
 }
@@ -85,13 +94,16 @@ const evoSrv = createServer((req, res) => {
       res.end(JSON.stringify(obj))
     }
     if (req.headers["apikey"] !== EVO_KEY) return reply(401, { message: "bad apikey" })
-    if (req.url === "/instance/create") return reply(201, { qrcode: { base64: "data:image/png;base64,x", code: "2@abc" } })
+    if (req.url === "/instance/create")
+      return reply(201, { qrcode: { base64: "data:image/png;base64,x", code: "2@abc" } })
     if (req.url.startsWith("/webhook/set/")) {
       evo.webhooks.push({ instance: req.url.split("/").pop(), ...json().webhook })
       return reply(200, { webhook: { enabled: true } })
     }
-    if (req.url.startsWith("/instance/connectionState/")) return reply(200, { instance: { state: "open" } })
-    if (req.url.startsWith("/instance/connect/")) return reply(200, { base64: "data:image/png;base64,x", code: "2@abc" })
+    if (req.url.startsWith("/instance/connectionState/"))
+      return reply(200, { instance: { state: "open" } })
+    if (req.url.startsWith("/instance/connect/"))
+      return reply(200, { base64: "data:image/png;base64,x", code: "2@abc" })
     if (req.url.startsWith("/instance/delete/")) return reply(200, { status: "SUCCESS" })
     for (const kind of ["sendText", "sendLocation", "sendMedia", "sendReaction"]) {
       if (req.url.startsWith(`/message/${kind}/`)) {
@@ -182,7 +194,11 @@ async function call(method, p, json) {
       const csrf = (await (await fetch("/api/auth/csrf")).json()).csrf_token
       const r = await fetch(p, {
         method,
-        headers: { "X-Workspace-ID": slug, "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        headers: {
+          "X-Workspace-ID": slug,
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf,
+        },
         body: json !== undefined ? JSON.stringify(json) : undefined,
       })
       return { status: r.status, body: await r.json().catch(() => null) }
@@ -192,7 +208,7 @@ async function call(method, p, json) {
 }
 
 // ---- WhatsApp channel: link a number through the stub ----
-await page.goto(`${base}/en/w/${slug}/inbox/channels`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/integrations`, { waitUntil: "domcontentloaded" })
 await page.click("[data-add-channel]")
 await page.click('[data-add-type="whatsapp"]')
 await page.waitForSelector("[data-whatsapp-state]", { timeout: 20000 })
@@ -211,13 +227,24 @@ const postWebhook = (payload) =>
   })
 
 const CUSTOMER = "201234567890@s.whatsapp.net"
-const upsert = (key, message, pushName = "Dana") => ({ event: "messages.upsert", data: { key, pushName, message } })
+const upsert = (key, message, pushName = "Dana") => ({
+  event: "messages.upsert",
+  data: { key, pushName, message },
+})
 const fromCustomer = (id, message) => upsert({ remoteJid: CUSTOMER, fromMe: false, id }, message)
 
 const QUESTION = "Hi, is my order ready?"
-check("wa-inbound-seeded", (await postWebhook(fromCustomer("in-1", { conversation: QUESTION }))).status === 200)
-const waConvID = sql("SELECT id FROM conversations WHERE workspace_id = $1 AND channel = 'whatsapp'", [wsID])
-const inMsgID = sql("SELECT id FROM messages WHERE workspace_id = $1 AND external_id = 'in-1'", [wsID])
+check(
+  "wa-inbound-seeded",
+  (await postWebhook(fromCustomer("in-1", { conversation: QUESTION }))).status === 200,
+)
+const waConvID = sql(
+  "SELECT id FROM conversations WHERE workspace_id = $1 AND channel = 'whatsapp'",
+  [wsID],
+)
+const inMsgID = sql("SELECT id FROM messages WHERE workspace_id = $1 AND external_id = 'in-1'", [
+  wsID,
+])
 check("whatsapp-rows", !!waConvID && !!inMsgID, { waConvID, inMsgID })
 
 await page.goto(`${base}/en/w/${slug}/inbox?c=${waConvID}`, { waitUntil: "domcontentloaded" })
@@ -232,25 +259,41 @@ async function reactVia(id, emoji, scope = row(id)) {
   await page.click(`[data-reaction-bar] [data-quick-reaction="${emoji}"]`)
   // WhatsApp sends go through the stub; other channels just redraw a chip.
   await until(() => evo.sendReaction.length > n, 3000)
-  await page.waitForSelector("[data-reaction-bar]", { state: "detached", timeout: 5000 }).catch(() => {})
+  await page
+    .waitForSelector("[data-reaction-bar]", { state: "detached", timeout: 5000 })
+    .catch(() => {})
   await sleep(300)
 }
 
 // ---- hovering shows React + Reply; a quick reaction goes out through sendReaction ----
 await page.hover(`[data-message-id="${inMsgID}"]`)
 await sleep(400) // the fade-in transition
-const actionsOpacity = await page.$eval(`${row(inMsgID)} [data-message-actions]`, (el) =>
-  getComputedStyle(el.parentElement).opacity,
+const actionsOpacity = await page.$eval(
+  `${row(inMsgID)} [data-message-actions]`,
+  (el) => getComputedStyle(el.parentElement).opacity,
 )
 check("hover-shows-actions", actionsOpacity === "1", actionsOpacity)
-check("reply-button-present", (await page.locator(`${row(inMsgID)} [data-action="reply-to"]`).count()) === 1)
+check(
+  "reply-button-present",
+  (await page.locator(`${row(inMsgID)} [data-action="reply-to"]`).count()) === 1,
+)
 await page.click(`${row(inMsgID)} [data-action="react"]`)
 await page.waitForSelector("[data-reaction-bar]", { timeout: 10000 })
-check("six-quick-emoji", (await page.locator("[data-reaction-bar] [data-quick-reaction]").count()) === 6)
-check("full-picker-button", (await page.locator('[data-reaction-bar] [data-action="react-more"]').count()) === 1)
+check(
+  "six-quick-emoji",
+  (await page.locator("[data-reaction-bar] [data-quick-reaction]").count()) === 6,
+)
+check(
+  "full-picker-button",
+  (await page.locator('[data-reaction-bar] [data-action="react-more"]').count()) === 1,
+)
 await page.click('[data-reaction-bar] [data-quick-reaction="👍"]')
-await page.waitForSelector("[data-reaction-bar]", { state: "detached", timeout: 5000 }).catch(() => {})
-await page.waitForSelector(`${row(inMsgID)} [data-reaction="👍"][data-reaction-mine]`, { timeout: 10000 })
+await page
+  .waitForSelector("[data-reaction-bar]", { state: "detached", timeout: 5000 })
+  .catch(() => {})
+await page.waitForSelector(`${row(inMsgID)} [data-reaction="👍"][data-reaction-mine]`, {
+  timeout: 10000,
+})
 const r1 = evo.sendReaction[0]
 check(
   "evo-sendReaction-exact",
@@ -260,18 +303,25 @@ check(
 
 // ---- a different emoji replaces it (one per member per message) ----
 await reactVia(inMsgID, "❤️")
-const chips1 = await page.locator(`${row(inMsgID)} [data-reaction]`).evaluateAll((els) => els.map((e) => e.dataset.reaction))
+const chips1 = await page
+  .locator(`${row(inMsgID)} [data-reaction]`)
+  .evaluateAll((els) => els.map((e) => e.dataset.reaction))
 check("replace-one-chip", chips1.length === 1 && chips1[0] === "❤️", chips1)
 check("evo-sendReaction-replace", evo.sendReaction[1]?.reaction === "❤️", evo.sendReaction[1])
 
 // ---- clicking my own chip takes it back: sendReaction with "" ----
 await page.click(`${row(inMsgID)} [data-reaction="❤️"]`)
 await until(() => evo.sendReaction.length > 2)
-await page.waitForSelector(`${row(inMsgID)} [data-reaction]`, { state: "detached", timeout: 5000 }).catch(() => {})
+await page
+  .waitForSelector(`${row(inMsgID)} [data-reaction]`, { state: "detached", timeout: 5000 })
+  .catch(() => {})
 check("toggle-off-chip-gone", (await page.locator(`${row(inMsgID)} [data-reaction]`).count()) === 0)
 check(
   "evo-sendReaction-remove-exact",
-  same(evo.sendReaction[2], { key: { remoteJid: CUSTOMER, fromMe: false, id: "in-1" }, reaction: "" }),
+  same(evo.sendReaction[2], {
+    key: { remoteJid: CUSTOMER, fromMe: false, id: "in-1" },
+    reaction: "",
+  }),
   evo.sendReaction[2],
 )
 
@@ -280,7 +330,7 @@ await page.hover(`[data-message-id="${inMsgID}"]`)
 await page.click(`${row(inMsgID)} [data-action="react"]`)
 await page.click('[data-reaction-bar] [data-action="react-more"]')
 await page.fill("[data-reaction-bar] [data-emoji-search]", "fire")
-await page.click('[data-reaction-bar] [data-emoji-results] button')
+await page.click("[data-reaction-bar] [data-emoji-results] button")
 await page.waitForSelector(`${row(inMsgID)} [data-reaction="🔥"]`, { timeout: 10000 })
 check("full-picker-reacts", evo.sendReaction[3]?.reaction === "🔥", evo.sendReaction[3])
 
@@ -288,12 +338,17 @@ check("full-picker-reacts", evo.sendReaction[3]?.reaction === "🔥", evo.sendRe
 await page.hover(`[data-message-id="${inMsgID}"]`)
 await page.click(`${row(inMsgID)} [data-action="reply-to"]`)
 await page.waitForSelector(`[data-reply-preview="${inMsgID}"]`, { timeout: 10000 })
-check("composer-quote-text", (await page.locator("[data-reply-preview]").innerText()).includes(QUESTION))
+check(
+  "composer-quote-text",
+  (await page.locator("[data-reply-preview]").innerText()).includes(QUESTION),
+)
 const focused = await page.evaluate(() => document.activeElement?.id)
 check("reply-focuses-composer", focused === "reply-body", focused)
 await page.fill("#reply-body", "Yes — it ships today.")
 await page.click('[data-form="reply"] [data-action="send"]')
-await page.waitForFunction(() => !document.querySelector("[data-reply-preview]"), null, { timeout: 15000 })
+await page.waitForFunction(() => !document.querySelector("[data-reply-preview]"), null, {
+  timeout: 15000,
+})
 await sleep(800)
 const st = evo.sendText.at(-1)
 check(
@@ -306,8 +361,13 @@ const outMsgID = sql(
   [wsID, waConvID],
 )
 const outExt = sql("SELECT external_id FROM messages WHERE id = $1", [outMsgID])
-check("out-row-reply-to", sql("SELECT reply_to_message_id FROM messages WHERE id = $1", [outMsgID]) === inMsgID)
-await page.waitForSelector(`[data-message-id="${outMsgID}"] [data-quote-id="${inMsgID}"]`, { timeout: 10000 })
+check(
+  "out-row-reply-to",
+  sql("SELECT reply_to_message_id FROM messages WHERE id = $1", [outMsgID]) === inMsgID,
+)
+await page.waitForSelector(`[data-message-id="${outMsgID}"] [data-quote-id="${inMsgID}"]`, {
+  timeout: 10000,
+})
 check("sent-bubble-shows-quote", true)
 
 // ---- a location reply quoting the same message: sendLocation carries `quoted` too ----
@@ -336,22 +396,39 @@ await page.press("#reply-body", "Escape")
 check("escape-cancels-reply", (await page.locator("[data-reply-preview]").count()) === 0)
 
 // ---- the customer reacts to our reply; the phone reacts to the question ----
-const beforeRows = Number(sql("SELECT count(*) FROM messages WHERE conversation_id = $1", [waConvID]))
-await postWebhook(
-  fromCustomer("r-1", { reactionMessage: { key: { remoteJid: CUSTOMER, fromMe: true, id: outExt }, text: "🙏" } }),
+const beforeRows = Number(
+  sql("SELECT count(*) FROM messages WHERE conversation_id = $1", [waConvID]),
 )
 await postWebhook(
-  upsert({ remoteJid: CUSTOMER, fromMe: true, id: "r-2" }, {
-    reactionMessage: { key: { remoteJid: CUSTOMER, fromMe: false, id: "in-1" }, text: "😂" },
+  fromCustomer("r-1", {
+    reactionMessage: { key: { remoteJid: CUSTOMER, fromMe: true, id: outExt }, text: "🙏" },
   }),
+)
+await postWebhook(
+  upsert(
+    { remoteJid: CUSTOMER, fromMe: true, id: "r-2" },
+    {
+      reactionMessage: { key: { remoteJid: CUSTOMER, fromMe: false, id: "in-1" }, text: "😂" },
+    },
+  ),
 )
 const liveChip = await page
   .waitForSelector(`${row(outMsgID)} [data-reaction="🙏"]`, { timeout: 10000 })
-  .then(() => true, () => false)
+  .then(
+    () => true,
+    () => false,
+  )
 check("customer-reaction-realtime", liveChip)
-await page.waitForSelector(`${row(inMsgID)} [data-reaction="😂"]`, { timeout: 10000 }).catch(() => {})
-check("phone-reaction-shown", (await page.locator(`${row(inMsgID)} [data-reaction="😂"]`).count()) === 1)
-const afterRows = Number(sql("SELECT count(*) FROM messages WHERE conversation_id = $1", [waConvID]))
+await page
+  .waitForSelector(`${row(inMsgID)} [data-reaction="😂"]`, { timeout: 10000 })
+  .catch(() => {})
+check(
+  "phone-reaction-shown",
+  (await page.locator(`${row(inMsgID)} [data-reaction="😂"]`).count()) === 1,
+)
+const afterRows = Number(
+  sql("SELECT count(*) FROM messages WHERE conversation_id = $1", [waConvID]),
+)
 check("reactions-are-not-messages", afterRows === beforeRows, { beforeRows, afterRows })
 
 // ---- the customer quotes our reply; clicking the quote jumps to it ----
@@ -363,16 +440,25 @@ await postWebhook(
     },
   }),
 )
-const in2 = await page
-  .waitForSelector(`[data-quote-id="${outMsgID}"]`, { timeout: 10000 })
-  .then(() => true, () => false)
+const in2 = await page.waitForSelector(`[data-quote-id="${outMsgID}"]`, { timeout: 10000 }).then(
+  () => true,
+  () => false,
+)
 check("inbound-quote-shown", in2)
-const in2ID = sql("SELECT id FROM messages WHERE workspace_id = $1 AND external_id = 'in-2'", [wsID])
-check("inbound-quote-linked", sql("SELECT reply_to_message_id FROM messages WHERE id = $1", [in2ID]) === outMsgID)
+const in2ID = sql("SELECT id FROM messages WHERE workspace_id = $1 AND external_id = 'in-2'", [
+  wsID,
+])
+check(
+  "inbound-quote-linked",
+  sql("SELECT reply_to_message_id FROM messages WHERE id = $1", [in2ID]) === outMsgID,
+)
 await page.click(`[data-message-id="${in2ID}"] [data-quote-id="${outMsgID}"]`)
 const hit = await page
   .waitForSelector(`[data-message-id="${outMsgID}"].mh-search-hit`, { timeout: 5000 })
-  .then(() => true, () => false)
+  .then(
+    () => true,
+    () => false,
+  )
 check("quote-click-jumps", hit)
 
 // ---- email: in-app reaction (never sent), and a quote that sets In-Reply-To ----
@@ -419,11 +505,16 @@ await reactVia(firstMail, "👍", `article[data-message-id="${firstMail}"]`)
 const emailChip = `article[data-message-id="${firstMail}"] [data-reaction="👍"]`
 check("email-chip", (await page.locator(emailChip).count()) === 1)
 check("email-chip-in-app", (await page.locator(`${emailChip}[data-reaction-in-app]`).count()) === 1)
-check("email-reaction-not-sent", evo.sendReaction.length === reactionsBefore, evo.sendReaction.length)
+check(
+  "email-reaction-not-sent",
+  evo.sendReaction.length === reactionsBefore,
+  evo.sendReaction.length,
+)
 await page.hover(emailChip)
-const note = await page
-  .waitForSelector("[data-reaction-in-app-note]", { timeout: 5000 })
-  .then((el) => el.innerText(), () => "")
+const note = await page.waitForSelector("[data-reaction-in-app-note]", { timeout: 5000 }).then(
+  (el) => el.innerText(),
+  () => "",
+)
 check("email-in-app-tooltip", /Shown here only — not delivered on Email/.test(note), note)
 
 await page.hover(`article[data-message-id="${firstMail}"]`)
@@ -439,39 +530,17 @@ const emailOut = sql(
   "SELECT id FROM messages WHERE conversation_id = $1 AND direction = 'out' ORDER BY created_at DESC LIMIT 1",
   [emailConvID],
 )
-await page.waitForSelector(`article[data-message-id="${emailOut}"] [data-quote-id="${firstMail}"]`, { timeout: 10000 })
-  .then(() => check("email-card-shows-quote", true), () => check("email-card-shows-quote", false))
+await page
+  .waitForSelector(`article[data-message-id="${emailOut}"] [data-quote-id="${firstMail}"]`, {
+    timeout: 10000,
+  })
+  .then(
+    () => check("email-card-shows-quote", true),
+    () => check("email-card-shows-quote", false),
+  )
 
-// ---- the docked chat: react + reply work there too ----
-await page.goto(`${base}/en/w/${slug}`, { waitUntil: "domcontentloaded" })
-const launcher = page.locator("[data-chat-dock-launcher]")
-await launcher.waitFor({ state: "visible", timeout: 20000 }).catch(() => {})
-if (await launcher.count()) {
-  await launcher.click()
-  await page.waitForSelector("[data-dock-list]", { timeout: 10000 })
-  const item = page.locator("[data-dock-list-item]", { hasText: "Dana" }).first()
-  if (await item.count()) {
-    await item.click()
-    const dock = "[data-dock-window]"
-    await page.waitForSelector(`${dock} [data-message-id="${in2ID}"]`, { timeout: 15000 })
-    const n = evo.sendReaction.length
-    await reactVia(in2ID, "😮", `${dock} ${row(in2ID)}`)
-    check("dock-react-sends", evo.sendReaction[n]?.reaction === "😮" && evo.sendReaction[n]?.key?.id === "in-2", evo.sendReaction[n])
-    await page.hover(`${dock} [data-message-id="${in2ID}"]`)
-    await page.click(`${dock} ${row(in2ID)} [data-action="reply-to"]`)
-    await page.waitForSelector(`${dock} [data-reply-preview="${in2ID}"]`, { timeout: 10000 })
-    await page.fill(`${dock} #reply-body`, "You're welcome!")
-    await page.click(`${dock} [data-form="reply"] [data-action="send"]`)
-    await sleep(1200)
-    check(
-      "dock-sendText-quoted",
-      same(evo.sendText.at(-1)?.quoted, { key: { id: "in-2" }, message: { conversation: "Great, thank you!" } }),
-      evo.sendText.at(-1),
-    )
-    await page.screenshot({ path: path.join(shots, "en-light-1440-dock.png") })
-  } else check("dock-list-has-item", false, "no dock item named Dana")
-} else check("dock-launcher-present", false, "launcher not found")
-
+// (MH-1147: the floating chat dock is gone — the inbox itself is the dock now, so the
+// thread checks above already cover it.)
 // ---- en/ar × light/dark × 1440/390: chips, quotes, hover bar, no overflow ----
 for (const scheme of ["light", "dark"])
   for (const loc of ["en", "ar"])
@@ -480,20 +549,29 @@ for (const scheme of ["light", "dark"])
       await page.evaluate((s) => localStorage.setItem("theme", s), scheme)
       await page.emulateMedia({ colorScheme: scheme })
       await page.setViewportSize({ width: wd, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${waConvID}`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${waConvID}`, {
+        waitUntil: "domcontentloaded",
+      })
       await page.waitForSelector(`[data-message-id="${outMsgID}"]`, { timeout: 20000 })
       await page.waitForTimeout(500)
       await page.hover(`[data-message-id="${in2ID}"]`)
       const m = await page.evaluate(
         ({ outMsgID, in2ID }) => {
-          const bubble = document.querySelector(`[data-message-id="${outMsgID}"]`).getBoundingClientRect()
-          const chip = document.querySelector(`[data-message-row="${outMsgID}"] [data-reaction]`)?.getBoundingClientRect()
+          const bubble = document
+            .querySelector(`[data-message-id="${outMsgID}"]`)
+            .getBoundingClientRect()
+          const chip = document
+            .querySelector(`[data-message-row="${outMsgID}"] [data-reaction]`)
+            ?.getBoundingClientRect()
           return {
             dark: document.documentElement.classList.contains("dark"),
             rtl: document.documentElement.dir === "rtl",
             overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
-            chipUnderBubble: !!chip && chip.top >= bubble.bottom - 10 && chip.top <= bubble.bottom + 8,
-            quote: !!document.querySelector(`[data-message-id="${in2ID}"] [data-quote-id="${outMsgID}"]`),
+            chipUnderBubble:
+              !!chip && chip.top >= bubble.bottom - 10 && chip.top <= bubble.bottom + 8,
+            quote: !!document.querySelector(
+              `[data-message-id="${in2ID}"] [data-quote-id="${outMsgID}"]`,
+            ),
           }
         },
         { outMsgID, in2ID },

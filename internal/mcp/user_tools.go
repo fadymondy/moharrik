@@ -76,6 +76,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, ImportTools()...)         // import a connection's chats into contacts + inbox (MH-562)
 	tools = append(tools, VcardTools()...)          // import/export contacts as vCard 2.1/3.0/4.0 (MH-584)
 	tools = append(tools, ContactContextTools()...) // WhatsApp export import, ask/report, free-text context (MH-586)
+	tools = append(tools, BriefTools()...)          // the AI context brief on contacts, companies and leads (MH-1169)
 	tools = append(tools, GoogleContactsTools()...) // google_contacts_sync (MH-585)
 	tools = append(tools, TrendsTools()...)
 	tools = append(tools, AutomationTools()...)

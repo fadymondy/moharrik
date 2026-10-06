@@ -9,7 +9,15 @@ import {
   TriangleAlertIcon,
   WebhookIcon,
 } from "lucide-react"
-import { Badge, Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
@@ -119,7 +127,7 @@ export function WhatsAppChannelForm({
   const hookOk = hook?.status === "ok"
 
   if (link.error) return <ErrorState error={link.error} />
-  if (!link.data) return <LoadingRows rows={2} />
+  if (!link.data) return <LoadingRows rows={3} layout="form" />
   if (!link.data.available)
     return <EmptyState title={t("whatsapp.unavailable")} body={t("whatsapp.unavailableBody")} />
 
@@ -185,11 +193,7 @@ export function WhatsAppChannelForm({
           <div className="min-w-0 flex-1">
             <p className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{t("whatsapp.webhook.title")}</span>
-              <Badge
-                variant={
-                  hookOk ? "brand" : hook.status === "unknown" ? "neutral" : "danger"
-                }
-              >
+              <Badge variant={hookOk ? "brand" : hook.status === "unknown" ? "neutral" : "danger"}>
                 {t(`whatsapp.webhook.${hook.status}`)}
               </Badge>
             </p>
@@ -264,9 +268,7 @@ export function WhatsAppChannelForm({
                   {busy ? t("common.working") : t("whatsapp.getPairingCode")}
                 </Button>
               </FieldGroup>
-              <FormHint className="mt-2">
-                {t("whatsapp.pairingNumberHint")}
-              </FormHint>
+              <FormHint className="mt-2">{t("whatsapp.pairingNumberHint")}</FormHint>
             </form>
           ) : null}
           <div className="flex flex-wrap items-center gap-2">

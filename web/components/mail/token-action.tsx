@@ -71,7 +71,11 @@ function Inner({ kind }: { kind: "confirm" | "unsubscribe" }) {
         <p className="text-sm text-muted-foreground">
           {kind === "confirm" ? t("mail.confirmBody") : t("mail.unsubscribeBody")}
         </p>
-        <Button onClick={act} disabled={busy} variant={kind === "confirm" ? "primary" : "secondary"}>
+        <Button
+          onClick={act}
+          disabled={busy}
+          variant={kind === "confirm" ? "primary" : "secondary"}
+        >
           {busy
             ? t("common.working")
             : kind === "confirm"

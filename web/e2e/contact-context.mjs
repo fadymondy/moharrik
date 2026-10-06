@@ -61,7 +61,8 @@ const W = `${base}/en/w/${slug}`
 const stamp = Date.now()
 const email = `context${stamp}@example.test`
 await page.goto(`${W}/contacts`, { waitUntil: "load" })
-await page.waitForSelector('[data-form="add-contact"]', { timeout: 20000 })
+await page.waitForSelector('[data-open="add-contact"]', { timeout: 20000 })
+await page.click('[data-open="add-contact"]')
 await page.fill("#contact-email", email)
 await page.fill("#contact-name", "Sara Ali")
 await page.click('[data-form="add-contact"] button[type=submit]')
@@ -169,7 +170,7 @@ await pageAr.goto(`${base}/ar/login`, { waitUntil: "load" }).catch(() => {})
 // contacts list unauthenticated-safe route to confirm the locale boots and
 // the panel's static strings render RTL on a real page that has one: reuse
 // pageA's own contact by switching its locale prefix (same session cookie).
-await page.goto(`${base.replace(/\/$/, "")}/ar/w/${slug}/contacts/${contactId}`, {
+await page.goto(`${base.replace(/\/$/, "")}/ar/w/${slug}/contacts/${contactId}/intelligence`, {
   waitUntil: "load",
 })
 await page.waitForSelector("[data-contact-context-panel]", { timeout: 20000 })

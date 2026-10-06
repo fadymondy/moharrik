@@ -60,15 +60,16 @@ export function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     const target = preferredLocale(request)
     url.pathname =
-      pathname === "/" ? `/${target}/${signedIn ? "workspaces" : "login"}` : `/${target}${pathname}`
+      pathname === "/" ? `/${target}${signedIn ? "" : "/login"}` : `/${target}${pathname}`
     return NextResponse.redirect(url)
   }
 
   const restPath = rest === "" ? "/" : rest.replace(/\/$/, "") || "/"
 
-  if (restPath === "/") {
+  // Signed in, /{locale} itself opens the last workspace's dashboard (MH-1108).
+  if (restPath === "/" && !signedIn) {
     const url = request.nextUrl.clone()
-    url.pathname = `/${locale}/${signedIn ? "workspaces" : "login"}`
+    url.pathname = `/${locale}/login`
     return NextResponse.redirect(url)
   }
 

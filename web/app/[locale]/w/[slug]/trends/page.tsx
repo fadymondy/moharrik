@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { BookmarkIcon, RadioIcon, SettingsIcon } from "lucide-react"
+import { BookmarkIcon, NewspaperIcon, RadioIcon, SettingsIcon, TrendingUpIcon } from "lucide-react"
 import { Button, Input, Tabs, TabsList, TabsPanel, TabsTab, toast } from "@fadymondy/nasaq/web"
 
 import { PickSelect } from "@/components/crm/shared"
@@ -15,7 +15,6 @@ import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useFeedSources, useNewsPages, useTrendTopics } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 
 const STATES = ["open", "saved", "reviewed", "dismissed", "all"] as const
 
@@ -47,7 +46,6 @@ export default function TrendsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.trends")}
         description={t("trends.hint")}
         action={
@@ -68,9 +66,11 @@ export default function TrendsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-3">
           <TabsList variant="underline">
             <TabsTab value="topics" data-tab="topics">
+              <TrendingUpIcon />
               {t("trends.tabTopics")}
             </TabsTab>
             <TabsTab value="items" data-tab="items">
+              <NewspaperIcon />
               {t("trends.tabItems")}
             </TabsTab>
           </TabsList>
@@ -209,7 +209,7 @@ function TopicsTab({ onLive }: { onLive: () => void }) {
       {pages.error ? (
         <ErrorState error={pages.error} />
       ) : !pages.data ? (
-        <LoadingRows rows={5} />
+        <LoadingRows rows={6} layout="cards" />
       ) : topics.length === 0 ? (
         <EmptyState
           title={
@@ -360,7 +360,7 @@ function ItemsTab() {
       {pages.error ? (
         <ErrorState error={pages.error} />
       ) : !pages.data ? (
-        <LoadingRows rows={5} />
+        <LoadingRows rows={6} layout="cards" />
       ) : items.length === 0 ? (
         <EmptyState title={total === 0 ? t("trends.empty") : t("trends.noMatches")} />
       ) : (

@@ -36,7 +36,11 @@ for (const scheme of ["light", "dark"]) {
   const writes = []
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/"))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/")
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -61,11 +65,15 @@ for (const scheme of ["light", "dark"]) {
       await page.setViewportSize({ width: w, height: 900 })
       if (!api.whatsapp) continue
 
-      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${api.whatsapp}`, { waitUntil: "domcontentloaded" })
-      const hasMenuTrigger = await page.waitForSelector("[data-thread-menu-trigger]", { timeout: 30000 }).then(
-        () => true,
-        () => false,
-      )
+      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${api.whatsapp}`, {
+        waitUntil: "domcontentloaded",
+      })
+      const hasMenuTrigger = await page
+        .waitForSelector("[data-thread-menu-trigger]", { timeout: 30000 })
+        .then(
+          () => true,
+          () => false,
+        )
       check(`${k}-menu-trigger`, hasMenuTrigger)
       if (!hasMenuTrigger) continue
 
@@ -81,12 +89,14 @@ for (const scheme of ["light", "dark"]) {
       // ⋮ menu: open it, read the action set, close without clicking anything.
       await page.click("[data-thread-menu-trigger]")
       await page.waitForSelector("[data-thread-menu]", { timeout: 10000 })
-      const actions = await page.locator("[data-thread-menu] [data-action]").evaluateAll((els) =>
-        els.map((e) => e.getAttribute("data-action")),
-      )
+      const actions = await page
+        .locator("[data-thread-menu] [data-action]")
+        .evaluateAll((els) => els.map((e) => e.getAttribute("data-action")))
       check(
         `${k}-menu-actions`,
-        ["contact-info", "search", "select-messages", "export", "toggle-status"].every((a) => actions.includes(a)),
+        ["contact-info", "search", "select-messages", "export", "toggle-status"].every((a) =>
+          actions.includes(a),
+        ),
         actions,
       )
       await page.keyboard.press("Escape")
@@ -106,10 +116,12 @@ for (const scheme of ["light", "dark"]) {
       await page.click("[data-thread-menu-trigger]")
       await page.waitForSelector("[data-thread-menu]", { timeout: 10000 })
       await page.click('[data-thread-menu] [data-action="contact-info"]')
-      const hasPanel = await page.waitForSelector("[data-contact-info-panel]", { timeout: 10000 }).then(
-        () => true,
-        () => false,
-      )
+      const hasPanel = await page
+        .waitForSelector("[data-contact-info-panel]", { timeout: 10000 })
+        .then(
+          () => true,
+          () => false,
+        )
       check(`${k}-panel-opens`, hasPanel)
       if (hasPanel) {
         const tabs = await page.locator("[data-contact-info-panel] [data-tab]").count()

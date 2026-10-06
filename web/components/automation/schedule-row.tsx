@@ -5,7 +5,20 @@
 
 import { Fragment, useState } from "react"
 import { PencilIcon, PlayIcon, XIcon } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Switch, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  Switch,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { ConfirmButton } from "@/components/confirm-button"
 import { ScheduleForm } from "@/components/automation/schedule-form"

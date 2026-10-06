@@ -23,7 +23,7 @@ const pages = [
   "/youtube",
   "/search-console",
   "/subscribe-forms",
-  "/inbox/canned",
+  "/settings/canned",
   "/inbox/whatsapp",
 ]
 const out = {},

@@ -34,7 +34,11 @@ for (const scheme of ["light", "dark"]) {
   const writes = []
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/"))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/")
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -43,7 +47,9 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForTimeout(1500)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -69,7 +75,9 @@ for (const scheme of ["light", "dark"]) {
       await page.setViewportSize({ width: w, height: 900 })
 
       // The management page.
-      await page.goto(`${base}/${loc}/w/${slug}/inbox/email-templates`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/settings/email-templates`, {
+        waitUntil: "domcontentloaded",
+      })
       await page.waitForLoadState("networkidle").catch(() => {})
       await page.waitForTimeout(500)
       const pg = await page.evaluate(() => ({
@@ -89,7 +97,9 @@ for (const scheme of ["light", "dark"]) {
 
       // An email thread: subject field and the picker.
       if (!api.email) continue
-      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${api.email}`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${api.email}`, {
+        waitUntil: "domcontentloaded",
+      })
       const ok = await page.waitForSelector("[data-reply-subject]", { timeout: 30000 }).then(
         () => true,
         () => false,
@@ -97,14 +107,24 @@ for (const scheme of ["light", "dark"]) {
       check(`${k}-subject-field`, ok)
       const trigger = page.locator('[data-action="email-templates"]').first()
       check(`${k}-picker`, (await trigger.count()) === 1)
-      if ((await trigger.count()) === 1) await page.waitForFunction(() => !document.querySelector('[data-action="email-templates"]')?.disabled, null, { timeout: 10000 }).catch(() => {})
+      if ((await trigger.count()) === 1)
+        await page
+          .waitForFunction(
+            () => !document.querySelector('[data-action="email-templates"]')?.disabled,
+            null,
+            { timeout: 10000 },
+          )
+          .catch(() => {})
       check(`${k}-picker-enabled`, (await trigger.count()) === 1 && (await trigger.isEnabled()))
       if ((await trigger.count()) === 1 && (await trigger.isEnabled())) {
         await trigger.click()
         await page.waitForTimeout(500)
         const items = await page.locator("[data-email-template]").count()
         out[`${k}-picker-items`] = items
-        check(`${k}-picker-lists`, items === api.count || (api.count === 0 && items === 0), { items, api: api.count })
+        check(`${k}-picker-lists`, items === api.count || (api.count === 0 && items === 0), {
+          items,
+          api: api.count,
+        })
         if (shots) await page.screenshot({ path: `${shots}/mh661-live-${k}-picker.png` })
         await page.keyboard.press("Escape")
       }

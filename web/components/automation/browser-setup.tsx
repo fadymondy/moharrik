@@ -18,7 +18,15 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { Badge, Button, Field, FieldDescription, FieldLabel, Input, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
@@ -59,9 +67,7 @@ export function FlowStep({
       <div className="min-w-0 flex-1 space-y-3">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {title}
-          <Badge
-            variant={state === "done" ? "neutral" : state === "current" ? "brand" : "outline"}
-          >
+          <Badge variant={state === "done" ? "neutral" : state === "current" ? "brand" : "outline"}>
             {t(`automation.flow.state.${state}`)}
           </Badge>
         </p>

@@ -122,12 +122,23 @@ function FailedChip({ a }: { a: InboxAttachment }) {
 
 /** The image lightbox (MH-658): a Base UI Dialog rather than a new-tab link,
  * so opening a photo never loses the thread underneath it. */
-function ImageLightbox({ images, index, onClose }: { images: InboxAttachment[]; index: number | null; onClose: () => void }) {
+function ImageLightbox({
+  images,
+  index,
+  onClose,
+}: {
+  images: InboxAttachment[]
+  index: number | null
+  onClose: () => void
+}) {
   const { t } = useTranslations()
   const a = index !== null ? images[index] : null
   return (
     <Dialog open={index !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[calc(100%-2rem)] border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-3xl" showClose>
+      <DialogContent
+        className="max-w-[calc(100%-2rem)] border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-3xl"
+        showClose
+      >
         <DialogTitle className="sr-only">{a?.filename || t("inbox.media.openImage")}</DialogTitle>
         {a ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -235,7 +246,10 @@ function LocationCard({ a }: { a: InboxAttachment }) {
   const { t } = useTranslations()
   const lat = a.meta?.lat
   const lng = a.meta?.lng
-  const href = lat != null && lng != null ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}` : undefined
+  const href =
+    lat != null && lng != null
+      ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`
+      : undefined
   return (
     <a
       href={href}
@@ -252,7 +266,9 @@ function LocationCard({ a }: { a: InboxAttachment }) {
         <span className="block truncate font-medium text-foreground">
           {a.meta?.name || t("inbox.media.location")}
         </span>
-        {a.meta?.address ? <span className="block truncate text-muted-foreground">{a.meta.address}</span> : null}
+        {a.meta?.address ? (
+          <span className="block truncate text-muted-foreground">{a.meta.address}</span>
+        ) : null}
         {href ? <span className="block text-primary">{t("inbox.media.openInMaps")}</span> : null}
       </span>
     </a>
@@ -271,7 +287,11 @@ function ContactCard({ a }: { a: InboxAttachment }) {
         <span className="block truncate font-medium text-foreground">
           {a.meta?.name || t("inbox.media.contactCard")}
         </span>
-        {a.meta?.number ? <span className="block truncate text-muted-foreground" dir="ltr">{a.meta.number}</span> : null}
+        {a.meta?.number ? (
+          <span className="block truncate text-muted-foreground" dir="ltr">
+            {a.meta.number}
+          </span>
+        ) : null}
       </span>
     </div>
   )
@@ -302,7 +322,8 @@ export function AttachmentList({ attachments }: { attachments?: InboxAttachment[
   const locations = ready.filter((a) => kindOf(a) === "location")
   const contacts = ready.filter((a) => kindOf(a) === "contact")
   const documents = ready.filter(
-    (a) => !["image", "video", "voice", "audio", "sticker", "location", "contact"].includes(kindOf(a)),
+    (a) =>
+      !["image", "video", "voice", "audio", "sticker", "location", "contact"].includes(kindOf(a)),
   )
 
   return (
@@ -346,7 +367,14 @@ export function AttachmentList({ attachments }: { attachments?: InboxAttachment[
         </>
       ) : null}
       {videos.map((a) => (
-        <video key={a.id} controls preload="metadata" src={a.url} className="max-h-72 max-w-64 rounded-md" data-attachment-video>
+        <video
+          key={a.id}
+          controls
+          preload="metadata"
+          src={a.url}
+          className="max-h-72 max-w-64 rounded-md"
+          data-attachment-video
+        >
           <span className="sr-only">{a.filename}</span>
         </video>
       ))}

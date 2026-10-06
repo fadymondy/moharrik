@@ -23,6 +23,7 @@ import {
   type ReactNode,
 } from "react"
 
+import { RowsTable } from "@/components/nq-table"
 import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -344,35 +345,39 @@ export function TrendChart({
         <summary className="w-fit cursor-pointer select-none hover:text-foreground">
           {t("charts.table")}
         </summary>
-        <div className="mt-2 max-h-72 overflow-auto border border-nq-line">
-          <table className="w-full text-start text-xs">
-            <caption className="sr-only">{title}</caption>
-            <thead className="sticky top-0 bg-card">
-              <tr>
-                <th className="px-3 py-1.5 text-start font-medium">{t("charts.date")}</th>
-                {series.map((s) => (
-                  <th key={s.key} className="px-3 py-1.5 text-end font-medium">
-                    {s.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {dates.map((d, i) => (
-                <tr key={d} className="border-t border-nq-line">
-                  <td className="px-3 py-1 text-nq-fg-body">{formatDate(d)}</td>
-                  {series.map((s) => (
-                    <td key={s.key} className="px-3 py-1 text-end text-nq-fg-body tabular-nums">
-                      {s.values[i] == null ? "—" : format(s.values[i] as number)}
-                      {s.dates && s.dates[i] ? (
-                        <span className="ms-1 text-muted-foreground">({formatDate(s.dates[i])})</span>
-                      ) : null}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-2 max-h-72 overflow-auto">
+          <RowsTable<{ d: string; i: number }>
+            data={dates.map((d, i) => ({ d, i }))}
+            getRowId={(x) => x.d}
+            label={title}
+            columns={[
+              {
+                id: "date",
+                header: t("charts.date"),
+                hideable: false,
+                sortValue: (x) => x.d,
+                className: "text-nq-fg-body",
+                cell: (x) => formatDate(x.d),
+              },
+              ...series.map((s) => ({
+                id: `s:${s.key}`,
+                header: s.label,
+                align: "end" as const,
+                sortValue: (x: { i: number }) => s.values[x.i] ?? undefined,
+                className: "text-nq-fg-body tabular-nums",
+                cell: (x: { i: number }) => (
+                  <>
+                    {s.values[x.i] == null ? "—" : format(s.values[x.i] as number)}
+                    {s.dates && s.dates[x.i] ? (
+                      <span className="ms-1 text-muted-foreground">
+                        ({formatDate(s.dates[x.i])})
+                      </span>
+                    ) : null}
+                  </>
+                ),
+              })),
+            ]}
+          />
         </div>
       </details>
     </div>

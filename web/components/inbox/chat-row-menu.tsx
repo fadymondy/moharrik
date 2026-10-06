@@ -37,7 +37,31 @@ import {
   ZapIcon,
   type LucideProps,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, TAG_COLORS, type Conversation, type TagColor } from "@/lib/api"
@@ -121,7 +145,11 @@ export function ChatRowMenu({
     setConfirm(null)
     try {
       if (what === "block") {
-        await api(`${path}/organise`, { method: "PATCH", json: { blocked: !c.blocked }, workspaceId: ws.id })
+        await api(`${path}/organise`, {
+          method: "PATCH",
+          json: { blocked: !c.blocked },
+          workspaceId: ws.id,
+        })
         toast.success(c.blocked ? t("inbox.org.unblocked") : t("inbox.org.blocked"))
         onChanged?.()
       } else if (what === "clear") {
@@ -145,7 +173,10 @@ export function ChatRowMenu({
         <ContextMenuItem
           data-action="pin"
           onClick={() =>
-            organise({ pinned: !c.pinned }, c.pinned ? t("inbox.org.unpinned") : t("inbox.org.pinned"))
+            organise(
+              { pinned: !c.pinned },
+              c.pinned ? t("inbox.org.unpinned") : t("inbox.org.pinned"),
+            )
           }
         >
           {c.pinned ? <PinOffIcon /> : <PinIcon />}
@@ -164,7 +195,10 @@ export function ChatRowMenu({
           {c.archived ? t("inbox.org.unarchive") : t("inbox.org.archive")}
         </ContextMenuItem>
         {muted ? (
-          <ContextMenuItem data-action="unmute" onClick={() => organise({ mute: "" }, t("inbox.org.unmuted"))}>
+          <ContextMenuItem
+            data-action="unmute"
+            onClick={() => organise({ mute: "" }, t("inbox.org.unmuted"))}
+          >
             <BellIcon />
             {t("inbox.org.unmute")}
           </ContextMenuItem>
@@ -217,7 +251,10 @@ export function ChatRowMenu({
                 {t("inbox.org.color")}
               </ContextMenuSubTrigger>
               <ContextMenuSubContent data-color-menu>
-                <ContextMenuItem data-color="" onClick={() => organise({ color: "" }, t("inbox.org.saved"))}>
+                <ContextMenuItem
+                  data-color=""
+                  onClick={() => organise({ color: "" }, t("inbox.org.saved"))}
+                >
                   <CircleOffIcon />
                   {t("inbox.org.none")}
                 </ContextMenuItem>
@@ -280,15 +317,27 @@ export function ChatRowMenu({
         {canManage ? (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem data-action="block" variant="danger" onClick={() => setConfirm("block")}>
+            <ContextMenuItem
+              data-action="block"
+              variant="danger"
+              onClick={() => setConfirm("block")}
+            >
               <BanIcon />
               {c.blocked ? t("inbox.org.unblock") : t("inbox.org.block")}
             </ContextMenuItem>
-            <ContextMenuItem data-action="clear" variant="danger" onClick={() => setConfirm("clear")}>
+            <ContextMenuItem
+              data-action="clear"
+              variant="danger"
+              onClick={() => setConfirm("clear")}
+            >
               <EraserIcon />
               {t("inbox.org.clear")}
             </ContextMenuItem>
-            <ContextMenuItem data-action="delete" variant="danger" onClick={() => setConfirm("delete")}>
+            <ContextMenuItem
+              data-action="delete"
+              variant="danger"
+              onClick={() => setConfirm("delete")}
+            >
               <Trash2Icon />
               {t("inbox.org.delete")}
             </ContextMenuItem>
@@ -296,7 +345,12 @@ export function ChatRowMenu({
         ) : null}
       </ContextMenuContent>
 
-      <LabelsDialog c={c} open={labelsOpen} onOpenChange={setLabelsOpen} onDone={() => onChanged?.()} />
+      <LabelsDialog
+        c={c}
+        open={labelsOpen}
+        onOpenChange={setLabelsOpen}
+        onDone={() => onChanged?.()}
+      />
 
       <AlertDialog open={confirm != null} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent data-confirm-dialog={confirm ?? undefined}>
@@ -423,7 +477,10 @@ export function LabelsDialog({
 
   async function remove(id: string) {
     try {
-      await api(`/api/w/conversation_labels/${encodeURIComponent(id)}`, { method: "DELETE", workspaceId: ws.id })
+      await api(`/api/w/conversation_labels/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
       const next = new Set(current)
       next.delete(id)
       setPicked(next)
@@ -474,7 +531,11 @@ export function LabelsDialog({
                     onChange={() => toggle(l.id)}
                     data-label-option={l.name}
                   />
-                  <span data-tag={l.color} className="size-2.5 shrink-0 rounded-full bg-(--tag)" aria-hidden />
+                  <span
+                    data-tag={l.color}
+                    className="size-2.5 shrink-0 rounded-full bg-(--tag)"
+                    aria-hidden
+                  />
                   <bdi className="truncate text-sm">{l.name}</bdi>
                   <span className="ms-auto text-xs text-muted-foreground">{l.count}</span>
                 </label>
@@ -512,7 +573,11 @@ export function LabelsDialog({
               {t("inbox.org.addLabel")}
             </Button>
           </div>
-          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("inbox.org.color")}>
+          <div
+            className="flex flex-wrap gap-1.5"
+            role="radiogroup"
+            aria-label={t("inbox.org.color")}
+          >
             {TAG_COLORS.map((col) => (
               <button
                 key={col}

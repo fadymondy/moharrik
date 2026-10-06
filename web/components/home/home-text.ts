@@ -5,6 +5,7 @@ English and Arabic and a number on screen is always the number from the response
 */
 
 import type { HomeEntityRef, HomeEvent, HomeLaneItem, HomeReason } from "@/lib/home-types"
+import { inboxHref } from "@/lib/inbox-link"
 
 type T = (key: string, vars?: Record<string, string | number>) => string
 
@@ -26,7 +27,8 @@ export function entityRoute(ref: HomeEntityRef): string | null {
     case "lead":
       return `leads/${ref.id}`
     case "conversation":
-      return `inbox?c=${ref.id}`
+      // Query-only: opens the inbox dock over the home page (MH-1147).
+      return inboxHref(ref.id)
     case "prospect":
       return "prospects"
     case "rule":

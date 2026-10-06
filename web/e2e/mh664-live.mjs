@@ -86,7 +86,9 @@ for (const scheme of ["light", "dark"]) {
         await target.hover()
         await page.waitForTimeout(400)
         const scope =
-          channel === "email" ? `article[data-message-id="${msgID}"]` : `[data-message-row="${msgID}"]`
+          channel === "email"
+            ? `article[data-message-id="${msgID}"]`
+            : `[data-message-row="${msgID}"]`
         const react = page.locator(`${scope} [data-action="react"]`)
         const reply = page.locator(`${scope} [data-action="reply-to"]`)
         check(`${k}-react-button`, (await react.count()) === 1)
@@ -99,17 +101,22 @@ for (const scheme of ["light", "dark"]) {
             () => false,
           )
           check(`${k}-reaction-bar`, bar)
-          check(`${k}-six-quick`, (await page.locator("[data-reaction-bar] [data-quick-reaction]").count()) === 6)
+          check(
+            `${k}-six-quick`,
+            (await page.locator("[data-reaction-bar] [data-quick-reaction]").count()) === 6,
+          )
           if (shots) await page.screenshot({ path: `${shots}/mh664-live-${k}-bar.png` })
           await page.keyboard.press("Escape")
         }
         if ((await reply.count()) === 1) {
           await target.hover()
           await reply.click()
-          const pv = await page.waitForSelector(`[data-reply-preview="${msgID}"]`, { timeout: 5000 }).then(
-            () => true,
-            () => false,
-          )
+          const pv = await page
+            .waitForSelector(`[data-reply-preview="${msgID}"]`, { timeout: 5000 })
+            .then(
+              () => true,
+              () => false,
+            )
           check(`${k}-reply-preview`, pv)
           await page.press("#reply-body", "Escape")
           check(`${k}-reply-cancelled`, (await page.locator("[data-reply-preview]").count()) === 0)

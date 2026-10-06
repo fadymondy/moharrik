@@ -132,7 +132,8 @@ try {
   out.listHasNoRunButton =
     (await page.$(`li[data-workflow-row="${writes.name}"] [data-run-workflow]`)) === null
 
-  const canvasUrl = (id, locale = "en") => `${base}/${locale}/w/${slug}/automation/workflows/${id}?view=editor`
+  const canvasUrl = (id, locale = "en") =>
+    `${base}/${locale}/w/${slug}/automation/workflows/${id}?view=editor`
   const runsFor = async (id) =>
     (await call("GET", "/api/w/runs", undefined, wsID)).runs.filter((r) => r.workflow_id === id)
 

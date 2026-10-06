@@ -115,7 +115,9 @@ export function DiscordChannelForm({
           <Field>
             <FieldLabel htmlFor="dc-token">
               {t("channels.discord.botToken")}
-              {channel ? <span className="text-muted-foreground"> ({t("common.optional")})</span> : null}
+              {channel ? (
+                <span className="text-muted-foreground"> ({t("common.optional")})</span>
+              ) : null}
             </FieldLabel>
             <Input
               id="dc-token"

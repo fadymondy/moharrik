@@ -5,12 +5,10 @@ import type { ReactNode } from "react"
 import { ArrowRightIcon, PlayIcon, SearchCheckIcon } from "lucide-react"
 
 import { SectionHeader } from "@/components/public-frame"
-import { Bdi } from "@/components/bidi"
 import { RunRow as AutomationRunRow } from "@/components/automation/run-controls"
 import { RunRow as ResearchRunRow } from "@/components/research/tabs"
 import {
   Empty,
-  InboxCard,
   LeadsCard,
   MarketingCard,
   NotificationsCard,
@@ -21,15 +19,11 @@ import {
   setupPending,
 } from "@/components/overview/overview-cards"
 import { TrafficCard, YouTubeCard } from "@/components/overview/google-cards"
-import {
-  ConversationsChartCard,
-  LeadsChartCard,
-  PipelineChartCard,
-} from "@/components/overview/overview-charts"
+import { LeadsChartCard, PipelineChartCard } from "@/components/overview/overview-charts"
 import { WorkspaceCard } from "@/components/overview/workspace-card"
 import { InsightQuestions } from "@/components/insights/questions"
 import { ErrorState, LoadingRows } from "@/components/states"
-import { Skeleton } from "@fadymondy/nasaq/web"
+import { Card, Skeleton } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
@@ -61,7 +55,7 @@ export function SectionHome({ section }: { section: string }) {
 
   return (
     <div data-section-home={group.key}>
-      <SectionHeader micro={<Bdi>{ws.summary.name}</Bdi>} title={label} />
+      <SectionHeader title={label} />
       <div className="space-y-4 px-4 pb-10 sm:space-y-6 sm:px-6">
         {allowed ? <SectionFigures section={group.key} base={base} /> : null}
         <section aria-labelledby="section-pages" data-section-pages>
@@ -76,21 +70,28 @@ export function SectionHome({ section }: { section: string }) {
                   <Link
                     href={`${base}/${item.path}`}
                     data-section-page={item.key}
-                    className="group flex h-full items-start gap-3 border border-nq-line bg-card px-5 py-4 transition-colors hover:bg-nq-surface-soft"
+                    className="group block h-full rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="min-w-0 flex-1 space-y-1">
-                      <span className="block text-sm font-medium text-foreground">
-                        {t(item.labelKey)}
+                    <Card className="h-full flex-row items-start gap-3 px-5 py-4 shadow-xs transition-[background-color,box-shadow] group-hover:bg-nq-surface-soft group-hover:shadow-sm">
+                      <span
+                        className="flex size-9 shrink-0 items-center justify-center rounded-control bg-primary/10 text-primary [&>svg]:size-4"
+                        aria-hidden
+                      >
+                        <Icon />
                       </span>
-                      <span className="block text-sm text-muted-foreground">
-                        {t(`section.desc.${item.key}`)}
+                      <span className="min-w-0 flex-1 space-y-1">
+                        <span className="block text-sm font-medium text-foreground">
+                          {t(item.labelKey)}
+                        </span>
+                        <span className="block text-sm text-muted-foreground">
+                          {t(`section.desc.${item.key}`)}
+                        </span>
                       </span>
-                    </span>
-                    <ArrowRightIcon
-                      className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5"
-                      aria-hidden
-                    />
+                      <ArrowRightIcon
+                        className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5"
+                        aria-hidden
+                      />
+                    </Card>
                   </Link>
                 </li>
               )
@@ -128,11 +129,11 @@ function OverviewSlice({ section, base }: { section: string; base: string }) {
     return (
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2" aria-busy>
         {Array.from({ length: 2 }, (_, i) => (
-          <div key={i} className="space-y-3 border border-nq-line bg-card px-5 py-4">
+          <Card key={i} className="gap-3 px-5 py-4 shadow-xs">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-3/4" />
-          </div>
+          </Card>
         ))}
       </div>
     )
@@ -181,26 +182,6 @@ function OverviewSlice({ section, base }: { section: string; base: string }) {
           />,
         )
       break
-    case "inbox":
-      if (o.conversations)
-        cards.push(
-          <InboxCard
-            key="inbox"
-            items={o.conversations}
-            unread={o.today.unread_conversations}
-            base={base}
-            canAddWidget={ws.can("inbox:manage")}
-          />,
-        )
-      if (o.conversations_daily)
-        cards.push(
-          <ConversationsChartCard
-            key="inbox-chart"
-            conversationsDaily={o.conversations_daily}
-            base={base}
-          />,
-        )
-      break
     case "insights":
       if (o.trends)
         cards.push(
@@ -224,14 +205,7 @@ function OverviewSlice({ section, base }: { section: string; base: string }) {
       break
     case "settings":
       if (o.setup && setupPending(o.setup))
-        cards.push(
-          <SetupCard
-            key="setup"
-            items={o.setup}
-            base={base}
-            can={ws.can}
-          />,
-        )
+        cards.push(<SetupCard key="setup" items={o.setup} base={base} can={ws.can} />)
       cards.push(
         <WorkspaceCard
           key="workspace"
@@ -244,7 +218,8 @@ function OverviewSlice({ section, base }: { section: string; base: string }) {
       break
   }
   // A lone card, or Settings' setup list and details, read best full width.
-  if (cards.length === 1 || section === "settings") return <div className="grid grid-cols-1 gap-4 sm:gap-6">{cards}</div>
+  if (cards.length === 1 || section === "settings")
+    return <div className="grid grid-cols-1 gap-4 sm:gap-6">{cards}</div>
   return cards.length ? (
     <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2" data-section-cards>
       {cards}
@@ -283,4 +258,3 @@ function RecentAutomationRuns({ base }: { base: string }) {
     </Panel>
   )
 }
-

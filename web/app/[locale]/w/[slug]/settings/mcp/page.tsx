@@ -1,8 +1,27 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useState, type FormEvent, type ReactNode } from "react"
 import { PlusIcon, TriangleAlertIcon } from "lucide-react"
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldLegend, FieldSet, FieldError, FormHint } from "@/components/form-layout"
 
 import { SectionHeader } from "@/components/public-frame"
@@ -12,6 +31,7 @@ import Link from "next/link"
 import { ConnectClients } from "@/components/mcp/connect-clients"
 import { ConnectedApps } from "@/components/mcp/connected-apps"
 import { PermissionsExplainer } from "@/components/mcp/permissions-explainer"
+import { RowsTable, type RowsColumn } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type McpScope, type McpToken } from "@/lib/api"
@@ -64,7 +84,6 @@ export default function McpTokensPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.mcpTokens")}
         description={all ? t("mcp.hintAll") : t("mcp.hint")}
         action={
@@ -82,35 +101,8 @@ export default function McpTokensPage() {
       ) : list.length === 0 ? (
         <EmptyState title={t("mcp.empty")} body={t("mcp.emptyBody")} />
       ) : (
-        <div className="border-y border-nq-line">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="ps-6">{t("mcp.name")}</TableHead>
-                {all ? <TableHead>{t("mcp.holder")}</TableHead> : null}
-                <TableHead>{t("mcp.prefix")}</TableHead>
-                <TableHead>{t("mcp.scopes")}</TableHead>
-                <TableHead>{t("mcp.created")}</TableHead>
-                <TableHead>{t("mcp.lastUsed")}</TableHead>
-                <TableHead>{t("mcp.expires")}</TableHead>
-                <TableHead className="pe-6 text-end">
-                  <span className="sr-only">{t("common.actions")}</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.map((tok) => (
-                <TokenRow
-                  key={tok.id}
-                  tok={tok}
-                  showHolder={all}
-                  formatDate={formatDate}
-                  onRevoke={() => revoke(tok.id)}
-                  activityHref={auditHref?.(tok.id)}
-                />
-              ))}
-            </TableBody>
-          </Table>
+        <div className="px-6">
+          <TokensTable tokens={list} showHolder={all} onRevoke={revoke} activityHref={auditHref} />
         </div>
       )}
 
@@ -152,71 +144,132 @@ export default function McpTokensPage() {
   )
 }
 
-function TokenRow({
-  tok,
+function TokensTable({
+  tokens,
   showHolder,
-  formatDate,
   onRevoke,
   activityHref,
 }: {
-  tok: McpToken
+  tokens: McpToken[]
   showHolder: boolean
-  formatDate: (v: string | null | undefined) => string
-  onRevoke: () => Promise<void>
-  /** Its calls in the audit log, for owners and admins (MH-392). */
-  activityHref?: string
+  onRevoke: (id: string) => Promise<void>
+  /** A token's calls in the audit log, for owners and admins (MH-392). */
+  activityHref?: (id: string) => string
 }) {
-  const { t } = useTranslations()
-  const expired = !!tok.expires_at && new Date(tok.expires_at).getTime() < Date.now()
-  return (
-    <TableRow className={tok.revoked_at || expired ? "opacity-60" : undefined}>
-      <TableCell className="ps-6 font-medium">
-        <Bdi>{tok.name}</Bdi>
-      </TableCell>
-      {showHolder ? (
-        <TableCell>
-          <span className="flex flex-wrap items-center gap-1.5">
-            <Ltr className="text-sm">{tok.user_email || tok.user_id}</Ltr>
-            {tok.mine ? <Badge variant="neutral">{t("mcp.you")}</Badge> : null}
-          </span>
-        </TableCell>
-      ) : null}
-      <TableCell>
-        <Ltr mono className="text-xs">
-          {tok.prefix}…
-        </Ltr>
-      </TableCell>
-      <TableCell>
-        <div className="flex max-w-xs flex-wrap gap-1">
-          {(tok.scopes ?? []).map((s) => (
-            <Badge key={s} variant="outline" className="font-mono" dir="ltr">
-              {s}
-            </Badge>
-          ))}
-        </div>
-      </TableCell>
-      <TableCell className="text-muted-foreground">
-        <Ltr>{formatDate(tok.created_at)}</Ltr>
-      </TableCell>
-      <TableCell className="text-muted-foreground">
-        {tok.last_used_at ? <Ltr>{formatDate(tok.last_used_at)}</Ltr> : t("mcp.never")}
-        {activityHref && tok.last_used_at ? (
-          <Link
-            href={activityHref}
-            className="block text-xs text-nq-action underline-offset-4 hover:underline"
-            data-token-activity
-          >
-            {t("mcp.recentCalls")}
-          </Link>
-        ) : null}
-      </TableCell>
-      <TableCell className="text-muted-foreground">
-        {tok.expires_at ? <Ltr>{formatDate(tok.expires_at)}</Ltr> : t("mcp.noExpiry")}
-      </TableCell>
-      <TableCell className="pe-6 text-end">
-        {tok.revoked_at ? (
+  const { t, formatDate } = useTranslations()
+  const expired = (tok: McpToken) =>
+    !!tok.expires_at && new Date(tok.expires_at).getTime() < Date.now()
+  // A revoked or expired token stays listed, dimmed, so its history still reads.
+  const dim = (tok: McpToken, node: ReactNode) => (
+    <span className={tok.revoked_at || expired(tok) ? "opacity-60" : undefined}>{node}</span>
+  )
+  const columns: RowsColumn<McpToken>[] = [
+    {
+      id: "name",
+      header: t("mcp.name"),
+      hideable: false,
+      sortValue: (tok) => tok.name,
+      cell: (tok) =>
+        dim(
+          tok,
+          <span className="font-medium" data-token={tok.name}>
+            <Bdi>{tok.name}</Bdi>
+          </span>,
+        ),
+    },
+    ...(showHolder
+      ? [
+          {
+            id: "holder",
+            header: t("mcp.holder"),
+            sortValue: (tok: McpToken) => tok.user_email,
+            cell: (tok: McpToken) =>
+              dim(
+                tok,
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <Ltr className="text-sm">{tok.user_email || tok.user_id}</Ltr>
+                  {tok.mine ? <Badge variant="neutral">{t("mcp.you")}</Badge> : null}
+                </span>,
+              ),
+          },
+        ]
+      : []),
+    {
+      id: "prefix",
+      header: t("mcp.prefix"),
+      cell: (tok) =>
+        dim(
+          tok,
+          <Ltr mono className="text-xs">
+            {tok.prefix}…
+          </Ltr>,
+        ),
+    },
+    {
+      id: "scopes",
+      header: t("mcp.scopes"),
+      cell: (tok) =>
+        dim(
+          tok,
+          <span className="flex max-w-xs flex-wrap gap-1">
+            {(tok.scopes ?? []).map((s) => (
+              <Badge key={s} variant="outline" className="font-mono" dir="ltr">
+                {s}
+              </Badge>
+            ))}
+          </span>,
+        ),
+    },
+    {
+      id: "created",
+      header: t("mcp.created"),
+      sortValue: (tok) => tok.created_at,
+      cell: (tok) =>
+        dim(tok, <Ltr className="text-muted-foreground">{formatDate(tok.created_at)}</Ltr>),
+    },
+    {
+      id: "lastUsed",
+      header: t("mcp.lastUsed"),
+      sortValue: (tok) => tok.last_used_at,
+      cell: (tok) =>
+        dim(
+          tok,
+          <span className="text-muted-foreground">
+            {tok.last_used_at ? <Ltr>{formatDate(tok.last_used_at)}</Ltr> : t("mcp.never")}
+            {activityHref && tok.last_used_at ? (
+              <Link
+                href={activityHref(tok.id)}
+                className="block text-xs text-nq-action underline-offset-4 hover:underline"
+                data-token-activity
+              >
+                {t("mcp.recentCalls")}
+              </Link>
+            ) : null}
+          </span>,
+        ),
+    },
+    {
+      id: "expires",
+      header: t("mcp.expires"),
+      sortValue: (tok) => tok.expires_at,
+      cell: (tok) =>
+        dim(
+          tok,
+          <span className="text-muted-foreground">
+            {tok.expires_at ? <Ltr>{formatDate(tok.expires_at)}</Ltr> : t("mcp.noExpiry")}
+          </span>,
+        ),
+    },
+    {
+      id: "actions",
+      header: <span className="sr-only">{t("common.actions")}</span>,
+      label: t("common.actions"),
+      align: "end",
+      hideable: false,
+      cell: (tok) =>
+        tok.revoked_at ? (
           <Badge variant="neutral">{t("mcp.revokedBadge")}</Badge>
-        ) : expired ? (
+        ) : expired(tok) ? (
           <Badge variant="neutral">{t("mcp.expiredBadge")}</Badge>
         ) : (
           <ConfirmButton
@@ -231,11 +284,20 @@ function TokenRow({
                   })
             }
             confirmLabel={t("common.revoke")}
-            onConfirm={onRevoke}
+            onConfirm={() => onRevoke(tok.id)}
           />
-        )}
-      </TableCell>
-    </TableRow>
+        ),
+    },
+  ]
+  return (
+    <RowsTable<McpToken>
+      data={tokens}
+      columns={columns}
+      getRowId={(tok) => tok.id}
+      rowLabel={(tok) => tok.name}
+      label={t("nav.mcpTokens")}
+      data-mcp-tokens
+    />
   )
 }
 

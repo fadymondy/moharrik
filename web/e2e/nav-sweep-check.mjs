@@ -31,9 +31,12 @@ const SECTIONS = [
     rows: [
       ["home", ""],
       ["customers", "contacts", ["crm", "contacts", "companies", "leads", "contacts/import"]],
-      ["inbox", "inbox", ["inbox/overview", "inbox", "inbox/stats", "inbox/canned", "inbox/email-templates"]],
       ["opportunities", "deals"],
-      ["research", "research", ["research/runs", "research/evidence", "research/schedules", "prospects"]],
+      [
+        "research",
+        "research",
+        ["research/runs", "research/evidence", "research/schedules", "prospects"],
+      ],
     ],
   },
   {
@@ -59,26 +62,37 @@ const SECTIONS = [
   {
     key: "understand",
     rows: [
-      ["insights", "insights", ["analytics", "search-console", "youtube", "trends", "trends/sources"]],
+      [
+        "insights",
+        "insights",
+        ["analytics", "search-console", "youtube", "trends", "trends/sources"],
+      ],
       ["reports", "reports"],
     ],
   },
   {
     key: "connect",
     rows: [
-      ["channels", "inbox/channels"],
       ["integrations", "settings/integrations"],
       ["mcp", "settings/mcp"],
     ],
   },
   { key: "docs", rows: [["mcp-docs", null]] },
   // Footer rows never nest their sub-pages; Settings' pages are cards on the Settings page.
-  { key: "footer", rows: [["team", "members"], ["settings", "settings"]] },
+  {
+    key: "footer",
+    rows: [
+      ["team", "members"],
+      ["settings", "settings"],
+    ],
+  },
 ]
 const ROWS = SECTIONS.flatMap((s) => s.rows)
 const SETTINGS_PAGES = [
   "settings/general",
   "settings/email",
+  "settings/canned",
+  "settings/email-templates",
   "settings/icp",
   "settings/automation-profile",
   "settings/audit",
@@ -92,8 +106,7 @@ const OWNERS = [
   ["settings/icp", "settings"],
   ["automation/schedules", "schedules"],
   ["automation/runs", "automations"],
-  ["inbox/channels", "channels"],
-  ["inbox/stats", "inbox"],
+  ["settings/canned", "settings"],
   ["prospects", "research"],
   ["marketing", "campaigns"],
   ["trends", "insights"],
@@ -107,6 +120,11 @@ const UNLISTED = ["notifications", "notifications/overview", "notifications/sour
 const OLD_REDIRECTS = [
   { from: "research?tab=evidence", to: "research/evidence" },
   { from: "research?tab=schedules", to: "research/schedules" },
+  // MH-1148: the inbox's setup pages moved to Settings.
+  { from: "inbox/canned", to: "settings/canned" },
+  { from: "inbox/email-templates", to: "settings/email-templates" },
+  { from: "inbox/channels?type=email", to: "settings/integrations?type=email" },
+  { from: "inbox/whatsapp", to: "settings/integrations?type=whatsapp" },
 ]
 
 const out = {}
@@ -121,7 +139,9 @@ const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(
 // Rows and their nested sub-pages both mark the current one with aria-current; tell them apart.
 const activeRow = (page) =>
   page.evaluate(() => {
-    const a = [...document.querySelectorAll("[data-nav-section] a[data-nav-item][aria-current=page]")]
+    const a = [
+      ...document.querySelectorAll("[data-nav-section] a[data-nav-item][aria-current=page]"),
+    ]
     return a
       .filter((x) => !x.closest("[data-nav-subs]"))
       .map((x) => x.getAttribute("data-nav-item"))
@@ -173,13 +193,16 @@ try {
   const layout = await page.evaluate(() =>
     [...document.querySelectorAll("[data-nav-section]")].map((s) => ({
       key: s.getAttribute("data-nav-section"),
-      rows: [...s.querySelectorAll(":scope a[data-nav-item]")].map((a) => a.getAttribute("data-nav-item")),
+      rows: [...s.querySelectorAll(":scope a[data-nav-item]")].map((a) =>
+        a.getAttribute("data-nav-item"),
+      ),
     })),
   )
   for (const s of SECTIONS) {
     const got = layout.find((l) => l.key === s.key)
     const want = s.rows.map((r) => r[0]).join(",")
-    out[`section:${s.key}:rows`] = got?.rows.join(",") === want ? "match" : `got ${got?.rows.join(",") ?? "none"}`
+    out[`section:${s.key}:rows`] =
+      got?.rows.join(",") === want ? "match" : `got ${got?.rows.join(",") ?? "none"}`
   }
   out["sections:order"] =
     layout.map((l) => l.key).join(",") === SECTIONS.map((s) => s.key).join(",")
@@ -197,7 +220,9 @@ try {
     out[`row:${key}:active`] = await settle(() => activeRow(page), key)
     if (!subs) continue
     const hrefs = await page
-      .$$eval(`[data-nav-subs="${key}"] a[data-nav-item]`, (as) => as.map((a) => a.getAttribute("href")))
+      .$$eval(`[data-nav-subs="${key}"] a[data-nav-item]`, (as) =>
+        as.map((a) => a.getAttribute("href")),
+      )
       .catch(() => [])
     out[`row:${key}:subs`] =
       hrefs.join(",") === subs.map(href).join(",") ? "match" : `got ${hrefs.join(",") || "none"}`
@@ -227,11 +252,12 @@ try {
   }
 
   // ---- section dashboards (MH-673) still render their page list ----
-  for (const p of ["crm", "marketing", "inbox/overview", "automation", "research", "insights", "settings"]) {
+  for (const p of ["crm", "marketing", "automation", "research", "insights", "settings"]) {
     await page.goto(w(p), { waitUntil: "load" })
     out[`dashboard:${p}`] =
-      (await page.waitForSelector("[data-section-home] [data-section-pages]", { timeout: 15000 }).catch(() => null)) !==
-      null
+      (await page
+        .waitForSelector("[data-section-home] [data-section-pages]", { timeout: 15000 })
+        .catch(() => null)) !== null
   }
 
   // ---- old URLs redirect (client-side replace), nothing 404s ----
@@ -243,7 +269,15 @@ try {
 
   // ---- 390: no horizontal overflow; the sidebar is a sheet that opens on the toggle ----
   await page.setViewportSize({ width: 390, height: 844 })
-  for (const p of ["", "contacts", "inbox", "automation/browsers", "research/runs", "trends", "settings"]) {
+  for (const p of [
+    "",
+    "contacts",
+    "settings/integrations",
+    "automation/browsers",
+    "research/runs",
+    "trends",
+    "settings",
+  ]) {
     await page.goto(w(p), { waitUntil: "load" })
     const sw = await overflow(page)
     out[`overflow:${p || "home"}:390`] = sw <= 1 ? "ok" : `+${sw}px`
@@ -253,7 +287,10 @@ try {
   await page.click("[data-nav-toggle]")
   await page.waitForSelector(`${SHEET} a[data-nav-item]`, { timeout: 10000 })
   out["mobileSheet:rows"] = await settle(
-    () => page.$$eval(`${SHEET} a[data-nav-item]`, (as) => as.map((a) => a.getAttribute("data-nav-item")).join(",")),
+    () =>
+      page.$$eval(`${SHEET} a[data-nav-item]`, (as) =>
+        as.map((a) => a.getAttribute("data-nav-item")).join(","),
+      ),
     ROWS.map((r) => r[0]).join(","),
   )
   // a row navigates and closes the sheet; reopened, the active row shows its sub-pages
@@ -263,8 +300,11 @@ try {
   out["mobileSheet:rowNavigatesAndCloses"] = (await page.$(SHEET)) === null
   await page.click("[data-nav-toggle]")
   out["mobileSheet:showsSubs"] =
-    (await page.waitForSelector(`${SHEET} [data-nav-subs="customers"] a[data-nav-item="leads"]`, { timeout: 10000 }).catch(() => null)) !==
-    null
+    (await page
+      .waitForSelector(`${SHEET} [data-nav-subs="customers"] a[data-nav-item="leads"]`, {
+        timeout: 10000,
+      })
+      .catch(() => null)) !== null
   await page.click(`${SHEET} [data-nav-subs="customers"] a[data-nav-item="leads"]`)
   await page.waitForURL(w("leads"), { timeout: 10000 })
   await page.waitForSelector(SHEET, { state: "detached", timeout: 10000 }).catch(() => {})
@@ -275,15 +315,28 @@ try {
   if (card) {
     const state = await ctx.storageState()
     const shooter = await chromium.launch({ executablePath: CHROME, headless: true })
-    const pages = ["", "contacts", "inbox/overview", "automation", "insights", "settings/mcp"]
+    const pages = [
+      "",
+      "contacts",
+      "settings/integrations",
+      "automation",
+      "insights",
+      "settings/mcp",
+    ]
     for (const locale of ["en", "ar"]) {
       for (const theme of ["light", "dark"]) {
         for (const width of [1440, 390]) {
-          const c = await shooter.newContext({ storageState: state, viewport: { width, height: 900 }, colorScheme: theme })
+          const c = await shooter.newContext({
+            storageState: state,
+            viewport: { width, height: 900 },
+            colorScheme: theme,
+          })
           const p = await c.newPage()
           for (const pg of pages) {
             await p.goto(`${base}/${locale}/w/${slug}${pg ? "/" + pg : ""}`, { waitUntil: "load" })
-            await p.waitForSelector("[data-nav-section] a[data-nav-item]", { timeout: 15000 }).catch(() => {})
+            await p
+              .waitForSelector("[data-nav-section] a[data-nav-item]", { timeout: 15000 })
+              .catch(() => {})
             await p.waitForTimeout(400)
             const name = (pg || "home").replace(/\//g, "-")
             await p.screenshot({ path: `${SHOTS}/${card}-${name}-${locale}-${theme}-${width}.png` })

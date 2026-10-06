@@ -80,17 +80,8 @@ await p2.close()
 // a linked contact's timeline shows the conversation
 const linked = page.locator("[data-crm-contact] a[href*='/contacts/']")
 out.threadLinkedToContact = await linked.count()
-// stats
-await page.goto(`${W}/inbox/stats`, { waitUntil: "domcontentloaded" })
-await page.waitForSelector("[data-stats-tiles]", { timeout: 20000 }).catch(() => {})
-out.statTiles = await page.$$eval("[data-stat]", (els) =>
-  els.map((e) => e.getAttribute("data-stat") + "=" + e.innerText.replace(/\s+/g, " ").slice(0, 40)),
-)
-check("statsTiles", out.statTiles.length >= 3, out.statTiles)
-check("statsTable", (await page.locator("[data-stats-row]").count()) > 0)
-if (shots) await page.screenshot({ path: path.join(shots, "stats.png"), fullPage: true })
 // canned management page
-await page.goto(`${W}/inbox/canned`, { waitUntil: "domcontentloaded" })
+await page.goto(`${W}/settings/canned`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector("[data-canned-row]", { timeout: 20000 }).catch(() => {})
 out.cannedVariants = await page.$$eval("[data-canned-variant]", (els) => [
   ...new Set(els.map((e) => e.getAttribute("data-canned-variant"))),

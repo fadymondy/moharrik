@@ -145,7 +145,10 @@ export function ThreadSearch({
             : busy && matches.length === 0
               ? t("common.working")
               : hasMatches
-                ? t("inbox.search.matchCount", { n: index + 1, total: cursor ? `${matches.length}+` : matches.length })
+                ? t("inbox.search.matchCount", {
+                    n: index + 1,
+                    total: cursor ? `${matches.length}+` : matches.length,
+                  })
                 : t("inbox.search.noMatches")}
       </span>
       <div className="ms-auto flex items-center gap-1">

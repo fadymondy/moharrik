@@ -35,6 +35,8 @@ function NasaqBridge({ locale, children }: { locale: string; children: ReactNode
   return (
     <NasaqProvider
       brand="moharrik"
+      // Rounded corners (MH-1115); the default "grid" expression squares them.
+      expression="native"
       density="compact"
       theme={(theme as "light" | "dark" | "system" | undefined) ?? undefined}
       onThemeChange={setTheme}

@@ -44,7 +44,10 @@ export function PermissionsExplainer() {
         <LoadingRows rows={3} />
       ) : (
         <div className="max-w-4xl space-y-4">
-          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" data-mcpx-legend>
+          <ul
+            className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+            data-mcpx-legend
+          >
             <li className="flex items-center gap-1.5">
               <span className="size-2 rounded-full bg-nq-info" aria-hidden />
               {t("mcpx.read")}
@@ -94,7 +97,12 @@ export function PermissionsExplainer() {
                 <div className="space-y-4 border-t border-nq-line bg-nq-surface-soft/40 px-4 py-4">
                   <ToolGroup tone="info" title={t("mcpx.read")} tools={s.can_read} />
                   <ToolGroup tone="success" title={t("mcpx.change")} tools={s.can_change} />
-                  <ToolGroup tone="warning" title={t("mcpx.confirm")} tools={s.needs_confirm} showConfirm />
+                  <ToolGroup
+                    tone="warning"
+                    title={t("mcpx.confirm")}
+                    tools={s.needs_confirm}
+                    showConfirm
+                  />
                   {s.can_read.length + s.can_change.length + s.needs_confirm.length === 0 ? (
                     <p className="text-sm text-muted-foreground">{t("mcpx.noTools")}</p>
                   ) : null}

@@ -39,7 +39,8 @@ const W = `${base}/en/w/${slug}`
 const stamp = Date.now()
 const email = `parity${stamp}@example.test`
 await page.goto(`${W}/contacts`, { waitUntil: "load" })
-await page.waitForSelector('[data-form="add-contact"]', { timeout: 20000 })
+await page.waitForSelector('[data-open="add-contact"]', { timeout: 20000 })
+await page.click('[data-open="add-contact"]')
 await page.fill("#contact-email", email)
 await page.fill("#contact-name", "Parity Person")
 await page.click('[data-form="add-contact"] button[type=submit]')

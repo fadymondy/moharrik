@@ -12,7 +12,6 @@ import { useParams } from "next/navigation"
 import { useMemo, useState } from "react"
 import { ArrowLeftIcon } from "lucide-react"
 
-import { Bdi } from "@/components/bidi"
 import { BrandIcon } from "@/components/automation/brand-icon"
 import { PresetCard } from "@/components/automation/preset-card"
 import { PresetDetailSheet } from "@/components/automation/preset-detail-sheet"
@@ -55,7 +54,6 @@ export default function PresetBrandPage() {
     return (
       <>
         <SectionHeader
-          micro={<Bdi>{ws.summary.name}</Bdi>}
           title={t("presets.title")}
           action={
             <Button
@@ -77,7 +75,6 @@ export default function PresetBrandPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={
           <span className="flex items-center gap-3">
             <BrandIcon brand={brand} size={36} />

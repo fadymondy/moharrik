@@ -10,12 +10,13 @@
 
 import { useState } from "react"
 import { DownloadIcon, FileSpreadsheetIcon, RefreshCwIcon } from "lucide-react"
-import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { Button, toast } from "@fadymondy/nasaq/web"
 
 import { useFormat } from "@/components/overview/overview-cards"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, downloadFile, type YtReports } from "@/lib/api"
+import { RowsTable } from "@/components/nq-table"
 import { useTranslations } from "@/lib/i18n"
 import { useYtReports } from "@/lib/queries"
 
@@ -118,46 +119,69 @@ export function YouTubeReports({ resourceId }: { resourceId: string }) {
             )}
           </ul>
           {(data.data.reports ?? []).length > 0 ? (
-            <div className="border-b border-nq-line">
-              <Table className="table-fixed" data-reports-table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-36 ps-6">{t("ytr.day")}</TableHead>
-                    <TableHead>{t("ytr.report")}</TableHead>
-                    <TableHead className="hidden w-24 text-end sm:table-cell">
-                      {t("ytr.rows")}
-                    </TableHead>
-                    <TableHead className="w-32 pe-6 text-end">
-                      <span className="sr-only">{t("common.actions")}</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data.data.reports ?? []).map((r) => {
-                    const day = r.start_time ? r.start_time.slice(0, 10) : ""
-                    return (
-                      <TableRow key={r.report_id} data-report={r.report_id}>
-                        <TableCell className="ps-6">{day ? f.date(day) : "—"}</TableCell>
-                        <TableCell className="truncate">{label(r.report_type_id)}</TableCell>
-                        <TableCell className="hidden text-end tabular-nums sm:table-cell">
-                          {f.n(r.row_count)}
-                        </TableCell>
-                        <TableCell className="pe-6 text-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => download(r.report_id, `${r.report_type_id}-${day}.csv`)}
-                            data-report-download
-                          >
-                            <DownloadIcon />
-                            CSV
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+            <div className="px-6 pb-4">
+              <RowsTable<NonNullable<YtReports["reports"]>[number]>
+                data={data.data.reports ?? []}
+                getRowId={(r) => r.report_id}
+                rowLabel={(r) => label(r.report_type_id)}
+                label={t("ytr.report")}
+                className="table-fixed"
+                data-reports-table
+                columns={[
+                  {
+                    id: "day",
+                    header: t("ytr.day"),
+                    sortValue: (r) => r.start_time,
+                    headerClassName: "w-36",
+                    cell: (r) => (
+                      <span data-report={r.report_id}>
+                        {r.start_time ? f.date(r.start_time.slice(0, 10)) : "—"}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "report",
+                    header: t("ytr.report"),
+                    hideable: false,
+                    sortValue: (r) => label(r.report_type_id),
+                    className: "truncate",
+                    cell: (r) => label(r.report_type_id),
+                  },
+                  {
+                    id: "rows",
+                    header: t("ytr.rows"),
+                    align: "end",
+                    sortValue: (r) => r.row_count,
+                    headerClassName: "hidden w-24 sm:table-cell",
+                    className: "hidden tabular-nums sm:table-cell",
+                    cell: (r) => f.n(r.row_count),
+                  },
+                  {
+                    id: "actions",
+                    header: <span className="sr-only">{t("common.actions")}</span>,
+                    label: t("common.actions"),
+                    align: "end",
+                    hideable: false,
+                    headerClassName: "w-32",
+                    cell: (r) => (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          download(
+                            r.report_id,
+                            `${r.report_type_id}-${r.start_time ? r.start_time.slice(0, 10) : ""}.csv`,
+                          )
+                        }
+                        data-report-download
+                      >
+                        <DownloadIcon />
+                        CSV
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
             </div>
           ) : null}
         </>

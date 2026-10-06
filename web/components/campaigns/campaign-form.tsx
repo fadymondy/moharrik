@@ -2,7 +2,23 @@
 
 import { useState, type FormEvent } from "react"
 import { EyeIcon, FlaskConicalIcon, PencilLineIcon } from "lucide-react"
-import { Button, Field, FieldDescription, FieldLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsList, TabsPanel, TabsTab, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tabs,
+  TabsList,
+  TabsPanel,
+  TabsTab,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { CampaignPreview } from "@/components/campaigns/campaign-preview"
@@ -348,7 +364,10 @@ export function CampaignForm({
         </Field>
 
         <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-3">
-          <TabsList variant="underline" aria-label={wa ? t("campaigns.message") : t("campaigns.body")}>
+          <TabsList
+            variant="underline"
+            aria-label={wa ? t("campaigns.message") : t("campaigns.body")}
+          >
             <TabsTab value="write" data-tab="write">
               <PencilLineIcon />
               {wa ? t("campaigns.message") : t("campaigns.body")}

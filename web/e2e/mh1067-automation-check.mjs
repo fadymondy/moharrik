@@ -12,7 +12,11 @@ const base = (process.argv[2] ?? "http://localhost:3138").replace(/\/$/, "")
 const shots = process.argv[3]
 if (shots) mkdirSync(shots, { recursive: true })
 const slug = process.env.DEMO_SLUG ?? "moharrik-demo-nile-coffee-co"
-const list = (k, d) => (process.env[k] ?? d).split(",").map((s) => s.trim()).filter(Boolean)
+const list = (k, d) =>
+  (process.env[k] ?? d)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
 const LOCS = list("LOCS", "en,ar")
 const WIDTHS = list("WIDTHS", "1440,390").map(Number)
 const SCHEMES = list("SCHEMES", "light,dark")
@@ -39,7 +43,11 @@ for (const scheme of SCHEMES) {
   page.on("pageerror", (e) => errs.push(String(e)))
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/"))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/")
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -47,7 +55,9 @@ for (const scheme of SCHEMES) {
   await page.waitForTimeout(1500)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -76,7 +86,9 @@ for (const scheme of SCHEMES) {
     let rows = [],
       before = ""
     for (let i = 0; i < 20; i++) {
-      const pg = await get(`/api/w/workflows/${w.id}/executions?limit=100${before ? `&before=${before}` : ""}`)
+      const pg = await get(
+        `/api/w/workflows/${w.id}/executions?limit=100${before ? `&before=${before}` : ""}`,
+      )
       rows = rows.concat(pg.executions ?? [])
       if (!pg.next_before) break
       before = pg.next_before
@@ -90,17 +102,27 @@ for (const scheme of SCHEMES) {
       cancelled: n("cancelled"),
       in_progress: n("queued") + n("running"),
     }
-    check(`${scheme}-counts-match-executions-${w.slug}`, JSON.stringify(want) === JSON.stringify(ov.runs), { want, got: ov.runs })
+    check(
+      `${scheme}-counts-match-executions-${w.slug}`,
+      JSON.stringify(want) === JSON.stringify(ov.runs),
+      { want, got: ov.runs },
+    )
     const fin = want.succeeded + want.failed
     check(
       `${scheme}-rate-matches-executions-${w.slug}`,
       ov.success_rate.finished === fin &&
         ov.success_rate.succeeded === want.succeeded &&
-        (fin === 0 ? ov.success_rate.percent === null : Math.abs(ov.success_rate.percent - (100 * want.succeeded) / fin) < 0.01),
+        (fin === 0
+          ? ov.success_rate.percent === null
+          : Math.abs(ov.success_rate.percent - (100 * want.succeeded) / fin) < 0.01),
       ov.success_rate,
     )
     const newest = rows[0]
-    check(`${scheme}-last-run-matches-${w.slug}`, newest ? ov.last_run?.id === newest.id : ov.last_run === null, { api: ov.last_run?.id, newest: newest?.id })
+    check(
+      `${scheme}-last-run-matches-${w.slug}`,
+      newest ? ov.last_run?.id === newest.id : ov.last_run === null,
+      { api: ov.last_run?.id, newest: newest?.id },
+    )
     ov.__rows = rows
   }
 
@@ -127,8 +149,11 @@ for (const scheme of SCHEMES) {
           dir: document.documentElement.dir,
           dark: document.documentElement.classList.contains("dark"),
           overflow: document.documentElement.scrollWidth > innerWidth + 1,
-          unlabelled: [...document.querySelectorAll("main button, [data-canvas-page] button")].filter(
-            (b) => !b.textContent.trim() && !b.getAttribute("aria-label") && !b.getAttribute("title"),
+          unlabelled: [
+            ...document.querySelectorAll("main button, [data-canvas-page] button"),
+          ].filter(
+            (b) =>
+              !b.textContent.trim() && !b.getAttribute("aria-label") && !b.getAttribute("title"),
           ).length,
         }))
         check(`${k}-dir`, dom.dir === (loc === "ar" ? "rtl" : "ltr"), dom.dir)
@@ -137,7 +162,8 @@ for (const scheme of SCHEMES) {
         check(`${k}-no-unlabelled-buttons`, dom.unlabelled === 0, dom.unlabelled)
       }
       const shot = async (name) => {
-        if (shots) await page.screenshot({ path: `${shots}/mh1067-${name}-${k0}.png`, fullPage: false })
+        if (shots)
+          await page.screenshot({ path: `${shots}/mh1067-${name}-${k0}.png`, fullPage: false })
       }
 
       for (const { w: wf, ov } of [...withRuns, ...without]) {
@@ -158,64 +184,115 @@ for (const scheme of SCHEMES) {
             rateText: m("rate")?.querySelector("[data-metric-value]")?.textContent ?? "",
             items: raw("items"),
             itemsText: m("items")?.querySelector("[data-metric-value]")?.textContent ?? "",
-            counts: Object.fromEntries([...document.querySelectorAll("[data-count]")].map((n) => [n.dataset.count, n.querySelector("dd")?.textContent])),
-            steps: [...document.querySelectorAll("[data-wfo-step]")].map((n) => n.dataset.wfoStep).join(),
+            counts: Object.fromEntries(
+              [...document.querySelectorAll("[data-count]")].map((n) => [
+                n.dataset.count,
+                n.querySelector("dd")?.textContent,
+              ]),
+            ),
+            steps: [...document.querySelectorAll("[data-wfo-step]")]
+              .map((n) => n.dataset.wfoStep)
+              .join(),
             failure: document.querySelector("[data-wfo-failure]") ? "yes" : "no",
-            tabs: [...document.querySelectorAll("[data-view-tab]")].map((n) => n.dataset.viewTab).join(),
+            tabs: [...document.querySelectorAll("[data-view-tab]")]
+              .map((n) => n.dataset.viewTab)
+              .join(),
             title: document.title,
           }
         })
         check(`${k}-overview-renders`, o.has, o)
         check(`${k}-tabs`, o.tabs === "overview,editor,executions,settings", o.tabs)
         check(`${k}-status-matches-api`, o.status === ov.status, { dom: o.status, api: ov.status })
-        check(`${k}-last-matches-api`, o.last === (ov.last_run ? `${ov.last_run.id}:${ov.last_run.status}` : "none"), { dom: o.last, api: ov.last_run?.id })
+        check(
+          `${k}-last-matches-api`,
+          o.last === (ov.last_run ? `${ov.last_run.id}:${ov.last_run.status}` : "none"),
+          { dom: o.last, api: ov.last_run?.id },
+        )
         check(
           `${k}-rate-matches-api`,
-          o.rate === (ov.success_rate.percent == null ? "none" : String(Math.round(ov.success_rate.percent))),
+          o.rate ===
+            (ov.success_rate.percent == null
+              ? "none"
+              : String(Math.round(ov.success_rate.percent))),
           { dom: o.rate, api: ov.success_rate },
         )
         if (ov.success_rate.percent == null) {
           // No finished run: the card says "—" and never an invented 0% or 100%.
-          check(`${k}-rate-empty-is-dash`, o.rateText.trim() === "—" && !/%|٪/.test(o.rateText), o.rateText)
+          check(
+            `${k}-rate-empty-is-dash`,
+            o.rateText.trim() === "—" && !/%|٪/.test(o.rateText),
+            o.rateText,
+          )
         } else {
           // The denominator is on the card, whatever the numerals.
           const digits = o.rateNote.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
           check(
             `${k}-rate-denominator-shown`,
-            digits.includes(String(ov.success_rate.finished)) && digits.includes(String(ov.success_rate.succeeded)),
+            digits.includes(String(ov.success_rate.finished)) &&
+              digits.includes(String(ov.success_rate.succeeded)),
             o.rateNote,
           )
         }
-        check(`${k}-items-matches-api`, o.items === (ov.items.total == null ? "none" : String(ov.items.total)), { dom: o.items, api: ov.items })
-        if (ov.items.total == null) check(`${k}-items-empty-is-dash`, o.itemsText.trim() === "—", o.itemsText)
+        check(
+          `${k}-items-matches-api`,
+          o.items === (ov.items.total == null ? "none" : String(ov.items.total)),
+          { dom: o.items, api: ov.items },
+        )
+        if (ov.items.total == null)
+          check(`${k}-items-empty-is-dash`, o.itemsText.trim() === "—", o.itemsText)
         const c = o.counts
-        const digitsOf = (s) => String(s ?? "").replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[^0-9]/g, "")
+        const digitsOf = (s) =>
+          String(s ?? "")
+            .replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
+            .replace(/[^0-9]/g, "")
         check(
           `${k}-counts-match-api`,
           [c.total, c.ok, c.failed, c.cancelled, c.live].map(digitsOf).join() ===
-            [ov.runs.total, ov.runs.succeeded, ov.runs.failed, ov.runs.cancelled, ov.runs.in_progress].join(),
+            [
+              ov.runs.total,
+              ov.runs.succeeded,
+              ov.runs.failed,
+              ov.runs.cancelled,
+              ov.runs.in_progress,
+            ].join(),
           { dom: c, api: ov.runs },
         )
-        check(`${k}-steps-listed`, o.steps === wf.steps?.map((_, i) => i).join() || (wf.steps === undefined), { dom: o.steps })
-        check(`${k}-failure-callout-iff-last-failed`, o.failure === (ov.last_run?.status === "failed" ? "yes" : "no"), o.failure)
+        check(
+          `${k}-steps-listed`,
+          o.steps === wf.steps?.map((_, i) => i).join() || wf.steps === undefined,
+          { dom: o.steps },
+        )
+        check(
+          `${k}-failure-callout-iff-last-failed`,
+          o.failure === (ov.last_run?.status === "failed" ? "yes" : "no"),
+          o.failure,
+        )
         await generic(`${k}-overview`)
         if (wf === withRuns[0]?.w) await shot("overview")
 
         // ---- Builder: the canvas nodes are business cards ----
-        await page.goto(`${wsBase}/workflows/${wf.id}?view=editor`, { waitUntil: "domcontentloaded" })
+        await page.goto(`${wsBase}/workflows/${wf.id}?view=editor`, {
+          waitUntil: "domcontentloaded",
+        })
         await page.waitForSelector("[data-canvas-node=step]", { timeout: 45000 }).catch(() => {})
         // Each node's run record arrives with the overview, after the node itself: wait for all of them.
         await page
-          .waitForFunction(() => {
-            const n = document.querySelectorAll("[data-canvas-node=step]").length
-            return n > 0 && document.querySelectorAll("[data-node-record]").length >= n
-          }, null, { timeout: 20000 })
+          .waitForFunction(
+            () => {
+              const n = document.querySelectorAll("[data-canvas-node=step]").length
+              return n > 0 && document.querySelectorAll("[data-node-record]").length >= n
+            },
+            null,
+            { timeout: 20000 },
+          )
           .catch(() => {})
         await page.waitForTimeout(1200)
         const nodes = await page.evaluate(() => ({
           steps: document.querySelectorAll("[data-canvas-node=step]").length,
           say: document.querySelectorAll("[data-node-say]").length,
-          rec: [...document.querySelectorAll("[data-node-record]")].map((n) => n.dataset.nodeRecord).join(),
+          rec: [...document.querySelectorAll("[data-node-record]")]
+            .map((n) => n.dataset.nodeRecord)
+            .join(),
         }))
         const wantSteps = (await get(`/api/w/workflows/${wf.id}`)).workflow.steps.length
         check(`${k}-builder-nodes`, nodes.steps === wantSteps, { dom: nodes.steps, api: wantSteps })
@@ -224,27 +301,46 @@ for (const scheme of SCHEMES) {
           const st = ov.steps.find((s) => s.position === i)
           return !st || st.ran === 0 ? "idle" : st.failed > 0 ? "failed" : "ok"
         })
-        check(`${k}-builder-records-match-api`, nodes.rec.split(",").filter(Boolean).sort().join() === wantRec.sort().join(), { dom: nodes.rec, api: wantRec })
+        check(
+          `${k}-builder-records-match-api`,
+          nodes.rec.split(",").filter(Boolean).sort().join() === wantRec.sort().join(),
+          { dom: nodes.rec, api: wantRec },
+        )
         await generic(`${k}-builder`)
         if (wf === withRuns[0]?.w) await shot("builder")
 
         // ---- Runs: the old ?view=executions link ----
-        await page.goto(`${wsBase}/workflows/${wf.id}?view=executions`, { waitUntil: "domcontentloaded" })
-        await page.waitForSelector("[data-view-tab=executions][aria-current=page]", { timeout: 45000 }).catch(() => {})
+        await page.goto(`${wsBase}/workflows/${wf.id}?view=executions`, {
+          waitUntil: "domcontentloaded",
+        })
+        await page
+          .waitForSelector("[data-view-tab=executions][aria-current=page]", { timeout: 45000 })
+          .catch(() => {})
         await page.waitForTimeout(1200)
-        const onRuns = await page.evaluate(() => document.querySelector("[data-view-tab=executions]")?.getAttribute("aria-current"))
+        const onRuns = await page.evaluate(() =>
+          document.querySelector("[data-view-tab=executions]")?.getAttribute("aria-current"),
+        )
         check(`${k}-runs-tab-current`, onRuns === "page", onRuns)
         await generic(`${k}-runs`)
 
         // ---- Settings ----
-        await page.goto(`${wsBase}/workflows/${wf.id}?view=settings`, { waitUntil: "domcontentloaded" })
+        await page.goto(`${wsBase}/workflows/${wf.id}?view=settings`, {
+          waitUntil: "domcontentloaded",
+        })
         await page.waitForSelector("[data-wfo-settings]", { timeout: 45000 }).catch(() => {})
         const set = await page.evaluate(() => ({
           has: !!document.querySelector("[data-wfo-settings]"),
-          on: document.querySelector("[data-wfo-enabled]")?.getAttribute("aria-checked") ?? document.querySelector("[data-wfo-enabled]")?.getAttribute("data-checked"),
+          on:
+            document.querySelector("[data-wfo-enabled]")?.getAttribute("aria-checked") ??
+            document.querySelector("[data-wfo-enabled]")?.getAttribute("data-checked"),
         }))
         check(`${k}-settings-renders`, set.has, set)
-        check(`${k}-settings-enabled-matches-api`, String(set.on === "" ? "true" : set.on) === String(wf.enabled) || (wf.enabled && set.on !== "false"), { dom: set.on, api: wf.enabled })
+        check(
+          `${k}-settings-enabled-matches-api`,
+          String(set.on === "" ? "true" : set.on) === String(wf.enabled) ||
+            (wf.enabled && set.on !== "false"),
+          { dom: set.on, api: wf.enabled },
+        )
         await generic(`${k}-settings`)
       }
 
@@ -273,27 +369,71 @@ for (const scheme of SCHEMES) {
         }))
         const r = api.run
         check(`${k}-status`, d.status === r.status, { dom: d.status, api: r.status })
-        check(`${k}-steps-match-api`, d.steps.map((s) => `${s.p}:${s.s}`).join() === api.steps.map((s) => `${s.position}:${s.status}`).join(), { dom: d.steps.map((s) => `${s.p}:${s.s}`), api: api.steps.map((s) => `${s.position}:${s.status}`) })
+        check(
+          `${k}-steps-match-api`,
+          d.steps.map((s) => `${s.p}:${s.s}`).join() ===
+            api.steps.map((s) => `${s.position}:${s.status}`).join(),
+          {
+            dom: d.steps.map((s) => `${s.p}:${s.s}`),
+            api: api.steps.map((s) => `${s.position}:${s.status}`),
+          },
+        )
         // Only persisted fields: an input box only where args are stored, an error only where one is.
         const hasArgs = (a) => !!a && a !== "{}" && a !== "null"
-        check(`${k}-input-only-when-stored`, api.steps.every((s) => d.steps.find((x) => x.p === s.position)?.input === hasArgs(s.args)), d.steps)
-        check(`${k}-errors-match-api`, api.steps.every((s) => (d.steps.find((x) => x.p === s.position)?.error.includes(s.error) ?? false) === !!s.error || !s.error), d.steps.map((s) => s.error))
-        check(`${k}-results-verbatim`, api.steps.every((s) => !s.result || d.steps.find((x) => x.p === s.position)?.result === s.result), "result differs")
+        check(
+          `${k}-input-only-when-stored`,
+          api.steps.every(
+            (s) => d.steps.find((x) => x.p === s.position)?.input === hasArgs(s.args),
+          ),
+          d.steps,
+        )
+        check(
+          `${k}-errors-match-api`,
+          api.steps.every(
+            (s) =>
+              (d.steps.find((x) => x.p === s.position)?.error.includes(s.error) ?? false) ===
+                !!s.error || !s.error,
+          ),
+          d.steps.map((s) => s.error),
+        )
+        check(
+          `${k}-results-verbatim`,
+          api.steps.every(
+            (s) => !s.result || d.steps.find((x) => x.p === s.position)?.result === s.result,
+          ),
+          "result differs",
+        )
         const firstFailed = api.steps.find((s) => s.status === "failed")
         if (r.status === "failed") {
-          check(`${k}-failure-card`, d.failure === (firstFailed ? String(firstFailed.position) : "run"), { dom: d.failure })
+          check(
+            `${k}-failure-card`,
+            d.failure === (firstFailed ? String(firstFailed.position) : "run"),
+            { dom: d.failure },
+          )
           if (firstFailed) {
-            check(`${k}-failure-says-error`, !firstFailed.error || d.failureText.includes(firstFailed.error), d.failureText)
-            check(`${k}-failure-says-command`, d.failureText.includes(firstFailed.command), d.failureText)
+            check(
+              `${k}-failure-says-error`,
+              !firstFailed.error || d.failureText.includes(firstFailed.error),
+              d.failureText,
+            )
+            check(
+              `${k}-failure-says-command`,
+              d.failureText.includes(firstFailed.command),
+              d.failureText,
+            )
           }
         } else check(`${k}-no-failure-card`, d.failure === null, d.failure)
-        check(`${k}-rerun-link`, (r.rerun_of ?? "") === (d.rerunOf ?? ""), { dom: d.rerunOf, api: r.rerun_of })
+        check(`${k}-rerun-link`, (r.rerun_of ?? "") === (d.rerunOf ?? ""), {
+          dom: d.rerunOf,
+          api: r.rerun_of,
+        })
         // The button exists for people who may run workflows, and is disabled while the run is going. Never clicked here.
         const live = r.status === "queued" || r.status === "running"
         check(`${k}-rerun-button`, d.rerun && d.rerunDisabled === live, d)
         await generic(k)
         if (shots && r.status === "failed") await shot("run-failed")
-        else if (shots && r.status === "ok" && id === [...runIds].find((x) => true)) await shot("run")
+        else if (shots && r.status === "ok" && id === [...runIds].find((x) => true))
+          await shot("run")
       }
     }
 
@@ -303,6 +443,12 @@ for (const scheme of SCHEMES) {
   rmSync(dir, { recursive: true, force: true })
 }
 
-console.log(JSON.stringify({ fail, notes, out: Object.fromEntries(Object.entries(out).filter(([, v]) => v !== true)) }, null, 1))
+console.log(
+  JSON.stringify(
+    { fail, notes, out: Object.fromEntries(Object.entries(out).filter(([, v]) => v !== true)) },
+    null,
+    1,
+  ),
+)
 console.log(fail.length ? `FAIL ${fail.length}` : `PASS ${Object.keys(out).length}`)
 process.exit(fail.length ? 1 : 0)
