@@ -14,6 +14,8 @@ export const metadata: Metadata = {
   title: "Moharrik",
   description:
     "The AI engine behind a business: automation, inbox, campaigns, CRM and research — all over MCP.",
+  // MH-1256: the console is not for search engines; moharrik.com is the page to rank.
+  robots: { index: false, follow: false },
 }
 
 // Hosbah real-user monitoring: page loads, Web Vitals and browser errors, per route. The key is
