@@ -3,7 +3,7 @@
 // MH-1157: the company's record frame, after Mahaam's project page: cover, logo tile, name and
 // actions, key facts, and tabs. The layout loads the company once; every tab reads it from here.
 import Link from "next/link"
-import { useParams, usePathname } from "next/navigation"
+import { useParams, usePathname, useRouter } from "next/navigation"
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react"
 import {
   ActivityIcon,
@@ -66,6 +66,7 @@ export function CompanyRecord({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { t, locale, formatDate } = useTranslations()
   const ws = useWorkspace()
+  const router = useRouter()
   const canWrite = ws.can("contacts:write")
   const detail = useCompany(ws.id, id)
   const base = `/${locale}/w/${ws.slug}`
@@ -177,7 +178,7 @@ export function CompanyRecord({ children }: { children: ReactNode }) {
                       method: "DELETE",
                       workspaceId: ws.id,
                     })
-                    window.location.href = `${base}/companies`
+                    router.push(`${base}/companies`)
                   }}
                 />
               </>

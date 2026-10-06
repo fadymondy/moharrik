@@ -3,7 +3,7 @@
 // MH-1157: the contact's record frame. The layout loads the contact once and shares it with every
 // tab; the header (cover, avatar, name, actions, key facts, tabs) stays put while the tabs change.
 import Link from "next/link"
-import { useParams, usePathname } from "next/navigation"
+import { useParams, usePathname, useRouter } from "next/navigation"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import { useSWRConfig } from "swr"
 import {
@@ -84,6 +84,7 @@ export function ContactRecord({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { t, locale, formatDate } = useTranslations()
   const ws = useWorkspace()
+  const router = useRouter()
   const canWrite = ws.can("contacts:write")
   const detail = useContact(ws.id, id)
   const timeline = useContactTimeline(ws.id, id)
@@ -281,7 +282,7 @@ export function ContactRecord({ children }: { children: ReactNode }) {
                         method: "DELETE",
                         workspaceId: ws.id,
                       })
-                      window.location.href = `${base}/contacts`
+                      router.push(`${base}/contacts`)
                     }}
                   />
                 </>

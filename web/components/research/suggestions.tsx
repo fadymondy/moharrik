@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
+import { useRouter } from "next/navigation"
 import { CheckIcon, SparklesIcon, XIcon } from "lucide-react"
 import {
   Button,
@@ -93,6 +94,7 @@ export function SuggestionsPanel({ onAccepted }: { onAccepted: () => void }) {
 function SuggestionRow({ s, onDone }: { s: CompanySuggestion; onDone: () => void }) {
   const { t, locale, formatNumber } = useTranslations()
   const ws = useWorkspace()
+  const router = useRouter()
   const canWrite = ws.can("contacts:write")
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -178,7 +180,7 @@ function SuggestionRow({ s, onDone }: { s: CompanySuggestion; onDone: () => void
                 action: {
                   label: t("research.openCompany"),
                   onClick: () =>
-                    window.location.assign(
+                    router.push(
                       `/${locale}/w/${ws.slug}/companies/${encodeURIComponent(id)}`,
                     ),
                 },
