@@ -39,7 +39,11 @@ import { Bdi } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
 import { ActivityIcon, formatMoney, PickSelect, useMemberNames } from "@/components/crm/shared"
 import { ScoreMeter, ScoreReasons } from "@/components/crm/icp"
-import { CreateContactDialog, LinkContactDialog, OpenDealDialog } from "@/components/inbox/thread-crm"
+import {
+  CreateContactDialog,
+  LinkContactDialog,
+  OpenDealDialog,
+} from "@/components/inbox/thread-crm"
 import { SnoozeControl } from "@/components/inbox/snooze-control"
 import { LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -86,13 +90,7 @@ function Section({
 }
 
 /** An empty section says so and points at the action that fills it. */
-function SectionEmpty({
-  body,
-  children,
-}: {
-  body: string
-  children?: ReactNode
-}) {
+function SectionEmpty({ body, children }: { body: string; children?: ReactNode }) {
   return (
     <div className="flex flex-col items-start gap-2" data-intel-empty>
       <p className="text-sm text-muted-foreground">{body}</p>
@@ -131,7 +129,7 @@ export function CustomerPanel({
       </p>
     )
   }
-  if (!c || !detail.data) return <LoadingRows rows={4} />
+  if (!c || !detail.data) return <LoadingRows rows={4} layout="detail" />
   const conv: Conversation = c
   const visitor = detail.data.visitor
 
@@ -470,11 +468,7 @@ export function CustomerPanel({
                     key={a.id}
                     icon={<ActivityIcon kind={a.kind} />}
                     title={t(`activity.${a.kind}`)}
-                    description={
-                      a.body ? (
-                        <Bdi className="line-clamp-2">{a.body}</Bdi>
-                      ) : undefined
-                    }
+                    description={a.body ? <Bdi className="line-clamp-2">{a.body}</Bdi> : undefined}
                     time={a.created_at}
                     data-intel-activity={a.id}
                   />

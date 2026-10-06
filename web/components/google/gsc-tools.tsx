@@ -17,10 +17,11 @@ import {
   TriangleAlertIcon,
   XCircleIcon,
 } from "lucide-react"
-import { Badge, Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import { Badge, Button, Input, toast } from "@fadymondy/nasaq/web"
 
 import { Ltr } from "@/components/copy-field"
 import { useFormat } from "@/components/overview/overview-cards"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type GscInspection, type GscSitemapsOut } from "@/lib/api"
@@ -89,7 +90,9 @@ export function InspectTab({ resourceId, siteLabel }: { resourceId: string; site
   return (
     <div className="pb-10" data-gsc-inspect>
       <div className="space-y-3 px-6 pb-5">
-        <p className="max-w-3xl text-sm text-muted-foreground">{t("gsci.hint", { site: siteLabel })}</p>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          {t("gsci.hint", { site: siteLabel })}
+        </p>
         {data.data.can_write ? (
           <form onSubmit={inspect} className="flex max-w-3xl flex-col gap-2 sm:flex-row">
             <Input
@@ -263,59 +266,80 @@ export function SitemapsTab({ resourceId, site }: { resourceId: string; site: st
       ) : list.length === 0 ? (
         <EmptyState title={t("gscs.none")} body={t("gscs.noneBody")} />
       ) : (
-        <div className="border-y border-nq-line">
-          <Table className="table-fixed">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="ps-6">{t("gscs.sitemap")}</TableHead>
-                <TableHead className="hidden w-40 md:table-cell">
-                  {t("gscs.lastSubmitted")}
-                </TableHead>
-                <TableHead className="w-32">{t("gscs.status")}</TableHead>
-                <TableHead className="w-24 text-end">{t("gscs.urls")}</TableHead>
-                <TableHead className="hidden w-24 pe-6 text-end sm:table-cell">
-                  {t("gscs.issues")}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.map((m) => (
-                <TableRow key={m.path} data-sitemap={m.path}>
-                  <TableCell className="ps-6">
+        <div className="px-6">
+          <RowsTable<(typeof list)[number]>
+            data={list}
+            getRowId={(m) => m.path}
+            rowLabel={(m) => m.path}
+            label={t("gscs.sitemap")}
+            className="table-fixed"
+            columns={[
+              {
+                id: "path",
+                header: t("gscs.sitemap"),
+                hideable: false,
+                sortValue: (m) => m.path,
+                cell: (m) => (
+                  <span
+                    dir="ltr"
+                    className="block truncate font-mono text-sm rtl:text-right"
+                    title={m.path}
+                    data-sitemap={m.path}
+                  >
+                    {m.path}
+                  </span>
+                ),
+              },
+              {
+                id: "lastSubmitted",
+                header: t("gscs.lastSubmitted"),
+                sortValue: (m) => m.last_submitted,
+                headerClassName: "hidden w-40 md:table-cell",
+                className: "hidden text-xs text-muted-foreground md:table-cell",
+                cell: (m) => (m.last_submitted ? f.ago(m.last_submitted) : "—"),
+              },
+              {
+                id: "status",
+                header: t("gscs.status"),
+                headerClassName: "w-32",
+                cell: (m) =>
+                  m.is_pending ? (
+                    <Badge variant="outline">{t("gscs.pending")}</Badge>
+                  ) : m.last_downloaded ? (
                     <span
-                      dir="ltr"
-                      className="block truncate font-mono text-sm rtl:text-right"
-                      title={m.path}
+                      className="text-xs text-muted-foreground"
+                      title={f.exact(m.last_downloaded)}
                     >
-                      {m.path}
+                      {t("gscs.read", { when: f.ago(m.last_downloaded) })}
                     </span>
-                  </TableCell>
-                  <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
-                    {m.last_submitted ? f.ago(m.last_submitted) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    {m.is_pending ? (
-                      <Badge variant="outline">{t("gscs.pending")}</Badge>
-                    ) : m.last_downloaded ? (
-                      <span className="text-xs text-muted-foreground" title={f.exact(m.last_downloaded)}>
-                        {t("gscs.read", { when: f.ago(m.last_downloaded) })}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-end tabular-nums">{n(m.submitted)}</TableCell>
-                  <TableCell className="hidden pe-6 text-end text-xs tabular-nums sm:table-cell">
-                    {m.errors || m.warnings
-                      ? t("gscs.issuesN", { e: n(m.errors), w: n(m.warnings) })
-                      : m.errors === 0 && m.warnings === 0
-                        ? t("gscs.noIssues")
-                        : "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  ) : (
+                    "—"
+                  ),
+              },
+              {
+                id: "urls",
+                header: t("gscs.urls"),
+                align: "end",
+                sortValue: (m) => m.submitted,
+                headerClassName: "w-24",
+                className: "tabular-nums",
+                cell: (m) => n(m.submitted),
+              },
+              {
+                id: "issues",
+                header: t("gscs.issues"),
+                align: "end",
+                headerClassName: "hidden w-24 sm:table-cell",
+                className: "hidden text-xs tabular-nums sm:table-cell",
+                cell: (m) =>
+                  m.errors || m.warnings
+                    ? t("gscs.issuesN", { e: n(m.errors), w: n(m.warnings) })
+                    : m.errors === 0 && m.warnings === 0
+                      ? t("gscs.noIssues")
+                      : "—",
+              },
+            ]}
+          />
         </div>
       )}
     </div>

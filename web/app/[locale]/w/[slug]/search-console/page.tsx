@@ -12,7 +12,15 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ChartLineIcon, FileTextIcon, InfoIcon, LoaderIcon, SearchIcon } from "lucide-react"
+import {
+  ChartLineIcon,
+  FileTextIcon,
+  InfoIcon,
+  LoaderIcon,
+  NetworkIcon,
+  ScanSearchIcon,
+  SearchIcon,
+} from "lucide-react"
 
 import { TrendChart, type TrendSeries } from "@/components/charts/trend-chart"
 import { Ltr } from "@/components/copy-field"
@@ -29,8 +37,24 @@ import { InspectTab, SitemapsTab } from "@/components/google/gsc-tools"
 import { SyncStatus } from "@/components/google/resource-picker"
 import { Panel, useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState } from "@/components/states"
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tabs, TabsList, TabsPanel, TabsTab, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import {
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+  Switch,
+  Tabs,
+  TabsList,
+  TabsPanel,
+  TabsTab,
+  Toggle,
+  ToggleGroup,
+} from "@fadymondy/nasaq/web"
 import { Label } from "@/components/form-layout"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { GoogleResource, GscPerformance, GscPoint, GscRow } from "@/lib/api"
@@ -160,7 +184,6 @@ function SearchConsole() {
   return (
     <>
       <SectionHeader
-        micro={ws.summary.name}
         title={t("nav.searchConsole")}
         description={t("gsc.hint")}
         action={
@@ -207,12 +230,15 @@ function SearchConsole() {
           <div className="px-6 pb-4">
             <TabsList variant="underline">
               <TabsTab value="performance" data-tab="performance">
+                <ChartLineIcon />
                 {t("gsc.tabPerformance")}
               </TabsTab>
               <TabsTab value="inspect" data-tab="inspect">
+                <ScanSearchIcon />
                 {t("gsc.tabInspect")}
               </TabsTab>
               <TabsTab value="sitemaps" data-tab="sitemaps">
+                <NetworkIcon />
                 {t("gsc.tabSitemaps")}
               </TabsTab>
             </TabsList>
@@ -566,47 +592,75 @@ function Ranked({
   if (rows.length === 0)
     return <p className="px-5 py-6 text-sm text-muted-foreground">{t("gsc.noRows")}</p>
   return (
-    <Table data-gsc-rows={kind} className="table-fixed">
-      <TableHeader>
-        <TableRow>
-          <TableHead className="ps-5">{t(kind === "query" ? "gsc.query" : "gsc.page")}</TableHead>
-          <TableHead className="w-20 text-end">{t("gsc.clicks")}</TableHead>
-          <TableHead className="hidden w-28 text-end sm:table-cell">
-            {t("gsc.impressions")}
-          </TableHead>
-          <TableHead className="hidden w-20 text-end md:table-cell">{t("gsc.ctr")}</TableHead>
-          <TableHead className="w-24 pe-5 text-end">{t("gsc.positionShort")}</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((r) => (
-          <TableRow key={r.key} data-row={r.key}>
-            <TableCell className="ps-5">
-              {kind === "page" ? (
-                // A URL truncates at its end, whatever the page's direction.
-                <span dir="ltr" className="block truncate font-mono rtl:text-right" title={r.key}>
-                  {pathOf(r.key)}
-                </span>
-              ) : (
-                <span className="block truncate" title={r.key}>
-                  <bdi>{r.key}</bdi>
-                </span>
-              )}
-            </TableCell>
-            <TableCell className="text-end tabular-nums">{f.n(r.clicks)}</TableCell>
-            <TableCell className="hidden text-end tabular-nums sm:table-cell">
-              {f.n(r.impressions)}
-            </TableCell>
-            <TableCell className="hidden text-end tabular-nums md:table-cell">
-              {pct.format(r.ctr)}
-            </TableCell>
-            <TableCell className="pe-5 text-end tabular-nums">
-              {r.position == null ? "—" : dec.format(r.position)}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <RowsTable<GscRow>
+      data={rows}
+      getRowId={(r) => r.key}
+      rowLabel={(r) => r.key}
+      label={t(kind === "query" ? "gsc.topQueries" : "gsc.topPages")}
+      frame={false}
+      className="table-fixed"
+      data-gsc-rows={kind}
+      columns={[
+        {
+          id: "key",
+          header: t(kind === "query" ? "gsc.query" : "gsc.page"),
+          hideable: false,
+          sortValue: (r) => r.key,
+          cell: (r) =>
+            kind === "page" ? (
+              // A URL truncates at its end, whatever the page's direction.
+              <span
+                dir="ltr"
+                className="block truncate font-mono rtl:text-right"
+                title={r.key}
+                data-row={r.key}
+              >
+                {pathOf(r.key)}
+              </span>
+            ) : (
+              <span className="block truncate" title={r.key} data-row={r.key}>
+                <bdi>{r.key}</bdi>
+              </span>
+            ),
+        },
+        {
+          id: "clicks",
+          header: t("gsc.clicks"),
+          align: "end",
+          sortValue: (r) => r.clicks,
+          headerClassName: "w-20",
+          className: "tabular-nums",
+          cell: (r) => f.n(r.clicks),
+        },
+        {
+          id: "impressions",
+          header: t("gsc.impressions"),
+          align: "end",
+          sortValue: (r) => r.impressions,
+          headerClassName: "hidden w-28 sm:table-cell",
+          className: "hidden tabular-nums sm:table-cell",
+          cell: (r) => f.n(r.impressions),
+        },
+        {
+          id: "ctr",
+          header: t("gsc.ctr"),
+          align: "end",
+          sortValue: (r) => r.ctr,
+          headerClassName: "hidden w-20 md:table-cell",
+          className: "hidden tabular-nums md:table-cell",
+          cell: (r) => pct.format(r.ctr),
+        },
+        {
+          id: "position",
+          header: t("gsc.positionShort"),
+          align: "end",
+          sortValue: (r) => r.position ?? undefined,
+          headerClassName: "w-24",
+          className: "tabular-nums",
+          cell: (r) => (r.position == null ? "—" : dec.format(r.position)),
+        },
+      ]}
+    />
   )
 }
 

@@ -1,203 +1,201 @@
 "use client"
 
-import { useState } from "react"
-import { useParams } from "next/navigation"
-import { CalendarIcon } from "lucide-react"
+import Link from "next/link"
+import {
+  ActivityIcon,
+  Building2Icon,
+  CalendarClockIcon,
+  ChevronRightIcon,
+  CoinsIcon,
+  RouteIcon,
+  UserRoundIcon,
+} from "lucide-react"
 
-import { DealForm, DealValue } from "@/components/crm/deals"
-import { stageTone } from "@/components/crm/shared"
-import { Timeline } from "@/components/crm/timeline"
-import { ConfirmButton } from "@/components/confirm-button"
-import { NotFoundState } from "@/components/not-found-state"
-import { SectionHeader } from "@/components/public-frame"
-import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
-import { ErrorState, LoadingRows } from "@/components/states"
-import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type StageKind } from "@/lib/api"
+import { Bdi } from "@/components/bidi"
+import { DealValue } from "@/components/crm/deals"
+import { ClosedOnEdit, StageBadge, StagePath, useDealRecord } from "@/components/deals/deal-record"
+import { Facts } from "@/components/leads/lead-record"
+import { useFormat } from "@/components/overview/overview-cards"
+import { RecordBody, RecordCard, RecordStat } from "@/components/record/record"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
-import { useDeal, useDeals } from "@/lib/queries"
-import { useDocumentTitle } from "@/lib/title"
-import { Bdi, isolate } from "@/components/bidi"
 
-export default function DealDetailPage() {
-  const { id } = useParams<{ id: string }>()
+/** MH-1161: where the deal stands: its value, its stage on the pipeline, who it is with. */
+export default function DealOverviewPage() {
   const { t, locale } = useTranslations()
-  const ws = useWorkspace()
-  const canWrite = ws.can("contacts:write")
-  const detail = useDeal(ws.id, id)
-  const pipeline = useDeals(ws.id)
-  useDocumentTitle(
-    detail.data ? `${detail.data.deal.title} · ${ws.summary.name}` : t("deals.dealTitle"),
-  )
-  const base = `/${locale}/w/${ws.slug}`
-
-  if (detail.error) {
-    const notFound = detail.error instanceof ApiError && detail.error.status === 404
-    if (notFound)
-      return (
-        <NotFoundState
-          title={t("deals.notFound")}
-          body={t("deals.notFoundBody")}
-          backHref={`${base}/deals`}
-          backLabel={t("deals.backToList")}
-        />
-      )
-    return <ErrorState error={detail.error} />
-  }
-  if (!detail.data || !pipeline.data) return <LoadingRows rows={6} />
-
-  const { deal, activities } = detail.data
-  const closedTone: Record<StageKind, "brand" | "neutral" | "outline"> = {
-    open: "outline",
-    won: "brand",
-    lost: "neutral",
-  }
+  const f = useFormat()
+  const { data, deal, stages, canWrite, base, rec, reload } = useDealRecord()
+  const day = (s: string) => dateFormat(locale).format(new Date(s))
+  const at = stages.findIndex((s) => s.id === deal.stage_id)
+  const close = deal.closed_at ?? deal.expected_close
+  const recent = data.activities.slice(0, 4)
 
   return (
-    <>
-      <SectionHeader
-        micro={t("nav.deals")}
-        title={<Bdi>{deal.title}</Bdi>}
-        description={
-          <span className="inline-flex items-center gap-2">
-            <span className={`size-2 rounded-full ${stageTone[deal.stage_kind]}`} aria-hidden />
-            <Bdi>{deal.stage_name}</Bdi>
-            <span aria-hidden>·</span>
-            <DealValue deal={deal} />
-          </span>
-        }
-        action={
-          canWrite ? (
-            <ConfirmButton
-              label={t("common.delete")}
-              title={t("deals.deleteTitle")}
-              description={t("deals.deleteBody", { title: isolate(deal.title) })}
-              confirmLabel={t("common.delete")}
-              onConfirm={async () => {
-                await api(`/api/w/deals/${encodeURIComponent(deal.id)}`, {
-                  method: "DELETE",
-                  workspaceId: ws.id,
-                })
-                window.location.href = `${base}/deals`
-              }}
+    <RecordBody>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <RecordStat
+          icon={<CoinsIcon />}
+          label={t("deals.value")}
+          value={<DealValue deal={deal} />}
+          href={canWrite ? `${rec}/details` : undefined}
+        />
+        <RecordStat
+          icon={<RouteIcon />}
+          label={t("deals.stage")}
+          value={<Bdi>{deal.stage_name}</Bdi>}
+          hint={at >= 0 ? t("record.stageOf", { n: at + 1, total: stages.length }) : undefined}
+        />
+        <RecordStat
+          icon={<CalendarClockIcon />}
+          label={
+            deal.closed_at
+              ? t(`deals.closed.${deal.stage_kind === "lost" ? "lost" : "won"}`)
+              : t("deals.expectedClose")
+          }
+          value={
+            close ? (
+              day(close)
+            ) : (
+              <span className="text-muted-foreground">{t("record.noClose")}</span>
+            )
+          }
+        />
+        <RecordStat
+          icon={<ActivityIcon />}
+          label={t("record.tab.activity")}
+          value={f.n(data.activities_total)}
+          href={`${rec}/activity`}
+        />
+      </div>
+
+      <RecordCard title={t("record.stagePath")} data-deal-pipeline>
+        <StagePath />
+      </RecordCard>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <RecordCard
+          title={t("record.recentActivity")}
+          className="lg:col-span-2"
+          action={
+            <Link href={`${rec}/activity`} className="text-primary hover:underline">
+              {t("record.viewAll")}
+            </Link>
+          }
+          data-deal-recent
+        >
+          {recent.length ? (
+            <ul className="divide-y divide-border border-t border-border">
+              {recent.map((a) => (
+                <li key={a.id} className="flex items-start gap-3 px-4 py-3 text-sm">
+                  <span className="mt-0.5 shrink-0 rounded-md bg-nq-surface-soft px-1.5 py-0.5 text-xs text-muted-foreground">
+                    {t(`activity.${a.kind}`)}
+                  </span>
+                  <p
+                    className={`line-clamp-2 min-w-0 flex-1 break-words ${a.done_at ? "text-muted-foreground line-through" : ""}`}
+                    dir="auto"
+                  >
+                    {a.body}
+                  </p>
+                  <span
+                    className="shrink-0 text-xs text-muted-foreground"
+                    title={f.exact(a.created_at)}
+                  >
+                    {f.ago(a.created_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 pb-4 text-sm text-muted-foreground">{t("record.noActivity")}</p>
+          )}
+        </RecordCard>
+
+        <div className="flex flex-col gap-4">
+          <RecordCard title={t("record.related")} data-deal-related>
+            {deal.contact || deal.company ? (
+              <ul className="flex flex-col gap-1 px-2 pb-2">
+                {deal.contact ? (
+                  <Related
+                    href={`${base}/contacts/${deal.contact.id}`}
+                    icon={<UserRoundIcon />}
+                    label={deal.contact.name || deal.contact.email}
+                    hint={deal.contact.title || t("deals.contact")}
+                  />
+                ) : null}
+                {deal.company ? (
+                  <Related
+                    href={`${base}/companies/${deal.company.id}`}
+                    icon={<Building2Icon />}
+                    label={deal.company.name}
+                    hint={t("deals.company")}
+                  />
+                ) : null}
+              </ul>
+            ) : (
+              <p className="px-4 pb-4 text-sm text-muted-foreground">{t("record.noRelated")}</p>
+            )}
+          </RecordCard>
+
+          <RecordCard title={t("record.details")} data-deal-facts>
+            <Facts
+              rows={[
+                [t("deals.stage"), <StageBadge key="s" deal={deal} />],
+                [t("deals.value"), <DealValue key="v" deal={deal} />],
+                [t("deals.expectedClose"), deal.expected_close ? day(deal.expected_close) : null],
+                [
+                  t(`deals.closed.${deal.stage_kind === "lost" ? "lost" : "won"}`),
+                  deal.closed_at ? (
+                    <span key="c" className="inline-flex flex-wrap items-center gap-1">
+                      {day(deal.closed_at)}
+                      {canWrite ? (
+                        <ClosedOnEdit dealId={deal.id} closedAt={deal.closed_at} onSaved={reload} />
+                      ) : null}
+                    </span>
+                  ) : null,
+                ],
+                [t("record.added"), day(deal.created_at)],
+              ]}
             />
-          ) : undefined
-        }
-      />
-
-      {deal.closed_at ? (
-        <p className="px-6 pb-4 -mt-2 text-sm text-muted-foreground">
-          <Badge variant={closedTone[deal.stage_kind]}>
-            {t(`deals.closed.${deal.stage_kind === "lost" ? "lost" : "won"}`)}
-          </Badge>{" "}
-          {t("deals.closedOn", { date: dateFormat(locale).format(new Date(deal.closed_at)) })}
-          {canWrite ? (
-            <ClosedOnEdit
-              dealId={deal.id}
-              closedAt={deal.closed_at}
-              onSaved={() => detail.mutate()}
-            />
-          ) : null}
-        </p>
-      ) : null}
-
-      {canWrite ? (
-        <section className="px-6 pb-6">
-          <DealForm
-            formId="edit-deal"
-            stages={pipeline.data.stages}
-            currency={pipeline.data.currency}
-            deal={deal}
-            onSaved={() => detail.mutate()}
-          />
-        </section>
-      ) : null}
-
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
-
-      <Timeline
-        items={activities}
-        total={detail.data.activities_total}
-        nextCursor={detail.data.activities_next_cursor}
-        conversations={detail.data.conversations ?? []}
-        target={{ deal_id: deal.id }}
-        onChange={() => detail.mutate()}
-      />
-      <div className="pb-8" />
-    </>
+          </RecordCard>
+        </div>
+      </div>
+    </RecordBody>
   )
 }
 
-/**
- * The day a won or lost deal really closed (MH-394): a result logged after the fact gets its own
- * day, which is the day the Reports page counts it on. Never a future day (the API refuses one).
- */
-function ClosedOnEdit({
-  dealId,
-  closedAt,
-  onSaved,
+function Related({
+  href,
+  icon,
+  label,
+  hint,
 }: {
-  dealId: string
-  closedAt: string
-  onSaved: () => void
+  href: string
+  icon: React.ReactNode
+  label: string
+  hint: string
 }) {
-  const { t } = useTranslations()
-  const ws = useWorkspace()
-  const [open, setOpen] = useState(false)
-  const [day, setDay] = useState(closedAt.slice(0, 10))
-  const [error, setError] = useState("")
-  const [busy, setBusy] = useState(false)
-  const today = new Date().toISOString().slice(0, 10)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={<Button variant="ghost" size="sm" className="ms-1 h-7" data-closed-on-edit />}
+    <li>
+      <Link
+        href={href}
+        className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-nq-surface-soft"
       >
-        <CalendarIcon />
-        {t("deals.changeClosedOn")}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-72">
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={async (e) => {
-            e.preventDefault()
-            setBusy(true)
-            setError("")
-            try {
-              await api(`/api/w/deals/${encodeURIComponent(dealId)}`, {
-                method: "PATCH",
-                workspaceId: ws.id,
-                json: { closed_on: day },
-              })
-              setOpen(false)
-              onSaved()
-            } catch (err) {
-              setError(err instanceof ApiError ? err.message : t("common.networkError"))
-            } finally {
-              setBusy(false)
-            }
-          }}
+        <span
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary [&_svg]:size-4"
+          aria-hidden
         >
-          <Field>
-            <FieldLabel htmlFor="deal-closed-on">{t("deals.closedOnLabel")}</FieldLabel>
-            <Input
-              id="deal-closed-on"
-              type="date"
-              value={day}
-              max={today}
-              onChange={(e) => setDay(e.target.value)}
-              dir="ltr"
-              required
-            />
-            <FieldDescription>{t("deals.closedOnHint")}</FieldDescription>
-          </Field>
-          {error ? <p className="text-sm text-nq-danger-text">{error}</p> : null}
-          <Button type="submit" size="sm" disabled={busy || !day}>
-            {t("common.save")}
-          </Button>
-        </form>
-      </PopoverContent>
-    </Popover>
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">
+            <Bdi>{label}</Bdi>
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            <Bdi>{hint}</Bdi>
+          </span>
+        </span>
+        <ChevronRightIcon className="size-4 text-muted-foreground rtl:rotate-180" />
+      </Link>
+    </li>
   )
 }

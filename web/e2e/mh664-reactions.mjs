@@ -192,7 +192,7 @@ async function call(method, p, json) {
 }
 
 // ---- WhatsApp channel: link a number through the stub ----
-await page.goto(`${base}/en/w/${slug}/inbox/channels`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/integrations`, { waitUntil: "domcontentloaded" })
 await page.click("[data-add-channel]")
 await page.click('[data-add-type="whatsapp"]')
 await page.waitForSelector("[data-whatsapp-state]", { timeout: 20000 })
@@ -442,36 +442,8 @@ const emailOut = sql(
 await page.waitForSelector(`article[data-message-id="${emailOut}"] [data-quote-id="${firstMail}"]`, { timeout: 10000 })
   .then(() => check("email-card-shows-quote", true), () => check("email-card-shows-quote", false))
 
-// ---- the docked chat: react + reply work there too ----
-await page.goto(`${base}/en/w/${slug}`, { waitUntil: "domcontentloaded" })
-const launcher = page.locator("[data-chat-dock-launcher]")
-await launcher.waitFor({ state: "visible", timeout: 20000 }).catch(() => {})
-if (await launcher.count()) {
-  await launcher.click()
-  await page.waitForSelector("[data-dock-list]", { timeout: 10000 })
-  const item = page.locator("[data-dock-list-item]", { hasText: "Dana" }).first()
-  if (await item.count()) {
-    await item.click()
-    const dock = "[data-dock-window]"
-    await page.waitForSelector(`${dock} [data-message-id="${in2ID}"]`, { timeout: 15000 })
-    const n = evo.sendReaction.length
-    await reactVia(in2ID, "😮", `${dock} ${row(in2ID)}`)
-    check("dock-react-sends", evo.sendReaction[n]?.reaction === "😮" && evo.sendReaction[n]?.key?.id === "in-2", evo.sendReaction[n])
-    await page.hover(`${dock} [data-message-id="${in2ID}"]`)
-    await page.click(`${dock} ${row(in2ID)} [data-action="reply-to"]`)
-    await page.waitForSelector(`${dock} [data-reply-preview="${in2ID}"]`, { timeout: 10000 })
-    await page.fill(`${dock} #reply-body`, "You're welcome!")
-    await page.click(`${dock} [data-form="reply"] [data-action="send"]`)
-    await sleep(1200)
-    check(
-      "dock-sendText-quoted",
-      same(evo.sendText.at(-1)?.quoted, { key: { id: "in-2" }, message: { conversation: "Great, thank you!" } }),
-      evo.sendText.at(-1),
-    )
-    await page.screenshot({ path: path.join(shots, "en-light-1440-dock.png") })
-  } else check("dock-list-has-item", false, "no dock item named Dana")
-} else check("dock-launcher-present", false, "launcher not found")
-
+// (MH-1147: the floating chat dock is gone — the inbox itself is the dock now, so the
+// thread checks above already cover it.)
 // ---- en/ar × light/dark × 1440/390: chips, quotes, hover bar, no overflow ----
 for (const scheme of ["light", "dark"])
   for (const loc of ["en", "ar"])

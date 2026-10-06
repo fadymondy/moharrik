@@ -34,7 +34,7 @@ await page.fill("#email", process.env.DEMO_EMAIL)
 await page.fill("#password", process.env.DEMO_PASSWORD)
 await page.click("button[type=submit]")
 await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
-await page.goto(`${base}/en/w/${slug}/inbox/canned`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/settings/canned`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector('[data-action="add-canned"]:not([disabled])', { timeout: 30000 })
 for (const [title, en, ar] of CANNED) {
   if (await page.locator(`[data-canned-row="${title}"]`).count()) {

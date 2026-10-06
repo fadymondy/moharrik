@@ -39,7 +39,6 @@ export default function SubscribeFormsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.subscribeForms")}
         description={t("forms.hint")}
         action={

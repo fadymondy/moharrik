@@ -1,8 +1,7 @@
-import { redirect } from "next/navigation"
+import { OpenLastWorkspace } from "@/components/workspace/open-last-workspace"
 
-// proxy.ts normally redirects /{locale} before this renders (to workspaces or login by session).
-// This is the fallback; the workspaces page sends a signed-out visitor to login.
-export default async function LocaleIndex({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params
-  redirect(`/${locale}/workspaces`)
+// A signed-in visitor lands here (proxy.ts sends a signed-out one to login) and is taken to the
+// dashboard of their last workspace; the list at /workspaces is only for picking another (MH-1108).
+export default function LocaleIndex() {
+  return <OpenLastWorkspace />
 }

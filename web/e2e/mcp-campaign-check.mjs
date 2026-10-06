@@ -92,7 +92,10 @@ await page.click('[data-form="smtp"] button[type=submit]')
 await page.waitForTimeout(1200)
 
 // A list with one CONFIRMED subscriber (no double opt-in, so it confirms immediately).
+// MH-1156: lists live in a sideover opened from the header.
 await page.goto(`${base}/en/w/${slug}/contacts`, { waitUntil: "networkidle" })
+await page.click('[data-open="lists"]')
+await page.click('[data-open="create-list"]')
 await page.fill("#list-name", "Announcements")
 // Base UI renders a hidden <input> for the Switch; the clickable element is
 // the one carrying role=switch. Turning it OFF means the contact is confirmed
@@ -100,6 +103,9 @@ await page.fill("#list-name", "Announcements")
 await page.click("[data-form=create-list] [role=switch]")
 await page.click("[data-form=create-list] button[type=submit]")
 await page.waitForSelector('[data-list-row="Announcements"]', { timeout: 10000 })
+await page.keyboard.press("Escape")
+await page.waitForSelector("[data-lists-sheet]", { state: "detached" })
+await page.click('[data-open="add-contact"]')
 await page.fill("#contact-email", "reader@example.test")
 await page.click("[data-form=add-contact] button[type=submit]")
 await page.waitForSelector('[data-contact-row="reader@example.test"]', { timeout: 10000 })

@@ -25,7 +25,6 @@ import {
   useWorkflows,
 } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 
 export default function AutomationSchedulesPage() {
   const { t, locale } = useTranslations()
@@ -61,7 +60,6 @@ export default function AutomationSchedulesPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("automation.schedules")}
         description={t("automation.schedulesHint")}
         action={

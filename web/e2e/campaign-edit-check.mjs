@@ -133,7 +133,7 @@ await page.goto(`${base}/en/w/${slug}/campaigns`, { waitUntil: "networkidle" })
 await page.fill("#campaign-subject", "Septmber update")
 await page.fill("#campaign-body", "# Hello\n\nWe shipped editing.\n\n- preview\n- test send")
 await page.click('[data-form="new-campaign"] button[type=submit]')
-await page.waitForSelector('[data-campaign-row="Septmber update"]')
+await page.waitForSelector('tr:has([data-campaign-row="Septmber update"])')
 
 // ---- edit: fix the typo, bold a word with the toolbar ----
 await page.click('[data-edit-campaign="Septmber update"]')
@@ -149,7 +149,7 @@ await page.click('[data-edit-sheet] [data-md-action="bold"]')
 out.bodyAfterBold = await page.inputValue("#edit-body")
 await page.screenshot({ path: `${shots}/mh407-edit-write-en-light-1440.png` })
 await page.click("[data-edit-sheet] button[type=submit]")
-await page.waitForSelector('[data-campaign-row="September update"]')
+await page.waitForSelector('tr:has([data-campaign-row="September update"])')
 const listed = (await call("GET", "/api/w/campaigns")).json.campaigns.find(
   (c) => c.subject === "September update",
 )
@@ -291,11 +291,13 @@ for (const locale of ["en", "ar"])
 
 // ---- send it, then: no Edit while sending, and the API refuses the edit with 409 ----
 await page.goto(`${base}/en/w/${slug}/campaigns`, { waitUntil: "networkidle" })
-await page.click('[data-campaign-row="September update"] >> text=Send')
+await page.click('tr:has([data-campaign-row="September update"]) >> text=Send')
 await page.getByRole("alertdialog").getByRole("button", { name: "Send" }).click()
 await waitFor(
   async () =>
-    /Sending/.test(await page.$eval('[data-campaign-row="September update"]', (r) => r.innerText)),
+    /Sending/.test(
+      await page.$eval('tr:has([data-campaign-row="September update"])', (r) => r.innerText),
+    ),
   10000,
 )
 out.editButtonWhileSending = await page.locator('[data-edit-campaign="September update"]').count()
@@ -309,7 +311,9 @@ out.editWhileSending = await call("PUT", `/api/w/campaigns/${id}`, {
 out.testWhileSending = (await call("POST", `/api/w/campaigns/${id}/test`, {})).status
 await waitFor(
   async () =>
-    /Sent/.test(await page.$eval('[data-campaign-row="September update"]', (r) => r.innerText)),
+    /Sent/.test(
+      await page.$eval('tr:has([data-campaign-row="September update"])', (r) => r.innerText),
+    ),
   30000,
 )
 out.editAfterSent = await call("PUT", `/api/w/campaigns/${id}`, {

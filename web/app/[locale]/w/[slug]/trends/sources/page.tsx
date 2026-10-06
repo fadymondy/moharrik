@@ -37,7 +37,7 @@ import { useWorkspaceEvents } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
 import { useFeedCatalog, useFeedSources, useTopics, useTrendSettings } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi, isolate } from "@/components/bidi"
+import { isolate } from "@/components/bidi"
 
 const CATEGORIES = ["technology", "business", "world", "industry"] as const
 
@@ -91,7 +91,6 @@ export default function TrendSourcesPage() {
         </Button>
       </div>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("trends.sources")}
         description={t("trends.sourcesHint")}
         action={

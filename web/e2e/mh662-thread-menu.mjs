@@ -244,36 +244,8 @@ for (const scheme of ["light", "dark"])
       if (shots) await page.screenshot({ path: path.join(shots, `mh662-${k}.png`) })
     }
 
-// ---- docked chat window: at minimum the ⋮ menu and search ----
-// The dock's open/closed set is client-side state in localStorage
-// (moharrik.chatDock.<workspaceId>, see chat-dock.tsx's storageKey/loadDocks)
-// rather than a REST resource, so it's seeded the same way the app itself
-// persists it, then picked up by ChatDock's mount effect on next navigation.
-await page.setViewportSize({ width: 1440, height: 900 })
-await page.goto(`${base}/en/w/${slug}/contacts`, { waitUntil: "domcontentloaded" })
-await page.evaluate(
-  ({ wsID, convID }) => {
-    window.localStorage.setItem(
-      `moharrik.chatDock.${wsID}`,
-      JSON.stringify([{ id: convID, minimized: false }]),
-    )
-  },
-  { wsID, convID },
-)
-await page.reload({ waitUntil: "domcontentloaded" })
-await page.waitForSelector(`[data-dock-window][data-dock-id="${convID}"]`, { timeout: 15000 }).catch(() => {})
-const dockOpened = await page
-  .locator(`[data-dock-window][data-dock-id="${convID}"]`)
-  .first()
-  .isVisible()
-  .catch(() => false)
-if (dockOpened) {
-  check("dock-has-search-trigger", (await page.locator(`[data-dock-id="${convID}"] [data-thread-search-trigger]`).count()) > 0)
-  check("dock-has-menu-trigger", (await page.locator(`[data-dock-id="${convID}"] [data-thread-menu-trigger]`).count()) > 0)
-} else {
-  check("dock-window-opened", false, "dock did not render for the seeded localStorage entry")
-}
-
+// (MH-1147: the floating chat dock is gone — the inbox itself is the dock now, so the
+// thread checks above already cover it.)
 check("no-page-errors", errs.length === 0, errs)
 console.log(JSON.stringify({ ok: fail.length === 0, fail, out }, null, 1))
 await ctx.close()

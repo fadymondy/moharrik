@@ -68,7 +68,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter()
   const params = useSearchParams()
   const { mutate } = useSWRConfig()
-  const next = safeNext(params.get("next"), `/${locale}/workspaces`)
+  // MH-1108: /{locale} opens the last workspace's dashboard.
+  const next = safeNext(params.get("next"), `/${locale}`)
 
   useDocumentTitle(mode === "login" ? t("auth.signIn") : t("auth.createAccount"))
 

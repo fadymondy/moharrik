@@ -1,13 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { BellIcon, MessageCircleIcon } from "lucide-react"
 import { toast } from "@fadymondy/nasaq/web"
 
 import { chime, desktopNotify, PUSH_MESSAGE } from "@/lib/alerts"
 import { useWorkspaceEvents, type WorkspaceEvent } from "@/lib/events"
 import { useTranslations } from "@/lib/i18n"
+import { inboxHref, openConversation } from "@/lib/inbox-link"
 import { isolate } from "@/components/bidi"
 
 /*
@@ -41,10 +42,7 @@ type Alert = {
 export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: string }) {
   const { t, locale } = useTranslations()
   const router = useRouter()
-  const pathname = usePathname() ?? ""
   const seen = useRef(new Map<string, number>())
-  const path = useRef(pathname)
-  path.current = pathname
 
   const announce = useCallback(
     (a: Alert) => {
@@ -53,11 +51,8 @@ export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: s
       seen.current.set(a.key, Date.now())
 
       const visible = document.visibilityState === "visible"
-      // The thread already on screen updates itself; alerting about it is noise.
-      if (a.conversationId && visible && /\/inbox\/?$/.test(path.current)) {
-        const open = new URLSearchParams(window.location.search).get("c")
-        if (open === a.conversationId) return
-      }
+      // The thread already open in the inbox dock updates itself; alerting about it is noise.
+      if (a.conversationId && visible && openConversation() === a.conversationId) return
 
       if (a.kind === "message") chime()
       toast(a.title, {
@@ -70,7 +65,10 @@ export function LiveAlerts({ workspaceId, slug }: { workspaceId: string; slug: s
           ) : (
             <BellIcon className="size-4 text-nq-action" />
           ),
-        action: { label: t("alerts.open"), onClick: () => router.push(a.url) },
+        action: {
+          label: t("alerts.open"),
+          onClick: () => router.push(a.conversationId ? inboxHref(a.conversationId) : a.url),
+        },
         className: "moharrik-alert",
       })
       if (!visible) void desktopNotify(a.title, a.body, a.key, a.url)

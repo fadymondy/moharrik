@@ -1,365 +1,172 @@
 "use client"
 
-import Link from "next/link"
-import { useParams } from "next/navigation"
 import { useState } from "react"
-import { useSWRConfig } from "swr"
-import { LogOutIcon } from "lucide-react"
-import { Badge, Button, toast } from "@fadymondy/nasaq/web"
+import {
+  ActivityIcon,
+  GaugeIcon,
+  HandshakeIcon,
+  LogOutIcon,
+  MailIcon,
+  MessageSquareIcon,
+} from "lucide-react"
+import { Badge, Button } from "@fadymondy/nasaq/web"
 
-import { PersonAvatar } from "@/components/avatar-with-fallback"
-import { DealsTable } from "@/components/crm/deals"
-import { LifecycleBadge, ScoreMeter, ScoreReasons } from "@/components/crm/icp"
-import { PickSelect, useMemberNames } from "@/components/crm/shared"
-import { Timeline } from "@/components/crm/timeline"
-import { Ltr } from "@/components/copy-field"
-import { ConfirmButton } from "@/components/confirm-button"
+import { Bdi } from "@/components/bidi"
+import {
+  AiSummaryPanel,
+  AutomationsPanel,
+  ConversationsPanel,
+  JourneyPanel,
+  NextActionsPanel,
+  useGenerateReport,
+} from "@/components/contacts/c360-sections"
+import { useContactRecord } from "@/components/contacts/contact-record"
 import { UnsubscribeDialog, type UnsubscribeTarget } from "@/components/mail/subscriber-admin"
-import { NotFoundState } from "@/components/not-found-state"
-import { SectionHeader } from "@/components/public-frame"
+import { RecordBody, RecordCard, RecordStat } from "@/components/record/record"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import {
-  api,
-  ApiError,
-  contactIdentity,
-  LIFECYCLE_STAGES,
-  type ContactDetail,
-  type Lifecycle,
-  type SubscriptionStatus,
-} from "@/lib/api"
+import { contactIdentity, type SubscriptionStatus } from "@/lib/api"
+import { useContactTimeline } from "@/lib/contact-timeline"
 import { useTranslations } from "@/lib/i18n"
-import { useContact } from "@/lib/queries"
-import { dateFormat } from "@/lib/i18n-locale"
-import { ContactContextPanel } from "@/components/crm/contact-context"
-import { ContactEditForm } from "@/components/crm/contact-edit-form"
-import { MergeContactAction } from "@/components/crm/contact-merge"
-import { ContactWhatsAppPanel } from "@/components/crm/contact-whatsapp"
-import { IdentitiesPanel, MetaPanel } from "@/components/crm/contact-identities"
-import { useDocumentTitle } from "@/lib/title"
-import { Bdi, isolate } from "@/components/bidi"
-import { C360Top } from "@/components/contacts/c360-sections"
+import { cn } from "@/lib/utils"
 
-const statusVariant: Record<
-  SubscriptionStatus,
-  "brand" | "neutral" | "outline" | "danger"
-> = {
+const statusVariant: Record<SubscriptionStatus, "brand" | "neutral" | "outline" | "danger"> = {
   subscribed: "brand",
   pending: "neutral",
   unsubscribed: "outline",
   bounced: "danger",
 }
 
-const identity = contactIdentity
-
-export default function ContactDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const { t, locale } = useTranslations()
+/** MH-1157: the contact at a glance: the numbers, what to do next, where they are in the journey. */
+export default function ContactOverviewPage() {
+  const { t, formatNumber } = useTranslations()
   const ws = useWorkspace()
-  const canWrite = ws.can("contacts:write")
-  const detail = useContact(ws.id, id)
+  const { data, contact, canWrite, rec, base, refresh, reload, reportsChanged } = useContactRecord()
+  const timeline = useContactTimeline(ws.id, contact.id)
+  const { reports, generate, generating } = useGenerateReport(contact.id, reportsChanged)
   const [leaving, setLeaving] = useState<UnsubscribeTarget | null>(null)
-  const [reportsRev, setReportsRev] = useState(0)
-  const { mutate: mutateAny } = useSWRConfig()
-  // The contact record and the unified timeline are two requests; anything that changes the contact refreshes both.
-  const refresh = () => {
-    void detail.mutate()
-    void mutateAny((k) => Array.isArray(k) && typeof k[0] === "string" && k[0].endsWith("/timeline"))
-  }
-  useDocumentTitle(
-    detail.data
-      ? `${detail.data.contact.name || identity(detail.data.contact)} · ${ws.summary.name}`
-      : t("contacts.detailTitle"),
-  )
-  const base = `/${locale}/w/${ws.slug}`
-
-  if (detail.error) {
-    const notFound = detail.error instanceof ApiError && detail.error.status === 404
-    if (notFound)
-      return (
-        <NotFoundState
-          title={t("contacts.notFound")}
-          body={t("contacts.notFoundBody")}
-          backHref={`${base}/contacts`}
-          backLabel={t("contacts.backToList")}
-        />
-      )
-    return <ErrorState error={detail.error} />
-  }
-  if (!detail.data) return <LoadingRows rows={6} />
-
-  const { contact, deals, activities } = detail.data
+  const canRead = ws.can("contacts:read")
+  const conversations = timeline.data?.overview?.conversations ?? []
+  const subs = contact.subscriptions ?? []
 
   return (
-    <>
-      <SectionHeader
-        micro={t("nav.contacts")}
-        title={
-          <span className="flex items-center gap-2">
-            <PersonAvatar
-              id={contact.id}
-              name={contact.name || identity(contact)}
-              photoUrl={contact.avatar_url}
-            />
-            {contact.name ? <Bdi>{contact.name}</Bdi> : <Ltr>{identity(contact)}</Ltr>}
-          </span>
-        }
-        description={contact.name ? <Ltr>{identity(contact)}</Ltr> : undefined}
-        action={
-          canWrite ? (
-            <div className="flex items-center gap-1">
-              <MergeContactAction
-                contact={contact}
-                // This page's contact is always the merge target (dst), so the
-                // survivor is always here — "go to the survivor" means refetch,
-                // not navigate, and a stale identities/timeline panel below
-                // would otherwise still show the just-deleted contact's data.
-                onMerged={() => void detail.mutate()}
-              />
-              <ConfirmButton
-                label={t("common.delete")}
-                title={t("contacts.deleteTitle")}
-                description={t("contacts.deleteBody", { email: isolate(identity(contact)) })}
-                confirmLabel={t("common.delete")}
-                onConfirm={async () => {
-                  await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, {
-                    method: "DELETE",
-                    workspaceId: ws.id,
-                  })
-                  window.location.href = `${base}/contacts`
-                }}
-              />
-            </div>
-          ) : undefined
-        }
-      />
+    <RecordBody className="[&_[data-card]]:rounded-xl">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-record-stats>
+        <RecordStat
+          icon={<GaugeIcon />}
+          label={t("icp.fit")}
+          value={contact.score === null ? "—" : formatNumber(contact.score)}
+          hint={contact.score === null ? t("icp.unscored") : undefined}
+          href={`${rec}/profile`}
+        />
+        <RecordStat
+          icon={<HandshakeIcon />}
+          label={t("record.tab.deals")}
+          value={formatNumber(data.deals_total)}
+          href={`${rec}/deals`}
+        />
+        <RecordStat
+          icon={<ActivityIcon />}
+          label={t("record.tab.activity")}
+          value={formatNumber(data.activities_total)}
+          href={`${rec}/activity`}
+        />
+        <RecordStat
+          icon={<MessageSquareIcon />}
+          label={t("record.conversations")}
+          value={timeline.data ? formatNumber(conversations.length) : "—"}
+          href={`${rec}/activity`}
+        />
+      </div>
 
-      {(contact.subscriptions ?? []).length > 0 ? (
-        <div
-          className="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 pb-6"
+      <div className="grid gap-4 lg:grid-cols-3">
+        {canRead ? (
+          <div className="min-w-0 lg:col-span-2">
+            <AiSummaryPanel generate={generate} generating={generating} reports={reports} />
+          </div>
+        ) : null}
+        <div className={cn("min-w-0", canRead ? "" : "lg:col-span-3")}>
+          <NextActionsPanel
+            contact={contact}
+            canWrite={canWrite}
+            rec={rec}
+            generate={generate}
+            generating={generating}
+            onChanged={() => {
+              refresh()
+              void timeline.mutate()
+            }}
+          />
+        </div>
+      </div>
+
+      <JourneyPanel contact={contact} />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {timeline.error ? (
+          <div className="lg:col-span-2">
+            <ErrorState error={timeline.error} />
+          </div>
+        ) : !timeline.data ? (
+          <div className="lg:col-span-2">
+            <LoadingRows rows={3} />
+          </div>
+        ) : (
+          <div className="flex min-w-0 flex-col gap-4 lg:col-span-2">
+            {timeline.data.overview?.conversations ? (
+              <ConversationsPanel rows={timeline.data.overview.conversations} base={base} />
+            ) : null}
+            {timeline.data.overview?.automations ? (
+              <AutomationsPanel rows={timeline.data.overview.automations} base={base} />
+            ) : null}
+          </div>
+        )}
+
+        <RecordCard
+          title={
+            <span className="inline-flex items-center gap-2">
+              <MailIcon className="size-4 text-muted-foreground" />
+              {t("record.subscriptions")}
+            </span>
+          }
+          bodyClassName="px-4 pb-4"
           data-contact-subscriptions
         >
-          {contact.subscriptions.map((s) => (
-            <span key={s.id} className="inline-flex items-center gap-1">
-              <Badge variant={statusVariant[s.status]} data-sub={`${s.list_name}:${s.status}`}>
-                <Bdi>{s.list_name}</Bdi> · {t(`sub.${s.status}`)}
-              </Badge>
-              {canWrite && s.status !== "unsubscribed" ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  data-unsubscribe-from={s.list_name}
-                  onClick={() =>
-                    setLeaving({
-                      contactId: contact.id,
-                      who: contact.name || identity(contact),
-                      listId: s.list_id,
-                      listName: s.list_name,
-                    })
-                  }
-                >
-                  <LogOutIcon />
-                  {t("contacts.unsubscribe")}
-                </Button>
-              ) : null}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      <UnsubscribeDialog
-        target={leaving}
-        onClose={() => setLeaving(null)}
-        onDone={() => detail.mutate()}
-      />
-
-      <C360Top
-        contact={contact}
-        canWrite={canWrite}
-        base={base}
-        onChanged={refresh}
-        onReportChanged={() => setReportsRev((n) => n + 1)}
-      />
-
-      <ContactFit contact={contact} canWrite={canWrite} onSaved={refresh} />
-      <ContactWhatsAppPanel key={contact.phone} contact={contact} />
-
-      {canWrite ? (
-        <div className="px-6 pb-6">
-          <ContactEditForm contact={contact} onSaved={() => detail.mutate()} />
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
-        <IdentitiesPanel
-          contactId={contact.id}
-          identities={contact.identities ?? []}
-          canWrite={canWrite}
-          onChanged={() => detail.mutate()}
-        />
-        {/* keyed on the map's contents: MetaPanel seeds its row state from `meta` only on
-            mount, so a re-fetch after save (or another editor's change) needs a remount
-            to actually show the new server truth instead of stale local rows. */}
-        <MetaPanel
-          key={JSON.stringify(contact.meta ?? {})}
-          contactId={contact.id}
-          meta={contact.meta ?? {}}
-          canWrite={canWrite}
-          onChanged={() => detail.mutate()}
-        />
+          {subs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("record.noSubscriptions")}</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {subs.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center gap-2">
+                  <Badge variant={statusVariant[s.status]} data-sub={`${s.list_name}:${s.status}`}>
+                    <Bdi>{s.list_name}</Bdi> · {t(`sub.${s.status}`)}
+                  </Badge>
+                  {canWrite && s.status !== "unsubscribed" ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ms-auto"
+                      data-unsubscribe-from={s.list_name}
+                      onClick={() =>
+                        setLeaving({
+                          contactId: contact.id,
+                          who: contact.name || contactIdentity(contact),
+                          listId: s.list_id,
+                          listName: s.list_name,
+                        })
+                      }
+                    >
+                      <LogOutIcon />
+                      {t("contacts.unsubscribe")}
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </RecordCard>
       </div>
-
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
-
-      <section>
-        <h2 className="px-6 py-4 text-base font-medium" data-c360-opportunities>
-          {t("c360.opportunities")}
-        </h2>
-        <DealsTable deals={deals} total={detail.data.deals_total} empty={t("contacts.noDeals")} />
-      </section>
-
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
-
-      <div data-c360-activities>
-      <Timeline
-        items={activities}
-        total={detail.data.activities_total}
-        nextCursor={detail.data.activities_next_cursor}
-        conversations={detail.data.conversations ?? []}
-        target={{ contact_id: contact.id }}
-        onChange={refresh}
-      />
-      </div>
-
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
-
-      <ContactContextPanel
-        reportsKey={reportsRev}
-        onReportsChanged={() => void mutateAny((k) => Array.isArray(k) && typeof k[0] === "string" && k[0].endsWith("/context/reports"))}
-        contact={{ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone }}
-      />
-      <div className="pb-8" />
-    </>
-  )
-}
-
-const NO_STAGE = "__none"
-
-/**
- * Where the contact is in the lifecycle (MH-395), how it got there, and how well it fits the
- * workspace's ideal customer — the score with every reason behind it.
- */
-function ContactFit({
-  contact,
-  canWrite,
-  onSaved,
-}: {
-  contact: ContactDetail
-  canWrite: boolean
-  onSaved: () => void
-}) {
-  const { t, locale } = useTranslations()
-  const ws = useWorkspace()
-  const members = useMemberNames(ws.id)
-  const [busy, setBusy] = useState(false)
-  const history = contact.lifecycle_history ?? []
-  const when = dateFormat(locale, { dateStyle: "medium", timeStyle: "short" })
-  const stageOptions = [
-    ...LIFECYCLE_STAGES.map((st) => ({ value: st, label: t(`lifecycle.${st}`) })),
-  ]
-
-  async function setStage(next: Lifecycle) {
-    setBusy(true)
-    try {
-      await api(`/api/w/contacts/${encodeURIComponent(contact.id)}`, {
-        method: "PATCH",
-        json: { lifecycle: next },
-        workspaceId: ws.id,
-      })
-      toast.success(t("lifecycle.saved"))
-      onSaved()
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <section className="grid gap-4 px-6 pb-6 lg:grid-cols-2" data-contact-fit>
-      <div className="border border-nq-line bg-card" data-lifecycle-panel>
-        <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-5 py-4">
-          <h2 className="text-base font-medium">{t("lifecycle.label")}</h2>
-          <LifecycleBadge stage={contact.lifecycle} />
-          {canWrite ? (
-            <div className="ms-auto w-44">
-              <PickSelect
-                id="contact-lifecycle"
-                value={contact.lifecycle || NO_STAGE}
-                onChange={(v) => void setStage((v === NO_STAGE ? "" : v) as Lifecycle)}
-                options={stageOptions}
-                noneLabel={t("lifecycle.none")}
-                disabled={busy}
-              />
-            </div>
-          ) : null}
-        </div>
-        <p className="px-5 pt-3 text-xs text-muted-foreground">{t("lifecycle.hint")}</p>
-        {history.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-muted-foreground">{t("lifecycle.noHistory")}</p>
-        ) : (
-          <ol className="divide-y divide-nq-line px-5 pb-2" data-lifecycle-history>
-            {history.map((e) => (
-              <li
-                key={e.id}
-                className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2.5 text-sm"
-                data-lifecycle-event={e.source}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  {e.from ? (
-                    <LifecycleBadge stage={e.from} />
-                  ) : (
-                    <span className="text-muted-foreground">{t("lifecycle.none")}</span>
-                  )}
-                  <span className="text-muted-foreground rtl:-scale-x-100" aria-hidden>
-                    →
-                  </span>
-                  <LifecycleBadge stage={e.to} />
-                </span>
-                <span className="text-muted-foreground">
-                  {e.source === "manual"
-                    ? t("lifecycle.source.manualBy", { who: members.name(e.actor_user_id) })
-                    : t(`lifecycle.source.${e.source}`)}
-                </span>
-                <span className="ms-auto text-xs text-muted-foreground">
-                  <Ltr>{when.format(new Date(e.at))}</Ltr>
-                </span>
-              </li>
-            ))}
-            {contact.lifecycle_history_total > history.length ? (
-              <li className="py-2 text-xs text-muted-foreground">
-                {t("lifecycle.more", { n: contact.lifecycle_history_total - history.length })}
-              </li>
-            ) : null}
-          </ol>
-        )}
-      </div>
-
-      <div className="border border-nq-line bg-card" data-score-panel>
-        <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-5 py-4">
-          <h2 className="text-base font-medium">{t("icp.fit")}</h2>
-          <ScoreMeter score={contact.score} />
-          <Link
-            className="ms-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
-            href={`/${locale}/w/${ws.slug}/settings/icp`}
-          >
-            {t("icp.editProfile")}
-          </Link>
-        </div>
-        <p className="px-5 pt-3 text-xs text-muted-foreground">{t("icp.scoreHow")}</p>
-        <div className="px-5 pb-2">
-          <ScoreReasons reasons={contact.score_reasons ?? []} />
-        </div>
-      </div>
-    </section>
+      <UnsubscribeDialog target={leaving} onClose={() => setLeaving(null)} onDone={reload} />
+    </RecordBody>
   )
 }

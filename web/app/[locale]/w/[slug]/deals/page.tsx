@@ -2,25 +2,52 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { SettingsIcon } from "lucide-react"
-import { Button, Tabs, TabsList, TabsTab, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, toast } from "@fadymondy/nasaq/web"
+import {
+  CoinsIcon,
+  HandshakeIcon,
+  KanbanIcon,
+  ListIcon,
+  PercentIcon,
+  PlusIcon,
+  RadarIcon,
+  SettingsIcon,
+  TrophyIcon,
+} from "lucide-react"
+import {
+  Button,
+  Tabs,
+  TabsList,
+  TabsTab,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  Input,
+  PageHeader,
+  StatCard,
+  StatGrid,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldError } from "@/components/form-layout"
 
 import { DealForm, DealsTable, PipelineBoard } from "@/components/crm/deals"
 import { SignalsPanel, signalTotal } from "@/components/opportunities/signals"
-import { PickSelect, stageTone } from "@/components/crm/shared"
-import { SectionHeader } from "@/components/public-frame"
+import { formatMoney, PickSelect, stageTone } from "@/components/crm/shared"
+import { Ltr } from "@/components/copy-field"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Deal, type Stage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useDeals, useDealsList, useOpportunitySignals } from "@/lib/queries"
+import { useDeals, useDealsList, useOpportunitySignals, type DealsPage } from "@/lib/queries"
 import { PageNav, PageSummary, useCursorStack } from "@/components/cursor-pager"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 
 type View = "board" | "list" | "signals"
 const VIEWS: View[] = ["board", "list", "signals"]
+const VIEW_ICON = { board: <KanbanIcon />, list: <ListIcon />, signals: <RadarIcon /> } as const
 
 const LIST_PAGE = 50
 
@@ -45,7 +72,8 @@ function Opportunities() {
   const search = useSearchParams()
   const asked = search.get("view")
   const view: View = VIEWS.includes(asked as View) ? (asked as View) : "board"
-  const setView = (next: View) => router.replace(next === "board" ? pathname : `${pathname}?view=${next}`, { scroll: false })
+  const setView = (next: View) =>
+    router.replace(next === "board" ? pathname : `${pathname}?view=${next}`, { scroll: false })
   const signals = useOpportunitySignals(ws.id)
   const signalCount = signalTotal(signals.data)
   // Board: cards past each stage's first page, fetched per stage on demand (MH-467: the board
@@ -139,11 +167,11 @@ function Opportunities() {
 
   return (
     <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
+      <PageHeader
+        className="px-4 pt-6 pb-4 sm:px-6"
         title={t("nav.opportunities")}
         description={t("opps.hint")}
-        action={
+        actions={
           <div className="flex flex-wrap items-center gap-2">
             {canManagePipeline ? (
               <Button type="button" variant="secondary" size="sm" onClick={() => setManaging(true)}>
@@ -152,20 +180,28 @@ function Opportunities() {
               </Button>
             ) : null}
             {canWrite ? (
-              <Button onClick={() => setCreating(true)}>{t("deals.newDeal")}</Button>
+              <Button onClick={() => setCreating(true)} data-open="new-deal">
+                <PlusIcon />
+                {t("deals.newDeal")}
+              </Button>
             ) : null}
           </div>
         }
       />
+
+      <PipelineStats data={deals.data} />
 
       <Tabs value={view} onValueChange={(v) => setView(String(v) as View)} className="gap-0">
         <div className="px-4 pb-3 sm:px-6">
           <TabsList variant="underline" aria-label={t("deals.viewLabel")}>
             {VIEWS.map((v) => (
               <TabsTab key={v} value={v} data-tab={v}>
+                {VIEW_ICON[v]}
                 {t(`opps.view.${v}`)}
                 {v === "signals" && signalCount ? (
-                  <span className="ms-1 text-muted-foreground tabular-nums" data-signal-total>{signalCount}</span>
+                  <span className="ms-1 text-muted-foreground tabular-nums" data-signal-total>
+                    {signalCount}
+                  </span>
                 ) : null}
               </TabsTab>
             ))}
@@ -180,9 +216,20 @@ function Opportunities() {
       ) : !deals.data ? (
         <LoadingRows rows={4} />
       ) : deals.data.total === 0 ? (
-        <div className="border-y border-nq-line px-6 py-12 text-center">
-          <p className="text-sm font-medium">{t("deals.empty")}</p>
-          {canWrite ? <p className="mt-1 text-sm text-muted-foreground">{t("deals.emptyBody")}</p> : null}
+        <div className="px-4 sm:px-6">
+          <EmptyState
+            icon={HandshakeIcon}
+            title={t("deals.empty")}
+            description={canWrite ? t("deals.emptyBody") : undefined}
+            actions={
+              canWrite ? (
+                <Button onClick={() => setCreating(true)}>
+                  <PlusIcon />
+                  {t("deals.newDeal")}
+                </Button>
+              ) : undefined
+            }
+          />
         </div>
       ) : view === "board" ? (
         <PipelineBoard
@@ -247,6 +294,54 @@ function Opportunities() {
         />
       ) : null}
     </>
+  )
+}
+
+/**
+ * MH-1170: the pipeline at a glance, from the stage totals the board already loads: what is open,
+ * what has been won, and how often a closed deal is a won one.
+ */
+function PipelineStats({ data }: { data?: DealsPage }) {
+  const { t, locale } = useTranslations()
+  const loading = !data
+  const sum = (kind: Stage["kind"], f: (s: Stage) => number) =>
+    (data?.stages ?? []).filter((s) => s.kind === kind).reduce((n, s) => n + f(s), 0)
+  const currency = data?.currency ?? "USD"
+  const won = sum("won", (s) => s.deal_count)
+  const lost = sum("lost", (s) => s.deal_count)
+  const money = (minor: number) => <Ltr>{formatMoney(minor, currency, locale)}</Ltr>
+  return (
+    <StatGrid className="px-4 pb-4 sm:px-6" data-deals-stats>
+      <StatCard
+        label={t("deals.stat.openValue")}
+        value={money(sum("open", (s) => s.value_minor))}
+        icon={<CoinsIcon />}
+        loading={loading}
+        data-deals-stat="open-value"
+      />
+      <StatCard
+        label={t("deals.stat.openDeals")}
+        value={sum("open", (s) => s.deal_count)}
+        icon={<HandshakeIcon />}
+        loading={loading}
+        data-deals-stat="open-deals"
+      />
+      <StatCard
+        label={t("deals.stat.won")}
+        value={money(sum("won", (s) => s.value_minor))}
+        icon={<TrophyIcon />}
+        loading={loading}
+        data-deals-stat="won-value"
+      />
+      <StatCard
+        label={t("deals.stat.winRate")}
+        value={won + lost ? won / (won + lost) : "—"}
+        format={{ style: "percent", maximumFractionDigits: 0 }}
+        icon={<PercentIcon />}
+        loading={loading}
+        data-deals-stat="win-rate"
+      />
+    </StatGrid>
   )
 }
 

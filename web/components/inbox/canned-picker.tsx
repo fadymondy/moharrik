@@ -98,7 +98,7 @@ export function CannedPicker({
         {ws.can("inbox:manage") ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href={`/${locale}/w/${ws.slug}/inbox/canned`} />}>
+            <DropdownMenuItem render={<Link href={`/${locale}/w/${ws.slug}/settings/canned`} />}>
               {t("inbox.canned.manage")}
             </DropdownMenuItem>
           </>

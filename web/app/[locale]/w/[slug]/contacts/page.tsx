@@ -1,21 +1,69 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useState, type FormEvent } from "react"
 import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
   DownloadIcon,
-  EllipsisIcon,
+  FileUpIcon,
+  ListIcon,
+  ListPlusIcon,
+  MailMinusIcon,
   MailWarningIcon,
   PencilIcon,
-  SearchIcon,
+  PlusIcon,
+  Trash2Icon,
+  UsersIcon,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Field, FieldDescription, FieldLabel, Input, InputGroup, InputGroupAddon, InputGroupInput, CursorPager, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  CursorPager,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Switch,
+  toast,
+} from "@fadymondy/nasaq/web"
+import {
+  CardMeta,
+  EmptyState as NqEmptyState,
+  EntityIdentity,
+  EntityList,
+  type DataTableColumn,
+  type DataTableRowAction,
+  type EntityFacet,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { SectionHeader } from "@/components/public-frame"
-import { PersonAvatar } from "@/components/avatar-with-fallback"
 import { ConfirmButton } from "@/components/confirm-button"
 import { Ltr } from "@/components/copy-field"
 import { useDebounced } from "@/components/crm/contact-picker"
@@ -47,14 +95,9 @@ import { Bdi, isolate } from "@/components/bidi"
 
 const PAGE_SIZE = 50
 const STATUSES: SubscriptionStatus[] = ["subscribed", "pending", "unsubscribed", "bounced"]
-const ALL_LISTS = "__all__"
-const ANY = "__any__"
 const MIN_SCORES = [25, 50, 75] as const
 
-const statusVariant: Record<
-  SubscriptionStatus,
-  "brand" | "neutral" | "outline" | "danger"
-> = {
+const statusVariant: Record<SubscriptionStatus, "brand" | "neutral" | "outline" | "danger"> = {
   subscribed: "brand",
   pending: "neutral",
   unsubscribed: "outline",
@@ -80,59 +123,101 @@ export default function ContactsPage() {
   useWorkspaceEvents(ws.id, (e) => {
     if (e.kind === "contacts") changed()
   })
+  // MH-1144: the create forms are dialogs opened from the header.
+  const [adding, setAdding] = useState(false)
+  const [creatingList, setCreatingList] = useState(false)
+  // MH-1156: lists are managed in a sideover, not above the contacts.
+  const [listsOpen, setListsOpen] = useState(false)
 
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("nav.contacts")}
         description={t("contacts.hint")}
         action={
-          <div className="flex items-center gap-4">
-            <Link
-              className="text-sm underline underline-offset-4"
-              href={`/${locale}/w/${ws.slug}/contacts/import`}
-              data-nav="import"
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${ws.slug}/contacts/import`} data-nav="import" />}
             >
-              {t("import.title")}
-            </Link>
-            <Link
-              className="text-sm underline underline-offset-4"
-              href={`/${locale}/w/${ws.slug}/contacts/vcard`}
-              data-nav="vcard"
+              <FileUpIcon />
+              {t("import.hubTitle")}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/${locale}/w/${ws.slug}/contacts/vcard`} data-nav="vcard" />}
             >
               {t("vcard.navLink")}
-            </Link>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setListsOpen(true)}
+              data-open="lists"
+              aria-haspopup="dialog"
+            >
+              <ListIcon />
+              {t("lists.title")}
+              {listItems.length ? <Badge variant="neutral">{listItems.length}</Badge> : null}
+            </Button>
+            {canWrite ? (
+              <Button size="sm" onClick={() => setAdding(true)} data-open="add-contact">
+                <PlusIcon />
+                {t("contacts.new")}
+              </Button>
+            ) : null}
           </div>
         }
       />
-      <ListsSection
+      <ListsSheet
+        open={listsOpen}
+        onOpenChange={setListsOpen}
+        onCreate={() => setCreatingList(true)}
         lists={listItems}
         loading={lists.isLoading}
         error={lists.error}
         onChange={changed}
       />
 
-      <div className="hatch h-8 border-y border-border mt-8" aria-hidden />
-
-      {canWrite ? (
-        <AddContact lists={listItems} onAdded={changed} />
-      ) : ws.current ? (
-        <p className="px-6 py-6 text-sm text-muted-foreground">{t("contacts.readOnly")}</p>
-      ) : null}
-
       <ContactsBrowser lists={listItems} version={version} onChange={changed} />
       <div className="pb-8" />
+
+      {canWrite ? (
+        <>
+          <AddContactDialog
+            open={adding}
+            onOpenChange={setAdding}
+            lists={listItems}
+            onAdded={changed}
+          />
+          <CreateListDialog
+            open={creatingList}
+            onOpenChange={setCreatingList}
+            onCreated={changed}
+          />
+        </>
+      ) : null}
     </>
   )
 }
 
-function ListsSection({
+/** MH-1156: create, edit, export and delete lists in a sideover, beside the contacts. */
+function ListsSheet({
+  open,
+  onOpenChange,
+  onCreate,
   lists,
   loading,
   error,
   onChange,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreate: () => void
   lists: MailList[]
   loading: boolean
   error: unknown
@@ -144,6 +229,149 @@ function ListsSection({
   const canDelete = ws.can("campaigns:write")
   const canExport = ws.can("contacts:export")
   const [editing, setEditing] = useState<MailList | null>(null)
+
+  async function remove(id: string) {
+    try {
+      await api(`/api/w/mail/lists/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
+      toast.success(t("lists.deleted"))
+      onChange()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    }
+  }
+
+  return (
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="end" className="w-full sm:w-[min(30rem,100vw)]" data-lists-sheet>
+          <SheetHeader>
+            <SheetTitle>{t("lists.title")}</SheetTitle>
+            <SheetDescription>{t("lists.hint")}</SheetDescription>
+          </SheetHeader>
+          <SheetBody className="p-4">
+            {error ? (
+              <ErrorState error={error} />
+            ) : loading ? (
+              <LoadingRows rows={3} />
+            ) : lists.length === 0 ? (
+              <EmptyState
+                title={t("lists.empty")}
+                body={canWrite ? t("lists.emptyBody") : undefined}
+              />
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {lists.map((l) => (
+                  <li
+                    key={l.id}
+                    data-list-row={l.name}
+                    className="flex flex-col gap-3 rounded-xl border border-nq-line bg-card p-4"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <UsersIcon className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">
+                          <Bdi>{l.name}</Bdi>
+                        </p>
+                        {l.description ? (
+                          <p className="line-clamp-2 text-xs text-muted-foreground">
+                            <Bdi>{l.description}</Bdi>
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <Badge variant="brand">
+                        {t("lists.subscribed")} · {l.subscribed}
+                      </Badge>
+                      <Badge variant="neutral">
+                        {t("lists.pending")} · {l.pending}
+                      </Badge>
+                      <Badge variant="outline">
+                        {t("lists.doubleOptIn")} ·{" "}
+                        {l.double_opt_in ? t("lists.on") : t("lists.off")}
+                      </Badge>
+                    </div>
+                    {canExport || canWrite || canDelete ? (
+                      <div className="flex flex-wrap items-center gap-1 border-t border-nq-line pt-2">
+                        {canExport ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-export-list={l.name}
+                            onClick={() =>
+                              exportList(
+                                ws.id,
+                                l,
+                                {},
+                                { ok: t("contacts.exported"), fail: t("common.networkError") },
+                              )
+                            }
+                          >
+                            <DownloadIcon />
+                            {t("contacts.export")}
+                          </Button>
+                        ) : null}
+                        {canWrite ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-edit-list={l.name}
+                            onClick={() => setEditing(l)}
+                          >
+                            <PencilIcon />
+                            {t("common.edit")}
+                          </Button>
+                        ) : null}
+                        {canDelete ? (
+                          <span className="ms-auto">
+                            <ConfirmButton
+                              label={t("common.delete")}
+                              title={t("lists.deleteTitle")}
+                              description={t("lists.deleteBody", { name: isolate(l.name) })}
+                              confirmLabel={t("common.delete")}
+                              onConfirm={() => remove(l.id)}
+                            />
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SheetBody>
+          {canWrite ? (
+            <SheetFooter>
+              <Button onClick={onCreate} data-open="create-list">
+                <ListPlusIcon />
+                {t("lists.new")}
+              </Button>
+            </SheetFooter>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+      <EditListDialog list={editing} onClose={() => setEditing(null)} onSaved={onChange} />
+    </>
+  )
+}
+
+/** New list (MH-1144): a dialog opened from the page header. */
+function CreateListDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreated: () => void
+}) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [doi, setDoi] = useState(true)
@@ -162,7 +390,8 @@ function ListsSection({
       toast.success(t("lists.created"))
       setName("")
       setDescription("")
-      onChange()
+      onCreated()
+      onOpenChange(false)
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -170,123 +399,32 @@ function ListsSection({
     }
   }
 
-  async function remove(id: string) {
-    try {
-      await api(`/api/w/mail/lists/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        workspaceId: ws.id,
-      })
-      toast.success(t("lists.deleted"))
-      onChange()
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
-    }
-  }
-
   return (
-    <section>
-      <h2 className="px-6 pb-1 text-base font-medium">{t("lists.title")}</h2>
-      <p className="px-6 pb-4 text-sm text-muted-foreground">{t("lists.hint")}</p>
-      {error ? (
-        <ErrorState error={error} />
-      ) : loading ? (
-        <LoadingRows rows={2} />
-      ) : lists.length === 0 ? (
-        <EmptyState title={t("lists.empty")} body={canWrite ? t("lists.emptyBody") : undefined} />
-      ) : (
-        <div className="border-y border-nq-line">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="ps-6">{t("lists.name")}</TableHead>
-                <TableHead>{t("lists.doubleOptIn")}</TableHead>
-                <TableHead>{t("lists.subscribed")}</TableHead>
-                <TableHead>{t("lists.pending")}</TableHead>
-                <TableHead className="pe-6 text-end">
-                  <span className="sr-only">{t("common.actions")}</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lists.map((l) => (
-                <TableRow key={l.id} data-list-row={l.name}>
-                  <TableCell className="ps-6">
-                    <div className="font-medium">
-                      <Bdi>{l.name}</Bdi>
-                    </div>
-                    {l.description ? (
-                      <div className="text-xs text-muted-foreground">
-                        <Bdi>{l.description}</Bdi>
-                      </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {l.double_opt_in ? t("lists.on") : t("lists.off")}
-                  </TableCell>
-                  <TableCell>{l.subscribed}</TableCell>
-                  <TableCell className="text-muted-foreground">{l.pending}</TableCell>
-                  <TableCell className="pe-6 text-end">
-                    <div className="inline-flex items-center gap-1">
-                      {canExport ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          data-export-list={l.name}
-                          onClick={() =>
-                            exportList(
-                              ws.id,
-                              l,
-                              {},
-                              { ok: t("contacts.exported"), fail: t("common.networkError") },
-                            )
-                          }
-                        >
-                          <DownloadIcon />
-                          {t("contacts.export")}
-                        </Button>
-                      ) : null}
-                      {canWrite ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          data-edit-list={l.name}
-                          onClick={() => setEditing(l)}
-                        >
-                          <PencilIcon />
-                          {t("common.edit")}
-                        </Button>
-                      ) : null}
-                      {canDelete ? (
-                        <ConfirmButton
-                          label={t("common.delete")}
-                          title={t("lists.deleteTitle")}
-                          description={t("lists.deleteBody", { name: isolate(l.name) })}
-                          confirmLabel={t("common.delete")}
-                          onConfirm={() => remove(l.id)}
-                        />
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {canWrite ? (
-        <form onSubmit={create} noValidate className="px-6 pt-6" data-form="create-list">
-          <FieldGroup className="sm:flex-row sm:items-end">
-            <Field className="sm:flex-1">
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setErr(null)
+        onOpenChange(v)
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("lists.new")}</DialogTitle>
+          <DialogDescription>{t("lists.hint")}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={create} noValidate data-form="create-list">
+          <FieldGroup>
+            <Field>
               <FieldLabel htmlFor="list-name">{t("lists.name")}</FieldLabel>
               <Input
                 id="list-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={80}
+                autoFocus
               />
             </Field>
-            <Field className="sm:flex-1">
+            <Field>
               <FieldLabel htmlFor="list-description">
                 {t("lists.description")}{" "}
                 <span className="text-muted-foreground">({t("common.optional")})</span>
@@ -298,26 +436,41 @@ function ListsSection({
                 maxLength={500}
               />
             </Field>
+            <Field className="flex-row items-center gap-3">
+              <Switch id="list-doi" checked={doi} onCheckedChange={(v) => setDoi(!!v)} />
+              <div>
+                <FieldLabel htmlFor="list-doi">{t("lists.doubleOptIn")}</FieldLabel>
+                <FieldDescription>{t("lists.doubleOptInHint")}</FieldDescription>
+              </div>
+            </Field>
+          </FieldGroup>
+          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
             <Button type="submit" disabled={busy || !name.trim()}>
               {busy ? t("common.working") : t("lists.create")}
             </Button>
-          </FieldGroup>
-          <Field className="flex-row items-center gap-3 mt-4">
-            <Switch id="list-doi" checked={doi} onCheckedChange={(v) => setDoi(!!v)} />
-            <div>
-              <FieldLabel htmlFor="list-doi">{t("lists.doubleOptIn")}</FieldLabel>
-              <FieldDescription>{t("lists.doubleOptInHint")}</FieldDescription>
-            </div>
-          </Field>
-          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+          </DialogFooter>
         </form>
-      ) : null}
-      <EditListDialog list={editing} onClose={() => setEditing(null)} onSaved={onChange} />
-    </section>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void }) {
+/** New contact (MH-1144): a dialog opened from the page header, not a form between the lists and the contacts. */
+function AddContactDialog({
+  open,
+  onOpenChange,
+  lists,
+  onAdded,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  lists: MailList[]
+  onAdded: () => void
+}) {
   const { t, locale } = useTranslations()
   const ws = useWorkspace()
   const isAdmin = ws.can("mail:settings")
@@ -373,6 +526,7 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
       setHandle("")
       setName("")
       onAdded()
+      onOpenChange(false)
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -381,121 +535,138 @@ function AddContact({ lists, onAdded }: { lists: MailList[]; onAdded: () => void
   }
 
   return (
-    <section className="px-6 py-6">
-      <h2 className="text-base font-medium">{t("contacts.addTitle")}</h2>
-      {needsSmtp ? (
-        <p className="mt-1 flex items-start gap-2 text-sm text-muted-foreground">
-          <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
-          <span>
-            {t("contacts.smtpMissing")}{" "}
-            <Link
-              className="underline underline-offset-4"
-              href={`/${locale}/w/${ws.slug}/settings/email`}
-            >
-              {t("contacts.smtpLink")}
-            </Link>
-          </span>
-        </p>
-      ) : null}
-      {lists.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">{t("contacts.noListsHint")}</p>
-      ) : null}
-      <form onSubmit={onSubmit} noValidate className="mt-5" data-form="add-contact">
-        <FieldGroup className="sm:flex-row sm:items-end sm:flex-wrap">
-          <Field className="sm:flex-1 sm:min-w-48">
-            <FieldLabel htmlFor="contact-email">
-              {t("contacts.email")}{" "}
-              <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input
-              id="contact-email"
-              type="email"
-              dir="ltr"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@company.com"
-            />
-          </Field>
-          <Field className="sm:flex-1 sm:min-w-40">
-            <FieldLabel htmlFor="contact-phone">
-              {t("contacts.phone")}{" "}
-              <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input
-              id="contact-phone"
-              type="tel"
-              dir="ltr"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+20 101 234 5678"
-            />
-          </Field>
-          <Field className="sm:flex-1 sm:min-w-40">
-            <FieldLabel htmlFor="contact-handle">
-              {t("contacts.handle")}{" "}
-              <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input
-              id="contact-handle"
-              dir="ltr"
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              placeholder="@handle"
-            />
-          </Field>
-          <Field className="sm:flex-1 sm:min-w-40">
-            <FieldLabel htmlFor="contact-name">
-              {t("contacts.name")} <span className="text-muted-foreground">({t("common.optional")})</span>
-            </FieldLabel>
-            <Input id="contact-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field className="sm:w-36">
-            <FieldLabel htmlFor="contact-lang">{t("contacts.language")}</FieldLabel>
-            <Select
-              items={langItems}
-              value={lang}
-              onValueChange={(v) => setLang(String(v ?? "en"))}
-            >
-              <SelectTrigger id="contact-lang" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {langItems.map((i) => (
-                  <SelectItem key={i.value} value={i.value}>
-                    {i.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          {lists.length > 0 ? (
-            <Field className="sm:w-44">
-              <FieldLabel htmlFor="contact-list">
-                {t("contacts.list")}{" "}
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setErr(null)
+        onOpenChange(v)
+      }}
+    >
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{t("contacts.addTitle")}</DialogTitle>
+        </DialogHeader>
+        {needsSmtp ? (
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <MailWarningIcon className="mt-0.5 size-4 shrink-0 text-nq-warning" />
+            <span>
+              {t("contacts.smtpMissing")}{" "}
+              <Link
+                className="underline underline-offset-4"
+                href={`/${locale}/w/${ws.slug}/settings/email`}
+              >
+                {t("contacts.smtpLink")}
+              </Link>
+            </span>
+          </p>
+        ) : null}
+        {lists.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("contacts.noListsHint")}</p>
+        ) : null}
+        <form onSubmit={onSubmit} noValidate data-form="add-contact">
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="contact-email">
+                {t("contacts.email")}{" "}
                 <span className="text-muted-foreground">({t("common.optional")})</span>
               </FieldLabel>
-              <PickSelect
-                id="contact-list"
-                value={listId}
-                onChange={setListId}
-                options={listItems}
-                noneLabel={t("contacts.noList")}
+              <Input
+                id="contact-email"
+                type="email"
+                autoFocus
+                dir="ltr"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@company.com"
               />
             </Field>
+            <Field>
+              <FieldLabel htmlFor="contact-phone">
+                {t("contacts.phone")}{" "}
+                <span className="text-muted-foreground">({t("common.optional")})</span>
+              </FieldLabel>
+              <Input
+                id="contact-phone"
+                type="tel"
+                dir="ltr"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+20 101 234 5678"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="contact-handle">
+                {t("contacts.handle")}{" "}
+                <span className="text-muted-foreground">({t("common.optional")})</span>
+              </FieldLabel>
+              <Input
+                id="contact-handle"
+                dir="ltr"
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                placeholder="@handle"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="contact-name">
+                {t("contacts.name")}{" "}
+                <span className="text-muted-foreground">({t("common.optional")})</span>
+              </FieldLabel>
+              <Input id="contact-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="contact-lang">{t("contacts.language")}</FieldLabel>
+              <Select
+                items={langItems}
+                value={lang}
+                onValueChange={(v) => setLang(String(v ?? "en"))}
+              >
+                <SelectTrigger id="contact-lang" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {langItems.map((i) => (
+                    <SelectItem key={i.value} value={i.value}>
+                      {i.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {lists.length > 0 ? (
+              <Field>
+                <FieldLabel htmlFor="contact-list">
+                  {t("contacts.list")}{" "}
+                  <span className="text-muted-foreground">({t("common.optional")})</span>
+                </FieldLabel>
+                <PickSelect
+                  id="contact-list"
+                  value={listId}
+                  onChange={setListId}
+                  options={listItems}
+                  noneLabel={t("contacts.noList")}
+                />
+              </Field>
+            ) : null}
+          </FieldGroup>
+          {listBlocked ? (
+            <FormHint className="mt-2">{t("contacts.listNeedsEmail")}</FormHint>
           ) : null}
-          <Button type="submit" disabled={busy || !hasIdentity || listBlocked}>
-            {busy ? t("common.working") : t("contacts.add")}
-          </Button>
-        </FieldGroup>
-        {listBlocked ? (
-          <FormHint className="mt-2">{t("contacts.listNeedsEmail")}</FormHint>
-        ) : null}
-        {!hasIdentity ? (
-          <FormHint className="mt-2">{t("contacts.needsIdentity")}</FormHint>
-        ) : null}
-        {err ? <FieldError className="mt-3">{err}</FieldError> : null}
-      </form>
-    </section>
+          {!hasIdentity ? (
+            <FormHint className="mt-2">{t("contacts.needsIdentity")}</FormHint>
+          ) : null}
+          {err ? <FieldError className="mt-3">{err}</FieldError> : null}
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={busy || !hasIdentity || listBlocked}>
+              {busy ? t("common.working") : t("contacts.add")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -518,8 +689,10 @@ function ContactsBrowser({
   version: number
   onChange: () => void
 }) {
-  const { t, formatNumber } = useTranslations()
+  const { t, locale, formatNumber, formatDate } = useTranslations()
   const ws = useWorkspace()
+  const router = useRouter()
+  const base = `/${locale}/w/${ws.slug}`
   const canWrite = ws.can("contacts:write")
   const canExport = ws.can("contacts:export")
 
@@ -569,268 +742,8 @@ function ContactsBrowser({
   const from = rows.length ? pageIndex * PAGE_SIZE + 1 : 0
   const to = pageIndex * PAGE_SIZE + rows.length
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const filtered = !!(activeList || q || lifecycle || minScore)
   const counts = page.data?.counts ?? null
 
-  const listItems = [
-    { value: ALL_LISTS, label: t("contacts.allContacts") },
-    ...lists.map((l) => ({ value: l.id, label: l.name })),
-  ]
-  const stageItems = [
-    { value: ANY, label: t("lifecycle.any") },
-    ...LIFECYCLE_STAGES.map((st) => ({ value: st, label: t(`lifecycle.${st}`) })),
-    { value: "none", label: t("lifecycle.none") },
-  ]
-  const scoreItems = [
-    { value: ANY, label: t("icp.anyScore") },
-    ...MIN_SCORES.map((n) => ({
-      value: String(n),
-      label: t("icp.atLeast", { n: formatNumber(n) }),
-    })),
-  ]
-
-  return (
-    <section data-contacts-browser>
-      <div className="flex flex-col gap-3 px-6 pt-6 pb-4 sm:flex-row sm:items-end">
-        <Field className="sm:flex-1">
-          <FieldLabel htmlFor="contacts-search">{t("contacts.search")}</FieldLabel>
-          <InputGroup>
-            <InputGroupInput
-              id="contacts-search"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("contacts.searchPlaceholder")}
-              maxLength={200}
-            />
-            <InputGroupAddon>
-              <SearchIcon />
-            </InputGroupAddon>
-          </InputGroup>
-        </Field>
-        <Field className="sm:w-56">
-          <FieldLabel htmlFor="contacts-list-filter">{t("contacts.list")}</FieldLabel>
-          <Select
-            items={listItems}
-            value={activeList || ALL_LISTS}
-            onValueChange={(v) => setListId(v == null || v === ALL_LISTS ? "" : String(v))}
-          >
-            <SelectTrigger id="contacts-list-filter" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {listItems.map((i) => (
-                <SelectItem key={i.value} value={i.value}>
-                  <Bdi>{i.label}</Bdi>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field className="sm:w-44">
-          <FieldLabel htmlFor="contacts-stage-filter">{t("lifecycle.label")}</FieldLabel>
-          <Select
-            items={stageItems}
-            value={lifecycle || ANY}
-            onValueChange={(v) => setLifecycle(v == null || v === ANY ? "" : String(v))}
-          >
-            <SelectTrigger id="contacts-stage-filter" className="w-full" data-stage-filter>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {stageItems.map((i) => (
-                <SelectItem key={i.value} value={i.value}>
-                  {i.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field className="sm:w-40">
-          <FieldLabel htmlFor="contacts-score-filter">{t("icp.score")}</FieldLabel>
-          <Select
-            items={scoreItems}
-            value={minScore ? String(minScore) : ANY}
-            onValueChange={(v) => setMinScore(v == null || v === ANY ? 0 : Number(v))}
-          >
-            <SelectTrigger id="contacts-score-filter" className="w-full" data-score-filter>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {scoreItems.map((i) => (
-                <SelectItem key={i.value} value={i.value}>
-                  {i.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        {list && canExport ? (
-          <Button
-            variant="secondary"
-            data-export-view
-            onClick={() =>
-              exportList(
-                ws.id,
-                list,
-                { status: activeStatus, q },
-                { ok: t("contacts.exported"), fail: t("common.networkError") },
-              )
-            }
-          >
-            <DownloadIcon />
-            {t("contacts.exportView")}
-          </Button>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
-        <span className="text-sm text-muted-foreground">{t("icp.sortBy")}</span>
-        <ToggleGroup
-          value={[sort || "newest"]}
-          onValueChange={(v) => v[0] && setSort(v[0] === "score" ? "score" : "")}
-          aria-label={t("icp.sortBy")}
-        >
-          <Toggle value="newest" data-sort="newest">
-            {t("icp.sortNewest")}
-          </Toggle>
-          <Toggle value="score" data-sort="score">
-            {t("icp.sortScore")}
-          </Toggle>
-        </ToggleGroup>
-      </div>
-
-      {list ? (
-        <div className="px-6 pb-4">
-          <ToggleGroup
-            className="flex-wrap"
-            value={[activeStatus || "all"]}
-            onValueChange={(v) => {
-              const next = v[0]
-              if (next === undefined) return
-              setStatus(next === "all" ? "" : (next as SubscriptionStatus))
-            }}
-            aria-label={t("contacts.statusFilter")}
-          >
-            <Toggle value="all" data-status-filter="all">
-              {t("contacts.statusAll")}{" "}
-              <span className="text-muted-foreground tabular-nums">
-                {counts ? formatNumber(counts.all) : ""}
-              </span>
-            </Toggle>
-            {STATUSES.map((st) => (
-              <Toggle key={st} value={st} data-status-filter={st}>
-                {t(`sub.${st}`)}{" "}
-                <span className="text-muted-foreground tabular-nums">
-                  {counts ? formatNumber(counts[st]) : ""}
-                </span>
-              </Toggle>
-            ))}
-          </ToggleGroup>
-        </div>
-      ) : null}
-
-      {page.error ? (
-        <ErrorState error={page.error} />
-      ) : !page.data ? (
-        <LoadingRows />
-      ) : total === 0 ? (
-        filtered ? (
-          <EmptyState
-            title={t("contacts.noMatch")}
-            body={t("contacts.noMatchBody")}
-            action={
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setSearch("")
-                  setListId("")
-                  setStatus("")
-                  setLifecycle("")
-                  setMinScore(0)
-                }}
-              >
-                {t("contacts.clearFilters")}
-              </Button>
-            }
-          />
-        ) : (
-          <EmptyState
-            title={t("contacts.empty")}
-            body={canWrite ? t("contacts.emptyBody") : undefined}
-          />
-        )
-      ) : (
-        <>
-          <p
-            className="px-6 pb-3 text-sm text-muted-foreground"
-            aria-live="polite"
-            data-contacts-summary={`${from}-${to}/${total}`}
-          >
-            {t("contacts.showing", {
-              from: formatNumber(from),
-              to: formatNumber(to),
-              total: formatNumber(total),
-            })}
-          </p>
-          <div
-            className={page.current ? undefined : "opacity-60 transition-opacity"}
-            aria-busy={!page.current}
-            data-contacts-current={page.current ? "yes" : "no"}
-          >
-            <ContactsTable items={rows} canWrite={canWrite} onChange={onChange} />
-          </div>
-          {pages > 1 ? (
-            <CursorPager
-              className="px-6 pt-4"
-              from={0}
-              to={0}
-              summary={
-                <span data-page-of={`${pageIndex + 1}/${pages}`}>
-                  {t("contacts.pageOf", {
-                    page: formatNumber(pageIndex + 1),
-                    pages: formatNumber(pages),
-                  })}
-                </span>
-              }
-              previousLabel={t("contacts.prevPage")}
-              nextLabel={t("contacts.nextPage")}
-              hasPrevious={cursors.length > 1}
-              hasNext={!!page.data?.next_cursor}
-              loading={!page.current}
-              onPrevious={() =>
-                setCursors((c) =>
-                  c.length > 1 && c[c.length - 1] === shownCursor ? c.slice(0, -1) : c,
-                )
-              }
-              onNext={() => {
-                const next = page.data?.next_cursor
-                // Only from the page it belongs to: a second click before the
-                // re-render must not push the same cursor twice.
-                if (next && page.current)
-                  setCursors((c) => (c[c.length - 1] === shownCursor ? [...c, next] : c))
-              }}
-            />
-          ) : null}
-        </>
-      )}
-    </section>
-  )
-}
-
-function ContactsTable({
-  items,
-  canWrite,
-  onChange,
-}: {
-  items: Contact[]
-  canWrite: boolean
-  onChange: () => void
-}) {
-  const { t, locale, formatDate } = useTranslations()
-  const ws = useWorkspace()
-  const base = `/${locale}/w/${ws.slug}`
   const [leaving, setLeaving] = useState<UnsubscribeTarget | null>(null)
   const [deleting, setDeleting] = useState<Contact | null>(null)
   const [busy, setBusy] = useState(false)
@@ -864,157 +777,316 @@ function ContactsTable({
     }
   }
 
+  /*
+  The server takes one value per filter, so each facet behaves as a single
+  choice: picking a second value replaces the first.
+  */
+  const facets: EntityFacet<Contact>[] = [
+    {
+      id: "list",
+      title: t("contacts.list"),
+      options: lists.map((l) => ({ value: l.id, label: l.name })),
+      getValues: () => [],
+    },
+    ...(list
+      ? [
+          {
+            id: "status",
+            title: t("contacts.statusFilter"),
+            options: STATUSES.map((st) => ({
+              value: st,
+              label: counts ? `${t(`sub.${st}`)} · ${formatNumber(counts[st])}` : t(`sub.${st}`),
+            })),
+            getValues: () => [],
+          },
+        ]
+      : []),
+    {
+      id: "stage",
+      title: t("lifecycle.label"),
+      options: [
+        ...LIFECYCLE_STAGES.map((st) => ({ value: st, label: t(`lifecycle.${st}`) })),
+        { value: "none", label: t("lifecycle.none") },
+      ],
+      getValues: () => [],
+    },
+    {
+      id: "score",
+      title: t("icp.score"),
+      options: MIN_SCORES.map((n) => ({
+        value: String(n),
+        label: t("icp.atLeast", { n: formatNumber(n) }),
+      })),
+      getValues: () => [],
+    },
+  ]
+  const facetValues: Record<string, string[]> = {
+    list: activeList ? [activeList] : [],
+    status: activeStatus ? [activeStatus] : [],
+    stage: lifecycle ? [lifecycle] : [],
+    score: minScore ? [String(minScore)] : [],
+  }
+  const single = (next: string[] | undefined, prev: string[]) =>
+    (next ?? []).find((v) => !prev.includes(v)) ?? (next ?? [])[0] ?? ""
+  const onFacetValuesChange = (next: Record<string, string[]>) => {
+    const listNext = single(next.list, facetValues.list)
+    if (listNext !== activeList) {
+      setListId(listNext)
+      setStatus("")
+    } else {
+      setStatus(single(next.status, facetValues.status) as SubscriptionStatus | "")
+    }
+    setLifecycle(single(next.stage, facetValues.stage))
+    setMinScore(Number(single(next.score, facetValues.score)) || 0)
+  }
+
+  const columns: DataTableColumn<Contact>[] = [
+    {
+      id: "name",
+      header: t("contacts.name"),
+      hideable: false,
+      className: "min-w-56",
+      cell: (c) => (
+        <span data-contact-row={contactIdentity(c)} className="block min-w-0">
+          <EntityIdentity
+            name={c.name || contactIdentity(c)}
+            avatarName={c.name || contactIdentity(c)}
+            avatar={c.avatar_url || undefined}
+            subtitle={c.name ? <Ltr>{contactIdentity(c)}</Ltr> : undefined}
+          />
+        </span>
+      ),
+    },
+    {
+      id: "company",
+      header: t("contacts.company"),
+      cell: (c) =>
+        c.company_name || c.title ? (
+          <span className="flex min-w-0 flex-col">
+            <Bdi className="truncate">{c.company_name || "—"}</Bdi>
+            {c.title ? (
+              <Bdi className="truncate text-sm text-muted-foreground">{c.title}</Bdi>
+            ) : null}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      id: "stage",
+      header: t("lifecycle.label"),
+      cell: (c) => <LifecycleBadge stage={c.lifecycle ?? ""} />,
+    },
+    {
+      id: "score",
+      header: t("icp.score"),
+      // The server orders by score; the newest-first order is the default.
+      sortValue: (c) => c.score,
+      cell: (c) => (
+        <ScoreButton
+          score={c.score}
+          reasons={c.score_reasons}
+          who={isolate(c.name || contactIdentity(c))}
+        />
+      ),
+    },
+    {
+      id: "lists",
+      header: t("contacts.lists"),
+      cell: (c) => <Subscriptions contact={c} canWrite={canWrite} onResend={resend} />,
+    },
+    {
+      id: "whatsapp",
+      header: t("contacts.whatsapp"),
+      cell: (c) => <WhatsAppConsent contact={c} onChange={onChange} />,
+    },
+    {
+      id: "added",
+      header: t("contacts.added"),
+      align: "end",
+      cell: (c) => (
+        <span className="text-muted-foreground">
+          <Ltr>{formatDate(c.created_at)}</Ltr>
+        </span>
+      ),
+    },
+  ]
+
+  const rowActions = (c: Contact): DataTableRowAction[] =>
+    canWrite
+      ? [
+          ...(c.subscriptions ?? [])
+            .filter((s) => s.status !== "unsubscribed")
+            .map((s) => ({
+              id: `unsubscribe-${s.id}`,
+              label: t("contacts.unsubscribeFromList", { list: isolate(s.list_name) }),
+              icon: MailMinusIcon,
+              group: "lists",
+              onSelect: () =>
+                setLeaving({
+                  contactId: c.id,
+                  who: c.name || contactIdentity(c),
+                  listId: s.list_id,
+                  listName: s.list_name,
+                }),
+            })),
+          {
+            id: "delete",
+            label: t("contacts.deleteContact"),
+            icon: Trash2Icon,
+            danger: true,
+            group: "danger",
+            onSelect: () => setDeleting(c),
+          },
+        ]
+      : []
+
   return (
-    <div className="border-y border-nq-line">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="ps-6">{t("contacts.identity")}</TableHead>
-            <TableHead>{t("contacts.name")}</TableHead>
-            <TableHead>{t("lifecycle.label")}</TableHead>
-            <TableHead>{t("icp.score")}</TableHead>
-            <TableHead>{t("contacts.lists")}</TableHead>
-            <TableHead>{t("contacts.whatsapp")}</TableHead>
-            <TableHead>{t("contacts.added")}</TableHead>
-            <TableHead className="pe-6 text-end">
-              <span className="sr-only">{t("common.actions")}</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((c) => {
-            const leavable = (c.subscriptions ?? []).filter((s) => s.status !== "unsubscribed")
-            return (
-              <TableRow key={c.id} data-contact-row={contactIdentity(c)}>
-                <TableCell className="ps-6">
-                  <Link
-                    className="flex items-center gap-2 hover:underline"
-                    href={`${base}/contacts/${c.id}`}
-                  >
-                    <PersonAvatar
-                      id={c.id}
-                      name={c.name || contactIdentity(c)}
-                      photoUrl={c.avatar_url}
-                      size="sm"
-                      className="shrink-0"
-                    />
-                    <Ltr>{contactIdentity(c)}</Ltr>
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  {c.name ? (
-                    <Link className="hover:underline" href={`${base}/contacts/${c.id}`}>
-                      <Bdi>{c.name}</Bdi>
-                    </Link>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <LifecycleBadge stage={c.lifecycle ?? ""} />
-                </TableCell>
-                <TableCell>
-                  <ScoreButton
-                    score={c.score}
-                    reasons={c.score_reasons}
-                    who={isolate(c.name || contactIdentity(c))}
-                  />
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(c.subscriptions ?? []).map((s) => (
-                      <span key={s.id} className="inline-flex items-center gap-1">
-                        <Badge
-                          variant={statusVariant[s.status]}
-                          data-sub={`${s.list_name}:${s.status}`}
-                          title={
-                            s.status === "unsubscribed" && s.unsubscribed_by_workspace
-                              ? t("contacts.unsubscribedByTeam", {
-                                  date: formatDate(s.unsubscribed_at),
-                                })
-                              : t(`sub.${s.status}`)
-                          }
-                        >
-                          <Bdi>{s.list_name}</Bdi> · {t(`sub.${s.status}`)}
-                        </Badge>
-                        {canWrite && s.status === "pending" ? (
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="h-auto px-1 text-xs"
-                            onClick={() => resend(s.id)}
-                          >
-                            {t("contacts.resend")}
-                          </Button>
-                        ) : null}
-                      </span>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <WhatsAppConsent contact={c} onChange={onChange} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  <Ltr>{formatDate(c.created_at)}</Ltr>
-                </TableCell>
-                <TableCell className="pe-6 text-end">
-                  {canWrite ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("contacts.actionsFor", {
-                              who: isolate(contactIdentity(c)),
-                            })}
-                            data-row-actions={contactIdentity(c)}
-                          />
-                        }
-                      >
-                        <EllipsisIcon />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-56">
-                        {leavable.length > 0 ? (
-                          <>
-                            <DropdownMenuGroup>
-                              <DropdownMenuLabel>{t("contacts.unsubscribeFrom")}</DropdownMenuLabel>
-                              {leavable.map((s) => (
-                                <DropdownMenuItem
-                                  key={s.id}
-                                  data-unsubscribe-from={s.list_name}
-                                  onClick={() =>
-                                    setLeaving({
-                                      contactId: c.id,
-                                      who: c.name || contactIdentity(c),
-                                      listId: s.list_id,
-                                      listName: s.list_name,
-                                    })
-                                  }
-                                >
-                                  <Bdi>{s.list_name}</Bdi>
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuGroup>
-                            <DropdownMenuSeparator />
-                          </>
-                        ) : null}
-                        <DropdownMenuItem
-                          variant="danger"
-                          data-delete-contact
-                          onClick={() => setDeleting(c)}
-                        >
-                          {t("contacts.deleteContact")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : null}
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+    <section data-contacts-browser className="px-4 pt-6 sm:px-6">
+      <EntityList<Contact>
+        data={rows}
+        columns={columns}
+        getRowId={(c) => c.id}
+        rowLabel={(c) => c.name || contactIdentity(c)}
+        label={t("nav.contacts")}
+        manual
+        rowCount={total}
+        selectable={false}
+        query={{ value: search, onChange: setSearch }}
+        searchPlaceholder={t("contacts.searchPlaceholder")}
+        facets={facets}
+        facetValues={facetValues}
+        onFacetValuesChange={onFacetValuesChange}
+        sort={{
+          value: sort === "score" ? { id: "score", direction: "desc" } : null,
+          onChange: (s) => setSort(s ? "score" : ""),
+        }}
+        rowActions={canWrite ? rowActions : undefined}
+        onRowClick={(c) => router.push(`${base}/contacts/${c.id}`)}
+        loading={!page.data && !page.error}
+        error={
+          page.error
+            ? page.error instanceof Error
+              ? page.error.message
+              : t("common.networkError")
+            : undefined
+        }
+        onRetry={() => void mutate()}
+        empty={
+          <NqEmptyState
+            icon={UsersIcon}
+            title={t("contacts.empty")}
+            description={canWrite ? t("contacts.emptyBody") : undefined}
+            className="border-0"
+          />
+        }
+        toolbar={
+          list && canExport ? (
+            <Button
+              size="sm"
+              data-export-view
+              onClick={() =>
+                exportList(
+                  ws.id,
+                  list,
+                  { status: activeStatus, q },
+                  { ok: t("contacts.exported"), fail: t("common.networkError") },
+                )
+              }
+            >
+              <DownloadIcon />
+              {t("contacts.exportView")}
+            </Button>
+          ) : null
+        }
+        renderCard={(c) => (
+          <div className="flex min-w-0 flex-col gap-3" data-contact-card={contactIdentity(c)}>
+            <EntityIdentity
+              className="pe-(--entity-card-controls)"
+              name={c.name || contactIdentity(c)}
+              avatarName={c.name || contactIdentity(c)}
+              avatar={c.avatar_url || undefined}
+              size="lg"
+              subtitle={c.title || c.company_name || undefined}
+            />
+            {c.name ? (
+              <span className="truncate text-sm text-muted-foreground">
+                <Ltr>{contactIdentity(c)}</Ltr>
+              </span>
+            ) : null}
+            <div className="flex flex-col gap-1.5">
+              <CardMeta label={t("lifecycle.label")}>
+                <LifecycleBadge stage={c.lifecycle ?? ""} />
+              </CardMeta>
+              <CardMeta label={t("icp.score")}>
+                <ScoreButton
+                  score={c.score}
+                  reasons={c.score_reasons}
+                  who={isolate(c.name || contactIdentity(c))}
+                />
+              </CardMeta>
+              <CardMeta label={t("contacts.added")}>
+                <Ltr>{formatDate(c.created_at)}</Ltr>
+              </CardMeta>
+            </div>
+            <Subscriptions contact={c} canWrite={canWrite} onResend={resend} />
+          </div>
+        )}
+        pagination={
+          page.data && total > 0 ? (
+            <div
+              className="flex flex-wrap items-center justify-between gap-3"
+              data-contacts-current={page.current ? "yes" : "no"}
+            >
+              <p
+                className="text-sm text-muted-foreground"
+                aria-live="polite"
+                data-contacts-summary={`${from}-${to}/${total}`}
+              >
+                {t("contacts.showing", {
+                  from: formatNumber(from),
+                  to: formatNumber(to),
+                  total: formatNumber(total),
+                })}
+              </p>
+              {pages > 1 ? (
+                <CursorPager
+                  from={0}
+                  to={0}
+                  summary={
+                    <span data-page-of={`${pageIndex + 1}/${pages}`}>
+                      {t("contacts.pageOf", {
+                        page: formatNumber(pageIndex + 1),
+                        pages: formatNumber(pages),
+                      })}
+                    </span>
+                  }
+                  previousLabel={t("contacts.prevPage")}
+                  nextLabel={t("contacts.nextPage")}
+                  hasPrevious={cursors.length > 1}
+                  hasNext={!!page.data?.next_cursor}
+                  loading={!page.current}
+                  onPrevious={() =>
+                    setCursors((c) =>
+                      c.length > 1 && c[c.length - 1] === shownCursor ? c.slice(0, -1) : c,
+                    )
+                  }
+                  onNext={() => {
+                    const next = page.data?.next_cursor
+                    // Only from the page it belongs to: a second click before the
+                    // re-render must not push the same cursor twice.
+                    if (next && page.current)
+                      setCursors((c) => (c[c.length - 1] === shownCursor ? [...c, next] : c))
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : (
+            false
+          )
+        }
+        className={page.current ? undefined : "[&_[data-slot=table]]:opacity-60"}
+      />
 
       <UnsubscribeDialog target={leaving} onClose={() => setLeaving(null)} onDone={onChange} />
       <AlertDialog open={deleting !== null} onOpenChange={(v) => (v ? null : setDeleting(null))}>
@@ -1037,6 +1109,50 @@ function ContactsTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </section>
+  )
+}
+
+/** A contact's list subscriptions as status badges, with "Resend" on a pending one. */
+function Subscriptions({
+  contact,
+  canWrite,
+  onResend,
+}: {
+  contact: Contact
+  canWrite: boolean
+  onResend: (subId: string) => void
+}) {
+  const { t, formatDate } = useTranslations()
+  const subs = contact.subscriptions ?? []
+  if (!subs.length) return <span className="text-muted-foreground">—</span>
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {subs.map((s) => (
+        <span key={s.id} className="inline-flex items-center gap-1">
+          <Badge
+            variant={statusVariant[s.status]}
+            data-sub={`${s.list_name}:${s.status}`}
+            title={
+              s.status === "unsubscribed" && s.unsubscribed_by_workspace
+                ? t("contacts.unsubscribedByTeam", { date: formatDate(s.unsubscribed_at) })
+                : t(`sub.${s.status}`)
+            }
+          >
+            <Bdi>{s.list_name}</Bdi> · {t(`sub.${s.status}`)}
+          </Badge>
+          {canWrite && s.status === "pending" ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto px-1 text-xs"
+              onClick={() => onResend(s.id)}
+            >
+              {t("contacts.resend")}
+            </Button>
+          ) : null}
+        </span>
+      ))}
     </div>
   )
 }

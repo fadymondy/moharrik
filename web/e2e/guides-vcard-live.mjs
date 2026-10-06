@@ -63,7 +63,7 @@ for (const scheme of ["light", "dark"]) {
     for (const w of [1440, 390]) {
       const k = `${loc}-${scheme}-${w}`
       await page.setViewportSize({ width: w, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/inbox/channels`, { waitUntil: "load" })
+      await page.goto(`${base}/${loc}/w/${slug}/settings/integrations`, { waitUntil: "load" })
       await page.waitForSelector("[data-add-channel]", { timeout: 30000 })
       await page.click("[data-add-channel]")
       await page.waitForSelector("[data-add-type]", { timeout: 10000 })

@@ -213,14 +213,14 @@ const api = (page, method, path, wsId) =>
 {
   const { ctx, page } = await session(seed.admin)
   await page.goto(`${base}/en/w/${seed.ws}/members`)
-  const memberRow = page.locator(`[data-member="${seed.member}"]`)
+  const memberRow = page.locator(`tr:has([data-member="${seed.member}"])`)
   await memberRow.waitFor()
   check(
-    (await page.locator(`[data-member="${seed.admin}"] [data-member-role]`).count()) === 0,
+    (await page.locator(`tr:has([data-member="${seed.admin}"]) [data-member-role]`).count()) === 0,
     "members: no role control on yourself",
   )
   check(
-    (await page.locator(`[data-member="${seed.owner}"] [data-member-role]`).count()) === 0,
+    (await page.locator(`tr:has([data-member="${seed.owner}"]) [data-member-role]`).count()) === 0,
     "members: an admin can't change an owner",
   )
 
@@ -251,7 +251,7 @@ const api = (page, method, path, wsId) =>
 {
   const { ctx, page } = await session(seed.member)
   await page.goto(`${base}/en/w/${seed.ws}/members`)
-  await page.locator(`[data-member="${seed.member}"]`).waitFor()
+  await page.locator(`tr:has([data-member="${seed.member}"])`).waitFor()
   check(
     (await page.locator("[data-member-role]").count()) === 0,
     "members: a member sees no role controls",
@@ -281,7 +281,7 @@ for (const locale of ["en", "ar"]) {
       for (const [name, path, ready] of [
         ["list", `/workspaces`, `[data-workspace-row="${seed.ws}"]`],
         ["general", `/w/${seed.ws}/settings/general`, "[data-workspace-profile]"],
-        ["members", `/w/${seed.ws}/members`, `[data-member="${seed.admin}"]`],
+        ["members", `/w/${seed.ws}/members`, `tr:has([data-member="${seed.admin}"])`],
       ]) {
         await page.goto(`${base}/${locale}${path}`)
         await page.locator(ready).first().waitFor()
@@ -309,7 +309,7 @@ for (const locale of ["en", "ar"]) {
 {
   const { ctx, page } = await session(seed.owner)
   await page.goto(`${base}/en/w/${seed.ws}/members`)
-  const adminRow = page.locator(`[data-member="${seed.admin}"]`)
+  const adminRow = page.locator(`tr:has([data-member="${seed.admin}"])`)
   await adminRow.waitFor()
   await adminRow.getByRole("button", { name: /Remove/ }).click()
   await page

@@ -14,11 +14,9 @@ its parent.
 
 import {
   BotIcon,
-  CableIcon,
   ChartColumnBigIcon,
   ClipboardListIcon,
   HandshakeIcon,
-  InboxIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
   LayoutGridIcon,
@@ -104,20 +102,6 @@ export const TOP_NAV: TopSection[] = [
             icon: UserPlusIcon,
             path: "contacts/import",
           },
-        ],
-      },
-      {
-        key: "inbox",
-        labelKey: "nav.top.inbox",
-        icon: InboxIcon,
-        path: "inbox",
-        match: ["inbox"],
-        subs: [
-          overviewOf("inbox"),
-          navItem("inbox-messages"),
-          navItem("inbox-stats"),
-          navItem("inbox-canned"),
-          navItem("inbox-email-templates"),
         ],
       },
       {
@@ -218,18 +202,11 @@ export const TOP_NAV: TopSection[] = [
     labelKey: "nav.group.connect",
     items: [
       {
-        key: "channels",
-        labelKey: "channels.title",
-        icon: CableIcon,
-        path: "inbox/channels",
-        match: ["inbox/channels"],
-        can: "inbox:manage",
-      },
-      {
         key: "integrations",
         labelKey: "nav.integrations",
         icon: PlugIcon,
         path: "settings/integrations",
+        // MH-1148: messaging channels are set up here too, beside Google and the products.
         match: ["settings/integrations"],
       },
       {
@@ -256,6 +233,8 @@ export const FOOTER_NAV: TopItem[] = [
       overviewOf("settings"),
       navItem("settings-general"),
       navItem("settings-email"),
+      navItem("settings-canned"),
+      navItem("settings-email-templates"),
       navItem("settings-icp"),
       navItem("settings-automation-profile"),
       navItem("settings-audit"),

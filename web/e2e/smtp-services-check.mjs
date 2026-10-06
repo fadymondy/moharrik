@@ -92,7 +92,7 @@ await page
   .first()
   .fill("Fresh beans this week.")
 await page.click('[data-form="new-campaign"] button[type=submit]')
-const row = page.locator(`[data-campaign-row="${subject}"]`)
+const row = page.locator(`tr:has([data-campaign-row="${subject}"])`)
 await row.waitFor({ timeout: 15000 })
 out.rowSaysViaB =
   (await row.locator("[data-campaign-service]").getAttribute("data-campaign-service")) === "Bulk B"

@@ -31,7 +31,6 @@ const SECTIONS = [
     rows: [
       ["home", ""],
       ["customers", "contacts", ["crm", "contacts", "companies", "leads", "contacts/import"]],
-      ["inbox", "inbox", ["inbox/overview", "inbox", "inbox/stats", "inbox/canned", "inbox/email-templates"]],
       ["opportunities", "deals"],
       ["research", "research", ["research/runs", "research/evidence", "research/schedules", "prospects"]],
     ],
@@ -66,7 +65,6 @@ const SECTIONS = [
   {
     key: "connect",
     rows: [
-      ["channels", "inbox/channels"],
       ["integrations", "settings/integrations"],
       ["mcp", "settings/mcp"],
     ],
@@ -79,6 +77,8 @@ const ROWS = SECTIONS.flatMap((s) => s.rows)
 const SETTINGS_PAGES = [
   "settings/general",
   "settings/email",
+  "settings/canned",
+  "settings/email-templates",
   "settings/icp",
   "settings/automation-profile",
   "settings/audit",
@@ -92,8 +92,7 @@ const OWNERS = [
   ["settings/icp", "settings"],
   ["automation/schedules", "schedules"],
   ["automation/runs", "automations"],
-  ["inbox/channels", "channels"],
-  ["inbox/stats", "inbox"],
+  ["settings/canned", "settings"],
   ["prospects", "research"],
   ["marketing", "campaigns"],
   ["trends", "insights"],
@@ -107,6 +106,11 @@ const UNLISTED = ["notifications", "notifications/overview", "notifications/sour
 const OLD_REDIRECTS = [
   { from: "research?tab=evidence", to: "research/evidence" },
   { from: "research?tab=schedules", to: "research/schedules" },
+  // MH-1148: the inbox's setup pages moved to Settings.
+  { from: "inbox/canned", to: "settings/canned" },
+  { from: "inbox/email-templates", to: "settings/email-templates" },
+  { from: "inbox/channels?type=email", to: "settings/integrations?type=email" },
+  { from: "inbox/whatsapp", to: "settings/integrations?type=whatsapp" },
 ]
 
 const out = {}
@@ -227,7 +231,7 @@ try {
   }
 
   // ---- section dashboards (MH-673) still render their page list ----
-  for (const p of ["crm", "marketing", "inbox/overview", "automation", "research", "insights", "settings"]) {
+  for (const p of ["crm", "marketing", "automation", "research", "insights", "settings"]) {
     await page.goto(w(p), { waitUntil: "load" })
     out[`dashboard:${p}`] =
       (await page.waitForSelector("[data-section-home] [data-section-pages]", { timeout: 15000 }).catch(() => null)) !==
@@ -243,7 +247,7 @@ try {
 
   // ---- 390: no horizontal overflow; the sidebar is a sheet that opens on the toggle ----
   await page.setViewportSize({ width: 390, height: 844 })
-  for (const p of ["", "contacts", "inbox", "automation/browsers", "research/runs", "trends", "settings"]) {
+  for (const p of ["", "contacts", "settings/integrations", "automation/browsers", "research/runs", "trends", "settings"]) {
     await page.goto(w(p), { waitUntil: "load" })
     const sw = await overflow(page)
     out[`overflow:${p || "home"}:390`] = sw <= 1 ? "ok" : `+${sw}px`
@@ -275,7 +279,7 @@ try {
   if (card) {
     const state = await ctx.storageState()
     const shooter = await chromium.launch({ executablePath: CHROME, headless: true })
-    const pages = ["", "contacts", "inbox/overview", "automation", "insights", "settings/mcp"]
+    const pages = ["", "contacts", "settings/integrations", "automation", "insights", "settings/mcp"]
     for (const locale of ["en", "ar"]) {
       for (const theme of ["light", "dark"]) {
         for (const width of [1440, 390]) {

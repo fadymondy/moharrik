@@ -8,13 +8,37 @@ import {
   ShieldCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Switch,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
 import { ConfirmButton } from "@/components/confirm-button"
 import { CopyField, Ltr } from "@/components/copy-field"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type WebhookSource, type WebhookSourceKind } from "@/lib/api"
@@ -25,7 +49,7 @@ import { CollectedSources } from "@/components/notifications/collected-sources"
 import { Bdi, isolate } from "@/components/bidi"
 
 export default function WebhookSourcesPage() {
-  const { t } = useTranslations()
+  const { t, formatDate } = useTranslations()
   const ws = useWorkspace()
   useDocumentTitle(`${t("notifications.sources")} · ${ws.summary.name}`)
   const canManage = ws.can("notifications:manage")
@@ -42,7 +66,6 @@ export default function WebhookSourcesPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("notifications.sources")}
         description={t("notifications.sourcesPageHint")}
       />
@@ -76,32 +99,82 @@ export default function WebhookSourcesPage() {
           body={canManage ? t("notifications.noSourcesBody") : undefined}
         />
       ) : (
-        <div className="border-y border-nq-line">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="ps-6">{t("notifications.sourceName")}</TableHead>
-                <TableHead>{t("notifications.sourceKind")}</TableHead>
-                <TableHead>{t("notifications.sourceStatus")}</TableHead>
-                <TableHead>{t("notifications.deliveries")}</TableHead>
-                <TableHead className="pe-6 text-end">
-                  <span className="sr-only">{t("common.actions")}</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.map((s) => (
-                <SourceRow
-                  key={s.id}
-                  source={s}
-                  canManage={canManage}
-                  onChange={() => sources.mutate()}
-                  onRotated={(secret) => setSecretDialog({ source: s, secret })}
-                  onSetClientSecret={() => setClientSecretFor(s)}
-                />
-              ))}
-            </TableBody>
-          </Table>
+        <div className="px-6">
+          <RowsTable<WebhookSource>
+            data={list}
+            getRowId={(src) => src.id}
+            rowLabel={(src) => src.name}
+            label={t("notifications.sources")}
+            data-sources
+            columns={[
+              {
+                id: "name",
+                header: t("notifications.sourceName"),
+                hideable: false,
+                sortValue: (src) => src.name,
+                cell: (src) => (
+                  <SourceName
+                    source={src}
+                    canManage={canManage}
+                    onChange={() => sources.mutate()}
+                  />
+                ),
+              },
+              {
+                id: "kind",
+                header: t("notifications.sourceKind"),
+                sortValue: (src) => src.kind,
+                cell: (src) => (
+                  <span className="text-muted-foreground">
+                    {t(`notifications.kind.${src.kind}`)}
+                  </span>
+                ),
+              },
+              {
+                id: "status",
+                header: t("notifications.sourceStatus"),
+                cell: (src) => (
+                  <SourceToggle
+                    source={src}
+                    canManage={canManage}
+                    onChange={() => sources.mutate()}
+                  />
+                ),
+              },
+              {
+                id: "deliveries",
+                header: t("notifications.deliveries"),
+                sortValue: (src) => src.delivery_count,
+                cell: (src) => (
+                  <span className="text-muted-foreground">
+                    {src.delivery_count}
+                    {src.last_delivery_at ? (
+                      <span className="block text-xs">{formatDate(src.last_delivery_at)}</span>
+                    ) : null}
+                  </span>
+                ),
+              },
+              ...(canManage
+                ? [
+                    {
+                      id: "actions",
+                      header: <span className="sr-only">{t("common.actions")}</span>,
+                      label: t("common.actions"),
+                      align: "end" as const,
+                      hideable: false,
+                      cell: (src: WebhookSource) => (
+                        <SourceActions
+                          source={src}
+                          onChange={() => sources.mutate()}
+                          onRotated={(secret) => setSecretDialog({ source: src, secret })}
+                          onSetClientSecret={() => setClientSecretFor(src)}
+                        />
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       )}
       <div className="pb-8" />
@@ -131,23 +204,58 @@ export default function WebhookSourcesPage() {
   )
 }
 
-function SourceRow({
+/** The source's name and URL, with whatever needs the owner's attention beneath them. */
+function SourceName({
   source,
   canManage,
   onChange,
-  onRotated,
-  onSetClientSecret,
 }: {
   source: WebhookSource
   canManage: boolean
   onChange: () => void
-  onRotated: (secret: string) => void
-  onSetClientSecret: () => void
 }) {
-  const { t, formatDate } = useTranslations()
+  const { t } = useTranslations()
+  return (
+    <div data-source-row={source.name}>
+      <div className="font-medium">
+        <Bdi>{source.name}</Bdi>
+      </div>
+      <Ltr className="text-xs text-muted-foreground" mono>
+        {source.url}
+      </Ltr>
+      {source.legacy_signing ? (
+        <LegacyNotice source={source} canManage={canManage} onChange={onChange} />
+      ) : null}
+      {source.kind === "sentry" && !source.has_secret ? (
+        <p
+          className="mt-1 flex max-w-[min(28rem,75vw)] items-start gap-1 text-xs whitespace-normal text-nq-warning-text"
+          data-no-secret
+        >
+          <KeyRoundIcon className="mt-0.5 size-3 shrink-0" />
+          {t("notifications.noSecretYet")}
+        </p>
+      ) : null}
+      {source.last_error ? (
+        <p className="mt-1 flex items-start gap-1 text-xs text-nq-danger-text">
+          <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" />
+          <Bdi>{source.last_error}</Bdi>
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function SourceToggle({
+  source,
+  canManage,
+  onChange,
+}: {
+  source: WebhookSource
+  canManage: boolean
+  onChange: () => void
+}) {
+  const { t } = useTranslations()
   const ws = useWorkspace()
-  const [busy, setBusy] = useState(false)
-  const isSentry = source.kind === "sentry"
 
   async function toggleEnabled() {
     try {
@@ -161,6 +269,34 @@ function SourceRow({
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     }
   }
+
+  return canManage ? (
+    <Switch
+      checked={source.enabled}
+      onCheckedChange={toggleEnabled}
+      aria-label={source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
+    />
+  ) : (
+    <Badge variant={source.enabled ? "brand" : "outline"}>
+      {source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
+    </Badge>
+  )
+}
+
+function SourceActions({
+  source,
+  onChange,
+  onRotated,
+  onSetClientSecret,
+}: {
+  source: WebhookSource
+  onChange: () => void
+  onRotated: (secret: string) => void
+  onSetClientSecret: () => void
+}) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [busy, setBusy] = useState(false)
 
   async function rotate() {
     setBusy(true)
@@ -191,80 +327,28 @@ function SourceRow({
   }
 
   return (
-    <TableRow data-source-row={source.name}>
-      <TableCell className="ps-6">
-        <div className="font-medium">
-          <Bdi>{source.name}</Bdi>
-        </div>
-        <Ltr className="text-xs text-muted-foreground" mono>
-          {source.url}
-        </Ltr>
-        {source.legacy_signing ? (
-          <LegacyNotice source={source} canManage={canManage} onChange={onChange} />
-        ) : null}
-        {isSentry && !source.has_secret ? (
-          <p
-            className="mt-1 flex max-w-[min(28rem,75vw)] items-start gap-1 text-xs whitespace-normal text-nq-warning-text"
-            data-no-secret
-          >
-            <KeyRoundIcon className="mt-0.5 size-3 shrink-0" />
-            {t("notifications.noSecretYet")}
-          </p>
-        ) : null}
-        {source.last_error ? (
-          <p className="mt-1 flex items-start gap-1 text-xs text-nq-danger-text">
-            <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" />
-            <Bdi>{source.last_error}</Bdi>
-          </p>
-        ) : null}
-      </TableCell>
-      <TableCell className="text-muted-foreground">{t(`notifications.kind.${source.kind}`)}</TableCell>
-      <TableCell>
-        {canManage ? (
-          <Switch
-            checked={source.enabled}
-            onCheckedChange={toggleEnabled}
-            aria-label={source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
-          />
-        ) : (
-          <Badge variant={source.enabled ? "brand" : "outline"}>
-            {source.enabled ? t("notifications.enabled") : t("notifications.disabled")}
-          </Badge>
-        )}
-      </TableCell>
-      <TableCell className="text-muted-foreground">
-        {source.delivery_count}
-        {source.last_delivery_at ? (
-          <span className="block text-xs">{formatDate(source.last_delivery_at)}</span>
-        ) : null}
-      </TableCell>
-      <TableCell className="pe-6 text-end">
-        {canManage ? (
-          <div className="flex justify-end gap-1">
-            {isSentry ? (
-              // Sentry generates this secret, so there is nothing to rotate here:
-              // it is rotated in Sentry and pasted in again.
-              <Button variant="ghost" size="sm" onClick={onSetClientSecret}>
-                <KeyRoundIcon />
-                {t("notifications.setClientSecret")}
-              </Button>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={rotate} disabled={busy}>
-                <RefreshCwIcon />
-                {t("notifications.rotate")}
-              </Button>
-            )}
-            <ConfirmButton
-              label={t("common.delete")}
-              title={t("notifications.deleteSourceTitle")}
-              description={t("notifications.deleteSourceBody", { name: isolate(source.name) })}
-              confirmLabel={t("common.delete")}
-              onConfirm={remove}
-            />
-          </div>
-        ) : null}
-      </TableCell>
-    </TableRow>
+    <div className="flex justify-end gap-1">
+      {source.kind === "sentry" ? (
+        // Sentry generates this secret, so there is nothing to rotate here:
+        // it is rotated in Sentry and pasted in again.
+        <Button variant="ghost" size="sm" onClick={onSetClientSecret}>
+          <KeyRoundIcon />
+          {t("notifications.setClientSecret")}
+        </Button>
+      ) : (
+        <Button variant="ghost" size="sm" onClick={rotate} disabled={busy}>
+          <RefreshCwIcon />
+          {t("notifications.rotate")}
+        </Button>
+      )}
+      <ConfirmButton
+        label={t("common.delete")}
+        title={t("notifications.deleteSourceTitle")}
+        description={t("notifications.deleteSourceBody", { name: isolate(source.name) })}
+        confirmLabel={t("common.delete")}
+        onConfirm={remove}
+      />
+    </div>
   )
 }
 

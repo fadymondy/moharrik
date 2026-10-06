@@ -9,7 +9,6 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { useTranslations } from "@/lib/i18n"
 import { useAutomationSettings } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
-import { Bdi } from "@/components/bidi"
 
 export default function AutomationSettingsPage() {
   const { t } = useTranslations()
@@ -23,7 +22,6 @@ export default function AutomationSettingsPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("automation.limitsAndSettings")}
         description={t("automation.limits.hint")}
       />

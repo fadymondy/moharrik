@@ -13,7 +13,7 @@ export default function SlackChannelsRedirect() {
   const router = useRouter()
   const { locale, slug } = useParams<{ locale: string; slug: string }>()
   useEffect(() => {
-    router.replace(`/${locale}/w/${slug}/inbox/channels?type=slack`)
+    router.replace(`/${locale}/w/${slug}/settings/integrations?type=slack`)
   }, [router, locale, slug])
   return null
 }

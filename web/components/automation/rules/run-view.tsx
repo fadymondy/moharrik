@@ -20,8 +20,17 @@ import {
 } from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
-import { Badge, Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { intlTag } from "@/lib/i18n-locale"
 import { actionErrorText, actionSummaryText, runReasonText } from "@/lib/rule-messages"
@@ -136,10 +145,7 @@ export function RunResult({ run, showEvent = false }: { run: RuleRun; showEvent?
                 {c.passed ? (
                   <CircleCheckIcon className="mt-0.5 size-4 shrink-0 text-nq-success" aria-hidden />
                 ) : (
-                  <CircleXIcon
-                    className="mt-0.5 size-4 shrink-0 text-nq-danger-text"
-                    aria-hidden
-                  />
+                  <CircleXIcon className="mt-0.5 size-4 shrink-0 text-nq-danger-text" aria-hidden />
                 )}
                 <span className="min-w-0">
                   {t(`rules.field.${c.field}`)} {t(`rules.op.${c.op}`)}{" "}
@@ -257,62 +263,73 @@ export function RunLog({
     )
   return (
     <section data-rule-runs>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="text-xs text-muted-foreground">
-            <tr className="border-y border-nq-line">
-              {showRule ? (
-                <th className="px-6 py-2 text-start font-normal">{t("rules.runs.rule")}</th>
-              ) : null}
-              <th className={cn("py-2 text-start font-normal", showRule ? "px-2" : "px-6")}>
-                {t("rules.runs.status")}
-              </th>
-              <th className="px-2 py-2 text-start font-normal">{t("rules.runs.event")}</th>
-              <th className="px-2 py-2 text-start font-normal">{t("rules.runs.when")}</th>
-              <th className="px-6 py-2 text-start font-normal">{t("rules.runs.what")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-nq-line border-b border-nq-line">
-            {runs.map((r) => (
-              <tr
-                key={r.id}
-                className="cursor-pointer hover:bg-nq-surface-soft"
-                onClick={() => setOpen(r)}
-                data-rule-run={r.id}
-                data-run-row-status={r.status}
-              >
-                {showRule ? (
-                  <td className="px-6 py-3 font-medium">
-                    <Bdi>{r.rule_name}</Bdi>
-                  </td>
-                ) : null}
-                <td className={cn("py-3", showRule ? "px-2" : "px-6")}>
-                  <span className="flex items-center gap-1.5 whitespace-nowrap">
-                    <RunStatusIcon status={r.status} />
-                    {statusLabel(t, r)}
-                    {r.dry_run ? <Badge variant="outline">{t("rules.testBadge")}</Badge> : null}
-                  </span>
-                </td>
-                <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
-                  {t(`rules.trigger.${r.trigger}`)}
-                </td>
-                <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
-                  {when.format(new Date(r.started_at))}
-                </td>
-                <td className="max-w-md px-6 py-3 text-muted-foreground">
-                  <span className="line-clamp-1" dir="auto">
-                    {r.reason
-                      ? runReasonText(t, r)
-                      : r.actions
-                          .map((a) => actionSummaryText(t, a))
-                          .filter(Boolean)
-                          .join(" · ")}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="px-6">
+        <RowsTable<RuleRun>
+          data={runs}
+          getRowId={(r) => r.id}
+          rowLabel={(r) => r.rule_name || statusLabel(t, r)}
+          label={t("rules.runs.what")}
+          onRowClick={setOpen}
+          columns={[
+            ...(showRule
+              ? [
+                  {
+                    id: "rule",
+                    header: t("rules.runs.rule"),
+                    sortValue: (r: RuleRun) => r.rule_name,
+                    className: "font-medium",
+                    cell: (r: RuleRun) => <Bdi>{r.rule_name}</Bdi>,
+                  },
+                ]
+              : []),
+            {
+              id: "status",
+              header: t("rules.runs.status"),
+              hideable: false,
+              sortValue: (r) => r.status,
+              cell: (r) => (
+                <span
+                  className="flex items-center gap-1.5 whitespace-nowrap"
+                  data-rule-run={r.id}
+                  data-run-row-status={r.status}
+                >
+                  <RunStatusIcon status={r.status} />
+                  {statusLabel(t, r)}
+                  {r.dry_run ? <Badge variant="outline">{t("rules.testBadge")}</Badge> : null}
+                </span>
+              ),
+            },
+            {
+              id: "event",
+              header: t("rules.runs.event"),
+              sortValue: (r) => r.trigger,
+              className: "whitespace-nowrap text-muted-foreground",
+              cell: (r) => t(`rules.trigger.${r.trigger}`),
+            },
+            {
+              id: "when",
+              header: t("rules.runs.when"),
+              sortValue: (r) => r.started_at,
+              className: "whitespace-nowrap text-muted-foreground",
+              cell: (r) => when.format(new Date(r.started_at)),
+            },
+            {
+              id: "what",
+              header: t("rules.runs.what"),
+              className: "max-w-md text-muted-foreground",
+              cell: (r) => (
+                <span className="line-clamp-1" dir="auto">
+                  {r.reason
+                    ? runReasonText(t, r)
+                    : r.actions
+                        .map((a) => actionSummaryText(t, a))
+                        .filter(Boolean)
+                        .join(" · ")}
+                </span>
+              ),
+            },
+          ]}
+        />
       </div>
       {more ? (
         <div className="px-6 pt-4">

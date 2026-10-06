@@ -3,7 +3,27 @@
 import Link from "next/link"
 import { useState, type FormEvent } from "react"
 import { CheckCircle2Icon, InfoIcon, MessageCircleIcon, XCircleIcon } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, Field, FieldDescription, FieldLabel, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Textarea, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  Textarea,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldError } from "@/components/form-layout"
 
 import { Ltr } from "@/components/copy-field"
@@ -13,6 +33,7 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type DirectSendResult } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useContactWhatsApp } from "@/lib/queries"
+import { inboxHref } from "@/lib/inbox-link"
 
 const MAX = 4096
 
@@ -42,16 +63,11 @@ export function ContactWhatsAppPanel({
   if (!canRead) return null
   const data = st.data
   const who = contact.name || contact.email
-  const threadHref = data?.conversation_id
-    ? `/${locale}/w/${ws.slug}/inbox?c=${encodeURIComponent(data.conversation_id)}`
-    : null
+  const threadHref = data?.conversation_id ? inboxHref(data.conversation_id) : null
 
   return (
-    <section
-      className="px-6 pb-6"
-      data-contact-whatsapp={data ? (data.can_send ? "ready" : data.reason) : "loading"}
-    >
-      <div className="flex flex-col gap-3 border border-nq-line bg-card px-4 py-3 sm:flex-row sm:items-center">
+    <section data-contact-whatsapp={data ? (data.can_send ? "ready" : data.reason) : "loading"}>
+      <div className="flex flex-col gap-3 rounded-xl border border-nq-line bg-card px-4 py-3 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <MessageCircleIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -84,7 +100,7 @@ export function ContactWhatsAppPanel({
                 {data.reason === "not_linked" && ws.can("inbox:manage") ? (
                   <Link
                     className="underline underline-offset-4"
-                    href={`/${locale}/w/${ws.slug}/inbox/whatsapp`}
+                    href={`/${locale}/w/${ws.slug}/settings/integrations?type=whatsapp`}
                   >
                     {t("contactWa.linkNumber")}
                   </Link>
@@ -132,9 +148,7 @@ export function ContactWhatsAppPanel({
                 )}
                 <Ltr>{formatDate(r.at)}</Ltr>
                 <span>· {t(`contactWa.kind.${r.kind}`)}</span>
-                {!r.ok && r.error ? (
-                  <span className="text-nq-danger-text">· {r.error}</span>
-                ) : null}
+                {!r.ok && r.error ? <span className="text-nq-danger-text">· {r.error}</span> : null}
               </li>
             ))}
           </ul>
@@ -245,12 +259,7 @@ function MessageSheet({
                 <Button
                   size="sm"
                   nativeButton={false}
-                  render={
-                    <Link
-                      href={`/${locale}/w/${ws.slug}/inbox?c=${encodeURIComponent(sentTo)}`}
-                      data-open-thread
-                    />
-                  }
+                  render={<Link href={inboxHref(sentTo)} data-open-thread />}
                 >
                   {t("contactWa.openThread")}
                 </Button>

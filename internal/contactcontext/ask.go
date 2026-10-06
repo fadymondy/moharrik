@@ -73,11 +73,14 @@ func AskAboutContact(ctx context.Context, a *app.App, aiClient *ai.Client, works
 		}, nil
 	}
 
-	prompt := buildAskPrompt(brief, question, passages)
+	// MH-1169: the team's own brief on the contact (and their company) goes first: how we
+	// speak to them, and the background no passage carries.
+	prompt := briefFor(ctx, a, workspaceID, contactID) + buildAskPrompt(brief, question, passages)
 	res, genErr := aiClient.Generate(ctx, ai.TaskDraft, ai.GenerateRequest{
 		System: "You answer questions about a CRM contact using ONLY the numbered passages given to you. " +
 			"Every claim must cite a passage number like [3]. If the passages do not answer the question, say so plainly " +
-			"instead of guessing. Never invent a name, date, amount or promise that is not in a passage.",
+			"instead of guessing. Never invent a name, date, amount or promise that is not in a passage. " +
+			"A team-written context brief may come first: follow it for tone and language, and treat it as background, not as a citable passage.",
 		Messages:    []ai.Message{{Role: "user", Content: prompt}},
 		MaxTokens:   700,
 		Temperature: 0.1,

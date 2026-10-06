@@ -70,7 +70,7 @@ func GenerateReport(ctx context.Context, a *app.App, aiClient *ai.Client, worksp
 	provider, model := "", ""
 
 	if aiClient != nil {
-		prompt := buildReportPrompt(brief, entries)
+		prompt := briefFor(ctx, a, workspaceID, contactID) + buildReportPrompt(brief, entries)
 		res, genErr := aiClient.Generate(ctx, ai.TaskSummarise, ai.GenerateRequest{
 			System: "You write a relationship report for a CRM contact using ONLY the numbered facts given. " +
 				"Cover: relationship summary, key topics, open promises/asks, sentiment, last touch, and a recommended " +

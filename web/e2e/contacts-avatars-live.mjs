@@ -92,7 +92,7 @@ for (const scheme of ["light", "dark"]) {
       const hasContact = !!href
       check(`${k}-contact-link`, hasContact)
       if (hasContact) {
-        await page.goto(new URL(href, base).toString(), { waitUntil: "load" })
+        await page.goto(new URL(`${href}/details`, base).toString(), { waitUntil: "load" })
         await page.waitForSelector("#edit-contact-given-name", { timeout: 15000 }).catch(() => {})
         const c = await page.evaluate(() => ({
           given: !!document.getElementById("edit-contact-given-name"),

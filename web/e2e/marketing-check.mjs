@@ -92,10 +92,14 @@ out.nav = await a.evaluate(() =>
   ),
 )
 
+// MH-1156: lists live in a sideover opened from the header.
 await a.goto(`${base}/en/w/${A.slug}/contacts`, { waitUntil: "networkidle" })
+await a.click('[data-open="lists"]')
+await a.click('[data-open="create-list"]')
 await a.fill("#list-name", "Newsletter")
 await a.click('[data-form="create-list"] button[type=submit]')
 await a.waitForSelector('[data-list-row="Newsletter"]')
+await a.click('[data-open="create-list"]')
 await a.fill("#list-name", "Customers")
 await a.locator("[data-form=create-list]").getByRole("switch").click()
 await a.click('[data-form="create-list"] button[type=submit]')
@@ -103,8 +107,11 @@ await a.waitForSelector('[data-list-row="Customers"]')
 out.lists = await a.$$eval("[data-list-row]", (r) =>
   r.map((x) => x.innerText.replace(/\s+/g, " ").trim()),
 )
+await a.keyboard.press("Escape")
+await a.waitForSelector("[data-lists-sheet]", { state: "detached" })
 
 // Contact on the double opt-in list, before SMTP exists: pending, confirmation not sent.
+await a.click('[data-open="add-contact"]')
 await a.fill("#contact-email", "reader@example.test")
 await a.fill("#contact-name", "Reader")
 await a.click("#contact-list")
@@ -114,7 +121,10 @@ await a.waitForSelector('[data-contact-row="reader@example.test"]')
 out.contactPending = await a.$eval('[data-contact-row="reader@example.test"]', (r) =>
   r.innerText.replace(/\s+/g, " "),
 )
+// The SMTP hint lives in the add-contact dialog (MH-1144).
+await a.click('[data-open="add-contact"]')
 out.smtpMissingHintOnContacts = await a.locator("text=Confirmation emails need SMTP").count()
+await a.keyboard.press("Escape")
 
 // ---- SMTP settings page ----
 await a.goto(`${base}/en/w/${A.slug}/settings/email`, { waitUntil: "networkidle" })
@@ -154,6 +164,7 @@ out.contactAfterConfirm = await a.$eval('[data-contact-row="reader@example.test"
   r.innerText.replace(/\s+/g, " "),
 )
 // A second contact straight onto the list without double opt-in.
+await a.click('[data-open="add-contact"]')
 await a.fill("#contact-email", "buyer@example.test")
 await a.click("#contact-list")
 await a.getByRole("option", { name: "Customers" }).click()
@@ -171,19 +182,21 @@ await a.fill(
   "# Hello\n\nWe shipped **email marketing**.\n\n- lists\n- campaigns\n\n[Read more](https://moharrik.com)",
 )
 await a.click('[data-form="new-campaign"] button[type=submit]')
-await a.waitForSelector('[data-campaign-row="September update"]')
-out.campaignDraft = await a.$eval('[data-campaign-row="September update"]', (r) =>
+await a.waitForSelector('tr:has([data-campaign-row="September update"])')
+out.campaignDraft = await a.$eval('tr:has([data-campaign-row="September update"])', (r) =>
   r.innerText.replace(/\s+/g, " "),
 )
 const beforeSend = inbox.length
-await a.click('[data-campaign-row="September update"] >> text=Send')
+await a.click('tr:has([data-campaign-row="September update"]) >> text=Send')
 await a.getByRole("alertdialog").getByRole("button", { name: "Send" }).click()
 await waitFor(
   async () =>
-    /Sent/.test(await a.$eval('[data-campaign-row="September update"]', (r) => r.innerText)),
+    /Sent/.test(
+      await a.$eval('tr:has([data-campaign-row="September update"])', (r) => r.innerText),
+    ),
   30000,
 )
-out.campaignSent = await a.$eval('[data-campaign-row="September update"]', (r) =>
+out.campaignSent = await a.$eval('tr:has([data-campaign-row="September update"])', (r) =>
   r.innerText.replace(/\s+/g, " "),
 )
 const campaignMails = inbox.slice(beforeSend).filter((m) => /September update/.test(m.body))
@@ -200,6 +213,8 @@ out.unsubscribeResult = await (
 ).getAttribute("data-mail-result")
 await p3.close()
 await a.goto(`${base}/en/w/${A.slug}/contacts`, { waitUntil: "networkidle" })
+await a.click('[data-open="lists"]')
+await a.waitForSelector("[data-list-row]")
 out.listsAfter = await a.$$eval("[data-list-row]", (r) =>
   r.map((x) => x.innerText.replace(/\s+/g, " ").trim()),
 )
@@ -219,6 +234,7 @@ const b = ctxB.pages()[0]
 const B = await signUp(b, "mkb")
 out.workspaceB = B.slug
 await b.goto(`${base}/en/w/${B.slug}/contacts`, { waitUntil: "networkidle" })
+await b.click('[data-open="lists"]')
 await b.waitForSelector("text=No lists yet")
 out.bContactsRows = await b.locator("[data-contact-row]").count()
 out.bListRows = await b.locator("[data-list-row]").count()

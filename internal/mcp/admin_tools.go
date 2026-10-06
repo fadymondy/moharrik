@@ -26,7 +26,7 @@ every query names its workspace or user explicitly.
 */
 func AdminTools() []Tool {
 	roleEnum := map[string]any{"type": "string", "enum": []string{"owner", "admin", "manager", "member", "client"}}
-	return []Tool{
+	return append([]Tool{
 		// ---- workspaces ----------------------------------------------------
 		{
 			Name:        "list_workspaces",
@@ -280,7 +280,7 @@ func AdminTools() []Tool {
 				return b.String(), nil
 			},
 		},
-	}
+	}, adminPlatformTools()...)
 }
 
 type wsRow struct{ id, slug, name, plan string }

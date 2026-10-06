@@ -17,6 +17,7 @@ import { kindOf, specOf } from "@/components/automation/canvas/model"
 import { ConfirmButton } from "@/components/confirm-button"
 import { PickSelect } from "@/components/crm/shared"
 import { SectionHeader } from "@/components/public-frame"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { Badge, Button, Input, toast } from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -142,7 +143,6 @@ function Workflows() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("workflows.title")}
         description={t("workflows.hint")}
         action={create}
@@ -401,55 +401,64 @@ function AllExecutions({
     )
   return (
     <section className="pt-4" data-all-executions>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="text-xs text-muted-foreground">
-            <tr className="border-y border-nq-line">
-              <th className="px-6 py-2 text-start font-normal">{t("workflows.exec.workflow")}</th>
-              <th className="px-2 py-2 text-start font-normal">{t("workflows.exec.status")}</th>
-              <th className="px-2 py-2 text-start font-normal">{t("workflows.exec.started")}</th>
-              <th className="px-2 py-2 text-start font-normal">{t("workflows.exec.took")}</th>
-              <th className="px-6 py-2 text-start font-normal">{t("workflows.exec.how")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-nq-line border-b border-nq-line">
-            {runs.map((r) => (
-              <tr
-                key={r.id}
-                className="hover:bg-nq-surface-soft"
-                data-execution-row={r.id}
-                data-execution-status={r.status}
-              >
-                <td className="px-6 py-3">
-                  <Link
-                    href={`${base}/workflows/${r.workflow_id}?view=executions&run=${r.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    <Bdi>{r.workflow_name || r.workflow_id}</Bdi>
-                  </Link>
-                </td>
-                <td className="px-2 py-3">
-                  <span className="flex items-center gap-1.5">
-                    <ExecutionIcon status={r.status} className="size-3.5" />
-                    {t(`automation.status.${r.status}`)}
-                    <span className="text-xs text-muted-foreground">
-                      ({t("automation.stepsDone", { ok: r.ok_count, total: r.step_count })})
-                    </span>
+      <div className="px-6">
+        <RowsTable<WorkflowExecution>
+          data={runs}
+          getRowId={(r) => r.id}
+          rowLabel={(r) => r.workflow_name || r.workflow_id}
+          label={t("workflows.exec.workflow")}
+          columns={[
+            {
+              id: "workflow",
+              header: t("workflows.exec.workflow"),
+              hideable: false,
+              sortValue: (r) => r.workflow_name || r.workflow_id,
+              cell: (r) => (
+                <Link
+                  href={`${base}/workflows/${r.workflow_id}?view=executions&run=${r.id}`}
+                  className="font-medium hover:underline"
+                  data-execution-row={r.id}
+                  data-execution-status={r.status}
+                >
+                  <Bdi>{r.workflow_name || r.workflow_id}</Bdi>
+                </Link>
+              ),
+            },
+            {
+              id: "status",
+              header: t("workflows.exec.status"),
+              sortValue: (r) => r.status,
+              cell: (r) => (
+                <span className="flex items-center gap-1.5">
+                  <ExecutionIcon status={r.status} className="size-3.5" />
+                  {t(`automation.status.${r.status}`)}
+                  <span className="text-xs text-muted-foreground">
+                    ({t("automation.stepsDone", { ok: r.ok_count, total: r.step_count })})
                   </span>
-                </td>
-                <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
-                  {when.format(new Date(r.created_at))}
-                </td>
-                <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
-                  {duration(r) || "—"}
-                </td>
-                <td className="px-6 py-3">
-                  <Badge variant="outline">{t(`canvas.exec.trigger.${r.trigger}`)}</Badge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+              ),
+            },
+            {
+              id: "started",
+              header: t("workflows.exec.started"),
+              sortValue: (r) => r.created_at,
+              className: "whitespace-nowrap text-muted-foreground",
+              cell: (r) => when.format(new Date(r.created_at)),
+            },
+            {
+              id: "took",
+              header: t("workflows.exec.took"),
+              className: "whitespace-nowrap text-muted-foreground",
+              cell: (r) => duration(r) || "—",
+            },
+            {
+              id: "how",
+              header: t("workflows.exec.how"),
+              sortValue: (r) => r.trigger,
+              cell: (r) => <Badge variant="outline">{t(`canvas.exec.trigger.${r.trigger}`)}</Badge>,
+            },
+          ]}
+        />
       </div>
       {more ? (
         <div className="px-6 pt-4">

@@ -1,7 +1,7 @@
 "use client"
 
 /*
-  The Overview's cards (MH-462). Every card is its own panel (one hairline frame on the card
+  The Overview's cards (MH-462). Every card is Nasaq's rounded Card (MH-1143; one frame on the card
   surface, spaced from its neighbours, rows divided inside), links to the page it summarises, and turns each count
   into a link to that page already filtered to it. An empty card says plainly
   what is missing and links to the action that fills it — only when the viewer
@@ -26,9 +26,20 @@ import {
 } from "lucide-react"
 
 import { Ltr } from "@/components/copy-field"
+import { RowsTable } from "@/components/nq-table"
 import { formatMoney } from "@/components/crm/shared"
 import { LeadStatusBadge, leadSource } from "@/components/leads/shared"
-import { Badge, Button, Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@fadymondy/nasaq/web"
 import {
   LEAD_STATUSES,
   type NotificationSeverity,
@@ -46,6 +57,7 @@ import {
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat, numberFormat, relativeTimeFormat } from "@/lib/i18n-locale"
 import { cn } from "@/lib/utils"
+import { inboxHref } from "@/lib/inbox-link"
 
 // ── formatting ───────────────────────────────────────────────────────────
 
@@ -96,14 +108,15 @@ export function Panel({
 }) {
   const { t } = useTranslations()
   return (
-    <section
+    <Card
+      role="region"
       aria-labelledby={`ov-${id}`}
       data-card={id}
-      className={cn("flex min-w-0 flex-col border border-nq-line bg-card", className)}
+      className={cn("min-w-0 gap-0 overflow-hidden py-0 shadow-xs", className)}
     >
-      <header className="flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 px-5 pt-4 pb-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
+      <CardHeader className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 px-5 py-3 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
         {icon}
-        <h2 id={`ov-${id}`} className="text-base font-medium text-foreground">
+        <CardTitle as="h2" id={`ov-${id}`} className="text-base font-medium">
           {href ? (
             <Link href={href} className="hover:underline hover:underline-offset-4">
               {title}
@@ -111,7 +124,7 @@ export function Panel({
           ) : (
             title
           )}
-        </h2>
+        </CardTitle>
         {meta}
         {href ? (
           <Link
@@ -123,9 +136,11 @@ export function Panel({
             <ArrowRightIcon className="size-3.5 rtl:-scale-x-100" aria-hidden />
           </Link>
         ) : null}
-      </header>
-      <div className="flex flex-1 flex-col border-t border-nq-line">{children}</div>
-    </section>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col border-t border-border px-0">
+        {children}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -211,11 +226,14 @@ function Tile({
   return (
     <Link
       href={href}
-      className="flex min-w-0 flex-col gap-2 border border-nq-line bg-card px-5 py-4 transition-colors hover:bg-nq-surface-soft"
+      className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-card px-5 py-4 shadow-xs transition-colors hover:bg-nq-surface-soft"
       data-tile={id}
     >
       <span className="eyebrow min-h-[2lh] text-balance lg:min-h-0">{label}</span>
-      <span className="text-4xl leading-none font-medium text-foreground tabular-nums" data-tile-value>
+      <span
+        className="text-4xl leading-none font-medium text-foreground tabular-nums"
+        data-tile-value
+      >
         {value}
       </span>
       <span className="truncate text-xs text-muted-foreground">{sub}</span>
@@ -245,7 +263,7 @@ export function TodayStrip({ today, base }: { today: OverviewToday; base: string
       <Tile
         key="inbox"
         id="unread-conversations"
-        href={`${base}/inbox?unread=1`}
+        href={inboxHref("unread")}
         label={t("overview.unreadConversations")}
         value={f.n(today.unread_conversations)}
         sub={today.unread_conversations === 0 ? t("overview.allClear") : t("nav.inbox")}
@@ -342,29 +360,26 @@ export function PipelineCard({
       ) : (
         <div className="grid flex-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:divide-x lg:divide-nq-line rtl:lg:divide-x-reverse">
           <div className="min-w-0">
-            <table className="w-full text-sm" data-pipeline-stages>
-              <thead>
-                <tr className="border-b border-nq-line text-start text-xs text-muted-foreground">
-                  <th scope="col" className="w-full px-5 py-2 text-start font-normal">
-                    {t("overview.stage")}
-                  </th>
-                  <th scope="col" className="px-2 py-2 text-end font-normal">
-                    {t("overview.deals")}
-                  </th>
-                  <th scope="col" className="px-5 py-2 text-end font-normal">
-                    {t("overview.value")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-nq-line">
-                {p.stages.map((s) => (
-                  <tr key={s.id} data-stage={s.name}>
-                    <th scope="row" className="px-5 pt-2.5 pb-3 text-start align-top font-normal">
+            <RowsTable<(typeof p.stages)[number]>
+              data={p.stages}
+              getRowId={(st) => st.id}
+              rowLabel={(st) => st.name}
+              label={t("overview.stage")}
+              frame={false}
+              data-pipeline-stages
+              columns={[
+                {
+                  id: "stage",
+                  header: t("overview.stage"),
+                  hideable: false,
+                  className: "w-full align-top",
+                  cell: (st) => (
+                    <div data-stage={st.name}>
                       <Link
                         href={`${base}/deals`}
                         className="hover:underline hover:underline-offset-4"
                       >
-                        <bdi className="text-foreground">{s.name}</bdi>
+                        <bdi className="text-foreground">{st.name}</bdi>
                       </Link>
                       {/* One hue, 8px, 4px rounded data-end, square at the baseline. */}
                       <div className="mt-2 h-2" aria-hidden title={t("overview.stageBarLabel")}>
@@ -372,32 +387,45 @@ export function PipelineCard({
                           className="h-2 rounded-e-[4px] bg-nq-brand"
                           style={{
                             width:
-                              max > 0 && s.value_minor > 0
-                                ? `max(2px, ${(s.value_minor / max) * 100}%)`
+                              max > 0 && st.value_minor > 0
+                                ? `max(2px, ${(st.value_minor / max) * 100}%)`
                                 : 0,
                           }}
                         />
                       </div>
-                    </th>
-                    <td className="px-2 pt-2.5 text-end align-top tabular-nums">
-                      <Link
-                        href={`${base}/deals`}
-                        className="hover:underline hover:underline-offset-4"
-                        data-stage-count
-                      >
-                        {f.n(s.deal_count)}
-                      </Link>
-                    </td>
-                    <td
-                      className="px-5 pt-2.5 text-end align-top whitespace-nowrap tabular-nums text-foreground"
-                      data-stage-value
+                    </div>
+                  ),
+                },
+                {
+                  id: "deals",
+                  header: t("overview.deals"),
+                  align: "end",
+                  sortValue: (st) => st.deal_count,
+                  className: "align-top tabular-nums",
+                  cell: (st) => (
+                    <Link
+                      href={`${base}/deals`}
+                      className="hover:underline hover:underline-offset-4"
+                      data-stage-count
                     >
-                      <Ltr>{f.money(s.value_minor, currency)}</Ltr>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      {f.n(st.deal_count)}
+                    </Link>
+                  ),
+                },
+                {
+                  id: "value",
+                  header: t("overview.value"),
+                  align: "end",
+                  sortValue: (st) => st.value_minor,
+                  className: "align-top whitespace-nowrap tabular-nums text-foreground",
+                  cell: (st) => (
+                    <span data-stage-value>
+                      <Ltr>{f.money(st.value_minor, currency)}</Ltr>
+                    </span>
+                  ),
+                },
+              ]}
+            />
             {p.other_currency_deals > 0 ? (
               <p
                 className="border-t border-nq-line px-5 py-2.5 text-xs text-muted-foreground"
@@ -427,7 +455,9 @@ export function PipelineCard({
           <div className="flex min-w-0 flex-col border-t border-nq-line lg:border-t-0">
             <p className="eyebrow px-5 pt-3 pb-1">{t("overview.nextCloses")}</p>
             {p.next_closes.length === 0 ? (
-              <p className="px-5 pb-4 text-sm text-muted-foreground">{t("overview.noNextCloses")}</p>
+              <p className="px-5 pb-4 text-sm text-muted-foreground">
+                {t("overview.noNextCloses")}
+              </p>
             ) : (
               <Rows label={t("overview.nextCloses")}>
                 {p.next_closes.map((d) => (
@@ -438,7 +468,10 @@ export function PipelineCard({
                     data-next-close={d.title}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="bidi-block block truncate text-sm text-foreground" dir="auto">
+                      <span
+                        className="bidi-block block truncate text-sm text-foreground"
+                        dir="auto"
+                      >
                         {d.title}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
@@ -492,11 +525,13 @@ export function LeadsCard({
             <Link
               key={s}
               href={`${base}/leads?status=${s}`}
-              className="inline-flex items-center gap-1.5 border border-nq-line px-2 py-0.5 text-xs text-nq-fg-body transition-colors hover:bg-nq-surface-soft"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 text-xs text-nq-fg-body transition-colors hover:bg-nq-surface-soft"
               data-lead-count={s}
             >
               {t(`leads.status.${s}`)}
-              <span className="font-medium text-foreground tabular-nums">{f.n(counts[s] ?? 0)}</span>
+              <span className="font-medium text-foreground tabular-nums">
+                {f.n(counts[s] ?? 0)}
+              </span>
             </Link>
           ))}
         </div>
@@ -516,7 +551,10 @@ export function LeadsCard({
           {leads.map((l) => (
             <RowLink key={l.id} href={`${base}/leads/${l.id}`} data-overview-lead={l.email}>
               <span className="flex min-w-0 items-center gap-2">
-                <span className="bidi-block truncate text-sm font-medium text-foreground" dir="auto">
+                <span
+                  className="bidi-block truncate text-sm font-medium text-foreground"
+                  dir="auto"
+                >
                   {l.name || l.email}
                 </span>
                 {l.company ? (
@@ -561,11 +599,11 @@ export function InboxCard({
       id="inbox"
       title={t("nav.inbox")}
       icon={<InboxIcon />}
-      href={`${base}/inbox`}
+      href={inboxHref()}
       meta={
         unread ? (
           <Link
-            href={`${base}/inbox?unread=1`}
+            href={inboxHref("unread")}
             className="text-xs text-muted-foreground hover:text-foreground hover:underline"
             data-unread-link
           >
@@ -581,7 +619,7 @@ export function InboxCard({
           body={t("overview.noConversationsBody")}
           action={
             canAddWidget
-              ? { href: `${base}/inbox/widgets`, label: t("inbox.addWidget") }
+              ? { href: `${base}/settings/integrations?type=chat`, label: t("inbox.addWidget") }
               : undefined
           }
         />
@@ -590,7 +628,7 @@ export function InboxCard({
           {items.map((c) => (
             <RowLink
               key={c.id}
-              href={`${base}/inbox?c=${encodeURIComponent(c.id)}`}
+              href={inboxHref(c.id)}
               className={c.unread ? "bg-card" : undefined}
               data-overview-conversation={c.id}
             >
@@ -761,51 +799,66 @@ export function MarketingCard({
             }
           />
         ) : (
-          <table className="w-full text-sm" data-marketing-lists>
-            <thead>
-              <tr className="border-b border-nq-line text-xs text-muted-foreground">
-                <th scope="col" className="w-full px-5 py-2 text-start font-normal">
-                  {t("lists.title")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-end font-normal whitespace-nowrap">
-                  {t("lists.subscribed")}
-                </th>
-                <th scope="col" className="px-5 py-2 text-end font-normal whitespace-nowrap">
-                  {t("lists.pending")}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-nq-line">
-              {m.lists.map((l) => (
-                <tr key={l.id} data-list={l.name}>
-                  <th scope="row" className="max-w-0 truncate px-5 py-2.5 text-start font-normal">
-                    <Link
-                      href={`${base}/contacts`}
-                      className="text-foreground hover:underline hover:underline-offset-4"
-                    >
-                      <bdi>{l.name}</bdi>
-                    </Link>
-                  </th>
-                  <td className="px-2 py-2.5 text-end tabular-nums" data-subscribed>
-                    <Link
-                      href={`${base}/contacts`}
-                      className="hover:underline hover:underline-offset-4"
-                    >
-                      {f.n(l.subscribed)}
-                    </Link>
-                  </td>
-                  <td className="px-5 py-2.5 text-end tabular-nums text-muted-foreground" data-pending>
-                    <Link
-                      href={`${base}/contacts`}
-                      className="hover:underline hover:underline-offset-4"
-                    >
-                      {f.n(l.pending)}
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RowsTable<(typeof m.lists)[number]>
+            data={m.lists}
+            getRowId={(l) => l.id}
+            rowLabel={(l) => l.name}
+            label={t("lists.title")}
+            frame={false}
+            data-marketing-lists
+            columns={[
+              {
+                id: "list",
+                header: t("lists.title"),
+                hideable: false,
+                sortValue: (l) => l.name,
+                className: "w-full max-w-0 truncate",
+                cell: (l) => (
+                  <Link
+                    href={`${base}/contacts`}
+                    className="text-foreground hover:underline hover:underline-offset-4"
+                    data-list={l.name}
+                  >
+                    <bdi>{l.name}</bdi>
+                  </Link>
+                ),
+              },
+              {
+                id: "subscribed",
+                header: t("lists.subscribed"),
+                align: "end",
+                sortValue: (l) => l.subscribed,
+                headerClassName: "whitespace-nowrap",
+                className: "tabular-nums",
+                cell: (l) => (
+                  <Link
+                    href={`${base}/contacts`}
+                    className="hover:underline hover:underline-offset-4"
+                    data-subscribed
+                  >
+                    {f.n(l.subscribed)}
+                  </Link>
+                ),
+              },
+              {
+                id: "pending",
+                header: t("lists.pending"),
+                align: "end",
+                sortValue: (l) => l.pending,
+                headerClassName: "whitespace-nowrap",
+                className: "tabular-nums text-muted-foreground",
+                cell: (l) => (
+                  <Link
+                    href={`${base}/contacts`}
+                    className="hover:underline hover:underline-offset-4"
+                    data-pending
+                  >
+                    {f.n(l.pending)}
+                  </Link>
+                ),
+              },
+            ]}
+          />
         )
       ) : null}
       <div
@@ -846,7 +899,10 @@ export function MarketingCard({
               className="flex-row items-center gap-2"
               data-draft={d.subject}
             >
-              <span className="bidi-block min-w-0 flex-1 truncate text-sm text-foreground" dir="auto">
+              <span
+                className="bidi-block min-w-0 flex-1 truncate text-sm text-foreground"
+                dir="auto"
+              >
                 {d.subject}
               </span>
               <span className="hidden shrink-0 truncate text-xs text-muted-foreground sm:inline">
@@ -948,8 +1004,8 @@ export function TrendsCard({
 const SETUP: Record<SetupKey, { path: string; perm: string; role: "admin" | "manager" }> = {
   inquiry_form: { path: "subscribe-forms", perm: "campaigns:write", role: "manager" },
   smtp: { path: "settings/email", perm: "mail:settings", role: "admin" },
-  chat_widget: { path: "inbox/widgets", perm: "inbox:manage", role: "manager" },
-  whatsapp: { path: "inbox/whatsapp", perm: "inbox:manage", role: "manager" },
+  chat_widget: { path: "settings/integrations?type=chat", perm: "inbox:manage", role: "manager" },
+  whatsapp: { path: "settings/integrations?type=whatsapp", perm: "inbox:manage", role: "manager" },
   google: { path: "settings/integrations", perm: "integrations:manage", role: "admin" },
   browser: { path: "automation", perm: "automation:manage", role: "admin" },
 }
@@ -989,7 +1045,10 @@ export function SetupCard({
         >
           {t("overview.setupProgress", { done: f.n(done), total: f.n(doable.length) })}
           <span className="h-1.5 w-20 overflow-hidden rounded-full bg-nq-surface-soft" aria-hidden>
-            <span className="block h-full rounded-full bg-nq-success" style={{ width: `${pct}%` }} />
+            <span
+              className="block h-full rounded-full bg-nq-success"
+              style={{ width: `${pct}%` }}
+            />
           </span>
         </span>
       }

@@ -91,7 +91,6 @@ export default function RunPage() {
   return (
     <>
       <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
         title={t("automation.run")}
         description={
           run

@@ -9,7 +9,20 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
-import { Badge, Button, Field, FieldDescription, FieldLabel, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Textarea, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  Textarea,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FormHint } from "@/components/form-layout"
 
 import { ConfirmButton } from "@/components/confirm-button"
@@ -73,8 +86,8 @@ export function ContactContextPanel({
   if (!canRead) return null
 
   return (
-    <section className="px-6 pb-6" data-contact-context-panel>
-      <div className="border border-nq-line bg-card">
+    <section data-contact-context-panel>
+      <div className="overflow-hidden rounded-xl border border-nq-line bg-card">
         <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-5 py-4">
           <h2 className="text-base font-medium">{t("contactContext.title")}</h2>
           {canWrite ? (
@@ -173,7 +186,9 @@ function ImportsList({
 
   return (
     <div data-contact-context-imports>
-      <h3 className="mb-2 text-sm font-medium text-muted-foreground">{t("contactContext.imports")}</h3>
+      <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+        {t("contactContext.imports")}
+      </h3>
       <ul className="flex flex-col gap-2">
         {imports.map((imp) => (
           <li
@@ -248,7 +263,9 @@ function AskPanel({ contactId }: { contactId: string }) {
 
   return (
     <div data-contact-context-ask>
-      <h3 className="mb-2 text-sm font-medium text-muted-foreground">{t("contactContext.askTitle")}</h3>
+      <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+        {t("contactContext.askTitle")}
+      </h3>
       <div className="flex flex-wrap items-end gap-3">
         <Field className="min-w-0 flex-1">
           <FieldLabel htmlFor="cc-question" className="sr-only">
@@ -395,7 +412,9 @@ function ReportsPanel({
   return (
     <div data-contact-context-reports>
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <h3 className="text-sm font-medium text-muted-foreground">{t("contactContext.reportsTitle")}</h3>
+        <h3 className="text-sm font-medium text-muted-foreground">
+          {t("contactContext.reportsTitle")}
+        </h3>
         {canWrite ? (
           <Button
             variant="secondary"
@@ -441,7 +460,9 @@ function ReportsPanel({
                     {t("contactContext.noProviderShort")}
                   </Badge>
                 ) : null}
-                <span className="ms-auto text-xs text-muted-foreground">{open === r.id ? "▲" : "▼"}</span>
+                <span className="ms-auto text-xs text-muted-foreground">
+                  {open === r.id ? "▲" : "▼"}
+                </span>
               </button>
               {open === r.id ? (
                 <div className="border-t border-nq-line px-3 py-3">
@@ -586,7 +607,10 @@ function WhatsAppImportSheet({
               <UploadIcon />
               {t("contactContext.chooseFile")}
             </Button>
-            <span className="min-w-0 truncate text-sm text-muted-foreground" data-whatsapp-file-name>
+            <span
+              className="min-w-0 truncate text-sm text-muted-foreground"
+              data-whatsapp-file-name
+            >
               {fileName ?? t("contactContext.noFile")}
             </span>
           </div>

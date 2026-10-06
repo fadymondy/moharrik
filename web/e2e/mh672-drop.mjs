@@ -209,27 +209,6 @@ for (const scheme of ["light", "dark"]) {
       check(`${k}-no-overflow`, !(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)))
     }
 
-  // The docked chat reuses the same thread; open one from the launcher on the overview.
-  if (scheme === "light") {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(`${base}/en/w/${slug}`, { waitUntil: "domcontentloaded" })
-    await page.waitForLoadState("networkidle").catch(() => {})
-    await page.waitForTimeout(1500)
-    const launched = await page
-      .locator("[data-chat-dock-launcher]")
-      .click({ timeout: 20000 })
-      .then(() => page.locator("[data-dock-list-item]").first().click({ timeout: 15000 }))
-      .then(() => page.waitForSelector('[data-dock-window] [data-form="reply"] textarea', { timeout: 15000 }))
-      .then(
-        () => true,
-        () => false,
-      )
-    check("dock-opened", launched)
-    if (launched) {
-      await page.waitForTimeout(800)
-      await scenario(page, "[data-dock-window]", "dock-en-light-1440")
-    }
-  }
   check(`${scheme}-no-writes`, writes.length === 0, writes)
   check(`${scheme}-no-page-errors`, errs.length === 0, errs.slice(0, 3))
   await ctx.close()

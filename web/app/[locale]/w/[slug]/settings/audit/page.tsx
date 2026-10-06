@@ -23,6 +23,7 @@ import { SectionHeader } from "@/components/public-frame"
 import { Ltr } from "@/components/copy-field"
 import { Bdi, isolate } from "@/components/bidi"
 import { DatePicker } from "@/components/date-picker"
+import { RowsTable } from "@/components/nq-table"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type AuditEntry } from "@/lib/api"
@@ -95,11 +96,7 @@ function AuditLog() {
 
   return (
     <>
-      <SectionHeader
-        micro={<Bdi>{ws.summary.name}</Bdi>}
-        title={t("audit.title")}
-        description={t("audit.hint")}
-      />
+      <SectionHeader title={t("audit.title")} description={t("audit.hint")} />
 
       {!ws.current ? (
         <LoadingRows rows={3} />
@@ -196,7 +193,7 @@ function AuditLog() {
           {page.error ? (
             <ErrorState error={page.error} />
           ) : !page.data ? (
-            <LoadingRows rows={6} />
+            <LoadingRows rows={6} layout="table" />
           ) : entries.length === 0 ? (
             <EmptyState
               title={filtered ? t("audit.noMatch") : t("audit.empty")}
@@ -299,7 +296,9 @@ function EntryRow({
           </button>
           <p className="mt-0.5 flex flex-wrap items-center gap-1.5">
             <Badge variant="outline">{t(`audit.kind.${e.actor_kind || "system"}`)}</Badge>
-            <span className="text-xs text-muted-foreground">{t(`audit.via.${e.via || "web"}`)}</span>
+            <span className="text-xs text-muted-foreground">
+              {t(`audit.via.${e.via || "web"}`)}
+            </span>
           </p>
         </div>
 
@@ -321,7 +320,10 @@ function EntryRow({
             ) : null}
           </p>
           {e.operation || e.entity_id ? (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={e.entity_id || undefined}>
+            <p
+              className="mt-0.5 truncate text-xs text-muted-foreground"
+              title={e.entity_id || undefined}
+            >
               {/* One LTR run, so the operation stays before the id in an RTL line. */}
               <Ltr mono>
                 {e.operation}
@@ -360,39 +362,42 @@ function EntryRow({
       </div>
 
       {open ? (
-        <div className="mt-3 overflow-x-auto border border-nq-line" data-audit-diff>
-          <table className="w-full text-xs">
-            <thead className="bg-card text-muted-foreground">
-              <tr>
-                <th className="px-3 py-1.5 text-start font-medium">{t("audit.field")}</th>
-                {e.action !== "create" ? (
-                  <th className="px-3 py-1.5 text-start font-medium">{t("audit.before")}</th>
-                ) : null}
-                {e.action !== "delete" ? (
-                  <th className="px-3 py-1.5 text-start font-medium">{t("audit.after")}</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-nq-line">
-              {fields.map(([field, v]) => (
-                <tr key={field} className="align-top">
-                  <td className="px-3 py-1.5">
-                    <Ltr mono>{field}</Ltr>
-                  </td>
-                  {e.action !== "create" ? (
-                    <td className="max-w-80 px-3 py-1.5">
-                      <Value v={v.before} />
-                    </td>
-                  ) : null}
-                  {e.action !== "delete" ? (
-                    <td className="max-w-80 px-3 py-1.5">
-                      <Value v={v.after} />
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-3" data-audit-diff>
+          <RowsTable<(typeof fields)[number]>
+            data={fields}
+            getRowId={([field]) => field}
+            rowLabel={([field]) => field}
+            label={t("audit.changes", { n: fields.length })}
+            columns={[
+              {
+                id: "field",
+                header: t("audit.field"),
+                hideable: false,
+                sortValue: ([field]) => field,
+                cell: ([field]) => <Ltr mono>{field}</Ltr>,
+              },
+              ...(e.action !== "create"
+                ? [
+                    {
+                      id: "before",
+                      header: t("audit.before"),
+                      className: "max-w-80 align-top",
+                      cell: ([, v]: (typeof fields)[number]) => <Value v={v.before} />,
+                    },
+                  ]
+                : []),
+              ...(e.action !== "delete"
+                ? [
+                    {
+                      id: "after",
+                      header: t("audit.after"),
+                      className: "max-w-80 align-top",
+                      cell: ([, v]: (typeof fields)[number]) => <Value v={v.after} />,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       ) : null}
     </li>
@@ -403,7 +408,8 @@ function Value({ v }: { v: unknown }) {
   const { t } = useTranslations()
   if (v === "[redacted]") return <Badge variant="neutral">{t("audit.redacted")}</Badge>
   if (v === "[hidden]") return <Badge variant="outline">{t("audit.hidden")}</Badge>
-  if (v === null || v === undefined || v === "") return <span className="text-muted-foreground">—</span>
+  if (v === null || v === undefined || v === "")
+    return <span className="text-muted-foreground">—</span>
   const s = typeof v === "string" ? v : JSON.stringify(v)
   return (
     <bdi dir="auto" className="block break-words whitespace-pre-wrap text-foreground">
@@ -447,7 +453,10 @@ function Retention({ days, onSaved }: { days?: number; onSaved: () => void }) {
       data-audit-retention
     >
       <div className="max-w-2xl space-y-1.5">
-        <h2 id="audit-retention" className="font-medium tracking-tight text-foreground flex items-center gap-2 text-lg">
+        <h2
+          id="audit-retention"
+          className="font-medium tracking-tight text-foreground flex items-center gap-2 text-lg"
+        >
           <HistoryIcon className="size-4 text-muted-foreground" />
           {t("audit.retentionTitle")}
         </h2>

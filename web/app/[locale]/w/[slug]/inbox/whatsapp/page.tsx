@@ -13,7 +13,7 @@ export default function WhatsAppRedirect() {
   const router = useRouter()
   const { locale, slug } = useParams<{ locale: string; slug: string }>()
   useEffect(() => {
-    router.replace(`/${locale}/w/${slug}/inbox/channels?type=whatsapp`)
+    router.replace(`/${locale}/w/${slug}/settings/integrations?type=whatsapp`)
   }, [router, locale, slug])
   return null
 }

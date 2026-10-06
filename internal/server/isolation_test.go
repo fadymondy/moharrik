@@ -8,7 +8,8 @@ throwaway database, gives two users a workspace each, fills workspace A with
 one row of every tenant table, then walks EVERY route on the router
 (chi.Walk — the same list `list_routes` shows) and asserts, per route:
 
-  1. anonymous            -> 401 (or the route is on the public allowlist)
+  1. anonymous            -> 401 (or the route is on the public allowlist;
+                             404 in the superadmin tier, as for a non-admin)
   2. bob + X-Workspace-ID=A -> 404 (not a member; existence not revealed)
   3. bob + X-Workspace-ID=B, A's ids in the path -> never 2xx with A's data,
      never A's marker in any body, and A's rows survive every write attempt
@@ -752,12 +753,23 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 		swept++
 		name := rt.method + " " + rt.pattern
 
-		// 1. anonymous
-		if code, b := anon.do(rt.method, path, body); code != http.StatusUnauthorized {
-			t.Errorf("%s anonymous: got %d, want 401: %s", name, code, b)
-		}
-
 		tier := classify(probe)
+
+		// 1. anonymous. The superadmin tier does not admit it exists (MH-1184).
+		wantAnon := http.StatusUnauthorized
+		if tier == tierAdmin {
+			wantAnon = http.StatusNotFound
+		}
+		if code, b := anon.do(rt.method, path, body); code != wantAnon {
+			t.Errorf("%s anonymous: got %d, want %d: %s", name, code, wantAnon, b)
+		}
+		if tier == tierAdmin {
+			// 2. a signed-in member who is not a platform admin
+			bob.ws = bID
+			if code, b := bob.do(rt.method, path, body); code != http.StatusNotFound {
+				t.Errorf("%s as a non-admin: got %d, want 404: %s", name, code, b)
+			}
+		}
 		if tier == tierWorkspace {
 			// 2. bob naming A
 			bob.ws = aID

@@ -99,6 +99,8 @@ var AdminScopes = []ScopeDef{
 	{"admin:workspaces:read", "List and inspect workspaces", authz.None},
 	{"admin:workspaces:write", "Rename workspaces, change plans, add/remove members and roles", authz.None},
 	{"admin:users:read", "List and inspect users", authz.None},
+	{"admin:users:write", "Suspend and reactivate accounts, end their sessions, grant and revoke platform admin", authz.None},
+	{"admin:platform:read", "Read platform analytics, the admin audit log and the permission matrix", authz.None},
 }
 
 func userScope(name string) (ScopeDef, bool) {

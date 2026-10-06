@@ -53,7 +53,9 @@ const third = await freshContact("Mona Adel", true)
 out.contacts = { optedIn: optedIn?.name, notOptedIn: notOptedIn?.name }
 
 // ---- no opt-in: the button is disabled and says why ----
-await page.goto(`${base}/en/w/${slug}/contacts/${notOptedIn.id}`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/contacts/${notOptedIn.id}/profile`, {
+  waitUntil: "domcontentloaded",
+})
 await page.waitForSelector("[data-contact-whatsapp]:not([data-contact-whatsapp=loading])", {
   timeout: 60000,
 })
@@ -65,7 +67,9 @@ out.notOptedIn = {
 
 // ---- opted in: write, confirm (new thread), sent, and it is in the inbox ----
 await stub("/__ctl/reset", {})
-await page.goto(`${base}/en/w/${slug}/contacts/${optedIn.id}`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/contacts/${optedIn.id}/profile`, {
+  waitUntil: "domcontentloaded",
+})
 await page.waitForSelector("[data-contact-whatsapp=ready]", { timeout: 60000 })
 const text = `Following up on our call about the green-coffee order. ${Date.now().toString(36)}`
 await page.click("[data-message-whatsapp]")
@@ -92,7 +96,9 @@ await page.screenshot({
 })
 
 // A second message continues the thread: no confirm step.
-await page.goto(`${base}/en/w/${slug}/contacts/${optedIn.id}`, { waitUntil: "domcontentloaded" })
+await page.goto(`${base}/en/w/${slug}/contacts/${optedIn.id}/profile`, {
+  waitUntil: "domcontentloaded",
+})
 await page.waitForSelector("[data-contact-whatsapp=ready]", { timeout: 60000 })
 await page.click("[data-message-whatsapp]")
 await page.fill("#wa-text", "The samples ship tomorrow.")
@@ -116,7 +122,7 @@ shots.push(
     base,
     card: "MH-410",
     name: "contact-ready",
-    url: `/w/${slug}/contacts/${optedIn.id}`,
+    url: `/w/${slug}/contacts/${optedIn.id}/profile`,
     ready: "[data-contact-whatsapp=ready]",
     prepare: async (p) => {
       await p
@@ -131,7 +137,7 @@ shots.push(
     base,
     card: "MH-410",
     name: "contact-no-optin",
-    url: `/w/${slug}/contacts/${notOptedIn.id}`,
+    url: `/w/${slug}/contacts/${notOptedIn.id}/profile`,
     ready: "[data-whatsapp-disabled-reason]",
   })),
 )
@@ -140,7 +146,7 @@ shots.push(
     base,
     card: "MH-410",
     name: "confirm",
-    url: `/w/${slug}/contacts/${third.id}`,
+    url: `/w/${slug}/contacts/${third.id}/profile`,
     ready: "[data-contact-whatsapp=ready]",
     fullPage: false,
     prepare: async (p, { locale }) => {
