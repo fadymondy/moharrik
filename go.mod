@@ -23,7 +23,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sqlc-dev/pqtype v0.3.0
-	github.com/togo-framework/auth v0.8.0
+	github.com/togo-framework/auth v0.8.2
 	github.com/togo-framework/auth-oauth v0.2.1-0.20260923005224-2113e0d8757c
 	github.com/togo-framework/cache v0.3.0
 	github.com/togo-framework/db-postgres v0.1.0
