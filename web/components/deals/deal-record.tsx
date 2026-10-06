@@ -4,7 +4,7 @@
 // tile, title, stage and actions, key facts, and tabs. The layout loads the deal and the pipeline
 // once; every tab reads them from here.
 import Link from "next/link"
-import { useParams, usePathname } from "next/navigation"
+import { useParams, usePathname, useRouter } from "next/navigation"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import {
   ActivityIcon,
@@ -88,6 +88,7 @@ export function DealRecord({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { t, locale, formatDate } = useTranslations()
   const ws = useWorkspace()
+  const router = useRouter()
   const canWrite = ws.can("contacts:write")
   const detail = useDeal(ws.id, id)
   const pipeline = useDeals(ws.id)
@@ -211,7 +212,7 @@ export function DealRecord({ children }: { children: ReactNode }) {
                       method: "DELETE",
                       workspaceId: ws.id,
                     })
-                    window.location.href = `${base}/deals`
+                    router.push(`${base}/deals`)
                   }}
                 />
               </>
