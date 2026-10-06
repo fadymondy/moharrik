@@ -10,12 +10,18 @@ import { dirForLocale, isLocale, type Locale } from "@/lib/i18n-locale"
 // next/font self-hosts it at build time, so no request reaches Google at runtime. Arabic uses Nasaq's Arabic stack (Lusail); the English/Arabic switch is --nq-font-sans / [lang|=ar] in globals.css.
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" })
 
-export const metadata: Metadata = {
-  title: "Moharrik",
-  description:
-    "The AI engine behind a business: automation, inbox, campaigns, CRM and research — all over MCP.",
-  // MH-1256: the console is not for search engines; moharrik.com is the page to rank.
-  robots: { index: false, follow: false },
+// The name and description in the page's language, as on moharrik.com (MH-1260).
+export async function generateMetadata(): Promise<Metadata> {
+  const raw = (await headers()).get("x-locale")
+  const ar = (isLocale(raw) ? raw : "en") === "ar"
+  return {
+    title: ar ? "محرّك" : "Moharrik",
+    description: ar
+      ? "محرّك الذكاء الاصطناعي خلف نشاطك: أتمتة، وبريد وارد، وحملات، وإدارة عملاء، وبحث — وكلها عبر MCP."
+      : "The AI engine behind a business: automation, inbox, campaigns, CRM and research — all over MCP.",
+    // MH-1256: the console is not for search engines; moharrik.com is the page to rank.
+    robots: { index: false, follow: false },
+  }
 }
 
 // Hosbah real-user monitoring: page loads, Web Vitals and browser errors, per route. The key is
