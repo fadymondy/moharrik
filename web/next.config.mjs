@@ -1,6 +1,19 @@
 /** @type {import('next').NextConfig} */
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8120"
 
+// Security headers on every response (MH-1253): pin HTTPS, no MIME sniffing, no full-URL referrers,
+// and the app can only be framed by itself (clickjacking). Nothing embeds these pages cross-origin.
+const SECURITY_HEADERS = {
+  source: "/:path*",
+  headers: [
+    { key: "Strict-Transport-Security", value: "max-age=31536000" },
+    { key: "X-Content-Type-Options", value: "nosniff" },
+    { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    { key: "X-Frame-Options", value: "SAMEORIGIN" },
+    { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+  ],
+}
+
 const nextConfig = {
   // One self-contained server for the production image (see the root Dockerfile).
   output: "standalone",
@@ -30,10 +43,12 @@ const nextConfig = {
     ]
   },
 
-  // Dev only: never let a browser keep a stale page or chunk (dev chunk names are stable).
+  // Security headers everywhere; dev also never lets a browser keep a stale page or chunk (dev chunk
+  // names are stable).
   async headers() {
-    if (process.env.NODE_ENV !== "development") return []
+    if (process.env.NODE_ENV !== "development") return [SECURITY_HEADERS]
     return [
+      SECURITY_HEADERS,
       {
         source: "/:path((?!api|graphql).*)",
         headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
