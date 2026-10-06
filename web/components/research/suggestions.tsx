@@ -180,9 +180,7 @@ function SuggestionRow({ s, onDone }: { s: CompanySuggestion; onDone: () => void
                 action: {
                   label: t("research.openCompany"),
                   onClick: () =>
-                    router.push(
-                      `/${locale}/w/${ws.slug}/companies/${encodeURIComponent(id)}`,
-                    ),
+                    router.push(`/${locale}/w/${ws.slug}/companies/${encodeURIComponent(id)}`),
                 },
               },
             )
