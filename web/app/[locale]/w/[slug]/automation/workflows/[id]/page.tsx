@@ -37,7 +37,20 @@ import {
   SaveIcon,
   SquareIcon,
 } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Badge, Button, Input, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  Input,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { validParamName } from "@/components/automation/params-editor"
 import { ExecutionIcon, ExecutionsView } from "@/components/automation/canvas/executions-view"
@@ -490,7 +503,10 @@ function Editor({
   // steps on the canvas are the ones the record was counted for.
   const cardStats = useMemo(
     () =>
-      !preview && workflow && overview.data?.version === workflow.version && snapshot(draft) === snapshot(initial)
+      !preview &&
+      workflow &&
+      overview.data?.version === workflow.version &&
+      snapshot(draft) === snapshot(initial)
         ? Object.fromEntries(overview.data.steps.map((x) => [x.position, x]))
         : undefined,
     [preview, workflow, overview.data, draft, initial],
@@ -759,7 +775,9 @@ function Editor({
                       total: done.step_count,
                     })}
                     {!current ? (
-                      <span className="text-muted-foreground">· {t("automation.editor.testStale")}</span>
+                      <span className="text-muted-foreground">
+                        · {t("automation.editor.testStale")}
+                      </span>
                     ) : null}
                     {workflow ? (
                       <button

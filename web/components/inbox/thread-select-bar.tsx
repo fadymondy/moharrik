@@ -2,7 +2,18 @@
 
 import { useState } from "react"
 import { CopyIcon, StarIcon, StarOffIcon, Trash2Icon, XIcon } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Button, toast } from "@fadymondy/nasaq/web"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { ApiError, type InboxMessage } from "@/lib/api"
@@ -87,7 +98,13 @@ export function ThreadSelectBar({
         className="flex items-center gap-2 border-b border-nq-line bg-nq-surface-overlay px-6 py-2"
         data-thread-select-bar
       >
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={t("inbox.select.cancel")} onClick={onExit}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("inbox.select.cancel")}
+          onClick={onExit}
+        >
           <XIcon />
         </Button>
         <span className="text-sm" data-select-count>
@@ -133,7 +150,9 @@ export function ThreadSelectBar({
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent data-confirm-dialog="select-delete">
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("inbox.select.deleteTitle", { n: selectedIds.size })}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("inbox.select.deleteTitle", { n: selectedIds.size })}
+            </AlertDialogTitle>
             <AlertDialogDescription>{t("inbox.select.deleteBody")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

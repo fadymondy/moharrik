@@ -111,7 +111,10 @@ export default function LeadsPage() {
       header: t("leads.message"),
       className: "min-w-64 max-w-md",
       cell: (l) => (
-        <span className="line-clamp-2 text-sm whitespace-normal break-words text-nq-fg-body" dir="auto">
+        <span
+          className="line-clamp-2 text-sm whitespace-normal break-words text-nq-fg-body"
+          dir="auto"
+        >
           {l.message}
         </span>
       ),

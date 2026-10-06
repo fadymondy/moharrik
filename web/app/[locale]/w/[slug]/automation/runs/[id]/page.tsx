@@ -149,7 +149,9 @@ export default function RunPage() {
             <span className="text-muted-foreground">
               {t("automation.stepsDone", { ok: run.ok_count, total: run.step_count })}
             </span>
-            <span className="text-muted-foreground">· {t(`automation.trigger.${run.trigger}`)}</span>
+            <span className="text-muted-foreground">
+              · {t(`automation.trigger.${run.trigger}`)}
+            </span>
             {run.workflow_id ? (
               <span className="text-muted-foreground" data-run-workflow>
                 ·{" "}
@@ -196,12 +198,16 @@ export default function RunPage() {
                     })}
                   </span>
                 ) : (
-                  <span>{nothingRan ? t("wfo.run.failed.before") : t("automation.status.failed")}</span>
+                  <span>
+                    {nothingRan ? t("wfo.run.failed.before") : t("automation.status.failed")}
+                  </span>
                 )}
               </p>
               {failedStep?.error || run.error ? (
                 <div className="mt-2">
-                  <p className="text-xs font-medium text-muted-foreground">{t("wfo.run.failed.why")}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {t("wfo.run.failed.why")}
+                  </p>
                   <p className="break-words text-foreground" dir="auto">
                     <Bdi>{failedStep?.error || run.error}</Bdi>
                   </p>
@@ -209,7 +215,9 @@ export default function RunPage() {
               ) : null}
               {failedStep ? (
                 <div className="mt-2">
-                  <p className="text-xs font-medium text-muted-foreground">{t("wfo.run.failed.input")}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {t("wfo.run.failed.input")}
+                  </p>
                   {hasArgs(failedStep.args) ? (
                     <pre
                       dir="ltr"
@@ -297,7 +305,8 @@ function StepShot({
       if (url) URL.revokeObjectURL(url)
     }
   }, [runId, position, workspaceId])
-  if (failed) return <p className="mt-2 text-xs text-muted-foreground">{t("automation.shotGone")}</p>
+  if (failed)
+    return <p className="mt-2 text-xs text-muted-foreground">{t("automation.shotGone")}</p>
   if (!src) return null
   return (
     <a
@@ -371,10 +380,7 @@ function StepRow({
         // Shown exactly as the browser sent it. Pretty-printing it here would
         // be a second representation of the thing whose whole point is that it
         // is byte-for-byte what came back.
-        <pre
-          dir="ltr"
-          className="mt-2 max-h-64 overflow-auto bg-card px-3 py-2 font-mono text-xs"
-        >
+        <pre dir="ltr" className="mt-2 max-h-64 overflow-auto bg-card px-3 py-2 font-mono text-xs">
           {step.result}
         </pre>
       ) : step.summary ? (

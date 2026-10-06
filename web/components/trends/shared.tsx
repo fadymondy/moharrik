@@ -10,7 +10,14 @@ import {
   ExternalLinkIcon,
   RotateCcwIcon,
 } from "lucide-react"
-import { Badge, Button, toast, TooltipRoot, TooltipContent, TooltipTrigger } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  toast,
+  TooltipRoot,
+  TooltipContent,
+  TooltipTrigger,
+} from "@fadymondy/nasaq/web"
 
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -95,11 +102,7 @@ export function ReasonChips({ reasons }: { reasons: TrendReason[] }) {
               render={
                 <Badge
                   variant={
-                    r.kind === "relevance"
-                      ? "brand"
-                      : r.kind === "velocity"
-                        ? "neutral"
-                        : "outline"
+                    r.kind === "relevance" ? "brand" : r.kind === "velocity" ? "neutral" : "outline"
                   }
                   className="h-auto max-w-full whitespace-normal py-0.5 text-start"
                   data-reason={r.kind}

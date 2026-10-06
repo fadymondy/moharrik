@@ -83,7 +83,8 @@ export function ScoreReasons({
   const { t } = useTranslations()
   const signed = useSigned()
   const sorted = [...reasons].sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
-  if (sorted.length === 0) return <p className="text-sm text-muted-foreground">{t("icp.noReasons")}</p>
+  if (sorted.length === 0)
+    return <p className="text-sm text-muted-foreground">{t("icp.noReasons")}</p>
   return (
     <ul className={cn("divide-y divide-nq-line", className)} data-score-reasons>
       {sorted.map((r) => (
@@ -102,7 +103,9 @@ export function ScoreReasons({
             {r.value > 0 ? <CheckIcon /> : <MinusIcon />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block font-medium text-foreground">{dimensionLabel(r.dimension, t)}</span>
+            <span className="block font-medium text-foreground">
+              {dimensionLabel(r.dimension, t)}
+            </span>
             <span className="block text-muted-foreground">
               <Bdi>{reasonLine(r, t)}</Bdi>
             </span>

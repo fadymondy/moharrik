@@ -94,7 +94,13 @@ export function ResearchFlagship({ base }: { base: string }) {
           <Flow runs={o.runs} base={base} canDescribe={canDescribe} />
           <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
             <Waiting threshold={o.thresholds.high_fit_score} base={base} onChanged={refresh} />
-            <Runs runs={o.runs} base={base} schedules={o.schedules} onChanged={refresh} canDescribe={canDescribe} />
+            <Runs
+              runs={o.runs}
+              base={base}
+              schedules={o.schedules}
+              onChanged={refresh}
+              canDescribe={canDescribe}
+            />
           </div>
           {caps.data ? <CapabilityNotes caps={caps.data} /> : null}
         </>
@@ -169,19 +175,46 @@ function Describe({ onStarted }: { onStarted: () => void }) {
 function Funnel({ counts, threshold }: { counts: FlowCounts; threshold: number }) {
   const { t } = useTranslations()
   const f = useFormat()
-  const steps: { key: "found" | "evidence" | "prospects" | "high_fit"; icon: ReactNode; tone: string; soft: string }[] = [
+  const steps: {
+    key: "found" | "evidence" | "prospects" | "high_fit"
+    icon: ReactNode
+    tone: string
+    soft: string
+  }[] = [
     { key: "found", icon: <BuildingIcon />, tone: "text-nq-info-text", soft: "bg-nq-info-soft" },
     { key: "evidence", icon: <FileTextIcon />, tone: "text-nq-info-text", soft: "bg-nq-info-soft" },
-    { key: "prospects", icon: <SearchCheckIcon />, tone: "text-nq-tag-violet", soft: "bg-nq-tag-violet-soft" },
-    { key: "high_fit", icon: <SparklesIcon />, tone: "text-nq-tag-violet", soft: "bg-nq-tag-violet-soft" },
+    {
+      key: "prospects",
+      icon: <SearchCheckIcon />,
+      tone: "text-nq-tag-violet",
+      soft: "bg-nq-tag-violet-soft",
+    },
+    {
+      key: "high_fit",
+      icon: <SparklesIcon />,
+      tone: "text-nq-tag-violet",
+      soft: "bg-nq-tag-violet-soft",
+    },
   ]
   return (
     <section aria-label={t("rflag.funnel")} data-flagship-funnel>
       <ol className="grid grid-cols-2 gap-px border border-nq-line bg-nq-line lg:grid-cols-4">
         {steps.map((s) => (
-          <li key={s.key} className="min-w-0 bg-card px-5 py-4" data-funnel={s.key} data-value={counts[s.key]}>
+          <li
+            key={s.key}
+            className="min-w-0 bg-card px-5 py-4"
+            data-funnel={s.key}
+            data-value={counts[s.key]}
+          >
             <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md [&>svg]:size-3.5", s.soft, s.tone)} aria-hidden>
+              <span
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-md [&>svg]:size-3.5",
+                  s.soft,
+                  s.tone,
+                )}
+                aria-hidden
+              >
                 {s.icon}
               </span>
               <span className="min-w-0 break-words">{t(`rflag.funnel.${s.key}`)}</span>
@@ -189,7 +222,10 @@ function Funnel({ counts, threshold }: { counts: FlowCounts; threshold: number }
             <p className="mt-2 text-2xl font-semibold tabular-nums">{f.n(counts[s.key])}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {s.key === "high_fit"
-                ? t("rflag.funnelSub.high_fit", { score: f.n(threshold), accepted: f.n(counts.accepted) })
+                ? t("rflag.funnelSub.high_fit", {
+                    score: f.n(threshold),
+                    accepted: f.n(counts.accepted),
+                  })
                 : t(`rflag.funnelSub.${s.key}`)}
             </p>
           </li>
@@ -208,7 +244,15 @@ function stageSeconds(s: ResearchStage): number | null {
   return Number.isFinite(d) && d >= 0 ? d : null
 }
 
-function Flow({ runs, base, canDescribe }: { runs: FlowRun[]; base: string; canDescribe: boolean }) {
+function Flow({
+  runs,
+  base,
+  canDescribe,
+}: {
+  runs: FlowRun[]
+  base: string
+  canDescribe: boolean
+}) {
   const { t } = useTranslations()
   const f = useFormat()
   const run = runs.find((r) => isLive(r.status)) ?? runs[0]
@@ -221,7 +265,10 @@ function Flow({ runs, base, canDescribe }: { runs: FlowRun[]; base: string; canD
       meta={run ? <ResearchStatusBadge status={run.status} /> : undefined}
     >
       {!run ? (
-        <Empty title={t("rflag.noRuns")} body={t(canDescribe ? "rflag.noRunsBody" : "rflag.noRunsBodyPast")} />
+        <Empty
+          title={t("rflag.noRuns")}
+          body={t(canDescribe ? "rflag.noRunsBody" : "rflag.noRunsBodyPast")}
+        />
       ) : (
         <div className="space-y-3 px-5 py-4" data-flow-run={run.id} data-flow-status={run.status}>
           <p className="text-sm font-medium break-words" dir="auto">
@@ -245,14 +292,23 @@ function Flow({ runs, base, canDescribe }: { runs: FlowRun[]; base: string; canD
                     data-stage={s.stage}
                     data-stage-status={s.status}
                   >
-                    <p className={cn("flex items-center gap-1.5 text-sm font-medium [&>svg]:size-4 [&>svg]:shrink-0", STAGE_TONE[s.status])}>
+                    <p
+                      className={cn(
+                        "flex items-center gap-1.5 text-sm font-medium [&>svg]:size-4 [&>svg]:shrink-0",
+                        STAGE_TONE[s.status],
+                      )}
+                    >
                       {STAGE_ICON[s.status]}
                       <span className="min-w-0 break-words">{t(`research.stage.${s.stage}`)}</span>
-                      {s.status === "done" ? <span className="ms-auto tabular-nums">{f.n(s.count)}</span> : null}
+                      {s.status === "done" ? (
+                        <span className="ms-auto tabular-nums">{f.n(s.count)}</span>
+                      ) : null}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {t(`research.stageStatus.${s.status}`)}
-                      {secs !== null ? ` · ${t("rflag.seconds", { n: f.n(Math.round(secs)) })}` : ""}
+                      {secs !== null
+                        ? ` · ${t("rflag.seconds", { n: f.n(Math.round(secs)) })}`
+                        : ""}
                     </p>
                     {s.note ? (
                       <p className="mt-1 text-xs break-words text-muted-foreground" dir="auto">
@@ -279,21 +335,41 @@ function RunCounts({ run }: { run: FlowRun }) {
   return (
     <div data-run-counts={run.id}>
       <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm tabular-nums">
-        <span data-count="found" data-value={c.found}>{t("rflag.run.found", { n: f.n(c.found) })}</span>
-        <span data-count="evidence" data-value={c.evidence}>{t("rflag.run.evidence", { n: f.n(c.evidence) })}</span>
-        <span data-count="prospects" data-value={c.prospects}>{t("rflag.run.prospects", { n: f.n(c.prospects) })}</span>
-        <span data-count="high_fit" data-value={c.high_fit} className={c.high_fit > 0 ? "text-nq-tag-violet" : undefined}>
+        <span data-count="found" data-value={c.found}>
+          {t("rflag.run.found", { n: f.n(c.found) })}
+        </span>
+        <span data-count="evidence" data-value={c.evidence}>
+          {t("rflag.run.evidence", { n: f.n(c.evidence) })}
+        </span>
+        <span data-count="prospects" data-value={c.prospects}>
+          {t("rflag.run.prospects", { n: f.n(c.prospects) })}
+        </span>
+        <span
+          data-count="high_fit"
+          data-value={c.high_fit}
+          className={c.high_fit > 0 ? "text-nq-tag-violet" : undefined}
+        >
           {t("rflag.run.highFit", { n: f.n(c.high_fit) })}
         </span>
       </p>
-      {run.origin !== "discovery" ? <p className="mt-1 text-xs text-muted-foreground">{t("rflag.notScored")}</p> : null}
+      {run.origin !== "discovery" ? (
+        <p className="mt-1 text-xs text-muted-foreground">{t("rflag.notScored")}</p>
+      ) : null}
     </div>
   )
 }
 
 // ── prospects waiting ────────────────────────────────────────────────────
 
-function Waiting({ threshold, base, onChanged }: { threshold: number; base: string; onChanged: () => void }) {
+function Waiting({
+  threshold,
+  base,
+  onChanged,
+}: {
+  threshold: number
+  base: string
+  onChanged: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const f = useFormat()
@@ -318,7 +394,13 @@ function Waiting({ threshold, base, onChanged }: { threshold: number; base: stri
       ) : (
         <ul className="divide-y divide-nq-line" data-waiting-list>
           {items.map((p) => (
-            <WaitingRow key={p.id} p={p} base={base} threshold={threshold} onAccept={() => setAccepting(p)} />
+            <WaitingRow
+              key={p.id}
+              p={p}
+              base={base}
+              threshold={threshold}
+              onAccept={() => setAccepting(p)}
+            />
           ))}
         </ul>
       )}
@@ -341,7 +423,17 @@ function Waiting({ threshold, base, onChanged }: { threshold: number; base: stri
   )
 }
 
-function WaitingRow({ p, base, threshold, onAccept }: { p: Prospect; base: string; threshold: number; onAccept: () => void }) {
+function WaitingRow({
+  p,
+  base,
+  threshold,
+  onAccept,
+}: {
+  p: Prospect
+  base: string
+  threshold: number
+  onAccept: () => void
+}) {
   const { t } = useTranslations()
   const ws = useWorkspace()
   const [busy, setBusy] = useState<"" | "en" | "ar">("")
@@ -351,7 +443,10 @@ function WaitingRow({ p, base, threshold, onAccept }: { p: Prospect; base: strin
   async function draft(locale: "en" | "ar") {
     setBusy(locale)
     try {
-      await api(`/api/w/prospects/${encodeURIComponent(p.id)}/draft`, { json: { locale }, workspaceId: ws.id })
+      await api(`/api/w/prospects/${encodeURIComponent(p.id)}/draft`, {
+        json: { locale },
+        workspaceId: ws.id,
+      })
       setMade(true)
       toast.success(t("rflag.draftMade"))
     } catch (e) {
@@ -365,10 +460,16 @@ function WaitingRow({ p, base, threshold, onAccept }: { p: Prospect; base: strin
     <li className="space-y-2 px-5 py-3" data-prospect={p.id} data-prospect-score={p.score}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <Link href={`${base}/prospects/${p.id}`} className="block text-sm font-medium break-words hover:underline" dir="auto">
+          <Link
+            href={`${base}/prospects/${p.id}`}
+            className="block text-sm font-medium break-words hover:underline"
+            dir="auto"
+          >
             <Bdi>{p.name}</Bdi>
           </Link>
-          {p.domain ? <p className="text-xs break-words text-muted-foreground">{isolate(p.domain)}</p> : null}
+          {p.domain ? (
+            <p className="text-xs break-words text-muted-foreground">{isolate(p.domain)}</p>
+          ) : null}
         </div>
         <ScoreBadge score={p.score} />
         {p.score >= threshold ? <Badge variant="brand">{t("rflag.highFit")}</Badge> : null}
@@ -381,13 +482,25 @@ function WaitingRow({ p, base, threshold, onAccept }: { p: Prospect; base: strin
             {t("rflag.accept")}
           </Button>
           {(["en", "ar"] as const).map((l) => (
-            <Button key={l} size="sm" variant="secondary" disabled={!!busy} onClick={() => draft(l)} data-action={`draft-${l}`}>
+            <Button
+              key={l}
+              size="sm"
+              variant="secondary"
+              disabled={!!busy}
+              onClick={() => draft(l)}
+              data-action={`draft-${l}`}
+            >
               {busy === l ? <LoaderCircleIcon className="animate-spin" /> : <LanguagesIcon />}
               {l === "en" ? t("prospects.draftEn") : t("prospects.draftAr")}
             </Button>
           ))}
           {made ? (
-            <Button size="sm" variant="ghost" nativeButton={false} render={<Link href={`${base}/prospects/${p.id}`} />}>
+            <Button
+              size="sm"
+              variant="ghost"
+              nativeButton={false}
+              render={<Link href={`${base}/prospects/${p.id}`} />}
+            >
               {t("rflag.openDraft")}
               <ArrowRightIcon className="rtl:-scale-x-100" />
             </Button>
@@ -416,19 +529,35 @@ function Runs({
   const { t } = useTranslations()
   const f = useFormat()
   return (
-    <Panel id="research-recent" title={t("rflag.recent")} icon={<CircleDashedIcon />} href={`${base}/research/runs`}>
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-nq-line px-5 py-2 text-xs text-muted-foreground" data-schedules-line>
+    <Panel
+      id="research-recent"
+      title={t("rflag.recent")}
+      icon={<CircleDashedIcon />}
+      href={`${base}/research/runs`}
+    >
+      <p
+        className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-nq-line px-5 py-2 text-xs text-muted-foreground"
+        data-schedules-line
+      >
         <CalendarClockIcon className="size-3.5" aria-hidden />
         {schedules.total === 0
           ? t("rflag.schedules.none")
-          : t("rflag.schedules.some", { enabled: f.n(schedules.enabled), total: f.n(schedules.total) })}
-        {schedules.next_run_at ? <span>{t("rflag.schedules.next", { when: f.ago(schedules.next_run_at) })}</span> : null}
+          : t("rflag.schedules.some", {
+              enabled: f.n(schedules.enabled),
+              total: f.n(schedules.total),
+            })}
+        {schedules.next_run_at ? (
+          <span>{t("rflag.schedules.next", { when: f.ago(schedules.next_run_at) })}</span>
+        ) : null}
         <Link href={`${base}/research/schedules`} className="ms-auto hover:underline">
           {t("research.tabSchedules")}
         </Link>
       </p>
       {runs.length === 0 ? (
-        <Empty title={t("rflag.noRuns")} body={t(canDescribe ? "rflag.noRunsBody" : "rflag.noRunsBodyPast")} />
+        <Empty
+          title={t("rflag.noRuns")}
+          body={t(canDescribe ? "rflag.noRunsBody" : "rflag.noRunsBodyPast")}
+        />
       ) : (
         <ul className="divide-y divide-nq-line" data-recent-runs>
           {runs.slice(0, 6).map((r) => (
@@ -465,22 +594,39 @@ function RunRow({ run, base, onChanged }: { run: FlowRun; base: string; onChange
   }
 
   return (
-    <li className="space-y-1.5 px-5 py-3" data-run={run.id} data-run-status={run.status} data-run-origin={run.origin}>
+    <li
+      className="space-y-1.5 px-5 py-3"
+      data-run={run.id}
+      data-run-status={run.status}
+      data-run-origin={run.origin}
+    >
       <div className="flex items-start gap-2">
-        <Link href={`${base}/research/${run.id}`} className="min-w-0 flex-1 text-sm font-medium break-words hover:underline" dir="auto">
+        <Link
+          href={`${base}/research/${run.id}`}
+          className="min-w-0 flex-1 text-sm font-medium break-words hover:underline"
+          dir="auto"
+        >
           <Bdi>{run.topic}</Bdi>
         </Link>
         <ResearchStatusBadge status={run.status} />
       </div>
       <p className="text-xs text-muted-foreground">
-        {t(`rflag.origin.${run.origin}`)} · <span title={f.exact(run.created_at)}>{f.ago(run.created_at)}</span>
+        {t(`rflag.origin.${run.origin}`)} ·{" "}
+        <span title={f.exact(run.created_at)}>{f.ago(run.created_at)}</span>
       </p>
       <RunCounts run={run} />
       {canSchedule ? (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <span className="text-xs text-muted-foreground">{t("rflag.scheduleThis")}</span>
           {(["daily", "weekly"] as const).map((c) => (
-            <Button key={c} size="sm" variant="secondary" disabled={busy} onClick={() => schedule(c)} data-action={`schedule-${c}`}>
+            <Button
+              key={c}
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => schedule(c)}
+              data-action={`schedule-${c}`}
+            >
               <CalendarClockIcon />
               {t(`research.cadence.${c}`)}
             </Button>

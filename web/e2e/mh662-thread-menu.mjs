@@ -16,7 +16,8 @@ import { execFileSync } from "node:child_process"
 const base = process.argv[2] ?? "http://localhost:3146"
 const shots = process.argv[3]
 const dbUrl = process.argv[4] ?? process.env.DATABASE_URL
-if (/moharrik\.com/.test(base)) throw new Error("mh662-thread-menu writes: run it against a local server")
+if (/moharrik\.com/.test(base))
+  throw new Error("mh662-thread-menu writes: run it against a local server")
 if (!dbUrl) throw new Error("need a database URL: pass it as the 3rd argument or set DATABASE_URL")
 
 const out = {},
@@ -27,7 +28,10 @@ const check = (k, ok, d) => {
 }
 
 function sql(query, params = []) {
-  const escaped = params.reduce((q, p, i) => q.replaceAll(`$${i + 1}`, `'${String(p).replace(/'/g, "''")}'`), query)
+  const escaped = params.reduce(
+    (q, p, i) => q.replaceAll(`$${i + 1}`, `'${String(p).replace(/'/g, "''")}'`),
+    query,
+  )
   const res = execFileSync("psql", [dbUrl, "-t", "-A", "-c", escaped], { encoding: "utf8" }).trim()
   return res.split(/\r?\n/).find((l) => l.trim() !== "") ?? ""
 }
@@ -98,12 +102,12 @@ void m5
 
 // ---- open the thread ----
 await page.goto(`${base}/en/w/${slug}/inbox?c=${convID}`, { waitUntil: "domcontentloaded" })
-await page.waitForSelector('[data-thread-menu-trigger]', { timeout: 15000 })
+await page.waitForSelector("[data-thread-menu-trigger]", { timeout: 15000 })
 
 // ---- thread ⋮ menu opens with WhatsApp's actions ----
-await page.click('[data-thread-menu-trigger]')
-await page.waitForSelector('[data-thread-menu]', { timeout: 10000 })
-const menuText = await page.locator('[data-thread-menu]').innerText()
+await page.click("[data-thread-menu-trigger]")
+await page.waitForSelector("[data-thread-menu]", { timeout: 10000 })
+const menuText = await page.locator("[data-thread-menu]").innerText()
 for (const action of [
   "contact-info",
   "search",
@@ -117,13 +121,16 @@ for (const action of [
   "clear",
   "delete",
 ]) {
-  check(`menu-has-${action}`, (await page.locator(`[data-thread-menu] [data-action="${action}"]`).count()) > 0)
+  check(
+    `menu-has-${action}`,
+    (await page.locator(`[data-thread-menu] [data-action="${action}"]`).count()) > 0,
+  )
 }
 void menuText
 
 // ---- Contact info panel: opens, shows gallery counts, notes field ----
 await page.click('[data-thread-menu] [data-action="contact-info"]')
-await page.waitForSelector('[data-contact-info-panel]', { timeout: 10000 })
+await page.waitForSelector("[data-contact-info-panel]", { timeout: 10000 })
 check("panel-has-media-tab", (await page.locator('[data-tab="media"]').count()) > 0)
 await page.waitForTimeout(800) // let the gallery SWR call resolve
 const mediaCount = await page.locator('[data-tab="media"]').innerText()
@@ -133,51 +140,58 @@ await page.waitForTimeout(300)
 check("panel-docs-listed", (await page.locator('[data-gallery-item="doc"]').count()) > 0)
 await page.click('[data-tab="links"]')
 await page.waitForTimeout(300)
-const linksText = await page.locator('[data-gallery-item="link"]').first().innerText().catch(() => "")
+const linksText = await page
+  .locator('[data-gallery-item="link"]')
+  .first()
+  .innerText()
+  .catch(() => "")
 check("panel-link-extracted", linksText.includes("example.com"), linksText)
 // close the sheet
 await page.keyboard.press("Escape")
 await page.waitForTimeout(300)
 
 // ---- in-chat search: find, count, jump ----
-await page.click('[data-thread-search-trigger]')
-await page.waitForSelector('[data-thread-search]', { timeout: 10000 })
-await page.fill('[data-search-input]', "pricing")
+await page.click("[data-thread-search-trigger]")
+await page.waitForSelector("[data-thread-search]", { timeout: 10000 })
+await page.fill("[data-search-input]", "pricing")
 await page.waitForTimeout(900)
-const countText = await page.locator('[data-search-count]').innerText()
+const countText = await page.locator("[data-search-count]").innerText()
 check("search-has-matches", /\d/.test(countText), countText)
 // index starts at the newest match, so "next" is correctly disabled here —
 // exercise "prev" instead to walk toward older matches.
-await page.click('[data-search-prev]')
+await page.click("[data-search-prev]")
 await page.waitForTimeout(600)
-const highlighted = await page.locator(".mh-search-hit").count().catch(() => 0)
+const highlighted = await page
+  .locator(".mh-search-hit")
+  .count()
+  .catch(() => 0)
 check("search-jump-highlights", highlighted >= 0) // best-effort: animation may have already ended
-await page.click('[data-search-close]')
+await page.click("[data-search-close]")
 await page.waitForTimeout(300)
 
 // ---- select messages: star + copy + delete-for-us (never touches WhatsApp) ----
-await page.click('[data-thread-menu-trigger]')
+await page.click("[data-thread-menu-trigger]")
 await page.click('[data-thread-menu] [data-action="select-messages"]')
-await page.waitForSelector('[data-thread-select-bar]', { timeout: 10000 })
-const bubbles = page.locator('[data-message-select-row] input[type=checkbox]')
+await page.waitForSelector("[data-thread-select-bar]", { timeout: 10000 })
+const bubbles = page.locator("[data-message-select-row] input[type=checkbox]")
 const bubbleCount = await bubbles.count()
 check("select-mode-shows-checkboxes", bubbleCount > 0, bubbleCount)
 if (bubbleCount > 0) {
   await bubbles.first().check()
   await page.waitForTimeout(200)
-  await page.click('[data-select-star]')
+  await page.click("[data-select-star]")
   await page.waitForTimeout(600)
   check("select-star-toast-or-icon", true) // toast is transient; verified functionally below via API
 }
 
 // re-enter select mode and delete-for-us one message, confirming the "never on WhatsApp" copy
-await page.click('[data-thread-menu-trigger]')
+await page.click("[data-thread-menu-trigger]")
 await page.click('[data-thread-menu] [data-action="select-messages"]')
-await page.waitForSelector('[data-thread-select-bar]', { timeout: 10000 })
-const bubbles2 = page.locator('[data-message-select-row] input[type=checkbox]')
+await page.waitForSelector("[data-thread-select-bar]", { timeout: 10000 })
+const bubbles2 = page.locator("[data-message-select-row] input[type=checkbox]")
 if ((await bubbles2.count()) > 0) {
   await bubbles2.first().check()
-  await page.click('[data-select-delete]')
+  await page.click("[data-select-delete]")
   await page.waitForSelector('[data-confirm-dialog="select-delete"]', { timeout: 10000 })
   const confirmText = await page.locator('[data-confirm-dialog="select-delete"]').innerText()
   check("delete-confirm-says-never-whatsapp", /never|WhatsApp/i.test(confirmText), confirmText)
@@ -186,9 +200,9 @@ if ((await bubbles2.count()) > 0) {
 }
 
 // ---- export: txt download actually streams and contains the WhatsApp-format transcript ----
-await page.click('[data-thread-menu-trigger]')
+await page.click("[data-thread-menu-trigger]")
 await page.click('[data-thread-menu] [data-action="export"]')
-await page.waitForSelector('[data-export-menu]', { timeout: 5000 })
+await page.waitForSelector("[data-export-menu]", { timeout: 5000 })
 const [download] = await Promise.all([
   page.waitForEvent("download", { timeout: 15000 }),
   page.click('[data-export="txt"]'),
@@ -200,12 +214,12 @@ check("export-txt-downloaded", !!dlPath)
 check("export-txt-has-content", txt.length > 0 && txt.includes("Nour"), txt.slice(0, 300))
 
 // ---- close chat / reopen from the menu ----
-await page.click('[data-thread-menu-trigger]')
+await page.click("[data-thread-menu-trigger]")
 await page.click('[data-thread-menu] [data-action="toggle-status"]')
 await page.waitForTimeout(600)
 const statusAfterClose = sql("SELECT status FROM conversations WHERE id = $1", [convID])
 check("menu-closed-chat", statusAfterClose === "closed", statusAfterClose)
-await page.click('[data-thread-menu-trigger]')
+await page.click("[data-thread-menu-trigger]")
 await page.click('[data-thread-menu] [data-action="toggle-status"]')
 await page.waitForTimeout(600)
 const statusAfterReopen = sql("SELECT status FROM conversations WHERE id = $1", [convID])
@@ -219,11 +233,15 @@ for (const scheme of ["light", "dark"])
       await page.evaluate((s) => localStorage.setItem("theme", s), scheme)
       await page.emulateMedia({ colorScheme: scheme })
       await page.setViewportSize({ width: wd, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${convID}`, { waitUntil: "domcontentloaded" })
-      await page.waitForSelector('[data-thread-menu-trigger]', { timeout: 15000 })
+      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${convID}`, {
+        waitUntil: "domcontentloaded",
+      })
+      await page.waitForSelector("[data-thread-menu-trigger]", { timeout: 15000 })
       await page.waitForTimeout(500)
       const m = await page.evaluate(() => {
-        const dark = document.documentElement.classList.contains("dark") || document.documentElement.dataset.theme === "dark"
+        const dark =
+          document.documentElement.classList.contains("dark") ||
+          document.documentElement.dataset.theme === "dark"
         const overflow = document.documentElement.scrollWidth > window.innerWidth + 1
         return { dark, rtl: document.documentElement.dir === "rtl", overflow }
       })
@@ -232,10 +250,12 @@ for (const scheme of ["light", "dark"])
       check(`${k}-no-overflow`, !m.overflow)
       if (wd === 390) {
         // Contact info panel must be a full-screen sheet at 390px.
-        await page.click('[data-thread-menu-trigger]')
+        await page.click("[data-thread-menu-trigger]")
         await page.click('[data-thread-menu] [data-action="contact-info"]')
-        await page.waitForSelector('[data-contact-info-panel]', { timeout: 10000 })
-        const w = await page.locator('[data-contact-info-panel]').evaluate((el) => el.getBoundingClientRect().width)
+        await page.waitForSelector("[data-contact-info-panel]", { timeout: 10000 })
+        const w = await page
+          .locator("[data-contact-info-panel]")
+          .evaluate((el) => el.getBoundingClientRect().width)
         check(`${k}-panel-fullscreen`, w >= wd - 4, w)
         await page.keyboard.press("Escape")
         await page.waitForTimeout(300)

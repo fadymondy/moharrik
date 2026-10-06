@@ -5,7 +5,15 @@ import { PlusIcon, ReplyIcon, SmilePlusIcon, XIcon } from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
 import { EmojiGrid } from "@/components/inbox/emoji-picker"
-import { Button, Popover, PopoverContent, PopoverTrigger, TooltipRoot, TooltipContent, TooltipTrigger } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  TooltipRoot,
+  TooltipContent,
+  TooltipTrigger,
+} from "@fadymondy/nasaq/web"
 import type { Conversation, InboxMessage, InboxReaction, InboxReplyTo } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 
@@ -57,7 +65,10 @@ export function MessageActions({
     set(false)
   }
   return (
-    <div className={`flex shrink-0 items-center gap-0.5 ${out ? "flex-row-reverse" : ""}`} data-message-actions>
+    <div
+      className={`flex shrink-0 items-center gap-0.5 ${out ? "flex-row-reverse" : ""}`}
+      data-message-actions
+    >
       {onReact ? (
         <Popover open={open} onOpenChange={set}>
           <PopoverTrigger
@@ -181,7 +192,9 @@ export function ReactionChips({
             }
           >
             <span>{r.emoji}</span>
-            {r.count > 1 ? <span className="text-xs text-muted-foreground tabular-nums">{r.count}</span> : null}
+            {r.count > 1 ? (
+              <span className="text-xs text-muted-foreground tabular-nums">{r.count}</span>
+            ) : null}
           </TooltipTrigger>
           <TooltipContent className="max-w-64">
             <span className="block">
@@ -207,7 +220,8 @@ export function quoteAuthor(
   t: (key: string) => string,
 ): string {
   if (q.direction === "in") return customerName
-  if (q.direction === "out") return q.author_user_id ? memberName(q.author_user_id) : t("inbox.team")
+  if (q.direction === "out")
+    return q.author_user_id ? memberName(q.author_user_id) : t("inbox.team")
   return customerName
 }
 
@@ -230,7 +244,10 @@ export function QuoteBlock({
       <span className="block truncate text-xs font-medium text-primary">
         <Bdi>{author}</Bdi>
       </span>
-      <span className="line-clamp-2 text-xs break-words whitespace-pre-wrap text-muted-foreground" dir="auto">
+      <span
+        className="line-clamp-2 text-xs break-words whitespace-pre-wrap text-muted-foreground"
+        dir="auto"
+      >
         {text}
       </span>
     </>

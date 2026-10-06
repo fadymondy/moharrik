@@ -122,7 +122,9 @@ export function SlackChannelForm({
           <Field>
             <FieldLabel htmlFor="slack-token">
               {t("channels.slack.botToken")}
-              {channel ? <span className="text-muted-foreground"> ({t("common.optional")})</span> : null}
+              {channel ? (
+                <span className="text-muted-foreground"> ({t("common.optional")})</span>
+              ) : null}
             </FieldLabel>
             <Input
               id="slack-token"
@@ -137,7 +139,9 @@ export function SlackChannelForm({
           <Field>
             <FieldLabel htmlFor="slack-signing">
               {t("channels.slack.signingSecret")}
-              {channel ? <span className="text-muted-foreground"> ({t("common.optional")})</span> : null}
+              {channel ? (
+                <span className="text-muted-foreground"> ({t("common.optional")})</span>
+              ) : null}
             </FieldLabel>
             <Input
               id="slack-signing"

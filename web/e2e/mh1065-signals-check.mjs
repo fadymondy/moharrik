@@ -31,7 +31,12 @@ for (const scheme of ["light", "dark"]) {
   page.on("pageerror", (e) => errs.push(String(e)))
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/") && !/\/read$/.test(u.pathname))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/") &&
+      !/\/read$/.test(u.pathname)
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -39,7 +44,9 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForTimeout(1500)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -49,14 +56,21 @@ for (const scheme of ["light", "dark"]) {
       const url = `${base}/${loc}/w/${slug}/deals`
       await page.setViewportSize({ width: w, height: 900 })
       await page.goto(`${url}?view=signals`, { waitUntil: "domcontentloaded" })
-      await page.waitForSelector("[data-signal], [data-signal-list]", { timeout: 30000 }).catch(() => {})
+      await page
+        .waitForSelector("[data-signal], [data-signal-list]", { timeout: 30000 })
+        .catch(() => {})
       await page.waitForTimeout(1500)
       const api = await page.evaluate(async (slug) => {
-        const r = await fetch("/api/w/opportunities/signals", { headers: { "X-Workspace-ID": slug }, credentials: "include" })
+        const r = await fetch("/api/w/opportunities/signals", {
+          headers: { "X-Workspace-ID": slug },
+          credentials: "include",
+        })
         return r.ok ? r.json() : { status: r.status }
       }, slug)
       const dom = await page.evaluate(() => ({
-        ids: [...document.querySelectorAll("[data-signal]")].map((n) => `${n.dataset.signal}:${n.dataset.signalId}`).sort(),
+        ids: [...document.querySelectorAll("[data-signal]")]
+          .map((n) => `${n.dataset.signal}:${n.dataset.signalId}`)
+          .sort(),
         dir: document.documentElement.dir,
         dark: document.documentElement.classList.contains("dark"),
         overflow: document.documentElement.scrollWidth > innerWidth + 1,
@@ -65,11 +79,18 @@ for (const scheme of ["light", "dark"]) {
       }))
       const want = (api.items ?? []).map((i) => `${i.kind}:${i.id}`).sort()
       check(`${k}-api`, Array.isArray(api.items), api.status ?? Object.keys(api))
-      check(`${k}-matches-api`, want.length > 0 && dom.ids.join() === want.join(), { dom: dom.ids.length, api: want.length })
+      check(`${k}-matches-api`, want.length > 0 && dom.ids.join() === want.join(), {
+        dom: dom.ids.length,
+        api: want.length,
+      })
       check(`${k}-dir`, dom.dir === (loc === "ar" ? "rtl" : "ltr"), dom.dir)
       check(`${k}-theme`, dom.dark === (scheme === "dark"), dom.dark)
       check(`${k}-no-overflow`, !dom.overflow)
-      check(`${k}-tabs`, ["board", "list", "signals"].every((t) => dom.tabs.includes(t)), dom.tabs)
+      check(
+        `${k}-tabs`,
+        ["board", "list", "signals"].every((t) => dom.tabs.includes(t)),
+        dom.tabs,
+      )
       if (shots) await page.screenshot({ path: `${shots}/mh1065-${k}.png`, fullPage: false })
       for (const v of ["board", "list"]) {
         await page.goto(`${url}?view=${v}`, { waitUntil: "domcontentloaded" })
@@ -85,6 +106,12 @@ for (const scheme of ["light", "dark"]) {
   rmSync(dir, { recursive: true, force: true })
 }
 
-console.log(JSON.stringify({ fail, out: Object.fromEntries(Object.entries(out).filter(([, v]) => v !== true)) }, null, 1))
+console.log(
+  JSON.stringify(
+    { fail, out: Object.fromEntries(Object.entries(out).filter(([, v]) => v !== true)) },
+    null,
+    1,
+  ),
+)
 console.log(fail.length ? `FAIL ${fail.length}` : `PASS ${Object.keys(out).length}`)
 process.exit(fail.length ? 1 : 0)

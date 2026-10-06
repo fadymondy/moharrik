@@ -233,7 +233,9 @@ function Filled({ rep }: { rep: GaReport }) {
           id="pages"
           title={t("analytics.topPages")}
           icon={<FileTextIcon />}
-          meta={<span className="ms-auto text-xs text-muted-foreground">{t("analytics.views")}</span>}
+          meta={
+            <span className="ms-auto text-xs text-muted-foreground">{t("analytics.views")}</span>
+          }
         >
           {pages.length === 0 ? (
             <p className="px-5 py-6 text-sm text-muted-foreground">{t("analytics.noPages")}</p>
@@ -254,7 +256,9 @@ function Filled({ rep }: { rep: GaReport }) {
           id="sources"
           title={t("analytics.sources")}
           icon={<SignpostIcon />}
-          meta={<span className="ms-auto text-xs text-muted-foreground">{t("analytics.sessions")}</span>}
+          meta={
+            <span className="ms-auto text-xs text-muted-foreground">{t("analytics.sessions")}</span>
+          }
         >
           {sources.length === 0 ? (
             <p className="px-5 py-6 text-sm text-muted-foreground">{t("analytics.noSources")}</p>

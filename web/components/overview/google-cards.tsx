@@ -55,7 +55,8 @@ function Figure({
  * API never sends a raw "before" figure to reconstruct one from. */
 function PctBadge({ pct }: { pct: number | null }) {
   const { t, locale } = useTranslations()
-  if (pct == null) return <span className="text-xs text-muted-foreground">{t("gdata.noCompare")}</span>
+  if (pct == null)
+    return <span className="text-xs text-muted-foreground">{t("gdata.noCompare")}</span>
   const flat = Math.abs(pct) < 0.0005
   const good = flat ? null : pct > 0
   const Icon = flat ? MinusIcon : pct > 0 ? ArrowUpIcon : ArrowDownIcon
@@ -68,7 +69,11 @@ function PctBadge({ pct }: { pct: number | null }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 text-xs font-medium tabular-nums",
-        good == null ? "text-muted-foreground" : good ? "text-nq-success-text" : "text-nq-danger-text",
+        good == null
+          ? "text-muted-foreground"
+          : good
+            ? "text-nq-success-text"
+            : "text-nq-danger-text",
       )}
       data-delta={good == null ? "flat" : good ? "better" : "worse"}
     >

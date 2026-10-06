@@ -52,7 +52,8 @@ async function scenario(page, root, k) {
   const chip = `${root} [data-pending-attachment]`
   const drag = (spec) => page.evaluate(DRAG, { sel: thread, ...spec })
   const png = await page.evaluate(pngBytes)
-  const chipKind = () => page.evaluate((c) => document.querySelector(c)?.dataset.pendingAttachmentKind ?? null, chip)
+  const chipKind = () =>
+    page.evaluate((c) => document.querySelector(c)?.dataset.pendingAttachmentKind ?? null, chip)
   const removeChip = async () => {
     await page.locator(`${chip} [data-action="attach-remove"]`).click()
     await page.waitForSelector(chip, { state: "detached", timeout: 5000 })
@@ -65,7 +66,10 @@ async function scenario(page, root, k) {
   await drag({ text: "hello", steps: ["dragleave"] })
 
   // A file drag shows the zone, labelled in the page language; leaving clears it.
-  const r = await drag({ files: [{ name: "a.pdf", type: "application/pdf" }], steps: ["dragenter", "dragover"] })
+  const r = await drag({
+    files: [{ name: "a.pdf", type: "application/pdf" }],
+    steps: ["dragenter", "dragover"],
+  })
   const zone = await page.evaluate((root) => {
     const z = document.querySelector(`${root} [data-drop-zone]`)
     const t = document.querySelector(`${root} [data-chat-thread]`)
@@ -74,11 +78,19 @@ async function scenario(page, root, k) {
       tr = t.getBoundingClientRect()
     return {
       text: z.textContent,
-      inside: zr.left >= tr.left - 1 && zr.right <= tr.right + 1 && zr.top >= tr.top - 1 && zr.bottom <= tr.bottom + 1,
+      inside:
+        zr.left >= tr.left - 1 &&
+        zr.right <= tr.right + 1 &&
+        zr.top >= tr.top - 1 &&
+        zr.bottom <= tr.bottom + 1,
       border: getComputedStyle(z).borderTopStyle,
     }
   }, root)
-  check(`${k}-zone-shown`, !!zone && zone.inside && zone.border === "dashed" && r.dragover === true, { zone, r })
+  check(
+    `${k}-zone-shown`,
+    !!zone && zone.inside && zone.border === "dashed" && r.dragover === true,
+    { zone, r },
+  )
   out[`${k}-zone-text`] = zone?.text
   if (shots) {
     await page.locator(thread).first().scrollIntoViewIfNeeded()
@@ -98,11 +110,21 @@ async function scenario(page, root, k) {
     await drag({ files: [file], steps: ["dragenter", "dragover", "drop"] })
     await page.waitForSelector(chip, { timeout: 5000 }).catch(() => {})
     const got = await chipKind()
-    const name = await page.locator(chip).textContent({ timeout: 2000 }).catch(() => null)
-    check(`${k}-drop-${want}`, got === want && !!name?.includes(file.name) && (await overlay()) === 0, { got, name })
+    const name = await page
+      .locator(chip)
+      .textContent({ timeout: 2000 })
+      .catch(() => null)
+    check(
+      `${k}-drop-${want}`,
+      got === want && !!name?.includes(file.name) && (await overlay()) === 0,
+      { got, name },
+    )
     if (want === "image") {
       await page.waitForTimeout(300)
-      const thumb = await page.evaluate((c) => document.querySelector(`${c} [data-pending-attachment-preview]`)?.naturalWidth ?? 0, chip)
+      const thumb = await page.evaluate(
+        (c) => document.querySelector(`${c} [data-pending-attachment-preview]`)?.naturalWidth ?? 0,
+        chip,
+      )
       check(`${k}-image-thumbnail`, thumb > 0, thumb)
       if (shots) {
         await page.locator(chip).scrollIntoViewIfNeeded()
@@ -121,15 +143,28 @@ async function scenario(page, root, k) {
     steps: ["dragenter", "dragover", "drop"],
   })
   await page.waitForSelector(chip, { timeout: 5000 }).catch(() => {})
-  const note = await page.locator(`${root} [data-attach-error]`).textContent({ timeout: 2000 }).catch(() => null)
-  const first = await page.locator(chip).textContent({ timeout: 2000 }).catch(() => null)
+  const note = await page
+    .locator(`${root} [data-attach-error]`)
+    .textContent({ timeout: 2000 })
+    .catch(() => null)
+  const first = await page
+    .locator(chip)
+    .textContent({ timeout: 2000 })
+    .catch(() => null)
   check(`${k}-two-files`, !!first?.includes("one.pdf") && !!note, { first, note })
   if (await page.locator(chip).count()) await removeChip()
 
   // Over 20MB is refused with the size message and no chip.
-  await drag({ files: [{ name: "big.mp4", type: "video/mp4", size: 21 * 1024 * 1024 }], steps: ["dragenter", "dragover", "drop"] })
+  await drag({
+    files: [{ name: "big.mp4", type: "video/mp4", size: 21 * 1024 * 1024 }],
+    steps: ["dragenter", "dragover", "drop"],
+  })
   await page.waitForTimeout(300)
-  check(`${k}-too-large`, (await page.locator(chip).count()) === 0 && (await page.locator(`${root} [data-attach-error]`).count()) === 1)
+  check(
+    `${k}-too-large`,
+    (await page.locator(chip).count()) === 0 &&
+      (await page.locator(`${root} [data-attach-error]`).count()) === 1,
+  )
 
   // Pasting an image into the reply box attaches it.
   const pasted = await page.evaluate(
@@ -149,7 +184,11 @@ async function scenario(page, root, k) {
   if (await page.locator(chip).count()) await removeChip()
 
   // A file dropped outside the thread doesn't make the browser leave the inbox.
-  const guarded = await page.evaluate(DRAG, { sel: "body", files: [{ name: "x.pdf", type: "application/pdf" }], steps: ["dragover", "drop"] })
+  const guarded = await page.evaluate(DRAG, {
+    sel: "body",
+    files: [{ name: "x.pdf", type: "application/pdf" }],
+    steps: ["dragover", "drop"],
+  })
   check(`${k}-outside-drop-guarded`, guarded.drop === true, guarded)
 }
 
@@ -168,7 +207,12 @@ for (const scheme of ["light", "dark"]) {
   page.on("pageerror", (e) => errs.push(String(e)))
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/") && !/\/read$/.test(u.pathname))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/") &&
+      !/\/read$/.test(u.pathname)
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -177,7 +221,9 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForTimeout(1500)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -186,10 +232,12 @@ for (const scheme of ["light", "dark"]) {
       const k = `${loc}-${scheme}-${w}`
       await page.setViewportSize({ width: w, height: 900 })
       await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${conv}`, { waitUntil: "domcontentloaded" })
-      const ready = await page.waitForSelector('[data-form="reply"] textarea', { timeout: 30000 }).then(
-        () => true,
-        () => false,
-      )
+      const ready = await page
+        .waitForSelector('[data-form="reply"] textarea', { timeout: 30000 })
+        .then(
+          () => true,
+          () => false,
+        )
       check(`${k}-composer`, ready)
       if (!ready) continue
       await page.waitForLoadState("networkidle").catch(() => {})
@@ -202,11 +250,19 @@ for (const scheme of ["light", "dark"]) {
       check(`${k}-theme`, env.dark === (scheme === "dark"), env.dark)
       // The full inbox page: mark the element that holds the thread owning the reply form.
       await page.evaluate(() => {
-        document.querySelectorAll("[data-mh672-root]").forEach((e) => e.removeAttribute("data-mh672-root"))
-        document.querySelector('[data-form="reply"]').closest("[data-chat-thread]").parentElement.setAttribute("data-mh672-root", "")
+        document
+          .querySelectorAll("[data-mh672-root]")
+          .forEach((e) => e.removeAttribute("data-mh672-root"))
+        document
+          .querySelector('[data-form="reply"]')
+          .closest("[data-chat-thread]")
+          .parentElement.setAttribute("data-mh672-root", "")
       })
       await scenario(page, "[data-mh672-root]", k)
-      check(`${k}-no-overflow`, !(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)))
+      check(
+        `${k}-no-overflow`,
+        !(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)),
+      )
     }
 
   check(`${scheme}-no-writes`, writes.length === 0, writes)

@@ -8,12 +8,7 @@ A figure with nothing behind it reads "—", never an invented 0% or 100%.
 */
 
 import Link from "next/link"
-import {
-  CalendarClockIcon,
-  CircleAlertIcon,
-  HistoryIcon,
-  PencilRulerIcon,
-} from "lucide-react"
+import { CalendarClockIcon, CircleAlertIcon, HistoryIcon, PencilRulerIcon } from "lucide-react"
 import { useState } from "react"
 import { Button, Switch, toast } from "@fadymondy/nasaq/web"
 
@@ -92,14 +87,23 @@ function Metric({
   children?: React.ReactNode
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-nq-line bg-card p-4" data-metric={id} data-raw={raw ?? "none"}>
+    <div
+      className="min-w-0 rounded-lg border border-nq-line bg-card p-4"
+      data-metric={id}
+      data-raw={raw ?? "none"}
+    >
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-2xl font-semibold" data-metric-value>
+      <div
+        className="mt-1.5 flex flex-wrap items-center gap-2 text-2xl font-semibold"
+        data-metric-value
+      >
         {tone ? <Pill tone={tone}>{value}</Pill> : value}
       </div>
-      {note ? <p className="mt-1.5 text-xs text-muted-foreground" data-metric-note>
+      {note ? (
+        <p className="mt-1.5 text-xs text-muted-foreground" data-metric-note>
           {note}
-        </p> : null}
+        </p>
+      ) : null}
       {children}
     </div>
   )

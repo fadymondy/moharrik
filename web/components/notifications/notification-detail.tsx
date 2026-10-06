@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import { BookmarkIcon, ExternalLinkIcon } from "lucide-react"
-import { Badge, Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { LoadingRows } from "@/components/states"
@@ -18,10 +27,7 @@ export const severityTone: Record<NotificationSeverity, string> = {
   error: "bg-nq-danger",
 }
 
-export const severityVariant: Record<
-  NotificationSeverity,
-  "brand" | "neutral" | "danger"
-> = {
+export const severityVariant: Record<NotificationSeverity, "brand" | "neutral" | "danger"> = {
   info: "neutral",
   warning: "brand",
   error: "danger",

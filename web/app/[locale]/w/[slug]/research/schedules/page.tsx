@@ -28,10 +28,7 @@ function ResearchSchedules() {
 
   return (
     <>
-      <SectionHeader
-        title={t("research.tabSchedules")}
-        description={t("research.hint")}
-      />
+      <SectionHeader title={t("research.tabSchedules")} description={t("research.hint")} />
       {list.data ? <CapabilityNotes caps={list.data} /> : null}
       <SchedulesTab caps={list.data} />
       <div className="pb-8" />

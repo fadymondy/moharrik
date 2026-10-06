@@ -64,7 +64,9 @@
     radial-gradient(color-mix(in oklab, var(--nq-line) 80%, transparent) 1px, transparent 1.6px),
     radial-gradient(color-mix(in oklab, var(--nq-line) 50%, transparent) 1px, transparent 1.6px);
   background-size: 24px 24px;
-  background-position: 0 0, 12px 12px;
+  background-position:
+    0 0,
+    12px 12px;
 }
 
 /* MH-662: find-in-chat "jump to match" — a brief highlight flash on the bubble
@@ -91,14 +93,38 @@
   --tag-soft: var(--nq-tag-gray-soft);
   --tag-text: color-mix(in oklab, var(--tag) 62%, var(--nq-fg));
 }
-[data-tag="red"] { --tag: var(--nq-tag-red); --tag-soft: var(--nq-tag-red-soft); }
-[data-tag="orange"] { --tag: var(--nq-tag-orange); --tag-soft: var(--nq-tag-orange-soft); }
-[data-tag="amber"] { --tag: var(--nq-tag-amber); --tag-soft: var(--nq-tag-amber-soft); }
-[data-tag="green"] { --tag: var(--nq-tag-green); --tag-soft: var(--nq-tag-green-soft); }
-[data-tag="teal"] { --tag: var(--nq-tag-teal); --tag-soft: var(--nq-tag-teal-soft); }
-[data-tag="blue"] { --tag: var(--nq-tag-blue); --tag-soft: var(--nq-tag-blue-soft); }
-[data-tag="violet"] { --tag: var(--nq-tag-violet); --tag-soft: var(--nq-tag-violet-soft); }
-[data-tag="pink"] { --tag: var(--nq-tag-pink); --tag-soft: var(--nq-tag-pink-soft); }
+[data-tag="red"] {
+  --tag: var(--nq-tag-red);
+  --tag-soft: var(--nq-tag-red-soft);
+}
+[data-tag="orange"] {
+  --tag: var(--nq-tag-orange);
+  --tag-soft: var(--nq-tag-orange-soft);
+}
+[data-tag="amber"] {
+  --tag: var(--nq-tag-amber);
+  --tag-soft: var(--nq-tag-amber-soft);
+}
+[data-tag="green"] {
+  --tag: var(--nq-tag-green);
+  --tag-soft: var(--nq-tag-green-soft);
+}
+[data-tag="teal"] {
+  --tag: var(--nq-tag-teal);
+  --tag-soft: var(--nq-tag-teal-soft);
+}
+[data-tag="blue"] {
+  --tag: var(--nq-tag-blue);
+  --tag-soft: var(--nq-tag-blue-soft);
+}
+[data-tag="violet"] {
+  --tag: var(--nq-tag-violet);
+  --tag-soft: var(--nq-tag-violet-soft);
+}
+[data-tag="pink"] {
+  --tag: var(--nq-tag-pink);
+  --tag-soft: var(--nq-tag-pink-soft);
+}
 
 /* <BdiBlock> (components/bidi.tsx): user text whose direction follows its content (dir="auto")
    but which lines up with the rest of the UI. `start` would resolve against the text's own

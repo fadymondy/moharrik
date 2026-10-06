@@ -18,7 +18,9 @@ const check = (k, ok, d) => {
 const args = process.env.HOST_RULES ? [`--host-resolver-rules=${process.env.HOST_RULES}`] : []
 // MH-1147: the channel is a select under the search in the inbox dock, not a tab strip.
 const active = (page) =>
-  page.evaluate(() => document.querySelector("[data-channel-filter]")?.getAttribute("data-channel-filter"))
+  page.evaluate(() =>
+    document.querySelector("[data-channel-filter]")?.getAttribute("data-channel-filter"),
+  )
 for (const scheme of ["light", "dark"]) {
   const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "ict-")), {
     executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -44,7 +46,9 @@ for (const scheme of ["light", "dark"]) {
       await page.waitForTimeout(1000)
       const k = `${loc}-${scheme}-${w}`
       const r = {
-        overflow: await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+        overflow: await page.evaluate(
+          () => document.documentElement.scrollWidth - window.innerWidth,
+        ),
       }
       r.start = await active(page)
       // [ and ] step through the channels while focus is in the list.
@@ -55,7 +59,11 @@ for (const scheme of ["light", "dark"]) {
       await page.keyboard.press("[")
       await page.waitForTimeout(600)
       r.afterPrev = await active(page)
-      check(`${k}-keys`, r.start === "all" && r.afterNext && r.afterNext !== "all" && r.afterPrev === "all", r)
+      check(
+        `${k}-keys`,
+        r.start === "all" && r.afterNext && r.afterNext !== "all" && r.afterPrev === "all",
+        r,
+      )
       check(k, r.overflow <= 1, r)
       if (shots) await page.screenshot({ path: path.join(shots, `mh568-live-${k}.png`) })
     }

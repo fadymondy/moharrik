@@ -3,7 +3,14 @@
 import { useState } from "react"
 import { CalendarIcon, XIcon } from "lucide-react"
 
-import { Button, ButtonGroup, Calendar, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  ButtonGroup,
+  Calendar,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@fadymondy/nasaq/web"
 import { useTranslations } from "@/lib/i18n"
 import { dateFormat } from "@/lib/i18n-locale"
 import { cn } from "@/lib/utils"

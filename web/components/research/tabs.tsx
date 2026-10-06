@@ -12,7 +12,19 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, type FormEvent } from "react"
 import { ArrowRightIcon, BookOpenIcon, LoaderCircleIcon, PlusIcon, SearchIcon } from "lucide-react"
-import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Switch, Textarea, toast, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Switch,
+  Textarea,
+  toast,
+  Toggle,
+  ToggleGroup,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { Bdi, isolate } from "@/components/bidi"

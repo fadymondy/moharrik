@@ -19,7 +19,15 @@ import {
   MailCheckIcon,
 } from "lucide-react"
 
-import { Badge, Collapsible, CollapsiblePanel, CollapsibleTrigger, InputGroup, InputGroupAddon, InputGroupInput } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@fadymondy/nasaq/web"
 import { CopyField, Ltr } from "@/components/copy-field"
 import { ConnectClients } from "@/components/mcp/connect-clients"
 import { PublicFrame, PublicPanel } from "@/components/public-frame"
@@ -89,7 +97,10 @@ export function McpDocs({ initial }: { initial: McpDocsCatalog | null }) {
 
 function TocLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} className="text-nq-fg-body underline-offset-4 hover:text-foreground hover:underline">
+    <a
+      href={href}
+      className="text-nq-fg-body underline-offset-4 hover:text-foreground hover:underline"
+    >
       {children}
     </a>
   )
@@ -357,7 +368,8 @@ function Reference({ cat }: { cat: McpDocsCatalog }) {
             href={`#tools-${g.id}`}
             className="text-nq-fg-body underline-offset-4 hover:text-foreground hover:underline"
           >
-            {g.title} <span className="text-muted-foreground">({formatNumber(g.tools.length)})</span>
+            {g.title}{" "}
+            <span className="text-muted-foreground">({formatNumber(g.tools.length)})</span>
           </a>
         ))}
       </div>

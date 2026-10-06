@@ -110,7 +110,10 @@ export function ContactPicker({
           )}
         </ComboboxList>
         {total > shown ? (
-          <p className="border-t border-nq-line px-2.5 py-1.5 text-xs text-muted-foreground" data-pick-more>
+          <p
+            className="border-t border-nq-line px-2.5 py-1.5 text-xs text-muted-foreground"
+            data-pick-more
+          >
             {t("contacts.pickMore", { shown: formatNumber(shown), total: formatNumber(total) })}
           </p>
         ) : null}

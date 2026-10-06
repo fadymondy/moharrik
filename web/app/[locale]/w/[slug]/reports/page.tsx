@@ -33,7 +33,18 @@ import {
   type BarRow,
 } from "@/components/reports/report-charts"
 import { ErrorState } from "@/components/states"
-import { Button, Field, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger, Skeleton, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Field,
+  FieldLabel,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Skeleton,
+  Toggle,
+  ToggleGroup,
+} from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { CrmReport, ReportChannel } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -480,7 +491,9 @@ function ConversionPanel({ rep, f }: { rep: CrmReport; f: Fmt }) {
     tooltip: (
       <span className="flex flex-col gap-0.5">
         <Bdi className="font-medium text-foreground">{s.name}</Bdi>
-        <span className="text-muted-foreground">{t("reports.reachedN", { n: f.n(s.reached) })}</span>
+        <span className="text-muted-foreground">
+          {t("reports.reachedN", { n: f.n(s.reached) })}
+        </span>
         {i > 0 && s.from_previous !== null ? (
           <span className="text-muted-foreground">
             {t("reports.fromPrevious", { pct: f.pct(s.from_previous) })}
@@ -582,7 +595,9 @@ function TimelinePanel({ rep, f }: { rep: CrmReport; f: Fmt }) {
         ) : null
       }
     >
-      <p className="px-5 pt-3 pb-2 text-xs text-muted-foreground">{t(`reports.bucket.${rep.bucket}`)}</p>
+      <p className="px-5 pt-3 pb-2 text-xs text-muted-foreground">
+        {t(`reports.bucket.${rep.bucket}`)}
+      </p>
       {!any ? (
         <NoData id="timeline">{t("reports.noClosed")}</NoData>
       ) : view === "chart" ? (

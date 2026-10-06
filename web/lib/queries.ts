@@ -614,7 +614,12 @@ export function useLinkPreview(workspaceId: string | null | undefined, url: stri
   return useSWR<LinkPreview>(
     workspaceId && url ? [`/api/w/link_preview?url=${encodeURIComponent(url)}`, workspaceId] : null,
     ([p, ws]: [string, string]) => api<LinkPreview>(p, { workspaceId: ws }),
-    { ...noRetryOn4xx, revalidateOnFocus: false, revalidateIfStale: false, revalidateOnReconnect: false },
+    {
+      ...noRetryOn4xx,
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      revalidateOnReconnect: false,
+    },
   )
 }
 
@@ -684,7 +689,10 @@ export function hideMessage(workspaceId: string, messageId: string) {
 }
 
 /** Every message the signed-in member starred in one conversation, newest first. */
-export function useStarredMessages(workspaceId: string | null | undefined, conversationId: string | null) {
+export function useStarredMessages(
+  workspaceId: string | null | undefined,
+  conversationId: string | null,
+) {
   return useScoped<{ messages: InboxMessage[] }>(
     conversationId ? `/api/w/conversations/${encodeURIComponent(conversationId)}/starred` : "",
     workspaceId,

@@ -1,7 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { Field, FieldDescription, FieldLabel, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, toast } from "@fadymondy/nasaq/web"
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup } from "@/components/form-layout"
 
 import { SectionHeader } from "@/components/public-frame"
@@ -138,10 +148,7 @@ export default function GeneralSettingsPage() {
 
   return (
     <>
-      <SectionHeader
-        title={t("nav.general")}
-        description={t("generalSettings.hint")}
-      />
+      <SectionHeader title={t("nav.general")} description={t("generalSettings.hint")} />
       <WorkspaceProfileSection />
       <div className="hatch h-8 border-y border-border" aria-hidden />
       <div className="px-6 py-6">

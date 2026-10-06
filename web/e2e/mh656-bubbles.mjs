@@ -58,7 +58,11 @@ for (const scheme of ["light", "dark"]) {
           return (
             await fetch(`/api/w/conversations/${id}/reply`, {
               method: "POST",
-              headers: { "X-Workspace-ID": slug, "Content-Type": "application/json", "X-CSRF-Token": csrf },
+              headers: {
+                "X-Workspace-ID": slug,
+                "Content-Type": "application/json",
+                "X-CSRF-Token": csrf,
+              },
               body: JSON.stringify({ body }),
             })
           ).status
@@ -73,7 +77,9 @@ for (const scheme of ["light", "dark"]) {
     for (const w of [1440, 390]) {
       const k = `${loc}-${scheme}-${w}`
       await page.setViewportSize({ width: w, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${convId}`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${convId}`, {
+        waitUntil: "domcontentloaded",
+      })
       const ok = await page
         .waitForSelector("[data-chat-thread] [data-message]", { timeout: 30000 })
         .then(
@@ -93,8 +99,8 @@ for (const scheme of ["light", "dark"]) {
         const outs = bubbles.filter((b) => b.getAttribute("data-message") === "out")
         const last = outs[outs.length - 1] ?? bubbles[bubbles.length - 1]
         const meta = last?.querySelector("[data-message-meta]")
-        const firsts = [...document.querySelectorAll("[data-message-group]")].map(
-          (g) => g.querySelector("[data-message]"),
+        const firsts = [...document.querySelectorAll("[data-message-group]")].map((g) =>
+          g.querySelector("[data-message]"),
         )
         const tails = firsts.filter((b) => b?.querySelector(":scope > svg")).length
         const lb = last?.getBoundingClientRect()
@@ -110,12 +116,21 @@ for (const scheme of ["light", "dark"]) {
           const mr = m.getBoundingClientRect()
           const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT)
           for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-            if (m.contains(n) || !n.textContent.trim() || n.parentElement.closest("[data-link-preview]"))
+            if (
+              m.contains(n) ||
+              !n.textContent.trim() ||
+              n.parentElement.closest("[data-link-preview]")
+            )
               continue
             const range = document.createRange()
             range.selectNodeContents(n)
             for (const r of range.getClientRects())
-              if (r.left < mr.right - 1 && r.right > mr.left + 1 && r.top < mr.bottom - 1 && r.bottom > mr.top + 1)
+              if (
+                r.left < mr.right - 1 &&
+                r.right > mr.left + 1 &&
+                r.top < mr.bottom - 1 &&
+                r.bottom > mr.top + 1
+              )
                 overlaps++
           }
         }
@@ -125,14 +140,26 @@ for (const scheme of ["light", "dark"]) {
           bubbles: bubbles.length,
           groups: firsts.length,
           tails,
-          metaInside: !!(lb && mb && mb.left >= lb.left - 1 && mb.right <= lb.right + 1 && mb.bottom <= lb.bottom + 1),
-          ticks: [...document.querySelectorAll("[data-tick]")].map((t) => t.getAttribute("data-tick")),
+          metaInside: !!(
+            lb &&
+            mb &&
+            mb.left >= lb.left - 1 &&
+            mb.right <= lb.right + 1 &&
+            mb.bottom <= lb.bottom + 1
+          ),
+          ticks: [...document.querySelectorAll("[data-tick]")].map((t) =>
+            t.getAttribute("data-tick"),
+          ),
           strong: !!document.querySelector("[data-message] strong"),
           links: document.querySelectorAll("[data-message] div[dir=auto] a[href^='http']").length,
           preview: !!document.querySelector("[data-link-preview]"),
           previewTitle: document.querySelector("[data-link-preview] p")?.textContent ?? "",
-          iframesInChat: document.querySelectorAll("[data-message]:not([data-message-layout]) iframe").length,
-          wallpaper: pane ? getComputedStyle(pane).backgroundImage.startsWith("radial-gradient") : false,
+          iframesInChat: document.querySelectorAll(
+            "[data-message]:not([data-message-layout]) iframe",
+          ).length,
+          wallpaper: pane
+            ? getComputedStyle(pane).backgroundImage.startsWith("radial-gradient")
+            : false,
           outDiffersFromIn: !!bgIn && bgOut !== getComputedStyle(bgIn).backgroundColor,
           overflowX: document.documentElement.scrollWidth > window.innerWidth + 1,
           threadOk: !!thread,

@@ -44,7 +44,9 @@ const readNav = (page, scope) =>
   page.evaluate((scope) => {
     const root = scope ? document.querySelector(scope) : document
     if (!root) return null
-    const cur = [...root.querySelectorAll("a[data-nav-item][aria-current=page]")].filter((a) => a.offsetParent !== null)
+    const cur = [...root.querySelectorAll("a[data-nav-item][aria-current=page]")].filter(
+      (a) => a.offsetParent !== null,
+    )
     return {
       row: cur.filter((a) => !a.closest("[data-nav-subs]")).map((a) => a.dataset.navItem),
       subs: cur.filter((a) => a.closest("[data-nav-subs]")).map((a) => a.dataset.navItem),
@@ -66,7 +68,12 @@ for (const scheme of ["light", "dark"]) {
   page.on("pageerror", (e) => errs.push(String(e)))
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/") && !/\/read$/.test(u.pathname))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/") &&
+      !/\/read$/.test(u.pathname)
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -75,7 +82,9 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForTimeout(700)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -90,8 +99,18 @@ for (const scheme of ["light", "dark"]) {
         if (!mobile) return
         // A dev server can still be hydrating when the toggle first renders: retry the click.
         for (let i = 0; i < 4; i++) {
-          await page.locator("[data-nav-toggle]").filter({ visible: true }).first().click().catch(() => {})
-          if (await page.waitForSelector(sheet, { timeout: 5000 }).then(() => true, () => false)) {
+          await page
+            .locator("[data-nav-toggle]")
+            .filter({ visible: true })
+            .first()
+            .click()
+            .catch(() => {})
+          if (
+            await page.waitForSelector(sheet, { timeout: 5000 }).then(
+              () => true,
+              () => false,
+            )
+          ) {
             await page.waitForTimeout(400)
             return
           }
@@ -105,26 +124,43 @@ for (const scheme of ["light", "dark"]) {
       await page.setViewportSize({ width: w, height: 900 })
       await page.goto(ws, { waitUntil: "domcontentloaded" })
       await settle(page)
-      const env = await page.evaluate(() => ({ dir: document.documentElement.dir, dark: document.documentElement.classList.contains("dark") }))
+      const env = await page.evaluate(() => ({
+        dir: document.documentElement.dir,
+        dark: document.documentElement.classList.contains("dark"),
+      }))
       check(`${k}-dir`, env.dir === (loc === "ar" ? "rtl" : "ltr"), env.dir)
       check(`${k}-theme`, env.dark === (scheme === "dark"), env.dark)
 
       for (const h of HOMES) {
         const hk = `${k}-${h.key}`
         await page.goto(`${ws}/${h.path}`, { waitUntil: "domcontentloaded" })
-        const dash = await page.waitForSelector(`[data-section-home="${h.key}"] [data-section-page]`, { timeout: 20000 }).then(() => true, () => false)
+        const dash = await page
+          .waitForSelector(`[data-section-home="${h.key}"] [data-section-page]`, { timeout: 20000 })
+          .then(
+            () => true,
+            () => false,
+          )
         check(`${hk}-dashboard`, dash)
         await settle(page)
-        const body = await page.evaluate((key) => ({
-          tiles: document.querySelectorAll(`[data-section-home="${key}"] [data-section-page]`).length,
-          blankDesc: [...document.querySelectorAll("[data-section-page] span span:last-child")].filter((s) => !s.textContent.trim() || s.textContent.startsWith("section.")).length,
-          title: document.title,
-          h1: document.querySelector("main h1, h1")?.textContent,
-          overflow: document.documentElement.scrollWidth > innerWidth + 1,
-        }), h.key)
+        const body = await page.evaluate(
+          (key) => ({
+            tiles: document.querySelectorAll(`[data-section-home="${key}"] [data-section-page]`)
+              .length,
+            blankDesc: [
+              ...document.querySelectorAll("[data-section-page] span span:last-child"),
+            ].filter((s) => !s.textContent.trim() || s.textContent.startsWith("section.")).length,
+            title: document.title,
+            h1: document.querySelector("main h1, h1")?.textContent,
+            overflow: document.documentElement.scrollWidth > innerWidth + 1,
+          }),
+          h.key,
+        )
         check(`${hk}-tiles`, body.tiles > 0, body.tiles)
         check(`${hk}-descriptions`, body.blankDesc === 0, body.blankDesc)
-        check(`${hk}-title`, body.title.includes(body.h1 ?? "\u0000"), { title: body.title, h1: body.h1 })
+        check(`${hk}-title`, body.title.includes(body.h1 ?? "\u0000"), {
+          title: body.title,
+          h1: body.h1,
+        })
         check(`${hk}-no-overflow`, !body.overflow)
         if (h.row) {
           await openSheet()
@@ -141,12 +177,20 @@ for (const scheme of ["light", "dark"]) {
       await settle(page)
       await openSheet()
       // The sidebar renders after the page's first paint on a cold dev compile: wait for a current link.
-      await page.waitForSelector(`${scope ?? "body"} a[data-nav-item][aria-current=page]`, { timeout: 20000 }).catch(() => {})
+      await page
+        .waitForSelector(`${scope ?? "body"} a[data-nav-item][aria-current=page]`, {
+          timeout: 20000,
+        })
+        .catch(() => {})
       const deep = await readNav(page, scope)
       check(`${k}-deeplink`, deep?.row.join() === "customers" && deep.subs.join() === "leads", deep)
 
       // A row navigates (and on mobile, the sheet closes behind it).
-      await page.locator(`${scope ?? "body"} a[data-nav-item="opportunities"]`).filter({ visible: true }).first().click()
+      await page
+        .locator(`${scope ?? "body"} a[data-nav-item="opportunities"]`)
+        .filter({ visible: true })
+        .first()
+        .click()
       await page.waitForURL(`${ws}/deals`, { timeout: 15000 }).catch(() => {})
       check(`${k}-row-link`, page.url() === `${ws}/deals`, page.url())
       if (mobile) {
@@ -168,6 +212,12 @@ for (const scheme of ["light", "dark"]) {
   rmSync(dir, { recursive: true, force: true })
 }
 
-console.log(JSON.stringify({ fail, out: Object.fromEntries(Object.entries(out).filter(([, v]) => v !== true)) }, null, 1))
+console.log(
+  JSON.stringify(
+    { fail, out: Object.fromEntries(Object.entries(out).filter(([, v]) => v !== true)) },
+    null,
+    1,
+  ),
+)
 console.log(fail.length ? `FAIL ${fail.length}` : `PASS ${Object.keys(out).length}`)
 process.exit(fail.length ? 1 : 0)

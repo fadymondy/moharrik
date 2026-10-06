@@ -64,7 +64,11 @@ export function VoiceRecorder({
 
   async function start() {
     setError(null)
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined"
+    ) {
       setError(t("inbox.composer.micUnavailable"))
       return
     }
@@ -86,7 +90,9 @@ export function VoiceRecorder({
     recorder.onstop = () => {
       stopTracks()
       if (!cancelledRef.current && chunksRef.current.length > 0) {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || "audio/webm" })
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || mimeType || "audio/webm",
+        })
         onRecorded(blob, blob.type, Date.now() - startRef.current)
       }
       chunksRef.current = []

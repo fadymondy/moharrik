@@ -71,11 +71,7 @@ function Rules() {
   const list = rules.data?.rules ?? []
   return (
     <>
-      <SectionHeader
-        title={t("rules.title")}
-        description={t("rules.hint")}
-        action={create}
-      />
+      <SectionHeader title={t("rules.title")} description={t("rules.hint")} action={create} />
 
       <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-6">
         {(["rules", "runs"] as const).map((id) => (

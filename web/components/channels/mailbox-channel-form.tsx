@@ -1,7 +1,15 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { Button, Field, FieldDescription, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Switch,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError, FormHint } from "@/components/form-layout"
 
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"

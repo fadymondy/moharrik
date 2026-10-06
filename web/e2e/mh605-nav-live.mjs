@@ -33,7 +33,11 @@ for (const scheme of ["light", "dark"]) {
   page.on("pageerror", (e) => errs.push(String(e)))
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/"))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/")
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -42,7 +46,9 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForTimeout(1500)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -50,7 +56,9 @@ for (const scheme of ["light", "dark"]) {
     const k = `${loc}-${scheme}`
     await page.goto(`${base}/${loc}/w/${slug}`, { waitUntil: "domcontentloaded" })
     await page.waitForSelector("[data-nav-toggle]", { timeout: 30000 })
-    await page.waitForFunction(() => !document.querySelector("[data-nav-toggle]")?.disabled, null, { timeout: 30000 })
+    await page.waitForFunction(() => !document.querySelector("[data-nav-toggle]")?.disabled, null, {
+      timeout: 30000,
+    })
     // A click before hydration does nothing; wait for the page to settle first.
     await page.waitForLoadState("networkidle").catch(() => {})
     await page.waitForTimeout(1500)
@@ -79,7 +87,11 @@ for (const scheme of ["light", "dark"]) {
     out[`${k}-full`] = m
     check(`${k}-full-wide`, m.state === "full" && m.navW > 150, m)
     await page.click("[data-nav-toggle]")
-    await page.waitForFunction(() => document.querySelector(".grid-shell")?.dataset.nav === "mini", null, { timeout: 5000 }).catch(() => {})
+    await page
+      .waitForFunction(() => document.querySelector(".grid-shell")?.dataset.nav === "mini", null, {
+        timeout: 5000,
+      })
+      .catch(() => {})
     await page.waitForTimeout(500)
     const mini = await measure()
     out[`${k}-mini`] = mini

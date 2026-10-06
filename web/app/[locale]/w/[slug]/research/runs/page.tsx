@@ -28,10 +28,7 @@ function ResearchRuns() {
 
   return (
     <>
-      <SectionHeader
-        title={t("nav.research")}
-        description={t("research.hint")}
-      />
+      <SectionHeader title={t("nav.research")} description={t("research.hint")} />
       {list.data ? <CapabilityNotes caps={list.data} /> : null}
       <RunsTab list={list} />
       <div className="pb-8" />

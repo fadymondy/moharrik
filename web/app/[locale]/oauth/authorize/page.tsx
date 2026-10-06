@@ -168,7 +168,10 @@ export default function OAuthAuthorizePage() {
                   <PlugZapIcon className="size-4 text-muted-foreground" />
                   {t("oauth.wantsAccess", { client: isolate(r.client.name || t("oauth.unnamed")) })}
                 </p>
-                <dl className="divide-y divide-nq-line border border-nq-line text-sm" data-oauth-claims>
+                <dl
+                  className="divide-y divide-nq-line border border-nq-line text-sm"
+                  data-oauth-claims
+                >
                   <Claim
                     label={t("oauth.claimClient")}
                     value={<Bdi>{r.client.name || t("oauth.unnamed")}</Bdi>}

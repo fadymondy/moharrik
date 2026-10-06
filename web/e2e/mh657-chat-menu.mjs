@@ -13,7 +13,8 @@ import path from "node:path"
 
 const base = process.argv[2] ?? "http://localhost:3131"
 const shots = process.argv[3]
-if (/moharrik\.com/.test(base)) throw new Error("mh657-chat-menu writes: run it against a local server")
+if (/moharrik\.com/.test(base))
+  throw new Error("mh657-chat-menu writes: run it against a local server")
 const out = {},
   fail = []
 const check = (k, ok, d) => {
@@ -51,7 +52,11 @@ async function call(method, p, json) {
       const csrf = (await (await fetch("/api/auth/csrf")).json()).csrf_token
       const r = await fetch(p, {
         method,
-        headers: { "X-Workspace-ID": slug, "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        headers: {
+          "X-Workspace-ID": slug,
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf,
+        },
         body: json ? JSON.stringify(json) : undefined,
       })
       return { status: r.status, body: await r.json().catch(() => null) }
@@ -91,18 +96,26 @@ const settle = () => page.waitForTimeout(900)
 
 await page.goto(`${base}/en/w/${slug}/inbox?`, { waitUntil: "domcontentloaded" })
 await page.waitForSelector("[data-conversation]", { timeout: 30000 })
-await page.waitForFunction(() => document.querySelectorAll("[data-conversation]").length >= 3, null, {
-  timeout: 15000,
-})
+await page.waitForFunction(
+  () => document.querySelectorAll("[data-conversation]").length >= 3,
+  null,
+  {
+    timeout: 15000,
+  },
+)
 
 // ---- the chevron and right-click open the same menu ----
 await openMenu("Bravo", "chevron")
 check("chevron-opens-menu", await menu.isVisible())
 check(
   "menu-items",
-  (await menu.locator("[data-action]").evaluateAll((els) => els.map((e) => e.dataset.action))).join(",") ===
+  (await menu.locator("[data-action]").evaluateAll((els) => els.map((e) => e.dataset.action))).join(
+    ",",
+  ) ===
     "pin,archive,mute,toggle-unread,favourite,toggle-status,color,icon,labels,block,clear,delete",
-  await menu.locator("[data-action]").evaluateAll((els) => els.map((e) => e.dataset.action).join(",")),
+  await menu
+    .locator("[data-action]")
+    .evaluateAll((els) => els.map((e) => e.dataset.action).join(",")),
 )
 await page.keyboard.press("Escape")
 await menu.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {})
@@ -113,9 +126,7 @@ await pick('[data-action="pin"]')
 await settle()
 const firstName = () =>
   page.locator("[data-conversation-list] > li[data-row-menu]").evaluateAll((lis) => {
-    const top = lis.sort(
-      (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top,
-    )[0]
+    const top = lis.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0]
     return top?.textContent ?? ""
   })
 check("pinned-on-top", (await firstName()).includes("Charlie"), await firstName())
@@ -168,12 +179,23 @@ await dlg.waitFor({ state: "visible", timeout: 5000 })
 await dlg.locator("[data-new-label]").fill("VIP")
 await dlg.locator('[role="radio"][data-tag="violet"]').click()
 await dlg.locator("[data-new-label]").press("Enter")
-await dlg.locator('[data-label-option="VIP"]:checked').waitFor({ timeout: 5000 }).catch(() => {})
+await dlg
+  .locator('[data-label-option="VIP"]:checked')
+  .waitFor({ timeout: 5000 })
+  .catch(() => {})
 check("label-created-ticked", await dlg.locator('[data-label-option="VIP"]').isChecked())
 await dlg.locator("[data-labels-save]").click()
 await dlg.waitFor({ state: "hidden", timeout: 5000 })
 await settle()
-check("label-chip-on-row", (await row("Bravo").locator("[data-label-chip]").innerText().catch(() => "")).includes("VIP"))
+check(
+  "label-chip-on-row",
+  (
+    await row("Bravo")
+      .locator("[data-label-chip]")
+      .innerText()
+      .catch(() => "")
+  ).includes("VIP"),
+)
 await page.locator('[data-filter="label"]:has-text("VIP")').waitFor({ timeout: 5000 })
 await page.click('[data-filter="label"]:has-text("VIP")')
 await settle()
@@ -199,7 +221,11 @@ await settle()
 await page.click("[data-archived-back]")
 await settle()
 names = await shown()
-check("unarchived-back", names.some((n) => n.includes("Alpha")), names.length)
+check(
+  "unarchived-back",
+  names.some((n) => n.includes("Alpha")),
+  names.length,
+)
 
 // ---- block (a widget chat: nothing leaves the machine) — confirm, icon, no composer ----
 await openMenu("Alpha")
@@ -209,7 +235,11 @@ await settle()
 check("blocked-icon", (await row("Alpha").locator("[data-row-blocked]").count()) === 1)
 await row("Alpha").locator("[data-conversation]").click()
 await page.waitForSelector("[data-blocked-note]", { timeout: 10000 }).catch(() => {})
-check("blocked-no-composer", (await page.locator("[data-blocked-note]").count()) === 1 && (await page.locator('[data-form="reply"]').count()) === 0)
+check(
+  "blocked-no-composer",
+  (await page.locator("[data-blocked-note]").count()) === 1 &&
+    (await page.locator('[data-form="reply"]').count()) === 0,
+)
 await openMenu("Alpha")
 await pick('[data-action="block"]') // unblock
 await page.locator("[data-confirm-dialog] [data-confirm]").click()
@@ -247,7 +277,9 @@ for (const scheme of ["light", "dark"])
       await page.waitForSelector("[data-conversation]", { timeout: 30000 })
       await page.waitForTimeout(600)
       const m = await page.evaluate(() => {
-        const dark = document.documentElement.classList.contains("dark") || document.documentElement.dataset.theme === "dark"
+        const dark =
+          document.documentElement.classList.contains("dark") ||
+          document.documentElement.dataset.theme === "dark"
         const chip = document.querySelector("[data-label-chip]")
         const btn = document.querySelector("[data-row-menu-button]")
         const overflow = document.documentElement.scrollWidth > window.innerWidth + 1
@@ -266,7 +298,10 @@ for (const scheme of ["light", "dark"])
       check(`${k}-no-overflow`, !m.overflow)
       if (wd === 390) {
         // no hover on a phone: the chevron is always shown there
-        const op = await page.locator("[data-row-menu-button]").first().evaluate((e) => getComputedStyle(e).opacity)
+        const op = await page
+          .locator("[data-row-menu-button]")
+          .first()
+          .evaluate((e) => getComputedStyle(e).opacity)
         check(`${k}-chevron-visible`, op === "1", op)
       }
       await openMenu("Bravo", wd === 390 ? "chevron" : "right")

@@ -20,7 +20,10 @@ test("WhatsApp formatting", () => {
 
 test("links, without the sentence's punctuation", () => {
   const out = html("see https://example.com/a_b_c. ok")
-  assert.match(out, /<a href="https:\/\/example.com\/a_b_c"[^>]*>https:\/\/example.com\/a_b_c<\/a>\. ok/)
+  assert.match(
+    out,
+    /<a href="https:\/\/example.com\/a_b_c"[^>]*>https:\/\/example.com\/a_b_c<\/a>\. ok/,
+  )
   assert.match(html("[docs](https://x.dev/d)"), /<a href="https:\/\/x.dev\/d"[^>]*>docs<\/a>/)
   assert.equal(firstUrl("a https://one.io, b https://two.io"), "https://one.io")
   assert.deepEqual(urlsIn("(https://en.wikipedia.org/wiki/Go_(game))"), [

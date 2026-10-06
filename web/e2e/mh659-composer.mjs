@@ -26,7 +26,9 @@ const shots = process.argv[3] ?? path.join(__dirname, "shots", "mh659")
 const dbUrl = process.argv[4] ?? process.env.DATABASE_URL
 
 if (/moharrik\.com/.test(base)) {
-  console.error("refusing to run against moharrik.com — this script sends fake WhatsApp/SMTP traffic")
+  console.error(
+    "refusing to run against moharrik.com — this script sends fake WhatsApp/SMTP traffic",
+  )
   process.exit(1)
 }
 if (!dbUrl) throw new Error("need a database URL: pass it as the 3rd argument or set DATABASE_URL")
@@ -40,7 +42,10 @@ const check = (k, ok, d) => {
 }
 
 function sql(query, params = []) {
-  const escaped = params.reduce((q, p, i) => q.replaceAll(`$${i + 1}`, `'${String(p).replace(/'/g, "''")}'`), query)
+  const escaped = params.reduce(
+    (q, p, i) => q.replaceAll(`$${i + 1}`, `'${String(p).replace(/'/g, "''")}'`),
+    query,
+  )
   const res = execFileSync("psql", [dbUrl, "-t", "-A", "-c", escaped], { encoding: "utf8" }).trim()
   return res.split(/\r?\n/).find((l) => l.trim() !== "") ?? ""
 }
@@ -65,13 +70,16 @@ const evoSrv = createServer((req, res) => {
       res.end(JSON.stringify(obj))
     }
     if (req.headers["apikey"] !== EVO_KEY) return reply(401, { message: "bad apikey" })
-    if (req.url === "/instance/create") return reply(201, { qrcode: { base64: "data:image/png;base64,x", code: "2@abc" } })
+    if (req.url === "/instance/create")
+      return reply(201, { qrcode: { base64: "data:image/png;base64,x", code: "2@abc" } })
     if (req.url.startsWith("/webhook/set/")) {
       evo.webhooks.push({ instance: req.url.split("/").pop(), ...json().webhook })
       return reply(200, { webhook: { enabled: true } })
     }
-    if (req.url.startsWith("/instance/connectionState/")) return reply(200, { instance: { state: "open" } })
-    if (req.url.startsWith("/instance/connect/")) return reply(200, { base64: "data:image/png;base64,x", code: "2@abc" })
+    if (req.url.startsWith("/instance/connectionState/"))
+      return reply(200, { instance: { state: "open" } })
+    if (req.url.startsWith("/instance/connect/"))
+      return reply(200, { base64: "data:image/png;base64,x", code: "2@abc" })
     if (req.url.startsWith("/instance/delete/")) return reply(200, { status: "SUCCESS" })
     if (req.url.startsWith("/message/sendText/")) {
       evo.sendText.push(json())
@@ -181,7 +189,11 @@ async function call(method, p, json) {
       const csrf = (await (await fetch("/api/auth/csrf")).json()).csrf_token
       const r = await fetch(p, {
         method,
-        headers: { "X-Workspace-ID": slug, "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        headers: {
+          "X-Workspace-ID": slug,
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf,
+        },
         body: json !== undefined ? JSON.stringify(json) : undefined,
       })
       return { status: r.status, body: await r.json().catch(() => null) }
@@ -225,7 +237,10 @@ check("wa-inbound-seeded", wa1.status === 200, wa1.status)
 // direct DB comparison: evo.sendMedia/sendWhatsAppAudio never recorded a
 // call even though messages persisted — they were emails, not WhatsApp
 // sends). Address this conversation by id from here on, never "first".
-const waConvID = sql("SELECT id FROM conversations WHERE workspace_id = $1 AND channel = 'whatsapp'", [wsID])
+const waConvID = sql(
+  "SELECT id FROM conversations WHERE workspace_id = $1 AND channel = 'whatsapp'",
+  [wsID],
+)
 check("whatsapp-conversation-row", !!waConvID, waConvID)
 
 // ---- an SMTP service + mailbox pointed at the local sink, and a seeded email conversation ----
@@ -290,37 +305,55 @@ check("mic-button-enabled", await page.locator('[data-action="mic"]').isEnabled(
 await page.click('[data-action="attach"]')
 await page.click('[data-attach="document"]')
 await page.setInputFiles('[data-testid="attach-document-input"]', BIG_PATH)
-await page.waitForSelector('[data-attach-error]', { timeout: 10000 })
-check("oversize-rejected", await page.locator('[data-attach-error]').isVisible())
-check("oversize-no-pending", (await page.locator('[data-pending-attachment]').count()) === 0)
+await page.waitForSelector("[data-attach-error]", { timeout: 10000 })
+check("oversize-rejected", await page.locator("[data-attach-error]").isVisible())
+check("oversize-no-pending", (await page.locator("[data-pending-attachment]").count()) === 0)
 
 // ---- send an image ----
 await page.click('[data-action="attach"]')
 await page.click('[data-attach="media"]')
 await page.setInputFiles('[data-testid="attach-media-input"]', IMG_PATH)
-await page.waitForSelector('[data-pending-attachment][data-pending-attachment-kind="image"]', { timeout: 10000 })
+await page.waitForSelector('[data-pending-attachment][data-pending-attachment-kind="image"]', {
+  timeout: 10000,
+})
 await page.click('[data-form="reply"] [data-action="send"]')
-await page.waitForFunction(
-  (n) => document.querySelectorAll('[data-message="out"] [data-attachment-images], [data-message="out"] img').length >= n,
-  1,
-  { timeout: 15000 },
-).catch(() => {})
+await page
+  .waitForFunction(
+    (n) =>
+      document.querySelectorAll(
+        '[data-message="out"] [data-attachment-images], [data-message="out"] img',
+      ).length >= n,
+    1,
+    { timeout: 15000 },
+  )
+  .catch(() => {})
 await new Promise((r) => setTimeout(r, 500))
-check("evo-sendMedia-image-called", evo.sendMedia.some((c) => c.mediatype === "image"), evo.sendMedia)
+check(
+  "evo-sendMedia-image-called",
+  evo.sendMedia.some((c) => c.mediatype === "image"),
+  evo.sendMedia,
+)
 check("thread-renders-sent-image", (await page.locator('[data-message="out"] img').count()) > 0)
 
 // ---- send a document ----
 await page.click('[data-action="attach"]')
 await page.click('[data-attach="document"]')
 await page.setInputFiles('[data-testid="attach-document-input"]', DOC_PATH)
-await page.waitForSelector('[data-pending-attachment][data-pending-attachment-kind="document"]', { timeout: 10000 })
+await page.waitForSelector('[data-pending-attachment][data-pending-attachment-kind="document"]', {
+  timeout: 10000,
+})
 await page.click('[data-form="reply"] [data-action="send"]')
 await new Promise((r) => setTimeout(r, 800))
-check("evo-sendMedia-document-called", evo.sendMedia.some((c) => c.mediatype === "document"), evo.sendMedia)
+check(
+  "evo-sendMedia-document-called",
+  evo.sendMedia.some((c) => c.mediatype === "document"),
+  evo.sendMedia,
+)
 check(
   "thread-renders-sent-document",
-  (await page.locator('[data-message="out"] a', { hasText: /invoice\.pdf|mh659-invoice/ }).count()) > 0 ||
-    (await page.locator("[data-attachment-files] a").count()) > 0,
+  (await page
+    .locator('[data-message="out"] a', { hasText: /invoice\.pdf|mh659-invoice/ })
+    .count()) > 0 || (await page.locator("[data-attachment-files] a").count()) > 0,
 )
 
 // ---- record and send a voice note (fake device stream) ----
@@ -329,10 +362,16 @@ await page.waitForSelector("[data-recording-bar]", { timeout: 10000 })
 await page.waitForTimeout(1200)
 await page.click('[data-action="recording-send"]')
 await new Promise((r) => setTimeout(r, 1000))
-check("evo-sendWhatsAppAudio-called", evo.sendWhatsAppAudio.length > 0, evo.sendWhatsAppAudio.length)
+check(
+  "evo-sendWhatsAppAudio-called",
+  evo.sendWhatsAppAudio.length > 0,
+  evo.sendWhatsAppAudio.length,
+)
 check(
   "thread-renders-sent-voice",
-  (await page.locator('[data-message="out"] [data-attachment-voice], [data-message="out"] audio').count()) > 0,
+  (await page
+    .locator('[data-message="out"] [data-attachment-voice], [data-message="out"] audio')
+    .count()) > 0,
 )
 
 // ---- send a location (manual entry) ----
@@ -346,7 +385,9 @@ await new Promise((r) => setTimeout(r, 1000))
 check("evo-sendLocation-called", evo.sendLocation.length > 0, evo.sendLocation)
 check(
   "sendLocation-payload-correct",
-  evo.sendLocation.some((c) => Math.abs(c.latitude - 30.0444) < 1e-6 && Math.abs(c.longitude - 31.2357) < 1e-6),
+  evo.sendLocation.some(
+    (c) => Math.abs(c.latitude - 30.0444) < 1e-6 && Math.abs(c.longitude - 31.2357) < 1e-6,
+  ),
   evo.sendLocation,
 )
 check(
@@ -364,16 +405,20 @@ await page.type("#reply-body", "Here you go ")
 await page.click('[data-action="emoji"]')
 await page.waitForSelector("[data-emoji-picker]", { timeout: 10000 })
 await page.fill("[data-emoji-search]", "party")
-await page.waitForSelector('[data-emoji-results] button', { timeout: 10000 })
-await page.click('[data-emoji-results] button')
+await page.waitForSelector("[data-emoji-results] button", { timeout: 10000 })
+await page.click("[data-emoji-results] button")
 const bodyWithEmoji = await page.locator("#reply-body").inputValue()
 check("emoji-inserted", /🎉|🥳/.test(bodyWithEmoji), bodyWithEmoji)
 await page.click('[data-action="attach"]')
 await page.click('[data-attach="document"]')
 await page.setInputFiles('[data-testid="attach-document-input"]', DOC_PATH)
-await page.waitForSelector('[data-pending-attachment]', { timeout: 10000 })
+await page.waitForSelector("[data-pending-attachment]", { timeout: 10000 })
 await page.click('[data-form="reply"] [data-action="send"]')
-await page.waitForFunction(() => document.querySelectorAll('[data-message="out"]').length >= 1, null, { timeout: 15000 })
+await page.waitForFunction(
+  () => document.querySelectorAll('[data-message="out"]').length >= 1,
+  null,
+  { timeout: 15000 },
+)
 await new Promise((r) => setTimeout(r, 1500))
 check("sink-received-email", sinkLog.length === 1, sinkLog.length)
 const raw = sinkLog[0]?.data ?? ""
@@ -396,7 +441,9 @@ for (const scheme of ["light", "dark"])
       await page.evaluate((s) => localStorage.setItem("theme", s), scheme)
       await page.emulateMedia({ colorScheme: scheme })
       await page.setViewportSize({ width: wd, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${waConvID}`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${waConvID}`, {
+        waitUntil: "domcontentloaded",
+      })
       await page.waitForSelector('[data-form="reply"]', { timeout: 15000 })
       await page.waitForTimeout(500)
       const m = await page.evaluate(() => ({

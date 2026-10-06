@@ -473,7 +473,9 @@ function NodeLabel({
       dir={dir}
     >
       {category ? (
-        <p className={cn("truncate text-[10px] font-semibold tracking-wide uppercase", categoryTone)}>
+        <p
+          className={cn("truncate text-[10px] font-semibold tracking-wide uppercase", categoryTone)}
+        >
           {category}
         </p>
       ) : null}

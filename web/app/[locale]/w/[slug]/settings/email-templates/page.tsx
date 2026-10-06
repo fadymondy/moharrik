@@ -2,7 +2,21 @@
 
 import { useState, type FormEvent } from "react"
 import { PencilIcon, PlusIcon, SparklesIcon } from "lucide-react"
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, FieldDescription, FieldLabel, Input, Textarea, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Textarea,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup, FieldError } from "@/components/form-layout"
 
 import { Bdi, isolate } from "@/components/bidi"
@@ -51,7 +65,9 @@ export default function EmailTemplatesPage() {
         }
       />
       {!canManage ? (
-        <p className="px-6 pb-4 text-sm text-muted-foreground">{t("inbox.emailTemplates.readOnly")}</p>
+        <p className="px-6 pb-4 text-sm text-muted-foreground">
+          {t("inbox.emailTemplates.readOnly")}
+        </p>
       ) : null}
 
       {templates.error ? (
@@ -82,7 +98,9 @@ export default function EmailTemplatesPage() {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {editing === "new" ? t("inbox.emailTemplates.add") : t("inbox.emailTemplates.editTitle")}
+              {editing === "new"
+                ? t("inbox.emailTemplates.add")
+                : t("inbox.emailTemplates.editTitle")}
             </DialogTitle>
             <DialogDescription>{t("inbox.emailTemplates.bodyHint")}</DialogDescription>
           </DialogHeader>
@@ -132,7 +150,12 @@ function EmailTemplateRow({
         </p>
         {canManage ? (
           <div className="ms-auto flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={onEdit} data-action="edit-email-template">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onEdit}
+              data-action="edit-email-template"
+            >
               <PencilIcon />
               {t("inbox.emailTemplates.edit")}
             </Button>
@@ -190,7 +213,9 @@ function Variant({
           className="space-y-1 rounded-md border border-nq-line bg-card px-3 py-2 text-sm"
         >
           {subject ? <p className="font-medium">{subject}</p> : null}
-          {text ? <p className="break-words whitespace-pre-wrap text-muted-foreground">{text}</p> : null}
+          {text ? (
+            <p className="break-words whitespace-pre-wrap text-muted-foreground">{text}</p>
+          ) : null}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -272,7 +297,9 @@ function EmailTemplateForm({
     <form onSubmit={submit} noValidate className="flex flex-col gap-4" data-form="email-template">
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="email-template-name">{t("inbox.emailTemplates.nameLabel")}</FieldLabel>
+          <FieldLabel htmlFor="email-template-name">
+            {t("inbox.emailTemplates.nameLabel")}
+          </FieldLabel>
           <Input
             id="email-template-name"
             value={name}
@@ -283,7 +310,9 @@ function EmailTemplateForm({
         </Field>
         <div className="grid gap-4 md:grid-cols-2">
           <Field>
-            <FieldLabel htmlFor="email-template-subject-en">{t("inbox.emailTemplates.subjectEn")}</FieldLabel>
+            <FieldLabel htmlFor="email-template-subject-en">
+              {t("inbox.emailTemplates.subjectEn")}
+            </FieldLabel>
             <Input
               id="email-template-subject-en"
               dir="ltr"
@@ -294,7 +323,9 @@ function EmailTemplateForm({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="email-template-subject-ar">{t("inbox.emailTemplates.subjectAr")}</FieldLabel>
+            <FieldLabel htmlFor="email-template-subject-ar">
+              {t("inbox.emailTemplates.subjectAr")}
+            </FieldLabel>
             <Input
               id="email-template-subject-ar"
               dir="rtl"
@@ -307,7 +338,9 @@ function EmailTemplateForm({
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <Field>
-            <FieldLabel htmlFor="email-template-body-en">{t("inbox.emailTemplates.bodyEn")}</FieldLabel>
+            <FieldLabel htmlFor="email-template-body-en">
+              {t("inbox.emailTemplates.bodyEn")}
+            </FieldLabel>
             <Textarea
               id="email-template-body-en"
               dir="ltr"
@@ -319,7 +352,9 @@ function EmailTemplateForm({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="email-template-body-ar">{t("inbox.emailTemplates.bodyAr")}</FieldLabel>
+            <FieldLabel htmlFor="email-template-body-ar">
+              {t("inbox.emailTemplates.bodyAr")}
+            </FieldLabel>
             <Textarea
               id="email-template-body-ar"
               dir="rtl"
@@ -331,12 +366,21 @@ function EmailTemplateForm({
             />
           </Field>
         </div>
-        <p className="text-xs text-muted-foreground">{t("inbox.emailTemplates.placeholdersHint")}</p>
+        <p className="text-xs text-muted-foreground">
+          {t("inbox.emailTemplates.placeholdersHint")}
+        </p>
       </FieldGroup>
 
       {template ? (
         <div className="space-y-2">
-          <Button type="button" variant="secondary" size="sm" onClick={runPreview} disabled={previewing} data-action="preview-email-template">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={runPreview}
+            disabled={previewing}
+            data-action="preview-email-template"
+          >
             <SparklesIcon />
             {previewing ? t("common.working") : t("inbox.emailTemplates.preview")}
           </Button>
@@ -347,7 +391,9 @@ function EmailTemplateForm({
               data-email-template-preview
             >
               <p className="font-medium">{preview.subject}</p>
-              <p className="break-words whitespace-pre-wrap text-muted-foreground">{preview.body}</p>
+              <p className="break-words whitespace-pre-wrap text-muted-foreground">
+                {preview.body}
+              </p>
             </div>
           ) : null}
         </div>
@@ -355,10 +401,7 @@ function EmailTemplateForm({
 
       {err ? <FieldError>{err}</FieldError> : null}
       <DialogFooter>
-        <Button
-          type="submit"
-          disabled={busy || !name.trim() || (!bodyEn.trim() && !bodyAr.trim())}
-        >
+        <Button type="submit" disabled={busy || !name.trim() || (!bodyEn.trim() && !bodyAr.trim())}>
           {busy ? t("common.working") : t("inbox.emailTemplates.save")}
         </Button>
       </DialogFooter>

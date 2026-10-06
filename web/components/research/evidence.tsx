@@ -140,10 +140,14 @@ export function StageList({ stages }: { stages: ResearchStage[] }) {
             {STAGE_ICON[s.status] ?? STAGE_ICON.pending}
             <span>{t(`research.stage.${s.stage}`)}</span>
             {s.status === "done" ? (
-              <span className="ms-auto tabular-nums text-muted-foreground">{formatNumber(s.count)}</span>
+              <span className="ms-auto tabular-nums text-muted-foreground">
+                {formatNumber(s.count)}
+              </span>
             ) : null}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{t(`research.stageStatus.${s.status}`)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t(`research.stageStatus.${s.status}`)}
+          </p>
           {s.note ? (
             <p className="mt-1 text-xs break-words text-muted-foreground" dir="auto">
               {s.note}

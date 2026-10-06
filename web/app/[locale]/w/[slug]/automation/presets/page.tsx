@@ -89,10 +89,7 @@ export default function PresetsGalleryPage() {
 
   return (
     <>
-      <SectionHeader
-        title={t("presets.title")}
-        description={t("presets.hint")}
-      />
+      <SectionHeader title={t("presets.title")} description={t("presets.hint")} />
 
       <div className="flex flex-wrap items-center gap-3 border-b border-nq-line px-6 py-4">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">

@@ -3,7 +3,15 @@
 import { useState } from "react"
 import { MapPinIcon } from "lucide-react"
 
-import { Button, Field, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Field,
+  FieldLabel,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@fadymondy/nasaq/web"
 import { FieldError } from "@/components/form-layout"
 import { useTranslations } from "@/lib/i18n"
 
@@ -65,7 +73,14 @@ export function LocationPicker({
   function submitManual() {
     const latVal = Number.parseFloat(lat)
     const lngVal = Number.parseFloat(lng)
-    if (!Number.isFinite(latVal) || !Number.isFinite(lngVal) || latVal < -90 || latVal > 90 || lngVal < -180 || lngVal > 180) {
+    if (
+      !Number.isFinite(latVal) ||
+      !Number.isFinite(lngVal) ||
+      latVal < -90 ||
+      latVal > 90 ||
+      lngVal < -180 ||
+      lngVal > 180
+    ) {
       setError(t("inbox.composer.locationInvalid"))
       return
     }

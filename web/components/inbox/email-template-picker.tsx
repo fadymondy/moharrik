@@ -3,7 +3,17 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ChevronDownIcon, MailIcon } from "lucide-react"
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -75,10 +85,13 @@ export function EmailTemplatePicker({
             {t("inbox.emailTemplates.inLanguage", { language })}
           </DropdownMenuLabel>
           {list.length === 0 ? (
-            <p className="px-2 py-1.5 text-sm text-muted-foreground">{t("inbox.emailTemplates.none")}</p>
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">
+              {t("inbox.emailTemplates.none")}
+            </p>
           ) : (
             list.map((tpl) => {
-              const subject = lang === "ar" ? tpl.subject_ar || tpl.subject_en : tpl.subject_en || tpl.subject_ar
+              const subject =
+                lang === "ar" ? tpl.subject_ar || tpl.subject_en : tpl.subject_en || tpl.subject_ar
               const fallback = lang === "ar" ? !tpl.body_ar : !tpl.body_en
               return (
                 <DropdownMenuItem
@@ -90,7 +103,10 @@ export function EmailTemplatePicker({
                 >
                   <Bdi className="font-medium">{tpl.name}</Bdi>
                   {subject ? (
-                    <span dir="auto" className="line-clamp-1 w-full text-start text-xs text-muted-foreground">
+                    <span
+                      dir="auto"
+                      className="line-clamp-1 w-full text-start text-xs text-muted-foreground"
+                    >
                       {subject}
                     </span>
                   ) : null}
@@ -110,7 +126,9 @@ export function EmailTemplatePicker({
         {ws.can("inbox:manage") ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href={`/${locale}/w/${ws.slug}/settings/email-templates`} />}>
+            <DropdownMenuItem
+              render={<Link href={`/${locale}/w/${ws.slug}/settings/email-templates`} />}
+            >
               {t("inbox.emailTemplates.manage")}
             </DropdownMenuItem>
           </>

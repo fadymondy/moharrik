@@ -32,7 +32,12 @@ for (const scheme of ["light", "dark"]) {
   page.on("pageerror", (e) => errs.push(String(e)))
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/") && !/\/read$/.test(u.pathname))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/") &&
+      !/\/read$/.test(u.pathname)
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -40,7 +45,9 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForTimeout(1500)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -54,47 +61,92 @@ for (const scheme of ["light", "dark"]) {
       await page.waitForTimeout(1500)
       const api = await page.evaluate(async (slug) => {
         const h = { headers: { "X-Workspace-ID": slug }, credentials: "include" }
-        const [o, p] = await Promise.all([fetch("/api/w/research-overview", h), fetch("/api/w/prospects?status=new", h)])
-        return { ov: o.ok ? await o.json() : { status: o.status }, pr: p.ok ? await p.json() : { status: p.status } }
+        const [o, p] = await Promise.all([
+          fetch("/api/w/research-overview", h),
+          fetch("/api/w/prospects?status=new", h),
+        ])
+        return {
+          ov: o.ok ? await o.json() : { status: o.status },
+          pr: p.ok ? await p.json() : { status: p.status },
+        }
       }, slug)
       const dom = await page.evaluate(() => {
         const num = (s) => Number(document.querySelector(s)?.dataset.value ?? NaN)
-        const stagesFor = [...document.querySelectorAll("[data-flow-stages] [data-stage]")].map((n) => `${n.dataset.stage}:${n.dataset.stageStatus}`)
+        const stagesFor = [...document.querySelectorAll("[data-flow-stages] [data-stage]")].map(
+          (n) => `${n.dataset.stage}:${n.dataset.stageStatus}`,
+        )
         return {
-          funnel: ["found", "evidence", "prospects", "high_fit"].map((f) => num(`[data-funnel=${f}]`)),
+          funnel: ["found", "evidence", "prospects", "high_fit"].map((f) =>
+            num(`[data-funnel=${f}]`),
+          ),
           flowRun: document.querySelector("[data-flow-run]")?.dataset.flowRun,
           stages: stagesFor,
           runs: [...document.querySelectorAll("[data-recent-runs] [data-run]")].map((n) => {
             const c = (x) => Number(n.querySelector(`[data-count=${x}]`)?.dataset.value ?? NaN)
             return `${n.dataset.run}:${c("found")}/${c("evidence")}/${c("prospects")}/${c("high_fit")}`
           }),
-          waiting: [...document.querySelectorAll("[data-waiting-list] [data-prospect]")].map((n) => n.dataset.prospect),
+          waiting: [...document.querySelectorAll("[data-waiting-list] [data-prospect]")].map(
+            (n) => n.dataset.prospect,
+          ),
           hasDescribe: !!document.querySelector("[data-flagship-describe] [data-input=describe]"),
-          hasCapNote: !!document.querySelector("[data-flagship-cap], [data-research-flagship] [data-capability=search]"),
-          emptyText: [...document.querySelectorAll("[data-research-flagship] #research-flow, [data-research-flagship] #research-recent")].map((n) => n.textContent).join(" "),
+          hasCapNote: !!document.querySelector(
+            "[data-flagship-cap], [data-research-flagship] [data-capability=search]",
+          ),
+          emptyText: [
+            ...document.querySelectorAll(
+              "[data-research-flagship] #research-flow, [data-research-flagship] #research-recent",
+            ),
+          ]
+            .map((n) => n.textContent)
+            .join(" "),
           dir: document.documentElement.dir,
           dark: document.documentElement.classList.contains("dark"),
           overflow: document.documentElement.scrollWidth > innerWidth + 1,
           title: document.title,
-          deadButtons: [...document.querySelectorAll("[data-research-flagship] button")].filter((b) => !b.textContent.trim() && !b.getAttribute("aria-label")).length,
+          deadButtons: [...document.querySelectorAll("[data-research-flagship] button")].filter(
+            (b) => !b.textContent.trim() && !b.getAttribute("aria-label"),
+          ).length,
         }
       })
       const ov = api.ov
       check(`${k}-api`, Array.isArray(ov.runs), ov.status ?? Object.keys(ov))
       if (Array.isArray(ov.runs)) {
         const t = ov.totals
-        check(`${k}-funnel-matches-api`, dom.funnel.join() === [t.found, t.evidence, t.prospects, t.high_fit].join(), { dom: dom.funnel, api: t })
-        const flow = ov.runs.find((r) => r.status === "queued" || r.status === "running") ?? ov.runs[0]
+        check(
+          `${k}-funnel-matches-api`,
+          dom.funnel.join() === [t.found, t.evidence, t.prospects, t.high_fit].join(),
+          { dom: dom.funnel, api: t },
+        )
+        const flow =
+          ov.runs.find((r) => r.status === "queued" || r.status === "running") ?? ov.runs[0]
         if (!flow) {
           // A workspace with no runs: no flow is drawn, and the empty state only points at the input if it is there.
           check(`${k}-no-runs-empty`, !dom.flowRun && dom.runs.length === 0, { dom })
           const pointsUp = /above|أعلاه/.test(dom.emptyText)
-          check(`${k}-empty-copy-honest`, pointsUp === dom.hasDescribe, { pointsUp, describe: dom.hasDescribe })
+          check(`${k}-empty-copy-honest`, pointsUp === dom.hasDescribe, {
+            pointsUp,
+            describe: dom.hasDescribe,
+          })
         } else {
-        check(`${k}-flow-run`, !!flow && dom.flowRun === flow.id, { dom: dom.flowRun, api: flow?.id })
-        check(`${k}-stages-match-api`, !!flow && dom.stages.join() === flow.stages.map((s) => `${s.stage}:${s.status}`).join(), { dom: dom.stages })
-        const want = ov.runs.slice(0, 6).map((r) => `${r.id}:${r.counts.found}/${r.counts.evidence}/${r.counts.prospects}/${r.counts.high_fit}`)
-        check(`${k}-run-counts-match-api`, want.length > 0 && dom.runs.join() === want.join(), { dom: dom.runs, api: want })
+          check(`${k}-flow-run`, !!flow && dom.flowRun === flow.id, {
+            dom: dom.flowRun,
+            api: flow?.id,
+          })
+          check(
+            `${k}-stages-match-api`,
+            !!flow && dom.stages.join() === flow.stages.map((s) => `${s.stage}:${s.status}`).join(),
+            { dom: dom.stages },
+          )
+          const want = ov.runs
+            .slice(0, 6)
+            .map(
+              (r) =>
+                `${r.id}:${r.counts.found}/${r.counts.evidence}/${r.counts.prospects}/${r.counts.high_fit}`,
+            )
+          check(`${k}-run-counts-match-api`, want.length > 0 && dom.runs.join() === want.join(), {
+            dom: dom.runs,
+            api: want,
+          })
         }
       }
       const wantWaiting = (api.pr.prospects ?? [])
@@ -102,9 +154,15 @@ for (const scheme of ["light", "dark"]) {
         .sort((a, b) => b.score - a.score)
         .slice(0, 5)
         .map((p) => p.id)
-      check(`${k}-waiting-matches-api`, dom.waiting.join() === wantWaiting.join(), { dom: dom.waiting, api: wantWaiting })
+      check(`${k}-waiting-matches-api`, dom.waiting.join() === wantWaiting.join(), {
+        dom: dom.waiting,
+        api: wantWaiting,
+      })
       // Without web search the input is not drawn; the page says so instead. Exactly one of the two.
-      check(`${k}-describe-or-cap-note`, dom.hasDescribe !== dom.hasCapNote, { describe: dom.hasDescribe, note: dom.hasCapNote })
+      check(`${k}-describe-or-cap-note`, dom.hasDescribe !== dom.hasCapNote, {
+        describe: dom.hasDescribe,
+        note: dom.hasCapNote,
+      })
       check(`${k}-dir`, dom.dir === (loc === "ar" ? "rtl" : "ltr"), dom.dir)
       check(`${k}-theme`, dom.dark === (scheme === "dark"), dom.dark)
       check(`${k}-no-overflow`, !dom.overflow)
@@ -116,11 +174,20 @@ for (const scheme of ["light", "dark"]) {
   for (const sub of ["runs", "evidence", "schedules"]) {
     await page.goto(`${base}/en/w/${slug}/research/${sub}`, { waitUntil: "domcontentloaded" })
     // A cold dev compile shows a loading shell first: wait for the page to fill in.
-    await page.waitForFunction(() => document.body.innerText.length > 200, null, { timeout: 30000 }).catch(() => {})
+    await page
+      .waitForFunction(() => document.body.innerText.length > 200, null, { timeout: 30000 })
+      .catch(() => {})
     const body = await page.evaluate(() => document.body.innerText.length)
-    check(`${scheme}-sub-${sub}`, page.url().includes(`/research/${sub}`) && body > 200, { url: page.url(), body })
+    check(`${scheme}-sub-${sub}`, page.url().includes(`/research/${sub}`) && body > 200, {
+      url: page.url(),
+      body,
+    })
   }
-  for (const [tab, dest] of [["runs", "runs"], ["evidence", "evidence"], ["schedules", "schedules"]]) {
+  for (const [tab, dest] of [
+    ["runs", "runs"],
+    ["evidence", "evidence"],
+    ["schedules", "schedules"],
+  ]) {
     await page.goto(`${base}/en/w/${slug}/research?tab=${tab}`, { waitUntil: "domcontentloaded" })
     await page.waitForURL(new RegExp(`/research/${dest}$`), { timeout: 15000 }).catch(() => {})
     check(`${scheme}-tab-redirect-${tab}`, page.url().endsWith(`/research/${dest}`), page.url())
@@ -131,6 +198,12 @@ for (const scheme of ["light", "dark"]) {
   rmSync(dir, { recursive: true, force: true })
 }
 
-console.log(JSON.stringify({ fail, out: Object.fromEntries(Object.entries(out).filter(([, v]) => v !== true)) }, null, 1))
+console.log(
+  JSON.stringify(
+    { fail, out: Object.fromEntries(Object.entries(out).filter(([, v]) => v !== true)) },
+    null,
+    1,
+  ),
+)
 console.log(fail.length ? `FAIL ${fail.length}` : `PASS ${Object.keys(out).length}`)
 process.exit(fail.length ? 1 : 0)

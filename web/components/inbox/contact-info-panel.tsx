@@ -10,7 +10,20 @@ import {
   LinkIcon,
   StarIcon,
 } from "lucide-react"
-import { Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Tabs, TabsList, TabsPanel, TabsTab, Textarea, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  Tabs,
+  TabsList,
+  TabsPanel,
+  TabsTab,
+  Textarea,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { Bdi } from "@/components/bidi"
 import { Ltr } from "@/components/copy-field"
@@ -51,7 +64,13 @@ export function ContactInfoPanel({
   const muted = isMuted(c)
 
   const contact = contactQuery.data?.contact
-  const who = contact?.name || c.contact?.name || c.customer_name || c.customer_email || c.customer_phone || t("inbox.anonymous")
+  const who =
+    contact?.name ||
+    c.contact?.name ||
+    c.customer_name ||
+    c.customer_email ||
+    c.customer_phone ||
+    t("inbox.anonymous")
   const notesValue = notes ?? contact?.notes ?? ""
 
   async function saveNotes() {
@@ -90,11 +109,7 @@ export function ContactInfoPanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="end"
-        className="w-full sm:w-[min(24rem,100vw)]"
-        data-contact-info-panel
-      >
+      <SheetContent side="end" className="w-full sm:w-[min(24rem,100vw)]" data-contact-info-panel>
         <SheetHeader>
           <SheetTitle>{t("inbox.menu.contactInfo")}</SheetTitle>
           <SheetDescription className="sr-only">{who}</SheetDescription>
@@ -102,7 +117,13 @@ export function ContactInfoPanel({
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
           <div className="flex flex-col items-center gap-2 text-center">
-            <PersonAvatar id={c.contact_id || c.id} name={who} photoUrl={c.avatar_url} size="lg" className="size-20" />
+            <PersonAvatar
+              id={c.contact_id || c.id}
+              name={who}
+              photoUrl={c.avatar_url}
+              size="lg"
+              className="size-20"
+            />
             <Bdi className="text-base font-medium">{who}</Bdi>
             {c.customer_phone ? (
               <p className="text-sm text-muted-foreground">
@@ -135,7 +156,9 @@ export function ContactInfoPanel({
 
           {contact?.biography ? (
             <section data-panel-about>
-              <h3 className="mb-1 text-xs font-medium text-muted-foreground">{t("inbox.contactInfo.about")}</h3>
+              <h3 className="mb-1 text-xs font-medium text-muted-foreground">
+                {t("inbox.contactInfo.about")}
+              </h3>
               <p className="text-sm">
                 <Bdi>{contact.biography}</Bdi>
               </p>
@@ -144,7 +167,9 @@ export function ContactInfoPanel({
 
           {contact ? (
             <section data-panel-notes>
-              <h3 className="mb-1 text-xs font-medium text-muted-foreground">{t("inbox.contactInfo.notes")}</h3>
+              <h3 className="mb-1 text-xs font-medium text-muted-foreground">
+                {t("inbox.contactInfo.notes")}
+              </h3>
               <Textarea
                 value={notesValue}
                 onChange={(e) => setNotes(e.target.value)}
@@ -252,7 +277,11 @@ export function ContactInfoPanel({
               ) : (
                 <ul className="flex flex-col gap-2 pt-2">
                   {starred.data.messages.map((m) => (
-                    <li key={m.id} className="rounded-md border border-nq-line px-2 py-1.5 text-sm" data-starred-item>
+                    <li
+                      key={m.id}
+                      className="rounded-md border border-nq-line px-2 py-1.5 text-sm"
+                      data-starred-item
+                    >
                       <p className="truncate">
                         <Bdi>{m.body}</Bdi>
                       </p>

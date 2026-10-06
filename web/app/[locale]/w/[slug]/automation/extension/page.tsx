@@ -193,7 +193,9 @@ export default function ExtensionInstallPage() {
               </div>
             </div>
           ) : (
-            <p className="px-6 text-sm text-muted-foreground">{t("automation.ext.managedUnsigned")}</p>
+            <p className="px-6 text-sm text-muted-foreground">
+              {t("automation.ext.managedUnsigned")}
+            </p>
           )}
         </section>
       ) : null}

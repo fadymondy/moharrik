@@ -4,7 +4,16 @@ import Link from "next/link"
 import { ChevronDownIcon, MessageSquareQuoteIcon } from "lucide-react"
 
 import { Bdi } from "@/components/bidi"
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { CannedReply } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"

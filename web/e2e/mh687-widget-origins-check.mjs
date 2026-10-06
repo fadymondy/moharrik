@@ -14,7 +14,8 @@ import { chromium } from "playwright-core"
 import { mkdirSync } from "node:fs"
 
 const base = (process.argv[2] ?? "http://localhost:3687").replace(/\/$/, "")
-if (/app\.moharrik\.com/.test(base)) throw new Error("this check writes; never run it on production")
+if (/app\.moharrik\.com/.test(base))
+  throw new Error("this check writes; never run it on production")
 const SHOTS = process.env.SHOTS ?? "E:/tmp/shots687"
 mkdirSync(SHOTS, { recursive: true })
 const CHROME =
@@ -150,13 +151,20 @@ try {
   // The server refuses what the form refuses, so the API and MCP cannot store
   // an origin that matches nothing either.
   for (const bad of ["fadymondy.com", "https://two.example/contact", "https://a.*.test"]) {
-    const r = await api(page, "PATCH", `/api/w/chat_widgets/${widget.id}`, ws.id, { allowed_origins: [bad] })
+    const r = await api(page, "PATCH", `/api/w/chat_widgets/${widget.id}`, ws.id, {
+      allowed_origins: [bad],
+    })
     check(r.status === 422, `the API refuses "${bad}" (${r.status})`)
   }
   // A wildcard entry lets a subdomain in and keeps the apex out.
   const cfg = (origin) =>
-    fetch(`${base}/api/chat/${widget.public_key}/config`, { headers: { Origin: origin } }).then((r) => r.status)
-  check((await cfg("https://www.two.example")) === 200, "https://*.two.example lets www.two.example in")
+    fetch(`${base}/api/chat/${widget.public_key}/config`, { headers: { Origin: origin } }).then(
+      (r) => r.status,
+    )
+  check(
+    (await cfg("https://www.two.example")) === 200,
+    "https://*.two.example lets www.two.example in",
+  )
   check((await cfg("https://evil.example")) === 403, "and still refuses other origins")
 
   // Emptying the list is allowed (the hint says the widget is then blocked).
@@ -165,7 +173,10 @@ try {
   const saved = page.waitForResponse(
     // ok() only: my api() helper fetched a fresh CSRF token, so the page's
     // first PATCH is refused and the app retries it with a new one.
-    (r) => r.request().method() === "PATCH" && r.url().includes(`/api/w/chat_widgets/${widget.id}`) && r.ok(),
+    (r) =>
+      r.request().method() === "PATCH" &&
+      r.url().includes(`/api/w/chat_widgets/${widget.id}`) &&
+      r.ok(),
   )
   await page.locator("[data-widget-settings-form] button[type=submit]").click()
   console.log(`  clear → PATCH ${(await saved).status()}`)
@@ -186,7 +197,10 @@ try {
           return el ? el.scrollWidth - el.clientWidth : -1
         })
         const dir = await s.page.evaluate(() => document.documentElement.dir)
-        check(over === 0, `${locale}/${theme}/${width}: the sheet has no sideways overflow (${over})`)
+        check(
+          over === 0,
+          `${locale}/${theme}/${width}: the sheet has no sideways overflow (${over})`,
+        )
         check(dir === (locale === "ar" ? "rtl" : "ltr"), `${locale}: dir=${dir}`)
         const originsDir = await s.page.locator("#ws-origins").getAttribute("dir")
         check(originsDir === "ltr", `${locale}: origins are typed left to right`)
@@ -215,7 +229,12 @@ try {
   await browser.close()
 }
 
-const relevant = warnings.filter((w) => !/Download the React DevTools|HMR|Fast Refresh|Failed to load resource/.test(w))
-check(relevant.length === 0, `no console errors or Base UI warnings${relevant.length ? ": " + relevant.join(" | ") : ""}`)
+const relevant = warnings.filter(
+  (w) => !/Download the React DevTools|HMR|Fast Refresh|Failed to load resource/.test(w),
+)
+check(
+  relevant.length === 0,
+  `no console errors or Base UI warnings${relevant.length ? ": " + relevant.join(" | ") : ""}`,
+)
 console.log(failures.length ? `\n${failures.length} FAILED` : "\nall passed")
 process.exit(failures.length ? 1 : 0)

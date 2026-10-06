@@ -132,7 +132,9 @@ out.slug = slug
 await page.goto(`${base}/en/w/${slug}/settings/integrations`, { waitUntil: "domcontentloaded" })
 await page.click("[data-add-channel]")
 await page.click('[data-add-type="whatsapp"]')
-await page.waitForSelector('[data-add-channel-sheet="whatsapp"] [data-whatsapp-state]', { timeout: 20000 })
+await page.waitForSelector('[data-add-channel-sheet="whatsapp"] [data-whatsapp-state]', {
+  timeout: 20000,
+})
 await page.click('[data-add-channel-sheet="whatsapp"] button:has-text("Link a number")')
 await page.waitForSelector("[data-whatsapp-qr]", { timeout: 20000 })
 const hook = stub.webhooks[0] ?? {}
@@ -173,9 +175,15 @@ try {
 }
 
 // ---- (b)/(c) a composing presence.update shows "typing…" in header AND list row ----
-await post({ event: "presence.update", data: { id: `${CUSTOMER}@s.whatsapp.net`, presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "composing" } } } })
+await post({
+  event: "presence.update",
+  data: {
+    id: `${CUSTOMER}@s.whatsapp.net`,
+    presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "composing" } },
+  },
+})
 await page
-  .waitForSelector('[data-thread-title] ~ * [data-typing-indicator], [data-typing-indicator]', {
+  .waitForSelector("[data-thread-title] ~ * [data-typing-indicator], [data-typing-indicator]", {
     timeout: 10000,
   })
   .then(() => (out.headerShowsTyping = true))
@@ -190,7 +198,13 @@ out.listRowShowsTyping = await page.evaluate(
 )
 
 // paused clears both
-await post({ event: "presence.update", data: { id: `${CUSTOMER}@s.whatsapp.net`, presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "paused" } } } })
+await post({
+  event: "presence.update",
+  data: {
+    id: `${CUSTOMER}@s.whatsapp.net`,
+    presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "paused" } },
+  },
+})
 await page
   .waitForFunction(() => document.querySelectorAll("[data-typing-indicator]").length === 0, {
     timeout: 10000,
@@ -199,23 +213,47 @@ await page
   .catch(() => (out.clearsOnPaused = false))
 
 // recording -> "recording audio…"
-await post({ event: "presence.update", data: { id: `${CUSTOMER}@s.whatsapp.net`, presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "recording" } } } })
+await post({
+  event: "presence.update",
+  data: {
+    id: `${CUSTOMER}@s.whatsapp.net`,
+    presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "recording" } },
+  },
+})
 await page.waitForSelector("[data-typing-indicator]", { timeout: 10000 })
 out.recordingText = await page.locator("[data-typing-indicator]").first().textContent()
 
 // ---- the ~25s safety-net timeout, with no paused event at all ----
-await page.waitForFunction(() => document.querySelectorAll("[data-typing-indicator]").length === 0, {
-  timeout: 30000,
-})
+await page.waitForFunction(
+  () => document.querySelectorAll("[data-typing-indicator]").length === 0,
+  {
+    timeout: 30000,
+  },
+)
 out.clearsOnTimeout = true
 
 // ---- (d) the agent's composer: throttled composing, then paused on send ----
-await post({ event: "presence.update", data: { id: `${CUSTOMER}@s.whatsapp.net`, presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "composing" } } } })
-await page.waitForSelector("[data-typing-indicator]", { timeout: 10000 })
-await post({ event: "presence.update", data: { id: `${CUSTOMER}@s.whatsapp.net`, presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "paused" } } } })
-await page.waitForFunction(() => document.querySelectorAll("[data-typing-indicator]").length === 0, {
-  timeout: 10000,
+await post({
+  event: "presence.update",
+  data: {
+    id: `${CUSTOMER}@s.whatsapp.net`,
+    presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "composing" } },
+  },
 })
+await page.waitForSelector("[data-typing-indicator]", { timeout: 10000 })
+await post({
+  event: "presence.update",
+  data: {
+    id: `${CUSTOMER}@s.whatsapp.net`,
+    presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "paused" } },
+  },
+})
+await page.waitForFunction(
+  () => document.querySelectorAll("[data-typing-indicator]").length === 0,
+  {
+    timeout: 10000,
+  },
+)
 
 const presenceCountBefore = stub.presence.length
 await page.fill("#reply-body", "One moment")
@@ -271,8 +309,9 @@ await page.click('[data-channel-row][data-channel-type="chat"] [data-edit-channe
 await page.waitForSelector("code", { timeout: 10000 })
 const embed = await page.evaluate(
   () =>
-    [...document.querySelectorAll("code")].map((c) => c.textContent ?? "").find((v) => v.includes("data-key=")) ??
-    "",
+    [...document.querySelectorAll("code")]
+      .map((c) => c.textContent ?? "")
+      .find((v) => v.includes("data-key=")) ?? "",
 )
 const widgetKey = (embed.match(/data-key="([^"]+)"/) || [])[1]
 out.widgetKeyFound = !!widgetKey
@@ -304,9 +343,12 @@ out.visitorConversationStarted = !!visitorToken
 // so an event sent before anyone is listening is simply gone. Open + select
 // the conversation first, then post the visitor's "composing".
 await page.goto(`${base}/en/w/${slug}/inbox`, { waitUntil: "domcontentloaded" })
-await page.waitForSelector('[data-conversation]:has-text("hello from the widget"), [data-conversation]', {
-  timeout: 15000,
-})
+await page.waitForSelector(
+  '[data-conversation]:has-text("hello from the widget"), [data-conversation]',
+  {
+    timeout: 15000,
+  },
+)
 // select the widget conversation (the newest one)
 const widgetConvBtn = page.locator("[data-conversation]").first()
 await page.waitForTimeout(300) // let the virtualized list settle before clicking a row
@@ -344,17 +386,23 @@ await visitor.evaluate(
   },
   { base, widgetKey, SITE_PORT, visitorToken },
 )
-await page.waitForFunction(() => document.querySelectorAll("[data-typing-indicator]").length === 0, {
-  timeout: 8000,
-})
+await page.waitForFunction(
+  () => document.querySelectorAll("[data-typing-indicator]").length === 0,
+  {
+    timeout: 8000,
+  },
+)
 
 // agent -> widget visitor: open the visitor's own SSE stream, then type in the composer
 const sseFrames = []
 const sseTask = visitor.evaluate(
   async ({ base, widgetKey, SITE_PORT, visitorToken }) => {
-    const res = await fetch(`${base}/api/chat/${encodeURIComponent(widgetKey)}/events?visitor_token=${encodeURIComponent(visitorToken)}`, {
-      headers: { Accept: "text/event-stream", Origin: `http://127.0.0.1:${SITE_PORT}` },
-    })
+    const res = await fetch(
+      `${base}/api/chat/${encodeURIComponent(widgetKey)}/events?visitor_token=${encodeURIComponent(visitorToken)}`,
+      {
+        headers: { Accept: "text/event-stream", Origin: `http://127.0.0.1:${SITE_PORT}` },
+      },
+    )
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buf = ""
@@ -404,9 +452,13 @@ async function shot(locale, scheme, width, height, name) {
   await p.goto(`${base}/${locale}/w/${s}/settings/integrations`, { waitUntil: "domcontentloaded" })
   await p.click("[data-add-channel]")
   await p.click('[data-add-type="whatsapp"]')
-  await p.waitForSelector('[data-add-channel-sheet="whatsapp"] [data-whatsapp-state]', { timeout: 20000 })
+  await p.waitForSelector('[data-add-channel-sheet="whatsapp"] [data-whatsapp-state]', {
+    timeout: 20000,
+  })
   await p
-    .click('[data-add-channel-sheet="whatsapp"] button:has-text("Link a number"), [data-add-channel-sheet="whatsapp"] button:has-text("ربط رقماً")')
+    .click(
+      '[data-add-channel-sheet="whatsapp"] button:has-text("Link a number"), [data-add-channel-sheet="whatsapp"] button:has-text("ربط رقماً")',
+    )
     .catch(() => {})
   await p.waitForTimeout(500)
   const hookRow = stub.webhooks.at(-1)
@@ -440,7 +492,10 @@ async function shot(locale, scheme, width, height, name) {
       headers: { "Content-Type": "application/json", "X-Moharrik-Token": tok },
       body: JSON.stringify({
         event: "presence.update",
-        data: { id: `${CUSTOMER}@s.whatsapp.net`, presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "composing" } } },
+        data: {
+          id: `${CUSTOMER}@s.whatsapp.net`,
+          presences: { [`${CUSTOMER}@s.whatsapp.net`]: { lastKnownPresence: "composing" } },
+        },
       }),
     })
     await p.waitForSelector("[data-typing-indicator]", { timeout: 10000 }).catch(() => {})

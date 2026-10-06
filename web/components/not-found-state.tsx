@@ -25,8 +25,12 @@ export function NotFoundState({
     <div className="flex flex-col items-center gap-4 px-6 py-20 text-center">
       <ProductMark brand="moharrik" size={40} />
       <p className="eyebrow">404</p>
-      <h1 className="font-medium tracking-tight text-foreground text-2xl">{title ?? t("notFound.title")}</h1>
-      <p className="leading-relaxed text-nq-fg-body max-w-md text-sm">{body ?? t("notFound.body")}</p>
+      <h1 className="font-medium tracking-tight text-foreground text-2xl">
+        {title ?? t("notFound.title")}
+      </h1>
+      <p className="leading-relaxed text-nq-fg-body max-w-md text-sm">
+        {body ?? t("notFound.body")}
+      </p>
       <Button
         variant="secondary"
         nativeButton={false}

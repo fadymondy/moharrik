@@ -21,7 +21,16 @@ import { Ltr } from "@/components/copy-field"
 import { KIND_ICON } from "@/components/google/resource-picker"
 import { useFormat } from "@/components/overview/overview-cards"
 import { EmptyState } from "@/components/states"
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Toggle,
+  ToggleGroup,
+} from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { GoogleKind, GoogleResource } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -294,7 +303,11 @@ export function Delta({
     <span
       className={cn(
         "inline-flex items-center gap-1 text-xs font-medium tabular-nums",
-        good == null ? "text-muted-foreground" : good ? "text-nq-success-text" : "text-nq-danger-text",
+        good == null
+          ? "text-muted-foreground"
+          : good
+            ? "text-nq-success-text"
+            : "text-nq-danger-text",
       )}
       data-delta={good == null ? "flat" : good ? "better" : "worse"}
     >

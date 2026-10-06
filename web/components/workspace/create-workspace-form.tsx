@@ -65,7 +65,7 @@ export function CreateWorkspaceForm({
             placeholder={t("workspaces.namePlaceholder")}
           />
         </Field>
-        <Field invalid={!!(!!error)}>
+        <Field invalid={!!!!error}>
           <FieldLabel htmlFor="ws-slug">
             {t("workspaces.slug")}{" "}
             <span className="font-normal text-muted-foreground">({t("common.optional")})</span>

@@ -35,7 +35,11 @@ for (const scheme of ["light", "dark"]) {
   const writes = []
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/"))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/")
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -60,7 +64,10 @@ for (const scheme of ["light", "dark"]) {
       const k = `${loc}-${scheme}-${w}`
       await page.setViewportSize({ width: w, height: 900 })
       await page.goto(`${base}/${loc}/w/${slug}/inbox?c=${conv}`, { waitUntil: "domcontentloaded" })
-      const form = await page.waitForSelector('[data-form="reply"]', { timeout: 30000 }).then(() => true, () => false)
+      const form = await page.waitForSelector('[data-form="reply"]', { timeout: 30000 }).then(
+        () => true,
+        () => false,
+      )
       check(`${k}-composer`, form)
       if (!form) continue
       const f = page.locator('[data-form="reply"]').first()
@@ -71,7 +78,12 @@ for (const scheme of ["light", "dark"]) {
       }
       // Emoji picker: open, see results, close. Nothing inserted.
       await f.locator('[data-action="emoji"]').first().click()
-      const emoji = await page.waitForSelector("[data-emoji-picker] [data-emoji]", { timeout: 10000 }).then(() => true, () => false)
+      const emoji = await page
+        .waitForSelector("[data-emoji-picker] [data-emoji]", { timeout: 10000 })
+        .then(
+          () => true,
+          () => false,
+        )
       const emojis = await page.locator("[data-emoji-picker] [data-emoji]").count()
       check(`${k}-emoji-picker`, emoji && emojis > 50, emojis)
       await page.waitForTimeout(300)
@@ -80,11 +92,16 @@ for (const scheme of ["light", "dark"]) {
       await page.waitForTimeout(300)
       // Attach menu: open, see the document entry, close. No file chosen.
       await f.locator('[data-action="attach"]').first().click()
-      const att = await page.waitForSelector('[data-attach="document"]', { timeout: 10000 }).then(() => true, () => false)
+      const att = await page.waitForSelector('[data-attach="document"]', { timeout: 10000 }).then(
+        () => true,
+        () => false,
+      )
       check(`${k}-attach-menu`, att)
       await page.waitForTimeout(300)
       // Each entry sits on one line: a menu as narrow as its icon button wraps them.
-      const rows = await page.locator("[data-attach]").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))
+      const rows = await page
+        .locator("[data-attach]")
+        .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))
       check(`${k}-attach-one-line`, rows.length > 0 && rows.every((h) => h <= 40), rows)
       if (shots) await page.screenshot({ path: `${shots}/mh659-live-${k}-attach.png` })
       await page.keyboard.press("Escape")

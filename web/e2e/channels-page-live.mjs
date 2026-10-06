@@ -37,7 +37,9 @@ for (const scheme of ["light", "dark"]) {
   for (const loc of ["en", "ar"])
     for (const w of [1440, 390]) {
       await page.setViewportSize({ width: w, height: 900 })
-      await page.goto(`${base}/${loc}/w/${slug}/settings/integrations`, { waitUntil: "domcontentloaded" })
+      await page.goto(`${base}/${loc}/w/${slug}/settings/integrations`, {
+        waitUntil: "domcontentloaded",
+      })
       await page.waitForSelector("[data-channel-row]", { timeout: 30000 }).catch(() => {})
       await page.waitForTimeout(800)
       const k = `${loc}-${scheme}-${w}`

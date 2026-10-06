@@ -65,8 +65,16 @@ const MEDIA_FIXTURES = {
   "img-1": { base64: PNG_1PX, mimetype: "image/png", fileName: "photo.png" },
   "sticker-1": { base64: PNG_1PX, mimetype: "image/webp", fileName: "sticker.webp" },
   "voice-1": { base64: WAV_B64, mimetype: "audio/wav", fileName: "voice.wav" },
-  "vid-1": { base64: Buffer.from("not-really-mp4-bytes").toString("base64"), mimetype: "video/mp4", fileName: "clip.mp4" },
-  "doc-1": { base64: Buffer.from("%PDF-1.4 fake").toString("base64"), mimetype: "application/pdf", fileName: "invoice.pdf" },
+  "vid-1": {
+    base64: Buffer.from("not-really-mp4-bytes").toString("base64"),
+    mimetype: "video/mp4",
+    fileName: "clip.mp4",
+  },
+  "doc-1": {
+    base64: Buffer.from("%PDF-1.4 fake").toString("base64"),
+    mimetype: "application/pdf",
+    fileName: "invoice.pdf",
+  },
   "fail-1": { status: 500, message: "media expired" },
   "img-ar-1": { base64: PNG_1PX, mimetype: "image/png", fileName: "photo.png" },
 }
@@ -118,7 +126,8 @@ const srv = createServer((req, res) => {
       const id = b.message?.key?.id
       const fx = MEDIA_FIXTURES[id]
       if (!fx) return reply(404, { message: "no fixture for " + id })
-      if (fx.status && fx.status !== 200) return reply(fx.status, { message: fx.message || "failed" })
+      if (fx.status && fx.status !== 200)
+        return reply(fx.status, { message: fx.message || "failed" })
       return reply(200, { base64: fx.base64, mimetype: fx.mimetype, fileName: fx.fileName })
     }
     return reply(404, { message: "not stubbed: " + req.url })
@@ -194,25 +203,56 @@ const msg = (id, message, extra = {}) => ({
 // ---- send one webhook per media kind — media-only, no caption, exactly the
 // shape this card fixes from being dropped ----
 out.postStatuses = {}
-out.postStatuses.image = (await post(msg("img-1", { imageMessage: { mimetype: "image/png" } }))).status
-out.postStatuses.sticker = (await post(msg("sticker-1", { stickerMessage: { mimetype: "image/webp" } }))).status
-out.postStatuses.voice = (await post(msg("voice-1", { audioMessage: { ptt: true, seconds: 2, mimetype: "audio/wav" } }))).status
-out.postStatuses.video = (await post(msg("vid-1", { videoMessage: { mimetype: "video/mp4" } }))).status
-out.postStatuses.document = (await post(msg("doc-1", { documentMessage: { fileName: "invoice.pdf", mimetype: "application/pdf" } }))).status
+out.postStatuses.image = (
+  await post(msg("img-1", { imageMessage: { mimetype: "image/png" } }))
+).status
+out.postStatuses.sticker = (
+  await post(msg("sticker-1", { stickerMessage: { mimetype: "image/webp" } }))
+).status
+out.postStatuses.voice = (
+  await post(msg("voice-1", { audioMessage: { ptt: true, seconds: 2, mimetype: "audio/wav" } }))
+).status
+out.postStatuses.video = (
+  await post(msg("vid-1", { videoMessage: { mimetype: "video/mp4" } }))
+).status
+out.postStatuses.document = (
+  await post(
+    msg("doc-1", { documentMessage: { fileName: "invoice.pdf", mimetype: "application/pdf" } }),
+  )
+).status
 out.postStatuses.location = (
-  await post(msg("loc-1", { locationMessage: { degreesLatitude: 30.05, degreesLongitude: 31.23, name: "HQ", address: "Cairo" } }))
+  await post(
+    msg("loc-1", {
+      locationMessage: {
+        degreesLatitude: 30.05,
+        degreesLongitude: 31.23,
+        name: "HQ",
+        address: "Cairo",
+      },
+    }),
+  )
 ).status
 out.postStatuses.contact = (
-  await post(msg("contact-1", { contactMessage: { displayName: "Sam", vcard: "BEGIN:VCARD\nTEL:+201111111111\nEND:VCARD" } }))
+  await post(
+    msg("contact-1", {
+      contactMessage: { displayName: "Sam", vcard: "BEGIN:VCARD\nTEL:+201111111111\nEND:VCARD" },
+    }),
+  )
 ).status
 out.postStatuses.contactsArray = (
   await post(
     msg("contacts-arr-1", {
-      contactsArrayMessage: { contacts: [{ displayName: "Group Contact", vcard: "BEGIN:VCARD\nTEL:+201222222222\nEND:VCARD" }] },
+      contactsArrayMessage: {
+        contacts: [
+          { displayName: "Group Contact", vcard: "BEGIN:VCARD\nTEL:+201222222222\nEND:VCARD" },
+        ],
+      },
     }),
   )
 ).status
-out.postStatuses.failedDownload = (await post(msg("fail-1", { imageMessage: { mimetype: "image/png" } }))).status
+out.postStatuses.failedDownload = (
+  await post(msg("fail-1", { imageMessage: { mimetype: "image/png" } }))
+).status
 
 // ---- open the conversation ----
 await page.goto(`${base}/en/w/${slug}/inbox`, { waitUntil: "domcontentloaded" })
@@ -224,8 +264,12 @@ await page.waitForFunction(
   { timeout: 15000 },
 )
 
-out.imageRendered = await page.evaluate(() => !!document.querySelector("[data-attachment-images] img"))
-out.stickerRendered = await page.evaluate(() => !!document.querySelector("[data-attachment-sticker]"))
+out.imageRendered = await page.evaluate(
+  () => !!document.querySelector("[data-attachment-images] img"),
+)
+out.stickerRendered = await page.evaluate(
+  () => !!document.querySelector("[data-attachment-sticker]"),
+)
 out.videoRendered = await page.evaluate(() => {
   const v = document.querySelector("[data-attachment-video]")
   return !!v && !!v.getAttribute("src")
@@ -236,13 +280,22 @@ out.documentRendered = await page.evaluate(() => {
 })
 out.locationRendered = await page.evaluate(() => {
   const a = document.querySelector("[data-attachment-location]")
-  return !!a && a.getAttribute("href")?.includes("openstreetmap.org") && a.getAttribute("href")?.includes("30.05")
+  return (
+    !!a &&
+    a.getAttribute("href")?.includes("openstreetmap.org") &&
+    a.getAttribute("href")?.includes("30.05")
+  )
 })
 out.contactRendered = await page.evaluate(() => {
   const cards = [...document.querySelectorAll("[data-attachment-contact]")]
-  return cards.some((c) => /Sam/.test(c.textContent || "")) && cards.some((c) => /Group Contact/.test(c.textContent || ""))
+  return (
+    cards.some((c) => /Sam/.test(c.textContent || "")) &&
+    cards.some((c) => /Group Contact/.test(c.textContent || ""))
+  )
 })
-out.failedChipRendered = await page.evaluate(() => !!document.querySelector("[data-attachment-failed]"))
+out.failedChipRendered = await page.evaluate(
+  () => !!document.querySelector("[data-attachment-failed]"),
+)
 
 // sticker bubble has no chrome: its wrapper carries data-sticker-only and no background
 out.stickerBubbleHasNoBackground = await page.evaluate(() => {
@@ -255,7 +308,9 @@ out.stickerBubbleHasNoBackground = await page.evaluate(() => {
 // ---- the image lightbox opens on click ----
 await page.click("[data-attachment-images] button")
 await page.waitForSelector('[data-slot="dialog-content"]', { timeout: 10000 })
-out.lightboxOpened = await page.evaluate(() => !!document.querySelector('[data-slot="dialog-content"] img'))
+out.lightboxOpened = await page.evaluate(
+  () => !!document.querySelector('[data-slot="dialog-content"] img'),
+)
 await page.keyboard.press("Escape")
 await page.waitForTimeout(300)
 
@@ -274,7 +329,7 @@ out.framesPainted = await page.evaluate(
       requestAnimationFrame(tick)
     }),
 )
-await page.click('[data-attachment-voice] button')
+await page.click("[data-attachment-voice] button")
 await page.waitForTimeout(700)
 out.voiceCurrentTimeAdvanced = await page.evaluate(() => {
   const el = document.querySelector("[data-attachment-voice] audio")
@@ -310,17 +365,32 @@ const postAr = (payload) =>
     body: JSON.stringify(payload),
   })
 await postAr(msg("img-ar-1", { imageMessage: { mimetype: "image/png" } }))
-await postAr(msg("loc-ar-1", { locationMessage: { degreesLatitude: 30.05, degreesLongitude: 31.23, name: "HQ" } }))
-await postAr(msg("contact-ar-1", { contactMessage: { displayName: "سام", vcard: "BEGIN:VCARD\nTEL:+201111111111\nEND:VCARD" } }))
+await postAr(
+  msg("loc-ar-1", {
+    locationMessage: { degreesLatitude: 30.05, degreesLongitude: 31.23, name: "HQ" },
+  }),
+)
+await postAr(
+  msg("contact-ar-1", {
+    contactMessage: { displayName: "سام", vcard: "BEGIN:VCARD\nTEL:+201111111111\nEND:VCARD" },
+  }),
+)
 
 await pageAr.goto(`${base}/ar/w/${slugAr}/inbox`, { waitUntil: "domcontentloaded" })
 await pageAr.waitForSelector("[data-conversation]", { timeout: 20000 })
 await pageAr.click("[data-conversation]")
 await pageAr.waitForSelector("[data-messages]", { timeout: 15000 })
-await pageAr.waitForFunction(() => document.querySelectorAll("[data-attachment-images]").length > 0, { timeout: 15000 })
+await pageAr.waitForFunction(
+  () => document.querySelectorAll("[data-attachment-images]").length > 0,
+  { timeout: 15000 },
+)
 out.ar390_overflow = await pageAr.evaluate(() => document.documentElement.scrollWidth > 390)
-out.ar390_locationRendered = await pageAr.evaluate(() => !!document.querySelector("[data-attachment-location]"))
-out.ar390_contactRendered = await pageAr.evaluate(() => !!document.querySelector("[data-attachment-contact]"))
+out.ar390_locationRendered = await pageAr.evaluate(
+  () => !!document.querySelector("[data-attachment-location]"),
+)
+out.ar390_contactRendered = await pageAr.evaluate(
+  () => !!document.querySelector("[data-attachment-contact]"),
+)
 await pageAr.evaluate(() => document.querySelector("[data-messages]")?.scrollIntoView())
 await pageAr.waitForTimeout(300)
 await pageAr.screenshot({ path: path.join(shotsDir, "ar-dark-390.png") })

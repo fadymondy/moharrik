@@ -15,7 +15,16 @@
 import Link from "next/link"
 import { useEffect, useState, type FormEvent } from "react"
 import { ChartLineIcon, CheckCircle2Icon, SendIcon, TriangleAlertIcon } from "lucide-react"
-import { Badge, Button, Field, FieldDescription, FieldLabel, Input, Switch, toast } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Switch,
+  toast,
+} from "@fadymondy/nasaq/web"
 import { FieldGroup } from "@/components/form-layout"
 
 import { Ltr } from "@/components/copy-field"
@@ -289,7 +298,9 @@ export function Ga4Conversions({ googleConnected }: { googleConnected: boolean }
 
       <div className="px-6 pt-5 pb-2">
         <h4 className="text-sm font-medium">{t("ga4conv.whatIsSent")}</h4>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("ga4conv.whatIsSentHint")}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+          {t("ga4conv.whatIsSentHint")}
+        </p>
       </div>
       <ul className="divide-y divide-nq-line border-y border-nq-line" data-ga4-event-map>
         {page.data.events.map((e) => (
@@ -395,7 +406,10 @@ function Recent({ list }: { list: Ga4ConversionEvent[] }) {
           {t("ga4conv.recentEmpty")}
         </p>
       ) : (
-        <ul className="divide-y divide-nq-line border-y border-nq-line" data-ga4-recent={list.length}>
+        <ul
+          className="divide-y divide-nq-line border-y border-nq-line"
+          data-ga4-recent={list.length}
+        >
           {list.map((e) => (
             <li
               key={e.id}
@@ -421,7 +435,10 @@ function Recent({ list }: { list: Ga4ConversionEvent[] }) {
               >
                 {t(`ga4conv.subject.${e.subject_kind}`)}
               </Link>
-              <span className="ms-auto text-xs text-muted-foreground" title={f.exact(e.occurred_at)}>
+              <span
+                className="ms-auto text-xs text-muted-foreground"
+                title={f.exact(e.occurred_at)}
+              >
                 {f.ago(e.sent_at ?? e.occurred_at)}
               </span>
               {e.error ? (

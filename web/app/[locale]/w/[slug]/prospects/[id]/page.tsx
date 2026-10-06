@@ -136,7 +136,10 @@ export default function ProspectPage() {
                     <p className="font-medium">
                       <Bdi>{p.contact.name}</Bdi>
                       {p.contact.title ? (
-                        <span className="font-normal text-muted-foreground"> · {p.contact.title}</span>
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          · {p.contact.title}
+                        </span>
                       ) : null}
                     </p>
                   ) : null}

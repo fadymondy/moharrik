@@ -865,7 +865,17 @@ export type Conversation = {
 }
 
 /** MH-657: the tag palette a chat's colour and a label's colour come from. */
-export const TAG_COLORS = ["gray", "red", "orange", "amber", "green", "teal", "blue", "violet", "pink"] as const
+export const TAG_COLORS = [
+  "gray",
+  "red",
+  "orange",
+  "amber",
+  "green",
+  "teal",
+  "blue",
+  "violet",
+  "pink",
+] as const
 export type TagColor = (typeof TAG_COLORS)[number]
 export type ConversationLabelRef = { id: string; name: string; color: TagColor }
 export type ConversationLabel = ConversationLabelRef & { count: number; created_at: string }
@@ -960,13 +970,21 @@ export type InboxAttachment = {
   url?: string
   /** MH-658: how to render this attachment. Missing/"" on rows filed before this
    *  column existed — the client treats that the same as "document". */
-  kind?: "image" | "video" | "audio" | "voice" | "document" | "sticker" | "location" | "contact" | ""
+  kind?:
+    "image" | "video" | "audio" | "voice" | "document" | "sticker" | "location" | "contact" | ""
   /** MH-658: "failed" when Evolution's media download didn't come back in time
    *  or over the size cap — the message still filed, just with no bytes. */
   status?: "ready" | "failed" | ""
   /** MH-658: kind-specific data carried outside the file bytes — lat/lng/name/address
    *  for a location, name/number for a contact card. */
-  meta?: { lat?: number; lng?: number; name?: string; address?: string; number?: string; seconds?: number }
+  meta?: {
+    lat?: number
+    lng?: number
+    name?: string
+    address?: string
+    number?: string
+    seconds?: number
+  }
 }
 
 export type InboxMessage = {

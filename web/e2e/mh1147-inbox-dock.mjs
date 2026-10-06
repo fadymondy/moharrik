@@ -48,7 +48,12 @@ for (const scheme of ["light", "dark"]) {
   page.on("pageerror", (e) => errs.push(String(e)))
   page.on("request", (r) => {
     const u = new URL(r.url())
-    if (r.method() !== "GET" && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/auth/") && !/\/read$/.test(u.pathname))
+    if (
+      r.method() !== "GET" &&
+      u.pathname.startsWith("/api/") &&
+      !u.pathname.startsWith("/api/auth/") &&
+      !/\/read$/.test(u.pathname)
+    )
       writes.push(`${r.method()} ${u.pathname}`)
   })
   await page.goto(`${base}/en/login`, { waitUntil: "load" })
@@ -56,7 +61,9 @@ for (const scheme of ["light", "dark"]) {
   await settle(page)
   await page.fill("#email", process.env.DEMO_EMAIL)
   await page.fill("#password", process.env.DEMO_PASSWORD)
-  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, { timeout: 30000 })
+  await page.waitForFunction(() => !document.querySelector("button[type=submit]")?.disabled, null, {
+    timeout: 30000,
+  })
   await page.click("button[type=submit]")
   await page.waitForURL(/workspaces|\/w\//, { timeout: 30000 })
 
@@ -70,9 +77,15 @@ for (const scheme of ["light", "dark"]) {
       for (const p of ["", "/contacts"]) {
         const pk = `${k}${p || "/home"}`
         await page.goto(`${ws}${p}`, { waitUntil: "domcontentloaded" })
-        const bar = await page.waitForSelector(BAR, { timeout: 25000 }).then(() => true, () => false)
+        const bar = await page.waitForSelector(BAR, { timeout: 25000 }).then(
+          () => true,
+          () => false,
+        )
         check(`${pk}-bar`, bar)
-        check(`${pk}-no-old-launcher`, (await page.locator("[data-chat-dock-launcher]").count()) === 0)
+        check(
+          `${pk}-no-old-launcher`,
+          (await page.locator("[data-chat-dock-launcher]").count()) === 0,
+        )
         await settle(page)
         const env = await page.evaluate(() => ({
           dir: document.documentElement.dir,
@@ -83,12 +96,21 @@ for (const scheme of ["light", "dark"]) {
         check(`${pk}-dir`, env.dir === (loc === "ar" ? "rtl" : "ltr"), env.dir)
         check(`${pk}-theme`, env.dark === (scheme === "dark"))
         check(`${pk}-no-overflow`, !env.overflow)
-        check(`${pk}-preview`, env.preview.length > 0 && !env.preview.startsWith("inbox."), env.preview)
+        check(
+          `${pk}-preview`,
+          env.preview.length > 0 && !env.preview.startsWith("inbox."),
+          env.preview,
+        )
         if (shots && p === "") await page.screenshot({ path: path.join(shots, `${k}-bar.png`) })
         if (!bar) continue
 
         await page.click(BAR)
-        const opened = await page.waitForSelector(`${DOCK} [data-inbox-panel]`, { timeout: 15000 }).then(() => true, () => false)
+        const opened = await page
+          .waitForSelector(`${DOCK} [data-inbox-panel]`, { timeout: 15000 })
+          .then(
+            () => true,
+            () => false,
+          )
         check(`${pk}-opens`, opened)
         const shape = await page.evaluate((dock) => {
           const d = document.querySelector(dock)
@@ -96,27 +118,59 @@ for (const scheme of ["light", "dark"]) {
           return {
             side: d?.getAttribute("data-side"),
             handle: handle?.getAttribute("aria-orientation") ?? null,
-            filtersInColumn: !!d?.querySelector("[data-conversation-column] [data-filter='all']") && !!d?.querySelector("[data-conversation-column] #inbox-status"),
+            filtersInColumn:
+              !!d?.querySelector("[data-conversation-column] [data-filter='all']") &&
+              !!d?.querySelector("[data-conversation-column] #inbox-status"),
           }
         }, DOCK)
         check(`${pk}-filters-under-search`, shape.filtersInColumn, shape)
-        check(`${pk}-resize-axis`, shape.handle === (shape.side === "bottom" ? "horizontal" : "vertical"), shape)
+        check(
+          `${pk}-resize-axis`,
+          shape.handle === (shape.side === "bottom" ? "horizontal" : "vertical"),
+          shape,
+        )
         if (shape.handle && p === "") {
-          const h0 = await page.locator(DOCK).evaluate((e) => e.getBoundingClientRect()[e.dataset.side === "bottom" ? "height" : "width"])
+          const h0 = await page
+            .locator(DOCK)
+            .evaluate(
+              (e) => e.getBoundingClientRect()[e.dataset.side === "bottom" ? "height" : "width"],
+            )
           await page.focus(`${DOCK} [data-slot=copilot-dock-resize]`)
-          await page.keyboard.press(shape.side === "bottom" ? "ArrowDown" : loc === "ar" ? "ArrowRight" : "ArrowLeft")
-          await page.keyboard.press(shape.side === "bottom" ? "ArrowDown" : loc === "ar" ? "ArrowRight" : "ArrowLeft")
-          const h1 = await page.locator(DOCK).evaluate((e) => e.getBoundingClientRect()[e.dataset.side === "bottom" ? "height" : "width"])
+          await page.keyboard.press(
+            shape.side === "bottom" ? "ArrowDown" : loc === "ar" ? "ArrowRight" : "ArrowLeft",
+          )
+          await page.keyboard.press(
+            shape.side === "bottom" ? "ArrowDown" : loc === "ar" ? "ArrowRight" : "ArrowLeft",
+          )
+          const h1 = await page
+            .locator(DOCK)
+            .evaluate(
+              (e) => e.getBoundingClientRect()[e.dataset.side === "bottom" ? "height" : "width"],
+            )
           check(`${pk}-resizes`, shape.side === "bottom" ? h1 < h0 : h1 > h0, { h0, h1 })
           await page.dblclick(`${DOCK} [data-slot=copilot-dock-resize]`)
         }
-        const rows = await page.waitForSelector(`${DOCK} [data-conversation]`, { timeout: 20000 }).then(() => true, () => false)
+        const rows = await page
+          .waitForSelector(`${DOCK} [data-conversation]`, { timeout: 20000 })
+          .then(
+            () => true,
+            () => false,
+          )
         check(`${pk}-rows`, rows)
         if (rows) {
           await page.locator(`${DOCK} [data-conversation]`).first().click()
-          const thread = await page.waitForSelector(`${DOCK} [data-thread]`, { timeout: 20000 }).then(() => true, () => false)
+          const thread = await page
+            .waitForSelector(`${DOCK} [data-thread]`, { timeout: 20000 })
+            .then(
+              () => true,
+              () => false,
+            )
           check(`${pk}-thread`, thread)
-          const intelShut = await page.evaluate(() => !document.querySelector("[data-intel-column]") && !document.querySelector("[data-intel-drawer]"))
+          const intelShut = await page.evaluate(
+            () =>
+              !document.querySelector("[data-intel-column]") &&
+              !document.querySelector("[data-intel-drawer]"),
+          )
           check(`${pk}-intel-closed-by-default`, intelShut)
           // Narrow docks show one column at a time: the thread replaces the list, with a back button.
           const cols = await page.evaluate((dock) => {
@@ -124,41 +178,77 @@ for (const scheme of ["light", "dark"]) {
               const e = document.querySelector(`${dock} ${s}`)
               return !!e && e.getBoundingClientRect().width > 0
             }
-            return { list: vis("[data-conversation-column]"), back: vis("[data-thread-back]"), thread: vis("[data-thread-column]") }
+            return {
+              list: vis("[data-conversation-column]"),
+              back: vis("[data-thread-back]"),
+              thread: vis("[data-thread-column]"),
+            }
           }, DOCK)
           check(`${pk}-columns`, cols.thread && (narrow ? !cols.list && cols.back : true), cols)
           if (shots && p === "") await page.screenshot({ path: path.join(shots, `${k}-open.png`) })
           // The person opens the customer panel: a column in a wide dock, a drawer otherwise.
           await page.click(`${DOCK} [data-intel-trigger]`)
-          const intel = await page.waitForSelector("[data-intel-column], [data-intel-drawer]", { timeout: 15000 }).then(() => true, () => false)
+          const intel = await page
+            .waitForSelector("[data-intel-column], [data-intel-drawer]", { timeout: 15000 })
+            .then(
+              () => true,
+              () => false,
+            )
           check(`${pk}-intel-opens`, intel)
           if (shots && p === "") await page.screenshot({ path: path.join(shots, `${k}-intel.png`) })
-          if (await page.locator("[data-intel-close]").count()) await page.click("[data-intel-close]")
+          if (await page.locator("[data-intel-close]").count())
+            await page.click("[data-intel-close]")
           else await page.keyboard.press("Escape")
           await page.waitForTimeout(400)
         }
         await page.locator(`${DOCK} [data-inbox-dock-close]`).click()
-        check(`${pk}-closes`, await page.waitForSelector(BAR, { timeout: 10000 }).then(() => true, () => false))
+        check(
+          `${pk}-closes`,
+          await page.waitForSelector(BAR, { timeout: 10000 }).then(
+            () => true,
+            () => false,
+          ),
+        )
       }
 
       // A link opens the dock in place and takes its parameter back out of the URL.
       await page.goto(`${ws}/contacts?inbox=all`, { waitUntil: "domcontentloaded" })
-      check(`${k}-link-opens`, await page.waitForSelector(`${DOCK} [data-inbox-panel]`, { timeout: 25000 }).then(() => true, () => false))
+      check(
+        `${k}-link-opens`,
+        await page.waitForSelector(`${DOCK} [data-inbox-panel]`, { timeout: 25000 }).then(
+          () => true,
+          () => false,
+        ),
+      )
       await page.waitForTimeout(800)
       check(`${k}-link-stays`, page.url() === `${ws}/contacts`, page.url())
       await page.keyboard.press("Escape")
-      check(`${k}-escape-closes`, await page.waitForSelector(BAR, { timeout: 10000 }).then(() => true, () => false))
+      check(
+        `${k}-escape-closes`,
+        await page.waitForSelector(BAR, { timeout: 10000 }).then(
+          () => true,
+          () => false,
+        ),
+      )
 
       // The old /inbox route (pushes, desktop notifications) lands on the home with the dock open.
       await page.goto(`${ws}/inbox?unread=1`, { waitUntil: "domcontentloaded" })
-      check(`${k}-inbox-redirect`, await page.waitForSelector(`${DOCK} [data-inbox-panel]`, { timeout: 25000 }).then(() => true, () => false))
+      check(
+        `${k}-inbox-redirect`,
+        await page.waitForSelector(`${DOCK} [data-inbox-panel]`, { timeout: 25000 }).then(
+          () => true,
+          () => false,
+        ),
+      )
       await page.waitForTimeout(800)
       check(`${k}-inbox-redirect-url`, page.url() === ws, page.url())
 
       // Navigation: no Inbox row; Settings carries the inbox's setup pages; Channels sit on Integrations.
       if (!narrow) {
         await page.goto(`${ws}/settings/canned`, { waitUntil: "domcontentloaded" })
-        await page.waitForSelector("a[data-nav-item='settings-canned']", { timeout: 20000 }).catch(() => {})
+        await page
+          .waitForSelector("a[data-nav-item='settings-canned']", { timeout: 20000 })
+          .catch(() => {})
         const nav = await page.evaluate(() => ({
           inbox: !!document.querySelector("a[data-nav-item='inbox']"),
           canned: !!document.querySelector("a[data-nav-item='settings-canned']"),
@@ -167,9 +257,25 @@ for (const scheme of ["light", "dark"]) {
         }))
         check(`${k}-nav`, !nav.inbox && nav.canned && nav.templates && !nav.channels, nav)
         await page.goto(`${ws}/inbox/channels?type=whatsapp`, { waitUntil: "domcontentloaded" })
-        await page.waitForURL(`${ws}/settings/integrations?type=whatsapp`, { timeout: 15000 }).catch(() => {})
-        check(`${k}-channels-redirect`, page.url() === `${ws}/settings/integrations?type=whatsapp`, page.url())
-        check(`${k}-channels-tab`, await page.waitForSelector("[data-integrations-tab='channels'][aria-selected='true']", { timeout: 20000 }).then(() => true, () => false))
+        await page
+          .waitForURL(`${ws}/settings/integrations?type=whatsapp`, { timeout: 15000 })
+          .catch(() => {})
+        check(
+          `${k}-channels-redirect`,
+          page.url() === `${ws}/settings/integrations?type=whatsapp`,
+          page.url(),
+        )
+        check(
+          `${k}-channels-tab`,
+          await page
+            .waitForSelector("[data-integrations-tab='channels'][aria-selected='true']", {
+              timeout: 20000,
+            })
+            .then(
+              () => true,
+              () => false,
+            ),
+        )
         if (shots) await page.screenshot({ path: path.join(shots, `${k}-integrations.png`) })
       }
     }

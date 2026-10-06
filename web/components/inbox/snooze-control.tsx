@@ -2,7 +2,16 @@
 
 import { useMemo } from "react"
 import { AlarmClockIcon, AlarmClockOffIcon, ChevronDownIcon } from "lucide-react"
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Conversation } from "@/lib/api"
@@ -116,7 +125,9 @@ export function SnoozeControl({ c, onChanged }: { c: Conversation; onChanged: ()
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
-        <p className="max-w-64 px-2 py-1.5 text-xs text-muted-foreground">{t("inbox.snoozeHint")}</p>
+        <p className="max-w-64 px-2 py-1.5 text-xs text-muted-foreground">
+          {t("inbox.snoozeHint")}
+        </p>
       </DropdownMenuContent>
     </DropdownMenu>
   )

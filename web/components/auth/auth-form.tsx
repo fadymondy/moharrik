@@ -155,7 +155,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       <div className="w-full" data-auth-form>
         <form onSubmit={onSubmit} noValidate>
           <FieldGroup>
-            <Field invalid={!!(!!error)}>
+            <Field invalid={!!!!error}>
               <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
               <Input
                 id="email"
@@ -168,7 +168,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 placeholder="you@company.com"
               />
             </Field>
-            <Field invalid={!!(!!error)}>
+            <Field invalid={!!!!error}>
               <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
               <Input
                 id="password"

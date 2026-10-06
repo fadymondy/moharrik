@@ -3,7 +3,17 @@
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 import { LogOutIcon, MessageSquarePlusIcon, ShieldCheckIcon, UserIcon } from "lucide-react"
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, toast } from "@fadymondy/nasaq/web"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  toast,
+} from "@fadymondy/nasaq/web"
 
 import { usePlatform } from "@/lib/admin"
 import { api, resetCsrf } from "@/lib/api"

@@ -28,7 +28,19 @@ import { YouTubeReports } from "@/components/google/youtube-reports"
 import { useFormat } from "@/components/overview/overview-cards"
 import { SectionHeader } from "@/components/public-frame"
 import { EmptyState, ErrorState } from "@/components/states"
-import { Badge, Button, Input, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Skeleton, Toggle, ToggleGroup } from "@fadymondy/nasaq/web"
+import {
+  Badge,
+  Button,
+  Input,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  Skeleton,
+  Toggle,
+  ToggleGroup,
+} from "@fadymondy/nasaq/web"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { YtChannelOut, YtSyncStep, YtVideo } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
@@ -185,11 +197,15 @@ function ChannelHeader({ out }: { out: YtChannelOut }) {
           </div>
           <div data-yt-stat="views">
             <dt className="eyebrow">{t("yt.lifetimeViews")}</dt>
-            <dd className="mt-1 text-xl font-medium text-foreground tabular-nums">{f.n(c.views)}</dd>
+            <dd className="mt-1 text-xl font-medium text-foreground tabular-nums">
+              {f.n(c.views)}
+            </dd>
           </div>
           <div data-yt-stat="videos">
             <dt className="eyebrow">{t("yt.uploads")}</dt>
-            <dd className="mt-1 text-xl font-medium text-foreground tabular-nums">{f.n(c.uploads)}</dd>
+            <dd className="mt-1 text-xl font-medium text-foreground tabular-nums">
+              {f.n(c.uploads)}
+            </dd>
             {c.videos !== c.public_uploads ? (
               <dd
                 className="mt-0.5 max-w-44 text-xs text-muted-foreground"
