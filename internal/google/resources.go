@@ -72,14 +72,18 @@ func (k Kind) Product() Product {
 	return YouTube
 }
 
-func kindOf(p Product) Kind {
+// kindOf is the resource kind a product discovers. Not every product has one:
+// Contacts (MH-585) reads the whole address book and has nothing to pick.
+func kindOf(p Product) (Kind, bool) {
 	switch p {
 	case Analytics:
-		return KindGA4
+		return KindGA4, true
 	case SearchConsole:
-		return KindGSC
+		return KindGSC, true
+	case YouTube:
+		return KindYT, true
 	}
-	return KindYT
+	return "", false
 }
 
 // Resource is one property, site or channel.
@@ -312,6 +316,13 @@ func Discover(ctx context.Context, a *app.App, workspaceID, connectionID string)
 	}
 	var reauth error
 	for _, p := range ProductsOf(granted) {
+		kind, ok := kindOf(p)
+		if !ok {
+			// A product with no resources to discover (Contacts) is skipped:
+			// recording it would mark another kind's resources unavailable
+			// and break google_discoveries_product_check.
+			continue
+		}
 		list, derr := discoverProduct(ctx, src, p)
 		msg := ""
 		if derr != nil {
@@ -320,7 +331,7 @@ func Discover(ctx context.Context, a *app.App, workspaceID, connectionID string)
 				reauth = derr
 			}
 			logWarn(a, "google discovery failed: "+string(p), derr)
-		} else if err := saveFound(wctx, a, workspaceID, connectionID, kindOf(p), list); err != nil {
+		} else if err := saveFound(wctx, a, workspaceID, connectionID, kind, list); err != nil {
 			return err
 		}
 		if _, err := a.SQLDB.ExecContext(wctx, `

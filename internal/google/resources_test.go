@@ -243,6 +243,33 @@ func TestResourceDiscovery(t *testing.T) {
 		}
 	})
 
+	t.Run("a Contacts grant on the same account does not break rediscovery", func(t *testing.T) {
+		// Regression: Contacts (MH-585) has no resources, yet discovery wrote
+		// it to google_discoveries (product_check violation) after marking the
+		// account's YouTube channel unavailable.
+		gus := f.newUser(t)
+		gus.workspace(t)
+		f.setAccount("sub-contacts", "contacts@example.test")
+		for _, p := range []string{"youtube", "contacts"} {
+			if r, _ := gus.connect(t, "product="+p); r != google.ResultConnected {
+				t.Fatalf("connect %s: %s", p, r)
+			}
+		}
+		google.WaitBackground()
+		code, b, _ := gus.do(t, "POST", "/api/w/google/resources/discover", nil)
+		if code != 200 {
+			t.Fatalf("rediscover: %d %s", code, b)
+		}
+		out := gus.resources(t, "")
+		yt := byKind(out.Resources, google.KindYT)
+		if len(yt) != 1 || !yt[0].Available || !yt[0].Enabled {
+			t.Fatalf("the channel stays available: %+v", yt)
+		}
+		if len(out.Discoveries) != 1 || out.Discoveries[0].Product != google.YouTube || out.Discoveries[0].Error != "" {
+			t.Errorf("only YouTube is discovered: %+v", out.Discoveries)
+		}
+	})
+
 	t.Run("invalid_grant marks the connection for reauth", func(t *testing.T) {
 		erin := f.newUser(t)
 		ews, _ := erin.workspace(t)
