@@ -84,7 +84,7 @@ func workspace(t *testing.T, a *app.App, locale, currency string) fixture {
 
 func (f fixture) lead(t *testing.T, b inquiryBody) string {
 	t.Helper()
-	id, err := intake(f.ctx, f.a.SQLDB, f.form, b, "https://shop.test")
+	id, _, err := intake(f.ctx, f.a.SQLDB, f.form, b, "https://shop.test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +318,7 @@ func TestLeadsDoNotCrossWorkspaces(t *testing.T) {
 		t.Fatalf("B's list shows %d leads: %v", len(page.Leads), err)
 	}
 	// And the app pool refuses to write a lead into another workspace.
-	_, err := intake(fb.ctx, a.SQLDB, fa.form, inquiryBody{Email: "x@x.test", Message: "cross"}, "")
+	_, _, err := intake(fb.ctx, a.SQLDB, fa.form, inquiryBody{Email: "x@x.test", Message: "cross"}, "")
 	if err == nil {
 		t.Fatal("RLS let a lead be written into another workspace")
 	}
@@ -364,5 +364,29 @@ func TestConvertTurnsTheBudgetIntoTheDealValue(t *testing.T) {
 	}
 	if v, body := value(""); v != 0 || strings.Contains(body, "Budget") {
 		t.Errorf("no budget → value %d, timeline %q", v, body)
+	}
+}
+
+// A server forwarding its own inquiries (the fadymondy.com CMS) sends each one
+// with its id: a resend files nothing new and answers with the first lead.
+func TestIntakeExternalIDFilesOneLead(t *testing.T) {
+	f := workspace(t, testApp(t), "en", "USD")
+	b := inquiryBody{Email: "sara@acme.test", Message: "We need an MCP server", ExternalID: "cms-123"}
+	first, created, err := intake(f.ctx, f.a.SQLDB, f.form, b, "https://shop.test")
+	if err != nil || !created {
+		t.Fatalf("first: created=%v err=%v", created, err)
+	}
+	again, created, err := intake(f.ctx, f.a.SQLDB, f.form, b, "https://shop.test")
+	if err != nil || created || again != first {
+		t.Fatalf("resend: id=%s (first %s) created=%v err=%v", again, first, created, err)
+	}
+	if n := f.count(t, `SELECT count(*) FROM leads WHERE workspace_id = $1 AND external_id = 'cms-123'`); n != 1 {
+		t.Fatalf("%d leads for one external id", n)
+	}
+	// Without an id every submission is its own lead, as before.
+	f.lead(t, inquiryBody{Email: "sara@acme.test", Message: "again"})
+	f.lead(t, inquiryBody{Email: "sara@acme.test", Message: "again"})
+	if n := f.count(t, `SELECT count(*) FROM leads WHERE workspace_id = $1 AND external_id = ''`); n != 2 {
+		t.Fatalf("%d leads without an external id, want 2", n)
 	}
 }

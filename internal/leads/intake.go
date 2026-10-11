@@ -3,6 +3,7 @@ package leads
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/mail"
@@ -67,6 +68,10 @@ type inquiryBody struct {
 	// reads as one amount in the workspace's currency (budget.go).
 	Budget string `json:"budget,omitempty" maxLength:"80"`
 	Locale string `json:"locale,omitempty" maxLength:"35"`
+	// The sender's own id for this inquiry, when a server forwards inquiries it
+	// already stored (a CMS). The same id on the same form files one lead, so
+	// a retry or a backfill never duplicates; the answer does not change.
+	ExternalID string `json:"external_id,omitempty" maxLength:"200"`
 	// The honeypot. The snippet hides it from people and from the tab order; a
 	// bot filling every field fills it. Its submission is thanked and dropped.
 	Nickname string `json:"nickname,omitempty" maxLength:"200" doc:"Honeypot: leave empty. A submission that fills it is accepted and discarded."`
@@ -160,20 +165,22 @@ func validEmail(s string) bool {
 }
 
 // Intake files one lead inside the form's workspace and returns its id. db is
-// the APP pool; ctx carries the workspace.
-func intake(ctx context.Context, db *sql.DB, form marketing.PublicForm, b inquiryBody, origin string) (string, error) {
+// the APP pool; ctx carries the workspace. created is false when the form
+// already holds a lead with the same external_id: that lead's id is returned.
+func intake(ctx context.Context, db *sql.DB, form marketing.PublicForm, b inquiryBody, origin string) (id string, created bool, err error) {
 	locale := strings.ToLower(strings.TrimSpace(b.Locale))
 	if strings.HasPrefix(locale, "ar") {
 		locale = "ar"
 	} else {
 		locale = "en"
 	}
-	var id string
-	err := db.QueryRowContext(ctx, `
+	externalID := strings.TrimSpace(b.ExternalID)
+	err = db.QueryRowContext(ctx, `
 		INSERT INTO leads (workspace_id, form_id, form_name, name, email, phone, company, message, locale,
 		                   utm_source, utm_medium, utm_campaign, utm_term, utm_content, referrer, gclid, landing_page, origin, budget,
-		                   ga_client_id, ga_ad_user_data, ga_ad_personalization)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+		                   ga_client_id, ga_ad_user_data, ga_ad_personalization, external_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+		ON CONFLICT (workspace_id, form_id, external_id) WHERE external_id <> '' DO NOTHING
 		RETURNING id`,
 		form.WorkspaceID, form.ID, form.Name, strings.TrimSpace(b.Name), strings.ToLower(strings.TrimSpace(b.Email)),
 		strings.TrimSpace(b.Phone), strings.TrimSpace(b.Company), strings.TrimSpace(b.Message), locale,
@@ -182,8 +189,15 @@ func intake(ctx context.Context, db *sql.DB, form marketing.PublicForm, b inquir
 		strings.TrimSpace(b.Gclid), strings.TrimSpace(b.LandingPage), strings.TrimRight(strings.TrimSpace(origin), "/"),
 		strings.TrimSpace(b.Budget),
 		conversions.ClientIDFromCookie(b.GAClientID), conversions.ConsentValue(b.GAAdUserData), conversions.ConsentValue(b.GAAdPersonalization),
+		externalID,
 	).Scan(&id)
-	return id, err
+	if errors.Is(err, sql.ErrNoRows) && externalID != "" {
+		err = db.QueryRowContext(ctx, `
+			SELECT id FROM leads WHERE workspace_id = $1 AND form_id = $2 AND external_id = $3`,
+			form.WorkspaceID, form.ID, externalID).Scan(&id)
+		return id, false, err
+	}
+	return id, err == nil, err
 }
 
 // notify puts the new lead in the notification center, linked to its page, in
@@ -309,10 +323,15 @@ func registerPublicInquiry(api huma.API, a *app.App) {
 		in.Body.Email = email
 
 		sctx := tenant.WithWorkspace(ctx, form.WorkspaceID)
-		id, err := intake(sctx, a.SQLDB, form, in.Body, in.Origin)
+		id, created, err := intake(sctx, a.SQLDB, form, in.Body, in.Origin)
 		if err != nil {
 			a.Log.Error("inquiry intake failed", "workspace", form.WorkspaceID, "err", err)
 			return nil, huma.Error500InternalServerError("could not record that message")
+		}
+		if !created {
+			// A resend of an inquiry the form already holds: same answer,
+			// nothing new to announce.
+			return ok, nil
 		}
 		// The lead is stored: the Leads page hears about it whether or not the notification
 		// below manages to be written.
