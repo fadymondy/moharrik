@@ -197,6 +197,7 @@ const (
 	opDispatch           = 0
 	opHeartbeat          = 1
 	opIdentify           = 2
+	opReconnect          = 7
 	opInvalidSession     = 9
 	opHello              = 10
 	opHeartbeatAck       = 11
@@ -251,7 +252,13 @@ func runGateway(ctx context.Context, workspaceID, id, token, allowedGuilds, allo
 		}
 		if err != nil {
 			msg, fatal := gatewayErrorReason(err)
-			recordDiscordError(workspaceID, id, msg)
+			if msg == "" {
+				// Discord asked for a fresh session (it does this routinely):
+				// not an error, and nothing to wait out.
+				backoff = time.Second
+			} else {
+				recordDiscordError(workspaceID, id, msg)
+			}
 			// Discord will refuse again until someone changes a setting (a
 			// token, an intent): retry slowly rather than hammer it, so the
 			// connection still comes up by itself once the switch is flipped.
@@ -276,12 +283,20 @@ func runGateway(ctx context.Context, workspaceID, id, token, allowedGuilds, allo
 // fix, the reason in plain words and exactly where to fix it, instead of
 // "websocket: close 4014: Disallowed intent(s)". fatal reports that retrying
 // unchanged cannot succeed. The texts fit last_error's 300 characters.
+//
+// An empty msg means the close was routine — Discord asking the client to
+// reconnect (op 7, or a 1000/1001 close) — and is not worth showing.
 func gatewayErrorReason(err error) (msg string, fatal bool) {
+	if errors.Is(err, errReconnectRequested) {
+		return "", false
+	}
 	var ce *websocket.CloseError
 	if !errors.As(err, &ce) {
 		return err.Error(), false
 	}
 	switch ce.Code {
+	case websocket.CloseNormalClosure, websocket.CloseGoingAway:
+		return "", false
 	case 4004:
 		return "Discord refused the bot token (4004). Reset the token in the Developer Portal under Bot, paste the new one here and save.", true
 	case 4013:
@@ -293,6 +308,9 @@ func gatewayErrorReason(err error) (msg string, fatal bool) {
 	}
 	return fmt.Sprintf("Discord closed the connection (%d: %s). Reconnecting.", ce.Code, ce.Text), false
 }
+
+// errReconnectRequested is what connectOnce returns when Discord sends op 7.
+var errReconnectRequested = errors.New("Discord requested a reconnect")
 
 // connectOnce runs one connection attempt to completion (until the socket
 // closes or ctx is cancelled). A session that reaches HELLO and IDENTIFY
@@ -350,6 +368,9 @@ func connectOnce(ctx context.Context, workspaceID, id, token, allowedGuilds, all
 		case opDispatch:
 			if p.T == "READY" {
 				setGatewayState(workspaceID, id, "connected")
+				// The session is up: whatever went wrong before no longer
+				// holds, so the channel stops showing as in error.
+				clearDiscordError(workspaceID, id)
 			}
 			if p.T == "MESSAGE_CREATE" {
 				var m discordMessageCreate
@@ -363,6 +384,8 @@ func connectOnce(ctx context.Context, workspaceID, id, token, allowedGuilds, all
 			if err := gw.heartbeat(); err != nil {
 				return err
 			}
+		case opReconnect:
+			return errReconnectRequested
 		case opInvalidSession:
 			return fmt.Errorf("invalid session")
 		case opHeartbeatAck:
