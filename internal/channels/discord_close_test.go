@@ -22,6 +22,16 @@ func TestGatewayErrorReason(t *testing.T) {
 	if msg, fatal = gatewayErrorReason(&websocket.CloseError{Code: 1006}); fatal || !strings.Contains(msg, "1006") {
 		t.Fatalf("1006: fatal=%v %q", fatal, msg)
 	}
+	// Discord's routine "please reconnect" is not an error to show.
+	for _, err := range []error{
+		&websocket.CloseError{Code: 1001, Text: "Discord WebSocket requesting client reconnect."},
+		&websocket.CloseError{Code: 1000},
+		fmt.Errorf("read: %w", errReconnectRequested),
+	} {
+		if msg, fatal = gatewayErrorReason(err); fatal || msg != "" {
+			t.Fatalf("%v: fatal=%v %q", err, fatal, msg)
+		}
+	}
 	if msg, fatal = gatewayErrorReason(errors.New("no HELLO from the gateway: EOF")); fatal || msg != "no HELLO from the gateway: EOF" {
 		t.Fatalf("plain: fatal=%v %q", fatal, msg)
 	}

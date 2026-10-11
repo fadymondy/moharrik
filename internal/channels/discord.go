@@ -316,6 +316,16 @@ func recordDiscordError(workspaceID, id, msg string) {
 		WHERE workspace_id = $1 AND id = $2`, workspaceID, id, trimTo(msg, 300))
 }
 
+func clearDiscordError(workspaceID, id string) {
+	if globalApp == nil {
+		return
+	}
+	sctx := discordCtx(workspaceID)
+	_, _ = globalApp.SQLDB.ExecContext(sctx, `
+		UPDATE discord_channels SET last_error = '', updated_at = now()
+		WHERE workspace_id = $1 AND id = $2 AND last_error <> ''`, workspaceID, id)
+}
+
 func setGatewayState(workspaceID, id, state string) {
 	if globalApp == nil {
 		return
