@@ -312,7 +312,7 @@ func (e *Engine) StartAutomatic(ctx context.Context, a *app.App, ws string, req 
 	// Busy is checked before spending: a run refused for being second must not
 	// cost the budget.
 	var live int
-	if err := a.SQLDB.QueryRowContext(sctx, `SELECT count(*) FROM research_runs WHERE workspace_id = $1 AND status IN ('queued', 'running')`, ws).Scan(&live); err != nil {
+	if err := a.SQLDB.QueryRowContext(sctx, `SELECT count(*) FROM research_runs WHERE workspace_id = $1 AND status IN ('queued', 'running') AND author_kind = 'engine'`, ws).Scan(&live); err != nil {
 		return "", err
 	}
 	if live >= maxLiveRuns {
@@ -370,6 +370,23 @@ func (e *Engine) runSchedule(ctx context.Context, a *app.App, ws, id string) {
 	}
 	next := time.Now().Add(cadenceEvery(s.Cadence))
 	status, note, runID := "started", "", ""
+	if e.UsesAgent(sctx, a.SQLDB, ws) {
+		// Agent mode: the schedule queues a task for the workspace's AI
+		// assistant instead of running here. One waiting task per schedule.
+		var waiting int
+		_ = a.SQLDB.QueryRowContext(sctx, `SELECT count(*) FROM agent_tasks WHERE workspace_id = $1 AND schedule_id = $2 AND status IN ('pending', 'claimed')`,
+			ws, s.ID).Scan(&waiting)
+		if waiting > 0 {
+			status, note = "busy", "the last task is still waiting for your AI assistant (opportunity_tasks)"
+		} else if t, qerr := EnqueueAgentTask(sctx, a.SQLDB, ws, AgentTaskInput{Kind: "research", Topic: s.Topic, Mode: s.Mode, URLs: s.URLs,
+			Origin: "schedule", ScheduleID: s.ID}); qerr != nil {
+			status, note = "failed", trim(qerr.Error(), 300)
+		} else {
+			note = "queued for your AI assistant: task " + t.ID
+		}
+		e.recordSchedule(sctx, a, ws, id, next, status, note, "")
+		return
+	}
 	runID, err = e.StartAutomatic(ctx, a, ws, Request{Topic: s.Topic, Mode: s.Mode, URLs: s.URLs, Origin: "schedule", ScheduleID: s.ID})
 	switch {
 	case err == nil:
@@ -382,6 +399,10 @@ func (e *Engine) runSchedule(ctx context.Context, a *app.App, ws, id string) {
 	default:
 		status, note = "failed", trim(err.Error(), 300)
 	}
+	e.recordSchedule(sctx, a, ws, id, next, status, note, runID)
+}
+
+func (e *Engine) recordSchedule(sctx context.Context, a *app.App, ws, id string, next time.Time, status, note, runID string) {
 	if _, err := a.SQLDB.ExecContext(sctx, `
 		UPDATE research_schedules SET next_run_at = $3, last_status = $4, last_note = $5,
 			last_run_id = CASE WHEN $6 <> '' THEN $6 ELSE last_run_id END,

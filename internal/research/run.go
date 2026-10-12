@@ -283,7 +283,7 @@ func (e *Engine) StartRun(ctx context.Context, a *app.App, workspaceID, userID s
 	var live int
 	if err := a.SQLDB.QueryRowContext(sctx, `
 		SELECT count(*) FROM research_runs
-		WHERE workspace_id = $1 AND status IN ('queued', 'running')`, workspaceID).Scan(&live); err != nil {
+		WHERE workspace_id = $1 AND status IN ('queued', 'running') AND author_kind = 'engine'`, workspaceID).Scan(&live); err != nil {
 		return "", err
 	}
 	if live >= maxLiveRuns {

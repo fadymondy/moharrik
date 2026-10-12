@@ -33,7 +33,9 @@ func ResearchTools(engine *research.Engine) []Tool {
 			Name: "start_research",
 			Description: "Research a question: search the web, read the top results in a real browser, extract evidence (quotes, " +
 				"the companies they name, the signal they report) and summarise when a model is configured. Or pass mode=urls " +
-				"with a list of pages to read those instead of searching. Returns a run id immediately — read it back with get_research.",
+				"with a list of pages to read those instead of searching. Returns a run id immediately — read it back with get_research. " +
+				"When the workspace's research is done by your AI assistant (no search configured, or provider agent), it returns a " +
+				"task_id instead: take it with opportunity_tasks and answer it with submit_research.",
 			Scope: "research:run",
 			InputSchema: schema([]string{"topic"}, map[string]any{
 				"topic": prop("string", "The question, in plain words. In URL mode, what to look for in the pages."),
@@ -56,8 +58,17 @@ func ResearchTools(engine *research.Engine) []Tool {
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", errors.New("could not read the arguments")
 				}
-				if engine == nil {
-					return "", research.ErrNoSearch
+				if engine.UsesAgent(ctx, a.SQLDB, s.WorkspaceID) {
+					// No search service here (or the workspace chose agent mode): the
+					// question is queued for the caller's own agent to research.
+					t, err := research.EnqueueAgentTask(ctx, a.SQLDB, s.WorkspaceID, research.AgentTaskInput{Kind: "research", Topic: in.Topic,
+						Mode: in.Mode, URLs: in.URLs, RequestedBy: s.UserID})
+					if err != nil {
+						return "", err
+					}
+					return jsonResult(map[string]any{"ok": true, "provider": research.ProviderAgent, "task_id": t.ID,
+						"message": "This workspace's research is done by your AI assistant. Take the task with opportunity_tasks(kind=research), " +
+							"research it with your own web tools, hand it back with submit_research, then complete_task."})
 				}
 				runID, err := engine.StartRun(ctx, a, s.WorkspaceID, s.UserID, research.Request{Topic: in.Topic, Mode: in.Mode, URLs: in.URLs})
 				if err != nil {

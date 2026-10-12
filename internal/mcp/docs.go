@@ -135,7 +135,7 @@ func toolDocs() map[string]ToolDoc {
 	for _, set := range []map[string]ToolDoc{
 		docsWorkspace, docsCRM, docsLeads, docsInbox, docsImports, docsVcard, docsContactContext, docsBrief, docsCampaigns,
 		docsNotifications, docsTrends, docsAutomation, docsRules, docsBrowserRun, docsResearch, docsProspects, docsGoogle, docsAudit,
-		docsMailbox, docsChannels, docsOrganise, docsSettings,
+		docsMailbox, docsChannels, docsOrganise, docsSettings, docsAgentProvider,
 	} {
 		for k, v := range set {
 			out[k] = v
@@ -151,7 +151,7 @@ func argAR() map[string]string {
 	out := map[string]string{}
 	for _, set := range []map[string]string{
 		argsARCommon, argsARCRM, argsARInbox, argsARImports, argsARVcard, argsARContactContext, argsARBrief, argsARNotifications, argsARTools, argsARProspects,
-		argsARRules, argsARBrowserRun, argsARMailbox, argsARChannels, argsAROrganise, argsARSettings,
+		argsARRules, argsARBrowserRun, argsARMailbox, argsARChannels, argsAROrganise, argsARSettings, argsARAgent,
 	} {
 		for k, v := range set {
 			out[k] = v

@@ -87,6 +87,7 @@ func UserTools(researchEngine *research.Engine) []Tool {
 	tools = append(tools, BrowserRunTools()...)
 	tools = append(tools, ResearchTools(researchEngine)...)
 	tools = append(tools, ProspectTools(researchEngine)...) // prospect discovery (MH-397)
+	tools = append(tools, AgentProviderTools()...)          // the Opportunity Finder run by the calling agent
 	tools = append(tools, GoogleTools()...)                 // GA4, Search Console, YouTube (MH-447)
 	tools = append(tools, AuditTools()...)                  // the audit log (MH-392)
 	tools = append(tools, SettingsTools()...)               // workspace, members, pipeline, mail, Google, audit settings (MH-680)

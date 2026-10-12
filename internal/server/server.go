@@ -297,6 +297,8 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	overview.Register(api, a)      // the workspace front page (MH-462)
 	home.Register(api, a)          // Home (MH-1062)
 	opportunities.Register(api, a) // Opportunity signals (MH-1065)
+	// The Opportunity Finder with the caller's AI agent as the provider.
+	opportunities.RegisterAgent(api, a, researchEngine)
 	researchflow.Register(api, a)  // Research funnel and stages (MH-1066)
 	circlexo.RegisterAPI(api, a)    // the workspace's CircleXO link + entitlements
 	reports.Register(api, a)       // CRM reporting (MH-394)

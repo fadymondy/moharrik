@@ -40,6 +40,7 @@ type ProspectProfileOut struct {
 	CanSearch    bool                     `json:"can_search"`
 	CanSummarise bool                     `json:"can_summarise" doc:"false: drafts are templates, not written by a model."`
 	Budget       *research.ResearchBudget `json:"budget"`
+	Provider     *research.Provider       `json:"provider" doc:"Who does the research: the server, or the caller's AI agent over MCP."`
 }
 
 // ProspectList is a page of prospects with the counts per status.
@@ -74,8 +75,12 @@ func Register(api huma.API, a *app.App, engine *research.Engine) {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not read the research budget")
 		}
+		prov, err := engine.GetProvider(ctx, a.SQLDB, ws)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read the research provider")
+		}
 		caps := engine.Caps()
-		return out(ProspectProfileOut{Profile: p, CanSearch: caps.CanSearch, CanSummarise: caps.CanSummarise, Budget: b}), nil
+		return out(ProspectProfileOut{Profile: p, CanSearch: caps.CanSearch, CanSummarise: caps.CanSummarise, Budget: b, Provider: prov}), nil
 	}
 
 	huma.Register(api, huma.Operation{
@@ -109,24 +114,20 @@ func Register(api huma.API, a *app.App, engine *research.Engine) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-prospect-discover", Method: http.MethodPost, Path: "/api/w/prospect-profile/discover",
 		Summary:     "Run one discovery pass now: the profile's next query, as a research run",
-		Description: "Does not spend the daily budget (a person asked). 501 when search is not configured; 409 when research is already going.",
+		Description: "Does not spend the daily budget (a person asked). When the workspace's research is done by its AI assistant " +
+			"(provider agent), the pass is queued as a task for the assistant (opportunity_tasks over MCP) and task_id is set instead of run_id. " +
+			"409 when research is already going.",
 		Tags:        tags,
-	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[struct {
-		RunID string `json:"run_id"`
-		Query string `json:"query"`
-	}], error) {
+	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[DiscoverResult], error) {
 		s, err := scope(ctx, authz.ResearchRun)
 		if err != nil {
 			return nil, err
 		}
-		runID, q, err := Discover(ctx, a, engine, s.WorkspaceID, s.UserID, false)
+		res, err := DiscoverNow(ctx, a, engine, s.WorkspaceID, s.UserID)
 		if err != nil {
 			return nil, errFor(err)
 		}
-		return out(struct {
-			RunID string `json:"run_id"`
-			Query string `json:"query"`
-		}{runID, q}), nil
+		return out(*res), nil
 	})
 
 	huma.Register(api, huma.Operation{
