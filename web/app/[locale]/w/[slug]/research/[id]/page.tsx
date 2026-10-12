@@ -7,6 +7,7 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ChevronDownIcon,
+  BotIcon,
   ExternalLinkIcon,
   InfoIcon,
   LoaderCircleIcon,
@@ -24,6 +25,7 @@ import {
 } from "@fadymondy/nasaq/web"
 
 import { SectionHeader } from "@/components/public-frame"
+import { AgentPanel } from "@/components/research/agent-panel"
 import { CostLine, EvidenceItem, SignalBadge, StageList } from "@/components/research/evidence"
 import { isLive, ResearchStatusBadge, useFormatDateTime } from "@/components/research/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -168,6 +170,7 @@ export default function ResearchRunPage() {
             sources={sources}
             live={live}
             canSummarise={caps.data?.can_summarise}
+            onChanged={() => void detail.mutate()}
           />
 
           {!live ? (
@@ -217,13 +220,33 @@ function Outcome({
   sources,
   live,
   canSummarise,
+  onChanged,
 }: {
   run: ResearchRun
   sources: ResearchSource[]
   live: boolean
   canSummarise?: boolean
+  onChanged: () => void
 }) {
   const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [queueing, setQueueing] = useState(false)
+
+  async function summariseViaAgent() {
+    setQueueing(true)
+    try {
+      await api(`/api/w/research/${encodeURIComponent(run.id)}/summarise-via-agent`, {
+        method: "POST",
+        workspaceId: ws.id,
+      })
+      toast.success(t("agent.summariseQueued"))
+      onChanged()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setQueueing(false)
+    }
+  }
 
   if (live) {
     const read = sources.filter((s) => s.fetched).length
@@ -283,7 +306,11 @@ function Outcome({
           <Summary text={run.summary} sources={sources} />
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          {run.model ? t("research.answerBy", { model: run.model }) : t("research.answerFrom")}
+          {run.model?.startsWith("agent:")
+            ? t("agent.summaryBy", { model: run.model.slice("agent:".length) })
+            : run.model
+              ? t("research.answerBy", { model: run.model })
+              : t("research.answerFrom")}
         </p>
       </section>
     )
@@ -291,6 +318,19 @@ function Outcome({
 
   // ok, no summary: the pages were collected and either there is no model, or
   // the model could not be used. Both are stated; neither is dressed up.
+  // The summary was handed to the workspace's AI assistant and is waiting.
+  if (run.stages?.some((st) => st.stage === "summarise" && st.status === "pending")) {
+    return (
+      <>
+        <Panel icon={<BotIcon className="text-nq-brand" />} data="agent-summary">
+          <p className="font-medium">{t("agent.summaryWaitingTitle")}</p>
+          <p className="text-muted-foreground">{t("agent.summaryWaitingBody")}</p>
+        </Panel>
+        <AgentPanel compact />
+      </>
+    )
+  }
+
   const noModel = canSummarise === false
   return (
     <Panel
@@ -302,6 +342,20 @@ function Outcome({
         {noModel ? t("research.noModelBody") : t("research.notSummarisedBody")}
       </p>
       {!noModel && run.error ? <p className="text-muted-foreground">{run.error}</p> : null}
+      {ws.can("research:run") ? (
+        <div className="pt-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void summariseViaAgent()}
+            disabled={queueing}
+            data-action="summarise-via-agent"
+          >
+            {queueing ? <LoaderCircleIcon className="animate-spin" /> : <BotIcon />}
+            {t("agent.summarise")}
+          </Button>
+        </div>
+      ) : null}
     </Panel>
   )
 }

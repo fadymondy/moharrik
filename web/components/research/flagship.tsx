@@ -39,12 +39,13 @@ import { Empty, Panel, useFormat } from "@/components/overview/overview-cards"
 import { AcceptDialog } from "@/components/prospects/decide"
 import { ReasonList, ScoreBadge } from "@/components/prospects/shared"
 import { MAX, MIN } from "@/components/research/tabs"
+import { AgentPanel } from "@/components/research/agent-panel"
 import { CapabilityNotes, isLive, ResearchStatusBadge } from "@/components/research/shared"
 import { ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Prospect, type ResearchStage } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useProspects, useResearchOverview, useResearchRuns } from "@/lib/queries"
+import { useAgentProvider, useProspects, useResearchOverview, useResearchRuns } from "@/lib/queries"
 import type { FlowCounts, FlowRun } from "@/lib/research-flow-types"
 import { cn } from "@/lib/utils"
 
@@ -69,13 +70,16 @@ export function ResearchFlagship({ base }: { base: string }) {
   const ws = useWorkspace()
   const ov = useResearchOverview(ws.id)
   const caps = useResearchRuns(ws.id)
+  const provider = useAgentProvider(ws.id)
   const refresh = () => {
     void ov.mutate()
     void caps.mutate()
   }
   if (ov.error) return <ErrorState error={ov.error} />
   const o = ov.data
-  const canStart = !!caps.data && caps.data.can_search
+  // In agent mode a question becomes a task for the AI assistant, search or not.
+  const canStart =
+    !!caps.data && (caps.data.can_search || provider.data?.provider.effective === "agent")
   // The empty states point at the describe input only when it is drawn.
   const canDescribe = ws.can("research:run") && canStart
   return (
@@ -103,6 +107,7 @@ export function ResearchFlagship({ base }: { base: string }) {
             />
           </div>
           {caps.data ? <CapabilityNotes caps={caps.data} /> : null}
+          <AgentPanel onChanged={refresh} />
         </>
       )}
     </div>
@@ -125,13 +130,20 @@ function Describe({ onStarted }: { onStarted: () => void }) {
     if (!valid || busy) return
     setBusy(true)
     try {
-      const res = await api<{ run_id: string }>("/api/w/research", {
+      const res = await api<{ run_id?: string }>("/api/w/research", {
         method: "POST",
         json: { topic: trimmed },
         workspaceId: ws.id,
       })
-      toast.success(t("research.started"))
       onStarted()
+      if (!res.run_id) {
+        // Queued for the workspace's AI assistant: nothing to watch yet.
+        toast.success(t("agent.queued"))
+        setTopic("")
+        setBusy(false)
+        return
+      }
+      toast.success(t("research.started"))
       router.push(`/${locale}/w/${ws.slug}/research/${encodeURIComponent(res.run_id)}`)
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {

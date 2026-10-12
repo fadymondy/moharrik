@@ -23,12 +23,9 @@ import (
 	"github.com/fadymondy/moharrik/internal/analytics"
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/audit"
-	"github.com/fadymondy/moharrik/internal/circlexo"
-	"github.com/fadymondy/moharrik/internal/home"
-	"github.com/fadymondy/moharrik/internal/opportunities"
-	"github.com/fadymondy/moharrik/internal/researchflow"
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/channels"
+	"github.com/fadymondy/moharrik/internal/circlexo"
 	"github.com/fadymondy/moharrik/internal/clientip"
 	"github.com/fadymondy/moharrik/internal/contactcontext"
 	"github.com/fadymondy/moharrik/internal/conversions"
@@ -37,6 +34,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/googlecontacts"
 	graphgen "github.com/fadymondy/moharrik/internal/graph/gen"
 	"github.com/fadymondy/moharrik/internal/graph/resolvers"
+	"github.com/fadymondy/moharrik/internal/home"
 	"github.com/fadymondy/moharrik/internal/icp"
 	"github.com/fadymondy/moharrik/internal/imports"
 	"github.com/fadymondy/moharrik/internal/inbox"
@@ -44,12 +42,14 @@ import (
 	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/mcp"
 	"github.com/fadymondy/moharrik/internal/notifications"
+	"github.com/fadymondy/moharrik/internal/opportunities"
 	"github.com/fadymondy/moharrik/internal/overview"
 	_ "github.com/fadymondy/moharrik/internal/plugins" // blank-imports installed plugins (togo install)
 	"github.com/fadymondy/moharrik/internal/prospects"
 	"github.com/fadymondy/moharrik/internal/realtime"
 	"github.com/fadymondy/moharrik/internal/reports"
 	"github.com/fadymondy/moharrik/internal/research"
+	"github.com/fadymondy/moharrik/internal/researchflow"
 	"github.com/fadymondy/moharrik/internal/rest"
 	"github.com/fadymondy/moharrik/internal/rules"
 	"github.com/fadymondy/moharrik/internal/searchconsole"
@@ -109,12 +109,12 @@ func Boot() *app.App {
 	prospects.Init(researchEngine)
 
 	installErrors()
-	installProblemReports(k)          // outermost: sees what the guard and handlers answer
+	installProblemReports(k)              // outermost: sees what the guard and handlers answer
 	k.UseMiddleware(telemetry.Middleware) // inside it: a panic is traced as an exception, then reported
-	installInputGuard(k)              // text Postgres cannot store is a 400 before any query sees it
-	installClientIP(k)                // the visitor's address, from the TRUSTED proxy chain only
-	k.UseMiddleware(audit.Middleware) // who/where for the audit log (MH-392), after the address
-	installChatCORS(k)                // before the guard: a preflight carries no session
+	installInputGuard(k)                  // text Postgres cannot store is a 400 before any query sees it
+	installClientIP(k)                    // the visitor's address, from the TRUSTED proxy chain only
+	k.UseMiddleware(audit.Middleware)     // who/where for the audit log (MH-392), after the address
+	installChatCORS(k)                    // before the guard: a preflight carries no session
 	// The dedicated MCP host (MH-516), if MCP_PUBLIC_URL names one: ahead of
 	// the guard so a path that is not its transport or metadata is a plain
 	// 404 on that host, never a workspace-tier 401 or the SPA. A no-op when
@@ -274,7 +274,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	if a != nil {
 		ccAI = contactcontext.ResolveAIClient(a.Log) // nil is a fully supported state (MH-586): every ask/report path works without one
 	}
-	contactcontext.Register(api, a, ccAI) // Contacts → WhatsApp export/notes/ask/report (MH-586)
+	contactcontext.Register(api, a, ccAI)      // Contacts → WhatsApp export/notes/ask/report (MH-586)
 	contactcontext.RegisterBrief(api, a, ccAI) // the AI context brief on contacts, companies and leads (MH-1169)
 	trends.Register(api, a)
 	trends.RegisterDigest(api, a) // the trends digest (MH-389)
@@ -285,10 +285,10 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	automation.RegisterPresets(api, a, automation.Default())
 	automation.RegisterExtension(api)
 	automation.RegisterPick(api, a, automation.Default())
-	automation.RegisterCanvas(api, a) // the workflow canvas: layouts and executions (MH-480)
-	automation.RegisterOverview(api, a)                        // a workflow's header figures from its real runs (MH-1067)
-	automation.RegisterRerun(api, a, automation.Default())    // run a finished run again from its stored steps (MH-1067)
-	rules.Register(api, a)            // automation rules: event → conditions → actions (MH-427)
+	automation.RegisterCanvas(api, a)                      // the workflow canvas: layouts and executions (MH-480)
+	automation.RegisterOverview(api, a)                    // a workflow's header figures from its real runs (MH-1067)
+	automation.RegisterRerun(api, a, automation.Default()) // run a finished run again from its stored steps (MH-1067)
+	rules.Register(api, a)                                 // automation rules: event → conditions → actions (MH-427)
 	research.Register(api, a, researchEngine)
 	prospects.Register(api, a, researchEngine) // prospect discovery (MH-397)
 	mcp.RegisterTokenRoutes(api, a)
@@ -299,8 +299,11 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	overview.Register(api, a)      // the workspace front page (MH-462)
 	home.Register(api, a)          // Home (MH-1062)
 	opportunities.Register(api, a) // Opportunity signals (MH-1065)
+	// The Opportunity Finder with the caller's AI agent as the provider.
+	opportunities.MCPServerURL = mcp.MCPServerURL
+	opportunities.RegisterAgent(api, a, researchEngine)
 	researchflow.Register(api, a)  // Research funnel and stages (MH-1066)
-	circlexo.RegisterAPI(api, a)    // the workspace's CircleXO link + entitlements
+	circlexo.RegisterAPI(api, a)   // the workspace's CircleXO link + entitlements
 	reports.Register(api, a)       // CRM reporting (MH-394)
 	icp.Register(api, a)           // ideal-customer profile + lead score (MH-395)
 	analytics.Register(api, a)     // GA4 (MH-444)

@@ -65,13 +65,19 @@ func ProspectTools(engine *research.Engine) []Tool {
 				if err != nil {
 					return "", err
 				}
-				return jsonResult(map[string]any{"profile": p, "can_search": engine.Caps().CanSearch})
+				prov, err := engine.GetProvider(ctx, a.SQLDB, s.WorkspaceID)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"profile": p, "can_search": engine.Caps().CanSearch, "provider": prov})
 			},
 		},
 		{
 			Name: "run_discovery",
 			Description: "Run one prospect-discovery pass now: the profile's next query, as a research run. Returns the run id; when it " +
-				"settles, the companies it found become prospects (find_opportunities). Does not spend the daily budget.",
+				"settles, the companies it found become prospects (find_opportunities). Does not spend the daily budget. When the " +
+				"workspace's research is done by your AI assistant (provider agent — the default with no search configured), the pass is " +
+				"queued as a task instead (task_id): run it with opportunity_tasks → submit_opportunities → complete_task.",
 			Scope:       "research:run",
 			InputSchema: schema(nil, map[string]any{}),
 			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
@@ -82,14 +88,17 @@ func ProspectTools(engine *research.Engine) []Tool {
 				if !authz.Can(s.Role, authz.ResearchRun) {
 					return "", errors.New("your role cannot start research in this workspace")
 				}
-				if engine == nil {
-					return "", research.ErrNoSearch
-				}
-				runID, q, err := prospects.Discover(ctx, a, engine, s.WorkspaceID, s.UserID, false)
+				res, err := prospects.DiscoverNow(ctx, a, engine, s.WorkspaceID, s.UserID)
 				if err != nil {
 					return "", err
 				}
-				return jsonResult(map[string]any{"run_id": runID, "query": q, "note": "read it with get_research; prospects appear when it settles"})
+				if res.Provider == research.ProviderAgent {
+					return jsonResult(map[string]any{"provider": res.Provider, "task_id": res.TaskID, "query": res.Query,
+						"note": "queued for your AI assistant: take it with opportunity_tasks, research it with your own web tools, " +
+							"submit_opportunities, then complete_task"})
+				}
+				return jsonResult(map[string]any{"provider": res.Provider, "run_id": res.RunID, "query": res.Query,
+					"note": "read it with get_research; prospects appear when it settles"})
 			},
 		},
 		{

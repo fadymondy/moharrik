@@ -8,6 +8,7 @@ import type { OpportunitySignals } from "@/lib/opportunity-types"
 import type { ResearchOverview } from "@/lib/research-flow-types"
 
 import {
+  type AgentProviderOut,
   type Ga4ConversionsPage,
   type ReactionResult,
   type CollectedSourceList,
@@ -1067,7 +1068,14 @@ export function useResearchRun(workspaceId: string | null | undefined, id?: stri
     ([p, ws]: [string, string]) => api<ResearchDetail>(p, { workspaceId: ws }),
     {
       ...noRetryOn4xx,
-      refreshInterval: (data) => (researchLive(data?.run.status) ? 2000 : 0),
+      // Also while its summary waits for the AI assistant (agent mode): the
+      // run is finished, but the summary lands later.
+      refreshInterval: (data) =>
+        researchLive(data?.run.status)
+          ? 2000
+          : (data?.run.stages ?? []).some((s) => s.stage === "summarise" && s.status === "pending")
+            ? 5000
+            : 0,
     },
   )
 }
@@ -1088,6 +1096,24 @@ export function useResearchContent(
       : null,
     ([p, ws]: [string, string]) => api<ResearchDetail>(p, { workspaceId: ws }),
     noRetryOn4xx,
+  )
+}
+
+// ── Research by the caller's AI assistant (agent provider) ──────────────
+
+/**
+ * Who does the workspace's research and the tasks waiting for an AI assistant.
+ * Polled while a task is waiting or held, so a summary shows up when it lands.
+ */
+export function useAgentProvider(workspaceId: string | null | undefined, enabled = true) {
+  return useSWR<AgentProviderOut>(
+    workspaceId && enabled ? ["/api/w/agent-provider", workspaceId] : null,
+    ([p, id]: [string, string]) => api<AgentProviderOut>(p, { workspaceId: id }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: (data) =>
+        data && data.provider.pending_tasks + data.provider.claimed_tasks > 0 ? 5000 : 0,
+    },
   )
 }
 

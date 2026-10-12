@@ -79,6 +79,9 @@ var TenantTables = []string{"workspaces", "workspace_members", "invitations", "m
 	"message_stars", "message_hides",
 	// emoji reactions on messages, customer and team (MH-664)
 	"message_reactions",
+	// bring-your-own-agent research: the jobs a caller's agent claims, and
+	// every submission it made (the Opportunity Finder over MCP)
+	"agent_tasks", "agent_submissions",
 }
 
 /*
@@ -129,6 +132,7 @@ var AuditExcluded = map[string]string{
 	"automation_rule_runs":        "the rules' run log, itself a record of what each rule did; the rule is audited",
 	"trend_digest_sends":          "the trends digest's send log, itself a record",
 	"workflow_channel_pushes":     "the push-to-inbox step's dedupe log, written by every push; the workflow run itself is audited",
+	"agent_submissions":           "the agent submission log, itself a provenance record; the task and the run it fills are audited",
 }
 
 // AuditedTables are the tenant tables the audit trigger is attached to.

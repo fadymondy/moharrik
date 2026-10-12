@@ -60,6 +60,11 @@ func initHooks(engine *research.Engine) {
 		if _, err := RescoreOpen(ctx, a.SQLDB, ws); err != nil {
 			a.Log.Warn("prospects: could not rescore", "workspace", ws, "err", err)
 		}
+		// An agent's run made most of its prospects as it submitted them, so
+		// the digest names every prospect this run found, not only Ingest's.
+		if all, err := foundBy(ctx, a.SQLDB, ws, runID); err == nil && len(all) > len(created) {
+			created = all
+		}
 		announce(ctx, a, ws, runID, created)
 	})
 	research.OnTick(func(ctx context.Context, a *app.App) { RunDue(ctx, a, engine, 20) })
@@ -101,7 +106,10 @@ func Ingest(ctx context.Context, db *sql.DB, ws, runID string) ([]string, error)
 	var created []string
 	for _, s := range list {
 		var id string
-		err := db.QueryRowContext(ctx, `INSERT INTO prospects (workspace_id, suggestion_id, first_run_id) VALUES ($1, $2, $3)
+		// The prospect is written by whoever wrote the run: the engine, or a
+		// caller's agent (submit_research on a discovery task).
+		err := db.QueryRowContext(ctx, `INSERT INTO prospects (workspace_id, suggestion_id, first_run_id, author_kind)
+			VALUES ($1, $2, $3, coalesce((SELECT author_kind FROM research_runs WHERE workspace_id = $1 AND id = $3), 'engine'))
 			ON CONFLICT (workspace_id, suggestion_id) DO NOTHING RETURNING id`, ws, s.id, runID).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
@@ -124,6 +132,24 @@ func Ingest(ctx context.Context, db *sql.DB, ws, runID string) ([]string, error)
 		created = append(created, id)
 	}
 	return created, nil
+}
+
+// foundBy is every prospect a run found first.
+func foundBy(ctx context.Context, db *sql.DB, ws, runID string) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id FROM prospects WHERE workspace_id = $1 AND first_run_id = $2`, ws, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // companyPages are the read pages behind a company's evidence.
@@ -155,19 +181,10 @@ func Discover(ctx context.Context, a *app.App, engine *research.Engine, ws, user
 	if !auto {
 		sctx = ctx
 	}
-	p, err := GetProfile(sctx, a.SQLDB, ws)
+	q, next, n, err := nextQuery(sctx, a.SQLDB, ws)
 	if err != nil {
 		return "", "", err
 	}
-	queries := p.EffectiveQueries
-	if len(queries) == 0 {
-		return "", "", ErrNotConfigured
-	}
-	var next int
-	if err := a.SQLDB.QueryRowContext(sctx, `SELECT next_query FROM prospect_profiles WHERE workspace_id = $1`, ws).Scan(&next); err != nil {
-		return "", "", err
-	}
-	q := queries[next%len(queries)]
 	req := research.Request{Topic: q, Origin: "discovery"}
 	var runID string
 	if auto {
@@ -179,8 +196,71 @@ func Discover(ctx context.Context, a *app.App, engine *research.Engine, ws, user
 		return "", q, err
 	}
 	_, _ = a.SQLDB.ExecContext(sctx, `UPDATE prospect_profiles SET next_query = $2, updated_at = now() WHERE workspace_id = $1`,
-		ws, (next+1)%len(queries))
+		ws, (next+1)%n)
 	return runID, q, nil
+}
+
+// nextQuery is the profile's next discovery query, its position, and how many there are.
+func nextQuery(ctx context.Context, db *sql.DB, ws string) (string, int, int, error) {
+	p, err := GetProfile(ctx, db, ws)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	queries := p.EffectiveQueries
+	if len(queries) == 0 {
+		return "", 0, 0, ErrNotConfigured
+	}
+	var next int
+	if err := db.QueryRowContext(ctx, `SELECT next_query FROM prospect_profiles WHERE workspace_id = $1`, ws).Scan(&next); err != nil {
+		return "", 0, 0, err
+	}
+	return queries[next%len(queries)], next, len(queries), nil
+}
+
+// MaxWaitingDiscovery is how many discovery tasks may wait for an agent at once;
+// the clock queues no more until one is taken.
+const MaxWaitingDiscovery = 3
+
+// QueueDiscovery is discovery in agent mode: the profile's next query becomes
+// a task for the caller's AI assistant (opportunity_tasks) instead of a run
+// here. origin is manual (a person), discovery (the clock) or assistant (an
+// agent asking for work).
+func QueueDiscovery(ctx context.Context, db *sql.DB, ws, userID, origin string) (*research.AgentTask, error) {
+	q, next, n, err := nextQuery(ctx, db, ws)
+	if err != nil {
+		return nil, err
+	}
+	t, err := research.EnqueueAgentTask(ctx, db, ws, research.AgentTaskInput{Kind: "discovery", Topic: q, Origin: origin, RequestedBy: userID})
+	if err != nil {
+		return nil, err
+	}
+	_, _ = db.ExecContext(ctx, `UPDATE prospect_profiles SET next_query = $2, updated_at = now() WHERE workspace_id = $1`, ws, (next+1)%n)
+	return t, nil
+}
+
+// DiscoverResult is one discovery pass started: a run here, or a task for an agent.
+type DiscoverResult struct {
+	Provider string `json:"provider" enum:"server,agent"`
+	RunID    string `json:"run_id,omitempty"`
+	TaskID   string `json:"task_id,omitempty"`
+	Query    string `json:"query"`
+}
+
+// DiscoverNow is a person asking for a discovery pass: a run when the server
+// does the research, a queued task when the workspace's agent does.
+func DiscoverNow(ctx context.Context, a *app.App, engine *research.Engine, ws, userID string) (*DiscoverResult, error) {
+	if engine.UsesAgent(ctx, a.SQLDB, ws) {
+		t, err := QueueDiscovery(ctx, a.SQLDB, ws, userID, "manual")
+		if err != nil {
+			return nil, err
+		}
+		return &DiscoverResult{Provider: research.ProviderAgent, TaskID: t.ID, Query: t.Topic}, nil
+	}
+	runID, q, err := Discover(ctx, a, engine, ws, userID, false)
+	if err != nil {
+		return nil, err
+	}
+	return &DiscoverResult{Provider: research.ProviderServer, RunID: runID, Query: q}, nil
 }
 
 // RunDue runs the scheduled discovery that is due. The queue is read on the
@@ -214,8 +294,26 @@ func runScheduled(ctx context.Context, a *app.App, engine *research.Engine, ws, 
 	}
 	next := time.Now().Add(every)
 	status, note := "started", ""
-	runID, q, err := Discover(ctx, a, engine, ws, "", true)
+	sctx := tenant.WithWorkspace(ctx, ws)
+	var runID, q string
+	var err error
+	if engine.UsesAgent(sctx, a.SQLDB, ws) {
+		// Agent mode: queue the pass for the workspace's AI assistant, a few at most.
+		var waiting int
+		_ = a.SQLDB.QueryRowContext(sctx, `SELECT count(*) FROM agent_tasks WHERE workspace_id = $1 AND kind = 'discovery' AND status = 'pending'`, ws).Scan(&waiting)
+		if waiting >= MaxWaitingDiscovery {
+			err = fmt.Errorf("%d discovery tasks are still waiting for your AI assistant (opportunity_tasks)", waiting)
+			status, note = "busy", err.Error()
+		} else if t, qerr := QueueDiscovery(sctx, a.SQLDB, ws, "", "discovery"); qerr != nil {
+			err = qerr
+		} else {
+			q = "queued for your AI assistant: " + t.Topic
+		}
+	} else {
+		runID, q, err = Discover(ctx, a, engine, ws, "", true)
+	}
 	switch {
+	case status == "busy":
 	case err == nil:
 		note = q
 	case errors.Is(err, research.ErrBusy):
@@ -229,7 +327,6 @@ func runScheduled(ctx context.Context, a *app.App, engine *research.Engine, ws, 
 	default:
 		status, note = "failed", err.Error()
 	}
-	sctx := tenant.WithWorkspace(ctx, ws)
 	if _, err := a.SQLDB.ExecContext(sctx, `
 		UPDATE prospect_profiles SET next_run_at = $2, last_status = $3, last_note = $4,
 			last_run_id = CASE WHEN $5 <> '' THEN $5 ELSE last_run_id END,

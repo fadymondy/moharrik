@@ -53,7 +53,12 @@ type Tool struct {
 	// this tool changes anything: the confirmation the tool itself demands. The
 	// permission explainer lists the tool under "changes needing confirmation"
 	// with this text. Empty = the tool acts as soon as it is called.
-	Confirm     string
+	Confirm string
+	// Destructive marks a tool that deletes or irreversibly overwrites data.
+	// It is advertised as destructiveHint (MCP tool annotations); a tool whose
+	// name starts with delete_/remove_/revoke_/disconnect_/clear_ is treated
+	// as destructive without saying so.
+	Destructive bool
 	InputSchema map[string]any
 	// Run returns the text handed back to the model. ctx carries the caller:
 	// tenant.Scope for the user server, adminCaller for the admin server.
@@ -252,9 +257,34 @@ func (s *server) schemas() []map[string]any {
 			"name":        t.Name,
 			"description": t.Description + " (scope: " + t.Scope + ")",
 			"inputSchema": validInputSchema(t.InputSchema),
+			"annotations": annotations(t),
 		})
 	}
 	return out
+}
+
+// annotations are the MCP tool hints (2025-03-26): a client may run a
+// read-only tool without asking, and should confirm a destructive one.
+func annotations(t Tool) map[string]any {
+	ro := !ChangesData(t)
+	out := map[string]any{"readOnlyHint": ro}
+	if !ro {
+		out["destructiveHint"] = IsDestructive(t)
+	}
+	return out
+}
+
+// IsDestructive reports whether a tool deletes or irreversibly overwrites data.
+func IsDestructive(t Tool) bool {
+	if t.Destructive {
+		return true
+	}
+	for _, p := range []string{"delete_", "remove_", "revoke_", "disconnect_", "clear_"} {
+		if strings.HasPrefix(t.Name, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // validInputSchema is the tool's schema as strict MCP clients accept it: an

@@ -57,6 +57,11 @@ func testWorkspace(t *testing.T, a *app.App) string {
 		"research-test-"+suffix).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
+	// These suites test the server doing the research; with no model key, auto
+	// would hand the summary to an agent (agent_db_test.go covers that).
+	if _, err := (&Engine{}).SetProvider(tenant.WithWorkspace(context.Background(), id), a.SQLDB, id, ProviderServer); err != nil {
+		t.Fatal(err)
+	}
 	return id
 }
 

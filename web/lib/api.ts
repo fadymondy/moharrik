@@ -2084,6 +2084,58 @@ export type ProspectProfileOut = {
   can_search: boolean
   can_summarise: boolean
   budget: ResearchBudget
+  /** Who does the research: the server, or the caller's AI assistant over MCP. */
+  provider?: ResearchProvider
+}
+
+// ── Bring your own agent: research done by the caller's AI assistant over MCP ──
+
+export type ProviderMode = "auto" | "server" | "agent"
+
+export type ResearchProvider = {
+  mode: ProviderMode
+  /** Who actually does it, given what this deployment can do. */
+  effective: "server" | "agent"
+  can_server: boolean
+  can_summarise: boolean
+  pending_tasks: number
+  claimed_tasks: number
+}
+
+export type AgentTask = {
+  id: string
+  kind: "discovery" | "research" | "summary"
+  status: "pending" | "claimed" | "done" | "failed" | "cancelled"
+  topic: string
+  mode: string
+  origin: string
+  run_id: string
+  agent_name: string
+  agent_model: string
+  lease_until: string | null
+  attempts: number
+  received: number
+  stored: number
+  note: string
+  error: string
+  created_at: string
+  finished_at: string | null
+}
+
+export type AgentProviderOut = {
+  provider: ResearchProvider
+  tasks: AgentTask[] | null
+  /** The exact prompt to paste into Claude, Codex or any MCP client. */
+  prompt: string
+  mcp_url: string
+  tools: string[]
+}
+
+export type DiscoverResult = {
+  provider: "server" | "agent"
+  run_id?: string
+  task_id?: string
+  query: string
 }
 
 export type ProspectReason = {

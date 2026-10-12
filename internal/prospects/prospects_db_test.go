@@ -101,6 +101,11 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	f.ctx = tenant.With(bg, &tenant.Scope{WorkspaceID: f.ws, UserID: f.user, Role: "owner", Via: "session"})
+	// These suites test the server doing discovery (search, no model); with no
+	// model, auto would hand the thinking to an agent (agent_db_test.go).
+	if _, err := (&research.Engine{}).SetProvider(tenant.WithWorkspace(bg, f.ws), a.SQLDB, f.ws, research.ProviderServer); err != nil {
+		t.Fatal(err)
+	}
 
 	sends := 0
 	search := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

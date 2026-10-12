@@ -33,6 +33,9 @@ type Prospect struct {
 	CRMDealID     string           `json:"crm_deal_id"`
 	RejectReason  string           `json:"reject_reason"`
 	FirstRunID    string           `json:"first_run_id"`
+	AuthorKind    string           `json:"author_kind" enum:"engine,agent" doc:"engine: Moharrik's own discovery found it; agent: a caller's AI agent submitted it over MCP."`
+	WhyNow        string           `json:"why_now" doc:"Why this company, now — the agent's reason (agent prospects only)."`
+	Channels      ContactChannels  `json:"channels" doc:"Every way to reach the person the agent named: email, LinkedIn, phone, website."`
 	DecidedAt     *time.Time       `json:"decided_at"`
 	ScoredAt      time.Time        `json:"scored_at"`
 	CreatedAt     time.Time        `json:"created_at"`
@@ -65,17 +68,19 @@ var (
 const prospectColumns = `p.id, p.suggestion_id, s.name, s.domain, s.company_key, p.status, p.score, p.reasons::text, s.signal_types::text,
 	s.evidence_count, p.contact_name, p.contact_title, p.contact_email, p.contact_source_url,
 	coalesce(p.crm_company_id, ''), coalesce(p.crm_contact_id, ''), coalesce(p.crm_deal_id, ''), p.reject_reason, p.first_run_id,
-	p.decided_at, p.scored_at, p.created_at`
+	p.author_kind, p.why_now, p.contact_channels::text, p.decided_at, p.scored_at, p.created_at`
 
 const prospectFrom = `FROM prospects p JOIN research_companies s ON s.workspace_id = p.workspace_id AND s.id = p.suggestion_id`
 
 func scanProspect(row interface{ Scan(...any) error }) (Prospect, error) {
 	var p Prospect
-	var reasons, sig string
+	var reasons, sig, channels string
 	var decided sql.NullTime
 	err := row.Scan(&p.ID, &p.SuggestionID, &p.Name, &p.Domain, &p.CompanyKey, &p.Status, &p.Score, &reasons, &sig,
 		&p.EvidenceCount, &p.Contact.Name, &p.Contact.Title, &p.Contact.Email, &p.Contact.SourceURL,
-		&p.CRMCompanyID, &p.CRMContactID, &p.CRMDealID, &p.RejectReason, &p.FirstRunID, &decided, &p.ScoredAt, &p.CreatedAt)
+		&p.CRMCompanyID, &p.CRMContactID, &p.CRMDealID, &p.RejectReason, &p.FirstRunID,
+		&p.AuthorKind, &p.WhyNow, &channels, &decided, &p.ScoredAt, &p.CreatedAt)
+	_ = json.Unmarshal([]byte(channels), &p.Channels)
 	_ = json.Unmarshal([]byte(reasons), &p.Reasons)
 	if p.Reasons == nil {
 		p.Reasons = []ProspectReason{}

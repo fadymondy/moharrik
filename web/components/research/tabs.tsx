@@ -43,7 +43,7 @@ import {
   type ResearchSchedule,
 } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useEvidence, useResearchRuns, useResearchSchedules } from "@/lib/queries"
+import { useAgentProvider, useEvidence, useResearchRuns, useResearchSchedules } from "@/lib/queries"
 
 export const MIN = 3
 export const MAX = 500
@@ -85,7 +85,11 @@ export function RunsTab({ list }: { list: ReturnType<typeof useResearchRuns> }) 
   const canRun = ws.can("research:run")
   const runs = list.data?.runs ?? []
   const live = runs.find((r) => isLive(r.status))
-  const canStart = !!list.data && (list.data.can_search || list.data.can_read)
+  const provider = useAgentProvider(ws.id)
+  // In agent mode a question becomes a task for the AI assistant, search or not.
+  const canStart =
+    !!list.data &&
+    (list.data.can_search || list.data.can_read || provider.data?.provider.effective === "agent")
 
   return (
     <>
@@ -143,13 +147,20 @@ function AskBox({ caps, onStarted }: { caps: ResearchList; onStarted: () => void
     if (!valid || busy) return
     setBusy(true)
     try {
-      const res = await api<{ run_id: string }>("/api/w/research", {
+      const res = await api<{ run_id?: string }>("/api/w/research", {
         method: "POST",
         json: mode === "urls" ? { topic: trimmed, mode, urls } : { topic: trimmed },
         workspaceId: ws.id,
       })
-      toast.success(t("research.started"))
       onStarted()
+      if (!res.run_id) {
+        // Queued for the workspace's AI assistant: nothing to watch yet.
+        toast.success(t("agent.queued"))
+        setTopic("")
+        setBusy(false)
+        return
+      }
+      toast.success(t("research.started"))
       router.push(`/${locale}/w/${ws.slug}/research/${encodeURIComponent(res.run_id)}`)
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
