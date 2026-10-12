@@ -21,6 +21,9 @@ func TestCheckVisitorContact(t *testing.T) {
 		{"Mona", "", "", true, visitorContact{}, "email or a phone"},
 		{"Mona", "mona@", "", true, visitorContact{}, "email"},
 		{"Mona", "Mona <mona@shop.test>", "", true, visitorContact{}, "email"},
+		{"Liam", "o'connor@shop.test", "", true, visitorContact{"Liam", "o'connor@shop.test", ""}, ""},
+		{"Mona", "mo..na@shop.test", "", true, visitorContact{}, "email"},
+		{"Mona", "mona@shop", "", true, visitorContact{}, "email"},
 		{"Mona", "", "01012345678", true, visitorContact{}, "country code"},
 		{"Mona", "", "+12", true, visitorContact{}, "country code"},
 		// The form off: lenient, as before.

@@ -23,6 +23,7 @@ exactly as it did.
 */
 
 import (
+	"regexp"
 	"context"
 	"database/sql"
 	"net/mail"
@@ -55,7 +56,7 @@ func checkVisitorContact(name, email, phone string, required bool) (visitorConta
 	email = strings.TrimSpace(email)
 	emailOK := false
 	if email != "" {
-		if a, err := mail.ParseAddress(email); err == nil && a.Address == email && emailInText.FindString(email) == email {
+		if a, err := mail.ParseAddress(email); err == nil && a.Address == email && len(email) <= 254 && visitorEmail.MatchString(email) {
 			v.Email, emailOK = strings.ToLower(email), true
 		}
 	}
@@ -101,6 +102,10 @@ func checkVisitorContact(name, email, phone string, required bool) (visitorConta
 // (require_contact): with the form off, chat stays unlinked as it always was. ctx must carry the workspace (the
 // app pool's RLS). Best effort for the visitor: a CRM failure never loses
 // their message, it only leaves the thread unlinked for a member to link.
+// visitorEmail is a plain address — a dot-atom, a dotted domain, a letter TLD —
+// the same shape the widget checks before it sends (chat-sdk checkVisitor).
+var visitorEmail = regexp.MustCompile("^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:[.][A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?[.])+[A-Za-z]{2,}$")
+
 func linkChatContact(ctx context.Context, db *sql.DB, wsID, convID string, v visitorContact, locale string) (string, error) {
 	if !v.any() {
 		return "", nil
@@ -110,14 +115,23 @@ func linkChatContact(ctx context.Context, db *sql.DB, wsID, convID string, v vis
 	} else {
 		locale = "ar"
 	}
-	res, err := contacts.FindOrCreate(ctx, db, wsID, contacts.Candidate{
-		Email: v.Email, Phone: v.Phone, Name: v.Name, Locale: locale, Source: "chat",
-	})
-	if err != nil {
-		return "", err
+	link := func() (string, error) {
+		res, err := contacts.FindOrCreate(ctx, db, wsID, contacts.Candidate{
+			Email: v.Email, Phone: v.Phone, Name: v.Name, Locale: locale, Source: "chat",
+		})
+		if err != nil {
+			return "", err
+		}
+		_, err = db.ExecContext(ctx, `
+			UPDATE conversations SET contact_id = $3, contact_link = 'auto', updated_at = now()
+			WHERE workspace_id = $1 AND id = $2 AND contact_id IS NULL AND contact_link <> 'manual'`, wsID, convID, res.ContactID)
+		return res.ContactID, err
 	}
-	_, err = db.ExecContext(ctx, `
-		UPDATE conversations SET contact_id = $3, contact_link = 'auto', updated_at = now()
-		WHERE workspace_id = $1 AND id = $2 AND contact_id IS NULL AND contact_link <> 'manual'`, wsID, convID, res.ContactID)
-	return res.ContactID, err
+	id, err := link()
+	if err != nil {
+		// The contact found may be deleted or merged before the link lands
+		// (a foreign key miss): look again, once.
+		id, err = link()
+	}
+	return id, err
 }
