@@ -232,7 +232,7 @@ func TestWhatsAppReactionsAndQuotes(t *testing.T) {
 	otherWS := alice.must("POST", "/api/me/workspaces", map[string]string{"name": "Other " + rnd()}, 201)["workspace"].(map[string]any)["id"].(string)
 	alice.ws = otherWS
 	wgt := alice.must("POST", "/api/w/chat_widgets", map[string]any{"name": "W", "allowed_origins": []string{"https://w.test"}}, 201)["widget"].(map[string]any)
-	creq, _ := http.NewRequest("POST", sf.srv.URL+"/api/chat/"+wgt["public_key"].(string)+"/messages", strings.NewReader(`{"body":"hello from the widget","name":"Visitor"}`))
+	creq, _ := http.NewRequest("POST", sf.srv.URL+"/api/chat/"+wgt["public_key"].(string)+"/messages", strings.NewReader(`{"body":"hello from the widget","name":"Visitor","email":"visitor@reactions.test"}`))
 	creq.Header.Set("Content-Type", "application/json")
 	creq.Header.Set("Origin", "https://w.test")
 	cres, err := http.DefaultClient.Do(creq)

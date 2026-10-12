@@ -67,6 +67,8 @@ func postChat(t *testing.T, base, key, origin string, p chatPost) chatReply {
 	body := map[string]any{"body": "hello " + rnd()}
 	if p.token != "" {
 		body["visitor_token"] = p.token
+	} else {
+		body["name"], body["email"] = "Visitor", "visitor@chat-limit.test"
 	}
 	if p.pageURL != "" {
 		body["page_url"] = p.pageURL

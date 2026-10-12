@@ -76,7 +76,7 @@ func TestInboxCRM(t *testing.T) {
 	alice.ws = wsID
 
 	const origin = "https://shop.test"
-	wgt := obj(alice.must("POST", "/api/w/chat_widgets", map[string]any{"name": "Site", "allowed_origins": []string{origin}}, 201)["widget"])
+	wgt := obj(alice.must("POST", "/api/w/chat_widgets", map[string]any{"name": "Site", "allowed_origins": []string{origin}, "require_contact": false}, 201)["widget"])
 	key := wgt["public_key"].(string)
 
 	// ---- a visitor writes, leaving their email and phone in the text --------

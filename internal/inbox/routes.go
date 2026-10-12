@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -470,7 +471,7 @@ func Register(api huma.API, a *app.App) {
 		}
 		for i, v := range settingsArgs(settings) {
 			u.set([]string{"greeting", "greeting_ar", "title", "title_ar", "accent", "theme", "position",
-				"invite", "invite_after_seconds", "quick_actions", "lead_event"}[i], v)
+				"invite", "invite_after_seconds", "quick_actions", "lead_event", "require_contact"}[i], v)
 		}
 		for i, set := range u.sets {
 			if strings.HasPrefix(set, "quick_actions = ") {
@@ -618,33 +619,13 @@ type chatIn struct {
 		VisitorToken string `json:"visitor_token,omitempty" doc:"From a previous reply; omit to start a conversation."`
 		Name         string `json:"name,omitempty" maxLength:"120"`
 		Email        string `json:"email,omitempty" maxLength:"200"`
+		Phone        string `json:"phone,omitempty" maxLength:"40" doc:"With its country code (+20 100 123 4567). When the widget requires contact details, a name and an email or a phone are needed to open a conversation."`
 		PageURL      string `json:"page_url,omitempty" maxLength:"2000" doc:"The page the visitor is on. Kept only when it is on the request's own (allowed) origin; otherwise the Referer is used."`
 		Locale       string `json:"locale,omitempty" maxLength:"35" doc:"The widget's language, e.g. ar or en-GB. Falls back to Accept-Language."`
 	}
 }
 
 func registerPublicChat(api huma.API, a *app.App) {
-	// resolve finds the widget's workspace on the owner pool and checks the
-	// browser Origin against its allow-list.
-	resolve := func(ctx context.Context, key, origin string) (string, string, error) {
-		var wsID, id, origins string
-		var enabled bool
-		err := a.SysDB.QueryRowContext(ctx, `SELECT workspace_id, id, allowed_origins, enabled FROM chat_widgets WHERE public_key = $1`, key).
-			Scan(&wsID, &id, &origins, &enabled)
-		if notFound(err) {
-			return "", "", huma.Error404NotFound("this chat widget does not exist")
-		} else if err != nil {
-			return "", "", huma.Error500InternalServerError("could not resolve the chat widget")
-		}
-		if !enabled {
-			return "", "", huma.Error403Forbidden("this chat widget is disabled")
-		}
-		if !originAllowed(origins, origin) {
-			return "", "", huma.Error403Forbidden("this origin is not allowed for this chat widget")
-		}
-		return wsID, id, nil
-	}
-
 	huma.Register(api, huma.Operation{
 		OperationID: "chat-send", Method: http.MethodPost, Path: "/api/chat/{key}/messages",
 		DefaultStatus: http.StatusCreated, Summary: "A visitor writes (public: the widget key plus the Origin allow-list are the authorization)", Tags: tags,
@@ -663,11 +644,20 @@ func registerPublicChat(api huma.API, a *app.App) {
 		if len(text) > maxMessage {
 			return nil, huma.Error400BadRequest("that message is too long")
 		}
-		wsID, widgetID, err := resolve(ctx, in.Key, in.Origin)
+		w, err := resolveWidget(ctx, a, in.Key, in.Origin)
 		if err != nil {
 			return nil, err
 		}
+		wsID, widgetID := w.WorkspaceID, w.ID
 		visitor := strings.TrimSpace(in.Body.VisitorToken)
+		// Who the visitor is, checked before anything is counted or written:
+		// only opening a conversation asks (prechat.go).
+		var who visitorContact
+		if visitor == "" {
+			if who, err = checkVisitorContact(in.Body.Name, in.Body.Email, in.Body.Phone, w.Settings.RequireContact); err != nil {
+				return nil, err
+			}
+		}
 
 		// After resolve, so an unknown key or a refused origin costs no limiter
 		// entry; before any write, so a refused request writes nothing.
@@ -698,13 +688,18 @@ func registerPublicChat(api huma.API, a *app.App) {
 			// worth knowing when answering, recorded once, when the thread opens.
 			vc := visitorContextOf(in.Origin, in.Body.PageURL, in.Referer, in.UserAgent, in.Body.Locale, in.AcceptLanguage)
 			if err := a.SQLDB.QueryRowContext(sctx, `
-				INSERT INTO conversations (workspace_id, channel, widget_id, customer_name, customer_email, visitor_token, subject,
+				INSERT INTO conversations (workspace_id, channel, widget_id, customer_name, customer_email, customer_phone, visitor_token, subject,
 				                           page_url, user_agent, locale, last_message_at, unread)
-				VALUES ($1, 'chat', $2, $3, $4, $5, $6, $7, $8, $9, now(), true) RETURNING id`,
-				wsID, widgetID, strings.TrimSpace(in.Body.Name), strings.TrimSpace(in.Body.Email), visitor, trim(text, 80),
+				VALUES ($1, 'chat', $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), true) RETURNING id`,
+				wsID, widgetID, who.Name, who.Email, who.Phone, visitor, trim(text, 80),
 				vc.PageURL, vc.UserAgent, vc.Locale,
 			).Scan(&convID); err != nil {
 				return nil, huma.Error500InternalServerError("could not start the conversation")
+			}
+			if w.Settings.RequireContact {
+				if _, err := linkChatContact(sctx, a.SQLDB, wsID, convID, who, vc.Locale); err != nil {
+					slog.Warn("chat: could not file the visitor in the CRM", "workspace", wsID, "conversation", convID, "err", err)
+				}
 			}
 		}
 		// A blocked visitor is told no more than a closed door (MH-657).

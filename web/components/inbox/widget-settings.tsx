@@ -99,6 +99,7 @@ function settingsOf(w: ChatWidget): ChatWidgetSettings {
       locale: q.locale ?? "",
     })),
     lead_event: w.lead_event !== false,
+    require_contact: w.require_contact !== false,
   }
 }
 
@@ -429,6 +430,17 @@ function SettingsForm({
               />
             </Field>
           ) : null}
+          <Field className="flex-row items-center gap-3">
+            <Switch
+              id="ws-contact"
+              checked={s.require_contact}
+              onCheckedChange={(v) => set("require_contact", v)}
+            />
+            <div className="flex flex-col gap-1">
+              <FieldLabel htmlFor="ws-contact">{t("inbox.requireContact")}</FieldLabel>
+              <FieldDescription>{t("inbox.requireContactHint")}</FieldDescription>
+            </div>
+          </Field>
           <Field className="flex-row items-center gap-3">
             <Switch
               id="ws-lead"

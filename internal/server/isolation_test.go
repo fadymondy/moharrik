@@ -297,7 +297,7 @@ func TestCrossWorkspaceIsolation(t *testing.T) {
 	wgt := alice.must("POST", "/api/w/chat_widgets", map[string]any{"name": marker + " Widget", "allowed_origins": []string{"https://iso.test"}}, 201)
 	widgetID := wgt["widget"].(map[string]any)["id"].(string)
 	widgetKey := wgt["widget"].(map[string]any)["public_key"].(string)
-	creq, _ := http.NewRequest("POST", srv.URL+"/api/chat/"+widgetKey+"/messages", bytes.NewReader([]byte(`{"body":"`+marker+` hello","name":"Visitor"}`)))
+	creq, _ := http.NewRequest("POST", srv.URL+"/api/chat/"+widgetKey+"/messages", bytes.NewReader([]byte(`{"body":"`+marker+` hello","name":"Visitor","email":"visitor@isolation.test"}`)))
 	creq.Header.Set("Content-Type", "application/json")
 	creq.Header.Set("Origin", "https://iso.test")
 	cres, err := http.DefaultClient.Do(creq)
