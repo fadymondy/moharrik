@@ -379,14 +379,19 @@ func TestSchedulesSpendTheBudgetAndStopAtIt(t *testing.T) {
 		t.Fatalf("busy schedule: %+v, budget %+v", got2, b)
 	}
 
-	// Not configured is said, not spent.
+	// With nothing here to search, the question goes to the workspace's AI
+	// assistant as a task — said, queued once, and not spent.
 	_, _ = a.SysDB.Exec(`UPDATE research_runs SET status = 'ok' WHERE workspace_id = $1 AND topic = 'held'`, ws)
-	_, _ = a.SysDB.Exec(`UPDATE research_schedules SET next_run_at = now() WHERE id = $1`, s2.ID)
-	(&Engine{Log: e.Log}).RunDueSchedules(context.Background(), a, 20)
+	for i := 0; i < 2; i++ {
+		_, _ = a.SysDB.Exec(`UPDATE research_schedules SET next_run_at = now() WHERE id = $1`, s2.ID)
+		(&Engine{Log: e.Log}).RunDueSchedules(context.Background(), a, 20)
+	}
 	got2, _ = getSchedule(wctx, a.SQLDB, ws, s2.ID)
 	b, _ = GetBudget(wctx, a.SQLDB, ws)
-	if got2.LastStatus != "not_configured" || b.RunsToday != 1 {
-		t.Fatalf("unconfigured schedule: %+v, budget %+v", got2, b)
+	var tasks int
+	_ = a.SysDB.QueryRow(`SELECT count(*) FROM agent_tasks WHERE workspace_id = $1 AND schedule_id = $2 AND kind = 'research'`, ws, s2.ID).Scan(&tasks)
+	if got2.LastStatus != "busy" || !strings.Contains(got2.LastNote, "AI assistant") || tasks != 1 || b.RunsToday != 1 {
+		t.Fatalf("schedule with no search: %+v, %d tasks, budget %+v", got2, tasks, b)
 	}
 }
 

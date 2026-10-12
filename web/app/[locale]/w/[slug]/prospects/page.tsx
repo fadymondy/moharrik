@@ -19,11 +19,12 @@ import { Bdi } from "@/components/bidi"
 import { ProfileForm } from "@/components/prospects/profile-form"
 import { ReasonList, ScoreBadge, StatusBadge } from "@/components/prospects/shared"
 import { SectionHeader } from "@/components/public-frame"
+import { AgentPanel } from "@/components/research/agent-panel"
 import { SignalBadge } from "@/components/research/evidence"
 import { isLive } from "@/components/research/shared"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { api, ApiError, type Prospect } from "@/lib/api"
+import { api, ApiError, type DiscoverResult, type Prospect } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useProspectProfile, useProspects, useResearchRuns } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
@@ -65,12 +66,16 @@ export default function ProspectsPage() {
   async function discover() {
     setStarting(true)
     try {
-      const res = await api<{ run_id: string; query: string }>("/api/w/prospect-profile/discover", {
+      const res = await api<DiscoverResult>("/api/w/prospect-profile/discover", {
         method: "POST",
         workspaceId: ws.id,
       })
-      toast.success(t("prospects.discoverStarted", { query: res.query }))
+      // In agent mode the pass is a task for the workspace's AI assistant.
+      toast.success(
+        res.run_id ? t("prospects.discoverStarted", { query: res.query }) : t("agent.queued"),
+      )
       void runs.mutate()
+      void profile.mutate()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
     } finally {
@@ -81,6 +86,7 @@ export default function ProspectsPage() {
   const counts = list.data?.counts
   const prospects = list.data?.prospects ?? []
   const p = profile.data
+  const byAgent = p?.provider?.effective === "agent"
 
   return (
     <>
@@ -88,7 +94,7 @@ export default function ProspectsPage() {
         title={t("nav.prospects")}
         description={t("prospects.hint")}
         action={
-          canRun && p?.can_search && p.profile.configured ? (
+          canRun && (p?.can_search || byAgent) && p?.profile.configured ? (
             <Button
               size="sm"
               onClick={discover}
@@ -106,7 +112,7 @@ export default function ProspectsPage() {
         }
       />
 
-      {p && !p.can_search ? (
+      {p && !p.can_search && !byAgent ? (
         <p
           className="flex items-start gap-2 px-6 pb-4 text-sm text-muted-foreground"
           role="status"
@@ -130,6 +136,8 @@ export default function ProspectsPage() {
           </Link>
         </p>
       ) : null}
+
+      <AgentPanel onChanged={() => void profile.mutate()} />
 
       <Tabs value={status} onValueChange={(v) => setStatus(String(v))} className="gap-0">
         <div className="px-6 pb-3">

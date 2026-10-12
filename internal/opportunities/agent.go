@@ -79,13 +79,15 @@ func Claimant(s *tenant.Scope, agent, model string) research.Claimant {
 
 // TaskBrief is everything an agent needs to do one task without asking.
 type TaskBrief struct {
-	Task          research.AgentTask `json:"task"`
-	Goal          string             `json:"goal"`
-	SearchQueries []string           `json:"search_queries" doc:"Run these (and your own variations) with your web tools."`
-	ICP           ICPBrief           `json:"icp"`
-	Signals       map[string]string  `json:"signals" doc:"signal_type -> what it means."`
-	Dedupe        DedupeHints        `json:"dedupe" doc:"Already known: do not submit these again (Moharrik also dedupes)."`
-	Submit        SubmitGuide        `json:"submit"`
+	Task          research.AgentTask      `json:"task"`
+	Goal          string                  `json:"goal"`
+	SearchQueries []string                `json:"search_queries" doc:"Run these (and your own variations) with your web tools."`
+	ICP           ICPBrief                `json:"icp"`
+	Signals       map[string]string       `json:"signals" doc:"signal_type -> what it means."`
+	Dedupe        DedupeHints             `json:"dedupe" doc:"Already known: do not submit these again (Moharrik also dedupes)."`
+	Pages         []research.SummaryPage  `json:"pages,omitempty" doc:"summary tasks: the pages Moharrik collected for the run, numbered as sources."`
+	Evidence      []research.SummaryQuote `json:"evidence,omitempty" doc:"summary tasks: sentences Moharrik already pulled from those pages."`
+	Submit        SubmitGuide             `json:"submit"`
 }
 
 // ICPBrief is the workspace's ideal customer, as the agent should judge fit.
@@ -175,6 +177,23 @@ func FindingSchema() map[string]any {
 	}
 }
 
+// SummarySchema is what submit_research takes for a summary task, as JSON Schema.
+func SummarySchema() map[string]any {
+	return map[string]any{
+		"type":     "object",
+		"required": []string{"task_id", "answer"},
+		"properties": map[string]any{
+			"task_id": map[string]any{"type": "string"},
+			"answer": map[string]any{"type": "string", "description": "The answer to the question from these pages only, citing them as [1], [2] by their source number. " +
+				"Say plainly what the pages do not answer."},
+			"insights": map[string]any{"type": "array", "maxItems": 10, "items": map[string]any{"type": "string"},
+				"description": "Optional: up to 10 one-line takeaways (who to talk to, what changed, what to do next), each citing a source."},
+			"findings": map[string]any{"type": "array", "items": FindingSchema(),
+				"description": "Optional: more evidence you read on these pages (or others) that Moharrik missed."},
+		},
+	}
+}
+
 // Brief builds the brief for one claimed task.
 func Brief(ctx context.Context, db *sql.DB, s *tenant.Scope, t research.AgentTask) (*TaskBrief, error) {
 	p, err := prospects.GetProfile(ctx, db, s.WorkspaceID)
@@ -196,6 +215,16 @@ func Brief(ctx context.Context, db *sql.DB, s *tenant.Scope, t research.AgentTas
 		b.SearchQueries = []string{}
 	}
 	switch t.Kind {
+	case "summary":
+		pages, quotes, err := research.SummaryMaterial(ctx, db, s.WorkspaceID, t.RunID)
+		if err != nil {
+			return nil, err
+		}
+		b.SearchQueries, b.Pages, b.Evidence = []string{}, pages, quotes
+		b.Goal = "Moharrik already searched and read the web for this question; it has no model to think with. Read the pages below and " +
+			"answer the question from them only, citing them as [source]. Then add a few insights. Question: " + t.Topic
+		b.Submit = SubmitGuide{Tool: "submit_research", OutputSchema: SummarySchema(),
+			Limits: map[string]int{"answer_chars": 8000, "insights": 10, "findings_per_call": MaxFindingsPerCall, "submits_per_hour": MaxSubmitsPerHour}}
 	case "discovery":
 		b.Goal = "Find companies that match the ICP and show a buying signal now. For each, name the person to talk to if a public page " +
 			"names them, say why now, and suggest a short opener. Every candidate needs at least one public URL with a sentence copied from it."
@@ -212,6 +241,15 @@ func Brief(ctx context.Context, db *sql.DB, s *tenant.Scope, t research.AgentTas
 			Limits: map[string]int{"findings_per_call": MaxFindingsPerCall, "submits_per_hour": MaxSubmitsPerHour, "items_per_hour": MaxItemsPerHour}}
 	}
 	b.Submit.Then = "complete_task with this task_id when you are done (or fail_task with the reason). Several submits per task are fine."
+	if t.Kind == "summary" {
+		b.Submit.Then = "complete_task with this task_id once the answer is in (or fail_task with the reason)."
+		b.Submit.Rules = []string{
+			"Answer from these pages only; cite each claim as [source]. Where they do not answer, say so.",
+			"Do not contact anyone, and do not invent names, emails or numbers.",
+			"Tell Moharrik who you are: pass agent.name and agent.model.",
+		}
+		return b, nil
+	}
 	b.Submit.Rules = []string{
 		"Use only public pages you actually read; copy quotes exactly. No URL, no candidate.",
 		"Never invent emails or phone numbers; leave them out unless a page publishes them.",
@@ -281,7 +319,7 @@ func TakeTasks(ctx context.Context, db *sql.DB, s *tenant.Scope, c research.Clai
 		return nil, "", err
 	}
 	note := ""
-	if len(tasks) == 0 && create && kind != "research" {
+	if len(tasks) == 0 && create && (kind == "" || kind == "discovery") {
 		if _, err := prospects.QueueDiscovery(ctx, db, s.WorkspaceID, s.UserID, "assistant"); err != nil {
 			if errors.Is(err, prospects.ErrNotConfigured) {
 				return []TaskBrief{}, "Nothing to do: the ICP names nothing to look for. Set it with set_icp_profile (industries, regions, keywords) " +
@@ -304,6 +342,10 @@ func TakeTasks(ctx context.Context, db *sql.DB, s *tenant.Scope, c research.Clai
 	}
 	if len(out) == 0 && note == "" {
 		note = "No tasks are waiting."
+		if n := research.CollectingRuns(ctx, db, s.WorkspaceID); n > 0 {
+			note = fmt.Sprintf("No tasks are waiting yet: Moharrik is still collecting pages for %d research run(s); each becomes a "+
+				"summary task when it finishes. Ask again in a minute.", n)
+		}
 	}
 	return out, note, nil
 }
@@ -698,11 +740,26 @@ type ResearchResult struct {
 }
 
 // SubmitResearch stores an agent's answer and findings for a task.
-func SubmitResearch(ctx context.Context, db *sql.DB, s *tenant.Scope, c research.Claimant, taskID, answer string, in []Finding) (*ResearchResult, error) {
+func SubmitResearch(ctx context.Context, db *sql.DB, s *tenant.Scope, c research.Claimant, taskID, answer string, insights []string, in []Finding) (*ResearchResult, error) {
 	if err := mayRun(s); err != nil {
 		return nil, err
 	}
 	answer = research.SanitizeText(answer, 8000)
+	if len(insights) > 10 {
+		return nil, errors.New("at most 10 insights")
+	}
+	var lines []string
+	for _, x := range insights {
+		if x = strings.TrimSpace(research.SanitizeText(x, 400)); x != "" {
+			lines = append(lines, "- "+x)
+		}
+	}
+	if len(lines) > 0 {
+		if answer == "" {
+			return nil, errors.New("insights go with an answer")
+		}
+		answer = strings.TrimSpace(answer) + "\n\nInsights:\n" + strings.Join(lines, "\n")
+	}
 	if len(in) == 0 && answer == "" {
 		return nil, errors.New("send findings, an answer, or both")
 	}
@@ -716,6 +773,9 @@ func SubmitResearch(ctx context.Context, db *sql.DB, s *tenant.Scope, c research
 	t, err := research.HoldAgentTask(ctx, db, ws, taskID, c)
 	if err != nil {
 		return nil, err
+	}
+	if t.Kind == "summary" && answer == "" && research.RunSummary(ctx, db, ws, t.RunID) == "" {
+		return nil, errors.New("a summary task needs the answer: send answer (and findings if you like)")
 	}
 	res := &ResearchResult{TaskID: t.ID, Received: len(in), NewCompanies: []string{}, Rejected: []Rejection{}}
 	var findings []research.AgentFinding
@@ -766,8 +826,12 @@ func SubmitResearch(ctx context.Context, db *sql.DB, s *tenant.Scope, c research
 			}
 		}
 		if answer != "" {
-			if err := research.SetAgentSummary(ctx, db, ws, runID, answer); err != nil {
-				return nil, err
+			set := research.SetAgentSummary(ctx, db, ws, runID, answer)
+			if t.Kind == "summary" {
+				set = research.SetAgentRunSummary(ctx, db, ws, runID, answer, c)
+			}
+			if set != nil {
+				return nil, set
 			}
 		}
 	}
@@ -776,8 +840,11 @@ func SubmitResearch(ctx context.Context, db *sql.DB, s *tenant.Scope, c research
 	}
 	logSubmission(ctx, db, s, c, t.ID, "research", res.Received, res.Stored, res.Received-len(res.Rejected)-res.Stored, len(res.Rejected))
 	res.Next = "complete_task(task_id) when done. The run reads back with get_research(run_id); evidence with find_evidence."
-	if t.Kind == "discovery" {
+	switch t.Kind {
+	case "discovery":
 		res.Next = "complete_task(task_id) when done: the companies your findings name then become scored prospects (find_opportunities)."
+	case "summary":
+		res.Next = "complete_task(task_id): the run now shows your summary (get_research(run_id))."
 	}
 	return res, nil
 }
@@ -792,8 +859,17 @@ func CloseTask(ctx context.Context, a *app.App, s *tenant.Scope, c research.Clai
 
 // ── what a person pastes ─────────────────────────────────────────────────
 
+// MCPServerURL is set by the server to the MCP endpoint people connect to
+// (mcp.MCPServerURL; that package imports this one, so it is wired at boot).
+var MCPServerURL func() string
+
 // MCPURL is this deployment's MCP endpoint.
 func MCPURL() string {
+	if MCPServerURL != nil {
+		if u := MCPServerURL(); u != "" {
+			return u
+		}
+	}
 	for _, k := range []string{"PUBLIC_URL", "APP_URL"} {
 		if v := strings.TrimRight(strings.TrimSpace(os.Getenv(k)), "/"); v != "" {
 			return v + "/api/mcp"
@@ -802,14 +878,24 @@ func MCPURL() string {
 	return "http://localhost:8120/api/mcp"
 }
 
-// AgentPrompt is what a person gives their AI assistant to run the finder.
+// AgentTools are the MCP tools an assistant uses as the workspace's AI, in order.
+var AgentTools = []string{"agent_tasks", "submit_research", "opportunity_tasks", "submit_opportunities", "complete_task", "fail_task", "find_opportunities"}
+
+// AgentPrompt is what a person gives their AI assistant to be the workspace's
+// AI: summarise the research Moharrik collected, then run the finder.
 func AgentPrompt(workspace string) string {
-	return "Use the Moharrik MCP tools to run my Opportunity Finder for the \"" + workspace + "\" workspace:\n" +
-		"1. Call opportunity_tasks with agent {name, model} set to who you are.\n" +
-		"2. For each task: run its search_queries (and your own variations) with your web search and page reading tools. " +
-		"Judge every company against task.icp, skip anything in task.dedupe, and keep only companies with a real, recent signal.\n" +
-		"3. Submit what you found with submit_opportunities (or submit_research for research tasks): every candidate needs at least one " +
-		"public URL and a sentence copied exactly from that page. Name the person to talk to only if a public page names them; never guess emails.\n" +
-		"4. Call complete_task (or fail_task with the reason).\n" +
-		"5. Show me the result with find_opportunities. Do not contact anyone — openers are drafts for me to review."
+	return "You are the AI for my Moharrik workspace \"" + workspace + "\" (it has no model key of its own). Use the Moharrik MCP tools:\n" +
+		"1. Call agent_tasks with agent {name, model} set to who you are, and do every task it hands you:\n" +
+		"   - summary: Moharrik already searched and read the pages. Answer task.task.topic from task.pages only, citing them as [source], " +
+		"and send it with submit_research(task_id, answer, insights).\n" +
+		"   - research: research the question with your own web search and page reading, then submit_research with the answer and the " +
+		"findings (each a public URL and a sentence copied exactly from it).\n" +
+		"   - discovery: as in step 2.\n" +
+		"   Close each task with complete_task (or fail_task with the reason). Repeat until agent_tasks returns nothing.\n" +
+		"2. Then run my Opportunity Finder: call opportunity_tasks. For each task run its search_queries (and your own variations), judge every " +
+		"company against task.icp, skip anything in task.dedupe, and keep only companies with a real, recent signal. Submit them with " +
+		"submit_opportunities: every candidate needs at least one public URL and a sentence copied exactly from that page. Name the person " +
+		"to talk to only if a public page names them; never guess emails. Then complete_task.\n" +
+		"3. Show me the result: the summaries (get_research) and the top prospects (find_opportunities). Do not contact anyone — openers are " +
+		"drafts for me to review."
 }

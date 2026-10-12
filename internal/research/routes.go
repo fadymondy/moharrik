@@ -159,26 +159,24 @@ func Register(api huma.API, a *app.App, engine *Engine) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-research-start", Method: http.MethodPost, Path: "/api/w/research",
-		Summary:     "Research a question (search the web) or a list of pages (URL mode): read, extract evidence, summarise",
-		Description: "501 when this deployment cannot do the mode asked for (no search engine, or no page reader for URL mode).",
-		Tags:        tags,
+		Summary: "Research a question (search the web) or a list of pages (URL mode): read, extract evidence, summarise",
+		Description: "In agent mode (no model key, or provider agent) the server still collects when it can and queues a summary task " +
+			"for the workspace's AI assistant (agent_summary); when it cannot collect, the question is queued as a task (task_id). " +
+			"501 only in server mode when this deployment cannot do the mode asked for.",
+		Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body ResearchStartBody
-	}) (*body[struct {
-		RunID string `json:"run_id"`
-	}], error) {
+	}) (*body[Started], error) {
 		s, err := scope(ctx, authz.ResearchRun)
 		if err != nil {
 			return nil, err
 		}
-		runID, err := engine.StartRun(ctx, a, s.WorkspaceID, s.UserID, Request{Topic: in.Body.Topic, Mode: in.Body.Mode, URLs: in.Body.URLs})
+		st, err := engine.StartOrQueue(ctx, a, s.WorkspaceID, s.UserID, Request{Topic: in.Body.Topic, Mode: in.Body.Mode, URLs: in.Body.URLs})
 		if err != nil {
 			return nil, startErr(err)
 		}
-		return out(struct {
-			RunID string `json:"run_id"`
-		}{runID}), nil
+		return out(*st), nil
 	})
 
 	huma.Register(api, huma.Operation{

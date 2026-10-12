@@ -370,9 +370,11 @@ func (e *Engine) runSchedule(ctx context.Context, a *app.App, ws, id string) {
 	}
 	next := time.Now().Add(cadenceEvery(s.Cadence))
 	status, note, runID := "started", "", ""
-	if e.UsesAgent(sctx, a.SQLDB, ws) {
-		// Agent mode: the schedule queues a task for the workspace's AI
-		// assistant instead of running here. One waiting task per schedule.
+	if e.UsesAgent(sctx, a.SQLDB, ws) && !e.CanCollect(s.Mode) {
+		// Agent mode and nothing here can collect the pages: the schedule
+		// queues the question for the workspace's AI assistant. One waiting
+		// task per schedule. (When the server can collect, it runs below and
+		// its run queues a summary task instead.)
 		var waiting int
 		_ = a.SQLDB.QueryRowContext(sctx, `SELECT count(*) FROM agent_tasks WHERE workspace_id = $1 AND schedule_id = $2 AND status IN ('pending', 'claimed')`,
 			ws, s.ID).Scan(&waiting)

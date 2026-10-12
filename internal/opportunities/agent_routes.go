@@ -45,7 +45,7 @@ func RegisterAgent(api huma.API, a *app.App, engine *research.Engine) {
 			return nil, huma.Error500InternalServerError("could not read the agent tasks")
 		}
 		return &body[AgentProviderOut]{AgentProviderOut{Provider: *p, Tasks: tasks, Prompt: AgentPrompt(s.WorkspaceName), MCPURL: MCPURL(),
-			Tools: []string{"opportunity_tasks", "submit_opportunities", "submit_research", "complete_task", "fail_task", "find_opportunities"}}}, nil
+			Tools: AgentTools}}, nil
 	}
 
 	huma.Register(api, huma.Operation{
@@ -78,6 +78,30 @@ func RegisterAgent(api huma.API, a *app.App, engine *research.Engine) {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
 		return read(ctx, s)
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-research-summarise-agent", Method: http.MethodPost, Path: "/api/w/research/{id}/summarise-via-agent",
+		Summary: "Hand a finished, unsummarised run to your AI assistant: queues a summary task it takes over MCP (agent_tasks)",
+		Tags:    []string{"Research"},
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID string `path:"id" maxLength:"64"`
+	}) (*body[research.AgentTask], error) {
+		s, err := agentScope(ctx, authz.ResearchRun)
+		if err != nil {
+			return nil, err
+		}
+		t, err := research.QueueSummary(ctx, a.SQLDB, s.WorkspaceID, in.ID, s.UserID)
+		switch {
+		case errors.Is(err, research.ErrNoRun):
+			return nil, huma.Error404NotFound("no such research run")
+		case errors.Is(err, research.ErrNotSummarisable):
+			return nil, huma.Error409Conflict(err.Error())
+		case err != nil:
+			return nil, huma.Error500InternalServerError("could not queue the summary")
+		}
+		return &body[research.AgentTask]{*t}, nil
 	})
 
 	huma.Register(api, huma.Operation{

@@ -75,20 +75,45 @@ var (
 
 // Provider is who does a workspace's research, and why.
 type Provider struct {
-	Mode      string `json:"mode" enum:"auto,server,agent" doc:"What the workspace chose."`
-	Effective string `json:"effective" enum:"server,agent" doc:"Who actually does it: the server when its search is configured and the mode allows, else the caller's agent over MCP."`
-	CanServer bool   `json:"can_server" doc:"This deployment has a search service, so server mode can run."`
-	Pending   int    `json:"pending_tasks" doc:"Tasks waiting for an agent."`
-	Claimed   int    `json:"claimed_tasks" doc:"Tasks an agent is working on now."`
+	Mode         string `json:"mode" enum:"auto,server,agent" doc:"What the workspace chose."`
+	Effective    string `json:"effective" enum:"server,agent" doc:"Who actually does it: the server when its search is configured and the mode allows, else the caller's agent over MCP."`
+	CanServer    bool   `json:"can_server" doc:"This deployment has a search service, so server mode can run."`
+	CanSummarise bool   `json:"can_summarise" doc:"This deployment has a model key, so the server can summarise what it collects."`
+	Pending      int    `json:"pending_tasks" doc:"Tasks waiting for an agent."`
+	Claimed      int    `json:"claimed_tasks" doc:"Tasks an agent is working on now."`
 }
 
 // EffectiveProvider resolves a stored mode against what the deployment can do.
-// server without a search service falls back to agent: there is nobody else.
+//
+//	agent   the caller's agent, always.
+//	server  the server; without a search service there is nobody else, so the agent.
+//	auto    the server only when it can both search and summarise (a model key);
+//	        with no model the thinking goes to the caller's agent — the server
+//	        still collects pages when it can, and the agent summarises them.
 func EffectiveProvider(mode string, caps Capabilities) string {
-	if mode == ProviderAgent || !caps.CanSearch {
+	switch mode {
+	case ProviderAgent:
+		return ProviderAgent
+	case ProviderServer:
+		if caps.CanSearch {
+			return ProviderServer
+		}
 		return ProviderAgent
 	}
-	return ProviderServer
+	if caps.CanSearch && caps.CanSummarise {
+		return ProviderServer
+	}
+	return ProviderAgent
+}
+
+// CanCollect reports whether the server can gather the pages for a request
+// itself (search, or read the given URLs), leaving only the thinking to an agent.
+func (e *Engine) CanCollect(mode string) bool {
+	caps := e.Caps()
+	if mode == "urls" {
+		return caps.CanRead
+	}
+	return caps.CanSearch
 }
 
 // GetProvider reads the workspace's provider mode and its queue.
@@ -102,6 +127,7 @@ func (e *Engine) GetProvider(ctx context.Context, db *sql.DB, ws string) (*Provi
 	}
 	caps := e.Caps()
 	p.CanServer = caps.CanSearch
+	p.CanSummarise = caps.CanSummarise
 	p.Effective = EffectiveProvider(p.Mode, caps)
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE status = 'pending'),
 			count(*) FILTER (WHERE status = 'claimed' AND lease_until > now())
@@ -129,6 +155,11 @@ func (e *Engine) SetProvider(ctx context.Context, db *sql.DB, ws, mode string) (
 // UsesAgent reports whether the workspace's research goes to the caller's agent.
 // A nil engine has no server tier, so it always does.
 func (e *Engine) UsesAgent(ctx context.Context, db *sql.DB, ws string) bool {
+	if tenant.WorkspaceID(ctx) != ws {
+		// RLS reads the workspace off ctx; a caller without one would read
+		// nothing and silently fall back to the server.
+		ctx = tenant.WithWorkspace(ctx, ws)
+	}
 	p, err := e.GetProvider(ctx, db, ws)
 	if err != nil {
 		return !e.Caps().CanSearch
@@ -141,7 +172,7 @@ func (e *Engine) UsesAgent(ctx context.Context, db *sql.DB, ws string) bool {
 // AgentTask is one job for an agent.
 type AgentTask struct {
 	ID          string     `json:"id"`
-	Kind        string     `json:"kind" enum:"discovery,research"`
+	Kind        string     `json:"kind" enum:"discovery,research,summary" doc:"discovery: find companies for the ICP; research: answer a question from the web; summary: Moharrik already collected the pages of a run, summarise them."`
 	Status      string     `json:"status" enum:"pending,claimed,done,failed,cancelled"`
 	Topic       string     `json:"topic"`
 	Mode        string     `json:"mode" enum:"search,urls"`
@@ -200,7 +231,7 @@ func EnqueueAgentTask(ctx context.Context, db *sql.DB, ws string, in AgentTaskIn
 		return nil, errors.New("a task needs a question")
 	}
 	if in.Kind != "discovery" && in.Kind != "research" {
-		return nil, errors.New("a task is discovery or research")
+		return nil, errors.New("a task is discovery or research (a summary task is queued with QueueSummary)")
 	}
 	mode := in.Mode
 	if mode == "" {
@@ -238,6 +269,216 @@ func EnqueueAgentTask(ctx context.Context, db *sql.DB, ws string, in AgentTaskIn
 		return nil, err
 	}
 	return &t, nil
+}
+
+// ErrNotSummarisable: the run cannot be handed to an agent to summarise.
+// ErrNoSummary: a summary task closes as done only once its summary is in.
+var ErrNoSummary = errors.New("submit the summary with submit_research before completing a summary task")
+
+// ErrNoRun: no such research run in this workspace.
+var ErrNoRun = errors.New("no such research run")
+
+var ErrNotSummarisable = errors.New("only a finished run Moharrik collected, with sources and no summary yet, can be summarised by your AI assistant")
+
+// QueueSummary asks the caller's agent to summarise a run the server already
+// collected (search, read, extract) but could not summarise: there is no model
+// key. One open summary task per run; asking again returns that one.
+func QueueSummary(ctx context.Context, db *sql.DB, ws, runID, requestedBy string) (*AgentTask, error) {
+	runID = strings.TrimSpace(runID)
+	var topic, status, summary, author, mode, runBy string
+	var sources int
+	err := db.QueryRowContext(ctx, `SELECT r.topic, r.status, r.summary, r.author_kind, r.mode, coalesce(r.requested_by::text, ''),
+			(SELECT count(*) FROM research_sources s WHERE s.workspace_id = r.workspace_id AND s.run_id = r.id)
+		FROM research_runs r WHERE r.workspace_id = $1 AND r.id = $2`, ws, runID).Scan(&topic, &status, &summary, &author, &mode, &runBy, &sources)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNoRun
+	}
+	if err != nil {
+		return nil, err
+	}
+	if status != "ok" || strings.TrimSpace(summary) != "" || author != "engine" || sources == 0 {
+		return nil, ErrNotSummarisable
+	}
+	t, err := scanAgentTask(db.QueryRowContext(ctx, `SELECT `+agentTaskColumns+` FROM agent_tasks
+		WHERE workspace_id = $1 AND kind = 'summary' AND run_id = $2 AND status IN ('pending', 'claimed') ORDER BY created_at LIMIT 1`, ws, runID))
+	if err == nil {
+		return &t, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if mode != "urls" {
+		mode = "search"
+	}
+	if requestedBy == "" {
+		requestedBy = runBy
+	}
+	t, err = scanAgentTask(db.QueryRowContext(ctx, `INSERT INTO agent_tasks (workspace_id, kind, topic, mode, origin, requested_by, run_id)
+		VALUES ($1, 'summary', $2, $3, 'manual', $4, $5) RETURNING `+agentTaskColumns, ws, trim(topic, 500), mode, requestedBy, runID))
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// Started is a research request begun: a run here, or a task for an agent.
+type Started struct {
+	Provider string `json:"provider" enum:"server,agent"`
+	RunID    string `json:"run_id,omitempty"`
+	TaskID   string `json:"task_id,omitempty"`
+	// AgentSummary: the server collects the pages, then queues a summary task
+	// for the workspace's AI assistant (agent mode with no model).
+	AgentSummary bool   `json:"agent_summary"`
+	Message      string `json:"message"`
+}
+
+// StartOrQueue begins research the way the workspace's provider says. The
+// server collects whenever it can (search, or read the URLs); in agent mode
+// its run then waits for the AI assistant to summarise it. When the server
+// cannot collect, the whole question is queued for the assistant.
+func (e *Engine) StartOrQueue(ctx context.Context, a *app.App, ws, userID string, req Request) (*Started, error) {
+	agent := e.UsesAgent(ctx, a.SQLDB, ws)
+	if !agent || e.CanCollect(req.Mode) {
+		runID, err := e.StartRun(ctx, a, ws, userID, req)
+		if err != nil {
+			return nil, err
+		}
+		st := &Started{Provider: ProviderServer, RunID: runID, Message: "Read it back with get_research once it has finished."}
+		if agent && e.AI == nil {
+			st.Provider, st.AgentSummary = ProviderAgent, true
+			st.Message = "Moharrik is collecting the pages now (about a minute). It has no model, so it then queues a summary task for " +
+				"you: call agent_tasks(kind=summary), answer from the pages with submit_research(task_id, answer, insights), then complete_task."
+		}
+		return st, nil
+	}
+	origin := req.Origin
+	t, err := EnqueueAgentTask(ctx, a.SQLDB, ws, AgentTaskInput{Kind: "research", Topic: req.Topic, Mode: req.Mode, URLs: req.URLs,
+		Origin: origin, ScheduleID: req.ScheduleID, RequestedBy: userID})
+	if err != nil {
+		return nil, err
+	}
+	return &Started{Provider: ProviderAgent, TaskID: t.ID, Message: "This workspace's research is done by your AI assistant. Take the task " +
+		"with agent_tasks(kind=research), research it with your own web tools, hand it back with submit_research, then complete_task."}, nil
+}
+
+// SummaryPage is one page the server collected for a run, as an agent reads it.
+type SummaryPage struct {
+	Source  int    `json:"source" doc:"Cite it as [source]."`
+	URL     string `json:"url"`
+	Title   string `json:"title"`
+	Read    bool   `json:"read" doc:"false: Moharrik could not read it; only the search snippet is here — open the URL yourself if it matters."`
+	Content string `json:"content"`
+}
+
+// SummaryQuote is evidence the server already extracted from the pages.
+type SummaryQuote struct {
+	Source     int    `json:"source"`
+	Quote      string `json:"quote"`
+	Company    string `json:"company,omitempty"`
+	SignalType string `json:"signal_type,omitempty"`
+}
+
+// SummaryMaterial is what the server collected for a run, cut to fit an agent's context.
+func SummaryMaterial(ctx context.Context, db *sql.DB, ws, runID string) ([]SummaryPage, []SummaryQuote, error) {
+	const perPage, total = 6000, 48000
+	rows, err := db.QueryContext(ctx, `SELECT position, url, title, snippet, content, fetched FROM research_sources
+		WHERE workspace_id = $1 AND run_id = $2 ORDER BY position`, ws, runID)
+	if err != nil {
+		return nil, nil, err
+	}
+	pages := []SummaryPage{}
+	used := 0
+	for rows.Next() {
+		var p SummaryPage
+		var pos int
+		var snippet, content string
+		if err := rows.Scan(&pos, &p.URL, &p.Title, &snippet, &content, &p.Read); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		p.Source = pos + 1
+		text := content
+		if !p.Read || strings.TrimSpace(text) == "" {
+			p.Read, text = false, snippet
+		}
+		budget := perPage
+		if left := total - used; left < budget {
+			budget = left
+		}
+		if budget < 300 {
+			budget = 300
+		}
+		p.Content = trim(text, budget)
+		used += len([]rune(p.Content))
+		pages = append(pages, p)
+	}
+	rows.Close()
+	quotes := []SummaryQuote{}
+	qrows, err := db.QueryContext(ctx, `SELECT coalesce(s.position, -1), e.quote, e.company_name, e.signal_type FROM research_evidence e
+		LEFT JOIN research_sources s ON s.workspace_id = e.workspace_id AND s.id = e.source_id
+		WHERE e.workspace_id = $1 AND e.run_id = $2 ORDER BY e.confidence DESC LIMIT 40`, ws, runID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer qrows.Close()
+	for qrows.Next() {
+		var q SummaryQuote
+		var pos int
+		if err := qrows.Scan(&pos, &q.Quote, &q.Company, &q.SignalType); err != nil {
+			return nil, nil, err
+		}
+		q.Source = pos + 1
+		quotes = append(quotes, q)
+	}
+	return pages, quotes, qrows.Err()
+}
+
+// SetAgentRunSummary records an agent's summary on a run the server
+// collected: the summary, who wrote it, and the summarise stage done.
+func SetAgentRunSummary(ctx context.Context, db *sql.DB, ws, runID, summary string, c Claimant) error {
+	return setSummariseStage(ctx, db, ws, runID, "done", 1, "summarised by your AI assistant ("+agentLabel(c)+")", summary, AgentLabel(c))
+}
+
+// setSummariseStage rewrites the summarise stage of a run (and, when summary
+// is set, the summary, its model, and the run's error).
+func setSummariseStage(ctx context.Context, db *sql.DB, ws, runID, status string, count int, note, summary, model string) error {
+	var raw string
+	if err := db.QueryRowContext(ctx, `SELECT stages::text FROM research_runs WHERE workspace_id = $1 AND id = $2`, ws, runID).Scan(&raw); err != nil {
+		return err
+	}
+	var stages []ResearchStage
+	_ = json.Unmarshal([]byte(raw), &stages)
+	now := time.Now().UTC()
+	found := false
+	for i := range stages {
+		if stages[i].Stage == "summarise" {
+			found = true
+			stages[i].Status, stages[i].Count, stages[i].Note, stages[i].FinishedAt = status, count, trim(note, 300), &now
+			if stages[i].StartedAt == nil {
+				stages[i].StartedAt = &now
+			}
+		}
+	}
+	if !found {
+		stages = append(stages, ResearchStage{Stage: "summarise", Status: status, Count: count, Note: trim(note, 300), StartedAt: &now, FinishedAt: &now})
+	}
+	sj, _ := json.Marshal(stages)
+	if summary == "" {
+		_, err := db.ExecContext(ctx, `UPDATE research_runs SET stages = $3::jsonb, updated_at = now() WHERE workspace_id = $1 AND id = $2`, ws, runID, string(sj))
+		return err
+	}
+	_, err := db.ExecContext(ctx, `UPDATE research_runs SET stages = $3::jsonb, summary = $4, model = $5, error = '', updated_at = now()
+		WHERE workspace_id = $1 AND id = $2`, ws, runID, string(sj), trim(summary, 8000), trim(model, 120))
+	return err
+}
+
+// CollectingRuns counts the server runs still gathering pages: each becomes a
+// summary task when it finishes, in agent mode.
+func CollectingRuns(ctx context.Context, db *sql.DB, ws string) int {
+	var n int
+	_ = db.QueryRowContext(ctx, `SELECT count(*) FROM research_runs WHERE workspace_id = $1 AND author_kind = 'engine'
+		AND status IN ('queued', 'running')`, ws).Scan(&n)
+	return n
 }
 
 // expireLeases hands back tasks whose lease ran out, and fails the ones that
@@ -537,6 +778,13 @@ func SetAgentSummary(ctx context.Context, db *sql.DB, ws, runID, summary string)
 	return err
 }
 
+// RunSummary is a run's summary so far ("" when none, or no such run).
+func RunSummary(ctx context.Context, db *sql.DB, ws, runID string) string {
+	var summary string
+	_ = db.QueryRowContext(ctx, `SELECT summary FROM research_runs WHERE workspace_id = $1 AND id = $2`, ws, runID).Scan(&summary)
+	return strings.TrimSpace(summary)
+}
+
 // CountAgentSubmitted adds to the task's counters.
 func CountAgentSubmitted(ctx context.Context, db *sql.DB, ws, taskID string, received, stored int) error {
 	_, err := db.ExecContext(ctx, `UPDATE agent_tasks SET received = received + $3, stored = stored + $4, updated_at = now()
@@ -556,6 +804,11 @@ func CloseAgentTask(ctx context.Context, a *app.App, ws, id string, c Claimant, 
 	if err != nil {
 		return nil, err
 	}
+	if t.Kind == "summary" && status == "done" {
+		if RunSummary(ctx, a.SQLDB, ws, t.RunID) == "" {
+			return nil, ErrNoSummary
+		}
+	}
 	note = SanitizeText(note, 500)
 	errText := ""
 	if status == "failed" {
@@ -572,7 +825,15 @@ func CloseAgentTask(ctx context.Context, a *app.App, ws, id string, c Claimant, 
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil, ErrTaskLeased
 	}
-	if t.RunID != "" {
+	switch {
+	case t.Kind == "summary" && status == "failed":
+		// The server run stands with its pages and evidence; only its summary is missing.
+		sctx := tenant.WithWorkspace(ctx, ws)
+		if err := setSummariseStage(sctx, a.SQLDB, ws, t.RunID, "skipped", 0, "your AI assistant could not summarise it: "+errText, "", ""); err != nil {
+			a.Log.Warn("research: could not mark a summary skipped", "run", t.RunID, "err", err)
+		}
+	case t.Kind == "summary":
+	case t.RunID != "":
 		settleAgentRun(ctx, a, ws, t, status, errText)
 	}
 	return GetAgentTask(ctx, a.SQLDB, ws, t.ID)
@@ -586,11 +847,15 @@ func settleAgentRun(ctx context.Context, a *app.App, ws string, t *AgentTask, st
 	if status == "failed" && evidence == 0 {
 		runStatus = "failed"
 	}
-	if _, err := a.SQLDB.ExecContext(sctx, `UPDATE research_runs SET status = $3, error = $4, stage = '', finished_at = now(), updated_at = now(),
+	res, err := a.SQLDB.ExecContext(sctx, `UPDATE research_runs SET status = $3, error = $4, stage = '', finished_at = now(), updated_at = now(),
 			read_count = 0
-		WHERE workspace_id = $1 AND id = $2 AND status IN ('queued', 'running')`, ws, t.RunID, runStatus, trim(errText, 500)); err != nil {
+		WHERE workspace_id = $1 AND id = $2 AND status IN ('queued', 'running')`, ws, t.RunID, runStatus, trim(errText, 500))
+	if err != nil {
 		a.Log.Warn("research: could not settle an agent run", "run", t.RunID, "err", err)
 		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return // already settled (cancelled, or settled before): no second announcement
 	}
 	if runStatus != "ok" {
 		return
@@ -627,9 +892,17 @@ func CancelAgentTask(ctx context.Context, db *sql.DB, ws, id string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrTaskClosed
 	}
+	var kind, runID string
+	_ = db.QueryRowContext(ctx, `SELECT kind, coalesce(run_id::text, '') FROM agent_tasks WHERE workspace_id = $1 AND id = $2`, ws, strings.TrimSpace(id)).Scan(&kind, &runID)
+	if kind == "summary" {
+		// The run Moharrik collected stays; it is just left unsummarised.
+		if runID != "" {
+			_ = setSummariseStage(ctx, db, ws, runID, "skipped", 0, "the summary for your AI assistant was cancelled", "", "")
+		}
+		return nil
+	}
 	_, _ = db.ExecContext(ctx, `UPDATE research_runs SET status = 'cancelled', stage = '', finished_at = now(), updated_at = now()
-		WHERE workspace_id = $1 AND id = (SELECT run_id FROM agent_tasks WHERE workspace_id = $1 AND id = $2) AND status IN ('queued', 'running')`,
-		ws, strings.TrimSpace(id))
+		WHERE workspace_id = $1 AND id = $2 AND status IN ('queued', 'running')`, ws, runID)
 	return nil
 }
 
@@ -637,9 +910,9 @@ func CancelAgentTask(ctx context.Context, db *sql.DB, ws, id string) error {
 
 var (
 	agentMarkup     = regexp.MustCompile(`(?s)<\s*(script|style)[^>]*>.*?<\s*/\s*(script|style)\s*>|<[^>]*>`)
-	agentSpaces    = regexp.MustCompile(`[ \t]+`)
-	agentBlankLines  = regexp.MustCompile(`\n{3,}`)
-	privateHost = []string{"localhost", ".local", ".internal", ".lan", ".home", ".corp", ".localdomain", ".test", ".invalid", ".example"}
+	agentSpaces     = regexp.MustCompile(`[ \t]+`)
+	agentBlankLines = regexp.MustCompile(`\n{3,}`)
+	privateHost     = []string{"localhost", ".local", ".internal", ".lan", ".home", ".corp", ".localdomain", ".test", ".invalid", ".example"}
 )
 
 // SanitizeText makes agent-supplied text safe to store and show: markup and

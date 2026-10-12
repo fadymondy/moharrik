@@ -513,8 +513,17 @@ func (e *Engine) execute(a *app.App, workspaceID, runID, topic, mode string, url
 
 	// 5. Summarise.
 	pr.begin("summarise")
-	summary, model, err := e.summarise(ctx, topic, sources)
-	if err != nil {
+	if e.AI == nil && len(sources) > 0 && e.UsesAgent(sctx, a.SQLDB, workspaceID) {
+		// No model here: the caller's AI assistant summarises it over MCP.
+		pr.end("summarise", "pending", 0, "waiting for your AI assistant (MCP: agent_tasks → submit_research)")
+		e.finish(sctx, a, workspaceID, runID, "ok", "", "", "", len(sources), read)
+		if t, err := QueueSummary(sctx, a.SQLDB, workspaceID, runID, ""); err != nil {
+			e.Log.Error("research: could not queue a summary for the agent", "run", runID, "err", err)
+		} else {
+			_ = setSummariseStage(sctx, a.SQLDB, workspaceID, runID, "pending", 0,
+				"waiting for your AI assistant (MCP: agent_tasks → submit_research, task "+t.ID+")", "", "")
+		}
+	} else if summary, model, err := e.summarise(ctx, topic, sources); err != nil {
 		pr.end("summarise", "skipped", 0, err.Error())
 		e.finish(sctx, a, workspaceID, runID, "ok", trim(err.Error(), 300), "", "", len(sources), read)
 	} else {

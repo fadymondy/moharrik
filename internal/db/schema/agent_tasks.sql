@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
     updated_at    timestamptz NOT NULL DEFAULT now(),
     finished_at   timestamptz,
     UNIQUE (workspace_id, id),
-    CHECK (kind IN ('discovery', 'research')),
+    CHECK (kind IN ('discovery', 'research', 'summary')),
     CHECK (status IN ('pending', 'claimed', 'done', 'failed', 'cancelled')),
     CHECK (mode IN ('search', 'urls')),
     CHECK (origin IN ('manual', 'schedule', 'discovery', 'assistant')),
