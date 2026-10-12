@@ -56,7 +56,7 @@ func checkVisitorContact(name, email, phone string, required bool) (visitorConta
 	email = strings.TrimSpace(email)
 	emailOK := false
 	if email != "" {
-		if a, err := mail.ParseAddress(email); err == nil && a.Address == email && len(email) <= 254 && visitorEmail.MatchString(email) {
+		if a, err := mail.ParseAddress(email); err == nil && a.Address == email && len(email) <= 200 && visitorEmail.MatchString(email) {
 			v.Email, emailOK = strings.ToLower(email), true
 		}
 	}
