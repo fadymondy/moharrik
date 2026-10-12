@@ -231,6 +231,8 @@ func Boot() *app.App {
 	// thread GET. SSE for the same reason as above; /api/chat/ is a public
 	// prefix in the guard and gets the chat CORS headers.
 	k.Router.Get("/api/chat/{key}/events", inbox.VisitorEvents(a))
+	// The business's picture in the widget's header: an <img>, so no Origin.
+	k.Router.Get("/api/chat/{key}/avatar", inbox.WidgetAvatar(a))
 
 	// Deliberately NOT mounted from the scaffold:
 	//   /events               — one global SSE stream; would broadcast every

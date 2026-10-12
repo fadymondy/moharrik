@@ -168,7 +168,7 @@ func TestChatWidgetParity(t *testing.T) {
 
 	// ---- a visitor, a reply, the stream, unread -------------------------------------
 
-	sent := publicCall(t, "POST", srv.URL+"/api/chat/"+keyA+"/messages", originA, map[string]any{"body": "hello", "page_url": originA + "/pricing"})
+	sent := publicCall(t, "POST", srv.URL+"/api/chat/"+keyA+"/messages", originA, map[string]any{"body": "hello", "page_url": originA + "/pricing", "name": "Visitor", "email": "visitor@parity.test"})
 	if sent.code != 201 {
 		t.Fatalf("visitor send: %d %s", sent.code, sent.raw)
 	}

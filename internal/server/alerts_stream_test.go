@@ -182,7 +182,7 @@ func TestAlertStreamAudience(t *testing.T) {
 	key := alice.must("POST", "/api/w/chat_widgets", map[string]any{"name": "Site", "allowed_origins": []string{origin}}, 201)["widget"].(map[string]any)["public_key"].(string)
 	visit := func(body, token string) string {
 		t.Helper()
-		payload := map[string]any{"body": body, "name": "Rana"}
+		payload := map[string]any{"body": body, "name": "Rana", "email": "rana@shop.alerts.test"}
 		if token != "" {
 			payload["visitor_token"] = token
 		}

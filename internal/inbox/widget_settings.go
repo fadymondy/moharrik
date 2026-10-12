@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -62,10 +63,11 @@ type WidgetSettings struct {
 	InviteAfterSeconds int           `json:"invite_after_seconds" minimum:"5" maximum:"600"`
 	QuickActions       []QuickAction `json:"quick_actions" maxItems:"8"`
 	LeadEvent          bool          `json:"lead_event" doc:"Report a visitor's first message as a generate_lead analytics event on the host page (gtag / dataLayer)."`
+	RequireContact     bool          `json:"require_contact" doc:"Ask for a name and an email or phone number before the first message, and file the visitor as a CRM contact."`
 }
 
 func defaultSettings() WidgetSettings {
-	return WidgetSettings{Theme: "auto", Position: "end", InviteAfterSeconds: 25, QuickActions: []QuickAction{}, LeadEvent: true}
+	return WidgetSettings{Theme: "auto", Position: "end", InviteAfterSeconds: 25, QuickActions: []QuickAction{}, LeadEvent: true, RequireContact: true}
 }
 
 // WidgetPatch is a partial WidgetSettings: nil = unchanged.
@@ -81,6 +83,7 @@ type WidgetPatch struct {
 	InviteAfterSeconds *int           `json:"invite_after_seconds,omitempty" minimum:"5" maximum:"600"`
 	QuickActions       *[]QuickAction `json:"quick_actions,omitempty" maxItems:"8"`
 	LeadEvent          *bool          `json:"lead_event,omitempty"`
+	RequireContact     *bool          `json:"require_contact,omitempty"`
 }
 
 var accentRE = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
@@ -110,6 +113,9 @@ func (p WidgetPatch) apply(s *WidgetSettings) error {
 	}
 	if p.LeadEvent != nil {
 		s.LeadEvent = *p.LeadEvent
+	}
+	if p.RequireContact != nil {
+		s.RequireContact = *p.RequireContact
 	}
 	if p.QuickActions != nil {
 		s.QuickActions = *p.QuickActions
@@ -171,14 +177,14 @@ func (s *WidgetSettings) validate() error {
 // ---- reading and writing the row ----------------------------------------------
 
 const widgetColumns = `id, name, public_key, allowed_origins, enabled, created_at,
-	greeting, greeting_ar, title, title_ar, accent, theme, position, invite, invite_after_seconds, quick_actions::text, lead_event`
+	greeting, greeting_ar, title, title_ar, accent, theme, position, invite, invite_after_seconds, quick_actions::text, lead_event, require_contact`
 
 func scanWidget(row interface{ Scan(...any) error }) (WidgetOut, error) {
 	var w WidgetOut
 	var origins, qa string
 	s := &w.WidgetSettings
 	if err := row.Scan(&w.ID, &w.Name, &w.PublicKey, &origins, &w.Enabled, &w.CreatedAt,
-		&s.Greeting, &s.GreetingAr, &s.Title, &s.TitleAr, &s.Accent, &s.Theme, &s.Position, &s.Invite, &s.InviteAfterSeconds, &qa, &s.LeadEvent); err != nil {
+		&s.Greeting, &s.GreetingAr, &s.Title, &s.TitleAr, &s.Accent, &s.Theme, &s.Position, &s.Invite, &s.InviteAfterSeconds, &qa, &s.LeadEvent, &s.RequireContact); err != nil {
 		return w, err
 	}
 	s.QuickActions = []QuickAction{}
@@ -195,11 +201,11 @@ func readWidget(ctx context.Context, db *sql.DB, wsID, id string) (WidgetOut, er
 // settingsArgs are the settings columns in widgetColumns' order, for a write.
 func settingsArgs(s WidgetSettings) []any {
 	qa, _ := json.Marshal(s.QuickActions)
-	return []any{s.Greeting, s.GreetingAr, s.Title, s.TitleAr, s.Accent, s.Theme, s.Position, s.Invite, s.InviteAfterSeconds, string(qa), s.LeadEvent}
+	return []any{s.Greeting, s.GreetingAr, s.Title, s.TitleAr, s.Accent, s.Theme, s.Position, s.Invite, s.InviteAfterSeconds, string(qa), s.LeadEvent, s.RequireContact}
 }
 
 const settingsSet = `greeting = $3, greeting_ar = $4, title = $5, title_ar = $6, accent = $7, theme = $8, position = $9,
-	invite = $10, invite_after_seconds = $11, quick_actions = $12::jsonb, lead_event = $13`
+	invite = $10, invite_after_seconds = $11, quick_actions = $12::jsonb, lead_event = $13, require_contact = $14`
 
 // embedSnippet is the tag to paste. It names the settings that change the
 // first paint (the SDK reads the rest from the config), each escaped for an
@@ -236,6 +242,11 @@ func embedSnippet(key string, s WidgetSettings) string {
 type PublicConfig struct {
 	WidgetSettings
 	Presence string `json:"presence" enum:"online,away,offline" doc:"Whether anybody who can answer is around: online (active in the last 5 minutes), away (45) or offline."`
+	// Who the visitor is talking to: the workspace's name and picture, shown
+	// in the panel's header next to the title. Both are already public on the
+	// customer's site the moment the widget draws them.
+	Name      string `json:"name,omitempty" doc:"The business the visitor is talking to (the workspace's name)."`
+	AvatarURL string `json:"avatar_url,omitempty" doc:"The business's picture, absolute. Empty when the workspace has none."`
 }
 
 func publicConfig(s WidgetSettings, wsID string) PublicConfig {
@@ -276,7 +287,7 @@ func scanWidgetFull(row *sql.Row, wsID, origins *string, enabled *bool) (WidgetO
 	var qa string
 	s := &w.WidgetSettings
 	if err := row.Scan(wsID, &w.ID, &w.Name, &w.PublicKey, origins, enabled, &w.CreatedAt,
-		&s.Greeting, &s.GreetingAr, &s.Title, &s.TitleAr, &s.Accent, &s.Theme, &s.Position, &s.Invite, &s.InviteAfterSeconds, &qa, &s.LeadEvent); err != nil {
+		&s.Greeting, &s.GreetingAr, &s.Title, &s.TitleAr, &s.Accent, &s.Theme, &s.Position, &s.Invite, &s.InviteAfterSeconds, &qa, &s.LeadEvent, &s.RequireContact); err != nil {
 		return w, err
 	}
 	s.QuickActions = []QuickAction{}
@@ -296,7 +307,9 @@ func registerWidgetPublic(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		return out(publicConfig(w.Settings, w.WorkspaceID)), nil
+		cfg := publicConfig(w.Settings, w.WorkspaceID)
+		cfg.Name, cfg.AvatarURL = widgetBrand(ctx, a, w.WorkspaceID, in.Key)
+		return out(cfg), nil
 	})
 
 	huma.Register(api, huma.Operation{
@@ -331,6 +344,56 @@ func registerWidgetPublic(api huma.API, a *app.App) {
 			Unread int `json:"unread"`
 		}{0}), nil
 	})
+}
+
+// widgetBrand is the workspace's name and, when it has one, the address of its
+// picture as served through the widget's own key (WidgetAvatar). On the owner
+// pool: workspace_avatars is owner-only (internal/db/schema/workspace_avatars.sql).
+func widgetBrand(ctx context.Context, a *app.App, wsID, key string) (string, string) {
+	var name string
+	var at sql.NullTime
+	if err := a.SysDB.QueryRowContext(ctx, `
+		SELECT w.name, av.updated_at FROM workspaces w
+		LEFT JOIN workspace_avatars av ON av.workspace_id = w.id
+		WHERE w.id = $1`, wsID).Scan(&name, &at); err != nil {
+		return "", ""
+	}
+	if !at.Valid {
+		return name, ""
+	}
+	return name, fmt.Sprintf("%s/api/chat/%s/avatar?v=%d", publicBase(), url.PathEscape(key), at.Time.UnixMilli())
+}
+
+/*
+WidgetAvatar is GET /api/chat/{key}/avatar — the workspace's picture for the
+widget's header. An <img> sends no Origin, so the allow-list cannot apply; the
+key must still name an enabled widget, and the picture is what that widget
+shows on a public page anyway. The ?v= in the address changes with the
+picture, so it can be cached hard.
+*/
+func WidgetAvatar(a *app.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		key := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/chat/"), "/avatar")
+		var ctype string
+		var data []byte
+		err := a.SysDB.QueryRowContext(r.Context(), `
+			SELECT av.content_type, av.data FROM chat_widgets cw
+			JOIN workspace_avatars av ON av.workspace_id = cw.workspace_id
+			WHERE cw.public_key = $1 AND cw.enabled`, key).Scan(&ctype, &data)
+		if notFound(err) {
+			writeJSONError(w, http.StatusNotFound, "no picture")
+			return
+		} else if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "could not read the picture")
+			return
+		}
+		h := w.Header()
+		h.Set("Content-Type", ctype)
+		h.Set("Cache-Control", "public, max-age=86400")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Cross-Origin-Resource-Policy", "cross-origin")
+		_, _ = w.Write(data)
+	}
 }
 
 // ---- public: the visitor's live stream ------------------------------------------

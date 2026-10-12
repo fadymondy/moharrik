@@ -618,3 +618,52 @@ func MergeContacts(ctx context.Context, db *sql.DB, wsID, dst, src string) error
 	}
 	return tx.Commit()
 }
+
+// FindOrCreate is Upsert for what a stranger typed: the chat
+// widget's pre-chat form, where nothing proves the visitor owns the email or
+// the number they gave. So it never writes to a contact that already exists —
+// no blank filled, no identity appended, and above all no merge: an email
+// belonging to one contact and a phone belonging to another would otherwise
+// fold two real customers into one on the word of an anonymous visitor.
+//
+// No match creates the contact (with its identities), exactly as Upsert does.
+// One match or more returns the oldest of them, untouched.
+func FindOrCreate(ctx context.Context, db *sql.DB, wsID string, c Candidate) (*Result, error) {
+	identities := c.allIdentities()
+	if len(identities) == 0 {
+		return nil, ErrNoIdentity
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "contacts-upsert:"+wsID); err != nil {
+		return nil, err
+	}
+	ids, err := matchingContacts(ctx, tx, wsID, c, identities)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) > 0 {
+		return &Result{ContactID: ids[0]}, tx.Commit()
+	}
+	id, err := createContact(ctx, tx, wsID, c)
+	if err != nil {
+		return nil, err
+	}
+	if err := writeIdentities(ctx, tx, wsID, id, identities); err != nil {
+		return nil, err
+	}
+	if err := mergeMeta(ctx, tx, wsID, id, c.Meta); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	if OnCreated != nil {
+		OnCreated(wsID, id)
+	}
+	return &Result{ContactID: id, Created: true}, nil
+}

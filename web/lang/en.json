@@ -870,6 +870,8 @@
   "inbox.inviteHint": "Opens the chat by itself once per visit. It starts no conversation until the visitor writes.",
   "inbox.inviteAfter": "Open after (seconds)",
   "inbox.leadEvent": "Report leads to analytics",
+  "inbox.requireContact": "Ask for contact details first",
+  "inbox.requireContactHint": "Before the first message the visitor gives a name and an email or a phone number with its country code. They are filed as a contact; returning visitors are not asked again.",
   "inbox.leadEventHint": "A visitor's first message is sent to your site's Google Analytics or Tag Manager as a generate_lead event.",
   "inbox.quickActions": "Quick actions",
   "inbox.quickActionsHint": "Ready-made first messages shown in an empty chat. Picking one sends it. Give a page path to show one only there, e.g. /pricing.",

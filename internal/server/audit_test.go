@@ -262,7 +262,7 @@ func TestAuditDiffsAndSecrets(t *testing.T) {
 	const origin = "https://shop.example"
 	wgt := obj(alice.must("POST", "/api/w/chat_widgets", map[string]any{"name": "Site", "allowed_origins": []string{origin}}, 201)["widget"])
 	visitorBody := "VISITOR-BODY-" + rnd()
-	visitorWrites(t, base, wgt["public_key"].(string), origin, map[string]any{"body": visitorBody, "name": "Visitor"})
+	visitorWrites(t, base, wgt["public_key"].(string), origin, map[string]any{"body": visitorBody, "name": "Visitor", "email": "visitor@audit.test"})
 	convID := obj(arr(alice.must("GET", "/api/w/conversations", nil, 200)["conversations"])[0])["id"].(string)
 	replyBody := "REPLY-BODY-" + rnd()
 	_, _, replyRID := alice.doRID("POST", "/api/w/conversations/"+convID+"/reply", map[string]any{"body": replyBody})

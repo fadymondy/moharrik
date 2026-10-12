@@ -1117,6 +1117,8 @@ export type ChatWidgetSettings = {
   invite_after_seconds: number
   quick_actions: ChatQuickAction[]
   lead_event: boolean
+  /** Ask for a name and an email or phone before the first message. */
+  require_contact: boolean
 }
 
 // ── Trends ──────────────────────────────────────────────────────────────

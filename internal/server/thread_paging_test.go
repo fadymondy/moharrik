@@ -58,7 +58,7 @@ func TestThreadPagesToItsFirstMessage(t *testing.T) {
 
 	const origin = "https://shop.test"
 	key := obj(alice.must("POST", "/api/w/chat_widgets", map[string]any{"name": "Site", "allowed_origins": []string{origin}}, 201)["widget"])["public_key"].(string)
-	tok := visitorWrites(t, srv.URL, key, origin, map[string]any{"body": "message 000", "name": "Long Talker"})["visitor_token"].(string)
+	tok := visitorWrites(t, srv.URL, key, origin, map[string]any{"body": "message 000", "name": "Long Talker", "email": "long@shop.test"})["visitor_token"].(string)
 	convID := obj(arr(alice.must("GET", "/api/w/conversations", nil, 200)["conversations"])[0])["id"].(string)
 
 	// 599 more, a second apart, alternating sides. Written directly: the public
