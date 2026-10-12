@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -662,10 +663,58 @@ func HoldAgentTask(ctx context.Context, db *sql.DB, ws, id string, c Claimant) (
 	return GetAgentTask(ctx, db, ws, t.ID)
 }
 
+// taskLocks serialises the work on one task in this process: submissions,
+// closing and cancelling. Only the web process serves MCP and the task UI, so
+// a submission's writes never interleave with another's (source positions)
+// nor with a cancel (writes into a withdrawn task).
+var taskLocks = struct {
+	sync.Mutex
+	m map[string]*taskLock
+}{m: map[string]*taskLock{}}
+
+type taskLock struct {
+	sync.Mutex
+	users int
+}
+
+// LockTask holds the task until the returned func is called.
+func LockTask(ws, id string) func() {
+	key := ws + "/" + strings.TrimSpace(id)
+	taskLocks.Lock()
+	l := taskLocks.m[key]
+	if l == nil {
+		l = &taskLock{}
+		taskLocks.m[key] = l
+	}
+	l.users++
+	taskLocks.Unlock()
+	l.Lock()
+	return func() {
+		l.Unlock()
+		taskLocks.Lock()
+		if l.users--; l.users == 0 {
+			delete(taskLocks.m, key)
+		}
+		taskLocks.Unlock()
+	}
+}
+
 // AgentRun returns the task's research run, creating it on the first
 // submission: status running, author_kind agent, the agent's name and model.
 func AgentRun(ctx context.Context, db *sql.DB, ws string, t *AgentTask, c Claimant) (string, error) {
 	if t.RunID != "" {
+		// Still this claimant's to write into: not cancelled, failed or
+		// re-leased since it was held.
+		var status, holder string
+		if err := db.QueryRowContext(ctx, `SELECT status, claimed_by FROM agent_tasks WHERE workspace_id = $1 AND id = $2`, ws, t.ID).Scan(&status, &holder); err != nil {
+			return "", err
+		}
+		switch {
+		case status != "claimed":
+			return "", ErrTaskClosed
+		case holder != c.TokenID:
+			return "", ErrTaskLeased
+		}
 		return t.RunID, nil
 	}
 	origin := "manual"
@@ -778,12 +827,26 @@ func StoreAgentFindings(ctx context.Context, db *sql.DB, ws, runID string, c Cla
 			if src.Title == "" {
 				src.Title = hostOf(f.URL)
 			}
-			if err := db.QueryRowContext(ctx, `
-				INSERT INTO research_sources (workspace_id, run_id, position, url, title, snippet, content, fetched, error)
-				VALUES ($1, $2, $3, $4, $5, $6, '', false, $7) RETURNING id`,
-				ws, runID, src.Position, src.URL, src.Title, src.Snippet, "read by the agent, not by Moharrik").Scan(&src.ID); err != nil {
-				return 0, nil, err
+			// The next free position: another writer to the run (the server's
+			// own collection) may have taken it, so step past a taken one.
+			for tries := 0; ; tries++ {
+				src.Position = pos
+				err := db.QueryRowContext(ctx, `
+					INSERT INTO research_sources (workspace_id, run_id, position, url, title, snippet, content, fetched, error)
+					VALUES ($1, $2, $3, $4, $5, $6, '', false, $7)
+					ON CONFLICT (workspace_id, run_id, position) DO NOTHING RETURNING id`,
+					ws, runID, src.Position, src.URL, src.Title, src.Snippet, "read by the agent, not by Moharrik").Scan(&src.ID)
+				if err == nil {
+					break
+				}
+				if !errors.Is(err, sql.ErrNoRows) || tries >= 20 {
+					return 0, nil, err
+				}
+				if err := db.QueryRowContext(ctx, `SELECT coalesce(max(position) + 1, 0) FROM research_sources WHERE workspace_id = $1 AND run_id = $2`, ws, runID).Scan(&pos); err != nil {
+					return 0, nil, err
+				}
 			}
+			pos = src.Position
 			byURL[f.URL] = pos
 			p = pos
 			sources = append(sources, src)
@@ -849,6 +912,7 @@ func CloseAgentTask(ctx context.Context, a *app.App, ws, id string, c Claimant, 
 	if status != "done" && status != "failed" {
 		return nil, errors.New("a task closes as done or failed")
 	}
+	defer LockTask(ws, id)()
 	t, err := HoldAgentTask(ctx, a.SQLDB, ws, id, c)
 	if err != nil {
 		return nil, err
@@ -942,6 +1006,7 @@ func settleAgentRun(ctx context.Context, a *app.App, ws string, t *AgentTask, st
 
 // CancelAgentTask is a person withdrawing a task that has not finished.
 func CancelAgentTask(ctx context.Context, db *sql.DB, ws, id string) error {
+	defer LockTask(ws, id)() // after an in-flight submission, not during it
 	res, err := db.ExecContext(ctx, `UPDATE agent_tasks SET status = 'cancelled', lease_until = NULL, finished_at = now(), updated_at = now()
 		WHERE workspace_id = $1 AND id = $2 AND status IN ('pending', 'claimed')`, ws, strings.TrimSpace(id))
 	if err != nil {

@@ -3,6 +3,7 @@ package research
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -271,6 +272,38 @@ func TestAgentTaskGuards(t *testing.T) {
 	_ = a.SysDB.QueryRow(`SELECT count(*) FROM research_runs WHERE workspace_id = $1 AND topic = 'payments in Cairo'`, ws).Scan(&runs)
 	if runs != 0 {
 		t.Fatalf("a run was left behind for the cancelled task: %d", runs)
+	}
+
+	// Writers to one run at once each get their own source position.
+	task4, _ := EnqueueAgentTask(ctx, a.SQLDB, ws, AgentTaskInput{Kind: "research", Topic: "wallets in Alexandria", RequestedBy: user})
+	held4, _ := HoldAgentTask(ctx, a.SQLDB, ws, task4.ID, c)
+	run4, err := AgentRun(ctx, a.SQLDB, ws, held4, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errs := make(chan error, 6)
+	for i := 0; i < 6; i++ {
+		go func(i int) {
+			_, _, err := StoreAgentFindings(ctx, a.SQLDB, ws, run4, c, []AgentFinding{{URL: fmt.Sprintf("https://news.example.com/wallet-%d", i), Title: "Wallet"}})
+			errs <- err
+		}(i)
+	}
+	for i := 0; i < 6; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent findings for one run: %v", err)
+		}
+	}
+	_ = a.SysDB.QueryRow(`SELECT count(DISTINCT position) FROM research_sources WHERE run_id = $1`, run4).Scan(&sources)
+	if sources != 6 {
+		t.Fatalf("concurrent findings: %d distinct positions, want 6", sources)
+	}
+	// Cancelled once it has a run: the next submission writes nothing.
+	held4, _ = GetAgentTask(ctx, a.SQLDB, ws, task4.ID)
+	if err := CancelAgentTask(ctx, a.SQLDB, ws, task4.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AgentRun(ctx, a.SQLDB, ws, held4, c); !errors.Is(err, ErrTaskClosed) {
+		t.Fatalf("a cancelled task with a run still took writes: %v", err)
 	}
 
 	// A summary task whose lease ran out too often: the stage is skipped.

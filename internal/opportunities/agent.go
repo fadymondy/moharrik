@@ -637,6 +637,7 @@ func SubmitOpportunities(ctx context.Context, db *sql.DB, s *tenant.Scope, c res
 		return nil, fmt.Errorf("at most %d candidates per call; send the rest in another call", MaxCandidatesPerCall)
 	}
 	ws := s.WorkspaceID
+	defer research.LockTask(ws, taskID)()
 	t, err := research.HoldAgentTask(ctx, db, ws, taskID, c)
 	if err != nil {
 		return nil, err
@@ -814,6 +815,7 @@ func SubmitResearch(ctx context.Context, db *sql.DB, s *tenant.Scope, c research
 		return nil, fmt.Errorf("at most %d findings per call; send the rest in another call", MaxFindingsPerCall)
 	}
 	ws := s.WorkspaceID
+	defer research.LockTask(ws, taskID)()
 	t, err := research.HoldAgentTask(ctx, db, ws, taskID, c)
 	if err != nil {
 		return nil, err
