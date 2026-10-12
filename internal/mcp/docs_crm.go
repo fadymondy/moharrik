@@ -395,6 +395,19 @@ var docsCRM = map[string]ToolDoc{
 			`"detail":"Retail","text":"The company's industry, Retail, is in the profile."}]}}`,
 	},
 
+	"record_whatsapp_opt_in": {
+		AR: "تسجيل موافقة جهة الاتصال على تلقّي رسائل واتساب مع الدليل، حتى يتمكن send_whatsapp من مراسلتها. يحدد source طريقة الموافقة: " +
+			"public_request (طلبت علنًا التواصل معها على واتساب، مثل منشور فيه رقمها)، أو inbound_message (راسلتنا أولًا)، أو verbal " +
+			"(قالت ذلك في مكالمة أو اجتماع)، أو form (نموذج). أرسل evidence_url (رابط المنشور أو الرسالة، وهو إلزامي مع public_request) " +
+			"أو note أو كليهما. يُسجَّل باسم العضو صاحب الرمز ووقته، ويُكتب في سجل التدقيق. يُرفض لجهة اتصال طلبت الإيقاف (STOP): " +
+			"لا يعيدها إلا إلغاء صريح من مدير في صفحة جهة الاتصال. موافقة البريد ليست موافقة واتساب.",
+		Example: map[string]any{"contact_id": "8d2e4f60-1a3b-4c5d-9e7f-0a1b2c3d4e5f", "source": "public_request",
+			"evidence_url": "https://www.facebook.com/groups/cairo.devs/posts/1234567890", "note": "Asked for a Laravel developer and said to WhatsApp them."},
+		Result: `{"ok":true,"contact_id":"8d2e4f60-1a3b-4c5d-9e7f-0a1b2c3d4e5f","whatsapp_opt_in":{"at":"2026-10-12T09:15:00Z",` +
+			`"source":"public_request","evidence_url":"https://www.facebook.com/groups/cairo.devs/posts/1234567890",` +
+			`"note":"Asked for a Laravel developer and said to WhatsApp them.","by":"owner@acme.example"}}`,
+	},
+
 	// ---- mailing lists ------------------------------------------------------
 	"list_mail_lists": {
 		AR:      "القوائم البريدية لمساحة العمل مرتّبة أبجديًا، مع عدد المشتركين وعدد من ينتظرون التأكيد في كل قائمة، وتنبيه على القوائم التي تطلب الاشتراك المزدوج.",
@@ -457,14 +470,17 @@ var docsLeads = map[string]ToolDoc{
 }
 
 var argsARCRM = map[string]string{
-	"The address/number/handle/id on that channel":           "العنوان أو الرقم أو المعرّف على تلك القناة",
-	"Make this the primary account on that channel":          "اجعله الحساب الأساسي على تلك القناة",
-	"A short label, e.g. \"work\" or \"personal\"":           "تسمية قصيرة، مثل \"العمل\" أو \"شخصي\"",
-	"The identity's id (from get_contact's identities list)": "معرّف الهوية (من قائمة الهويات في get_contact)",
-	"The contact that survives":                              "جهة الاتصال الناجية",
-	"The contact that is merged in and deleted":              "جهة الاتصال التي تُدمج وتُحذف",
-	"YYYY-MM-DD. Empty string clears it.":                    "بصيغة YYYY-MM-DD. نص فارغ يمسحه.",
-	"Replaces the whole key/value map":                       "يستبدل خريطة المفاتيح والقيم كلها",
+	"How they agreed to WhatsApp messages":                                       "طريقة موافقتها على رسائل واتساب",
+	"Link to the post or message where they agreed; required for public_request": "رابط المنشور أو الرسالة التي وافقت فيها؛ إلزامي مع public_request",
+	"What they wrote or said, and where; at most 1000 characters":                "ما كتبته أو قالته وأين؛ بحد أقصى 1000 حرف",
+	"The address/number/handle/id on that channel":                               "العنوان أو الرقم أو المعرّف على تلك القناة",
+	"Make this the primary account on that channel":                              "اجعله الحساب الأساسي على تلك القناة",
+	"A short label, e.g. \"work\" or \"personal\"":                               "تسمية قصيرة، مثل \"العمل\" أو \"شخصي\"",
+	"The identity's id (from get_contact's identities list)":                     "معرّف الهوية (من قائمة الهويات في get_contact)",
+	"The contact that survives":                                                  "جهة الاتصال الناجية",
+	"The contact that is merged in and deleted":                                  "جهة الاتصال التي تُدمج وتُحذف",
+	"YYYY-MM-DD. Empty string clears it.":                                        "بصيغة YYYY-MM-DD. نص فارغ يمسحه.",
+	"Replaces the whole key/value map":                                           "يستبدل خريطة المفاتيح والقيم كلها",
 	// contacts
 	"Search name, email, phone and company":                                          "البحث في الاسم والبريد والهاتف والشركة",
 	"Only contacts on this mailing list (its exact name)":                            "جهات الاتصال في هذه القائمة البريدية فقط (باسمها الدقيق)",

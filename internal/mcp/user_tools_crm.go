@@ -281,6 +281,59 @@ func CrmTools() []Tool {
 			},
 		},
 		{
+			// WhatsApp consent is its own (MH-320): send_whatsapp refuses a contact
+			// without it. This records a real one, with how it was given and the
+			// proof, through the function POST /api/w/contacts/{id}/whatsapp/opt-in
+			// calls; a STOP still wins.
+			Name: "record_whatsapp_opt_in",
+			Description: "Record that a contact agreed to be messaged on WhatsApp, with the evidence, so send_whatsapp may message them. " +
+				"source says how they agreed: public_request (they posted publicly asking to be contacted on WhatsApp, e.g. \"need X, " +
+				"WhatsApp me on 01…\"), inbound_message (they messaged first), verbal (they said so on a call or in a meeting), or form. " +
+				"Give evidence_url (the post or message; required for public_request), a note (what they wrote or said), or both. " +
+				"Recorded with this token's member and the time, and written to the audit log. Refused for a contact who said STOP: " +
+				"only a manager's explicit reversal on the contact page lets them back in. Email consent is not WhatsApp consent, so " +
+				"do not record one from a mailing-list subscription. Returns the recorded opt-in.",
+			Scope: "contacts:write",
+			InputSchema: schema([]string{"contact_id", "source"}, map[string]any{
+				"contact_id":   prop("string", "The CRM contact's id (search_contacts, get_contact)"),
+				"source":       map[string]any{"type": "string", "enum": marketing.WhatsAppOptInSources, "description": "How they agreed to WhatsApp messages"},
+				"evidence_url": prop("string", "Link to the post or message where they agreed; required for public_request"),
+				"note":         prop("string", "What they wrote or said, and where; at most 1000 characters"),
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				s, err := need(ctx)
+				if err != nil {
+					return "", err
+				}
+				var in struct {
+					ContactID   string `json:"contact_id"`
+					Source      string `json:"source"`
+					EvidenceURL string `json:"evidence_url"`
+					Note        string `json:"note"`
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("contact_id", in.ContactID)
+				if err != nil {
+					return "", err
+				}
+				ev := marketing.WhatsAppOptInEvidence{Source: in.Source, URL: in.EvidenceURL, Note: in.Note, UserID: s.UserID}
+				if err := marketing.RecordWhatsAppOptInWithEvidence(ctx, a.SQLDB, s.WorkspaceID, id, ev); err != nil {
+					if errors.Is(err, marketing.ErrNoSuchContact) {
+						return "", errNotFound
+					}
+					return "", err
+				}
+				marketing.PublishContacts(a, s.WorkspaceID)
+				rec, err := marketing.WhatsAppOptInOf(ctx, a, s.WorkspaceID, id)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"ok": true, "contact_id": id, "whatsapp_opt_in": rec})
+			},
+		},
+		{
 			Name: "link_contact_identity",
 			Description: "Link one more account to a contact: a second WhatsApp number, an additional email, or a handle on Telegram, " +
 				"Slack, Discord, Messenger, Instagram, LinkedIn, X, sip, the chat widget, or another channel. Refused with a conflict if " +

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -131,6 +133,136 @@ func RecordWhatsAppOptIn(ctx context.Context, db *sql.DB, wsID, contactID string
 		return ErrWhatsAppOptedOut
 	}
 	return SetWhatsAppOptIn(ctx, db, wsID, contactID)
+}
+
+// WhatsAppOptInSources are how a contact can have agreed to WhatsApp messages:
+// they asked publicly to be contacted on WhatsApp (a post with their number),
+// they messaged first, they said so (a call, a meeting), or a form.
+var WhatsAppOptInSources = []string{"public_request", "inbound_message", "verbal", "form"}
+
+// WhatsAppOptInEvidence is the proof behind a recorded opt-in.
+type WhatsAppOptInEvidence struct {
+	Source string
+	// URL is a link to the post or message where they asked; Note is the
+	// rest (what they wrote, who heard it). At least one of the two.
+	URL  string
+	Note string
+	// UserID is the member recording it (for a token, the member it acts for).
+	UserID string
+}
+
+// ErrOptInEvidence is evidence that does not hold up; the message says why.
+type ErrOptInEvidence struct{ Msg string }
+
+func (e ErrOptInEvidence) Error() string { return e.Msg }
+
+// Validate trims ev and checks it is evidence: a known source, and a link or a
+// note to show for it — a public request needs the link, since the post is
+// the proof.
+func (ev *WhatsAppOptInEvidence) Validate() error {
+	ev.Source, ev.URL, ev.Note = strings.TrimSpace(ev.Source), strings.TrimSpace(ev.URL), strings.TrimSpace(ev.Note)
+	if !slices.Contains(WhatsAppOptInSources, ev.Source) {
+		return ErrOptInEvidence{"source must be one of " + strings.Join(WhatsAppOptInSources, ", ")}
+	}
+	if ev.URL != "" {
+		u, err := url.Parse(ev.URL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return ErrOptInEvidence{"evidence_url must be an http(s) link"}
+		}
+		if len(ev.URL) > 2000 {
+			return ErrOptInEvidence{"evidence_url is at most 2000 characters"}
+		}
+	}
+	if len([]rune(ev.Note)) > 1000 {
+		return ErrOptInEvidence{"note is at most 1000 characters"}
+	}
+	switch {
+	case ev.Source == "public_request" && ev.URL == "":
+		return ErrOptInEvidence{"a public_request opt-in needs evidence_url: the link to the post where they asked to be contacted on WhatsApp"}
+	case ev.URL == "" && ev.Note == "":
+		return ErrOptInEvidence{"an opt-in needs evidence: evidence_url, note, or both"}
+	}
+	return nil
+}
+
+// RecordWhatsAppOptInWithEvidence records an opt-in with how it was given and
+// the proof. Like RecordWhatsAppOptIn it refuses a contact who said STOP
+// (ErrWhatsAppOptedOut): only the explicit reversal lets them back in.
+//
+// The time is set to now even for a contact already opted in: the time, the
+// source and the evidence describe the same act of recording. The earlier
+// values stay in the audit log (contacts is audited).
+func RecordWhatsAppOptInWithEvidence(ctx context.Context, db *sql.DB, wsID, contactID string, ev WhatsAppOptInEvidence) error {
+	if err := ev.Validate(); err != nil {
+		return err
+	}
+	var by any
+	if ev.UserID != "" {
+		by = ev.UserID
+	}
+	// One statement, conditioned on the STOP, so a STOP that lands between a
+	// read and this write still wins.
+	res, err := db.ExecContext(ctx, `
+		UPDATE contacts SET whatsapp_opt_in_at = now(), whatsapp_opt_in_source = $3, whatsapp_opt_in_evidence_url = $4,
+		       whatsapp_opt_in_note = $5, whatsapp_opt_in_by = $6, updated_at = now()
+		WHERE workspace_id = $1 AND id = $2 AND whatsapp_opt_out_at IS NULL`,
+		wsID, contactID, ev.Source, ev.URL, ev.Note, by)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 1 {
+		return nil
+	}
+	var exists bool
+	if err := db.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM contacts WHERE workspace_id = $1 AND id = $2)`, wsID, contactID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNoSuchContact
+	}
+	return ErrWhatsAppOptedOut
+}
+
+// WhatsAppOptInRecord is a contact's recorded opt-in as the contact page and
+// the MCP tool show it. Source is empty for an opt-in recorded without one.
+type WhatsAppOptInRecord struct {
+	At          *time.Time `json:"at"`
+	Source      string     `json:"source" doc:"public_request | inbound_message | verbal | form; empty when recorded without one"`
+	EvidenceURL string     `json:"evidence_url"`
+	Note        string     `json:"note"`
+	By          string     `json:"by" doc:"The email of the member who recorded it; empty when unknown"`
+}
+
+// WhatsAppOptInOf reads a contact's recorded opt-in. The member's email comes
+// from the owner pool (the app role has no grant on users), confined to this
+// workspace's members.
+func WhatsAppOptInOf(ctx context.Context, a *app.App, wsID, contactID string) (*WhatsAppOptInRecord, error) {
+	var r WhatsAppOptInRecord
+	var at sql.NullTime
+	var by sql.NullString
+	err := a.SQLDB.QueryRowContext(ctx, `
+		SELECT whatsapp_opt_in_at, whatsapp_opt_in_source, whatsapp_opt_in_evidence_url, whatsapp_opt_in_note, whatsapp_opt_in_by
+		FROM contacts WHERE workspace_id = $1 AND id = $2`, wsID, contactID,
+	).Scan(&at, &r.Source, &r.EvidenceURL, &r.Note, &by)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNoSuchContact
+	}
+	if err != nil {
+		return nil, err
+	}
+	if at.Valid {
+		r.At = &at.Time
+	}
+	if by.Valid && a.SysDB != nil {
+		err := a.SysDB.QueryRowContext(ctx, `
+			SELECT u.email FROM users u JOIN workspace_members m ON m.user_id = u.id
+			WHERE m.workspace_id = $1 AND u.id = $2`, wsID, by.String).Scan(&r.By)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+	}
+	return &r, nil
 }
 
 // SetWhatsAppOptIn records that a contact agreed to be messaged on WhatsApp.
