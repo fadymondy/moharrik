@@ -275,6 +275,9 @@ func EnqueueAgentTask(ctx context.Context, db *sql.DB, ws string, in AgentTaskIn
 // ErrNoSummary: a summary task closes as done only once its summary is in.
 var ErrNoSummary = errors.New("submit the summary with submit_research before completing a summary task")
 
+// ErrNoSources: a research task closes as done only once it cites a page.
+var ErrNoSources = errors.New("submit at least one finding (a public URL you read) with submit_research before completing a research task; fail_task if you found nothing")
+
 // ErrNoRun: no such research run in this workspace.
 var ErrNoRun = errors.New("no such research run")
 
@@ -299,22 +302,22 @@ func QueueSummary(ctx context.Context, db *sql.DB, ws, runID, requestedBy string
 	if status != "ok" || strings.TrimSpace(summary) != "" || author != "engine" || sources == 0 {
 		return nil, ErrNotSummarisable
 	}
-	t, err := scanAgentTask(db.QueryRowContext(ctx, `SELECT `+agentTaskColumns+` FROM agent_tasks
-		WHERE workspace_id = $1 AND kind = 'summary' AND run_id = $2 AND status IN ('pending', 'claimed') ORDER BY created_at LIMIT 1`, ws, runID))
-	if err == nil {
-		return &t, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
 	if mode != "urls" {
 		mode = "search"
 	}
 	if requestedBy == "" {
 		requestedBy = runBy
 	}
-	t, err = scanAgentTask(db.QueryRowContext(ctx, `INSERT INTO agent_tasks (workspace_id, kind, topic, mode, origin, requested_by, run_id)
-		VALUES ($1, 'summary', $2, $3, 'manual', $4, $5) RETURNING `+agentTaskColumns, ws, trim(topic, 500), mode, requestedBy, runID))
+	// agent_tasks_open_summary allows one open summary task per run, so two
+	// callers asking at once get the same task.
+	t, err := scanAgentTask(db.QueryRowContext(ctx, `INSERT INTO agent_tasks (workspace_id, kind, topic, mode, origin, requested_by, run_id)
+		VALUES ($1, 'summary', $2, $3, 'manual', $4, $5)
+		ON CONFLICT (workspace_id, run_id) WHERE kind = 'summary' AND status IN ('pending', 'claimed') DO NOTHING
+		RETURNING `+agentTaskColumns, ws, trim(topic, 500), mode, requestedBy, runID))
+	if errors.Is(err, sql.ErrNoRows) {
+		t, err = scanAgentTask(db.QueryRowContext(ctx, `SELECT `+agentTaskColumns+` FROM agent_tasks
+			WHERE workspace_id = $1 AND kind = 'summary' AND run_id = $2 AND status IN ('pending', 'claimed') ORDER BY created_at LIMIT 1`, ws, runID))
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -344,9 +347,9 @@ func (e *Engine) StartOrQueue(ctx context.Context, a *app.App, ws, userID string
 			return nil, err
 		}
 		st := &Started{Provider: ProviderServer, RunID: runID, Message: "Read it back with get_research once it has finished."}
-		if agent && e.AI == nil {
+		if agent { // the server only collects; the summary is the assistant's
 			st.Provider, st.AgentSummary = ProviderAgent, true
-			st.Message = "Moharrik is collecting the pages now (about a minute). It has no model, so it then queues a summary task for " +
+			st.Message = "Moharrik is collecting the pages now (about a minute), then queues a summary task for " +
 				"you: call agent_tasks(kind=summary), answer from the pages with submit_research(task_id, answer, insights), then complete_task."
 		}
 		return st, nil
@@ -484,12 +487,39 @@ func CollectingRuns(ctx context.Context, db *sql.DB, ws string) int {
 // expireLeases hands back tasks whose lease ran out, and fails the ones that
 // ran out too often.
 func expireLeases(ctx context.Context, db *sql.DB, ws string) error {
-	if _, err := db.ExecContext(ctx, `UPDATE agent_tasks SET status = 'failed', error = 'the agent never finished it (lease expired too often)',
+	const gaveUp = "the agent never finished it (lease expired too often)"
+	rows, err := db.QueryContext(ctx, `UPDATE agent_tasks SET status = 'failed', error = $3, lease_until = NULL,
 			finished_at = now(), updated_at = now()
-		WHERE workspace_id = $1 AND status = 'claimed' AND lease_until < now() AND attempts >= $2`, ws, AgentMaxAttempts); err != nil {
+		WHERE workspace_id = $1 AND status = 'claimed' AND lease_until < now() AND attempts >= $2
+		RETURNING kind, run_id`, ws, AgentMaxAttempts, gaveUp)
+	if err != nil {
 		return err
 	}
-	_, err := db.ExecContext(ctx, `UPDATE agent_tasks SET status = 'pending', claimed_by = '', updated_at = now()
+	type dead struct{ kind, runID string }
+	var failed []dead
+	for rows.Next() {
+		var d dead
+		if err := rows.Scan(&d.kind, &d.runID); err != nil {
+			rows.Close()
+			return err
+		}
+		failed = append(failed, d)
+	}
+	rows.Close()
+	// Settle what they leave behind, as fail_task would: a summary is
+	// skipped; a run the agent started finishes with what it had.
+	for _, d := range failed {
+		switch {
+		case d.runID == "":
+		case d.kind == "summary":
+			_ = setSummariseStage(ctx, db, ws, d.runID, "skipped", 0, "your AI assistant could not summarise it: "+gaveUp, "", "")
+		default:
+			_, _ = db.ExecContext(ctx, `UPDATE research_runs SET status = CASE WHEN evidence_count > 0 THEN 'ok' ELSE 'failed' END,
+					error = $3, stage = '', finished_at = now(), updated_at = now()
+				WHERE workspace_id = $1 AND id = $2 AND status IN ('queued', 'running')`, ws, d.runID, gaveUp)
+		}
+	}
+	_, err = db.ExecContext(ctx, `UPDATE agent_tasks SET status = 'pending', claimed_by = '', updated_at = now()
 		WHERE workspace_id = $1 AND status = 'claimed' AND lease_until < now()`, ws)
 	return err
 }
@@ -516,7 +546,7 @@ func ClaimAgentTasks(ctx context.Context, db *sql.DB, ws string, c Claimant, kin
 	out := []AgentTask{}
 	// Already this claimant's: renew the lease and hand them back first.
 	rows, err := db.QueryContext(ctx, `UPDATE agent_tasks SET lease_until = now() + $3::interval, updated_at = now()
-		WHERE workspace_id = $1 AND status = 'claimed' AND claimed_by = $2 AND ($4 = '' OR kind = $4)
+		WHERE workspace_id = $1 AND status = 'claimed' AND claimed_by = $2 AND `+kindFilter("$4")+`
 		RETURNING `+agentTaskColumns, ws, c.TokenID, leaseInterval(), kind)
 	if err != nil {
 		return nil, err
@@ -536,7 +566,7 @@ func ClaimAgentTasks(ctx context.Context, db *sql.DB, ws string, c Claimant, kin
 	rows, err = db.QueryContext(ctx, `UPDATE agent_tasks SET status = 'claimed', claimed_by = $2, agent_name = $3, agent_model = $4,
 			lease_until = now() + $5::interval, attempts = attempts + 1, updated_at = now()
 		WHERE workspace_id = $1 AND id IN (
-			SELECT id FROM agent_tasks WHERE workspace_id = $1 AND status = 'pending' AND ($6 = '' OR kind = $6)
+			SELECT id FROM agent_tasks WHERE workspace_id = $1 AND status = 'pending' AND `+kindFilter("$6")+`
 			ORDER BY created_at LIMIT $7 FOR UPDATE SKIP LOCKED)
 		RETURNING `+agentTaskColumns, ws, c.TokenID, trim(c.Agent, 80), trim(c.Model, 80), leaseInterval(), kind, limit-len(out))
 	if err != nil {
@@ -551,6 +581,13 @@ func ClaimAgentTasks(ctx context.Context, db *sql.DB, ws string, c Claimant, kin
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// KindNotSummary asks ClaimAgentTasks for any kind but summary.
+const KindNotSummary = "!summary"
+
+func kindFilter(p string) string {
+	return "(" + p + " = '' OR kind = " + p + " OR (" + p + " = '" + KindNotSummary + "' AND kind <> 'summary'))"
 }
 
 func leaseInterval() string { return fmt.Sprintf("%d seconds", int(AgentLease.Seconds())) }
@@ -653,17 +690,26 @@ func AgentRun(ctx context.Context, db *sql.DB, ws string, t *AgentTask, c Claima
 		ws, t.Topic, t.requestedBy, t.Mode, pgArray(t.URLs), origin, sj, "agent:"+agentLabel(c), trim(c.Agent, 80), trim(c.Model, 80)).Scan(&runID); err != nil {
 		return "", err
 	}
-	res, err := db.ExecContext(ctx, `UPDATE agent_tasks SET run_id = $3, updated_at = now() WHERE workspace_id = $1 AND id = $2 AND run_id = ''`, ws, t.ID, runID)
+	// Attach it only while the claimant still holds the task: a task
+	// cancelled or failed meanwhile takes no new run.
+	res, err := db.ExecContext(ctx, `UPDATE agent_tasks SET run_id = $3, updated_at = now()
+		WHERE workspace_id = $1 AND id = $2 AND run_id = '' AND status = 'claimed' AND claimed_by = $4`, ws, t.ID, runID, c.TokenID)
 	if err != nil {
 		return "", err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		// Another submission created it first: use that one, drop ours.
 		_, _ = db.ExecContext(ctx, `DELETE FROM research_runs WHERE workspace_id = $1 AND id = $2`, ws, runID)
-		var existing string
-		if err := db.QueryRowContext(ctx, `SELECT run_id FROM agent_tasks WHERE workspace_id = $1 AND id = $2`, ws, t.ID).Scan(&existing); err != nil {
+		var existing, status, holder string
+		if err := db.QueryRowContext(ctx, `SELECT run_id, status, claimed_by FROM agent_tasks WHERE workspace_id = $1 AND id = $2`, ws, t.ID).Scan(&existing, &status, &holder); err != nil {
 			return "", err
 		}
+		switch {
+		case status != "claimed" || existing == "":
+			return "", ErrTaskClosed
+		case holder != c.TokenID:
+			return "", ErrTaskLeased
+		}
+		// Another submission created it first: use that one.
 		runID = existing
 	}
 	t.RunID = runID
@@ -743,6 +789,9 @@ func StoreAgentFindings(ctx context.Context, db *sql.DB, ws, runID string, c Cla
 			sources = append(sources, src)
 			pos++
 		}
+		if strings.TrimSpace(f.Quote) == "" {
+			continue // a page read with nothing quoted: a source, not evidence
+		}
 		conf := f.Confidence
 		if conf <= 0 {
 			conf = 0.6
@@ -807,6 +856,15 @@ func CloseAgentTask(ctx context.Context, a *app.App, ws, id string, c Claimant, 
 	if t.Kind == "summary" && status == "done" {
 		if RunSummary(ctx, a.SQLDB, ws, t.RunID) == "" {
 			return nil, ErrNoSummary
+		}
+	}
+	if t.Kind == "research" && status == "done" {
+		sources := 0
+		if t.RunID != "" {
+			_ = a.SQLDB.QueryRowContext(ctx, `SELECT count(*) FROM research_sources WHERE workspace_id = $1 AND run_id = $2`, ws, t.RunID).Scan(&sources)
+		}
+		if sources == 0 {
+			return nil, ErrNoSources
 		}
 	}
 	note = SanitizeText(note, 500)

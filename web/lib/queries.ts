@@ -1068,7 +1068,14 @@ export function useResearchRun(workspaceId: string | null | undefined, id?: stri
     ([p, ws]: [string, string]) => api<ResearchDetail>(p, { workspaceId: ws }),
     {
       ...noRetryOn4xx,
-      refreshInterval: (data) => (researchLive(data?.run.status) ? 2000 : 0),
+      // Also while its summary waits for the AI assistant (agent mode): the
+      // run is finished, but the summary lands later.
+      refreshInterval: (data) =>
+        researchLive(data?.run.status)
+          ? 2000
+          : (data?.run.stages ?? []).some((s) => s.stage === "summarise" && s.status === "pending")
+            ? 5000
+            : 0,
     },
   )
 }

@@ -152,7 +152,9 @@ func TestAgentRateLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < MaxSubmitsPerHour; i++ {
-		logSubmission(ctx, a.SQLDB, s, c, task.ID, "opportunities", 1, 1, 0, 0)
+		if _, err := reserve(ctx, a.SQLDB, s, c, task.ID, "opportunities", 1); err != nil {
+			t.Fatal(err)
+		}
 	}
 	cand := []Candidate{{Company: "Late Co", SignalType: "launch", Evidence: quote("https://news.example.com/late", "Late Co launched a product for merchants in Egypt.")}}
 	if _, err := SubmitOpportunities(ctx, a.SQLDB, s, c, task.ID, cand); !errors.Is(err, ErrRateLimited) {
@@ -211,6 +213,48 @@ func TestAgentPromptNamesTheTools(t *testing.T) {
 	for _, want := range []string{`"Acme"`, "agent_tasks", "submit_research", "opportunity_tasks", "submit_opportunities", "complete_task", "Do not contact anyone"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("the prompt does not mention %q:\n%s", want, p)
+		}
+	}
+}
+
+// A token with research:run only runs tasks; it reads no CRM ids and no
+// collected research (summary tasks carry research:read material).
+func TestAgentScopesGateWhatComesBack(t *testing.T) {
+	a := testApp(t)
+	sd := newWorkspace(t, a)
+	sd.exec(`INSERT INTO companies (workspace_id, name, domain) VALUES ($1, 'Known Bank', 'knownbank.com')`)
+	sd.exec(`INSERT INTO contacts (workspace_id, name, email, source) VALUES ($1, 'Mona Adel', 'mona@knownbank.com', 'manual')`)
+	ctx, s := agentCaller(sd, "tok-narrow")
+	s.Scopes = []string{authz.ResearchRun}
+	c := Claimant(s, "codex", "gpt")
+
+	run := sd.id(`INSERT INTO research_runs (workspace_id, topic, status, requested_by) VALUES ($1, 'banks in Egypt', 'ok', $2) RETURNING id`, sd.u)
+	sd.exec(`INSERT INTO research_sources (workspace_id, run_id, position, url, title, content, fetched)
+		VALUES ($1, $2, 0, 'https://news.example.com/banks', 'Banks', 'Known Bank is hiring.', true)`, run)
+	if _, err := research.QueueSummary(ctx, a.SQLDB, sd.ws, run, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := TakeTasks(ctx, a.SQLDB, s, c, "summary", 5, false); !errors.Is(err, ErrNeedsResearchRead) {
+		t.Fatalf("a run-only token took a summary: %v", err)
+	}
+	task, err := research.EnqueueAgentTask(ctx, a.SQLDB, sd.ws, research.AgentTaskInput{Kind: "discovery", Topic: "banks in Egypt", RequestedBy: sd.u})
+	if err != nil {
+		t.Fatal(err)
+	}
+	briefs, _, err := TakeTasks(ctx, a.SQLDB, s, c, "", 5, false)
+	if err != nil || len(briefs) != 1 || briefs[0].Task.ID != task.ID {
+		t.Fatalf("any kind but summary: %v %+v", err, briefs)
+	}
+
+	res, err := SubmitOpportunities(ctx, a.SQLDB, s, c, task.ID, []Candidate{{Company: "Known Bank", Domain: "knownbank.com", SignalType: "expansion",
+		Person:   &CandidatePerson{Name: "Mona Adel", Role: "CIO", Email: "mona@knownbank.com"},
+		Evidence: quote("https://news.example.com/known-bank", "Known Bank opens a new branch in Alexandria next month.")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range res.Results {
+		if r.CRMCompanyID != "" || r.ContactID != "" || r.LeadID != "" {
+			t.Fatalf("CRM ids went to a token without the read scopes: %+v", r)
 		}
 	}
 }

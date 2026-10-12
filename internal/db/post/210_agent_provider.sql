@@ -42,6 +42,9 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS agent_tasks_queue_idx  ON agent_tasks (workspace_id, status, created_at);
 CREATE INDEX IF NOT EXISTS agent_tasks_recent_idx ON agent_tasks (workspace_id, created_at DESC);
+-- One open summary task per run: QueueSummary inserts ON CONFLICT DO NOTHING.
+CREATE UNIQUE INDEX IF NOT EXISTS agent_tasks_open_summary ON agent_tasks (workspace_id, run_id)
+    WHERE kind = 'summary' AND status IN ('pending', 'claimed');
 CREATE INDEX IF NOT EXISTS agent_submissions_rate_idx ON agent_submissions (workspace_id, token_id, created_at DESC);
 
 DO $$

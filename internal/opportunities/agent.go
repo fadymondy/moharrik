@@ -50,6 +50,10 @@ const (
 // ErrRateLimited is the per-credential submission limit.
 var ErrRateLimited = errors.New("this token has submitted too much in the last hour; wait and try again")
 
+// ErrNeedsResearchRead: a summary task hands over the pages and evidence a run
+// collected, which only a credential with research:read may read.
+var ErrNeedsResearchRead = errors.New("summary tasks carry collected research: this token needs the research:read scope")
+
 // SignalDefinitions say what each signal type means, for the agent.
 var SignalDefinitions = map[string]string{
 	"funding":     "raised money: a seed/Series round, a grant, debt financing, an acquisition of the company",
@@ -216,6 +220,9 @@ func Brief(ctx context.Context, db *sql.DB, s *tenant.Scope, t research.AgentTas
 	}
 	switch t.Kind {
 	case "summary":
+		if !canSee(s, authz.ResearchRead) {
+			return nil, ErrNeedsResearchRead
+		}
 		pages, quotes, err := research.SummaryMaterial(ctx, db, s.WorkspaceID, t.RunID)
 		if err != nil {
 			return nil, err
@@ -314,12 +321,22 @@ func weights(w map[string]float64) map[string]float64 {
 // discovery query is queued and handed out, so "find opportunities" always has
 // work while the profile names something to look for.
 func TakeTasks(ctx context.Context, db *sql.DB, s *tenant.Scope, c research.Claimant, kind string, limit int, create bool) ([]TaskBrief, string, error) {
+	if !canSee(s, authz.ResearchRead) {
+		// A summary brief carries the pages and evidence a run collected:
+		// research:read material. Without it, only the other kinds.
+		switch kind {
+		case "summary":
+			return nil, "", ErrNeedsResearchRead
+		case "":
+			kind = research.KindNotSummary
+		}
+	}
 	tasks, err := research.ClaimAgentTasks(ctx, db, s.WorkspaceID, c, kind, limit)
 	if err != nil {
 		return nil, "", err
 	}
 	note := ""
-	if len(tasks) == 0 && create && (kind == "" || kind == "discovery") {
+	if len(tasks) == 0 && create && (kind == "" || kind == research.KindNotSummary || kind == "discovery") {
 		if _, err := prospects.QueueDiscovery(ctx, db, s.WorkspaceID, s.UserID, "assistant"); err != nil {
 			if errors.Is(err, prospects.ErrNotConfigured) {
 				return []TaskBrief{}, "Nothing to do: the ICP names nothing to look for. Set it with set_icp_profile (industries, regions, keywords) " +
@@ -557,24 +574,48 @@ func validCandidate(c *Candidate) ([]research.AgentFinding, []string) {
 	return out, nil
 }
 
-// rateCheck refuses a credential that has submitted too much in the last hour.
-func rateCheck(ctx context.Context, db *sql.DB, ws, tokenID string, items int) error {
+// reserve books a submission against the credential's hourly quota before
+// anything is written: under a per-credential lock it counts the last hour
+// and inserts this submission's row, so concurrent or failing calls cannot
+// slip past the limit. settle fills in what became of it.
+func reserve(ctx context.Context, db *sql.DB, s *tenant.Scope, c research.Claimant, taskID, kind string, items int) (string, error) {
+	ws := s.WorkspaceID
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "agent-submit:"+ws+":"+c.TokenID); err != nil {
+		return "", err
+	}
 	var calls, sent int
-	if err := db.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(received), 0) FROM agent_submissions
-		WHERE workspace_id = $1 AND token_id = $2 AND created_at > now() - interval '1 hour'`, ws, tokenID).Scan(&calls, &sent); err != nil {
-		return err
+	if err := tx.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(received), 0) FROM agent_submissions
+		WHERE workspace_id = $1 AND token_id = $2 AND created_at > now() - interval '1 hour'`, ws, c.TokenID).Scan(&calls, &sent); err != nil {
+		return "", err
 	}
 	if calls >= MaxSubmitsPerHour || sent+items > MaxItemsPerHour {
-		return ErrRateLimited
+		return "", ErrRateLimited
 	}
-	return nil
+	var id string
+	if err := tx.QueryRowContext(ctx, `INSERT INTO agent_submissions (workspace_id, task_id, kind, token_id, token_name, via, user_id, agent_name, agent_model, received)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+		ws, taskID, kind, c.TokenID, research.SanitizeText(s.TokenName, 120), s.Via, s.UserID, trimRunes(c.Agent, 80), trimRunes(c.Model, 80), items).Scan(&id); err != nil {
+		return "", err
+	}
+	return id, tx.Commit()
 }
 
-func logSubmission(ctx context.Context, db *sql.DB, s *tenant.Scope, c research.Claimant, taskID, kind string, received, stored, dups, rejected int) {
-	_, _ = db.ExecContext(ctx, `INSERT INTO agent_submissions (workspace_id, task_id, kind, token_id, token_name, via, user_id, agent_name, agent_model,
-			received, stored, duplicates, rejected)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-		s.WorkspaceID, taskID, kind, c.TokenID, research.SanitizeText(s.TokenName, 120), s.Via, s.UserID, c.Agent, c.Model, received, stored, dups, rejected)
+// settle records what became of a reserved submission.
+func settle(ctx context.Context, db *sql.DB, ws, id string, stored, dups, rejected int) {
+	_, _ = db.ExecContext(ctx, `UPDATE agent_submissions SET stored = $3, duplicates = $4, rejected = $5 WHERE workspace_id = $1 AND id = $2`,
+		ws, id, stored, dups, rejected)
+}
+
+func trimRunes(v string, n int) string {
+	if r := []rune(strings.TrimSpace(v)); len(r) > n {
+		return string(r[:n])
+	}
+	return strings.TrimSpace(v)
 }
 
 func mayRun(s *tenant.Scope) error {
@@ -596,10 +637,11 @@ func SubmitOpportunities(ctx context.Context, db *sql.DB, s *tenant.Scope, c res
 		return nil, fmt.Errorf("at most %d candidates per call; send the rest in another call", MaxCandidatesPerCall)
 	}
 	ws := s.WorkspaceID
-	if err := rateCheck(ctx, db, ws, c.TokenID, len(cands)); err != nil {
+	t, err := research.HoldAgentTask(ctx, db, ws, taskID, c)
+	if err != nil {
 		return nil, err
 	}
-	t, err := research.HoldAgentTask(ctx, db, ws, taskID, c)
+	sub, err := reserve(ctx, db, s, c, t.ID, "opportunities", len(cands))
 	if err != nil {
 		return nil, err
 	}
@@ -649,13 +691,18 @@ func SubmitOpportunities(ctx context.Context, db *sql.DB, s *tenant.Scope, c res
 			if person == nil {
 				person = &CandidatePerson{}
 			}
-			if person.Email != "" {
+			if person.Email != "" && canSee(s, authz.ContactsRead) {
 				_ = db.QueryRowContext(ctx, `SELECT id FROM contacts WHERE workspace_id = $1 AND lower(email) = $2`, ws, person.Email).Scan(&r.ContactID)
+			}
+			if person.Email != "" && canSee(s, authz.LeadsRead) {
 				_ = db.QueryRowContext(ctx, `SELECT id FROM leads WHERE workspace_id = $1 AND lower(email) = $2 ORDER BY created_at DESC LIMIT 1`, ws, person.Email).Scan(&r.LeadID)
 			}
 			switch status {
 			case "linked":
-				r.Outcome, r.CRMCompanyID = "in_crm", crm
+				r.Outcome = "in_crm"
+				if canSee(s, authz.ContactsRead) {
+					r.CRMCompanyID = crm
+				}
 				res.Results = append(res.Results, r)
 				continue
 			case "accepted", "dismissed":
@@ -707,7 +754,7 @@ func SubmitOpportunities(ctx context.Context, db *sql.DB, s *tenant.Scope, c res
 			dups++
 		}
 	}
-	logSubmission(ctx, db, s, c, t.ID, "opportunities", res.Received, res.Stored, dups, len(res.Rejected))
+	settle(ctx, db, ws, sub, res.Stored, dups, len(res.Rejected))
 	res.Next = "Send more with submit_opportunities, then complete_task(task_id) to finish. Prospects are on find_opportunities; a person accepts them with mark_opportunity."
 	return res, nil
 }
@@ -767,10 +814,11 @@ func SubmitResearch(ctx context.Context, db *sql.DB, s *tenant.Scope, c research
 		return nil, fmt.Errorf("at most %d findings per call; send the rest in another call", MaxFindingsPerCall)
 	}
 	ws := s.WorkspaceID
-	if err := rateCheck(ctx, db, ws, c.TokenID, len(in)); err != nil {
+	t, err := research.HoldAgentTask(ctx, db, ws, taskID, c)
+	if err != nil {
 		return nil, err
 	}
-	t, err := research.HoldAgentTask(ctx, db, ws, taskID, c)
+	sub, err := reserve(ctx, db, s, c, t.ID, "research", len(in))
 	if err != nil {
 		return nil, err
 	}
@@ -838,7 +886,7 @@ func SubmitResearch(ctx context.Context, db *sql.DB, s *tenant.Scope, c research
 	if err := research.CountAgentSubmitted(ctx, db, ws, t.ID, res.Received, res.Received-len(res.Rejected)); err != nil {
 		return nil, err
 	}
-	logSubmission(ctx, db, s, c, t.ID, "research", res.Received, res.Stored, res.Received-len(res.Rejected)-res.Stored, len(res.Rejected))
+	settle(ctx, db, ws, sub, res.Stored, res.Received-len(res.Rejected)-res.Stored, len(res.Rejected))
 	res.Next = "complete_task(task_id) when done. The run reads back with get_research(run_id); evidence with find_evidence."
 	switch t.Kind {
 	case "discovery":

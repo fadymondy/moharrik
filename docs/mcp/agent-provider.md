@@ -65,7 +65,9 @@ returns it filled in.
 
 ## Tools
 
-All tools need the `research:run` scope.
+All tools need the `research:run` scope. Summary tasks also need `research:read`,
+because they hand over the pages a run collected. Without `contacts:read` /
+`leads:read`, results do not include the ids of matching CRM records.
 
 | Tool                                           | What it does                                                                                                                                                                                                                                                        |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -73,7 +75,7 @@ All tools need the `research:run` scope.
 | `opportunity_tasks`                            | The same queue. When nothing is waiting, it queues the ICP's next discovery query (`create_if_empty`, default true).                                                                                                                                                 |
 | `submit_research`                              | Answers a `summary` or `research` task: `answer` (cite sources as [n]), `insights`, and for `research` tasks `findings` (a URL plus a sentence quoted exactly from it).                                                                                                |
 | `submit_opportunities` (alias `submit_prospects`) | Submits companies for a `discovery` task. Each needs at least one public evidence URL with an exact quote. Results are deduped against the CRM and earlier finds, then scored against the ICP. An opener is stored as a draft only.                                |
-| `complete_task` / `fail_task`                  | Closes a task. A summary task cannot complete before `submit_research`. Failing it (or cancelling it in the UI) marks the summarise stage *skipped*, and you can ask for it again later.                                                                              |
+| `complete_task` / `fail_task`                  | Closes a task. A summary task cannot complete before `submit_research`, nor a research task before it cites at least one page. Failing it (or cancelling it in the UI) marks the summarise stage *skipped*, and you can ask for it again later.                                                                              |
 | `summarise_research`                           | Queues a summary task for a run that ended without a summary.                                                                                                                                                                                                         |
 | `set_research_provider`                        | Sets the workspace mode: `auto`, `server` or `agent`.                                                                                                                                                                                                                 |
 
@@ -89,7 +91,8 @@ and `prospect_digest` read them unchanged.
   private hosts. Quotes must be real sentences. Unknown signal types are
   rejected, and markup is stripped.
 - **Limits per token.** At most 25 candidates and 60 findings per call, and
-  60 submissions or 400 items per hour.
+  60 submissions or 400 items per hour. Each submission is counted before anything
+  is written, so failed or concurrent calls count too.
 - **Isolation.** A token only sees and answers its own workspace's tasks.
 - **No outreach.** Nothing is sent to anyone. Openers are drafts for a human
   to review.

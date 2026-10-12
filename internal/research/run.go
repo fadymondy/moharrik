@@ -513,8 +513,9 @@ func (e *Engine) execute(a *app.App, workspaceID, runID, topic, mode string, url
 
 	// 5. Summarise.
 	pr.begin("summarise")
-	if e.AI == nil && len(sources) > 0 && e.UsesAgent(sctx, a.SQLDB, workspaceID) {
-		// No model here: the caller's AI assistant summarises it over MCP.
+	if len(sources) > 0 && e.UsesAgent(sctx, a.SQLDB, workspaceID) {
+		// Agent mode (chosen, or no model here): the caller's AI assistant
+		// summarises it over MCP, even when the server has a model key.
 		pr.end("summarise", "pending", 0, "waiting for your AI assistant (MCP: agent_tasks → submit_research)")
 		e.finish(sctx, a, workspaceID, runID, "ok", "", "", "", len(sources), read)
 		if t, err := QueueSummary(sctx, a.SQLDB, workspaceID, runID, ""); err != nil {
