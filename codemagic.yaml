@@ -1,0 +1,142 @@
+# Codemagic CI for the Moharrik phone app (apps/mobile, Expo + React Native).
+#
+# It lives at the repository root because Codemagic only reads codemagic.yaml from there. Every
+# workflow runs inside apps/mobile through `working_directory`. The layout is Zekra's
+# (togo/cabrain codemagic.yaml); docs/apps-plan.md §6 covers the release runbook.
+#
+# android/ and ios/ are generated (gitignored), so each build runs `expo prebuild` from
+# app.json + app.config.js, the same source local builds use. The shared client (apps/shared) has
+# no runtime dependencies: Metro and tsc read it as source, so only apps/mobile is installed.
+#
+# These workflows ship to TESTERS ONLY: TestFlight, and the Play internal track as a draft.
+# Neither submits for review or releases to production; that stays a manual step in the
+# store consoles.
+#
+# Nothing secret is in this file. Signing keys, the App Store Connect key and the Firebase
+# config files live in Codemagic (team integrations / env groups) and are referenced by name:
+#
+#   moharrik_app_env           EXPO_PUBLIC_MOHARRIK_URL   the production server (https://app.moharrik.com)
+#                              GOOGLE_SERVICES_JSON       base64 of secrets/google-services.json
+#                              GOOGLE_SERVICE_INFO_PLIST  base64 of secrets/GoogleService-Info.plist
+#   moharrik_android_keystore  CM_KEYSTORE (base64 .jks), CM_KEYSTORE_PASSWORD, CM_KEY_ALIAS, CM_KEY_PASSWORD
+#   moharrik_google_play       GCLOUD_SERVICE_ACCOUNT_CREDENTIALS (once Play API upload is enabled)
+#   integration moharrik_asc   App Store Connect API key (Team → Integrations), team JW9HJH86GC
+#
+# Builds are manual (store builds cost money): start them from Codemagic or its API.
+
+definitions:
+  install: &install
+    name: Install dependencies
+    script: npm ci
+  checks: &checks
+    name: Typecheck and test
+    script: |
+      npm run typecheck
+      npm test -- --ci
+  stamp: &stamp
+    name: Stamp the build number
+    # Codemagic's BUILD_NUMBER rises by one per build of a workflow, which is exactly the
+    # "higher than the last upload" property both stores require.
+    script: node scripts/set-build-number.js "$BUILD_NUMBER"
+  firebase: &firebase
+    name: Firebase config
+    # app.config.js wires each platform's Firebase only when its file exists, so a missing
+    # variable yields a build without push, not a failure.
+    script: |
+      mkdir -p secrets
+      if [ -n "$GOOGLE_SERVICES_JSON" ]; then echo "$GOOGLE_SERVICES_JSON" | base64 --decode > secrets/google-services.json; fi
+      if [ -n "$GOOGLE_SERVICE_INFO_PLIST" ]; then echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > secrets/GoogleService-Info.plist; fi
+      ls -la secrets
+
+workflows:
+  moharrik-android-internal:
+    name: Moharrik Android — Play internal track (draft)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: apps/mobile
+    environment:
+      groups:
+        - moharrik_app_env
+        - moharrik_android_keystore
+        # - moharrik_google_play   # add together with the google_play publisher below
+      node: 22
+      java: 17
+    scripts:
+      - *install
+      - *checks
+      - name: Upload keystore
+        # Decoded outside the repo. CM_KEYSTORE_PATH reaches Gradle through CM_ENV, and
+        # plugins/with-release-signing.js signs the release with it.
+        script: |
+          echo "$CM_KEYSTORE" | base64 --decode > "$CM_BUILD_DIR/moharrik-upload.jks"
+          echo "CM_KEYSTORE_PATH=$CM_BUILD_DIR/moharrik-upload.jks" >> "$CM_ENV"
+      - *stamp
+      - *firebase
+      - name: Generate the native project
+        script: npx expo prebuild --platform android --non-interactive --clean
+      - name: Build the release bundle
+        script: |
+          cd android
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/mapping.txt
+    # Play accepts API uploads only after the FIRST .aab of com.fadymondy.moharrik has been
+    # uploaded by hand in the Play Console; the artifact above is that upload. After that, enable
+    # this (and add moharrik_google_play to environment.groups). It stays internal + draft:
+    # publishing:
+    #   google_play:
+    #     credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+    #     track: internal
+    #     submit_as_draft: true
+
+  moharrik-ios-testflight:
+    name: Moharrik iOS — TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    working_directory: apps/mobile
+    integrations:
+      # The App Store Connect API key of team JW9HJH86GC, added in Codemagic (Team → Integrations)
+      # under this name. It signs, fetches profiles and uploads.
+      app_store_connect: moharrik_asc
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.fadymondy.moharrik
+      groups:
+        - moharrik_app_env
+      vars:
+        APPLE_TEAM_ID: JW9HJH86GC
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - *install
+      - *checks
+      - *stamp
+      - *firebase
+      - name: Generate the native project
+        # --no-install: prebuild only WARNS when its own `pod install` fails and still exits 0.
+        # CocoaPods runs in its own step, so a failure stops the build here.
+        script: npx expo prebuild --platform ios --non-interactive --no-install --clean
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install --repo-update
+      - name: Apply the signing profiles
+        script: xcode-project use-profiles --project ios/*.xcodeproj
+      - name: Build the IPA
+        # The workspace and scheme are whatever prebuild generated: found, not assumed.
+        script: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace: $WORKSPACE  scheme: $SCHEME"
+          xcode-project build-ipa --workspace "$WORKSPACE" --scheme "$SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # TestFlight only: never submit_to_app_store.
+        submit_to_testflight: true
