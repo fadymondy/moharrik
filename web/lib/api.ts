@@ -1503,6 +1503,15 @@ export type ContactWhatsApp = {
   phone: string
   whatsapp_opt_in_at: string | null
   whatsapp_opt_out_at: string | null
+  /** How the contact agreed and the proof, when the opt-in was recorded with evidence. */
+  whatsapp_opt_in?: {
+    at: string | null
+    source: "public_request" | "inbound_message" | "verbal" | "form" | ""
+    evidence_url: string
+    note: string
+    /** The email of the member who recorded it (theirs, or their token's). */
+    by: string
+  }
   /** The contact's WhatsApp thread; empty when the first message would open one. */
   conversation_id: string
   limits?: {

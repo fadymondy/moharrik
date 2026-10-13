@@ -27,6 +27,24 @@ Two actions, deliberately separate:
 	                     client can reach it by accident with an empty POST.
 */
 
+// OptInEvidenceBody is how a contact agreed and the proof, for an opt-in
+// recorded with evidence (the record_whatsapp_opt_in MCP tool takes the same).
+type OptInEvidenceBody struct {
+	Source      string `json:"source" enum:"public_request,inbound_message,verbal,form" doc:"public_request: they asked publicly to be contacted on WhatsApp (a post with their number); inbound_message: they messaged first; verbal: they said so; form: a form they filled in."`
+	EvidenceURL string `json:"evidence_url,omitempty" maxLength:"2000" doc:"A link to the post or message where they agreed. Required for public_request."`
+	Note        string `json:"note,omitempty" maxLength:"1000" doc:"What they wrote or said, and where. evidence_url, note or both."`
+}
+
+// recordOptIn records an opt-in, with its evidence when there is a body.
+func recordOptIn(ctx context.Context, db *sql.DB, wsID, userID, contactID string, ev *OptInEvidenceBody) error {
+	if ev == nil {
+		return RecordWhatsAppOptIn(ctx, db, wsID, contactID)
+	}
+	return RecordWhatsAppOptInWithEvidence(ctx, db, wsID, contactID, WhatsAppOptInEvidence{
+		Source: ev.Source, URL: ev.EvidenceURL, Note: ev.Note, UserID: userID,
+	})
+}
+
 // RegisterWhatsAppConsent mounts the consent endpoints. `a` may be nil (OpenAPI export).
 func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
@@ -106,10 +124,11 @@ func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-contact-whatsapp-opt-in", Method: http.MethodPost, Path: "/api/w/contacts/{id}/whatsapp/opt-in",
-		Summary: "Record that a contact agreed to WhatsApp messages (409 if they said STOP)", Tags: tags,
+		Summary: "Record that a contact agreed to WhatsApp messages, optionally with how and the evidence (409 if they said STOP)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
-		ID string `path:"id"`
+		ID   string             `path:"id"`
+		Body *OptInEvidenceBody `required:"false"`
 	}) (*body[struct {
 		OK bool `json:"ok"`
 	}], error) {
@@ -117,7 +136,10 @@ func RegisterWhatsAppConsent(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		switch err := RecordWhatsAppOptIn(ctx, a.SQLDB, s.WorkspaceID, in.ID); {
+		var evErr ErrOptInEvidence
+		switch err := recordOptIn(ctx, a.SQLDB, s.WorkspaceID, s.UserID, in.ID, in.Body); {
+		case errors.As(err, &evErr):
+			return nil, huma.Error422UnprocessableEntity(evErr.Msg)
 		case errors.Is(err, ErrNoSuchContact):
 			return nil, huma.Error404NotFound("contact not found")
 		case errors.Is(err, ErrWhatsAppOptedOut):

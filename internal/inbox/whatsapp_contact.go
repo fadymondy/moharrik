@@ -13,6 +13,7 @@ import (
 
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/authz"
+	"github.com/fadymondy/moharrik/internal/marketing"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
 )
 
@@ -107,6 +108,8 @@ type ContactWhatsAppStatus struct {
 	// The consent itself (MH-320): when they agreed, and when they said STOP.
 	OptInAt  *time.Time `json:"whatsapp_opt_in_at"`
 	OptOutAt *time.Time `json:"whatsapp_opt_out_at"`
+	// How they agreed and the proof, when the opt-in was recorded with it.
+	OptIn *marketing.WhatsAppOptInRecord `json:"whatsapp_opt_in,omitempty"`
 	// ConversationID is the contact's WhatsApp thread, if there is one: a
 	// message continues it; without one, the first message opens it.
 	ConversationID string        `json:"conversation_id"`
@@ -135,6 +138,9 @@ func ContactWhatsApp(ctx context.Context, a *app.App, contactID string) (*Contac
 	st := &ContactWhatsAppStatus{Phone: whatsapp.Number(phone), Recent: []SendLogRow{}}
 	if optIn.Valid {
 		st.OptInAt = &optIn.Time
+		if st.OptIn, err = marketing.WhatsAppOptInOf(ctx, a, s.WorkspaceID, contactID); err != nil {
+			return nil, huma.Error500InternalServerError("could not read the opt-in")
+		}
 	}
 	if optOut.Valid {
 		st.OptOutAt = &optOut.Time

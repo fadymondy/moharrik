@@ -64,6 +64,8 @@ export function ContactWhatsAppPanel({
   const data = st.data
   const who = contact.name || contact.email
   const threadHref = data?.conversation_id ? inboxHref(data.conversation_id) : null
+  // How they agreed and the proof, when the opt-in was recorded with evidence.
+  const optIn = data?.whatsapp_opt_in
 
   return (
     <section data-contact-whatsapp={data ? (data.can_send ? "ready" : data.reason) : "loading"}>
@@ -106,6 +108,40 @@ export function ContactWhatsAppPanel({
                   </Link>
                 ) : null}
               </span>
+            </p>
+          ) : null}
+          {optIn?.source && !data?.whatsapp_opt_out_at ? (
+            <p
+              className="text-xs text-muted-foreground"
+              data-whatsapp-opt-in-evidence={optIn.source}
+            >
+              {t(`contactWa.optIn.source.${optIn.source}`)}
+              {optIn.evidence_url ? (
+                <>
+                  {" · "}
+                  <a
+                    className="underline underline-offset-4"
+                    href={optIn.evidence_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                  >
+                    {t("contactWa.optIn.evidence")}
+                  </a>
+                </>
+              ) : null}
+              {optIn.note ? (
+                <>
+                  {" · "}
+                  <Bdi>{optIn.note}</Bdi>
+                </>
+              ) : null}
+              {optIn.by ? <> · {t("contactWa.optIn.by", { who: optIn.by })}</> : null}
+              {optIn.at ? (
+                <>
+                  {" · "}
+                  <Ltr>{formatDate(optIn.at)}</Ltr>
+                </>
+              ) : null}
             </p>
           ) : null}
           {threadHref ? (
