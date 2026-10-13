@@ -1119,6 +1119,10 @@ export type ChatWidgetSettings = {
   lead_event: boolean
   /** Ask for a name and an email or phone before the first message. */
   require_contact: boolean
+  /** Who the visitor is talking to: the panel's header and "… is typing". "" = the workspace's name. */
+  display_name: string
+  /** An https:// picture next to the display name. "" = the workspace's picture. */
+  display_avatar_url: string
 }
 
 // ── Trends ──────────────────────────────────────────────────────────────

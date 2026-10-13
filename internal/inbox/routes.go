@@ -346,24 +346,9 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, _ *wsHeader) (*body[struct {
 		Widgets []WidgetOut `json:"widgets"`
 	}], error) {
-		s, err := scope(ctx, authz.InboxRead)
+		list, err := ListWidgets(ctx, a)
 		if err != nil {
 			return nil, err
-		}
-		rows, err := db().QueryContext(ctx, `
-			SELECT `+widgetColumns+`
-			FROM chat_widgets WHERE workspace_id = $1 ORDER BY lower(name)`, s.WorkspaceID)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not list chat widgets")
-		}
-		defer rows.Close()
-		list := []WidgetOut{}
-		for rows.Next() {
-			w, err := scanWidget(rows)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not list chat widgets")
-			}
-			list = append(list, w)
 		}
 		return out(struct {
 			Widgets []WidgetOut `json:"widgets"`
@@ -430,77 +415,17 @@ func Register(api huma.API, a *app.App) {
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
-		Body struct {
-			Name           *string   `json:"name,omitempty" maxLength:"80"`
-			AllowedOrigins *[]string `json:"allowed_origins,omitempty"`
-			Enabled        *bool     `json:"enabled,omitempty"`
-			WidgetPatch
-		}
+		Body WidgetUpdate
 	}) (*body[struct {
 		Widget WidgetOut `json:"widget"`
 	}], error) {
-		s, err := scope(ctx, authz.InboxManage)
+		w, err := UpdateWidget(ctx, a, in.ID, in.Body)
 		if err != nil {
 			return nil, err
-		}
-		u := &update{}
-		if in.Body.Name != nil {
-			n := strings.TrimSpace(*in.Body.Name)
-			if n == "" {
-				return nil, huma.Error422UnprocessableEntity("a name is required")
-			}
-			u.set("name", n)
-		}
-		if in.Body.AllowedOrigins != nil {
-			if bad := badOrigin(*in.Body.AllowedOrigins); bad != "" {
-				return nil, originError(bad)
-			}
-			u.set("allowed_origins", strings.Join(splitOrigins(strings.Join(*in.Body.AllowedOrigins, ",")), ","))
-		}
-		// The settings are read, patched and validated as a whole, so a patch
-		// can never leave a widget in a state validate() would refuse.
-		current, err := readWidget(ctx, db(), s.WorkspaceID, in.ID)
-		if notFound(err) {
-			return nil, huma.Error404NotFound("chat widget not found")
-		} else if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the chat widget")
-		}
-		settings := current.WidgetSettings
-		if err := in.Body.WidgetPatch.apply(&settings); err != nil {
-			return nil, err
-		}
-		for i, v := range settingsArgs(settings) {
-			u.set([]string{"greeting", "greeting_ar", "title", "title_ar", "accent", "theme", "position",
-				"invite", "invite_after_seconds", "quick_actions", "lead_event", "require_contact"}[i], v)
-		}
-		for i, set := range u.sets {
-			if strings.HasPrefix(set, "quick_actions = ") {
-				u.sets[i] = set + "::jsonb"
-			}
-		}
-		if in.Body.Enabled != nil {
-			u.set("enabled", *in.Body.Enabled)
-		}
-		if len(u.sets) > 0 {
-			res, err := db().ExecContext(ctx, `UPDATE chat_widgets SET `+strings.Join(u.sets, ", ")+`, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
-				append([]any{s.WorkspaceID, in.ID}, u.args...)...)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not update the chat widget")
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, huma.Error404NotFound("chat widget not found")
-			}
-		}
-		w, err := readWidget(ctx, db(), s.WorkspaceID, in.ID)
-		if err != nil {
-			if notFound(err) {
-				return nil, huma.Error404NotFound("chat widget not found")
-			}
-			return nil, huma.Error500InternalServerError("could not read the chat widget")
 		}
 		return out(struct {
 			Widget WidgetOut `json:"widget"`
-		}{w}), nil
+		}{*w}), nil
 	})
 
 	huma.Register(api, huma.Operation{
