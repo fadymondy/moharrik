@@ -119,6 +119,24 @@ func TestAppSignin(t *testing.T) {
 		}
 	})
 
+	t.Run("a second install with the same name leaves the first signed in", func(t *testing.T) {
+		// Same device name ("Fady's Pixel"): iOS names every phone "iPhone".
+		_, out := start(redirect)
+		dest, _ := url.Parse(out["redirect_to"].(string))
+		st, tok := trade(dest.Query().Get("code"), verifier)
+		if st != http.StatusOK {
+			t.Fatalf("second token: %d %v", st, tok)
+		}
+		second := newClient(t, srv)
+		second.bearer = tok["token"].(string)
+		second.must("GET", "/api/me/workspaces", nil, 200)
+		app.must("GET", "/api/me/workspaces", nil, 200)
+		if _, b := second.do("POST", "/api/me/app-signout", nil); b == nil {
+			t.Fatal("second signout")
+		}
+		app.must("GET", "/api/me/workspaces", nil, 200)
+	})
+
 	t.Run("signing the app out revokes its token and its push", func(t *testing.T) {
 		if code, b := app.do("POST", "/api/me/app-signout", nil); code != http.StatusNoContent {
 			t.Fatalf("signout: %d %s", code, b)

@@ -131,8 +131,10 @@ func bearerPAT(r *http.Request) string {
 // mintDeviceToken issues a personal access token in the auth plugin's own
 // format (auth@v0.8 pat.go: "togo_pat_" + 40 hex, only the sha256 stored, empty
 // abilities = the user's own access; Moharrik's authorization is the
-// workspace role), replacing any earlier token of the same name so a device
-// never accumulates rows. Push registrations of a replaced token go with it.
+// workspace role). Names are NOT unique — iOS calls every phone "iPhone" — so a
+// new sign-in never replaces another install's token by name; instead one
+// person keeps at most maxDevices tokens, the oldest going first with their
+// push registrations.
 func mintDeviceToken(ctx context.Context, db *sql.DB, userID, name string) (string, error) {
 	plain := patPrefix + randHex(16) + randHex(4)
 	tx, err := db.BeginTx(ctx, nil)
@@ -140,17 +142,18 @@ func mintDeviceToken(ctx context.Context, db *sql.DB, userID, name string) (stri
 		return "", err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM device_tokens WHERE user_id = $1 AND pat_id IN
-		(SELECT id FROM personal_access_tokens WHERE user_id = $1 AND name = $2)`, userID, name); err != nil {
-		return "", err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM personal_access_tokens WHERE user_id = $1 AND name = $2`, userID, name); err != nil {
-		return "", err
-	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO personal_access_tokens (id, user_id, name, token_hash, abilities, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, '', NULL, $5)`,
 		randHex(16), userID, name, sha256Hex(plain), time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return "", err
+	}
+	// created_at is RFC 3339 UTC text, so it sorts as written.
+	const stale = `SELECT id FROM personal_access_tokens WHERE user_id = $1 ORDER BY created_at DESC, id OFFSET $2`
+	if _, err := tx.ExecContext(ctx, `DELETE FROM device_tokens WHERE user_id = $1 AND pat_id IN (`+stale+`)`, userID, maxDevices); err != nil {
+		return "", err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM personal_access_tokens WHERE user_id = $1 AND id IN (`+stale+`)`, userID, maxDevices); err != nil {
 		return "", err
 	}
 	return plain, tx.Commit()
