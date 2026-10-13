@@ -93,9 +93,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const setServer = useCallback(async (url: string) => {
     const clean = url.trim().replace(/\/+$/, "")
+    const next = clean || defaultServer()
+    if (next !== server) {
+      // A device token belongs to the server that issued it: never send it to another one.
+      await tokenStore.set(null)
+      setStatus((s) => (s === "signedIn" ? "signedOut" : s))
+    }
     await setJSON(KEYS.server, clean && clean !== defaultServer() ? clean : null)
-    setServerState(clean || defaultServer())
-  }, [])
+    setServerState(next)
+  }, [server])
 
   const signIn = useCallback(async () => {
     const pending = await startSignIn({ serverUrl: client.baseUrl, redirectUri: REDIRECT, device: deviceName(), locale, crypto })
