@@ -1,0 +1,20 @@
+{
+  "name": "@moharrik/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Moharrik apps' shared core: the typed API client (types generated from the Go API's OpenAPI document), app sign-in (PKCE), deep links, strings (AR/EN) and brand tokens. Plain TypeScript with no runtime dependencies, so React Native, Electron's main process and its renderer all import it as source.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "gen:types": "node scripts/gen-types.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.5",
+    "openapi-typescript": "^7.13.0",
+    "vitest": "^5.0.1"
+  }
+}

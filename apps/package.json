@@ -1,0 +1,16 @@
+{
+  "name": "moharrik-apps",
+  "private": true,
+  "description": "Moharrik companion apps: the phone app (mobile/, its own install — Metro and native builds keep their own node_modules), the desktop app, and the shared API client.",
+  "workspaces": [
+    "shared"
+  ],
+  "scripts": {
+    "gen:types": "npm run gen:types -w @moharrik/client",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
