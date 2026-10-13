@@ -78,7 +78,8 @@ export default function DealsScreen() {
             const s = all.find((x) => x.id === stage)
             return s ? (
               <Text size="sm" tone="muted" style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
-                {t("deals.count", { n: s.deal_count })} · {money(locale, s.value_minor, currency)}
+                {t("deals.count", { n: s.deal_count })}
+                {s.value_minor ? ` · ${money(locale, s.value_minor, currency)}` : ""}
               </Text>
             ) : null
           })()}
