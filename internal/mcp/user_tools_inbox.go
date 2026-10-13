@@ -56,6 +56,16 @@ func needsContactsWrite(ctx context.Context, tool string) error {
 	return nil
 }
 
+// widgetSummary is a chat widget as the MCP tools return it.
+func widgetSummary(w inbox.WidgetOut) map[string]any {
+	return map[string]any{
+		"id": w.ID, "name": w.Name, "public_key": w.PublicKey, "allowed_origins": w.AllowedOrigins, "enabled": w.Enabled,
+		"display_name": w.DisplayName, "display_avatar_url": w.DisplayAvatarURL, "title": w.Title, "title_ar": w.TitleAr,
+		"greeting": w.Greeting, "greeting_ar": w.GreetingAr, "accent": w.Accent, "theme": w.Theme, "position": w.Position,
+		"require_contact": w.RequireContact, "embed": w.Embed, "created_at": w.CreatedAt,
+	}
+}
+
 func InboxTools() []Tool {
 	return []Tool{
 		{
@@ -530,6 +540,64 @@ func InboxTools() []Tool {
 				return jsonResult(st)
 			},
 		},
+		{
+			Name: "list_chat_widgets",
+			Description: "The chat widgets this workspace embeds on its sites: each one's id, public key, allowed origins, whether it is on, " +
+				"who it says the visitor is talking to (display_name and display_avatar_url; empty means the workspace's name and picture), " +
+				"its title, greeting and look, and the snippet to paste.",
+			Scope:       "inbox:read",
+			InputSchema: schema(nil, map[string]any{}),
+			Run: func(ctx context.Context, a *app.App, _ json.RawMessage) (string, error) {
+				list, err := inbox.ListWidgets(ctx, a)
+				if err != nil {
+					return "", err
+				}
+				out := make([]map[string]any, 0, len(list))
+				for _, w := range list {
+					out = append(out, widgetSummary(w))
+				}
+				return jsonResult(map[string]any{"count": len(out), "widgets": out})
+			},
+		},
+		{
+			Name: "update_chat_widget",
+			Description: "Change a chat widget (id from list_chat_widgets); only the fields you pass change. display_name and " +
+				"display_avatar_url are who the visitor is talking to — the name in the panel's header and in \"… is typing\", and the " +
+				"picture next to it (https:// only); an empty string resets either to the workspace's own. title/title_ar are the launcher " +
+				"and panel title, greeting/greeting_ar the first message shown. Every page that embeds the widget picks the change up " +
+				"from its config, without re-pasting the snippet.",
+			Scope: "inbox:manage",
+			InputSchema: schema([]string{"id"}, map[string]any{
+				"id":                 prop("string", "Chat widget id"),
+				"name":               prop("string", "The widget's own label in Moharrik (not shown to visitors)"),
+				"display_name":       prop("string", "Who the visitor is talking to, up to 80 characters; empty resets to the workspace's name"),
+				"display_avatar_url": prop("string", "An https:// picture shown next to the display name; empty resets to the workspace's picture"),
+				"title":              prop("string", "The launcher and panel title, up to 60 characters; empty: Chat with us"),
+				"title_ar":           prop("string", "The title when the widget runs in Arabic"),
+				"greeting":           prop("string", "The first message an empty panel shows, up to 500 characters"),
+				"greeting_ar":        prop("string", "The greeting when the widget runs in Arabic"),
+				"enabled":            map[string]any{"type": "boolean", "description": "Turn the widget on or off"},
+				"require_contact":    map[string]any{"type": "boolean", "description": "Ask for a name and an email or phone before the first message"},
+			}),
+			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
+				var in struct {
+					ID string `json:"id"`
+					inbox.WidgetUpdate
+				}
+				if err := bind(raw, &in); err != nil {
+					return "", err
+				}
+				id, err := required("id", in.ID)
+				if err != nil {
+					return "", err
+				}
+				w, err := inbox.UpdateWidget(ctx, a, id, in.WidgetUpdate)
+				if err != nil {
+					return "", err
+				}
+				return jsonResult(map[string]any{"widget": widgetSummary(*w)})
+			},
+		},
 	}
 }
 
@@ -585,7 +653,7 @@ func WhatsAppTools() []Tool {
 				"repeat the call with the same contact_id and text plus that code to send it and open the thread. Sends are paced like broadcasts. " +
 				"To answer a conversation, use reply instead.",
 			Confirm: "The first message to a contact with no WhatsApp thread yet needs a 6-digit code from a first call (valid 10 minutes), repeated with the same text.",
-			Scope: "whatsapp:send",
+			Scope:   "whatsapp:send",
 			InputSchema: schema([]string{"contact_id", "text"}, map[string]any{
 				"contact_id": prop("string", "The CRM contact's id (search_contacts, get_contact)"),
 				"text":       prop("string", "The message, at most 4096 characters"),

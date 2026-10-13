@@ -100,6 +100,8 @@ function settingsOf(w: ChatWidget): ChatWidgetSettings {
     })),
     lead_event: w.lead_event !== false,
     require_contact: w.require_contact !== false,
+    display_name: w.display_name ?? "",
+    display_avatar_url: w.display_avatar_url ?? "",
   }
 }
 
@@ -159,6 +161,9 @@ function SettingsForm({
     setS((cur) => ({ ...cur, [k]: v }))
 
   const accentOk = s.accent === "" || HEX.test(s.accent)
+  const avatarOk =
+    s.display_avatar_url.trim() === "" ||
+    /^https:\/\/[^\s"'<>\\]+$/.test(s.display_avatar_url.trim())
   const previewAccent = accentOk && s.accent ? s.accent : SDK_DEFAULT_ACCENT
   // The preview speaks the language this page is in, as the widget would.
   const ar = locale === "ar"
@@ -188,6 +193,10 @@ function SettingsForm({
     }
     if (!accentOk) {
       setErr(t("inbox.accentInvalid"))
+      return
+    }
+    if (!avatarOk) {
+      setErr(t("inbox.displayAvatarInvalid"))
       return
     }
     setBusy(true)
@@ -332,6 +341,35 @@ function SettingsForm({
                 dir="rtl"
                 lang="ar"
               />
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="ws-display-name">{t("inbox.displayName")}</FieldLabel>
+              <Input
+                id="ws-display-name"
+                maxLength={80}
+                value={s.display_name}
+                onChange={(e) => set("display_name", e.target.value)}
+                placeholder={ws.summary.name}
+                dir="auto"
+              />
+              <FieldDescription>{t("inbox.displayNameHint")}</FieldDescription>
+            </Field>
+            <Field invalid={!avatarOk}>
+              <FieldLabel htmlFor="ws-display-avatar">{t("inbox.displayAvatar")}</FieldLabel>
+              <Input
+                id="ws-display-avatar"
+                type="url"
+                inputMode="url"
+                maxLength={500}
+                value={s.display_avatar_url}
+                onChange={(e) => set("display_avatar_url", e.target.value)}
+                placeholder="https://"
+                aria-invalid={!avatarOk || undefined}
+                dir="ltr"
+              />
+              <FieldDescription>{t("inbox.displayAvatarHint")}</FieldDescription>
             </Field>
           </div>
         </FieldGroup>

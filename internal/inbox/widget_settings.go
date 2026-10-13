@@ -64,6 +64,11 @@ type WidgetSettings struct {
 	QuickActions       []QuickAction `json:"quick_actions" maxItems:"8"`
 	LeadEvent          bool          `json:"lead_event" doc:"Report a visitor's first message as a generate_lead analytics event on the host page (gtag / dataLayer)."`
 	RequireContact     bool          `json:"require_contact" doc:"Ask for a name and an email or phone number before the first message, and file the visitor as a CRM contact."`
+	// Who the visitor is talking to, per widget: a personal site's widget is a
+	// person ("Fady Mondy"), not the workspace that owns it. Empty: the
+	// workspace's own name and picture (widgetBrand).
+	DisplayName      string `json:"display_name" maxLength:"80" doc:"The name in the panel's header and in \"… is typing\". Empty: the workspace's name."`
+	DisplayAvatarURL string `json:"display_avatar_url" maxLength:"500" doc:"An https:// picture shown next to the display name. Empty: the workspace's picture."`
 }
 
 func defaultSettings() WidgetSettings {
@@ -84,6 +89,8 @@ type WidgetPatch struct {
 	QuickActions       *[]QuickAction `json:"quick_actions,omitempty" maxItems:"8"`
 	LeadEvent          *bool          `json:"lead_event,omitempty"`
 	RequireContact     *bool          `json:"require_contact,omitempty"`
+	DisplayName        *string        `json:"display_name,omitempty" maxLength:"80" doc:"Empty resets to the workspace's name."`
+	DisplayAvatarURL   *string        `json:"display_avatar_url,omitempty" maxLength:"500" doc:"https:// only; empty resets to the workspace's picture."`
 }
 
 var accentRE = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
@@ -105,6 +112,8 @@ func (p WidgetPatch) apply(s *WidgetSettings) error {
 	str(&s.Accent, p.Accent)
 	str(&s.Theme, p.Theme)
 	str(&s.Position, p.Position)
+	str(&s.DisplayName, p.DisplayName)
+	str(&s.DisplayAvatarURL, p.DisplayAvatarURL)
 	if p.Invite != nil {
 		s.Invite = *p.Invite
 	}
@@ -148,6 +157,12 @@ func (s *WidgetSettings) validate() error {
 	if len([]rune(s.Title)) > 60 || len([]rune(s.TitleAr)) > 60 {
 		return huma.Error422UnprocessableEntity("the title is at most 60 characters")
 	}
+	if len([]rune(s.DisplayName)) > 80 {
+		return huma.Error422UnprocessableEntity("the display name is at most 80 characters")
+	}
+	if s.DisplayAvatarURL != "" && !avatarURLOK(s.DisplayAvatarURL) {
+		return huma.Error422UnprocessableEntity("the picture must be an https:// address of at most 500 characters")
+	}
 	if s.QuickActions == nil {
 		s.QuickActions = []QuickAction{}
 	}
@@ -174,17 +189,30 @@ func (s *WidgetSettings) validate() error {
 	return nil
 }
 
+// avatarURLOK: the picture is an <img src> on somebody else's page, so it is
+// an absolute https address with a host and nothing that could break out of
+// the attribute — never javascript:, data: or a relative path.
+func avatarURLOK(raw string) bool {
+	if len(raw) > 500 || strings.ContainsAny(raw, " \t\r\n\"'<>\\") {
+		return false
+	}
+	u, err := url.Parse(raw)
+	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil
+}
+
 // ---- reading and writing the row ----------------------------------------------
 
 const widgetColumns = `id, name, public_key, allowed_origins, enabled, created_at,
-	greeting, greeting_ar, title, title_ar, accent, theme, position, invite, invite_after_seconds, quick_actions::text, lead_event, require_contact`
+	greeting, greeting_ar, title, title_ar, accent, theme, position, invite, invite_after_seconds, quick_actions::text, lead_event, require_contact,
+	display_name, display_avatar_url`
 
 func scanWidget(row interface{ Scan(...any) error }) (WidgetOut, error) {
 	var w WidgetOut
 	var origins, qa string
 	s := &w.WidgetSettings
 	if err := row.Scan(&w.ID, &w.Name, &w.PublicKey, &origins, &w.Enabled, &w.CreatedAt,
-		&s.Greeting, &s.GreetingAr, &s.Title, &s.TitleAr, &s.Accent, &s.Theme, &s.Position, &s.Invite, &s.InviteAfterSeconds, &qa, &s.LeadEvent, &s.RequireContact); err != nil {
+		&s.Greeting, &s.GreetingAr, &s.Title, &s.TitleAr, &s.Accent, &s.Theme, &s.Position, &s.Invite, &s.InviteAfterSeconds, &qa, &s.LeadEvent, &s.RequireContact,
+		&s.DisplayName, &s.DisplayAvatarURL); err != nil {
 		return w, err
 	}
 	s.QuickActions = []QuickAction{}
@@ -201,11 +229,12 @@ func readWidget(ctx context.Context, db *sql.DB, wsID, id string) (WidgetOut, er
 // settingsArgs are the settings columns in widgetColumns' order, for a write.
 func settingsArgs(s WidgetSettings) []any {
 	qa, _ := json.Marshal(s.QuickActions)
-	return []any{s.Greeting, s.GreetingAr, s.Title, s.TitleAr, s.Accent, s.Theme, s.Position, s.Invite, s.InviteAfterSeconds, string(qa), s.LeadEvent, s.RequireContact}
+	return []any{s.Greeting, s.GreetingAr, s.Title, s.TitleAr, s.Accent, s.Theme, s.Position, s.Invite, s.InviteAfterSeconds, string(qa), s.LeadEvent, s.RequireContact, s.DisplayName, s.DisplayAvatarURL}
 }
 
 const settingsSet = `greeting = $3, greeting_ar = $4, title = $5, title_ar = $6, accent = $7, theme = $8, position = $9,
-	invite = $10, invite_after_seconds = $11, quick_actions = $12::jsonb, lead_event = $13, require_contact = $14`
+	invite = $10, invite_after_seconds = $11, quick_actions = $12::jsonb, lead_event = $13, require_contact = $14,
+	display_name = $15, display_avatar_url = $16`
 
 // embedSnippet is the tag to paste. It names the settings that change the
 // first paint (the SDK reads the rest from the config), each escaped for an
@@ -242,11 +271,12 @@ func embedSnippet(key string, s WidgetSettings) string {
 type PublicConfig struct {
 	WidgetSettings
 	Presence string `json:"presence" enum:"online,away,offline" doc:"Whether anybody who can answer is around: online (active in the last 5 minutes), away (45) or offline."`
-	// Who the visitor is talking to: the workspace's name and picture, shown
-	// in the panel's header next to the title. Both are already public on the
-	// customer's site the moment the widget draws them.
-	Name      string `json:"name,omitempty" doc:"The business the visitor is talking to (the workspace's name)."`
-	AvatarURL string `json:"avatar_url,omitempty" doc:"The business's picture, absolute. Empty when the workspace has none."`
+	// Who the visitor is talking to: the widget's display name and picture,
+	// or the workspace's when the widget sets none, shown in the panel's
+	// header. Both are already public on the customer's site the moment the
+	// widget draws them.
+	Name      string `json:"name,omitempty" doc:"Who the visitor is talking to: the widget's display_name, or the workspace's name when it has none."`
+	AvatarURL string `json:"avatar_url,omitempty" doc:"Their picture, absolute: the widget's display_avatar_url, or the workspace's picture. Empty when neither is set."`
 }
 
 func publicConfig(s WidgetSettings, wsID string) PublicConfig {
@@ -287,7 +317,8 @@ func scanWidgetFull(row *sql.Row, wsID, origins *string, enabled *bool) (WidgetO
 	var qa string
 	s := &w.WidgetSettings
 	if err := row.Scan(wsID, &w.ID, &w.Name, &w.PublicKey, origins, enabled, &w.CreatedAt,
-		&s.Greeting, &s.GreetingAr, &s.Title, &s.TitleAr, &s.Accent, &s.Theme, &s.Position, &s.Invite, &s.InviteAfterSeconds, &qa, &s.LeadEvent, &s.RequireContact); err != nil {
+		&s.Greeting, &s.GreetingAr, &s.Title, &s.TitleAr, &s.Accent, &s.Theme, &s.Position, &s.Invite, &s.InviteAfterSeconds, &qa, &s.LeadEvent, &s.RequireContact,
+		&s.DisplayName, &s.DisplayAvatarURL); err != nil {
 		return w, err
 	}
 	s.QuickActions = []QuickAction{}
@@ -308,7 +339,7 @@ func registerWidgetPublic(api huma.API, a *app.App) {
 			return nil, err
 		}
 		cfg := publicConfig(w.Settings, w.WorkspaceID)
-		cfg.Name, cfg.AvatarURL = widgetBrand(ctx, a, w.WorkspaceID, in.Key)
+		cfg.Name, cfg.AvatarURL = widgetBrand(ctx, a, w.WorkspaceID, in.Key, w.Settings)
 		return out(cfg), nil
 	})
 
@@ -346,10 +377,26 @@ func registerWidgetPublic(api huma.API, a *app.App) {
 	})
 }
 
-// widgetBrand is the workspace's name and, when it has one, the address of its
-// picture as served through the widget's own key (WidgetAvatar). On the owner
-// pool: workspace_avatars is owner-only (internal/db/schema/workspace_avatars.sql).
-func widgetBrand(ctx context.Context, a *app.App, wsID, key string) (string, string) {
+// widgetBrand is who the widget says the visitor is talking to: its own
+// display name and picture when set, each falling back on its own to the
+// workspace's name and, when it has one, the address of its picture as served
+// through the widget's own key (WidgetAvatar). On the owner pool:
+// workspace_avatars is owner-only (internal/db/schema/workspace_avatars.sql).
+func widgetBrand(ctx context.Context, a *app.App, wsID, key string, s WidgetSettings) (string, string) {
+	if s.DisplayName != "" && s.DisplayAvatarURL != "" {
+		return s.DisplayName, s.DisplayAvatarURL
+	}
+	name, avatar := workspaceBrand(ctx, a, wsID, key)
+	if s.DisplayName != "" {
+		name = s.DisplayName
+	}
+	if s.DisplayAvatarURL != "" {
+		avatar = s.DisplayAvatarURL
+	}
+	return name, avatar
+}
+
+func workspaceBrand(ctx context.Context, a *app.App, wsID, key string) (string, string) {
 	var name string
 	var at sql.NullTime
 	if err := a.SysDB.QueryRowContext(ctx, `

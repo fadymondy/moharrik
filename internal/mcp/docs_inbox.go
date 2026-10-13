@@ -26,6 +26,27 @@ const (
 )
 
 var docsInbox = map[string]ToolDoc{
+	"list_chat_widgets": {
+		AR: "أدوات الدردشة التي يضعها مساحة العمل على مواقعه: لكلٍّ منها معرّفها ومفتاحها العام والنطاقات المسموح بها وهل هي مفعّلة، " +
+			"ومن يظن الزائر أنه يحادثه (display_name وdisplay_avatar_url؛ القيمة الفارغة تعني اسم مساحة العمل وصورتها)، " +
+			"وعنوانها وتحيتها ومظهرها، والشيفرة التي تُلصق في الموقع.",
+		Example: map[string]any{},
+		Result: `{"count":1,"widgets":[{"accent":"#4f46e5","allowed_origins":["https://fadymondy.com"],"created_at":"2026-09-01T10:00:00Z",` +
+			`"display_avatar_url":"","display_name":"","embed":"<script id=\"moharrik-chat\" src=\"https://app.moharrik.com/chat/v1.js\" data-key=\"cwk_example\" async></script>",` +
+			`"enabled":true,"greeting":"","greeting_ar":"","id":"82581c30-7fb6-4c5a-9e57-ba315ee95d5b","name":"Site chat",` +
+			`"position":"end","public_key":"cwk_example","require_contact":false,"theme":"auto","title":"","title_ar":""}]}`,
+	},
+	"update_chat_widget": {
+		AR: "تعديل أداة دردشة (المعرّف من list_chat_widgets)؛ لا يتغيّر إلا ما تمرّره. display_name وdisplay_avatar_url هما من يحادثه " +
+			"الزائر — الاسم في رأس النافذة وفي «… يكتب الآن»، والصورة بجانبه (https:// فقط)؛ والقيمة الفارغة تعيد أيًّا منهما إلى اسم " +
+			"مساحة العمل وصورتها. title وtitle_ar عنوان زر الفتح والنافذة، وgreeting وgreeting_ar أول رسالة تظهر. كل صفحة تضع الأداة " +
+			"تلتقط التغيير من إعداداتها دون إعادة لصق الشيفرة.",
+		Example: map[string]any{"id": "82581c30-7fb6-4c5a-9e57-ba315ee95d5b", "display_name": "Fady Mondy"},
+		Result: `{"widget":{"accent":"#4f46e5","allowed_origins":["https://fadymondy.com"],"created_at":"2026-09-01T10:00:00Z",` +
+			`"display_avatar_url":"","display_name":"Fady Mondy","embed":"<script id=\"moharrik-chat\" src=\"https://app.moharrik.com/chat/v1.js\" data-key=\"cwk_example\" async></script>",` +
+			`"enabled":true,"greeting":"","greeting_ar":"","id":"82581c30-7fb6-4c5a-9e57-ba315ee95d5b","name":"Site chat",` +
+			`"position":"end","public_key":"cwk_example","require_contact":false,"theme":"auto","title":"","title_ar":""}}`,
+	},
 	"list_conversations": {
 		AR: "صندوق الوارد المشترك — محادثات الدردشة والبريد وواتساب وأي قناة أخرى متصلة — الأحدث أولًا، مع عدد غير المقروء " +
 			"وchannel_counts (MH-568: إجمالي كل قناة وعدد غير المقروء فيها، مُصفّاة بنفس status وq المستخدمَين في هذا الاستدعاء، " +
@@ -305,6 +326,17 @@ var docsCampaigns = map[string]ToolDoc{
 }
 
 var argsARInbox = map[string]string{
+	// chat widgets
+	"Chat widget id": "معرّف أداة الدردشة",
+	"The widget's own label in Moharrik (not shown to visitors)":                                  "اسم الأداة داخل محرّك (لا يراه الزوار)",
+	"Who the visitor is talking to, up to 80 characters; empty resets to the workspace's name":    "من يحادثه الزائر، حتى 80 حرفًا؛ القيمة الفارغة تعيده إلى اسم مساحة العمل",
+	"An https:// picture shown next to the display name; empty resets to the workspace's picture": "صورة https:// تظهر بجانب الاسم المعروض؛ القيمة الفارغة تعيدها إلى صورة مساحة العمل",
+	"The launcher and panel title, up to 60 characters; empty: Chat with us":                      "عنوان زر الفتح والنافذة، حتى 60 حرفًا؛ إن كان فارغًا: Chat with us",
+	"The title when the widget runs in Arabic":                                                    "العنوان حين تعمل الأداة بالعربية",
+	"The first message an empty panel shows, up to 500 characters":                                "أول رسالة تظهر في نافذة فارغة، حتى 500 حرف",
+	"The greeting when the widget runs in Arabic":                                                 "التحية حين تعمل الأداة بالعربية",
+	"Turn the widget on or off":                                                                   "تشغيل الأداة أو إيقافها",
+	"Ask for a name and an email or phone before the first message":                               "طلب الاسم والبريد أو الهاتف قبل أول رسالة",
 	// MH-561: create_contact_from_conversation needs an email or a phone, not email alone.
 	"Required if phone is omitted": "مطلوب إن لم يُذكر الهاتف",
 	"Required if email is omitted": "مطلوب إن لم يُذكر البريد الإلكتروني",
@@ -352,16 +384,16 @@ var argsARInbox = map[string]string{
 	"MH-600: only conversations from this sender, case-insensitive": "MH-600: محادثات هذا المُرسِل فقط، بلا تفريق بين حروف كبيرة وصغيرة",
 
 	// MH-661: email templates
-	"The template id (list_email_templates)":                  "معرّف القالب (list_email_templates)",
-	"What the picker shows; never sent":                        "ما تعرضه القائمة؛ لا يُرسَل أبدًا",
-	"The English subject line":                                 "سطر الموضوع بالإنجليزية",
-	"The Arabic subject line":                                  "سطر الموضوع بالعربية",
+	"The template id (list_email_templates)":                            "معرّف القالب (list_email_templates)",
+	"What the picker shows; never sent":                                 "ما تعرضه القائمة؛ لا يُرسَل أبدًا",
+	"The English subject line":                                          "سطر الموضوع بالإنجليزية",
+	"The Arabic subject line":                                           "سطر الموضوع بالعربية",
 	"The English Markdown body. One of body_en and body_ar is required": "النص الإنجليزي بصيغة Markdown. أحد body_en وbody_ar مطلوب",
-	"The Arabic Markdown body":                                 "النص العربي بصيغة Markdown",
-	"The English Markdown body":                                "النص الإنجليزي بصيغة Markdown",
-	"Lower comes first in the picker":                          "الأصغر يظهر أولًا في القائمة",
+	"The Arabic Markdown body":                                          "النص العربي بصيغة Markdown",
+	"The English Markdown body":                                         "النص الإنجليزي بصيغة Markdown",
+	"Lower comes first in the picker":                                   "الأصغر يظهر أولًا في القائمة",
 
 	// MH-662: thread ⋮ menu — star/unstar and export
 	"A message id from get_conversation's messages": "معرّف رسالة من ضمن رسائل get_conversation",
-	"true to star, false to unstar":                  "true لتمييزها بنجمة، وfalse لإزالة التمييز",
+	"true to star, false to unstar":                 "true لتمييزها بنجمة، وfalse لإزالة التمييز",
 }
