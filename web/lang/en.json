@@ -5202,5 +5202,19 @@
   "agent.summaryWaitingBody": "Moharrik collected the pages. There is no model key here, so the summary is a task for your AI assistant: run the prompt below and the answer appears on this page.",
   "agent.summarise": "Summarise via AI assistant",
   "agent.summariseQueued": "Summary task queued for your AI assistant.",
-  "agent.summaryBy": "Summarised by your AI assistant ({model})."
+  "agent.summaryBy": "Summarised by your AI assistant ({model}).",
+  "appSignin.micro": "Moharrik apps",
+  "appSignin.title": "Sign in to the Moharrik app",
+  "appSignin.hint": "Hand this browser's sign-in to the Moharrik app on your phone or computer.",
+  "appSignin.wants": "The Moharrik app asks to sign in as you.",
+  "appSignin.device": "Device",
+  "appSignin.account": "Account",
+  "appSignin.unnamed": "Moharrik app",
+  "appSignin.warning": "Continue only if you just opened this from the Moharrik app yourself. You can sign the device out any time from the app.",
+  "appSignin.continue": "Continue to the Moharrik app",
+  "appSignin.cancel": "Cancel",
+  "appSignin.returning": "Signed in — returning you to the app. You can close this tab.",
+  "appSignin.signInFirst": "Sign in first, then come back here to continue to the app.",
+  "appSignin.invalidTitle": "This sign-in link is not valid",
+  "appSignin.invalidBody": "Open the sign-in again from the Moharrik app."
 }

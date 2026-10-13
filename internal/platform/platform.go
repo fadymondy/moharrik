@@ -8,8 +8,10 @@ package platform
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -147,6 +149,20 @@ func IssuedAt(ctx context.Context, db *sql.DB, r *http.Request) (time.Time, bool
 	}
 	if tok == "" {
 		return time.Time{}, false
+	}
+	// An app's device token (a personal access token, internal/appsignin) is
+	// issued when its row was created; the plugin stores that as RFC 3339 text.
+	if strings.HasPrefix(tok, "togo_pat_") {
+		if db == nil {
+			return time.Time{}, false
+		}
+		sum := sha256.Sum256([]byte(tok))
+		var created string
+		if db.QueryRowContext(ctx, `SELECT created_at FROM personal_access_tokens WHERE token_hash = $1`, hex.EncodeToString(sum[:])).Scan(&created) != nil {
+			return time.Time{}, false
+		}
+		t, err := time.Parse(time.RFC3339, created)
+		return t, err == nil
 	}
 	if strings.Count(tok, ".") != 2 && db != nil {
 		var jwt string

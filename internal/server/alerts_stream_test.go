@@ -220,6 +220,23 @@ func TestAlertStreamAudience(t *testing.T) {
 
 	// ---- assigned: only the assignee is alerted -------------------------------
 	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"assignee_user_id": bobID}, 200)
+	// The hand-over itself alerts the new assignee (their phones too: alerts.Push).
+	if ev := next(t, bobEv, "assigned", "the new assignee"); !ev.Alert || ev.ConversationID != convID || ev.Sender != "Rana" {
+		t.Errorf("the new assignee must be alerted of the hand-over: %+v", ev)
+	}
+	if ev := next(t, aliceEv, "assigned", "the assigner"); ev.Alert {
+		t.Errorf("whoever assigned it is not alerted: %+v", ev)
+	}
+	// Assigning it to the one who already has it is not a hand-over.
+	drain(bobEv)
+	alice.must("PATCH", "/api/w/conversations/"+convID, map[string]any{"assignee_user_id": bobID}, 200)
+	select {
+	case ev := <-bobEv:
+		if ev.Kind == "assigned" {
+			t.Errorf("a re-assignment to the same member alerted again: %+v", ev)
+		}
+	case <-time.After(400 * time.Millisecond):
+	}
 	drain(aliceEv)
 	drain(bobEv)
 	visit("Hello?", token)

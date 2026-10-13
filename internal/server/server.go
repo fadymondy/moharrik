@@ -22,6 +22,7 @@ import (
 	"github.com/fadymondy/moharrik/internal/alerts"
 	"github.com/fadymondy/moharrik/internal/analytics"
 	"github.com/fadymondy/moharrik/internal/app"
+	"github.com/fadymondy/moharrik/internal/appsignin"
 	"github.com/fadymondy/moharrik/internal/audit"
 	"github.com/fadymondy/moharrik/internal/automation"
 	"github.com/fadymondy/moharrik/internal/channels"
@@ -296,6 +297,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	google.Register(api, a)
 	googlecontacts.Register(api, a) // Google Contacts import/sync REST (MH-585)
 	alerts.Register(api, a)
+	appsignin.Register(api, a)     // the Moharrik apps: browser sign-in and push devices (docs/apps-plan.md)
 	overview.Register(api, a)      // the workspace front page (MH-462)
 	home.Register(api, a)          // Home (MH-1062)
 	opportunities.Register(api, a) // Opportunity signals (MH-1065)

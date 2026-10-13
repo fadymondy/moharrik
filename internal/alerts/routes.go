@@ -54,6 +54,7 @@ type Device struct {
 
 type PushStatus struct {
 	Configured bool     `json:"configured" doc:"false when the server has no VAPID keys; push cannot be enabled."`
+	Native     bool     `json:"native" doc:"Whether the server can push to the Moharrik phone apps (an FCM service account is configured)."`
 	PublicKey  string   `json:"public_key" doc:"The VAPID public key: the browser's applicationServerKey."`
 	Devices    []Device `json:"devices"`
 }
@@ -238,7 +239,7 @@ func Register(api huma.API, a *app.App) {
 			return nil, err
 		}
 		v, ok := vapidFromEnv()
-		st := PushStatus{Configured: ok, Devices: []Device{}}
+		st := PushStatus{Configured: ok, Native: NativeConfigured(), Devices: []Device{}}
 		if ok {
 			st.PublicKey = v.Public
 		}
@@ -344,8 +345,8 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
-		if !Configured() {
-			return nil, huma.Error503ServiceUnavailable("web push is not configured on this server (VAPID keys)")
+		if !Configured() && !NativeConfigured() {
+			return nil, huma.Error503ServiceUnavailable("push is not configured on this server (VAPID keys or an FCM service account)")
 		}
 		res, n, err := PushTest(ctx, a, s.WorkspaceID, s.UserID)
 		if err != nil {
@@ -355,5 +356,45 @@ func Register(api huma.API, a *app.App) {
 			return nil, huma.Error409Conflict("push is not enabled on any of your devices in this workspace")
 		}
 		return out(PushTestResult{Result: res, Devices: n}), nil
+	})
+
+	// ---- what the caller wants pushed (web push and the apps) --------------
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-push-prefs", Method: http.MethodGet, Path: "/api/w/push/prefs",
+		Summary: "What the caller wants pushed to their devices from this workspace", Tags: tags,
+	}, func(ctx context.Context, _ *wsHeader) (*body[Prefs], error) {
+		s, err := scope(ctx, authz.PushManage)
+		if err != nil {
+			return nil, err
+		}
+		p, err := PrefsFor(ctx, db(), s.WorkspaceID, s.UserID)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not read your push preferences")
+		}
+		return out(p), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-push-prefs-set", Method: http.MethodPut, Path: "/api/w/push/prefs",
+		Summary: "Set what the caller wants pushed to their devices from this workspace", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Body Prefs
+	}) (*body[Prefs], error) {
+		s, err := scope(ctx, authz.PushManage)
+		if err != nil {
+			return nil, err
+		}
+		p := in.Body
+		if _, err := db().ExecContext(ctx, `
+			INSERT INTO push_prefs (workspace_id, user_id, messages, assigned_only, assignments, notifications)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (workspace_id, user_id) DO UPDATE SET messages = EXCLUDED.messages, assigned_only = EXCLUDED.assigned_only,
+			  assignments = EXCLUDED.assignments, notifications = EXCLUDED.notifications, updated_at = now()`,
+			s.WorkspaceID, s.UserID, p.Messages, p.AssignedOnly, p.Assignments, p.Notifications); err != nil {
+			return nil, huma.Error500InternalServerError("could not save your push preferences")
+		}
+		return out(p), nil
 	})
 }
