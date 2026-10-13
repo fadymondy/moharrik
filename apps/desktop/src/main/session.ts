@@ -112,10 +112,15 @@ export function setServer(url: string): SessionOut | null {
   const next = url.trim().replace(/\/+$/, "")
   if (!/^https?:\/\/[^\s/]+/.test(next)) throw new Error("invalid server URL")
   if (next !== server) {
+    // A device token belongs to the server that issued it: never send it to another one.
+    const wasSignedIn = signedIn
     server = next
+    token = null
+    signedIn = false
     workspace = null
     client = makeClient(server)
     persist()
+    if (wasSignedIn) emit("signed-out")
   }
   return current()
 }
