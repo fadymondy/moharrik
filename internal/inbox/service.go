@@ -48,11 +48,11 @@ type ConversationFilter struct {
 	Favourites bool
 	Groups     bool
 	LabelID    string
-	Status    string
-	Channel   string
-	Unread    bool
-	ContactID string
-	MailboxID string
+	Status     string
+	Channel    string
+	Unread     bool
+	ContactID  string
+	MailboxID  string
 	// CustomerEmail (MH-600) narrows the list to one sender, case-insensitive.
 	// Since MH-600's fold, a workspace has at most one email conversation per
 	// sender, so this mostly matters for other channels reusing the filter;
@@ -441,11 +441,11 @@ func Reply(ctx context.Context, a *app.App, id, text string, subjectOverride ...
 // attachment per reply, the same way WhatsApp itself sends one per message.
 type ReplyAttachment struct {
 	// Kind: image, video, document, voice or location.
-	Kind        string
-	Filename    string
-	ContentType string
-	Data        []byte
-	Lat, Lng    float64
+	Kind                          string
+	Filename                      string
+	ContentType                   string
+	Data                          []byte
+	Lat, Lng                      float64
 	LocationName, LocationAddress string
 }
 
@@ -741,6 +741,12 @@ func UpdateConversation(ctx context.Context, a *app.App, id string, p Conversati
 		}
 		u.set("assignee_user_id", nullable(*p.AssigneeUserID))
 	}
+	// Who had it before, so only a real hand-over to someone else alerts.
+	var prevAssignee sql.NullString
+	if p.AssigneeUserID != nil && *p.AssigneeUserID != "" && *p.AssigneeUserID != s.UserID {
+		_ = a.SQLDB.QueryRowContext(ctx, `SELECT assignee_user_id FROM conversations WHERE workspace_id = $1 AND id = $2`,
+			s.WorkspaceID, id).Scan(&prevAssignee)
+	}
 	if p.ContactID != nil {
 		u.set("contact_id", nullable(*p.ContactID))
 		// A member's choice, linking or unlinking, is final: the automatic
@@ -766,6 +772,9 @@ func UpdateConversation(ctx context.Context, a *app.App, id string, p Conversati
 			return nil, huma.Error404NotFound("conversation not found")
 		}
 		changed(ctx, a, s.WorkspaceID, realtime.Event{Kind: "conversation", ConversationID: id, AuthorUserID: s.UserID})
+		if p.AssigneeUserID != nil && *p.AssigneeUserID != "" && *p.AssigneeUserID != s.UserID && prevAssignee.String != *p.AssigneeUserID {
+			announceAssigned(ctx, a, s.WorkspaceID, id, *p.AssigneeUserID)
+		}
 		if status != "" {
 			// Closed or reopened: the visitor's widget shows the note (MH-382).
 			visitors.publish(id, "status")

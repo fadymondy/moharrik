@@ -53,7 +53,7 @@ func Emit(ctx context.Context, a *app.App, workspaceID string, ev realtime.Event
 	if a.Events != nil {
 		a.Events.Publish(workspaceID, ev)
 	}
-	if !ev.Alerting || !Configured() || a.SQLDB == nil {
+	if !ev.Alerting || (!Configured() && !NativeConfigured()) || a.SQLDB == nil {
 		return
 	}
 	// Detached from the request: the push outlives the handler that caused it.
@@ -62,7 +62,7 @@ func Emit(ctx context.Context, a *app.App, workspaceID string, ev realtime.Event
 		pctx, cancel := context.WithTimeout(bg, 60*time.Second)
 		defer cancel()
 		if _, err := Push(pctx, a, workspaceID, ev); err != nil && a.Log != nil {
-			a.Log.Warn("web push failed", "workspace", workspaceID, "kind", ev.Kind, "err", err)
+			a.Log.Warn("push failed", "workspace", workspaceID, "kind", ev.Kind, "err", err)
 		}
 	})
 }
@@ -91,15 +91,22 @@ type Payload struct {
 	ItemID         string `json:"item_id,omitempty"`
 }
 
-// Push sends ev to the devices of every active member it alerts.
+// Push sends ev to the devices of every active member it alerts — their
+// browsers (web push) and their phones (FCM, docs/apps-plan.md) — unless the
+// member's own push preferences in this workspace say otherwise.
 func Push(ctx context.Context, a *app.App, workspaceID string, ev realtime.Event) (Result, error) {
 	var res Result
-	v, ok := vapidFromEnv()
-	if !ok {
-		return res, errors.New("VAPID keys are not configured")
+	v, webOK := vapidFromEnv()
+	native, nativeOK := fcmFromEnv()
+	if !webOK && !nativeOK {
+		return res, errors.New("neither VAPID keys nor an FCM service account are configured")
 	}
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
 	viewers, err := activeMembers(sctx, a.SQLDB, workspaceID)
+	if err != nil {
+		return res, err
+	}
+	prefs, err := prefsOf(sctx, a.SQLDB, workspaceID)
 	if err != nil {
 		return res, err
 	}
@@ -109,36 +116,72 @@ func Push(ctx context.Context, a *app.App, workspaceID string, ev realtime.Event
 		if !ok || !mine.Alert {
 			continue
 		}
-		subs, err := subscriptionsOf(sctx, a.SQLDB, workspaceID, viewer.UserID)
-		if err != nil {
-			return res, err
+		p, saved := prefs[viewer.UserID]
+		if !saved {
+			p = DefaultPrefs
 		}
-		for _, s := range subs {
-			res.add(deliver(sctx, a.SQLDB, a.Log, v, workspaceID, s, payloadFor(mine, s.Locale, slug)))
+		if !p.wants(ev, viewer.UserID) {
+			continue
+		}
+		if webOK {
+			subs, err := subscriptionsOf(sctx, a.SQLDB, workspaceID, viewer.UserID)
+			if err != nil {
+				return res, err
+			}
+			for _, s := range subs {
+				res.add(deliver(sctx, a.SQLDB, a.Log, v, workspaceID, s, payloadFor(mine, s.Locale, slug)))
+			}
+		}
+		if nativeOK {
+			devs, err := nativeDevicesOf(sctx, a.SysDB, viewer.UserID)
+			if err != nil {
+				return res, err
+			}
+			for _, d := range devs {
+				res.add(deliverNative(sctx, a.SysDB, a.Log, native, d, nativeMessage(payloadFor(mine, d.Locale, slug), workspaceID, slug)))
+			}
 		}
 	}
 	return res, nil
 }
 
-// PushTest sends a test notification to one member's own devices in a workspace.
+// PushTest sends a test notification to one member's own devices in a
+// workspace: their browsers here, and their phones.
 func PushTest(ctx context.Context, a *app.App, workspaceID, userID string) (Result, int, error) {
 	var res Result
-	v, ok := vapidFromEnv()
-	if !ok {
-		return res, 0, errors.New("VAPID keys are not configured")
+	v, webOK := vapidFromEnv()
+	native, nativeOK := fcmFromEnv()
+	if !webOK && !nativeOK {
+		return res, 0, errors.New("neither VAPID keys nor an FCM service account are configured")
 	}
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
-	subs, err := subscriptionsOf(sctx, a.SQLDB, workspaceID, userID)
-	if err != nil {
-		return res, 0, err
-	}
 	slug := workspaceSlug(sctx, a.SQLDB, workspaceID)
-	for _, s := range subs {
-		p := Payload{Kind: "test", Title: say(s.Locale, "test.title"), Body: say(s.Locale, "test.body"),
-			URL: fmt.Sprintf("/%s/w/%s/settings/delivery", s.Locale, url.PathEscape(slug)), Tag: "moharrik-test"}
-		res.add(deliver(sctx, a.SQLDB, a.Log, v, workspaceID, s, p))
+	test := func(locale string) Payload {
+		return Payload{Kind: "test", Title: say(locale, "test.title"), Body: say(locale, "test.body"),
+			URL: fmt.Sprintf("/%s/w/%s/settings/delivery", locale, url.PathEscape(slug)), Tag: "moharrik-test"}
 	}
-	return res, len(subs), nil
+	n := 0
+	if webOK {
+		subs, err := subscriptionsOf(sctx, a.SQLDB, workspaceID, userID)
+		if err != nil {
+			return res, 0, err
+		}
+		for _, s := range subs {
+			res.add(deliver(sctx, a.SQLDB, a.Log, v, workspaceID, s, test(s.Locale)))
+		}
+		n += len(subs)
+	}
+	if nativeOK {
+		devs, err := nativeDevicesOf(sctx, a.SysDB, userID)
+		if err != nil {
+			return res, 0, err
+		}
+		for _, d := range devs {
+			res.add(deliverNative(sctx, a.SysDB, a.Log, native, d, nativeMessage(test(d.Locale), workspaceID, slug)))
+		}
+		n += len(devs)
+	}
+	return res, n, nil
 }
 
 // payloadFor writes the notification one device shows. Everything it says
@@ -154,6 +197,17 @@ func payloadFor(ev realtime.Event, locale, slug string) Payload {
 		}
 		return Payload{Kind: ev.Kind, Title: clip(title, 120), Body: clip(ev.Source, 120),
 			URL: base + "/notifications", Tag: "item-" + ev.ItemID, ItemID: ev.ItemID}
+	case "assigned":
+		body := say(locale, "assigned.body")
+		if ev.Sender != "" {
+			body = fmt.Sprintf(say(locale, "assigned.bodyFrom"), clip(ev.Sender, 60))
+		}
+		if ev.Snippet != "" {
+			body += " — " + clip(ev.Snippet, 120)
+		}
+		return Payload{Kind: "assigned", Title: say(locale, "assigned.title"), Body: body,
+			URL: base + "/inbox?c=" + url.QueryEscape(ev.ConversationID), Tag: "conv-" + ev.ConversationID,
+			ConversationID: ev.ConversationID}
 	default: // an inbound message
 		title := say(locale, "message.title")
 		if ev.Sender != "" {
@@ -170,6 +224,9 @@ var phrases = map[string]map[string]string{
 		"message.title":      "New message",
 		"message.titleFrom":  "New message from %s",
 		"notification.title": "New notification",
+		"assigned.title":     "Assigned to you",
+		"assigned.body":      "A conversation was assigned to you.",
+		"assigned.bodyFrom":  "The conversation with %s is yours now.",
 		"test.title":         "Moharrik test notification",
 		"test.body":          "Push notifications work on this device.",
 	},
@@ -177,6 +234,9 @@ var phrases = map[string]map[string]string{
 		"message.title":      "رسالة جديدة",
 		"message.titleFrom":  "رسالة جديدة من %s",
 		"notification.title": "إشعار جديد",
+		"assigned.title":     "أُسندت إليك",
+		"assigned.body":      "أُسندت إليك محادثة.",
+		"assigned.bodyFrom":  "المحادثة مع %s أصبحت لك.",
 		"test.title":         "إشعار تجريبي من محرّك",
 		"test.body":          "الإشعارات تعمل على هذا الجهاز.",
 	},

@@ -56,6 +56,29 @@ func announceInbound(ctx context.Context, a *app.App, workspaceID, convID, text 
 	alerts.Emit(ctx, a, workspaceID, ev)
 }
 
+// announceAssigned tells a member a teammate handed them a conversation: their
+// devices (web push and the apps), and nobody else. Never for assigning
+// oneself, and only when the assignee actually changed (UpdateConversation).
+func announceAssigned(ctx context.Context, a *app.App, workspaceID, convID, assignee string) {
+	if a == nil || a.SQLDB == nil {
+		return
+	}
+	sctx := tenant.WithWorkspace(ctx, workspaceID)
+	var channel, name, email, phone, last string
+	_ = a.SQLDB.QueryRowContext(sctx, `
+		SELECT c.channel, c.customer_name, c.customer_email, coalesce(c.customer_phone, ''),
+		       coalesce((SELECT m.body FROM messages m WHERE m.workspace_id = c.workspace_id AND m.conversation_id = c.id
+		                 ORDER BY m.created_at DESC LIMIT 1), c.subject, '')
+		FROM conversations c WHERE c.workspace_id = $1 AND c.id = $2`, workspaceID, convID,
+	).Scan(&channel, &name, &email, &phone, &last)
+	alerts.Emit(ctx, a, workspaceID, realtime.Event{
+		Kind: "assigned", ConversationID: convID, Channel: channel,
+		Sender: trim(firstNonEmpty(name, email, phone), 80), Snippet: trim(last, 160),
+		Permission: authz.InboxRead, Alerting: true, AlertOnly: assignee,
+		Muted: inboundPrefs(sctx, a.SQLDB, workspaceID, convID),
+	})
+}
+
 // changed tells the open tabs a conversation's state moved (read, assigned,
 // closed, replied to) so the bell and the inbox list stay in step. Never alerts.
 func changed(ctx context.Context, a *app.App, workspaceID string, ev realtime.Event) {
