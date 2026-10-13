@@ -1,0 +1,86 @@
+{
+  "name": "@moharrik/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Moharrik for Windows and macOS: the inbox, CRM and alerts in a native window, with a tray icon, the unread count and native notifications.",
+  "author": "Fady Mondy <info@3x1.io>",
+  "homepage": "https://moharrik.com",
+  "main": "dist/main.cjs",
+  "moharrik": {
+    "serverUrl": "https://app.moharrik.com"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "vite build && node scripts/build-main.mjs",
+    "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win",
+    "package:mac": "npm run build && electron-builder --mac",
+    "package:dir": "npm run build && electron-builder --dir",
+    "shots": "node scripts/shots.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config vitest.config.mts"
+  },
+  "devDependencies": {
+    "@moharrik/client": "*",
+    "@tanstack/react-query": "^5.103.1",
+    "@types/node": "^24.13.5",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "44.4.3",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "lucide-react": "^1.47.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  },
+  "build": {
+    "appId": "com.fadymondy.moharrik.desktop",
+    "productName": "Moharrik",
+    "copyright": "Copyright © 2026 Fady Mondy",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "asar": true,
+    "protocols": [
+      {
+        "name": "Moharrik",
+        "schemes": [
+          "moharrik"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "gatekeeperAssess": false,
+      "notarize": false
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Moharrik"
+    }
+  }
+}

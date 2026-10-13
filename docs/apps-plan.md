@@ -210,5 +210,30 @@ The Firebase project needs Android app `com.fadymondy.moharrik` and iOS app
    Windows build.
 
 **Safety.** `reply` sends real messages. During development the apps are pointed at a
-local stack (`EXPO_PUBLIC_API_URL` / `MOHARRIK_API_URL`), and nothing is sent to a real
+local stack (`EXPO_PUBLIC_MOHARRIK_URL` / `MOHARRIK_URL`), and nothing is sent to a real
 customer.
+
+## 7. Local testing (as built)
+
+- **Demo stack.** `node apps/scripts/demo-stack.mjs --seed` seeds a workspace ("Nile Studio")
+  on a local API (:8131) and serves a sign-in shim on :8130 that completes
+  `/{locale}/app-signin` for the demo user and redirects back to the app. Its state file
+  (`apps/scripts/.demo-state.json`, credentials and cookies) is gitignored.
+- **Desktop screenshots.** `node apps/desktop/scripts/shots.mjs --out <dir>` builds against
+  the shim, walks every screen (`src/main/shots.ts`) in AR and EN/dark, and posts a visitor
+  chat message so the native alert and tray badge fire.
+- **Android.** `MOHARRIK_LOCAL_HTTP=1 npx expo prebuild` (`plugins/with-local-http.js`) lets
+  a release APK reach `http://10.0.2.2:8130`; store builds never set it.
+
+### Gotchas (also for Hosbah)
+
+- Chromium 140+ makes `Element.scrollIntoView()` return a Promise. An arrow effect
+  `useEffect(() => el.scrollIntoView())` then returns that Promise as its "cleanup", and React
+  crashes (`destroy is not a function`) when the component unmounts. Use a braced body.
+- A parent process with `ELECTRON_RUN_AS_NODE=1` (VS Code, some terminals) makes Electron
+  start as plain Node. Delete it from the child env before spawning Electron.
+- A sandboxed renderer with `connect-src 'none'`: every API call and the SSE stream go
+  through the main process (`invoke("api", …)`), so tokens never reach the page.
+- On a fresh emulator, Chrome's first-run screen blocks the sign-in custom tab. Use
+  `/data/local/tmp/chrome-command-line` with `--disable-fre` plus
+  `am set-debug-app --persistent com.android.chrome`.
