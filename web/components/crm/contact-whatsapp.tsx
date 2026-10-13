@@ -111,7 +111,10 @@ export function ContactWhatsAppPanel({
             </p>
           ) : null}
           {optIn?.source && !data?.whatsapp_opt_out_at ? (
-            <p className="text-xs text-muted-foreground" data-whatsapp-opt-in-evidence={optIn.source}>
+            <p
+              className="text-xs text-muted-foreground"
+              data-whatsapp-opt-in-evidence={optIn.source}
+            >
               {t(`contactWa.optIn.source.${optIn.source}`)}
               {optIn.evidence_url ? (
                 <>
