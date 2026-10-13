@@ -27,7 +27,7 @@ export function ConversationRow({ c, onPress, assignee }: { c: Conversation; onP
             {ago(t, locale, c.last_message_at)}
           </Text>
         </View>
-        {c.subject ? (
+        {c.subject && c.subject !== c.preview ? (
           <Text size="sm" weight="medium" numberOfLines={1}>
             {c.subject}
           </Text>
