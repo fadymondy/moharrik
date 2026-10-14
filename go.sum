@@ -97,8 +97,6 @@ github.com/sergi/go-diff v1.3.1 h1:xkr+Oxo4BOQKmkn/B9eMK0g5Kg/983T9DqqPHwYqD+8=
 github.com/sergi/go-diff v1.3.1/go.mod h1:aMJSSKb2lpPvRNec0+w3fl7LP9IOFzdc9Pa4NFbPK1I=
 github.com/sosodev/duration v1.3.1 h1:qtHBDMQ6lvMQsL15g4aopM4HEfOaYuhWBw3NPTtlqq4=
 github.com/sosodev/duration v1.3.1/go.mod h1:RQIBBX0+fMLc/D9+Jb/fwvVmo0eZvDDEERAikUR6SDg=
-github.com/sqlc-dev/pqtype v0.3.0 h1:b09TewZ3cSnO5+M1Kqq05y0+OjqIptxELaSayg7bmqk=
-github.com/sqlc-dev/pqtype v0.3.0/go.mod h1:oyUjp5981ctiL9UYvj1bVvCKi8OXkCa0u645hce7CAs=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
@@ -106,8 +104,6 @@ github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWD
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/togo-framework/auth v0.8.2 h1:s0zKF5/a59w6AtjMFzAuMfoB/qdAf4Vh5n9BYJxCTgI=
 github.com/togo-framework/auth v0.8.2/go.mod h1:dPa8CdFlMGggb/PSHlhhqJvEqBelgf36t+qP/vkq2vQ=
-github.com/togo-framework/auth-oauth v0.2.1-0.20260923005224-2113e0d8757c h1:h/lKUHRyFSvgi85g3vNRQDZmGsztw94T+EExKLw92I8=
-github.com/togo-framework/auth-oauth v0.2.1-0.20260923005224-2113e0d8757c/go.mod h1:WD59z6wBKPT6BPbP4DyF7NeDxnR69dE9LYPrpeR1c6Q=
 github.com/togo-framework/cache v0.3.0 h1:COOKnJ+uo6lbhYOYugOwi/0BS7cwb9B45cRrmTkQc9Q=
 github.com/togo-framework/cache v0.3.0/go.mod h1:ctBGrqfx7/zK+Zrt269Etxa5VR9HBHpFl8usgWlXC4U=
 github.com/togo-framework/db-postgres v0.1.0 h1:6uNo5LVcRm2hRI7nW+YvQEV3Yo9FkfGCR0gPTtgSXEQ=

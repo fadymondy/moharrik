@@ -13,7 +13,6 @@ package plugins
 
 import (
 	_ "github.com/togo-framework/auth"
-	_ "github.com/togo-framework/auth-oauth"
 	_ "github.com/togo-framework/cache"
 	_ "github.com/togo-framework/db-postgres"
 	_ "github.com/togo-framework/i18n"

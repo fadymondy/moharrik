@@ -24,7 +24,18 @@ import { useDocumentTitle } from "@/lib/title"
 
 type OAuthProvider = { id: string; label: string; href: string }
 
-const KNOWN: Record<string, string> = { google: "Google", github: "GitHub" }
+const KNOWN: Record<string, string> = { google: "Google", github: "GitHub", apple: "Apple" }
+
+// Redirect codes the API puts in ?oauth_error= when a provider sign-in fails.
+const OAUTH_ERRORS = [
+  "failed",
+  "cancelled",
+  "expired",
+  "account_suspended",
+  "unavailable",
+  "no_email",
+  "email_unverified",
+]
 
 /*
   GET /api/auth/methods lists what the togo auth plugin has enabled. Its exact shape is read
@@ -47,7 +58,7 @@ function oauthProviders(data: unknown): OAuthProvider[] {
     let id = ""
     let href = ""
     if (typeof item === "string") {
-      const m = /^(?:oauth[:/])?(google|github)$/i.exec(item)
+      const m = /^(?:oauth[:/])?(google|github|apple)$/i.exec(item)
       if (m) id = m[1].toLowerCase()
     } else if (item && typeof item === "object") {
       const o = item as Record<string, unknown>
@@ -61,6 +72,14 @@ function oauthProviders(data: unknown): OAuthProvider[] {
     }
   }
   return out
+}
+
+function AppleMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4 fill-current">
+      <path d="M16.37 1.43c0 1.14-.46 2.22-1.2 3-.8.84-2.1 1.5-3.16 1.41-.13-1.1.42-2.25 1.16-3.01.82-.86 2.2-1.5 3.2-1.4zM20.9 17.1c-.52 1.2-.77 1.73-1.44 2.79-.93 1.48-2.25 3.32-3.88 3.33-1.45.02-1.82-.94-3.79-.93-1.97.01-2.38.95-3.83.94-1.63-.02-2.88-1.68-3.81-3.16C1.5 16 1.23 10.9 2.84 8.42c1.14-1.76 2.95-2.79 4.65-2.79 1.73 0 2.82.95 4.25.95 1.39 0 2.23-.95 4.24-.95 1.51 0 3.11.82 4.25 2.24-3.73 2.04-3.12 7.37.67 9.23z" />
+    </svg>
+  )
 }
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
@@ -103,6 +122,19 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       ].includes(hubCode)
       ? t(`auth.circlexoError.${hubCode}`)
       : t("auth.circlexoError.failed")
+    : null
+
+  // The API's own switches: "Forgot password?" only shows when it can actually send the mail.
+  const appMethods = useSWR("/api/auth/app/methods", (p: string) => api<{ password_reset?: boolean }>(p), {
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+  })
+  const canReset = mode === "login" && appMethods.data?.password_reset === true
+
+  // A failed provider sign-in comes back to /login?oauth_error=<code>.
+  const oauthCode = params.get("oauth_error")
+  const oauthError = oauthCode
+    ? t(`auth.oauthError.${OAUTH_ERRORS.includes(oauthCode) ? oauthCode : "failed"}`)
     : null
 
   async function onSubmit(e: FormEvent) {
@@ -183,8 +215,24 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               {mode === "register" ? (
                 <FieldDescription>{t("auth.passwordHint")}</FieldDescription>
               ) : null}
+              {canReset ? (
+                <Link
+                  href={`/${locale}/forgot-password`}
+                  className="text-caption text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  data-forgot-link
+                >
+                  {t("auth.forgotPassword")}
+                </Link>
+              ) : null}
             </Field>
-            {error || hubError ? <FieldError role="alert">{error ?? hubError}</FieldError> : null}
+            {error || hubError || oauthError ? (
+              <FieldError role="alert">{error ?? hubError ?? oauthError}</FieldError>
+            ) : null}
+            {mode === "login" && params.get("reset") === "1" ? (
+              <p className="text-caption text-muted-foreground" role="status" data-reset-done>
+                {t("auth.resetDone")}
+              </p>
+            ) : null}
             <Button type="submit" size="lg" disabled={busy || !email || !password}>
               {busy
                 ? t("common.working")
@@ -215,15 +263,24 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 key={p.id}
                 variant="secondary"
                 size="lg"
-                className="w-full"
+                // Apple's guideline: a black button, white mark and label.
+                className={
+                  p.id === "apple"
+                    ? "w-full border-black bg-black text-white hover:bg-black/85 hover:text-white"
+                    : "w-full"
+                }
                 nativeButton={false}
+                data-oauth-provider={p.id}
                 render={
                   <a
                     href={`${p.href}${p.href.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`}
                   />
                 }
               >
-                {t("auth.continueWith", { provider: p.label })}
+                {p.id === "apple" ? <AppleMark /> : null}
+                {p.id === "apple"
+                  ? t("auth.continueWithApple")
+                  : t("auth.continueWith", { provider: p.label })}
               </Button>
             ))}
           </div>

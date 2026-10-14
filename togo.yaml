@@ -13,5 +13,4 @@ module: github.com/fadymondy/moharrik
 name: moharrik
 plugins:
     - github.com/togo-framework/auth
-    - github.com/togo-framework/auth-oauth
     - github.com/togo-framework/ratelimit

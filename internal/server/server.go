@@ -15,8 +15,10 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/togo-framework/auth"
 	"github.com/togo-framework/togo"
 
+	"github.com/fadymondy/moharrik/internal/account"
 	"github.com/fadymondy/moharrik/internal/admin"
 	"github.com/fadymondy/moharrik/internal/ai"
 	"github.com/fadymondy/moharrik/internal/alerts"
@@ -148,6 +150,12 @@ func Boot() *app.App {
 	// the log: whoever set it expected it to do something (MH-439).
 	if google.FakeRefused() {
 		k.Log.Warn("GOOGLE_API_BASE is set but ignored: it is honoured only on a local, non-production APP_URL")
+	}
+
+	// Google and Apple sign-in, verifying an address and the account mail
+	// (internal/account; replaces the auth-oauth plugin).
+	if svc, ok := auth.FromKernel(k); ok {
+		account.Configure(k.Router, a, svc)
 	}
 
 	api := humachi.New(k.Router, apiConfig())
@@ -298,6 +306,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	googlecontacts.Register(api, a) // Google Contacts import/sync REST (MH-585)
 	alerts.Register(api, a)
 	appsignin.Register(api, a)     // the Moharrik apps: browser sign-in and push devices (docs/apps-plan.md)
+	account.Register(api, a)       // sign-up, password reset, email verification, deleting the account
 	overview.Register(api, a)      // the workspace front page (MH-462)
 	home.Register(api, a)          // Home (MH-1062)
 	opportunities.Register(api, a) // Opportunity signals (MH-1065)
