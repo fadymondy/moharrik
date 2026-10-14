@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { ago, alertText, channelName, parseLive, strings, translator } from "../index"
+import { ago, alertText, channelName, money, num, parseLive, stageName, strings, translator } from "../index"
 
 describe("strings", () => {
   it("Arabic and English have the same keys, none empty, same placeholders", () => {
@@ -51,5 +51,54 @@ describe("live events", () => {
     expect(ev?.kind).toBe("assigned")
     expect(ev?.conversation_id).toBe("c1")
     expect(parseLive({ event: "message", data: "not json" } as never)).toBeNull()
+  })
+})
+
+describe("stageName", () => {
+  it("translates the default pipeline's stages by name, whichever language seeded them", () => {
+    const en = translator("en")
+    const ar = translator("ar")
+    expect(["Lead", "Qualified", "Proposal", "Won", "Lost"].map((s) => stageName(ar, s))).toEqual(["عميل محتمل", "مؤهَّل", "عرض سعر", "تم الفوز", "خسارة"])
+    expect(stageName(en, "عرض سعر")).toBe("Proposal")
+    expect(stageName(en, " lead ")).toBe("Lead")
+  })
+
+  it("keeps a custom stage's own name", () => {
+    expect(stageName(translator("ar"), "Negotiation")).toBe("Negotiation")
+    expect(stageName(translator("en"), undefined)).toBe("")
+  })
+
+  it("labels a chip with locale digits", () => {
+    const ar = translator("ar")
+    expect(ar("deals.chip", { stage: stageName(ar, "Lead"), n: num("ar", 2) })).toBe("عميل محتمل · ٢")
+    expect(translator("en")("deals.chip", { stage: "Won", n: num("en", 1200) })).toBe("Won · 1,200")
+  })
+})
+
+describe("money", () => {
+  const LRM_RLM_ALM = /[‎‏؜]/
+
+  it("leaves English amounts as Intl writes them", () => {
+    expect(money("en", 2400000, "USD")).toBe("$24,000")
+    expect(money("en", 1250, "USD")).toBe("$12.50")
+  })
+
+  it("isolates Arabic amounts so the symbol can't flip around the number", () => {
+    const s = money("ar", 2400000, "USD")
+    expect(s).toBe("⁧٢٤٬٠٠٠ ⁨US$⁩⁩")
+    expect(s).not.toMatch(LRM_RLM_ALM)
+    expect(money("ar", 3000000, "USD")).toContain("٣٠٬٠٠٠")
+  })
+
+  it("keeps Arabic currency symbols whole and handles a missing currency", () => {
+    const egp = money("ar", 150000, "EGP")
+    expect(egp.startsWith("⁧١٬٥٠٠ ⁨")).toBe(true)
+    expect(egp).toContain("ج.م.")
+    expect(money("ar", null, undefined)).toBe("⁧٠ ⁨US$⁩⁩")
+  })
+
+  it("falls back to the code when Intl rejects the currency", () => {
+    expect(money("en", 500, "NOT-A-CODE")).toBe("5 NOT-A-CODE")
+    expect(money("ar", 500, "NOT-A-CODE")).toBe("⁧٥ ⁨NOT-A-CODE⁩⁩")
   })
 })

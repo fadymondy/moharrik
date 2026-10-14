@@ -4,7 +4,7 @@ import { Building2, Mail, MessageSquare, Phone } from "lucide-react-native"
 import { useMemo } from "react"
 import { ActivityIndicator, FlatList, Linking, View } from "react-native"
 
-import { ago, channelName, money, type ContactEvent } from "@moharrik/client"
+import { ago, channelName, money, stageName, type ContactEvent } from "@moharrik/client"
 
 import { BackButton } from "@/components/back"
 import { Tag } from "@/components/conversation-row"
@@ -92,7 +92,7 @@ export default function ContactScreen() {
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1}>{d.title}</Text>
                 <Text size="sm" tone="muted">
-                  {d.stage_name}
+                  {stageName(t, d.stage_name)}
                 </Text>
               </View>
               <Text weight="bold" tone="action">

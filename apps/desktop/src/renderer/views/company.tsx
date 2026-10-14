@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { Globe, MessageSquare } from "lucide-react"
 
-import { ago, channelName, money } from "@moharrik/client"
+import { ago, channelName, money, stageName } from "@moharrik/client"
 
 import { useNav, useSession } from "../app"
 import { api, invoke } from "../bridge"
@@ -64,7 +64,7 @@ export function CompanyScreen({ id }: { id: string }) {
                     <div key={d.id} className="row static" style={{ alignItems: "center" }}>
                       <span className="body">
                         <span className="ellipsis">{d.title}</span>
-                        <span className="small muted">{d.stage_name}</span>
+                        <span className="small muted">{stageName(t, d.stage_name)}</span>
                       </span>
                       <span className="b action">{money(locale, d.value_minor, d.currency)}</span>
                     </div>

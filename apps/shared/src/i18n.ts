@@ -154,6 +154,12 @@ const en = {
   "deals.move": "Move to stage",
   "deals.moved": "Moved to {stage}",
   "deals.count": "{n} deals",
+  "deals.chip": "{stage} · {n}",
+  "stage.lead": "Lead",
+  "stage.qualified": "Qualified",
+  "stage.proposal": "Proposal",
+  "stage.won": "Won",
+  "stage.lost": "Lost",
 
   "settings.title": "Settings",
   "settings.workspace": "Workspace",
@@ -374,6 +380,12 @@ const ar: Record<Key, string> = {
   "deals.move": "نقل إلى مرحلة",
   "deals.moved": "نُقلت إلى {stage}",
   "deals.count": "{n} صفقات",
+  "deals.chip": "{stage} · {n}",
+  "stage.lead": "عميل محتمل",
+  "stage.qualified": "مؤهَّل",
+  "stage.proposal": "عرض سعر",
+  "stage.won": "تم الفوز",
+  "stage.lost": "خسارة",
 
   "settings.title": "الإعدادات",
   "settings.workspace": "مساحة العمل",
@@ -476,18 +488,79 @@ export function ago(t: T, locale: Locale, iso: string | undefined | null, now = 
   return new Date(at).toLocaleDateString(locale === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short" })
 }
 
-/** Money from minor units (the API's value_minor) in the workspace currency. */
+// The server seeds every new workspace with the same five stages (internal/crm/crm.go
+// defaultStages), named in the workspace's language at the time. Those names map back to a stable
+// key so the app shows them in its own language; a stage the workspace renamed or added keeps the
+// name the server sends.
+const DEFAULT_STAGES: Record<string, "lead" | "qualified" | "proposal" | "won" | "lost"> = {
+  lead: "lead",
+  qualified: "qualified",
+  proposal: "proposal",
+  won: "won",
+  lost: "lost",
+  "عميل محتمل": "lead",
+  "مؤهَّل": "qualified",
+  "مؤهل": "qualified",
+  "عرض سعر": "proposal",
+  "تم الفوز": "won",
+  "خسارة": "lost",
+}
+
+/** A pipeline stage's display name: the default stages in the app's language, any other as named. */
+export function stageName(t: T, name: string | undefined | null): string {
+  const n = (name ?? "").trim()
+  const key = DEFAULT_STAGES[n.toLowerCase()] ?? DEFAULT_STAGES[n]
+  return key ? t(`stage.${key}`) : n
+}
+
+const intlLocale = (l: Locale) => (l === "ar" ? "ar-EG" : "en-US")
+
+/** A count in the locale's digits and grouping. */
+export function num(locale: Locale, n: number | undefined | null): string {
+  try {
+    return new Intl.NumberFormat(intlLocale(locale)).format(n ?? 0)
+  } catch {
+    return String(n ?? 0)
+  }
+}
+
+// Unicode bidi controls: the marks ICU puts in Arabic amounts, and the isolates we wrap them in.
+const BIDI_MARKS = /[\u200e\u200f\u061c]/g
+const RLI = "\u2067"
+const FSI = "\u2068"
+const PDI = "\u2069"
+const NUMBER_RUN = /[-\u2212]?[0-9\u0660-\u0669](?:[0-9\u0660-\u0669\u066b\u066c.,\s\u00a0\u202f]*[0-9\u0660-\u0669])?/
+
+/**
+ * Money from minor units (the API's value_minor) in the workspace currency.
+ *
+ * Arabic amounts come out of Intl as "‏٢٤٬٠٠٠ US$": a right-to-left mark, the number, then a
+ * Latin symbol. Laid out right to left the "$" (a weak character) jumps to the other side of "US"
+ * and the amount reads "$US ٢٤٬٠٠٠". So for Arabic the symbol goes in its own first-strong isolate
+ * (Latin symbols stay "US$", Arabic ones like "ج.م.‏" stay Arabic) and the whole amount in a
+ * right-to-left isolate, so it reads the same inside any sentence. English stays as Intl writes it.
+ */
 export function money(locale: Locale, minor: number | undefined | null, currency: string | undefined): string {
   const v = (minor ?? 0) / 100
+  const code = currency || "USD"
+  let s: string
   try {
-    return new Intl.NumberFormat(locale === "ar" ? "ar-EG" : "en-US", {
+    s = new Intl.NumberFormat(intlLocale(locale), {
       style: "currency",
-      currency: currency || "USD",
+      currency: code,
       maximumFractionDigits: v % 1 === 0 ? 0 : 2,
     }).format(v)
   } catch {
-    return `${v} ${currency ?? ""}`.trim()
+    s = `${num(locale, v)} ${code}`
   }
+  if (locale !== "ar") return s
+  s = s.replace(BIDI_MARKS, "").trim()
+  const m = NUMBER_RUN.exec(s)
+  if (!m) return `${RLI}${s}${PDI}`
+  const before = s.slice(0, m.index).trim()
+  const after = s.slice(m.index + m[0].length).trim()
+  const iso = (x: string) => (x ? `${FSI}${x}${PDI}` : "")
+  return `${RLI}${[iso(before), m[0], iso(after)].filter(Boolean).join(" ")}${PDI}`
 }
 
 /** The text of a desktop notification for a live event the server marked alert:true. */
