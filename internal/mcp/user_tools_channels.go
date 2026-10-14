@@ -18,6 +18,38 @@ Bot tokens and signing secrets are write-only: a tool that creates or updates
 a connection takes one, but nothing here ever reads one back.
 */
 
+// The connect tools' arguments. Every field carries its snake_case json tag:
+// encoding/json matches keys case-insensitively but never across an
+// underscore, so an untagged BotToken silently drops "bot_token".
+type telegramConnectArgs struct {
+	Name           string `json:"name"`
+	BotToken       string `json:"bot_token"`
+	AllowedChatIDs string `json:"allowed_chat_ids"`
+}
+
+type slackConnectArgs struct {
+	Name              string `json:"name"`
+	BotToken          string `json:"bot_token"`
+	SigningSecret     string `json:"signing_secret"`
+	AllowedChannelIDs string `json:"allowed_channel_ids"`
+}
+
+type discordConnectArgs struct {
+	Name              string `json:"name"`
+	BotToken          string `json:"bot_token"`
+	ApplicationID     string `json:"application_id"`
+	PublicKey         string `json:"public_key"`
+	AllowedGuildIDs   string `json:"allowed_guild_ids"`
+	AllowedChannelIDs string `json:"allowed_channel_ids"`
+}
+
+type workflowConnectArgs struct {
+	Name         string `json:"name"`
+	Network      string `json:"network"`
+	WorkflowID   string `json:"workflow_id"`
+	AllowReplies bool   `json:"allow_replies"`
+}
+
 func telegramSummary(c channels.TelegramChannel) map[string]any {
 	return map[string]any{
 		"id": c.ID, "name": c.Name, "bot_username": c.BotUsername, "has_token": c.HasToken,
@@ -148,7 +180,7 @@ func ChannelTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				var in struct{ Name, BotToken, AllowedChatIDs string }
+				var in telegramConnectArgs
 				if err := bind(raw, &in); err != nil {
 					return "", err
 				}
@@ -224,7 +256,7 @@ func ChannelTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				var in struct{ Name, BotToken, SigningSecret, AllowedChannelIDs string }
+				var in slackConnectArgs
 				if err := bind(raw, &in); err != nil {
 					return "", err
 				}
@@ -288,21 +320,22 @@ func ChannelTools() []Tool {
 		{
 			Name: "connect_discord_channel",
 			Description: "Add a Discord bot connection (a bot token from the developer portal's Bot page). Given a token, its gateway session " +
-				"starts at once — the gateway is the only way to receive ordinary messages and DMs. allowed_guild_ids/allowed_channel_ids are comma-separated; empty allows every guild/channel.",
+				"starts at once — the gateway is the only way to receive ordinary messages and DMs. allowed_guild_ids/allowed_channel_ids are comma-separated; empty allows every guild/channel. " +
+				"The allow-lists only filter server (guild) channels: DMs to the bot always reach the inbox.",
 			Scope: "inbox:manage",
 			InputSchema: schema([]string{"name", "bot_token"}, map[string]any{
 				"name": prop("string", "A label for this connection"), "bot_token": prop("string", "From the developer portal's Bot page"),
 				"application_id":      prop("string", ""),
 				"public_key":          prop("string", "For verifying interactions"),
 				"allowed_guild_ids":   prop("string", "Comma-separated guild ids; empty allows every guild"),
-				"allowed_channel_ids": prop("string", "Comma-separated channel ids; empty allows every channel in an allowed guild, plus DMs"),
+				"allowed_channel_ids": prop("string", "Comma-separated guild channel ids; empty allows every channel in an allowed guild. DMs are always allowed"),
 			}),
 			Run: func(ctx context.Context, a *app.App, raw json.RawMessage) (string, error) {
 				s, err := need(ctx)
 				if err != nil {
 					return "", err
 				}
-				var in struct{ Name, BotToken, ApplicationID, PublicKey, AllowedGuildIDs, AllowedChannelIDs string }
+				var in discordConnectArgs
 				if err := bind(raw, &in); err != nil {
 					return "", err
 				}
@@ -380,10 +413,7 @@ func ChannelTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				var in struct {
-					Name, Network, WorkflowID string
-					AllowReplies              bool
-				}
+				var in workflowConnectArgs
 				if err := bind(raw, &in); err != nil {
 					return "", err
 				}

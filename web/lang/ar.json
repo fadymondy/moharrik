@@ -1393,7 +1393,7 @@
   "channels.discord.gateway.connecting": "الـ Gateway: يتصل",
   "channels.discord.gateway.connected": "الـ Gateway: متصل",
   "channels.discord.allowedGuilds": "السيرفرات المسموح بها",
-  "channels.discord.allowedHint": "معرّفات مفصولة بفواصل. الحقل الفارغ يسمح بكل سيرفر/قناة يكون البوت فيها، بالإضافة إلى الرسائل المباشرة.",
+  "channels.discord.allowedHint": "معرّفات مفصولة بفواصل. الحقل الفارغ يسمح بكل سيرفر/قناة يكون البوت فيها. الرسائل المباشرة إلى البوت مسموحة دائمًا.",
   "channels.discord.addTitle": "إضافة بوت Discord",
   "channels.discord.addHint": "تبدأ جلسة الـ gateway فور حفظ الرمز.",
   "channels.discord.botToken": "رمز البوت",

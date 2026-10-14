@@ -8310,7 +8310,7 @@ export interface components {
              * @example https://example.com/schemas/DiscordBody.json
              */
             readonly $schema?: string;
-            /** @description Comma-separated channel ids; empty allows every channel in an allowed guild, plus DMs. */
+            /** @description Comma-separated guild channel ids; empty allows every channel in an allowed guild. DMs to the bot are always allowed. */
             allowed_channel_ids?: string;
             /** @description Comma-separated guild ids; empty allows every guild the bot is in. */
             allowed_guild_ids?: string;

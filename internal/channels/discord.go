@@ -280,6 +280,17 @@ func discordAllowed(allowList, id string) bool {
 	return false
 }
 
+// discordMessageAllowed applies a connection's allow-lists to one incoming
+// message. They only filter server (guild) traffic: a DM (no guild id) to the
+// bot always reaches the inbox, since its channel id is per-user and could
+// never sensibly be listed in advance.
+func discordMessageAllowed(guildID, channelID, allowedGuilds, allowedChannels string) bool {
+	if guildID == "" {
+		return true
+	}
+	return discordAllowed(allowedGuilds, guildID) && discordAllowed(allowedChannels, channelID)
+}
+
 // SendDiscordReply posts a reply into one connection's channel over the REST
 // API — this needs no gateway session, since posting a message is a plain
 // HTTP call — and returns Discord's own message id.
