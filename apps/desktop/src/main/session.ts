@@ -5,7 +5,8 @@
 // the app listens on 127.0.0.1 on a port the OS picks, opens <server>/<locale>/app-signin in the
 // person's own browser, and waits for the redirect to http://127.0.0.1:<port>/callback with a
 // one-time code. The code and the PKCE verifier (which never left this process) are traded for this
-// device's token, kept with safeStorage (store.ts).
+// device's token and its refresh token, kept with safeStorage (store.ts). The client renews the
+// token with the refresh token on a 401; when that is refused too, the session has expired.
 import { net, shell } from "electron"
 import { createHash, randomBytes } from "node:crypto"
 import { createServer } from "node:http"
@@ -27,6 +28,7 @@ let server = defaultServer()
 let email = ""
 let workspace: CurrentWorkspace | null = null
 let token: string | null = null
+let refresh: string | null = null
 let signedIn = false
 let client = makeClient(server)
 const listeners = new Set<Listener>()
@@ -50,6 +52,13 @@ function makeClient(url: string): MoharrikClient {
         persist()
       },
     },
+    refreshStore: {
+      get: async () => refresh,
+      set: async (t) => {
+        refresh = t
+        persist()
+      },
+    },
     onSignedOut: () => expire(),
     clientName: `desktop/${VERSION} (${process.platform})`,
   })
@@ -68,13 +77,14 @@ function emit(reason: Reason): void {
 }
 
 function persist(): void {
-  store.saveSession({ server, email, workspace }, token)
+  store.saveSession({ server, email, workspace }, token, refresh)
 }
 
 function expire(): void {
   if (!signedIn) return
   signedIn = false
   token = null
+  refresh = null
   persist()
   emit("expired")
 }
@@ -95,6 +105,7 @@ export async function restore(): Promise<void> {
   email = s.email
   workspace = s.workspace
   token = store.readToken(s)
+  refresh = store.readRefresh(s)
   client = makeClient(server)
   if (!token) return
   signedIn = true
@@ -104,6 +115,7 @@ export async function restore(): Promise<void> {
     if (e instanceof ApiError && e.status === 401) {
       signedIn = false
       token = null
+      refresh = null
     }
   }
 }
@@ -116,6 +128,7 @@ export function setServer(url: string): SessionOut | null {
     const wasSignedIn = signedIn
     server = next
     token = null
+    refresh = null
     signedIn = false
     workspace = null
     client = makeClient(server)
@@ -219,6 +232,7 @@ export async function signOut(): Promise<void> {
   }
   signedIn = false
   token = null
+  refresh = null
   workspace = null
   persist()
   emit("signed-out")

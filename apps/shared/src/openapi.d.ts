@@ -380,6 +380,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/app/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew an app's device token
+         * @description Trades the refresh token for a new device token and a new refresh token. The old refresh token stops working at once and the old device token a minute later. Refused (401) once the account is deleted or signed out everywhere, 403 while it is suspended. Public: the refresh token is the credential; rate-limited per client network.
+         */
+        post: operations["auth-app-refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/app/signin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign an app in with email and password
+         * @description 401 for a wrong email or password (which one is not said), 403 account_suspended. Rate-limited per client network and per address.
+         */
+        post: operations["auth-app-signin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/app/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an account from an app
+         * @description Creates the account, mails the link that confirms the address, and signs this device in. 409 email_taken when the address already has an account. Rate-limited per client network.
+         */
+        post: operations["auth-app-signup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/app/token": {
         parameters: {
             query?: never;
@@ -394,6 +454,26 @@ export interface paths {
          * @description The last step of signing a Moharrik app in through the browser: the one-time code from the redirect and the PKCE verifier the app kept. Returns a personal access token named for the device. Public: the code and its verifier are the credential; rate-limited per client network.
          */
         post: operations["auth-app-token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/email/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an address with the mailed link
+         * @description Public: the link's token is the credential. 400 link_invalid for a used, expired or unknown link.
+         */
+        post: operations["auth-email-verify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -434,6 +514,46 @@ export interface paths {
          * @description For a native Google Sign-In SDK: the id_token must be for one of the server's Google client ids (OAUTH_GOOGLE_AUDIENCES). Returns this device's token. Refusal codes as for Apple. Public; rate-limited per network.
          */
         post: operations["auth-native-google"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mail a password reset link
+         * @description Always 202, whether or not the address has an account, so the answer reveals nothing. The link works once, for an hour. 503 when this server cannot send mail. Rate-limited per client network and per address.
+         */
+        post: operations["auth-password-forgot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password with a reset link
+         * @description Sets the password, confirms the address (the link reached it) and signs the account out everywhere: every web session, app and device token. 400 link_invalid for a used, expired or unknown link.
+         */
+        post: operations["auth-password-reset"];
         delete?: never;
         options?: never;
         head?: never;
@@ -855,6 +975,26 @@ export interface paths {
         post?: never;
         /** Stop push to one of my app installs */
         delete: operations["remove-my-app-device"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/email/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mail the link that confirms my address again
+         * @description 409 already_verified; 503 mail_unavailable when this server cannot send mail.
+         */
+        post: operations["me-email-verification"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6275,6 +6415,15 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        "Auth-app-refreshRequest": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Auth-app-refreshRequest.json
+             */
+            readonly $schema?: string;
+            refresh_token: string;
+        };
         "Auth-app-tokenRequest": {
             /**
              * Format: uri
@@ -6285,6 +6434,34 @@ export interface components {
             code: string;
             code_verifier: string;
             redirect_uri: string;
+        };
+        "Auth-email-verifyRequest": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Auth-email-verifyRequest.json
+             */
+            readonly $schema?: string;
+            token: string;
+        };
+        "Auth-password-forgotRequest": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Auth-password-forgotRequest.json
+             */
+            readonly $schema?: string;
+            email: string;
+        };
+        "Auth-password-resetRequest": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Auth-password-resetRequest.json
+             */
+            readonly $schema?: string;
+            password: string;
+            token: string;
         };
         Bell: {
             /**
@@ -7781,6 +7958,18 @@ export interface components {
             added: number;
             source: components["schemas"]["SourceOut"];
         };
+        Credentials: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Credentials.json
+             */
+            readonly $schema?: string;
+            /** @description Shown in the person's device list, e.g. "Fady's iPhone". */
+            device?: string;
+            email: string;
+            password: string;
+        };
         Criterion: {
             values: string[] | null;
             /** Format: double */
@@ -7973,17 +8162,6 @@ export interface components {
              */
             readonly $schema?: string;
             device: components["schemas"]["AppDevice"];
-        };
-        DeviceSignIn: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/DeviceSignIn.json
-             */
-            readonly $schema?: string;
-            email: string;
-            /** @description This device's personal access token. Returned once; send it as Authorization: Bearer. */
-            token: string;
         };
         DevicesBody_270311: {
             /**
@@ -8220,6 +8398,15 @@ export interface components {
             id: string;
             list_name: string;
             subject: string;
+        };
+        EmailBody_2561be: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/EmailBody_2561be.json
+             */
+            readonly $schema?: string;
+            email: string;
         };
         EmailTemplateBody: {
             /**
@@ -12112,6 +12299,24 @@ export interface components {
             readonly $schema?: string;
             services: components["schemas"]["SMTPService"][] | null;
         };
+        Session: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Session.json
+             */
+            readonly $schema?: string;
+            email: string;
+            /**
+             * Format: date-time
+             * @description When the token stops working; refresh before then.
+             */
+            expires_at: string;
+            /** @description Trades for a new pair at POST /api/auth/app/refresh. One use. */
+            refresh_token: string;
+            /** @description This device's personal access token. Send it as Authorization: Bearer. */
+            token: string;
+        };
         SettingsBody_c42318: {
             /**
              * Format: uri
@@ -12895,17 +13100,6 @@ export interface components {
              * @description Null without notifications:read.
              */
             unread_notifications: number | null;
-        };
-        TokenEmailBody_67ab44: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/TokenEmailBody_67ab44.json
-             */
-            readonly $schema?: string;
-            email: string;
-            /** @description This device's personal access token. Returned once; send it as Authorization: Bearer. */
-            token: string;
         };
         TokenList: {
             /**
@@ -15926,6 +16120,105 @@ export interface operations {
             };
         };
     };
+    "auth-app-refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth-app-refreshRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "auth-app-signin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credentials"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "auth-app-signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credentials"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "auth-app-token": {
         parameters: {
             query?: never;
@@ -15945,7 +16238,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokenEmailBody_67ab44"];
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "auth-email-verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth-email-verifyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailBody_2561be"];
                 };
             };
             /** @description Error */
@@ -15978,7 +16304,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeviceSignIn"];
+                    "application/json": components["schemas"]["Session"];
                 };
             };
             /** @description Error */
@@ -16011,8 +16337,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeviceSignIn"];
+                    "application/json": components["schemas"]["Session"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "auth-password-forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth-password-forgotRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "auth-password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Auth-password-resetRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
@@ -17053,6 +17441,33 @@ export interface operations {
         responses: {
             /** @description No Content */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "me-email-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

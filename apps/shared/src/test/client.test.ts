@@ -85,6 +85,39 @@ describe("MoharrikClient", () => {
     expect(onSignedOut).toHaveBeenCalledTimes(1)
   })
 
+  it("renews an expired token once and retries", async () => {
+    const store = memStore("togo_pat_old")
+    const refreshStore = memStore("mrt_old")
+    const { f, calls } = fakeFetch((url, init) => {
+      if (url.endsWith("/api/auth/app/refresh")) {
+        expect(JSON.parse(String(init.body))).toEqual({ refresh_token: "mrt_old" })
+        return json({ token: "togo_pat_new", refresh_token: "mrt_new", email: "a@b.c", expires_at: "x" })
+      }
+      const auth = (init.headers as Record<string, string>).Authorization
+      return auth === "Bearer togo_pat_new" ? json({ unread: 0 }) : json({ title: "Unauthorized" }, 401)
+    })
+    const onSignedOut = vi.fn()
+    const c = new MoharrikClient({ baseUrl: "http://x", store, refreshStore, fetch: f, onSignedOut })
+    // Two calls fail together: one refresh serves both.
+    await Promise.all([api(c).bell(), api(c).bell()])
+    expect(calls.filter((x) => x.url.endsWith("/refresh"))).toHaveLength(1)
+    expect(store.value).toBe("togo_pat_new")
+    expect(refreshStore.value).toBe("mrt_new")
+    expect(onSignedOut).not.toHaveBeenCalled()
+  })
+
+  it("signs out when the refresh token is refused too", async () => {
+    const store = memStore("togo_pat_old")
+    const refreshStore = memStore("mrt_old")
+    const { f } = fakeFetch(() => json({ title: "Unauthorized" }, 401))
+    const onSignedOut = vi.fn()
+    const c = new MoharrikClient({ baseUrl: "http://x", store, refreshStore, fetch: f, onSignedOut })
+    await expect(api(c).bell()).rejects.toBeInstanceOf(ApiError)
+    expect(store.value).toBeNull()
+    expect(refreshStore.value).toBeNull()
+    expect(onSignedOut).toHaveBeenCalledTimes(1)
+  })
+
   it("returns undefined for 204", async () => {
     const { f } = fakeFetch(() => new Response(null, { status: 204 }))
     const c = new MoharrikClient({ baseUrl: "http://x", store: memStore("t"), fetch: f })

@@ -1,9 +1,11 @@
 // The signed-in state: the API client, this install's device token, and the chosen workspace.
 //
-// Sign-in (docs/apps-plan.md §2) runs in the system browser through an auth session, which
-// returns to moharrik://auth/callback; the code is traded for a device token (@moharrik/client
-// signin.ts). A 401 on any call means the token was revoked elsewhere: the client forgets it and
-// the app returns to sign-in.
+// Email and password sign-in and sign-up run in the app (POST /api/auth/app/signin, /signup);
+// Google, and Apple on Android, run in the system browser through an auth session, which returns
+// to moharrik://auth/callback, where the code is traded for a device token (@moharrik/client
+// signin.ts). Every sign-in also returns a refresh token; both live in the keystore. A 401 renews
+// the device token once; when that fails too (revoked elsewhere, signed out everywhere) the client
+// forgets both and the app returns to sign-in.
 import { useQueryClient } from "@tanstack/react-query"
 import * as AppleAuthentication from "expo-apple-authentication"
 import Constants from "expo-constants"
@@ -18,8 +20,11 @@ import {
   base64url,
   finishAppleSignIn,
   finishSignIn,
+  forgotPassword,
   MoharrikClient,
   readCallback,
+  signInWithPassword,
+  signUp,
   startSignIn,
   type Api,
   type PkceCrypto,
@@ -28,7 +33,7 @@ import {
 } from "@moharrik/client"
 
 import { usePrefs } from "./prefs"
-import { getJSON, KEYS, setJSON, tokenStore } from "./storage"
+import { getJSON, KEYS, refreshStore, setJSON, tokenStore } from "./storage"
 
 export const REDIRECT = "moharrik://auth/callback"
 const VERSION = Constants.expoConfig?.version ?? "0"
@@ -53,6 +58,10 @@ interface Session {
   signIn(provider?: SocialProvider): Promise<"ok" | "cancelled">
   /** Native Sign in with Apple (iOS). */
   signInWithApple(): Promise<"ok" | "cancelled">
+  /** Email and password, in the app; mode "up" creates the account. Throws ApiError on refusal. */
+  signInWithEmail(mode: "in" | "up", email: string, password: string): Promise<void>
+  /** Mails a reset link (the reset itself happens on the web page the link opens). */
+  forgotPassword(email: string): Promise<void>
   signOut(): Promise<void>
   /** Forget this install's sign-in locally (the account was deleted on the server). */
   forget(): Promise<void>
@@ -74,6 +83,7 @@ function makeClient(server: string, onSignedOut: () => void) {
   return new MoharrikClient({
     baseUrl: server,
     store: tokenStore,
+    refreshStore,
     onSignedOut,
     clientName: `mobile/${VERSION} (${Platform.OS})`,
   })
@@ -115,6 +125,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (next !== server) {
       // A device token belongs to the server that issued it: never send it to another one.
       await tokenStore.set(null)
+      await refreshStore.set(null)
       setStatus((s) => (s === "signedIn" ? "signedOut" : s))
     }
     await setJSON(KEYS.server, clean && clean !== defaultServer() ? clean : null)
@@ -163,6 +174,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return "ok"
   }, [client])
 
+  const signInWithEmail = useCallback(
+    async (mode: "in" | "up", email: string, password: string) => {
+      const o = { email: email.trim(), password, device: deviceName() }
+      await (mode === "up" ? signUp(client, o) : signInWithPassword(client, o))
+      setLost(false)
+      setStatus("signedIn")
+    },
+    [client],
+  )
+
+  const forgot = useCallback((email: string) => forgotPassword(client, email.trim()), [client])
+
   const forget = useCallback(async () => {
     await client.setToken(null)
     await setJSON(KEYS.workspace, null)
@@ -197,8 +220,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<Session>(
-    () => ({ status, server, client, api: api(client), workspace, lost, setServer, signIn, signInWithApple, signOut, forget, selectWorkspace }),
-    [status, server, client, workspace, lost, setServer, signIn, signInWithApple, signOut, forget, selectWorkspace],
+    () => ({
+      status,
+      server,
+      client,
+      api: api(client),
+      workspace,
+      lost,
+      setServer,
+      signIn,
+      signInWithApple,
+      signInWithEmail,
+      forgotPassword: forgot,
+      signOut,
+      forget,
+      selectWorkspace,
+    }),
+    [status, server, client, workspace, lost, setServer, signIn, signInWithApple, signInWithEmail, forgot, signOut, forget, selectWorkspace],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

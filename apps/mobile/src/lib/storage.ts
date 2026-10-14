@@ -1,4 +1,4 @@
-// Two stores: the device token in the OS keystore (Keychain / Android Keystore through
+// Two stores: the device and refresh tokens in the OS keystore (Keychain / Android Keystore through
 // expo-secure-store), everything else (workspace, language, appearance, server) in AsyncStorage.
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as SecureStore from "expo-secure-store"
@@ -6,22 +6,25 @@ import { Platform } from "react-native"
 
 import type { TokenStore } from "@moharrik/client"
 
-const TOKEN = "moharrik.token"
-
-export const tokenStore: TokenStore =
-  Platform.OS === "web"
+function secureStore(key: string): TokenStore {
+  return Platform.OS === "web"
     ? {
         // Web is a development preview only; it has no keystore.
-        get: async () => globalThis.sessionStorage?.getItem(TOKEN) ?? null,
-        set: async (v) => (v ? globalThis.sessionStorage?.setItem(TOKEN, v) : globalThis.sessionStorage?.removeItem(TOKEN)),
+        get: async () => globalThis.sessionStorage?.getItem(key) ?? null,
+        set: async (v) => (v ? globalThis.sessionStorage?.setItem(key, v) : globalThis.sessionStorage?.removeItem(key)),
       }
     : {
-        get: () => SecureStore.getItemAsync(TOKEN),
+        get: () => SecureStore.getItemAsync(key),
         set: async (v) => {
-          if (v) await SecureStore.setItemAsync(TOKEN, v, { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK })
-          else await SecureStore.deleteItemAsync(TOKEN)
+          if (v) await SecureStore.setItemAsync(key, v, { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK })
+          else await SecureStore.deleteItemAsync(key)
         },
       }
+}
+
+/** The device token (short-lived) and the refresh token that renews it. */
+export const tokenStore = secureStore("moharrik.token")
+export const refreshStore = secureStore("moharrik.refresh")
 
 export const KEYS = {
   workspace: "moharrik.workspace",
