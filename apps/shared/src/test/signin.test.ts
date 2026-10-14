@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto"
 import { describe, expect, it } from "vitest"
 
-import { base64url, challengeOf, finishSignIn, MoharrikClient, readCallback, startSignIn, type PkceCrypto } from "../index"
+import { ApiError, base64url, challengeOf, errorCode, finishSignIn, MoharrikClient, parseSignInOptions, readCallback, startSignIn, type PkceCrypto } from "../index"
 
 const nodeCrypto: PkceCrypto = {
   randomBytes: (n) => new Uint8Array(randomBytes(n)),
@@ -68,5 +68,42 @@ describe("app sign-in", () => {
     expect(r.email).toBe("a@b.c")
     expect(value).toBe("togo_pat_new")
     expect(sent).toEqual({ code: "mas_1", code_verifier: "v".repeat(43), redirect_uri: "moharrik://auth/callback" })
+  })
+})
+
+describe("social sign-in", () => {
+  it("reads the server's sign-in options, ignoring what it does not know", () => {
+    expect(
+      parseSignInOptions({
+        methods: [
+          { name: "apple", type: "oauth", url: "/api/auth/oauth/apple" },
+          { name: "apple", type: "native", url: "/api/auth/native/apple" },
+          { name: "google", type: "oauth", url: "/api/auth/oauth/google" },
+          { name: "github", type: "oauth" },
+          "junk",
+        ],
+      }),
+    ).toEqual({ appleWeb: true, appleNative: true, googleWeb: true })
+    expect(parseSignInOptions({ methods: [] })).toEqual({ appleWeb: false, appleNative: false, googleWeb: false })
+    expect(parseSignInOptions(null)).toEqual({ appleWeb: false, appleNative: false, googleWeb: false })
+  })
+
+  it("asks the sign-in page to go straight to a provider", async () => {
+    const crypto = {
+      randomBytes: (n: number) => new Uint8Array(n).fill(7),
+      sha256: async (d: Uint8Array) => new Uint8Array(createHash("sha256").update(d).digest()),
+    }
+    const p = await startSignIn({ serverUrl: "https://app.moharrik.com/", redirectUri: "moharrik://auth/callback", device: "Pixel", locale: "ar", crypto, provider: "google" })
+    const u = new URL(p.url)
+    expect(u.pathname).toBe("/ar/app-signin")
+    expect(u.searchParams.get("provider")).toBe("google")
+    const plain = await startSignIn({ serverUrl: "https://app.moharrik.com", redirectUri: "moharrik://auth/callback", device: "Pixel", locale: "en", crypto })
+    expect(new URL(plain.url).searchParams.has("provider")).toBe(false)
+  })
+
+  it("reads a refusal code from an API error", () => {
+    expect(errorCode(new ApiError(409, "conflict", { error: "x", code: "account_conflict" }))).toBe("account_conflict")
+    expect(errorCode(new ApiError(500, "boom"))).toBeUndefined()
+    expect(errorCode(new Error("x"))).toBeUndefined()
   })
 })

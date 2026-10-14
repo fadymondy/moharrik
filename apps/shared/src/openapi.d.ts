@@ -400,6 +400,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/native/apple": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign a Moharrik app in with Sign in with Apple (iOS)
+         * @description Takes the identity token and authorization code from the native Sign in with Apple sheet and the raw nonce the app generated; returns this device's token, like POST /api/auth/app/token. A refusal carries a code: account_conflict (an account with this address has a password — sign in with e-mail, then connect Apple), identity_taken, email_unverified, no_email, suspended, failed, not_configured. Public; rate-limited per network.
+         */
+        post: operations["auth-native-apple"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/native/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign a Moharrik app in with a native Google id_token
+         * @description For a native Google Sign-In SDK: the id_token must be for one of the server's Google client ids (OAUTH_GOOGLE_AUDIENCES). Returns this device's token. Refusal codes as for Apple. Public; rate-limited per network.
+         */
+        post: operations["auth-native-google"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/automation/extension": {
         parameters: {
             query?: never;
@@ -708,6 +748,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/account/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete my account and everything only I have (no undo)
+         * @description confirm must be the account's e-mail. Needs the password, or a sign-in within the last ten minutes (code reauth_required). Refused with code sole_owner while the caller is the only owner of a workspace that has other members. Workspaces where the caller is the only member are deleted with the account; Sign in with Apple is revoked at Apple; every session, app token and push registration ends.
+         */
+        post: operations["delete-my-account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/account/deletion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What deleting my account would do */
+        get: operations["my-account-deletion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/app-signin": {
         parameters: {
             query?: never;
@@ -778,6 +855,43 @@ export interface paths {
         post?: never;
         /** Stop push to one of my app installs */
         delete: operations["remove-my-app-device"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How I can sign in: password, CircleXO, and connected Google/Apple accounts */
+        get: operations["my-sign-in-methods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/identities/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect a Google or Apple account from mine (not the last way to sign in)
+         * @description Refused with code last_method when it is the only way left to sign in (no password, no other provider, no CircleXO). Disconnecting Apple also revokes Moharrik's Sign in with Apple authorization at Apple.
+         */
+        delete: operations["unlink-my-identity"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5593,6 +5707,20 @@ export interface components {
             readonly $schema?: string;
             workspace: components["schemas"]["WorkspaceOut"];
         };
+        AccountDeletion: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AccountDeletion.json
+             */
+            readonly $schema?: string;
+            blocking_workspaces: components["schemas"]["DeletionWorkspace"][] | null;
+            delete_workspaces: components["schemas"]["DeletionWorkspace"][] | null;
+            email: string;
+            /** @description Signed in within the last ten minutes: no password needed to confirm. */
+            fresh: boolean;
+            has_password: boolean;
+        };
         ActionDef: {
             params: components["schemas"]["ActionParam"][] | null;
             to_customer?: boolean;
@@ -6036,6 +6164,22 @@ export interface components {
             name: string;
             /** @enum {string} */
             platform: "ios" | "android";
+        };
+        AppleNativeInput: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AppleNativeInput.json
+             */
+            readonly $schema?: string;
+            authorization_code: string;
+            device?: string;
+            family_name?: string;
+            /** @description Apple shares the name on the first consent only. */
+            given_name?: string;
+            identity_token: string;
+            /** @description The raw nonce; Apple was given it or its sha256 hex. */
+            nonce: string;
         };
         ApproveOut: {
             /**
@@ -7779,6 +7923,25 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        DeleteAccountInput: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/DeleteAccountInput.json
+             */
+            readonly $schema?: string;
+            /** @description The account's e-mail address, typed by the person. */
+            confirm: string;
+            /** @description Required unless the session is fresh (signed in within ten minutes). */
+            password?: string;
+        };
+        DeletionWorkspace: {
+            id: string;
+            /** Format: int64 */
+            members: number;
+            name: string;
+            slug: string;
+        };
         Device: {
             /** Format: date-time */
             created_at: string;
@@ -7810,6 +7973,17 @@ export interface components {
              */
             readonly $schema?: string;
             device: components["schemas"]["AppDevice"];
+        };
+        DeviceSignIn: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/DeviceSignIn.json
+             */
+            readonly $schema?: string;
+            email: string;
+            /** @description This device's personal access token. Returned once; send it as Authorization: Bearer. */
+            token: string;
         };
         DevicesBody_270311: {
             /**
@@ -8418,6 +8592,16 @@ export interface components {
             docs: components["schemas"]["GalleryItem"][] | null;
             links: components["schemas"]["GalleryItem"][] | null;
             media: components["schemas"]["GalleryItem"][] | null;
+        };
+        GoogleNativeInput: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/GoogleNativeInput.json
+             */
+            readonly $schema?: string;
+            device?: string;
+            id_token: string;
         };
         GrantList: {
             /**
@@ -11965,6 +12149,33 @@ export interface components {
             done: boolean;
             /** @enum {string} */
             key: "inquiry_form" | "smtp" | "chat_widget" | "whatsapp" | "google" | "browser";
+        };
+        SignInIdentity: {
+            display_name: string;
+            email: string;
+            /** Format: date-time */
+            last_login_at: string;
+            /** Format: date-time */
+            linked_at: string;
+            /** @enum {string} */
+            provider: "google" | "apple";
+        };
+        SignInMethods: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SignInMethods.json
+             */
+            readonly $schema?: string;
+            /** @description Sign in with Apple is configured on this server (web). */
+            apple_available: boolean;
+            /** @description Signed in with CircleXO at least once (linked). */
+            circlexo: boolean;
+            email: string;
+            /** @description Sign in with Google is configured on this server. */
+            google_available: boolean;
+            has_password: boolean;
+            identities: components["schemas"]["SignInIdentity"][] | null;
         };
         SignalCounts: {
             /** Format: int64 */
@@ -15748,6 +15959,72 @@ export interface operations {
             };
         };
     };
+    "auth-native-apple": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleNativeInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceSignIn"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "auth-native-google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleNativeInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceSignIn"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "extension-build": {
         parameters: {
             query?: never;
@@ -16563,6 +16840,75 @@ export interface operations {
             };
         };
     };
+    "delete-my-account": {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string;
+            };
+            path?: never;
+            cookie?: {
+                togo_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccountInput"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "my-account-deletion": {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string;
+            };
+            path?: never;
+            cookie?: {
+                togo_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountDeletion"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     "me-app-signin": {
         parameters: {
             query?: never;
@@ -16700,6 +17046,64 @@ export interface operations {
             header?: never;
             path: {
                 id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "my-sign-in-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignInMethods"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    "unlink-my-identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "google" | "apple";
             };
             cookie?: never;
         };

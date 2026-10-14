@@ -131,6 +131,17 @@ export default function SettingsScreen() {
           <View style={{ padding: 16 }}>
             <Button title={t("settings.signOut")} kind="secondary" onPress={confirmSignOut} />
           </View>
+          <Row onPress={() => router.push("/delete-account")}>
+            <View style={{ flex: 1 }}>
+              <Text tone="danger" weight="medium">
+                {t("settings.deleteAccount")}
+              </Text>
+              <Text size="sm" tone="muted">
+                {t("settings.deleteAccountBody")}
+              </Text>
+            </View>
+            <Chevron size={20} color={c.muted} />
+          </Row>
         </Section>
 
         <Text size="xs" tone="muted" style={{ textAlign: "center", marginTop: 8 }}>

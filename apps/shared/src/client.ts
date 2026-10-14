@@ -163,8 +163,8 @@ async function problem(res: Response): Promise<ApiError> {
   let msg = `${res.status} ${res.statusText}`.trim()
   try {
     body = await res.json()
-    const b = body as { detail?: string; title?: string; errors?: { message?: string }[] }
-    msg = b.errors?.[0]?.message || b.detail || b.title || msg
+    const b = body as { error?: string; detail?: string; title?: string; errors?: { message?: string }[] }
+    msg = b.errors?.[0]?.message || b.error || b.detail || b.title || msg
   } catch {
     // Not JSON (a proxy's page): keep the status line.
   }

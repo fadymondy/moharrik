@@ -30,6 +30,12 @@ export function api(c: MoharrikClient) {
     devices: () => c.call("get", "/api/me/devices", { workspace: null }),
     registerDevice: (d: RegisterDevice) => c.call("post", "/api/me/devices", { body: d, workspace: null }),
     removeDevice: (id: string) => c.call("delete", "/api/me/devices/{id}", { path: { id }, workspace: null }),
+    signInMethods: () => c.call("get", "/api/me/identities", { workspace: null }),
+    /** What deleting the account would do (workspaces deleted with it, ones blocking it, fresh). */
+    accountDeletion: () => c.call("get", "/api/me/account/deletion", { workspace: null }),
+    /** Deletes the account for good. confirm is its e-mail; password unless signed in recently. */
+    deleteAccount: (confirm: string, password?: string) =>
+      c.call("post", "/api/me/account/delete", { workspace: null, body: { confirm, password } }),
 
     // Inbox
     conversations: (f: ConversationFilter = {}) =>
