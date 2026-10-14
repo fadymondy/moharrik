@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
-import { LogOutIcon, MessageSquarePlusIcon, ShieldCheckIcon, UserIcon } from "lucide-react"
+import {
+  LogOutIcon,
+  MessageSquarePlusIcon,
+  Settings2Icon,
+  ShieldCheckIcon,
+  UserIcon,
+} from "lucide-react"
 import {
   Button,
   DropdownMenu,
@@ -55,6 +61,10 @@ export function UserMenu({ email, onReport }: { email: string; onReport?: () => 
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => router.push(`/${locale}/account`)} data-account-link>
+          <Settings2Icon />
+          {t("header.accountSettings")}
+        </DropdownMenuItem>
         {platform.data?.is_admin ? (
           <DropdownMenuItem onClick={() => router.push(`/${locale}/admin`)} data-admin-link>
             <ShieldCheckIcon />

@@ -5,6 +5,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** The machine code some endpoints send next to the message ({"error", "code"}). */
+    public code?: string,
   ) {
     super(message)
     this.name = "ApiError"
@@ -37,18 +39,30 @@ export function resetCsrf() {
   csrfToken = null
 }
 
-async function errorMessage(res: Response): Promise<string> {
+async function errorInfo(res: Response): Promise<{ message: string; code?: string }> {
   try {
     const text = await res.text()
     try {
-      const data = JSON.parse(text) as { error?: string; message?: string; detail?: string }
-      return data.error || data.message || data.detail || text || res.statusText
+      const data = JSON.parse(text) as {
+        error?: string
+        message?: string
+        detail?: string
+        code?: unknown
+      }
+      return {
+        message: data.error || data.message || data.detail || text || res.statusText,
+        code: typeof data.code === "string" ? data.code : undefined,
+      }
     } catch {
-      return text || res.statusText || `Request failed (${res.status})`
+      return { message: text || res.statusText || `Request failed (${res.status})` }
     }
   } catch {
-    return res.statusText || `Request failed (${res.status})`
+    return { message: res.statusText || `Request failed (${res.status})` }
   }
+}
+
+async function errorMessage(res: Response): Promise<string> {
+  return (await errorInfo(res)).message
 }
 
 export type ApiOptions = {
@@ -90,7 +104,10 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
     if (/csrf/i.test(msg)) res = await send(true)
   }
 
-  if (!res.ok) throw new ApiError(res.status, await errorMessage(res))
+  if (!res.ok) {
+    const info = await errorInfo(res)
+    throw new ApiError(res.status, info.message, info.code)
+  }
   if (res.status === 204) return undefined as T
   const type = res.headers.get("content-type") ?? ""
   return (type.includes("json") ? await res.json() : await res.text()) as T
