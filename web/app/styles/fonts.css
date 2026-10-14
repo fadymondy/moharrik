@@ -1,27 +1,48 @@
-/* Lusail @font-face (Nasaq's Arabic stack names Lusail but does not ship it). Files live in ./fonts. */
+/* IBM Plex Sans Arabic @font-face (SIL OFL, files unmodified; Nasaq's Arabic stack does not ship it). Files live in ./fonts. */
 
 @font-face {
-  font-family: "Lusail";
-  src: url("./fonts/Lusail-Light.woff2") format("woff2");
+  font-family: "IBM Plex Sans Arabic";
+  src: url("./fonts/IBMPlexSansArabic-300.woff2") format("woff2");
   font-weight: 300;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC;
 }
 
 @font-face {
-  font-family: "Lusail";
-  src: url("./fonts/Lusail-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Lusail";
-  src: url("./fonts/Lusail-Regular.woff2") format("woff2");
+  font-family: "IBM Plex Sans Arabic";
+  src: url("./fonts/IBMPlexSansArabic-400.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  src: url("./fonts/IBMPlexSansArabic-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  src: url("./fonts/IBMPlexSansArabic-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  src: url("./fonts/IBMPlexSansArabic-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC;
 }
 
 @font-face {

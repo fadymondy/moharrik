@@ -69,8 +69,8 @@ export const MARK_CELLS: ReadonlyArray<readonly [number, number]> = [
 ]
 export const MARK_ACCENT_INDEX = 1
 
-/** Arabic is set in Lusail, English in Inter (web/app/styles/fonts.css, app/layout.tsx). */
-export const FONTS = { latin: "Inter", arabic: "Lusail" } as const
+/** Arabic is set in IBM Plex Sans Arabic, English in Inter (web/app/styles/fonts.css, app/layout.tsx). */
+export const FONTS = { latin: "Inter", arabic: "IBM Plex Sans Arabic" } as const
 
 export const APP = {
   name: "Moharrik",

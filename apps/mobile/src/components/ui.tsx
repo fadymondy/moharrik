@@ -27,7 +27,7 @@ import { usePrefs } from "@/lib/prefs"
 type Weight = "regular" | "medium" | "bold"
 
 const FAMILY: Record<"ar" | "en", Record<Weight, string>> = {
-  ar: { regular: "Lusail-Regular", medium: "Lusail-Medium", bold: "Lusail-Bold" },
+  ar: { regular: "IBMPlexSansArabic-Regular", medium: "IBMPlexSansArabic-Medium", bold: "IBMPlexSansArabic-Bold" },
   en: { regular: "Inter_400Regular", medium: "Inter_500Medium", bold: "Inter_700Bold" },
 }
 

@@ -1,7 +1,7 @@
 /* Design system: Nasaq (@fadymondy/nasaq), brand "moharrik" (set by <NasaqProvider> in
    components/providers.tsx). Tokens, the Tailwind theme bridge and the component styles come from
    the package; this file only adds what is specific to Moharrik's own screens.
-   app/styles/fonts.css holds the Lusail @font-face (Nasaq's Arabic stack names Lusail but does not ship it). */
+   app/styles/fonts.css holds the IBM Plex Sans Arabic @font-face (Nasaq's Arabic stack does not ship it). */
 @import "./styles/fonts.css";
 @import "tailwindcss" source(none);
 @source "../app";
@@ -15,7 +15,7 @@
 
 /* English UI is set in Inter, self-hosted by next/font (app/layout.tsx, --font-inter). */
 :root {
-  --nq-font-sans: var(--font-inter), Inter, Lusail, Alexandria, system-ui, sans-serif;
+  --nq-font-sans: var(--font-inter), Inter, "IBM Plex Sans Arabic", Alexandria, system-ui, sans-serif;
 }
 
 @theme inline {

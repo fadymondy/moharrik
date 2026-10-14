@@ -5,14 +5,13 @@
 - Icons, splash and the Android notification icon come from the Moharrik mark (web/app/icon.svg):
   seven squares of a 5x4 lattice, the second one gold. They are drawn here cell by cell instead of
   rasterising the SVG, so the output is pixel-exact at every size and needs no SVG renderer.
-- Lusail (the Arabic face) comes from web/public/fonts/lusail. The web ships only woff2, which React
-  Native cannot load, so it is unpacked to TTF.
+- IBM Plex Sans Arabic (the Arabic face, SIL OFL) is committed as unmodified TTFs in assets/fonts
+  (React Native cannot load woff2); this script does not touch fonts.
 
-The outputs are committed; rerun this only when the mark or the fonts change.
+The outputs are committed; rerun this only when the mark changes.
 """
 
 import os
-import sys
 
 from PIL import Image, ImageDraw
 
@@ -65,21 +64,5 @@ def icons():
     save(mark(48, PAPER, scale=0.8), "brand/favicon.png")
 
 
-def fonts():
-    try:
-        from fontTools.ttLib import TTFont
-    except ImportError:
-        sys.exit("fonts need fontTools and brotli: pip install fonttools brotli")
-    src = os.path.join(WEB, "public", "fonts", "lusail")
-    for weight in ("Regular", "Medium", "Bold"):
-        f = TTFont(os.path.join(src, f"Lusail-{weight}.woff2"))
-        f.flavor = None
-        path = os.path.join(OUT, "fonts", f"Lusail-{weight}.ttf")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        f.save(path)
-        print("wrote", os.path.relpath(path, ROOT))
-
-
 if __name__ == "__main__":
     icons()
-    fonts()
