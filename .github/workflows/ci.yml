@@ -96,3 +96,24 @@ jobs:
       - run: npm run build
       # grid:check needs the fadymondy.com-v2 checkout (packages/sync-grid.mjs); run it locally
       # with `make grid-check` until the grid is published as a package.
+
+  selfhost:
+    # Boots docker-compose.selfhost.yml exactly as the README tells people to, with throwaway secrets.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Boot the stack
+        run: |
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+            echo "MOHARRIK_APP_DB_PASSWORD=$(openssl rand -hex 24)"
+            echo "AUTH_SECRET=$(openssl rand -hex 32)"
+          } > .env.selfhost
+          docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost up -d --build --wait --wait-timeout 300
+      - name: Health
+        run: |
+          curl -fsS http://localhost:3000/api/health
+          curl -fsS -o /dev/null http://localhost:3000/
+      - name: Logs
+        if: failure()
+        run: docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost logs --no-color | tail -200

@@ -92,7 +92,7 @@ await page.waitForURL(/\/inbox\?c=/, { timeout: 20000 })
 await page.waitForSelector(`text=${text.slice(0, 40)}`, { timeout: 20000 })
 out.inInboxThread = true
 await page.screenshot({
-  path: "E:/Sites/fadymondy.com-v2/.setup/shots/MH-410-inbox-thread-en-light-1440.png",
+  path: "e2e-shots/MH-410-inbox-thread-en-light-1440.png",
 })
 
 // A second message continues the thread: no confirm step.

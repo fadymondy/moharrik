@@ -7792,7 +7792,7 @@
      "name": "phone",
      "label": "Phone",
      "required": true,
-     "help": "Digits with country code, no + (e.g. 201050028002)"
+     "help": "Digits only, country code first, no +"
     },
     {
      "name": "text",
@@ -7888,7 +7888,7 @@
      "name": "phone",
      "label": "Phone",
      "required": true,
-     "help": "Digits with country code, no + (e.g. 201050028002)"
+     "help": "Digits only, country code first, no +"
     }
    ],
    "steps": [

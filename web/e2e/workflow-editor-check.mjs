@@ -38,7 +38,7 @@ const web = (process.argv[2] ?? "http://localhost:3506").replace(/\/$/, "")
 const apiBase = (process.argv[3] ?? "http://localhost:8506").replace(/\/$/, "")
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.resolve(process.env.EXT_SRC ?? path.resolve(here, "../../extension"))
-const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 const APP_DB = process.env.APP_DB ?? "moharrik_f"
 
 // A copy of the extension whose manifest may reach the local hosts without

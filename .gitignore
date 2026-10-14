@@ -2,6 +2,7 @@
 *.exe
 .env
 .env.local
+.env.selfhost
 /internal/db/gen/
 /internal/graph/gen/
 /web/node_modules/
@@ -14,3 +15,4 @@
 /storage/
 *.log
 .DS_Store
+e2e-shots/

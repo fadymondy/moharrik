@@ -79,7 +79,7 @@ export async function call(page, method, p, body, wsId) {
   )
 }
 
-export const SHOTS = "E:/Sites/fadymondy.com-v2/.setup/shots"
+export const SHOTS = "e2e-shots"
 
 /**
  * Shoots a page in all eight combinations. `ready` is a selector the page

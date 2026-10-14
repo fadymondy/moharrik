@@ -9,7 +9,7 @@ import net from "node:net"
 import path from "node:path"
 
 const base = process.argv[2] ?? "http://localhost:3407"
-const shots = process.argv[3] ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const shots = process.argv[3] ?? "e2e-shots"
 mkdirSync(shots, { recursive: true })
 const SINK_PORT = 2526
 

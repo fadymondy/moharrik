@@ -21,7 +21,7 @@ const opt = (name, d) => {
 }
 const card = opt("shots", "")
 const base = (args[0] ?? "http://localhost:3520").replace(/\/$/, "")
-const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 const CHROME = process.env.E2E_CHROME ?? "C:/Program Files/Google/Chrome/Application/chrome.exe"
 
 // Sections in sidebar order; each row: [key, path, subs]. An owner sees every row and sub.

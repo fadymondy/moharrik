@@ -6,7 +6,7 @@ import { chromium } from "playwright-core"
 
 const [card = "MH-478-connect", webArg] = process.argv.slice(2)
 const web = (webArg ?? "http://localhost:3508").replace(/\/$/, "")
-const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 const CHROMIUM =
   process.env.EXT_CHROME ??
   "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"

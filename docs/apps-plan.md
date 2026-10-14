@@ -161,7 +161,7 @@ workspace while running:
 
 ### Reusable for Hosbah (sibling thread)
 
-These pieces are written to be copied as-is into `E:\Sites\cloudy`:
+These pieces are written to be copied as-is into the Hosbah repository:
 - `internal/alerts/fcm.go`: the sender has no Moharrik imports. `FCMFromEnv()`,
   `(*FCM).Send(ctx, token, Message)` and the dead-token error are its whole surface.
 - The `device_tokens` schema plus `POST/GET/DELETE /api/me/devices`.
