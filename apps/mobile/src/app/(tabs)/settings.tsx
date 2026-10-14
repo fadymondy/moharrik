@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as Application from "expo-application"
+import * as WebBrowser from "expo-web-browser"
 import { router } from "expo-router"
 import { ChevronRight, ChevronLeft } from "lucide-react-native"
 import { useEffect, useState } from "react"
 import { Alert, Linking, ScrollView, Switch, View } from "react-native"
 
-import type { PushPrefs } from "@moharrik/client"
+import { siteUrl, type PushPrefs, type SitePage } from "@moharrik/client"
 
 import { Avatar, Button, Header, Row, Screen, Section, Segmented, Text, useColors } from "@/components/ui"
 import { usePrefs, type ThemePref } from "@/lib/prefs"
@@ -55,6 +56,7 @@ export default function SettingsScreen() {
   }
 
   const Chevron = rtl ? ChevronLeft : ChevronRight
+  const openPage = (page: SitePage) => void WebBrowser.openBrowserAsync(siteUrl(locale, page)).catch(() => Linking.openURL(siteUrl(locale, page)))
   const p = prefs.data
   const setP = (k: keyof Omit<PushPrefs, "$schema">, v: boolean) => p && savePrefs.mutate({ ...p, [k]: v })
 
@@ -142,6 +144,21 @@ export default function SettingsScreen() {
             </View>
             <Chevron size={20} color={c.muted} />
           </Row>
+        </Section>
+
+        <Section title={t("settings.about")}>
+          {(
+            [
+              ["privacy", "settings.privacy"],
+              ["terms", "settings.terms"],
+              ["contact", "settings.support"],
+            ] as const
+          ).map(([page, key]) => (
+            <Row key={page} onPress={() => openPage(page)}>
+              <Text style={{ flex: 1 }}>{t(key)}</Text>
+              <Chevron size={20} color={c.muted} />
+            </Row>
+          ))}
         </Section>
 
         <Text size="xs" tone="muted" style={{ textAlign: "center", marginTop: 8 }}>

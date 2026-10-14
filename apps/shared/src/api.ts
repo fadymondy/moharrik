@@ -26,6 +26,8 @@ export function api(c: MoharrikClient) {
     /** togo's auth module serves this outside the OpenAPI document. */
     me: () => c.raw<Me>("get", "/api/auth/me", { workspace: null }),
     workspaces: () => c.call("get", "/api/me/workspaces", { workspace: null }),
+    /** Creates a workspace; the signed-in user becomes its owner. */
+    createWorkspace: (name: string) => c.call("post", "/api/me/workspaces", { workspace: null, body: { name } }),
     signOut: () => c.call("post", "/api/me/app-signout", { workspace: null }),
     devices: () => c.call("get", "/api/me/devices", { workspace: null }),
     registerDevice: (d: RegisterDevice) => c.call("post", "/api/me/devices", { body: d, workspace: null }),
@@ -50,6 +52,9 @@ export function api(c: MoharrikClient) {
       c.call("patch", "/api/w/conversations/{id}", { path: { id }, body: patch }),
     organise: (id: string, patch: OrganisePatch) =>
       c.call("patch", "/api/w/conversations/{id}/organise", { path: { id }, body: patch }),
+    /** Blocks (or unblocks) the customer: their messages are dropped and replies are off. Needs manager or above. */
+    setBlocked: (id: string, blocked: boolean) =>
+      c.call("patch", "/api/w/conversations/{id}/organise", { path: { id }, body: { blocked } }),
     labels: () => c.call("get", "/api/w/conversation_labels"),
     members: () => c.call("get", "/api/w/members"),
 

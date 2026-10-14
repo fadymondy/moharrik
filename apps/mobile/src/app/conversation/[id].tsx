@@ -1,13 +1,13 @@
 // One conversation: the thread, the reply box, and the actions the web's conversation toolbar
-// has (close/reopen, snooze, assign, labels, mark unread).
+// has (close/reopen, snooze, assign, labels, mark unread, block for managers and up).
 //
 // The reply box sends a REAL message to the customer on the conversation's channel (WhatsApp,
 // email, chat…). Test only against a test conversation or a local stack.
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { router, useLocalSearchParams } from "expo-router"
-import { ArrowLeft, ArrowRight, Check, Clock, MoreVertical, Paperclip, SendHorizontal, Tag as TagIcon, UserRound } from "lucide-react-native"
+import { ArrowLeft, ArrowRight, Ban, Check, Clock, MoreVertical, Paperclip, SendHorizontal, Tag as TagIcon, UserRound } from "lucide-react-native"
 import { useMemo, useState } from "react"
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, TextInput, View } from "react-native"
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, TextInput, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { ago, channelName, type ConversationPatch, type Message } from "@moharrik/client"
@@ -65,6 +65,11 @@ export default function ConversationScreen() {
   }
   const patch = useMutation({ mutationFn: (p: ConversationPatch) => api.updateConversation(id, p), onSuccess: invalidate })
   const organise = useMutation({ mutationFn: (labelIds: string[]) => api.organise(id, { label_ids: labelIds }), onSuccess: invalidate })
+  const block = useMutation({
+    mutationFn: (blocked: boolean) => api.setBlocked(id, blocked),
+    onSuccess: invalidate,
+    onError: () => banner({ title: t("inbox.blockFailed") }),
+  })
   const reply = useMutation({
     mutationFn: (body: string) => api.reply(id, body),
     onSuccess: () => {
@@ -115,6 +120,20 @@ export default function ConversationScreen() {
     setSheet(null)
   }
   const selected = new Set((conv.labels ?? []).map((l) => l.id))
+  // Blocking needs inbox:manage on the server: managers, admins and owners.
+  const canBlock = ["owner", "admin", "manager"].includes(workspace.role ?? "")
+  const blocked = !!conv.blocked
+  const toggleBlock = () => {
+    setSheet(null)
+    if (blocked) {
+      block.mutate(false)
+      return
+    }
+    Alert.alert(t("inbox.block"), t("inbox.blockBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("inbox.block"), style: "destructive", onPress: () => block.mutate(true) },
+    ])
+  }
 
   return (
     <Screen edges={["top"]}>
@@ -142,6 +161,11 @@ export default function ConversationScreen() {
           {t("inbox.snoozedUntil", { at: new Date(conv.snoozed_until).toLocaleString(locale === "ar" ? "ar-EG" : "en-GB") })}
         </Text>
       ) : null}
+      {blocked ? (
+        <Text size="sm" tone="danger" style={{ paddingHorizontal: 16, paddingVertical: 6 }}>
+          {t("inbox.blocked")}
+        </Text>
+      ) : null}
       {(conv.labels ?? []).length ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 16, paddingVertical: 6 }}>
           {(conv.labels ?? []).map((l) => (
@@ -167,6 +191,7 @@ export default function ConversationScreen() {
         <View style={{ borderTopWidth: 1, borderColor: c.line, backgroundColor: c.surface, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 + insets.bottom, gap: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
             <TextInput
+              editable={!blocked}
               value={draft}
               onChangeText={setDraft}
               placeholder={t("inbox.replyPlaceholder")}
@@ -191,7 +216,7 @@ export default function ConversationScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t("inbox.send")}
-              disabled={!draft.trim() || reply.isPending}
+              disabled={!draft.trim() || reply.isPending || blocked}
               onPress={() => reply.mutate(draft.trim())}
               style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: draft.trim() ? c.action : c.line }}
             >
@@ -226,6 +251,9 @@ export default function ConversationScreen() {
               router.push(`/contact/${conv.contact.id}`)
             }}
           />
+        ) : null}
+        {canBlock ? (
+          <Action icon={<Ban size={20} color={blocked ? c.fg : c.danger} />} label={blocked ? t("inbox.unblock") : t("inbox.block")} onPress={toggleBlock} />
         ) : null}
       </Sheet>
 
