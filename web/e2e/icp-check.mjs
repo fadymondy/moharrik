@@ -17,7 +17,7 @@ import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 
 const base = (process.argv[2] ?? "http://localhost:3512").replace(/\/$/, "")
-const shots = process.argv[3] ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const shots = process.argv[3] ?? "e2e-shots"
 const store = path.join(homedir(), ".moharrik-demo.json")
 const creds = JSON.parse(existsSync(store) ? readFileSync(store, "utf8") : "{}")[base] ?? {}
 const EMAIL = process.env.DEMO_EMAIL ?? creds.email ?? "demo@moharrik.com"

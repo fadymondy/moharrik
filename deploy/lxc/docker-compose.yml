@@ -1,7 +1,8 @@
-# Moharrik PRODUCTION on Proxmox LXC 121 (10.10.10.121), the same pattern as Mahaam (LXC 116).
-# The image is built on the workstation and loaded with `docker load` (no registry needed).
-# NPM forwards app.moharrik.com -> 10.10.10.121:3120 (the web; it proxies /api and /graphql
-# to the API inside the same container). The database is `moharrik` on pg-shared (LXC 102).
+# Moharrik in production on a single container host behind a reverse proxy (an alternative to
+# docker-compose.selfhost.yml when Postgres runs elsewhere). The image is built once and loaded
+# with `docker load` (no registry needed). The proxy forwards the public host -> <host>:3120 (the
+# web; it proxies /api and /graphql to the API inside the same container). DATABASE_URL and
+# APP_DATABASE_URL in .env.prod point at your Postgres.
 #
 #   migrate:  docker compose run --rm moharrik /app/bin/moharrik-migrate
 #   admin:    docker compose exec moharrik /app/bin/moharrik-admin …
@@ -16,16 +17,16 @@ services:
     environment:
       PORT: "3120"
       # The API binds all interfaces INSIDE the container so the port below can
-      # be published. It is published on the LXC's internal address only, so it
-      # is reachable from NPM (10.10.10.100) and from nowhere else.
+      # be published. Publish it on a private address only (MOHARRIK_WS_BIND),
+      # so it is reachable from the reverse proxy and from nowhere else.
       ADDR: "0.0.0.0:8120"
     ports:
       - "0.0.0.0:3120:3120"
       # The browser socket (MH-61) cannot go through the web app: /api/* is a
       # Next rewrite, and a Next rewrite cannot carry a protocol upgrade — it
-      # answers 500. NPM routes the single path /api/agents/ws straight here.
+      # answers 500. The proxy routes the single path /api/agents/ws straight here.
       # Everything else still goes through :3120.
-      - "10.10.10.121:8121:8120"
+      - "${MOHARRIK_WS_BIND:-127.0.0.1}:8121:8120"
     volumes:
       # Uploads, mail (.eml) and logs survive a redeploy (force-recreate).
       - moharrik-storage:/app/storage

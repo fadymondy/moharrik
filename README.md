@@ -1,169 +1,144 @@
-# Moharrik
+<div align="center">
 
-**Moharrik (محرّك)** — the AI engine behind a business. A business connects its channels and
-accounts; Moharrik watches (notifications, trends, research), acts (automation), talks to
-customers (chat, email, WhatsApp) and remembers them (CRM) — every capability an MCP tool.
-Bilingual (Arabic + English). Domain: moharrik.com.
+<img src="docs/assets/logo.png" alt="Moharrik" width="640" />
 
-Built on [ToGO](https://github.com/togo-framework) (Go: chi + Huma + gqlgen + sqlc + Postgres)
-and Next.js 16 on the fadymondy.com grid. Product brief: `fadymondy.com-v2/.setup/handoffs/moharrik.md`.
-Scaffold: extracted from Mahaam's P0 (workspaces, members, invitations, MCP tokens, RLS).
+# Moharrik — محرّك
 
-**Status: P0 — local development only.** No deploy, no DNS.
+**The open-source AI engine behind a business: connect your channels and accounts, and Moharrik watches (notifications, trends, research), acts (automation), talks to customers (chat, email, WhatsApp) and remembers them (CRM). Every capability is an MCP tool, so your AI agents can do it too.**
 
-## Ports (local dev)
+[![CI](https://github.com/fadymondy/moharrik/actions/workflows/ci.yml/badge.svg)](https://github.com/fadymondy/moharrik/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/BMERkavdVq)
+[![GitHub stars](https://img.shields.io/github/stars/fadymondy/moharrik?style=social)](https://github.com/fadymondy/moharrik/stargazers)
 
-| What | Port |
+[Website](https://moharrik.com) · [Architecture](docs/architecture.md) · [Discord](https://discord.gg/BMERkavdVq) · [Discussions](https://github.com/fadymondy/moharrik/discussions) · [Issues](https://github.com/fadymondy/moharrik/issues)
+
+</div>
+
+## Features
+
+- **Unified inbox**: website chat widget, email mailboxes and WhatsApp conversations in one place,
+  with labels, assignment, snoozing and canned replies. Alerts can go to Slack, Telegram and Discord.
+- **CRM**: contacts, companies, deals on a pipeline, activities and timelines. Includes vCard and CSV
+  import/export and Google Contacts sync.
+- **Leads**: embeddable inquiry forms that capture UTM and click IDs. One click converts a lead into
+  a contact, a company and a deal.
+- **Email marketing**: lists with per-list double opt-in, campaigns, templates and per-workspace
+  SMTP. Includes RFC 8058 one-click unsubscribe.
+- **Automation**: rules and workflows, plus a browser extension that records and replays steps from
+  a library of preset automations. Steps that publish or send are always marked.
+- **Watch the world**: a notification center, trend sources, scheduled research and prospect
+  discovery, plus Google Search Console, GA4 and YouTube analytics.
+- **AI agents over MCP**: a workspace MCP server with explicit scopes (no wildcards). Tokens are
+  narrowed to the user's current role on every call, so Claude, ChatGPT and friends work under the
+  same permissions as a person. OAuth connectors are included.
+- **Multi-tenant and secure by default**: workspaces with owner/admin/manager/member/client roles,
+  default-deny routes, and Postgres row-level security on every tenant table.
+- **Bilingual**: English and Arabic (RTL), light and dark.
+
+## Quick start
+
+### Hosted
+
+To try Moharrik without installing anything, use the hosted version at
+**[moharrik.com](https://moharrik.com)**. Sign up, create a workspace and connect a channel.
+
+### Self-host with Docker Compose
+
+Requirements: Docker with Compose v2.
+
+```bash
+git clone https://github.com/fadymondy/moharrik.git && cd moharrik
+cp .env.selfhost.example .env.selfhost
+# fill in POSTGRES_PASSWORD, MOHARRIK_APP_DB_PASSWORD and AUTH_SECRET
+# (generate each with: openssl rand -hex 32)
+docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost up -d --build
+```
+
+Open http://localhost:3000, register and create a workspace. The stack runs Postgres 17 and a
+one-shot migration job. A single app container serves the Go API and the Next.js web on one port.
+For a public deployment:
+
+- put a TLS reverse proxy in front;
+- set `APP_URL` to the public origin;
+- set `COOKIE_SECURE=1`.
+
+Every other setting is documented in [`.env.example`](.env.example): mail, AI providers, research,
+Google, push notifications and the CircleXO app store.
+
+To make yourself a platform admin (for the admin MCP server):
+
+```bash
+docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost exec app /app/bin/moharrik-admin promote you@example.com
+```
+
+### Local development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md#local-setup) and the "Run it" section of
+[docs/architecture.md](docs/architecture.md#run-it).
+
+## Architecture
+
+```
+   browser · chat widget · browser extension · MCP clients
+                        │  one origin: /api, /graphql, /api/mcp, pages
+          ┌─────────────▼──────────────────────────────────────────────┐
+          │ Go API (ToGO: chi + Huma REST + gqlgen + sqlc)               │
+          │  default-deny guard → tenant scope → authz → handlers       │
+          │  inbox · CRM · leads · marketing · automation · research    │
+          │  MCP (user + admin) · background workers                    │
+          │  proxies every other path to Next.js (same container)       │
+          └──────────────┬─────────────────────────────────────────────┘
+                         │ owner pool + RLS app pool (moharrik_app)
+                  ┌──────▼───────┐
+                  │  PostgreSQL  │  FORCE row-level security per workspace
+                  └──────────────┘
+```
+
+| Path | What |
 |---|---|
-| API (Go) | **8120** — REST `/api`, GraphQL `/graphql`, docs `/docs`, MCP `/api/mcp`, admin MCP `/api/admin/mcp` |
-| Web (Next dev) | **3120** — proxies `/api/*` and `/graphql` to 8120 |
-| Postgres (docker compose, container `moharrik-postgres`) | **55470** — databases `moharrik`, `moharrik_test` |
+| `cmd/api`, `cmd/migrate`, `cmd/moharrik-admin` | API (and worker), migrator, platform admin CLI |
+| `internal/server`, `internal/tenant`, `internal/authz` | Default-deny guard, workspace scope and RLS pool, permissions |
+| `internal/inbox`, `internal/channels`, `internal/whatsapp` | Conversations and channels |
+| `internal/crm`, `internal/contacts`, `internal/leads` | CRM and leads |
+| `internal/marketing` | Lists, campaigns, double opt-in, SMTP |
+| `internal/automation`, `internal/rules`, `extension/` | Automation, rules and the browser extension |
+| `internal/research`, `internal/trends`, `internal/notifications` | Research, trends, notification center |
+| `internal/mcp` | User and admin MCP servers, OAuth |
+| `internal/db/schema`, `internal/db/post` | Schema and post-migration SQL (RLS, roles, constraints) |
+| `web/` | Next.js app (en/ar) |
 
-## Run it
+Moharrik is built on [ToGO](https://github.com/togo-framework), an API-first Go + React framework.
+The engineering notebook in **[docs/architecture.md](docs/architecture.md)** covers tenancy and RLS,
+MCP, the modules and framework notes.
 
-```bash
-cp .env.example .env           # set the moharrik_app password and AUTH_SECRET
-make db                        # Postgres on :55470
-make migrate                   # schema, app role, FKs, RLS (idempotent)
-make api                       # :8120
-make web                       # :3120  (first time: cd web && npm install)
-```
+## Documentation
 
-Open http://localhost:3120 → register → create a workspace.
+- [Architecture and engineering notes](docs/architecture.md)
+- [MCP agent provider](docs/mcp/agent-provider.md) · [CircleXO integration](docs/circlexo.md)
+- API reference: run the API and open `/docs` (OpenAPI)
 
-Admin MCP bootstrap (after registering in the UI):
+## Contributing
 
-```bash
-go run ./cmd/moharrik-admin promote you@example.com
-go run ./cmd/moharrik-admin token you@example.com -name "claude" -scopes admin:workspaces:read,admin:users:read
-```
+Bug reports, docs and code contributions are all welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md), which covers setup, conventions and the DCO sign-off. Then look
+for a [`good first issue`](https://github.com/fadymondy/moharrik/labels/good%20first%20issue). AI
+coding agents should start with [AGENTS.md](AGENTS.md).
 
-User MCP tokens are minted in the app: Workspace → MCP tokens.
+## Community
 
-## Tests
+- [Discord](https://discord.gg/BMERkavdVq): chat with the team and other users
+- [GitHub Discussions](https://github.com/fadymondy/moharrik/discussions): questions, ideas, show and tell
+- [Issues](https://github.com/fadymondy/moharrik/issues/new/choose): bugs and feature requests
+- Security reports: see [SECURITY.md](SECURITY.md)
 
-```bash
-make test       # unit + CI guards: every MCP tool has a scope; every sqlc query on a
-                # tenant table carries workspace_id = $n; authz matrix; slugs
-make test-e2e   # boots the real stack on moharrik_test and sweeps EVERY route as
-                # anonymous / non-member / other-workspace member (+ MCP checks)
-make grid-check # generated grid copies match fadymondy.com-v2
-```
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## Tenancy
+## License
 
-- `workspaces`, `workspace_members` (owner/admin/manager/member/client), `invitations`;
-  `workspace_id` on every tenant row. Web routes `/[locale]/w/{slug}`; the API reads
-  `X-Workspace-ID` (id or slug). Not a member → **404**, no session → **401**.
-- One default-deny guard (`internal/server/guard.go`) wraps every route incl. plugin routes.
-  Generated CRUD sits in the workspace tier **and** behind `authz.Generated`
-  (`internal/authz/can.go`), which is itself default-deny per table. Tenancy tables are
-  read-only through generated CRUD; membership changes go through `/api/w/*` and `/api/me/*`.
-- **RLS**: two pools. `DATABASE_URL` = owner (migrations, auth, tenant resolution, admin MCP,
-  explicit predicates everywhere). `APP_DATABASE_URL` = `moharrik_app` (no superuser, no
-  BYPASSRLS, owns nothing, no grant on `users`/`admin_mcp_tokens`). Every ORM/generated query
-  runs on the app pool, whose connection wrapper (`internal/tenant/rlsdb.go`) runs
-  `set_config('app.workspace_id', …)` before each statement. Boot refuses to start if the app
-  role could bypass RLS.
+Copyright (C) 2026 Fady Mondy. Moharrik is free software, licensed under the
+[GNU Affero General Public License v3.0](LICENSE). If you run a modified version as a network
+service, you must offer its source to your users. Third-party components keep their own licenses.
 
-## Email marketing (first product module)
-
-Ported from fadymondy.com-v2 (`internal/mail`, subscribe/confirm/unsubscribe, campaigns) into
-`internal/marketing`, per workspace:
-
-- Tables `mail_lists`, `contacts`, `list_subscriptions` (per-list consent: pending → subscribed /
-  unsubscribed / bounced), `campaigns`, `smtp_settings` — all `workspace_id`, FORCE RLS, in `TenantTables`.
-- Endpoints under `/api/w/` (app pool + explicit `workspace_id`), authz actions `contacts:*`,
-  `campaigns:*`, `mail:settings` (members keep contacts, managers send, admins own SMTP).
-- Double opt-in: adding a contact to a double-opt-in list emails a confirm link; the public
-  `/{locale}/mail/confirm` and `/{locale}/mail/unsubscribe` pages act only on a click
-  (`POST /api/mail/confirm|unsubscribe`, token = authorization; RFC 8058 one-click header).
-  Links use `PUBLIC_URL`, else `APP_URL` — set it to the **web** origin.
-- SMTP per workspace (Settings → Email sending); password AES-GCM sealed with a key derived from
-  `AUTH_SECRET`, never returned. Campaigns send in the background with progress on the row.
-- `node web/e2e/marketing-check.mjs [base]` drives it end to end with a local SMTP sink on :2525.
-
-## Leads (MH-390)
-
-- **Inquiry forms** are `subscribe_forms` rows with `kind = 'inquiry'` (no list), created on the
-  Website forms page. Their embed snippet captures UTM parameters, gclid, referrer and landing page
-  in the visitor's browser and posts to the public `POST /api/inquiry/{key}` — the same gate as the
-  subscribe form (`marketing.ResolvePublicForm`: key of the right kind, form on, Origin on the
-  allow-list, empty allows nothing), a honeypot (`nickname`), rate limits per client address and per
-  form, and one identical answer for new and known addresses.
-- Each lead lands in `leads` (RLS, `internal/db/post/32_leads.sql`) and raises a notification-center
-  item. The Leads page filters by status and searches; **Convert** makes the contact (deduped on
-  email), the company from the email domain (never for free mail — `internal/leads/freemail.go`),
-  a deal on the first open stage and the message as its first activity.
-- MCP: `list_leads`, `get_lead` (`leads:read`), `update_lead`, `convert_lead` (`leads:write`;
-  `convert_lead` also needs `contacts:write`).
-
-## MCP
-
-- **User MCP** `POST /api/mcp` — `mhr_` tokens owned by a user in a workspace, SHA-256 hashed,
-  explicit scopes (no wildcard), narrowed to the user's *current* role on every call; same
-  `tenant.Scope`, authz and RLS as the browser. Tools (P0): `whoami`, `list_members`.
-  Scopes for the coming tools (contacts, inbox, campaigns, automation, notifications, research,
-  trends) can be minted now and grant nothing until a tool declares them.
-- **Admin MCP** `POST /api/admin/mcp` — `mhra_` tokens, only for platform admins
-  (`users.roles` contains `admin`, re-checked per call). Tools: `list_workspaces`, `get_workspace`, `update_workspace`, `add_member`, `set_member_role`,
-  `remove_member`, `list_users`, `get_user`.
-- Transport ported from fadymondy.com-v2 `internal/mcp`; its opt-in scope weakness (FM-22) is
-  inverted: a tool without a scope fails the build (`scopes_test.go`) and is denied at dispatch.
-  Protocol `2024-11-05`, also negotiates `2025-03-26` / `2025-06-18`.
-- **Dedicated host (MH-516)** — `MCP_PUBLIC_URL`, e.g. `https://mcp.moharrik.com`, gives the
-  same user MCP a second, easier-to-connect entry point: its root path (`POST /`, no `/api/mcp`
-  suffix) is the transport, and `/.well-known/oauth-protected-resource` (+ trailing-slash) is
-  served there too — everything else on that host is a 404, even the legacy `/api/mcp` path.
-  Unset (the default), none of this mounts, and `/api/mcp` on `APP_URL` stays the only way in.
-  The authorization server is still `APP_URL`/`OAUTH_ISSUER` either way — only the resource
-  server moves. The two entry points are separate OAuth audiences (`internal/mcp/oauth.go`,
-  `authOAuthForResource`): a token minted for `MCP_PUBLIC_URL` is refused at `/api/mcp` and vice
-  versa, even though both reach the same tools — existing `mhr_` tokens and OAuth grants against
-  `/api/mcp` are unaffected. `internal/mcp/oauth.go`'s `MCPServerURL()` is the one place that
-  decides which URL to SHOW a person (Settings' `server_url`, the pasted-token config, the
-  claude.ai/ChatGPT instructions): the dedicated host once configured, else the legacy resource.
-  See `internal/mcp/public_host.go`.
-
-## Problem reports → Mahaam
-
-Moharrik receives no issues. It files its own to its Mahaam project:
-
-- **Web:** the Mahaam Feedback widget (`web/components/feedback/mahaam-widget.tsx`, loaded from
-  `NEXT_PUBLIC_MAHAAM_EMBED_ORIGIN`) is mounted in the signed-in workspace shell; "Report a
-  problem" in the header and user menu opens it (both are hidden until it can send). The widget
-  sends with `credentials: "omit"`, so its `data-key` is a 24-hour signed reporter token from
-  `web/app/feedback/session/route.ts`; it posts to `web/app/feedback/route.ts`, which verifies the
-  token (or the session cookie), adds workspace/user/host to `meta`, and forwards server-to-server
-  to `$MAHAAM_URL/api/feedback/embed` with `MAHAAM_FEEDBACK_KEY` and `Origin: $MAHAAM_APP_URL`
-  (which must be on the key's allowed origins). Its look comes from `web/app/feedback/config`.
-  Put those in `web/.env.local`.
-- **API:** `internal/feedback` is Mahaam's Go SDK (vendored from `managy/sdk/go`);
-  `internal/server/problems.go` reports panics (with stack) and 5xx responses (deduplicated per
-  route for 10 min). No key = no-op.
-
-## togo framework notes (found building P0, CLI 0.2.31 / togo v0.21.0)
-
-1. `make:resource` in a `--db postgres` project still writes **SQLite** DDL
-   (`randomblob`, `datetime`), `?` placeholders in sqlc queries, `engine: sqlite` in
-   `sqlc.yaml`, and no Atlas HCL — while `togo.resources.yaml` records the right `pg:` types.
-   The scaffold's `togo migrate` then runs that DDL against Postgres. Schema files here are
-   hand-written Postgres; `cmd/migrate` is our own.
-2. On Postgres + `database/sql`, sqlc emits `sql.Null*`, but the generated resources/ORM/
-   GraphQL expect pointers → overrides in `sqlc.yaml`; generated code also expects `PageURL`
-   → `initialisms: [id, url]`.
-3. Nullable timestamps are `String` in the generated GraphQL but `*time.Time` in Go
-   (gqlgen: "String is incompatible with *time.Time").
-4. Generated Huma create bodies make every nullable field a **required** key (no `omitempty`),
-   and put `validate:"required"` on int/bool fields so `0`/`false` are rejected. Fixed in the
-   handler fragments.
-5. `togo generate` swallows gqlgen's failure; the cause was `golang.org/x/tools` v0.30 vs
-   go1.27 ("package context without types") → bumped to v0.50.
-6. `togo new` installs `auth-dev` (admin session for an empty POST in any non-production env)
-   and `dashboard`; there is no uninstall command (plugins.gen.go hand-edited). The scaffold's
-   `/events` SSE broadcasts every generated row to every subscriber and `/api/_meta/resources`
-   dumps the schema — both left unmounted. Kernel `LoadConfig` never reads `.env`
-   (`internal/envfile`).
-7. The ORM holds a concrete `*sql.DB` (no executor interface), so per-request
-   `SET LOCAL` in a transaction is impossible for generated code — hence the per-statement
-   connection wrapper. `db-postgres` exposes no pgx hooks.
+**Commercial licensing available:** for a license without the AGPL obligations, contact
+[info@3x1.io](mailto:info@3x1.io).

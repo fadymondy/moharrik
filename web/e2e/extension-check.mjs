@@ -23,7 +23,7 @@ const apiBase = process.argv[3] ?? "http://localhost:8122"
 // manifest declares only app.moharrik.com and asks for anything else with a
 // click — which is right for a person and impossible for a check, because that
 // click is a native Chrome dialog. Everything else here is the real extension.
-const SRC = path.resolve("E:/Sites/moharrik/extension")
+const SRC = path.resolve(process.env.EXTENSION_DIR ?? "extension") // run from the repository root
 const EXT = mkdtempSync(path.join(tmpdir(), "ext-src-"))
 cpSync(SRC, EXT, { recursive: true })
 {

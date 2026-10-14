@@ -27,7 +27,7 @@ import zlib from "node:zlib"
 import { execFileSync } from "node:child_process"
 
 const web = (process.argv[2] ?? "http://localhost:3506").replace(/\/$/, "")
-const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 const CHROMIUM =
   process.env.EXT_CHROME ??
   "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"

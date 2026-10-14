@@ -41,7 +41,7 @@ const card = opt("shots", "")
 const video = flag("video")
 const base = (args[0] ?? "http://localhost:3515").replace(/\/$/, "")
 const apiBase = (args[1] ?? "http://localhost:8515").replace(/\/$/, "")
-const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 const CHROME =
   process.env.EXT_CHROME ??
   "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"

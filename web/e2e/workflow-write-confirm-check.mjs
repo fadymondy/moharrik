@@ -24,7 +24,7 @@ import { connectExtension } from "./connect-helper.mjs"
 
 const base = (process.argv[2] ?? "http://localhost:3141").replace(/\/$/, "")
 const apiBase = (process.argv[3] ?? "http://localhost:8141").replace(/\/$/, "")
-const SHOTS = process.env.SHOTS ?? "E:/Sites/moharrik-wt-ao-write-confirm/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 // System Chrome on this machine has extension-loading policy-disabled — its
 // service worker never registers and the whole run times out — so this
 // follows presets-check.mjs's own default of the Playwright-bundled

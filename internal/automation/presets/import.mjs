@@ -136,7 +136,7 @@ function scrubInput(slug, input) {
   if (out.name === "cv_path") {
     out.help = "The CV PDF on the browser's computer, inside the folder the extension allows uploads from (its Sites page)"
   }
-  if (out.name === "phone" && slug === "whatsapp-send") out.help = "Digits with country code, no + (e.g. 201050028002)"
+  if (out.name === "phone" && slug === "whatsapp-send") out.help = "Digits only, country code first, no +"
   if (out.label) out.label = scrubText(out.label)
   if (out.help) out.help = scrubText(out.help)
   return out
@@ -144,7 +144,7 @@ function scrubInput(slug, input) {
 
 function scrubSteps(slug, steps) {
   const raw = JSON.stringify(steps)
-    .replaceAll("https://web.whatsapp.com/send?phone=201207860084", "https://web.whatsapp.com/send?phone={{workspace.whatsapp_number}}")
+    .replace(/https:\/\/web\.whatsapp\.com\/send\?phone=\d+/g, "https://web.whatsapp.com/send?phone={{workspace.whatsapp_number}}")
     // The composer of one's own chat is labelled with one's own name; the
     // fixed number in the URL is the guard, and the prefix matches it.
     .replaceAll('[aria-label=\\"Type a message to Fady Mondy\\"]', '[aria-label^=\\"Type a message\\"]')
@@ -185,8 +185,11 @@ const out = plugins.map((p) => {
   return preset
 })
 
-// Nothing personal may survive. A new plugin that trips this needs a rule above.
-const SCRUB = /Fady|fadymondy|201207860084|201098937831|3x1\.io|engfadymondy|E:\\\\Sites|One Studio|Heliopolis/
+// Nothing personal may survive. A new plugin that trips this needs a rule above. Phone numbers
+// (international, no +) are caught generically; put any other personal terms (names, addresses)
+// in PRESET_SCRUB as a regular expression when you run the export.
+const extra = process.env.PRESET_SCRUB ? `|${process.env.PRESET_SCRUB}` : ""
+const SCRUB = new RegExp(String.raw`Fady|fadymondy|\b\d{11,13}\b|3x1\.io|engfadymondy|E:\\\\Sites` + extra)
 const leaks = out.filter((p) => SCRUB.test(JSON.stringify(p))).map((p) => `${p.slug}: ${JSON.stringify(p).match(SCRUB)[0]}`)
 if (leaks.length) {
   console.error("personal data left in:\n" + leaks.join("\n"))

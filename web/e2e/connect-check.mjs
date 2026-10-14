@@ -21,7 +21,7 @@ const shotsIdx = args.indexOf("--shots")
 const card = shotsIdx >= 0 ? args.splice(shotsIdx, 2)[1] : ""
 const base = (args[0] ?? "http://localhost:3508").replace(/\/$/, "")
 const apiBase = (args[1] ?? "http://localhost:8508").replace(/\/$/, "")
-const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 // A copy of THIS worktree's extension with the dev site baked in, exactly as

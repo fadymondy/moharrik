@@ -175,7 +175,7 @@ out.quiet.pendingShown = await page.getAttribute(
   "data-wa-notify-pending",
 )
 await page.screenshot({
-  path: "E:/Sites/fadymondy.com-v2/.setup/shots/MH-411-held-in-quiet-hours-en-light-1440.png",
+  path: "e2e-shots/MH-411-held-in-quiet-hours-en-light-1440.png",
   fullPage: true,
 })
 // "Morning": the quiet window ends now.

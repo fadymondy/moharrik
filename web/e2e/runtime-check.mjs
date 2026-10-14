@@ -23,7 +23,7 @@ const card = opt("shots", "")
 const idle = Number(opt("idle", "40"))
 const base = (args[0] ?? "http://localhost:3508").replace(/\/$/, "")
 const apiBase = (args[1] ?? "http://localhost:8508").replace(/\/$/, "")
-const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 const SRC = path.resolve(here, "../../extension")

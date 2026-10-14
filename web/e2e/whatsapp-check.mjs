@@ -10,7 +10,7 @@
 //
 // Run the API with EVOLUTION_API_URL pointing at this stub:
 //   EVOLUTION_API_URL=http://127.0.0.1:8787 EVOLUTION_API_KEY=stub-key \
-//   WHATSAPP_HOOK_BASE=http://localhost:3122 ... .setup/dev.ps1 -Restart
+//   WHATSAPP_HOOK_BASE=http://localhost:3122 (then restart the API)
 import { chromium } from "playwright-core"
 import { createServer } from "node:http"
 import { mkdtempSync } from "node:fs"

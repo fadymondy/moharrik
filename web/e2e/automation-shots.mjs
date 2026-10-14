@@ -18,7 +18,7 @@ const emailArg = flag("email")
 const passwordArg = flag("password") || "Passw0rd!long-enough"
 const [card, sub = "", webArg] = args
 const web = (webArg ?? "http://localhost:3506").replace(/\/$/, "")
-const SHOTS = process.env.SHOTS ?? "E:/Sites/fadymondy.com-v2/.setup/shots"
+const SHOTS = process.env.SHOTS ?? "e2e-shots"
 const CHROMIUM =
   process.env.EXT_CHROME ??
   "C:/Users/EngFa/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe"

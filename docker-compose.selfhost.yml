@@ -1,0 +1,70 @@
+# Self-host Moharrik with Docker Compose: Postgres, a one-shot migration job and the app (the Go
+# API and the Next.js web in one container, on one port).
+#
+#   cp .env.selfhost.example .env.selfhost   # fill in the three secrets
+#   docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost up -d --build
+#
+# Then open http://localhost:3000. Put a TLS reverse proxy in front for a public deployment and set
+# APP_URL to its origin and COOKIE_SECURE=1. Every other setting is documented in .env.example.
+name: moharrik
+
+x-app-env: &app-env
+  DB_DRIVER: pgx
+  # The owner pool runs migrations, auth and tenant resolution; the app pool (moharrik_app, created
+  # by the migrator with the password in its URL) runs every tenant query under row-level security.
+  DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/moharrik?sslmode=disable
+  APP_DATABASE_URL: postgres://moharrik_app:${MOHARRIK_APP_DB_PASSWORD:?set MOHARRIK_APP_DB_PASSWORD}@db:5432/moharrik?sslmode=disable
+  AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+  APP_URL: ${APP_URL:-http://localhost:3000}
+  CORS_ORIGINS: ${APP_URL:-http://localhost:3000}
+  COOKIE_SECURE: ${COOKIE_SECURE:-}
+  MAIL_DRIVER: ${MAIL_DRIVER:-log}
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: moharrik
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d moharrik"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    image: moharrik
+    command: ["/app/bin/moharrik-migrate"]
+    environment: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    image: moharrik
+    environment: *app-env
+    ports:
+      - "${MOHARRIK_PORT:-3000}:3000"
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  db:
+  storage:
