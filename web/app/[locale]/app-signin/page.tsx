@@ -12,12 +12,16 @@ the apps' and returns a one-time code bound to the challenge, and the browser
 goes back to the app with it. The app alone holds the verifier that turns the
 code into its device token.
 
-Not behind the proxy's sign-in redirect: signed out, the page links to sign-in
-with the whole address to come back to.
+Not behind the proxy's sign-in redirect: signed out, the page offers Apple /
+Google and the e-mail sign-in, each coming back to this whole address.
+
+?provider=apple|google (the phone app's "Sign in with Google" button, and
+Apple on Android) goes straight to that provider when signed out; the person
+still confirms the hand-off to the app here afterwards.
 */
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { CheckCircle2Icon, MonitorSmartphoneIcon, ShieldAlertIcon } from "lucide-react"
 
 import { Button, Skeleton } from "@fadymondy/nasaq/web"
@@ -29,6 +33,7 @@ import { api, ApiError } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { useMe } from "@/lib/queries"
 import { useDocumentTitle } from "@/lib/title"
+import { SocialButtons, socialHref, useSocialProviders } from "@/components/auth/social-buttons"
 
 /** The same two shapes the API accepts (internal/appsignin validAppRedirect). */
 function appRedirect(raw: string): boolean {
@@ -71,6 +76,23 @@ export default function AppSigninPage() {
   const [error, setError] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
 
+  // Straight to the provider the app asked for, once, when nobody is signed in here.
+  const { providers } = useSocialProviders()
+  const wanted = params.get("provider")
+  const jumped = useRef(false)
+  const jumping =
+    valid &&
+    !me.isLoading &&
+    me.data === null &&
+    (wanted === "apple" || wanted === "google") &&
+    providers.includes(wanted)
+  useEffect(() => {
+    if (jumping && !jumped.current && (wanted === "apple" || wanted === "google")) {
+      jumped.current = true
+      window.location.assign(socialHref(wanted, here))
+    }
+  }, [jumping, wanted, here])
+
   async function proceed() {
     setBusy(true)
     setError(null)
@@ -104,7 +126,7 @@ export default function AppSigninPage() {
           data-app-signin
           data-app-signin-state={leaving ? "leaving" : valid ? "confirm" : "invalid"}
         >
-          {me.isLoading || search === null ? (
+          {me.isLoading || search === null || jumping ? (
             <div className="space-y-3">
               <Skeleton className="h-6 w-2/3" />
               <Skeleton className="h-24 w-full" />
@@ -120,14 +142,16 @@ export default function AppSigninPage() {
           ) : !me.data ? (
             <div className="space-y-4">
               <p className="text-sm text-nq-fg-body">{t("appSignin.signInFirst")}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  nativeButton={false}
-                  render={<Link href={`/${locale}/login?next=${encodeURIComponent(here)}`} />}
-                >
-                  {t("auth.signIn")}
-                </Button>
-              </div>
+              <SocialButtons providers={providers} next={here} />
+              <Button
+                variant={providers.length > 0 ? "ghost" : "primary"}
+                size="lg"
+                className="w-full"
+                nativeButton={false}
+                render={<Link href={`/${locale}/login?next=${encodeURIComponent(here)}`} />}
+              >
+                {t("appSignin.withEmail")}
+              </Button>
             </div>
           ) : leaving ? (
             <p className="flex items-start gap-2 text-sm">

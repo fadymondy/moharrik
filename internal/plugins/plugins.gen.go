@@ -9,11 +9,14 @@
 // body in any non-production APP_ENV (fadymondy.com FM-42); dashboard injects a
 // generic admin UI over the unscoped generated CRUD. Neither fits a
 // multi-tenant app. Keep togo.yaml's plugins list in sync.
+//
+// auth-oauth was removed the same way: internal/social serves its Google
+// routes (same paths, so the registered redirect URI is unchanged) with
+// provider-subject identities, the verified-e-mail linking rule and ?next=.
 package plugins
 
 import (
 	_ "github.com/togo-framework/auth"
-	_ "github.com/togo-framework/auth-oauth"
 	_ "github.com/togo-framework/cache"
 	_ "github.com/togo-framework/db-postgres"
 	_ "github.com/togo-framework/i18n"

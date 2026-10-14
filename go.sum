@@ -106,8 +106,6 @@ github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWD
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/togo-framework/auth v0.8.2 h1:s0zKF5/a59w6AtjMFzAuMfoB/qdAf4Vh5n9BYJxCTgI=
 github.com/togo-framework/auth v0.8.2/go.mod h1:dPa8CdFlMGggb/PSHlhhqJvEqBelgf36t+qP/vkq2vQ=
-github.com/togo-framework/auth-oauth v0.2.1-0.20260923005224-2113e0d8757c h1:h/lKUHRyFSvgi85g3vNRQDZmGsztw94T+EExKLw92I8=
-github.com/togo-framework/auth-oauth v0.2.1-0.20260923005224-2113e0d8757c/go.mod h1:WD59z6wBKPT6BPbP4DyF7NeDxnR69dE9LYPrpeR1c6Q=
 github.com/togo-framework/cache v0.3.0 h1:COOKnJ+uo6lbhYOYugOwi/0BS7cwb9B45cRrmTkQc9Q=
 github.com/togo-framework/cache v0.3.0/go.mod h1:ctBGrqfx7/zK+Zrt269Etxa5VR9HBHpFl8usgWlXC4U=
 github.com/togo-framework/db-postgres v0.1.0 h1:6uNo5LVcRm2hRI7nW+YvQEV3Yo9FkfGCR0gPTtgSXEQ=

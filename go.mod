@@ -18,13 +18,13 @@ require (
 	github.com/circlexo/circlexo-go v0.2.0
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.2
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.0
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sqlc-dev/pqtype v0.3.0
 	github.com/togo-framework/auth v0.8.2
-	github.com/togo-framework/auth-oauth v0.2.1-0.20260923005224-2113e0d8757c
 	github.com/togo-framework/cache v0.3.0
 	github.com/togo-framework/db-postgres v0.1.0
 	github.com/togo-framework/faker v0.1.0
@@ -40,6 +40,7 @@ require (
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
+	golang.org/x/crypto v0.57.0
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.59.0
 )
@@ -54,7 +55,6 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
@@ -75,7 +75,6 @@ require (
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/metric v1.46.0 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

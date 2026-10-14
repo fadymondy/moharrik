@@ -8,8 +8,11 @@
 //   2. The page redirects to the app's redirect (moharrik://auth/callback on phones, a
 //      127.0.0.1 port on the desktop) with ?code&state.
 //   3. finish(): the app checks the state and trades code + verifier at POST /api/auth/app/token
-//      for its device token, stored in the OS keystore. The code is useless without the verifier,
-//      which never left the app.
+//      for its device token and refresh token, stored in the OS keystore. The code is useless
+//      without the verifier, which never left the app.
+//
+// Email and password sign-in and sign-up also run natively (signInWithPassword, signUp), straight
+// against POST /api/auth/app/signin and /signup, so the common case never leaves the app.
 //
 // Crypto is injected (expo-crypto on phones, node:crypto in Electron) so this stays dependency-free.
 import { ApiError, type MoharrikClient } from "./client"
@@ -52,12 +55,16 @@ export async function challengeOf(verifier: string, crypto: PkceCrypto): Promise
   return base64url(await crypto.sha256(utf8(verifier)))
 }
 
+export type SocialProvider = "apple" | "google"
+
 export async function startSignIn(o: {
   serverUrl: string
   redirectUri: string
   device: string
   locale: "en" | "ar"
   crypto: PkceCrypto
+  /** Go straight to this provider on the sign-in page (Google, and Apple on Android). */
+  provider?: SocialProvider
 }): Promise<Pending> {
   const verifier = base64url(await o.crypto.randomBytes(32)) // 43 chars
   const state = base64url(await o.crypto.randomBytes(16)) // 22 chars
@@ -68,6 +75,7 @@ export async function startSignIn(o: {
     state,
     device: o.device.slice(0, 200),
   })
+  if (o.provider) p.set("provider", o.provider)
   const url = `${o.serverUrl.replace(/\/+$/, "")}/${o.locale}/app-signin?${p.toString()}`
   return { url, verifier, state, redirectUri: o.redirectUri }
 }
@@ -93,6 +101,118 @@ export async function finishSignIn(
     body: { code, code_verifier: pending.verifier, redirect_uri: pending.redirectUri },
   })
   if (!r?.token) throw new ApiError(500, "no token in the sign-in response")
-  await client.setToken(r.token)
+  await client.setSession(r)
   return { email: r.email }
+}
+
+/** Signs in with email and password, in the app: 401 for a wrong pair, 403 for a suspended account. */
+export async function signInWithPassword(
+  client: MoharrikClient,
+  o: { email: string; password: string; device: string },
+): Promise<{ email: string }> {
+  const r = await client.call("post", "/api/auth/app/signin", {
+    workspace: null,
+    body: { email: o.email, password: o.password, device: o.device.slice(0, 200) },
+  })
+  if (!r?.token) throw new ApiError(500, "no token in the sign-in response")
+  await client.setSession(r)
+  return { email: r.email }
+}
+
+/**
+ * Creates an account and signs this device in. The server mails a link to confirm the address.
+ * Refusals: 409 email_taken, 422 invalid_email, password_too_short or password_too_long.
+ */
+export async function signUp(
+  client: MoharrikClient,
+  o: { email: string; password: string; device: string },
+): Promise<{ email: string }> {
+  const r = await client.call("post", "/api/auth/app/signup", {
+    workspace: null,
+    body: { email: o.email, password: o.password, device: o.device.slice(0, 200) },
+  })
+  if (!r?.token) throw new ApiError(500, "no token in the sign-up response")
+  await client.setSession(r)
+  return { email: r.email }
+}
+
+/** Mails a reset link if the address has an account; the answer is the same either way. */
+export async function forgotPassword(client: MoharrikClient, email: string): Promise<void> {
+  await client.call("post", "/api/auth/password/forgot", { workspace: null, body: { email } })
+}
+
+/** Mails the signed-in member a fresh link to confirm their address. */
+export async function resendVerification(client: MoharrikClient): Promise<void> {
+  await client.call("post", "/api/me/email/verification", { workspace: null })
+}
+
+/** Which sign-in options this server offers (GET /api/auth/methods, the auth plugin's list). */
+export interface SignInOptions {
+  /** Sign in with Apple in the browser (the web, and Android through the browser flow). */
+  appleWeb: boolean
+  /** Native Sign in with Apple (iOS): POST /api/auth/native/apple. */
+  appleNative: boolean
+  /** Sign in with Google in the browser. */
+  googleWeb: boolean
+  /** Forgot password works (the server can send mail): POST /api/auth/password/forgot. */
+  passwordReset: boolean
+}
+
+export function parseSignInOptions(data: unknown): SignInOptions {
+  const out: SignInOptions = { appleWeb: false, appleNative: false, googleWeb: false, passwordReset: false }
+  const list = (data as { methods?: unknown } | null | undefined)?.methods
+  if (!Array.isArray(list)) return out
+  for (const m of list) {
+    if (!m || typeof m !== "object") continue
+    const { name, type } = m as { name?: unknown; type?: unknown }
+    if (name === "apple" && type === "oauth") out.appleWeb = true
+    if (name === "apple" && type === "native") out.appleNative = true
+    if (name === "google" && type === "oauth") out.googleWeb = true
+    if (name === "password_reset") out.passwordReset = true
+  }
+  return out
+}
+
+export async function signInOptions(client: MoharrikClient): Promise<SignInOptions> {
+  return parseSignInOptions(await client.raw<unknown>("get", "/api/auth/methods", { workspace: null }))
+}
+
+/** What the native Sign in with Apple sheet returned, plus the raw nonce the app made. */
+export interface AppleCredential {
+  identityToken: string
+  authorizationCode: string
+  nonce: string
+  givenName?: string | null
+  familyName?: string | null
+}
+
+/** Trades a native Sign in with Apple result for this install's device token. */
+export async function finishAppleSignIn(
+  client: MoharrikClient,
+  cred: AppleCredential,
+  device: string,
+): Promise<{ email: string }> {
+  const r = await client.call("post", "/api/auth/native/apple", {
+    workspace: null,
+    body: {
+      identity_token: cred.identityToken,
+      authorization_code: cred.authorizationCode,
+      nonce: cred.nonce,
+      given_name: cred.givenName ?? undefined,
+      family_name: cred.familyName ?? undefined,
+      device: device.slice(0, 200),
+    },
+  })
+  if (!r?.token) throw new ApiError(500, "no token in the sign-in response")
+  await client.setSession(r)
+  return { email: r.email }
+}
+
+/** The refusal code a native sign-in or the account endpoints sent ({"error", "code"}), if any. */
+export function errorCode(err: unknown): string | undefined {
+  if (err instanceof ApiError && err.body && typeof err.body === "object") {
+    const c = (err.body as { code?: unknown }).code
+    return typeof c === "string" ? c : undefined
+  }
+  return undefined
 }

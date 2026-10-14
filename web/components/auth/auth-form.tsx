@@ -21,47 +21,7 @@ import { api, ApiError, resetCsrf } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
 import { safeNext } from "@/lib/use-require-auth"
 import { useDocumentTitle } from "@/lib/title"
-
-type OAuthProvider = { id: string; label: string; href: string }
-
-const KNOWN: Record<string, string> = { google: "Google", github: "GitHub" }
-
-/*
-  GET /api/auth/methods lists what the togo auth plugin has enabled. Its exact shape is read
-  defensively — strings ("password", "oauth:google") or objects ({ type, provider, url }). Only a
-  listed oauth provider renders a button; with none listed, nothing renders (no dead controls).
-*/
-function oauthProviders(data: unknown): OAuthProvider[] {
-  const list: unknown[] = Array.isArray(data)
-    ? data
-    : data && typeof data === "object"
-      ? (((data as Record<string, unknown>).methods ??
-          (data as Record<string, unknown>).oauth ??
-          (data as Record<string, unknown>).providers ??
-          []) as unknown[])
-      : []
-  if (!Array.isArray(list)) return []
-
-  const out: OAuthProvider[] = []
-  for (const item of list) {
-    let id = ""
-    let href = ""
-    if (typeof item === "string") {
-      const m = /^(?:oauth[:/])?(google|github)$/i.exec(item)
-      if (m) id = m[1].toLowerCase()
-    } else if (item && typeof item === "object") {
-      const o = item as Record<string, unknown>
-      const name = String(o.provider ?? o.name ?? o.id ?? "").toLowerCase()
-      const type = String(o.type ?? o.kind ?? "oauth").toLowerCase()
-      if (type.includes("oauth") && KNOWN[name]) id = name
-      href = typeof o.url === "string" ? o.url : typeof o.start_url === "string" ? o.start_url : ""
-    }
-    if (id && KNOWN[id] && !out.some((p) => p.id === id)) {
-      out.push({ id, label: KNOWN[id], href: href || `/api/auth/oauth/${id}` })
-    }
-  }
-  return out
-}
+import { SocialButtons, useSocialError, useSocialProviders } from "@/components/auth/social-buttons"
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { t, locale } = useTranslations()
@@ -78,11 +38,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const methods = useSWR("/api/auth/methods", (p: string) => api<unknown>(p), {
-    revalidateOnFocus: false,
-    shouldRetryOnError: false,
-  })
-  const providers = oauthProviders(methods.data)
+  // Sign in with Apple / Google: only the configured providers render (social-buttons.tsx).
+  const { providers, passwordReset } = useSocialProviders()
+  const socialError = useSocialError(params.get("social_error"))
 
   // Sign in with CircleXO: the API says whether the hub is configured; the button only exists
   // when it is (no dead control). The link is a full navigation to the API's login route.
@@ -183,8 +141,26 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               {mode === "register" ? (
                 <FieldDescription>{t("auth.passwordHint")}</FieldDescription>
               ) : null}
+              {mode === "login" && passwordReset ? (
+                <Link
+                  href={`/${locale}/forgot-password`}
+                  className="text-caption text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  data-forgot-link
+                >
+                  {t("auth.forgotPassword")}
+                </Link>
+              ) : null}
             </Field>
-            {error || hubError ? <FieldError role="alert">{error ?? hubError}</FieldError> : null}
+            {error || hubError || socialError ? (
+              <FieldError role="alert" data-auth-error>
+                {error ?? hubError ?? socialError}
+              </FieldError>
+            ) : null}
+            {mode === "login" && params.get("reset") === "1" ? (
+              <p className="text-caption text-muted-foreground" role="status" data-reset-done>
+                {t("auth.resetDone")}
+              </p>
+            ) : null}
             <Button type="submit" size="lg" disabled={busy || !email || !password}>
               {busy
                 ? t("common.working")
@@ -198,6 +174,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         {providers.length > 0 || hubEnabled ? (
           <div className="mt-6 space-y-3">
             <OAuthDivider>{t("auth.or")}</OAuthDivider>
+            <SocialButtons providers={providers} next={next} />
             {hubEnabled ? (
               <Button
                 variant="secondary"
@@ -210,22 +187,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 {t("auth.circlexo")}
               </Button>
             ) : null}
-            {providers.map((p) => (
-              <Button
-                key={p.id}
-                variant="secondary"
-                size="lg"
-                className="w-full"
-                nativeButton={false}
-                render={
-                  <a
-                    href={`${p.href}${p.href.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`}
-                  />
-                }
-              >
-                {t("auth.continueWith", { provider: p.label })}
-              </Button>
-            ))}
           </div>
         ) : null}
         <p className="mt-6 text-center text-sm text-muted-foreground">
