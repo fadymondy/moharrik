@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS discord_channels (
     webhook_id          text        NOT NULL,
     -- Comma-separated guild and channel ids. Empty guild list means every
     -- guild the bot is in; empty channel list means every channel in an
-    -- allowed guild, plus DMs.
+    -- allowed guild. Neither list filters DMs: they are always delivered.
     allowed_guild_ids   text        NOT NULL DEFAULT '',
     allowed_channel_ids text        NOT NULL DEFAULT '',
     enabled             boolean     NOT NULL DEFAULT true,

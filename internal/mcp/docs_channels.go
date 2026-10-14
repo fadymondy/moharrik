@@ -76,7 +76,8 @@ var docsChannels = map[string]ToolDoc{
 	},
 	"connect_discord_channel": {
 		AR: "إضافة اتصال بوت ديسكورد (رمز من صفحة Bot في بوابة المطورين). فور إرسال الرمز تبدأ جلسة بوابة Gateway على الفور — " +
-			"وهي الطريقة الوحيدة لاستقبال الرسائل العادية والمحادثات الخاصة. allowed_guild_ids وallowed_channel_ids قوائم معرّفات مفصولة بفواصل؛ فارغة تعني كل خادم أو قناة.",
+			"وهي الطريقة الوحيدة لاستقبال الرسائل العادية والمحادثات الخاصة. allowed_guild_ids وallowed_channel_ids قوائم معرّفات مفصولة بفواصل؛ فارغة تعني كل خادم أو قناة. " +
+			"قوائم السماح تُصفّي قنوات الخوادم فقط: الرسائل الخاصة إلى البوت تصل دائمًا إلى الوارد.",
 		Example: map[string]any{"name": "Community", "bot_token": "MTIzNDU2Nzg5MDEyMzQ1Njc4.…"},
 		Result:  `{"channel":` + discordChannelEx + `}`,
 	},
@@ -109,9 +110,9 @@ var argsARChannels = map[string]string{
 	"From the developer portal's Bot page":                             "من صفحة Bot في بوابة المطورين",
 	"For verifying interactions":                                       "للتحقق من تفاعلات Interactions",
 	"Comma-separated guild ids; empty allows every guild":              "معرّفات خوادم Discord مفصولة بفواصل؛ فارغة تعني كل خادم",
-	"Comma-separated channel ids; empty allows every channel in an allowed guild, plus DMs":    "معرّفات قنوات مفصولة بفواصل؛ فارغة تعني كل قناة ضمن خادم مسموح به، إضافةً إلى المحادثات الخاصة",
-	"The workflow that reads this network's inbox; can be set later":                           "سير العمل الذي يقرأ وارد هذه الشبكة؛ يمكن ضبطه لاحقًا",
-	"Reply through the network's reply preset, with confirmation (off by default)":             "الرد عبر قالب الرد الجاهز لهذه الشبكة، مع تأكيد (معطّل افتراضيًا)",
-	"Only these types; empty means every type":                                                 "هذه الأنواع فقط؛ تركها فارغة يعني كل الأنواع",
-	"Case-insensitive substring match on the connection's name (and, for WhatsApp, its phone)": "مطابقة جزئية غير حساسة لحالة الأحرف على اسم الاتصال (وعلى رقم الهاتف في حالة واتساب)",
+	"Comma-separated guild channel ids; empty allows every channel in an allowed guild. DMs are always allowed": "معرّفات قنوات الخوادم مفصولة بفواصل؛ فارغة تعني كل قناة ضمن خادم مسموح به. الرسائل الخاصة مسموحة دائمًا",
+	"The workflow that reads this network's inbox; can be set later":                                            "سير العمل الذي يقرأ وارد هذه الشبكة؛ يمكن ضبطه لاحقًا",
+	"Reply through the network's reply preset, with confirmation (off by default)":                              "الرد عبر قالب الرد الجاهز لهذه الشبكة، مع تأكيد (معطّل افتراضيًا)",
+	"Only these types; empty means every type":                                                                  "هذه الأنواع فقط؛ تركها فارغة يعني كل الأنواع",
+	"Case-insensitive substring match on the connection's name (and, for WhatsApp, its phone)":                  "مطابقة جزئية غير حساسة لحالة الأحرف على اسم الاتصال (وعلى رقم الهاتف في حالة واتساب)",
 }

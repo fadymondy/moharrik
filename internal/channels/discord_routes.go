@@ -28,7 +28,7 @@ type discordBody struct {
 	ApplicationID     string `json:"application_id,omitempty" maxLength:"64"`
 	PublicKey         string `json:"public_key,omitempty" maxLength:"128" doc:"The application's public key, for verifying interactions."`
 	AllowedGuildIDs   string `json:"allowed_guild_ids,omitempty" maxLength:"2000" doc:"Comma-separated guild ids; empty allows every guild the bot is in."`
-	AllowedChannelIDs string `json:"allowed_channel_ids,omitempty" maxLength:"2000" doc:"Comma-separated channel ids; empty allows every channel in an allowed guild, plus DMs."`
+	AllowedChannelIDs string `json:"allowed_channel_ids,omitempty" maxLength:"2000" doc:"Comma-separated guild channel ids; empty allows every channel in an allowed guild. DMs to the bot are always allowed."`
 	Enabled           *bool  `json:"enabled,omitempty"`
 }
 

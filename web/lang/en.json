@@ -1393,7 +1393,7 @@
   "channels.discord.gateway.connecting": "Gateway: connecting",
   "channels.discord.gateway.connected": "Gateway: connected",
   "channels.discord.allowedGuilds": "Allowed servers",
-  "channels.discord.allowedHint": "Comma-separated ids. Empty allows every server/channel the bot is in, plus DMs.",
+  "channels.discord.allowedHint": "Comma-separated ids. Empty allows every server/channel the bot is in. DMs to the bot are always allowed.",
   "channels.discord.addTitle": "Add a Discord bot",
   "channels.discord.addHint": "Its gateway session starts the moment you save a token.",
   "channels.discord.botToken": "Bot token",

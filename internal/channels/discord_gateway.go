@@ -399,10 +399,7 @@ func handleDiscordMessage(workspaceID, id string, m discordMessageCreate, allowe
 	if !ok {
 		return
 	}
-	if m.GuildID != "" && !discordAllowed(allowedGuilds, m.GuildID) {
-		return
-	}
-	if !discordAllowed(allowedChannels, channelID) {
+	if !discordMessageAllowed(m.GuildID, channelID, allowedGuilds, allowedChannels) {
 		return
 	}
 	markDiscordDelivery(workspaceID, id)
