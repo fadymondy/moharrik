@@ -7,7 +7,7 @@ import { Providers } from "@/components/providers"
 import { dirForLocale, isLocale, type Locale } from "@/lib/i18n-locale"
 
 // English UI is set in Inter: built for screens and legible at small sizes on desktop and mobile.
-// next/font self-hosts it at build time, so no request reaches Google at runtime. Arabic uses Nasaq's Arabic stack (Lusail); the English/Arabic switch is --nq-font-sans / [lang|=ar] in globals.css.
+// next/font self-hosts it at build time, so no request reaches Google at runtime. Arabic uses Nasaq's Arabic stack (IBM Plex Sans Arabic); the English/Arabic switch is --nq-font-sans / [lang|=ar] in globals.css.
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" })
 
 // The name and description in the page's language, as on moharrik.com (MH-1260).

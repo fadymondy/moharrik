@@ -24,9 +24,9 @@ export default function Root() {
     Inter_400Regular,
     Inter_500Medium,
     Inter_700Bold,
-    "Lusail-Regular": require("../../assets/fonts/Lusail-Regular.ttf"),
-    "Lusail-Medium": require("../../assets/fonts/Lusail-Medium.ttf"),
-    "Lusail-Bold": require("../../assets/fonts/Lusail-Bold.ttf"),
+    "IBMPlexSansArabic-Regular": require("../../assets/fonts/IBMPlexSansArabic-Regular.ttf"),
+    "IBMPlexSansArabic-Medium": require("../../assets/fonts/IBMPlexSansArabic-Medium.ttf"),
+    "IBMPlexSansArabic-Bold": require("../../assets/fonts/IBMPlexSansArabic-Bold.ttf"),
   })
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

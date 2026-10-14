@@ -208,7 +208,7 @@ export default function ConversationScreen() {
                 borderColor: c.line,
                 backgroundColor: c.bg,
                 color: c.fg,
-                fontFamily: locale === "ar" ? "Lusail-Regular" : "Inter_400Regular",
+                fontFamily: locale === "ar" ? "IBMPlexSansArabic-Regular" : "Inter_400Regular",
                 fontSize: 15,
                 textAlign: rtl ? "right" : "left",
               }}

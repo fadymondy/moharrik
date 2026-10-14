@@ -20,7 +20,7 @@ export default function TabsLayout() {
     enabled: !!workspace,
     refetchInterval: 30_000,
   })
-  const font = locale === "ar" ? "Lusail-Medium" : "Inter_500Medium"
+  const font = locale === "ar" ? "IBMPlexSansArabic-Medium" : "Inter_500Medium"
   const badge = (n: number | undefined) => (n ? (n > 99 ? "99+" : n) : undefined)
 
   return (

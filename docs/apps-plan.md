@@ -51,7 +51,7 @@ codemagic.yaml          moharrik-android-internal + moharrik-ios-testflight (+ C
 - **Branding** comes from `web/`:
   - the lattice mark (`web/app/icon.svg`);
   - teal `#00A0A8` with gold accent `#C9A227`;
-  - Inter for Latin, Lusail for Arabic.
+  - Inter for Latin, IBM Plex Sans Arabic for Arabic.
   - The apps are Arabic-first: the locale defaults to the device's and RTL is forced
     when it is `ar`. Dark and light follow the system, with an override.
 - **Auth: the web's own sign-in, handed to the app.**
