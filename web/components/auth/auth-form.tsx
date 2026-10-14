@@ -39,7 +39,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [busy, setBusy] = useState(false)
 
   // Sign in with Apple / Google: only the configured providers render (social-buttons.tsx).
-  const { providers } = useSocialProviders()
+  const { providers, passwordReset } = useSocialProviders()
   const socialError = useSocialError(params.get("social_error"))
 
   // Sign in with CircleXO: the API says whether the hub is configured; the button only exists
@@ -141,11 +141,25 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               {mode === "register" ? (
                 <FieldDescription>{t("auth.passwordHint")}</FieldDescription>
               ) : null}
+              {mode === "login" && passwordReset ? (
+                <Link
+                  href={`/${locale}/forgot-password`}
+                  className="text-caption text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  data-forgot-link
+                >
+                  {t("auth.forgotPassword")}
+                </Link>
+              ) : null}
             </Field>
             {error || hubError || socialError ? (
               <FieldError role="alert" data-auth-error>
                 {error ?? hubError ?? socialError}
               </FieldError>
+            ) : null}
+            {mode === "login" && params.get("reset") === "1" ? (
+              <p className="text-caption text-muted-foreground" role="status" data-reset-done>
+                {t("auth.resetDone")}
+              </p>
             ) : null}
             <Button type="submit" size="lg" disabled={busy || !email || !password}>
               {busy

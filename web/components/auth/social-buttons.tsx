@@ -24,14 +24,22 @@ export const SOCIAL_LABEL: Record<SocialProvider, string> = { apple: "Apple", go
 
 const ICON: Record<SocialProvider, SimpleIcon> = { apple: siApple, google: siGoogle }
 
-/** The providers this server offers on the web, Apple first. */
-export function useSocialProviders(): { providers: SocialProvider[]; isLoading: boolean } {
+/**
+ * The providers this server offers on the web, Apple first, and whether "Forgot password?" works
+ * (the server lists password_reset only when it can send the mail).
+ */
+export function useSocialProviders(): {
+  providers: SocialProvider[]
+  passwordReset: boolean
+  isLoading: boolean
+} {
   const methods = useSWR("/api/auth/methods", (p: string) => api<unknown>(p), {
     revalidateOnFocus: false,
     shouldRetryOnError: false,
   })
   const list = (methods.data as { methods?: unknown } | undefined)?.methods
   const found = new Set<SocialProvider>()
+  let passwordReset = false
   if (Array.isArray(list)) {
     for (const m of list) {
       if (!m || typeof m !== "object") continue
@@ -39,10 +47,12 @@ export function useSocialProviders(): { providers: SocialProvider[]; isLoading: 
       const name = String(o.name ?? "").toLowerCase()
       if (String(o.type ?? "") === "oauth" && (name === "apple" || name === "google"))
         found.add(name)
+      if (name === "password_reset") passwordReset = true
     }
   }
   return {
     providers: (["apple", "google"] as const).filter((p) => found.has(p)),
+    passwordReset,
     isLoading: methods.isLoading,
   }
 }
