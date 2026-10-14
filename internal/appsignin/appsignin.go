@@ -136,6 +136,14 @@ func bearerPAT(r *http.Request) string {
 // person keeps at most maxDevices tokens, the oldest going first with their
 // push registrations.
 func mintDeviceToken(ctx context.Context, db *sql.DB, userID, name string) (string, error) {
+	return MintDeviceToken(ctx, db, userID, name)
+}
+
+// MintDeviceToken is mintDeviceToken for the native sign-in endpoints (internal/social), which
+// hand an app the same device token as POST /api/auth/app/token. name is cleaned like a device
+// name from the browser flow.
+func MintDeviceToken(ctx context.Context, db *sql.DB, userID, name string) (string, error) {
+	name = label(name, "Moharrik app", 120)
 	plain := patPrefix + randHex(16) + randHex(4)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {

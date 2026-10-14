@@ -298,6 +298,7 @@ func registerREST(api huma.API, a *app.App, researchEngine *research.Engine) {
 	googlecontacts.Register(api, a) // Google Contacts import/sync REST (MH-585)
 	alerts.Register(api, a)
 	appsignin.Register(api, a)     // the Moharrik apps: browser sign-in and push devices (docs/apps-plan.md)
+	registerSocial(api, a)         // Sign in with Google/Apple (web + native), sign-in methods, account deletion
 	overview.Register(api, a)      // the workspace front page (MH-462)
 	home.Register(api, a)          // Home (MH-1062)
 	opportunities.Register(api, a) // Opportunity signals (MH-1065)

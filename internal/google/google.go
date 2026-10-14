@@ -57,8 +57,8 @@ oauth2.googleapis.com/revoke with the token in the POST body, then deletes.
 # Env
 
 	GOOGLE_INTEGRATIONS_CLIENT_ID / _SECRET   the OAuth web client. Deliberately
-	    NOT OAUTH_GOOGLE_*: togo's auth-oauth plugin shows a "Sign in with Google"
-	    button whenever those are set, with a callback that is not registered.
+	    NOT OAUTH_GOOGLE_*: those turn on "Sign in with Google" (internal/social),
+	    a separate client with its own callback and consent screen.
 	GOOGLE_INTEGRATIONS_REDIRECT_URL          full callback URL; default
 	    PUBLIC_URL (else APP_URL) + CallbackPath
 	GOOGLE_API_BASE                           DEV/TEST ONLY: one origin standing

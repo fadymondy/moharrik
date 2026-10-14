@@ -83,6 +83,16 @@ var releaseWhatsApp = func(ctx context.Context, a *app.App, workspaceID string) 
 	return whatsapp.Unlink(ctx, a, workspaceID)
 }
 
+// DeleteAsOwner is what DELETE /api/w/workspace does once confirmed: the WhatsApp number is
+// released first (nothing is deleted if that fails, wrapped in releaseErr), then everything.
+// Used by account deletion for the workspaces a person is the only member of.
+func DeleteAsOwner(ctx context.Context, a *app.App, workspaceID string, releaseErr error) error {
+	if err := releaseWhatsApp(ctx, a, workspaceID); err != nil {
+		return fmt.Errorf("%w: %v", releaseErr, err)
+	}
+	return Delete(ctx, a.SysDB, workspaceID)
+}
+
 // ErrLastOwner: the change would leave the workspace without an owner.
 var ErrLastOwner = errors.New("a workspace needs at least one owner")
 

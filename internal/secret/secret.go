@@ -53,6 +53,9 @@ const (
 	DomainSlackBotToken      = "moharrik/slack-bot-token/v1"
 	DomainSlackSigningSecret = "moharrik/slack-signing-secret/v1"
 	DomainDiscordBotToken    = "moharrik/discord-bot-token/v1"
+	// A person's Sign in with Apple refresh token, kept only to revoke their
+	// authorization when they unlink Apple or delete the account (internal/social).
+	DomainAppleRefresh = "moharrik/apple-refresh/v1"
 )
 
 // minSecret is the shortest AUTH_SECRET a key is derived from.

@@ -18,7 +18,7 @@ import (
 
 /*
 The request guard: one default-deny middleware around the whole router,
-including routes plugins mount (auth, auth-oauth).
+including routes plugins mount (auth) and the social sign-in routes (internal/social).
 
 Tiers, decided by path before any handler runs:
 
