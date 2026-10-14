@@ -5,11 +5,12 @@
 // browser flow stays one tap away for anything else the web offers (CircleXO).
 import { useQuery } from "@tanstack/react-query"
 import * as AppleAuthentication from "expo-apple-authentication"
+import * as WebBrowser from "expo-web-browser"
 import { useEffect, useState } from "react"
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native"
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, View } from "react-native"
 import Svg, { Path } from "react-native-svg"
 
-import { ApiError, errorCode, signInOptions, type Key, type SocialProvider } from "@moharrik/client"
+import { ApiError, errorCode, signInOptions, siteUrl, type Key, type SitePage, type SocialProvider } from "@moharrik/client"
 
 import { Button, Input, Mark, Screen, Text, useColors } from "@/components/ui"
 import { usePrefs } from "@/lib/prefs"
@@ -105,6 +106,7 @@ export default function SignIn() {
   }
 
   const fullWidth = { minHeight: BUTTON_HEIGHT, alignSelf: "stretch" as const }
+  const openPage = (page: SitePage) => void WebBrowser.openBrowserAsync(siteUrl(locale, page)).catch(() => Linking.openURL(siteUrl(locale, page)))
 
   return (
     <Screen edges={["top", "bottom"]}>
@@ -226,6 +228,11 @@ export default function SignIn() {
                 </Pressable>
               ) : null}
             </View>
+            {mode === "up" ? (
+              <Text tone="muted" size="sm" style={{ textAlign: "center" }}>
+                {t("signin.legal")}
+              </Text>
+            ) : null}
           </View>
 
           <Button
@@ -245,6 +252,21 @@ export default function SignIn() {
               <Input value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder={defaultServer()} />
             </View>
           ) : null}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 20, rowGap: 8 }}>
+            {(
+              [
+                ["privacy", "settings.privacy"],
+                ["terms", "settings.terms"],
+                ["contact", "settings.support"],
+              ] as const
+            ).map(([page, key]) => (
+              <Pressable key={page} onPress={() => openPage(page)} hitSlop={8} accessibilityRole="link">
+                <Text tone="muted" size="sm" style={{ textDecorationLine: "underline" }}>
+                  {t(key)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 24 }}>
             <Pressable onPress={() => setLocale(locale === "ar" ? "en" : "ar")} hitSlop={8}>
               <Text tone="action" weight="medium">

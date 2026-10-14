@@ -63,3 +63,13 @@ export function linkOf(t: Target): string {
   if (t.screen === "notifications") return `moharrik://${w}notifications${t.itemId ? "/" + encodeURIComponent(t.itemId) : ""}`
   return `moharrik://${w}inbox`
 }
+
+/** The public pages the apps link to: the legal pages (store review asks for both in the app) and support. */
+export type SitePage = "privacy" | "terms" | "contact"
+
+export const SITE_URL = "https://moharrik.com"
+
+/** https://moharrik.com/{locale}/{page}: the marketing site serves both languages. */
+export function siteUrl(locale: "ar" | "en", page: SitePage): string {
+  return `${SITE_URL}/${locale}/${page}`
+}

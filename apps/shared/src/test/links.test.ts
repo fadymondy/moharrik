@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { linkOf, targetOfPush, targetOfUrl, type Target } from "../index"
+import { linkOf, siteUrl, targetOfPush, targetOfUrl, type Target } from "../index"
 
 describe("deep links", () => {
   it("routes a message push to its conversation in its workspace", () => {
@@ -42,5 +42,13 @@ describe("deep links", () => {
       { screen: "inbox", slug: "acme" },
     ]
     for (const t of targets) expect(targetOfUrl(linkOf(t))).toEqual(t)
+  })
+})
+
+describe("site pages", () => {
+  it("links the legal and support pages in the app's language", () => {
+    expect(siteUrl("en", "privacy")).toBe("https://moharrik.com/en/privacy")
+    expect(siteUrl("ar", "terms")).toBe("https://moharrik.com/ar/terms")
+    expect(siteUrl("ar", "contact")).toBe("https://moharrik.com/ar/contact")
   })
 })
