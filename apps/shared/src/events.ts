@@ -1,5 +1,5 @@
 // A contact timeline event (internal/crm/contact_timeline.go contactEventSources) as one line.
-import { channelName, type Key, type T } from "./i18n"
+import { channelName, stageName, type Key, type T } from "./i18n"
 import type { ContactEvent } from "./types"
 
 const KNOWN = new Set<string>([
@@ -23,7 +23,7 @@ export function eventText(t: T, e: Pick<ContactEvent, "kind" | "data">): { title
   const stage = (v: unknown) => (str(v) ? t(`lifecycle.${str(v)}` as Key) : "—")
   const title = KNOWN.has(kind)
     ? t(`event.${kind}` as Key, {
-        stage: str(d.stage),
+        stage: stageName(t, str(d.stage)),
         from: stage(d.from),
         to: stage(d.to),
         channel: channelName(t, str(d.channel)),

@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { ArrowLeft, Building2, Mail, MessageSquare, Phone } from "lucide-react"
 import { useMemo } from "react"
 
-import { ago, channelName, eventText, money, type ContactEvent } from "@moharrik/client"
+import { ago, channelName, eventText, money, stageName, type ContactEvent } from "@moharrik/client"
 
 import { useNav, useSession } from "../app"
 import { api, invoke } from "../bridge"
@@ -118,7 +118,7 @@ export function ContactScreen({ id }: { id: string }) {
                   <button key={d.id} className="row" style={{ alignItems: "center" }} onClick={() => go({ screen: "deals" })}>
                     <span className="body">
                       <span className="ellipsis">{d.title}</span>
-                      <span className="small muted">{d.stage_name}</span>
+                      <span className="small muted">{stageName(t, d.stage_name)}</span>
                     </span>
                     <span className="b action">{money(locale, d.value_minor, d.currency)}</span>
                   </button>

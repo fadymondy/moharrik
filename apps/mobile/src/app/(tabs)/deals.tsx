@@ -3,7 +3,7 @@ import { Check } from "lucide-react-native"
 import { useEffect, useMemo, useState } from "react"
 import { FlatList, RefreshControl, ScrollView, View } from "react-native"
 
-import { money, type Deal } from "@moharrik/client"
+import { money, num, stageName, type Deal } from "@moharrik/client"
 
 import { useBanner } from "@/components/banner"
 import { Sheet } from "@/components/sheet"
@@ -41,7 +41,7 @@ export default function DealsScreen() {
     onSuccess: (_r, { to }) => {
       void qc.invalidateQueries({ queryKey: ["deals", ws] })
       void qc.invalidateQueries({ queryKey: ["stages", ws] })
-      banner({ title: t("deals.moved", { stage: all.find((s) => s.id === to)?.name ?? "" }) })
+      banner({ title: t("deals.moved", { stage: stageName(t, all.find((s) => s.id === to)?.name) }) })
     },
   })
 
@@ -70,7 +70,7 @@ export default function DealsScreen() {
           <View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
               {all.map((s) => (
-                <Chip key={s.id} label={`${s.name} · ${s.deal_count}`} active={s.id === stage} onPress={() => setStage(s.id)} />
+                <Chip key={s.id} label={t("deals.chip", { stage: stageName(t, s.name), n: num(locale, s.deal_count) })} active={s.id === stage} onPress={() => setStage(s.id)} />
               ))}
             </ScrollView>
           </View>
@@ -78,7 +78,7 @@ export default function DealsScreen() {
             const s = all.find((x) => x.id === stage)
             return s ? (
               <Text size="sm" tone="muted" style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
-                {t("deals.count", { n: s.deal_count })}
+                {t("deals.count", { n: num(locale, s.deal_count) })}
                 {s.value_minor ? ` · ${money(locale, s.value_minor, currency)}` : ""}
               </Text>
             ) : null
@@ -134,7 +134,7 @@ function MoveSheet({ deal, stages, onClose, onPick }: { deal: Deal | null; stage
     <Sheet open={!!deal} onClose={onClose} title={t("deals.move")} sub={deal?.title}>
       {stages.map((s) => (
         <Row key={s.id} onPress={() => onPick(s.id)}>
-          <Text style={{ flex: 1 }}>{s.name}</Text>
+          <Text style={{ flex: 1 }}>{stageName(t, s.name)}</Text>
           {s.id === deal?.stage_id ? <Check size={18} color={c.action} /> : null}
         </Row>
       ))}

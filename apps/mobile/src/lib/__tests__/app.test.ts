@@ -21,6 +21,10 @@ describe("eventText", () => {
   it("names a stage move and keeps the deal title as the body", () => {
     expect(eventText(en, { kind: "deal.stage_changed", data: { stage: "Proposal", title: "Website" } })).toEqual({ title: "Deal moved to Proposal", body: "Website" })
   })
+  it("names a default pipeline stage in the app's language", () => {
+    expect(eventText(ar, { kind: "deal.stage_changed", data: { stage: "Proposal", title: "Website" } }).title).toBe("نُقلت الصفقة إلى عرض سعر")
+    expect(eventText(ar, { kind: "deal.stage_changed", data: { stage: "Negotiation" } }).title).toBe("نُقلت الصفقة إلى Negotiation")
+  })
   it("translates lifecycle stages", () => {
     expect(eventText(ar, { kind: "lifecycle.changed", data: { from: "lead", to: "customer" } }).title).toContain(ar("lifecycle.customer"))
   })

@@ -50,7 +50,9 @@ export function Text({
     fontSize: SIZE[size],
     lineHeight: Math.round(SIZE[size] * (locale === "ar" ? 1.55 : 1.4)),
     color: colors[tone],
-    textAlign: rtl ? "right" : "left",
+    // "auto" is the paragraph's start. Not "right": under an RTL `direction` React Native swaps
+    // left and right (iOS and Android), so "right" put full-width text — headers — on the left.
+    textAlign: "auto",
     writingDirection: rtl ? "rtl" : "ltr",
   }
   return <RNText {...rest} style={[base, style]} />
