@@ -6,6 +6,8 @@
 
 **The open-source AI engine behind a business: connect your channels and accounts, and Moharrik watches (notifications, trends, research), acts (automation), talks to customers (chat, email, WhatsApp) and remembers them (CRM). Every capability is an MCP tool, so your AI agents can do it too.**
 
+[![Built with ToGO](https://img.shields.io/badge/built%20with-ToGO-00ADD8?logo=go&logoColor=white)](https://to-go.dev)
+[![ToGO on GitHub](https://img.shields.io/github/stars/togo-framework/togo?label=ToGO&logo=github&style=social)](https://github.com/togo-framework/togo)
 [![CI](https://github.com/fadymondy/moharrik/actions/workflows/ci.yml/badge.svg)](https://github.com/fadymondy/moharrik/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/BMERkavdVq)
@@ -108,9 +110,29 @@ See [CONTRIBUTING.md](CONTRIBUTING.md#local-setup) and the "Run it" section of
 | `internal/db/schema`, `internal/db/post` | Schema and post-migration SQL (RLS, roles, constraints) |
 | `web/` | Next.js app (en/ar) |
 
-Moharrik is built on [ToGO](https://github.com/togo-framework), an API-first Go + React framework.
-The engineering notebook in **[docs/architecture.md](docs/architecture.md)** covers tenancy and RLS,
-MCP, the modules and framework notes.
+The engineering notebook in **[docs/architecture.md](docs/architecture.md)** covers tenancy and RLS, MCP, the modules and framework notes.
+
+### Built on ToGO
+
+Moharrik is built on **[ToGO](https://to-go.dev)** ([GitHub](https://github.com/togo-framework/togo)), the
+open-source, API-first framework for Go + sqlc + Atlas + GraphQL/OpenAPI + Next.js with a
+Laravel-style CLI. The kernel is small and everything else is a plugin; these are the pieces
+Moharrik uses:
+
+| ToGO piece | What it does in Moharrik |
+|---|---|
+| [Kernel](https://github.com/togo-framework/togo) | Config, the hook/event bus, the plugin registry and server bootstrap |
+| [CLI](https://github.com/togo-framework/cli) | `togo generate` (sqlc → gqlgen → Atlas → OpenAPI), migrations, `togo serve` |
+| [auth](https://github.com/togo-framework/auth) | Sign-in, JWT sessions, roles and API tokens |
+| [orm](https://github.com/togo-framework/orm) | Query building in the domain services |
+| [validation](https://github.com/togo-framework/validation) | Laravel-style request validation |
+| [ratelimit](https://github.com/togo-framework/ratelimit) | Throttling for the API, webhooks and MCP |
+| [queue · cache · storage · realtime · i18n](https://github.com/togo-framework) | Background jobs, caching, attachments, live updates and EN/AR |
+| [db-postgres](https://github.com/togo-framework/db-postgres) | The Postgres driver |
+| [faker](https://github.com/togo-framework/faker) | Factories and seed data for tests |
+
+Want the same foundation for your own app? Run `go install github.com/togo-framework/cli@latest && togo new myapp`,
+then read the [ToGO docs](https://to-go.dev/en/docs) and browse the [plugin marketplace](https://to-go.dev/marketplace).
 
 ## Documentation
 
