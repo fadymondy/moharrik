@@ -15,7 +15,8 @@
 
 /* English UI is set in Inter, self-hosted by next/font (app/layout.tsx, --font-inter). */
 :root {
-  --nq-font-sans: var(--font-inter), Inter, "IBM Plex Sans Arabic", Alexandria, system-ui, sans-serif;
+  --nq-font-sans:
+    var(--font-inter), Inter, "IBM Plex Sans Arabic", Alexandria, system-ui, sans-serif;
 }
 
 @theme inline {
