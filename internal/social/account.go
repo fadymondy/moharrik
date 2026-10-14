@@ -299,11 +299,15 @@ func RegisterAccount(api huma.API, svc func() *Service) {
 		Description: "Refused with code last_method when it is the only way left to sign in (no password, no other provider, " +
 			"no CircleXO). Disconnecting Apple also revokes Moharrik's Sign in with Apple authorization at Apple."},
 		func(ctx context.Context, in *struct {
-			Provider string `path:"provider" enum:"google,apple"`
+			Provider string `path:"provider" doc:"google or apple"`
 		}) (*struct{}, error) {
 			uid, err := caller(ctx)
 			if err != nil {
 				return nil, err
+			}
+			// Checked here rather than with an enum: a validation error echoes the value back.
+			if in.Provider != "google" && in.Provider != "apple" {
+				return nil, huma.Error404NotFound("that provider is not connected")
 			}
 			s := svc()
 			m, err := s.methods(ctx, uid)

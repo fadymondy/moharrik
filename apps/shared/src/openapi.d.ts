@@ -17103,7 +17103,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                provider: "google" | "apple";
+                /** @description google or apple */
+                provider: string;
             };
             cookie?: never;
         };
