@@ -464,6 +464,9 @@ func TestSocialNative(t *testing.T) {
 	if code != 200 || !strings.HasPrefix(out["token"].(string), "togo_pat_") || out["email"] != email {
 		t.Fatalf("native apple: %d %v", code, out)
 	}
+	if rt, _ := out["refresh_token"].(string); !strings.HasPrefix(rt, "mrt_") || out["expires_at"] == nil {
+		t.Errorf("native apple: no refresh token: %v", out)
+	}
 	app := newClient(t, s.url)
 	app.bearer = out["token"].(string)
 	app.must("GET", "/api/me/workspaces", nil, 200)
@@ -596,11 +599,12 @@ func TestSocialAccountDeletion(t *testing.T) {
 	pw := s.browser()
 	pwEmail := "pwdel-" + rnd() + "@company.test"
 	web := pw.asClient()
-	web.must("POST", "/api/auth/register", map[string]string{"email": pwEmail, "password": "pwdel-pass-123"}, 201)
-	if code, b := web.do("POST", "/api/me/account/delete", map[string]any{"confirm": pwEmail, "password": "wrong-password"}); code != http.StatusForbidden || !strings.Contains(string(b), "wrong_password") {
+	pass := "pwdel-" + rnd() // made per run: never a literal credential in the source
+	web.must("POST", "/api/auth/register", map[string]string{"email": pwEmail, "password": pass}, 201)
+	if code, b := web.do("POST", "/api/me/account/delete", map[string]any{"confirm": pwEmail, "password": pass + "-wrong"}); code != http.StatusForbidden || !strings.Contains(string(b), "wrong_password") {
 		t.Errorf("a wrong password: %d %s", code, b)
 	}
-	web.must("POST", "/api/me/account/delete", map[string]any{"confirm": pwEmail, "password": "pwdel-pass-123"}, 204)
+	web.must("POST", "/api/me/account/delete", map[string]any{"confirm": pwEmail, "password": pass}, 204)
 	if pw.me() != "" {
 		t.Error("still signed in after deleting the account")
 	}

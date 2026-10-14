@@ -2,6 +2,7 @@ package social
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -33,13 +34,9 @@ provider on the web (Account → Sign-in methods).
 
 var nativeLimiter = inbox.NewMemoryLimiter()
 
-// DeviceSignIn is a native sign-in's result.
-type DeviceSignIn struct {
-	Token string `json:"token" doc:"This device's personal access token. Returned once; send it as Authorization: Bearer."`
-	Email string `json:"email"`
-}
-
-type deviceSignInOut struct{ Body DeviceSignIn }
+// deviceSignInOut is a native sign-in's result: the same device token and refresh token as
+// POST /api/auth/app/token.
+type deviceSignInOut struct{ Body appsignin.Session }
 
 // AppleNativeInput is what expo-apple-authentication returns, plus the raw nonce.
 type AppleNativeInput struct {
@@ -94,16 +91,16 @@ func limited(ctx context.Context) error {
 }
 
 func (s *Service) device(ctx context.Context, userID, device string) (*deviceSignInOut, error) {
-	var email string
-	if err := s.DB.QueryRowContext(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email); err != nil {
-		return nil, nativeRefusal(&Refusal{ErrUnavailable, err})
-	}
-	tok, err := appsignin.MintDeviceToken(ctx, s.DB, userID, device)
+	sess, err := appsignin.IssueSession(ctx, s.DB, userID, device)
 	if err != nil {
+		var se huma.StatusError
+		if errors.As(err, &se) {
+			return nil, err
+		}
 		s.Log.Error("social: minting the device token", "err", err)
 		return nil, nativeRefusal(&Refusal{ErrUnavailable, err})
 	}
-	return &deviceSignInOut{Body: DeviceSignIn{Token: tok, Email: email}}, nil
+	return &deviceSignInOut{Body: sess}, nil
 }
 
 // useNonce records a native nonce; false when it was seen before (a replay).

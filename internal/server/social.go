@@ -7,6 +7,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/togo-framework/auth"
 
+	"github.com/fadymondy/moharrik/internal/account"
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/social"
 	"github.com/fadymondy/moharrik/internal/workspaces"
@@ -73,4 +74,17 @@ func advertise(c social.Config) {
 	if c.GoogleNative() {
 		add("google", "Continue with Google", "native", "/api/auth/native/google")
 	}
+}
+
+// registerAccount mounts email sign-in for the apps and the mailed-link endpoints (forgot / reset
+// password, confirm an address).
+func registerAccount(api huma.API, a *app.App) {
+	if a != nil {
+		svc, ok := auth.FromKernel(a.Kernel)
+		if !ok {
+			panic("account: auth service not registered")
+		}
+		account.Configure(a, svc)
+	}
+	account.Register(api, a)
 }

@@ -50,6 +50,19 @@ const (
 	// maxDevices bounds one person's push registrations; the oldest go first.
 	maxDevices = 20
 	patPrefix  = "togo_pat_"
+	// refreshPrefix marks an app refresh token, so a leaked one is recognisable.
+	refreshPrefix = "mrt_"
+	// refreshGrace keeps a refreshed-away device token working briefly, for
+	// requests the app already had in flight when it refreshed.
+	refreshGrace = time.Minute
+)
+
+// TokenTTL is how long an app's device token works before it must be
+// refreshed; RefreshTTL is how long an unused install stays signed in.
+// Variables so a test can shorten them.
+var (
+	TokenTTL   = 7 * 24 * time.Hour
+	RefreshTTL = 90 * 24 * time.Hour
 )
 
 var tags = []string{"Apps"}
@@ -58,13 +71,13 @@ var tags = []string{"Apps"}
 // 24 random bytes, so this is about load, not guessing.
 var tokenLimiter = inbox.NewMemoryLimiter()
 
-// validAppRedirect accepts exactly the two shapes the apps use:
+// ValidRedirect accepts exactly the two shapes the apps use:
 //   - http://127.0.0.1:<any port>/callback (or localhost, [::1]) — the desktop
 //     app's loopback listener; the port is ephemeral, so it cannot be pinned
 //     (RFC 8252 §7.3);
 //   - moharrik://auth/callback — the mobile app (ASWebAuthenticationSession /
 //     Custom Tabs).
-func validAppRedirect(raw string) bool {
+func ValidRedirect(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil || u.Fragment != "" || u.User != nil || u.RawQuery != "" {
 		return false
@@ -128,43 +141,217 @@ func bearerPAT(r *http.Request) string {
 	return ""
 }
 
+// Session is what an app holds once signed in: a short-lived device token and
+// the refresh token that renews it.
+type Session struct {
+	Token        string    `json:"token" doc:"This device's personal access token. Send it as Authorization: Bearer."`
+	RefreshToken string    `json:"refresh_token" doc:"Trades for a new pair at POST /api/auth/app/refresh. One use."`
+	ExpiresAt    time.Time `json:"expires_at" doc:"When the token stops working; refresh before then."`
+	Email        string    `json:"email"`
+}
+
 // mintDeviceToken issues a personal access token in the auth plugin's own
 // format (auth@v0.8 pat.go: "togo_pat_" + 40 hex, only the sha256 stored, empty
 // abilities = the user's own access; Moharrik's authorization is the
-// workspace role). Names are NOT unique — iOS calls every phone "iPhone" — so a
-// new sign-in never replaces another install's token by name; instead one
-// person keeps at most maxDevices tokens, the oldest going first with their
-// push registrations.
-func mintDeviceToken(ctx context.Context, db *sql.DB, userID, name string) (string, error) {
-	return MintDeviceToken(ctx, db, userID, name)
-}
-
-// MintDeviceToken is mintDeviceToken for the native sign-in endpoints (internal/social), which
-// hand an app the same device token as POST /api/auth/app/token. name is cleaned like a device
-// name from the browser flow.
-func MintDeviceToken(ctx context.Context, db *sql.DB, userID, name string) (string, error) {
-	name = label(name, "Moharrik app", 120)
+// workspace role), expiring after TokenTTL, plus the refresh token that renews
+// it. Names are NOT unique — iOS calls every phone "iPhone" — so a new sign-in
+// never replaces another install's token by name; instead one person keeps at
+// most maxDevices tokens, the oldest going first with their push
+// registrations and refresh tokens.
+//
+// signedInAt is when the person last proved who they are (now for a fresh
+// sign-in, carried over on a refresh), so "sign out everywhere" ends the chain.
+func mintDeviceToken(ctx context.Context, tx *sql.Tx, userID, name string, signedInAt time.Time) (Session, string, error) {
+	now := time.Now().UTC()
 	plain := patPrefix + randHex(16) + randHex(4)
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = tx.Rollback() }()
+	refresh := refreshPrefix + randHex(32)
+	pid := randHex(16)
+	exp := now.Add(TokenTTL).Truncate(time.Second)
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO personal_access_tokens (id, user_id, name, token_hash, abilities, expires_at, created_at)
-		VALUES ($1, $2, $3, $4, '', NULL, $5)`,
-		randHex(16), userID, name, sha256Hex(plain), time.Now().UTC().Format(time.RFC3339)); err != nil {
-		return "", err
+		VALUES ($1, $2, $3, $4, '', $5, $6)`,
+		pid, userID, name, sha256Hex(plain), exp.Format(time.RFC3339), now.Format(time.RFC3339)); err != nil {
+		return Session{}, "", err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO app_refresh_tokens (token_hash, user_id, pat_id, device_name, signed_in_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		sha256Hex(refresh), userID, pid, name, signedInAt, now.Add(RefreshTTL)); err != nil {
+		return Session{}, "", err
 	}
 	// created_at is RFC 3339 UTC text, so it sorts as written.
 	const stale = `SELECT id FROM personal_access_tokens WHERE user_id = $1 ORDER BY created_at DESC, id OFFSET $2`
-	if _, err := tx.ExecContext(ctx, `DELETE FROM device_tokens WHERE user_id = $1 AND pat_id IN (`+stale+`)`, userID, maxDevices); err != nil {
+	for _, q := range []string{
+		`DELETE FROM device_tokens WHERE user_id = $1 AND pat_id IN (` + stale + `)`,
+		`DELETE FROM app_refresh_tokens WHERE user_id = $1 AND pat_id IN (` + stale + `)`,
+		`DELETE FROM personal_access_tokens WHERE user_id = $1 AND id IN (` + stale + `)`,
+	} {
+		if _, err := tx.ExecContext(ctx, q, userID, maxDevices); err != nil {
+			return Session{}, "", err
+		}
+	}
+	return Session{Token: plain, RefreshToken: refresh, ExpiresAt: exp}, pid, nil
+}
+
+// IssueSession signs an app in for userID — a device token and its refresh
+// token — after the checks every sign-in makes. The apps' own sign-in
+// endpoints (internal/account) finish here.
+func IssueSession(ctx context.Context, db *sql.DB, userID, device string) (Session, error) {
+	u, err := platform.Load(ctx, db, userID)
+	if err != nil {
+		return Session{}, huma.Error401Unauthorized("the account is gone")
+	}
+	if u.Suspended() {
+		return Session{}, huma.Error403Forbidden(u.SuspendedMessage())
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return Session{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	s, _, err := mintDeviceToken(ctx, tx, userID, label(device, "Moharrik app", 120), time.Now())
+	if err != nil {
+		return Session{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Session{}, err
+	}
+	s.Email = u.Email
+	return s, nil
+}
+
+// IssueCode makes the one-time code an app trades at POST /api/auth/app/token,
+// bound to its PKCE challenge and redirect, and returns where to send the
+// browser. Shared by the web's "Continue to the app" page and the Google/Apple
+// callback when that sign-in was started from an app.
+func IssueCode(ctx context.Context, db *sql.DB, userID, redirectURI, challenge, state, device string) (string, error) {
+	if !ValidRedirect(redirectURI) {
+		return "", huma.Error400BadRequest("that is not a Moharrik app's redirect")
+	}
+	code := "mas_" + randHex(24)
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO app_signin_codes (code_hash, user_id, redirect_uri, code_challenge, device_name, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		sha256Hex(code), userID, redirectURI, challenge, label(device, "Moharrik app", 120),
+		time.Now().Add(appCodeTTL)); err != nil {
 		return "", err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM personal_access_tokens WHERE user_id = $1 AND id IN (`+stale+`)`, userID, maxDevices); err != nil {
-		return "", err
+	// Housekeeping: expired codes are useless; drop them as new ones are made.
+	_, _ = db.ExecContext(ctx, `DELETE FROM app_signin_codes WHERE expires_at < now() - interval '1 hour'`)
+	dest, _ := url.Parse(redirectURI)
+	q := url.Values{}
+	q.Set("code", code)
+	q.Set("state", state)
+	dest.RawQuery = q.Encode()
+	return dest.String(), nil
+}
+
+// Revoke ends one app install's sign-in: its device token, its refresh token
+// and its push registration.
+func Revoke(ctx context.Context, db *sql.DB, userID, patID string) error {
+	for _, q := range []string{
+		`DELETE FROM device_tokens WHERE user_id = $1 AND pat_id = $2`,
+		`DELETE FROM app_refresh_tokens WHERE user_id = $1 AND pat_id = $2`,
+		`DELETE FROM personal_access_tokens WHERE user_id = $1 AND id = $2`,
+	} {
+		if _, err := db.ExecContext(ctx, q, userID, patID); err != nil {
+			return err
+		}
 	}
-	return plain, tx.Commit()
+	return nil
+}
+
+// errRefresh is every refusal of a refresh token: which check failed is not
+// the caller's business, and the app's answer to all of them is "sign in".
+var errRefresh = huma.Error401Unauthorized("the sign-in has ended — sign in again")
+
+// refresh rotates an app's refresh token: one use, a new pair, the old device
+// token kept for refreshGrace. The row is locked, so two concurrent refreshes
+// of the same token cannot both succeed.
+func refresh(ctx context.Context, db *sql.DB, token string) (Session, error) {
+	if !strings.HasPrefix(token, refreshPrefix) {
+		return Session{}, errRefresh
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return Session{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var userID, oldPAT, device string
+	var signedIn, expires time.Time
+	err = tx.QueryRowContext(ctx, `
+		SELECT user_id, pat_id, device_name, signed_in_at, expires_at FROM app_refresh_tokens WHERE token_hash = $1 FOR UPDATE`,
+		sha256Hex(token)).Scan(&userID, &oldPAT, &device, &signedIn, &expires)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Session{}, errRefresh
+	}
+	if err != nil {
+		return Session{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM app_refresh_tokens WHERE token_hash = $1`, sha256Hex(token)); err != nil {
+		return Session{}, err
+	}
+	// Every refusal below still burns the token (the commit), so it cannot be
+	// tried again.
+	if time.Now().After(expires) {
+		_ = tx.Commit()
+		return Session{}, errRefresh
+	}
+	// The device token it renews must still exist: revoking it anywhere (the
+	// auth plugin's token list, an admin) ends the install's sign-in, even
+	// where that path did not know about refresh tokens.
+	var alive bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM personal_access_tokens WHERE user_id = $1 AND id = $2)`,
+		userID, oldPAT).Scan(&alive); err != nil {
+		return Session{}, err
+	}
+	if !alive {
+		_ = tx.Commit()
+		return Session{}, errRefresh
+	}
+	platform.Invalidate(userID)
+	u, err := platform.Load(ctx, db, userID)
+	if err != nil {
+		_ = tx.Commit()
+		return Session{}, errRefresh
+	}
+	if u.Suspended() {
+		_ = tx.Commit()
+		return Session{}, huma.Error403Forbidden(u.SuspendedMessage())
+	}
+	if u.SessionsValidAfter != nil && signedIn.Before(u.SessionsValidAfter.Truncate(time.Second)) {
+		_ = tx.Commit()
+		return Session{}, errRefresh
+	}
+	sess, newPAT, err := mintDeviceToken(ctx, tx, userID, device, signedIn)
+	if err != nil {
+		return Session{}, err
+	}
+	// The install's push registration follows it to the new token; the old
+	// token works a little longer for requests already in flight.
+	if _, err := tx.ExecContext(ctx, `UPDATE device_tokens SET pat_id = $3 WHERE user_id = $1 AND pat_id = $2`, userID, oldPAT, newPAT); err != nil {
+		return Session{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE personal_access_tokens SET expires_at = $3 WHERE user_id = $1 AND id = $2`,
+		userID, oldPAT, time.Now().UTC().Add(refreshGrace).Format(time.RFC3339)); err != nil {
+		return Session{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Session{}, err
+	}
+	sess.Email = u.Email
+	return sess, nil
+}
+
+// statusOr passes a huma error through, and logs anything else as a 500 that
+// says what failed.
+func statusOr(a *app.App, err error, what string) error {
+	var se huma.StatusError
+	if errors.As(err, &se) {
+		return err
+	}
+	a.Log.Error(what, "err", err)
+	return huma.Error500InternalServerError("could not " + what)
 }
 
 // AppDevice is one of the caller's own app installs that receives push.
@@ -238,28 +425,13 @@ func Register(api huma.API, a *app.App) {
 			if err != nil {
 				return nil, err
 			}
-			if !validAppRedirect(in.Body.RedirectURI) {
-				return nil, huma.Error400BadRequest("that is not a Moharrik app's redirect")
+			dest, err := IssueCode(ctx, db(), id.ID, in.Body.RedirectURI, in.Body.CodeChallenge, in.Body.State, in.Body.Device)
+			if err != nil {
+				return nil, statusOr(a, err, "start the app sign-in")
 			}
-			code := "mas_" + randHex(24)
-			if _, err := db().ExecContext(ctx, `
-				INSERT INTO app_signin_codes (code_hash, user_id, redirect_uri, code_challenge, device_name, expires_at)
-				VALUES ($1, $2, $3, $4, $5, $6)`,
-				sha256Hex(code), id.ID, in.Body.RedirectURI, in.Body.CodeChallenge, label(in.Body.Device, "Moharrik app", 120),
-				time.Now().Add(appCodeTTL)); err != nil {
-				a.Log.Error("app sign-in code", "err", err)
-				return nil, huma.Error500InternalServerError("could not start the app sign-in")
-			}
-			// Housekeeping: expired codes are useless; drop them as new ones are made.
-			_, _ = db().ExecContext(ctx, `DELETE FROM app_signin_codes WHERE expires_at < now() - interval '1 hour'`)
-			dest, _ := url.Parse(in.Body.RedirectURI)
-			q := url.Values{}
-			q.Set("code", code)
-			q.Set("state", in.Body.State)
-			dest.RawQuery = q.Encode()
 			return out(struct {
 				RedirectTo string `json:"redirect_to" doc:"Send the browser here: the app's redirect with code and state."`
-			}{dest.String()}), nil
+			}{dest}), nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "auth-app-token", Method: http.MethodPost, Path: "/api/auth/app/token",
@@ -273,10 +445,7 @@ func Register(api huma.API, a *app.App) {
 				CodeVerifier string `json:"code_verifier" minLength:"43" maxLength:"128"`
 				RedirectURI  string `json:"redirect_uri" maxLength:"200"`
 			}
-		}) (*body[struct {
-			Token string `json:"token" doc:"This device's personal access token. Returned once; send it as Authorization: Bearer."`
-			Email string `json:"email"`
-		}], error) {
+		}) (*body[Session], error) {
 			if ok, _ := tokenLimiter.Take(time.Now(), inbox.Rule{Key: "app-token:" + clientip.Bucket(clientip.From(ctx)), Limit: 30, Window: 15 * time.Minute}); !ok {
 				return nil, huma.Error429TooManyRequests("too many sign-in attempts — wait a few minutes")
 			}
@@ -307,22 +476,31 @@ func Register(api huma.API, a *app.App) {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return nil, huma.Error400BadRequest("unknown or already-used code")
 			}
-			u, err := platform.Load(ctx, db(), userID)
+			sess, err := IssueSession(ctx, db(), userID, device)
 			if err != nil {
-				return nil, huma.Error400BadRequest("the account is gone")
+				return nil, statusOr(a, err, "issue the device token")
 			}
-			if u.Suspended() {
-				return nil, huma.Error403Forbidden(u.SuspendedMessage())
+			return out(sess), nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "auth-app-refresh", Method: http.MethodPost, Path: "/api/auth/app/refresh",
+		Summary: "Renew an app's device token", Tags: tags,
+		Description: "Trades the refresh token for a new device token and a new refresh token. The old refresh token stops " +
+			"working at once and the old device token a minute later. Refused (401) once the account is deleted or signed out " +
+			"everywhere, 403 while it is suspended. Public: the refresh token is the credential; rate-limited per client network."},
+		func(ctx context.Context, in *struct {
+			Body struct {
+				RefreshToken string `json:"refresh_token" minLength:"1" maxLength:"128"`
 			}
-			token, err := mintDeviceToken(ctx, db(), userID, device)
+		}) (*body[Session], error) {
+			if ok, _ := tokenLimiter.Take(time.Now(), inbox.Rule{Key: "app-refresh:" + clientip.Bucket(clientip.From(ctx)), Limit: 60, Window: 15 * time.Minute}); !ok {
+				return nil, huma.Error429TooManyRequests("too many attempts — wait a few minutes")
+			}
+			sess, err := refresh(ctx, db(), in.Body.RefreshToken)
 			if err != nil {
-				a.Log.Error("app sign-in mint", "err", err)
-				return nil, huma.Error500InternalServerError("could not issue the device token")
+				return nil, statusOr(a, err, "renew the device token")
 			}
-			return out(struct {
-				Token string `json:"token" doc:"This device's personal access token. Returned once; send it as Authorization: Bearer."`
-				Email string `json:"email"`
-			}{token, u.Email}), nil
+			return out(sess), nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "me-app-signout", Method: http.MethodPost, Path: "/api/me/app-signout",
@@ -336,10 +514,7 @@ func Register(api huma.API, a *app.App) {
 			if pid == "" {
 				return nil, huma.Error409Conflict("this request is not signed in with an app's device token")
 			}
-			if _, err := db().ExecContext(ctx, `DELETE FROM device_tokens WHERE user_id = $1 AND pat_id = $2`, id.ID, pid); err != nil {
-				return nil, huma.Error500InternalServerError("could not sign the app out")
-			}
-			if _, err := db().ExecContext(ctx, `DELETE FROM personal_access_tokens WHERE user_id = $1 AND id = $2`, id.ID, pid); err != nil {
+			if err := Revoke(ctx, db(), id.ID, pid); err != nil {
 				return nil, huma.Error500InternalServerError("could not sign the app out")
 			}
 			return &struct{}{}, nil
