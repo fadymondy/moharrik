@@ -25,7 +25,6 @@ import (
 	"github.com/circlexo/circlexo-go/entitlements"
 	"github.com/circlexo/circlexo-go/oidc"
 	"github.com/circlexo/circlexo-go/service"
-	"github.com/circlexo/circlexo-go/usage"
 	"github.com/togo-framework/auth"
 )
 
@@ -62,8 +61,6 @@ type Service struct {
 	OnChange func(workspaceID string)
 	// Now is the clock the webhook checks use; nil is time.Now. Tests set it.
 	Now func() time.Time
-	// Usage buffers pay-as-you-go reports (usage.go); started by Install.
-	Usage *usage.Reporter
 }
 
 var current atomic.Pointer[Service]
@@ -140,7 +137,7 @@ func tokenSource(cfg circlexo.Config) (circlexo.TokenSource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return service.NewSource(c, "billing.entitlements", "billing.usage", "orgs.read", "tenants.read", "tenants.write"), nil
+	return service.NewSource(c, "billing.entitlements", "orgs.read", "tenants.read", "tenants.write"), nil
 }
 
 // sessionKey turns CIRCLEXO_SESSION_KEY into the 32 bytes the OIDC state cookie is sealed with.
@@ -181,12 +178,7 @@ func redirectURL() string {
 // Install makes s the running integration. Passing nil (the integration is off) clears it, which
 // matters to a test process that boots more than once.
 func Install(s *Service) {
-	if old := current.Swap(s); old != nil && old != s {
-		old.stopUsage()
-	}
-	if s != nil {
-		s.startUsage()
-	}
+	current.Store(s)
 }
 
 // billingURL is where a linked workspace manages its subscription: the hub's own billing page.
