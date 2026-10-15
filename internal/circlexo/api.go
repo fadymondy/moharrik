@@ -30,7 +30,7 @@ type CircleXOOut struct {
 	Active     bool         `json:"active" doc:"The hub confirms the org may use the app."`
 	Plan       string       `json:"plan,omitempty"`
 	Status     string       `json:"status,omitempty"`
-	ReadOnly   bool         `json:"read_only" doc:"The hub could not be reached and a stale copy is in use: gated actions are refused."`
+	ReadOnly   bool         `json:"read_only" doc:"The hub could not be reached and a stale copy is in use. Nothing is refused because of it."`
 	Unknown    bool         `json:"unknown" doc:"The hub could not confirm the entitlements at all."`
 	PaygOn     bool         `json:"payg_enabled"`
 	BillingURL string       `json:"billing_url,omitempty"`
@@ -40,9 +40,6 @@ type CircleXOOut struct {
 type wsHeader struct {
 	WorkspaceID string `header:"X-Workspace-ID" doc:"Workspace id or slug. Non-members get 404."`
 }
-
-// enforced lists the hub keys Moharrik acts on itself.
-var enforced = map[string]bool{FeatMembers: true, FeatCampaigns: true, MeterEmails: true}
 
 // RegisterAPI mounts GET /api/w/circlexo: what the hub says about this workspace. With the
 // integration off, or a workspace with no active link, it answers linked=false and no features.
@@ -84,7 +81,7 @@ func RegisterAPI(api huma.API, a *app.App) {
 		for _, f := range st.Set.Features {
 			out.Features = append(out.Features, CircleXOFeatureOut{
 				Key: f.Key, Kind: f.Kind, Enabled: f.Enabled, Limit: f.Limit,
-				IncludedQty: f.IncludedQty, UsedInPeriod: f.UsedInPeriod, Enforced: enforced[f.Key],
+				IncludedQty: f.IncludedQty, UsedInPeriod: f.UsedInPeriod, Enforced: false, // free and open source: nothing is enforced
 			})
 		}
 		return &struct{ Body CircleXOOut }{out}, nil

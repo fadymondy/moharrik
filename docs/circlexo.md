@@ -1,12 +1,12 @@
 # CircleXO hub integration
 
 Moharrik can run as an app on the CircleXO hub: hub sign-in next to Moharrik's own login, hub orgs
-mapped to workspaces, hub entitlements shown for those workspaces (and enforced where Moharrik has
-a natural place to say no), usage reported to the hub, and hub-issued tokens on the MCP endpoint.
+mapped to workspaces, hub entitlements shown for those workspaces, and hub-issued tokens on the
+MCP endpoint. Moharrik is free and open source: nothing is enforced and no usage is reported.
 **All of it is off unless `CIRCLEXO_ISSUER` is set.** With it unset nothing changes: the routes
 below (except the config probe) do not exist and no table is read.
 
-Code: `internal/circlexo` (service, SSO, sync, webhooks, entitlements, usage), `internal/mcp/hub.go`
+Code: `internal/circlexo` (service, SSO, sync, webhooks, entitlements), `internal/mcp/hub.go`
 (federated MCP), wiring in `internal/server/circlexo.go` and `internal/server/guard.go`. Small
 hooks: `contacts.OnCreated`, `marketing.BeforeCampaignSend`/`AfterCampaignSend`,
 `workspaces.BeforeInvite`. Tests: `internal/server/circlexo_test.go` (against the SDK's
@@ -45,7 +45,7 @@ disabled; Moharrik still starts.
 | `POST /api/circlexo/provision` | webhook signature | Create or return the workspace for an org (idempotent). |
 | `POST /api/circlexo/deprovision` | webhook signature | Mark the org's link inactive. |
 | `GET /api/circlexo/config` | public | `{"enabled": bool, "login_url": "/auth/circlexo/login"}`; the login page shows the button only when enabled. Always mounted. |
-| `GET /api/w/circlexo` | session + membership | The workspace's link, plan and hub entitlements (features, limits, meters, which are enforced). |
+| `GET /api/w/circlexo` | session + membership | The workspace's link, plan and hub entitlements (features, limits, meters; nothing is enforced). |
 | `/.well-known/oauth-protected-resource` | public | Existing; lists the hub issuer too when enabled. |
 | `POST /api/mcp` (and the public MCP host) | token | Existing; also accepts hub-issued access tokens. |
 
@@ -100,29 +100,15 @@ creates the workspace, syncs members, then confirms the tenant so the hub marks 
 to member. The last owner is never demoted or removed by the hub. `member.removed` suspends the
 membership; it does not delete it. Removing the app marks the link inactive and deletes nothing.
 
-## Entitlements: what is enforced (honestly)
+## Free and open source: nothing is enforced
 
-Moharrik has no plan engine (`workspaces.plan` is a label nothing reads), so there is nothing to
-overlay. For a workspace with an **active** link the hub's entitlements are exposed at
-`GET /api/w/circlexo` and enforced only where a natural choke point exists:
-
-- `campaigns` (flag) and `emails_sent` (meter): refuse starting a campaign send (REST and the
-  `send_campaign` tool share it) when the feature is off, the subscription is inactive or
-  read-only, or the allowance is used up without pay-as-you-go overage.
-- `members` (limit): refuses new invitations once the workspace has that many active members.
-
-`inbox`, `crm`, `automation`, `research`, `trends` and the `contacts` meter are exposed but **not**
-blocked. Fail closed: if the hub cannot confirm the entitlements (or has none for the org) the gated
-actions above are refused; in the SDK's grace window (hub down, stale copy) the last answer applies
-read-only. Reading keeps working. Unlinked or inactive workspaces are never touched.
-`entitlement.changed` and `subscription.*` drop the cache.
-
-## Usage reporting
-
-Through the SDK `usage.Reporter`, linked workspaces only, keyed by an idempotency key so a retry
-never double counts: `contacts` (1 per contact created) and `emails_sent` (count sent per campaign
-send attempt). Failures are logged and never block the action. Billing itself (checkout, invoices)
-is the hub's; Moharrik has no billing UI to redirect.
+Since 2026-10-15 Moharrik (and CircleXO) are free and open source. Nothing is sold and no feature is
+behind a plan. For a workspace with an **active** link the hub's entitlements are still exposed at
+`GET /api/w/circlexo` (every feature reports `enforced: false`), but nothing is refused because of
+them: not campaign sends, not invitations, not when the hub is down or has no entitlements for the
+org. No usage is reported to the hub (the app token no longer asks for `billing.usage`).
+`CIRCLEXO_BILLING_URL` stays so a workspace that paid before can open the hub and cancel. People who
+want to support the work can sponsor ToGO at https://to-go.dev/sponsor.
 
 ## Federated MCP
 

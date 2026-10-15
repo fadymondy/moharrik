@@ -658,8 +658,9 @@ func hubEnts(org string, version int64, active bool, feats ...circlexo.Entitleme
 
 func lim(n int64) *int64 { return &n }
 
-// Entitlements: exposed at /api/w/circlexo, enforced on invitations and campaign sends for a linked
-// workspace, never touching an unlinked one; a hub outage is read-only inside the grace window.
+// Entitlements: still shown at /api/w/circlexo, but Moharrik is free and open source (2026-10-15)
+// and refuses nothing because of them: not past a members limit, not without campaigns, not with
+// a used-up email allowance, an inactive subscription, a hub outage or no entitlements at all.
 func TestCircleXOEntitlements(t *testing.T) {
 	s := bootHub(t)
 	ownerID := "own-" + rnd()
@@ -681,159 +682,69 @@ func TestCircleXOEntitlements(t *testing.T) {
 		code, _ := c.do("POST", "/api/w/invitations", map[string]string{"email": "inv-" + rnd() + "@example.test", "role": "member"})
 		return code
 	}
-	campaignHook := func() error { return marketing.BeforeCampaignSend(ctx, ws) }
-	status := func(err error) int {
-		if err == nil {
-			return 200
+	noGate := func(what string) {
+		t.Helper()
+		if marketing.BeforeCampaignSend != nil {
+			if err := marketing.BeforeCampaignSend(ctx, ws); err != nil {
+				t.Fatalf("%s: a campaign send must not be refused: %v", what, err)
+			}
 		}
-		if se, ok := err.(huma.StatusError); ok {
-			return se.GetStatus()
+		if c := invite(owner); c != 201 {
+			t.Fatalf("%s: an invitation must not be refused, got %d", what, c)
 		}
-		return -1
 	}
 
-	// Exposed.
+	// Shown, never enforced.
 	set(2, true,
 		circlexo.Entitlement{Key: "members", Kind: "limit", Enabled: true, Limit: lim(1)},
-		circlexo.Entitlement{Key: "campaigns", Kind: "flag", Enabled: true},
-		circlexo.Entitlement{Key: "emails_sent", Kind: "meter", Enabled: true, Limit: lim(100), UsedInPeriod: 40},
+		circlexo.Entitlement{Key: "emails_sent", Kind: "meter", Enabled: true, Limit: lim(100), UsedInPeriod: 100},
 	)
 	code, body := owner.do("GET", "/api/w/circlexo", nil)
 	var out hub.CircleXOOut
-	if code != 200 || json.Unmarshal(body, &out) != nil || !out.Enabled || !out.Linked || !out.Active || out.Plan != "pro" || len(out.Features) != 3 {
+	if code != 200 || json.Unmarshal(body, &out) != nil || !out.Enabled || !out.Linked || !out.Active || len(out.Features) != 2 {
 		t.Fatalf("GET /api/w/circlexo: %d %s", code, body)
 	}
 	for _, f := range out.Features {
-		if f.Key == "members" && (!f.Enforced || f.Limit == nil || *f.Limit != 1) {
-			t.Fatalf("the members limit should be shown and enforced: %+v", f)
+		if f.Enforced {
+			t.Fatalf("nothing is enforced: %+v", f)
 		}
 	}
+	noGate("members limit 1, no campaigns, allowance used up")
 
-	// members limit: the owner is the one active member, so a limit of 1 refuses an invitation.
-	if c := invite(owner); c != http.StatusForbidden {
-		t.Fatalf("an invitation past the members limit must be refused, got %d", c)
-	}
-	set(3, true, circlexo.Entitlement{Key: "members", Kind: "limit", Enabled: true, Limit: lim(5)}, circlexo.Entitlement{Key: "campaigns", Kind: "flag", Enabled: true})
-	if c := invite(owner); c != 201 {
-		t.Fatalf("an invitation within the limit: %d", c)
-	}
+	set(3, false)
+	noGate("inactive subscription")
 
-	// campaigns: the flag and the meter's allowance.
-	if e := campaignHook(); e != nil {
-		t.Fatalf("a send with the feature on and no meter cap: %v", e)
-	}
-	set(4, true, circlexo.Entitlement{Key: "members", Kind: "limit", Enabled: true}) // no campaigns
-	if st := status(campaignHook()); st != http.StatusForbidden {
-		t.Fatalf("a plan without campaigns must refuse a send, got %d", st)
-	}
-	set(5, true, circlexo.Entitlement{Key: "campaigns", Kind: "flag", Enabled: true},
-		circlexo.Entitlement{Key: "emails_sent", Kind: "meter", Enabled: true, Limit: lim(100), UsedInPeriod: 100})
-	if st := status(campaignHook()); st != http.StatusForbidden {
-		t.Fatalf("an used-up allowance must refuse a send, got %d", st)
-	}
-	// ... and StartSend itself refuses before touching the campaign or the SMTP service.
-	if err := marketing.StartSend(ctx, s.a, ws, "does-not-matter", nil); status(err) != http.StatusForbidden {
-		t.Fatalf("StartSend must ask the hub first: %v", err)
-	}
-	set(6, true, circlexo.Entitlement{Key: "campaigns", Kind: "flag", Enabled: true},
-		circlexo.Entitlement{Key: "emails_sent", Kind: "meter", Enabled: true, Limit: lim(100), UsedInPeriod: 100})
-	s.hub.Lock()
-	e := s.hub.Entitlements[org]
-	e.PaygEnabled = true
-	s.hub.Entitlements[org] = e
-	s.hub.Unlock()
-	s.svc.Ents.Invalidate(org, 0)
-	if st := status(campaignHook()); st != 200 {
-		t.Fatalf("pay-as-you-go lifts the allowance, got %d", st)
-	}
-
-	// entitlement.changed and subscription.* invalidate: the hub's new answer is seen at once.
-	set(7, true, circlexo.Entitlement{Key: "campaigns", Kind: "flag", Enabled: true})
-	if st := status(campaignHook()); st != 200 {
-		t.Fatalf("baseline: %d", st)
-	}
-	s.hub.Lock()
-	s.hub.Entitlements[org] = hubEnts(org, 8, true) // campaigns gone at the hub
-	s.hub.Unlock()
-	if st := status(campaignHook()); st != 200 {
-		t.Fatal("expected the cached (stale) answer before the event")
-	}
-	s.event(webhooks.EntitlementChanged, org, map[string]any{"version": 8, "reason": "plan_changed"}, "en-"+rnd())
-	if st := status(campaignHook()); st != http.StatusForbidden {
-		t.Fatal("entitlement.changed did not invalidate")
-	}
-	s.hub.Lock()
-	s.hub.Entitlements[org] = hubEnts(org, 9, true, circlexo.Entitlement{Key: "campaigns", Kind: "flag", Enabled: true})
-	s.hub.Unlock()
-	s.event("subscription.updated", org, map[string]any{}, "sub-"+rnd())
-	if st := status(campaignHook()); st != 200 {
-		t.Fatalf("subscription.* did not invalidate: %d", st)
-	}
-
-	// An inactive subscription refuses.
-	set(10, false, circlexo.Entitlement{Key: "campaigns", Kind: "flag", Enabled: true})
-	if st := status(campaignHook()); st != http.StatusForbidden {
-		t.Fatalf("an inactive subscription must refuse, got %d", st)
-	}
-
-	// Hub down, inside the grace window: the last answer stands, read-only (gated actions refused).
-	set(11, true, circlexo.Entitlement{Key: "campaigns", Kind: "flag", Enabled: true})
-	if _, err := s.svc.Ents.Get(ctx, org, 0); err != nil {
-		t.Fatal(err)
-	}
-	s.svc.Ents.Invalidate(org, 0)
 	s.hub.Lock()
 	s.hub.Fail = http.StatusInternalServerError
 	s.hub.Unlock()
-	if st, _ := s.svc.StateOf(ctx, ws); st.Set != nil && !st.Set.ReadOnly {
-		t.Fatalf("expected a read-only or unknown state while the hub is down: %+v", st.Set)
-	}
-	if st := status(campaignHook()); st != http.StatusForbidden {
-		t.Fatalf("a hub outage must fail closed for gated actions, got %d", st)
-	}
+	s.svc.Ents.Invalidate(org, 0)
+	noGate("hub down")
 	if c, _ := owner.do("GET", "/api/w/circlexo", nil); c != 200 {
 		t.Fatalf("reading keeps working: %d", c)
 	}
 	s.hub.Lock()
 	s.hub.Fail = 0
-	s.hub.Unlock()
-
-	// An org the hub has no entitlements for fails closed.
-	s.hub.Lock()
 	delete(s.hub.Entitlements, org)
 	s.hub.Unlock()
 	s.svc.Ents.Invalidate(org, 0)
-	if st := status(campaignHook()); st != http.StatusForbidden {
-		t.Fatalf("no entitlements must fail closed, got %d", st)
-	}
-	if c := invite(owner); c != http.StatusForbidden {
-		t.Fatalf("no entitlements must refuse invitations, got %d", c)
+	noGate("no entitlements")
+	if err := marketing.StartSend(ctx, s.a, ws, "does-not-matter", nil); err != nil {
+		if se, ok := err.(huma.StatusError); ok && se.GetStatus() == http.StatusForbidden {
+			t.Fatalf("StartSend must not be refused by the hub: %v", err)
+		}
 	}
 
-	// An unlinked workspace is untouched: same code path, no hub involved.
+	// An unlinked workspace shows no link.
 	plain, _, _ := s.signup("plain")
 	w := plain.must("POST", "/api/me/workspaces", map[string]string{"name": "Plain " + rnd()}, 201)["workspace"].(map[string]any)
 	plain.ws = w["id"].(string)
-	if c := invite(plain); c != 201 {
-		t.Fatalf("an unlinked workspace must not be limited: %d", c)
-	}
-	if err := marketing.BeforeCampaignSend(ctx, plain.ws); err != nil {
-		t.Fatalf("an unlinked workspace must not be gated: %v", err)
-	}
 	var pout hub.CircleXOOut
 	if code, body := plain.do("GET", "/api/w/circlexo", nil); code != 200 || json.Unmarshal(body, &pout) != nil || !pout.Enabled || pout.Linked || len(pout.Features) != 0 {
 		t.Fatalf("an unlinked workspace shows no link: %d %s", code, body)
 	}
-
-	// Deprovisioned: back to being a plain workspace.
-	s.event(webhooks.AppRemoved, org, map[string]any{}, "rm-"+rnd())
-	if err := marketing.BeforeCampaignSend(ctx, ws); err != nil {
-		t.Fatalf("after deprovision the workspace is no longer gated: %v", err)
-	}
 }
 
-// Usage: a contact created in a linked workspace is reported to the hub once; an unlinked
-// workspace reports nothing.
+// Usage: nothing is reported to the hub any more, for a linked workspace or any other.
 func TestCircleXOUsage(t *testing.T) {
 	s := bootHub(t)
 	org, ws, _, ms := s.installed([2]string{"own-" + rnd(), "owner"})
@@ -845,42 +756,13 @@ func TestCircleXOUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner := s.asCookie(sessionCookie(res), ws)
-	email := "usage-" + rnd() + "@example.test"
-	ct := owner.must("POST", "/api/w/contacts", map[string]any{"email": email, "name": "Usage"}, 201)["contact"].(map[string]any)["id"].(string)
-	// The same contact again is a match, not a creation: nothing more is reported.
-	owner.must("POST", "/api/w/contacts", map[string]any{"email": email, "name": "Usage"}, 201)
-
-	key := "contact:" + ct
-	var got circlexo.UsageReport
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		s.hub.Lock()
-		got = s.hub.Usage[key]
-		n := len(s.hub.Usage)
-		s.hub.Unlock()
-		if got.IdempotencyKey != "" || time.Now().After(deadline) {
-			if n != 1 {
-				t.Fatalf("expected exactly one usage report, the hub has %d", n)
-			}
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	if got.OrgID != org || got.Feature != "contacts" || got.Qty != 1 {
-		t.Fatalf("usage report: %+v", got)
-	}
-
-	// An unlinked workspace's contacts are not reported.
-	plain, _, _ := s.signup("usageplain")
-	w := plain.must("POST", "/api/me/workspaces", map[string]string{"name": "UP " + rnd()}, 201)["workspace"].(map[string]any)
-	plain.ws = w["id"].(string)
-	plain.must("POST", "/api/w/contacts", map[string]any{"email": "up-" + rnd() + "@example.test", "name": "P"}, 201)
+	owner.must("POST", "/api/w/contacts", map[string]any{"email": "usage-" + rnd() + "@example.test", "name": "Usage"}, 201)
 	time.Sleep(300 * time.Millisecond)
 	s.hub.Lock()
 	n := len(s.hub.Usage)
 	s.hub.Unlock()
-	if n != 1 {
-		t.Fatalf("an unlinked workspace reported usage: %d reports", n)
+	if n != 0 {
+		t.Fatalf("no usage may be reported: the hub has %d reports", n)
 	}
 }
 
