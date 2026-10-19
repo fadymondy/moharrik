@@ -134,6 +134,8 @@ Moharrik uses:
 Want the same foundation for your own app? Run `go install github.com/togo-framework/cli@latest && togo new myapp`,
 then read the [ToGO docs](https://to-go.dev/en/docs) and browse the [plugin marketplace](https://to-go.dev/marketplace).
 
+Read the case study: [Multi-tenant Postgres RLS in Go: Moharrik on ToGO](https://to-go.dev/en/blog/moharrik-togo-case-study).
+
 ## Documentation
 
 - [Architecture and engineering notes](docs/architecture.md)
