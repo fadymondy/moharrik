@@ -119,6 +119,8 @@ open-source, API-first framework for Go + sqlc + Atlas + GraphQL/OpenAPI + Next.
 Laravel-style CLI. The kernel is small and everything else is a plugin; these are the pieces
 Moharrik uses:
 
+Read the case study: [Multi-tenant Postgres RLS in Go: Moharrik on ToGO](https://to-go.dev/en/blog/moharrik-togo-case-study).
+
 | ToGO piece | What it does in Moharrik |
 |---|---|
 | [Kernel](https://github.com/togo-framework/togo) | Config, the hook/event bus, the plugin registry and server bootstrap |
