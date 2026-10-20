@@ -341,7 +341,7 @@ func react(ctx context.Context, a *app.App, msgID, emoji string, toggle bool) (*
 		}
 		// Sent first, stored after — the same rule as a reply: a reaction the
 		// customer never saw must not sit on the bubble looking sent.
-		if err := whatsapp.SendReactionAs(ctx, a, s.WorkspaceID, phone, externalID, direction == "out", next); err != nil {
+		if err := whatsapp.SendReactionAs(threadNumber(ctx, a.SQLDB, s.WorkspaceID, convID), a, s.WorkspaceID, phone, externalID, direction == "out", next); err != nil {
 			return nil, whatsappError(err)
 		}
 		delivered = true

@@ -98,21 +98,21 @@ var (
 )
 
 type memberRow struct {
-	Phone          string
-	VerifiedAt     *time.Time
-	CodeHash       string
-	CodeExpires    *time.Time
-	CodeAttempts   int
-	CodeSentAt     *time.Time
-	Enabled        bool
-	Kinds          pgtext.Array
-	QuietStart     int
-	QuietEnd       int
-	Timezone       string
-	DailyCap       int
-	BatchMinutes   int
-	Locale         string
-	LastAttemptAt  *time.Time
+	Phone         string
+	VerifiedAt    *time.Time
+	CodeHash      string
+	CodeExpires   *time.Time
+	CodeAttempts  int
+	CodeSentAt    *time.Time
+	Enabled       bool
+	Kinds         pgtext.Array
+	QuietStart    int
+	QuietEnd      int
+	Timezone      string
+	DailyCap      int
+	BatchMinutes  int
+	Locale        string
+	LastAttemptAt *time.Time
 }
 
 func loadMember(ctx context.Context, db *sql.DB, wsID, userID string) (*memberRow, error) {
@@ -134,12 +134,35 @@ func notifyCodeHash(wsID, userID, code string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func sendable(ctx context.Context, a *app.App, wsID string) bool {
+// sendable picks the number a member message goes from and reports whether
+// one can send: the default number, unless it is the member's own number (a
+// message to yourself never notifies), in which case another linked number
+// sends it. With no other number the default still does, as it always has.
+func sendable(ctx context.Context, a *app.App, wsID, to string) (context.Context, bool) {
 	if !LoadConfig().Configured() {
-		return false
+		return ctx, false
 	}
-	l, err := Load(ctx, a, wsID)
-	return err == nil && l.State == "open"
+	links, err := List(ctx, a, wsID)
+	if err != nil {
+		return ctx, false
+	}
+	var pick *Link
+	for _, l := range links {
+		if l.State != "open" {
+			continue
+		}
+		if pick == nil {
+			pick = l
+		}
+		if l.Phone == "" || !SamePhone(l.Phone, Number(to)) {
+			pick = l
+			break
+		}
+	}
+	if pick == nil {
+		return ctx, false
+	}
+	return WithLink(ctx, pick.ID), true
 }
 
 // StartVerify sends a one-time code to the member's number from the
@@ -150,7 +173,8 @@ func StartVerify(ctx context.Context, a *app.App, wsID, userID, phone, locale st
 	if len(digits) < 8 || len(digits) > 15 {
 		return ErrNotifyNoNumber
 	}
-	if !sendable(ctx, a, wsID) {
+	ctx, ok := sendable(ctx, a, wsID, digits)
+	if !ok {
 		return ErrNotifyNotLinked
 	}
 	if locale != "ar" {
@@ -587,7 +611,8 @@ func FlushMember(ctx context.Context, a *app.App, wsID, userID string) (FlushRes
 		res.Held = "daily_cap"
 		return res, nil
 	}
-	if !sendable(ctx, a, wsID) {
+	ctx, ok := sendable(ctx, a, wsID, m.Phone)
+	if !ok {
 		res.Held = "not_linked"
 		return res, nil
 	}
@@ -664,7 +689,8 @@ func SendNotifyTest(ctx context.Context, a *app.App, wsID, userID string) error 
 	if m == nil || m.VerifiedAt == nil {
 		return ErrNotifyUnverified
 	}
-	if !sendable(ctx, a, wsID) {
+	ctx, ok := sendable(ctx, a, wsID, m.Phone)
+	if !ok {
 		return ErrNotifyNotLinked
 	}
 	var last *time.Time

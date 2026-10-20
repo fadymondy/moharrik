@@ -172,6 +172,7 @@ func MarketingTools() []Tool {
 				"smtp_service": prop("string", "Send through this SMTP service (exact name, list_smtp_services); an empty string returns it to the campaign default"),
 				"audience_locale": map[string]any{"type": "string", "enum": []string{"", "en", "ar"},
 					"description": "Send only to contacts in this language; an empty string sends to everyone"},
+				"from_number": prop("string", "WhatsApp only: send from this workspace number (its id, the number or its name; whatsapp_status lists them); an empty string returns it to the default number"),
 			}),
 			Run: func(ctx context.Context, a *app.App, args json.RawMessage) (string, error) {
 				s, ok := tenant.From(ctx)
@@ -187,6 +188,7 @@ func MarketingTools() []Tool {
 					Channel    *string `json:"channel"`
 					SMTP       *string `json:"smtp_service"`
 					Audience   *string `json:"audience_locale"`
+					FromNumber *string `json:"from_number"`
 				}
 				if err := json.Unmarshal(args, &in); err != nil {
 					return "", fmt.Errorf("bad arguments: %w", err)
@@ -194,10 +196,10 @@ func MarketingTools() []Tool {
 				var id string
 				var cur marketing.CampaignInput
 				if err := a.SQLDB.QueryRowContext(ctx, `
-					SELECT id, list_id, channel, subject, body, locale, smtp_service_id, audience_locale FROM campaigns
+					SELECT id, list_id, channel, subject, body, locale, smtp_service_id, audience_locale, whatsapp_link_id FROM campaigns
 					WHERE workspace_id = $1 AND lower(subject) = lower($2)
 					ORDER BY created_at DESC LIMIT 1`,
-					s.WorkspaceID, strings.TrimSpace(in.Subject)).Scan(&id, &cur.ListID, &cur.Channel, &cur.Subject, &cur.Body, &cur.Locale, &cur.SMTPServiceID, &cur.AudienceLocale); err != nil {
+					s.WorkspaceID, strings.TrimSpace(in.Subject)).Scan(&id, &cur.ListID, &cur.Channel, &cur.Subject, &cur.Body, &cur.Locale, &cur.SMTPServiceID, &cur.AudienceLocale, &cur.WhatsAppLinkID); err != nil {
 					if errNoRows(err) {
 						return "", fmt.Errorf("no campaign with the subject %q — call list_campaigns to see them", in.Subject)
 					}
@@ -226,6 +228,13 @@ func MarketingTools() []Tool {
 						return "", fmt.Errorf("audience_locale must be en, ar or empty")
 					}
 					cur.AudienceLocale = *in.Audience
+				}
+				if in.FromNumber != nil {
+					numberID, err := marketing.CampaignNumberID(ctx, a, s.WorkspaceID, *in.FromNumber)
+					if err != nil {
+						return "", err
+					}
+					cur.WhatsAppLinkID = numberID
 				}
 				if in.SMTP != nil {
 					svcID, err := smtpServiceByName(ctx, a, s.WorkspaceID, *in.SMTP)

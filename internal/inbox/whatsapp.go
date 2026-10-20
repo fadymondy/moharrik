@@ -1,12 +1,12 @@
 package inbox
 
 import (
-	"net/http"
 	"context"
 	"database/sql"
 	"encoding/json"
-	"strconv"
 	"errors"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -51,16 +51,13 @@ func FileWhatsApp(ctx context.Context, a *app.App, workspaceID, phone, name, tex
 		}
 	}
 
-	var convID string
-	err := db.QueryRowContext(sctx, `
-		SELECT id FROM conversations
-		WHERE workspace_id = $1 AND channel = 'whatsapp' AND customer_phone = $2`,
-		workspaceID, phone).Scan(&convID)
+	linkID := whatsapp.LinkFrom(ctx)
+	convID, err := whatsAppThread(sctx, db, workspaceID, linkID, phone)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := db.QueryRowContext(sctx, `
-			INSERT INTO conversations (workspace_id, channel, customer_name, customer_phone, subject, last_message_at, unread)
-			VALUES ($1, 'whatsapp', $2, $3, $4, now(), true) RETURNING id`,
-			workspaceID, trimTo(name, 120), phone, trimTo(text, 80),
+			INSERT INTO conversations (workspace_id, channel, customer_name, customer_phone, subject, last_message_at, unread, whatsapp_link_id)
+			VALUES ($1, 'whatsapp', $2, $3, $4, now(), true, $5) RETURNING id`,
+			workspaceID, trimTo(name, 120), phone, trimTo(text, 80), linkID,
 		).Scan(&convID); err != nil {
 			return err
 		}
@@ -176,19 +173,16 @@ func FileWhatsAppOwn(ctx context.Context, a *app.App, workspaceID, phone, text, 
 		return err
 	}
 
-	var convID string
-	err = db.QueryRowContext(sctx, `
-		SELECT id FROM conversations
-		WHERE workspace_id = $1 AND channel = 'whatsapp' AND customer_phone = $2`,
-		workspaceID, phone).Scan(&convID)
+	linkID := whatsapp.LinkFrom(ctx)
+	convID, err := whatsAppThread(sctx, db, workspaceID, linkID, phone)
 	if errors.Is(err, sql.ErrNoRows) {
 		if sentHere {
 			return nil
 		}
 		if err := db.QueryRowContext(sctx, `
-			INSERT INTO conversations (workspace_id, channel, customer_name, customer_phone, subject, last_message_at, unread)
-			VALUES ($1, 'whatsapp', '', $2, $3, now(), false) RETURNING id`,
-			workspaceID, phone, trimTo(text, 80),
+			INSERT INTO conversations (workspace_id, channel, customer_name, customer_phone, subject, last_message_at, unread, whatsapp_link_id)
+			VALUES ($1, 'whatsapp', '', $2, $3, now(), false, $4) RETURNING id`,
+			workspaceID, phone, trimTo(text, 80), linkID,
 		).Scan(&convID); err != nil {
 			return err
 		}
@@ -229,6 +223,50 @@ func FileWhatsAppOwn(ctx context.Context, a *app.App, workspaceID, phone, text, 
 	}
 	changed(ctx, a, workspaceID, realtime.Event{Kind: "message", Direction: "out", ConversationID: convID})
 	return nil
+}
+
+// threadNumber is ctx set to send from the number a WhatsApp thread lives on,
+// so a reply leaves from the number the customer wrote to. A thread with no
+// number on it, or whose number was since unlinked, answers from the
+// workspace's default number.
+func threadNumber(ctx context.Context, db *sql.DB, workspaceID, convID string) context.Context {
+	if whatsapp.LinkFrom(ctx) != "" {
+		// The caller picked a number (from_number), or this runs inside an
+		// inbound delivery, which already names the number it arrived on.
+		return ctx
+	}
+	var linkID string
+	_ = db.QueryRowContext(tenant.WithWorkspace(ctx, workspaceID), `
+		SELECT l.id FROM conversations c
+		JOIN whatsapp_links l ON l.workspace_id = c.workspace_id AND l.id = c.whatsapp_link_id
+		WHERE c.workspace_id = $1 AND c.id = $2`, workspaceID, convID).Scan(&linkID)
+	if linkID == "" {
+		return ctx
+	}
+	return whatsapp.WithLink(ctx, linkID)
+}
+
+// whatsAppThread finds the customer's thread on one of the workspace's
+// numbers: a thread belongs to a (number, customer) pair, so the same customer
+// writing to two of the workspace's numbers has two threads, each answered
+// from its own number. A thread from before numbers were told apart (no
+// number on it) is adopted by the first message that arrives for it.
+// sql.ErrNoRows when there is none.
+func whatsAppThread(ctx context.Context, db *sql.DB, workspaceID, linkID, phone string) (string, error) {
+	var convID string
+	err := db.QueryRowContext(ctx, `
+		SELECT id FROM conversations
+		WHERE workspace_id = $1 AND channel = 'whatsapp' AND customer_phone = $2 AND whatsapp_link_id = $3`,
+		workspaceID, phone, linkID).Scan(&convID)
+	if !errors.Is(err, sql.ErrNoRows) || linkID == "" {
+		return convID, err
+	}
+	err = db.QueryRowContext(ctx, `
+		UPDATE conversations SET whatsapp_link_id = $3
+		WHERE workspace_id = $1 AND channel = 'whatsapp' AND customer_phone = $2 AND whatsapp_link_id = ''
+		RETURNING id`,
+		workspaceID, phone, linkID).Scan(&convID)
+	return convID, err
 }
 
 // fileWhatsAppMedia stores one message's attachment (MH-658): a location or

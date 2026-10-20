@@ -6,6 +6,7 @@ import {
   CheckCircle2Icon,
   KeyRoundIcon,
   QrCodeIcon,
+  StarIcon,
   TriangleAlertIcon,
   WebhookIcon,
 } from "lucide-react"
@@ -20,6 +21,7 @@ import {
 } from "@fadymondy/nasaq/web"
 import { FieldGroup, FormHint } from "@/components/form-layout"
 
+import { Bdi } from "@/components/bidi"
 import { ConfirmButton } from "@/components/confirm-button"
 import { SetupGuide, type SetupGuideStep } from "@/components/channels/setup-guide"
 import { EmptyState, ErrorState, LoadingRows } from "@/components/states"
@@ -27,7 +29,7 @@ import { Ltr } from "@/components/copy-field"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type WhatsAppLink } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useWhatsApp } from "@/lib/queries"
+import { useWhatsApp, useWhatsAppNumbers } from "@/lib/queries"
 
 const WHATSAPP_GUIDE_STEPS: SetupGuideStep[] = [
   {
@@ -50,14 +52,20 @@ const WHATSAPP_GUIDE_STEPS: SetupGuideStep[] = [
 
 /**
  * WhatsApp's link/QR/pairing flow (extracted from inbox/whatsapp for
- * MH-571). There is at most one WhatsApp number per workspace, so this
- * component is both the "add" and the "edit"/manage view — the Channels
- * page opens it in a sheet either way.
+ * MH-571). A workspace can link several numbers (2026-10): the Channels page
+ * lists each as its own row and opens this form in a sheet, either for one
+ * number (numberId: re-pair, rename, daily limit, default, unlink) or to add
+ * one (adding: the first number, or another next to the ones already linked,
+ * which are never touched while it pairs).
  */
 export function WhatsAppChannelForm({
+  numberId,
+  adding,
   onChanged,
   defaultGuideOpen,
 }: {
+  numberId?: string
+  adding?: boolean
   onChanged?: () => void
   defaultGuideOpen?: boolean
 }) {
@@ -68,10 +76,26 @@ export function WhatsAppChannelForm({
   const [pairing, setPairing] = useState<string | null>(null)
   const [byNumber, setByNumber] = useState(false)
   const [number, setNumber] = useState("")
+  const [label, setLabel] = useState("")
   const [busy, setBusy] = useState(false)
+  // The number this form is about: the one it was opened for, or the one it
+  // just added. Unset while adding, until the first QR comes back.
+  const [targetId, setTargetId] = useState<string | undefined>(numberId)
   const waiting = !!qr || !!pairing
-  const link = useWhatsApp(ws.id, waiting ? 4000 : 0)
-  const state = link.data?.state || "close"
+  const numbers = useWhatsAppNumbers(ws.id, waiting ? 4000 : 0)
+  // Whether this deployment has a WhatsApp server at all (the default-number
+  // route says so even when nothing is linked).
+  const summary = useWhatsApp(ws.id)
+  const all = (numbers.data ?? []).filter((n) => n.id)
+  const current = targetId
+    ? all.find((n) => n.id === targetId)
+    : adding
+      ? undefined
+      : all.find((n) => n.is_default)
+  const state = current?.state || "close"
+  // Adding next to numbers already linked creates a new one; the very first
+  // number goes through the default route, as it always has.
+  const addsAnother = !!adding && !targetId && all.length > 0
 
   const announced = useRef(false)
   useEffect(() => {
@@ -90,11 +114,27 @@ export function WhatsAppChannelForm({
     setBusy(true)
     announced.current = false
     try {
-      const res = await api<WhatsAppLink>("/api/w/whatsapp/link", {
-        method: "POST",
-        json: byNumber ? { number: number.trim() } : {},
-        workspaceId: ws.id,
-      })
+      const json: Record<string, string> = byNumber ? { number: number.trim() } : {}
+      let res: WhatsAppLink
+      if (targetId) {
+        res = await api<WhatsAppLink>(
+          `/api/w/whatsapp/numbers/${encodeURIComponent(targetId)}/link`,
+          { method: "POST", json, workspaceId: ws.id },
+        )
+      } else if (addsAnother) {
+        res = await api<WhatsAppLink>("/api/w/whatsapp/numbers", {
+          method: "POST",
+          json: { ...json, label: label.trim() },
+          workspaceId: ws.id,
+        })
+      } else {
+        res = await api<WhatsAppLink>("/api/w/whatsapp/link", {
+          method: "POST",
+          json,
+          workspaceId: ws.id,
+        })
+      }
+      if (res.id) setTargetId(res.id)
       if (byNumber) {
         setPairing(res.pairing_code || null)
         setQr(null)
@@ -105,7 +145,7 @@ export function WhatsAppChannelForm({
       }
       if (!res.qr_base64 && !res.pairing_code && res.state === "open")
         toast.success(t("whatsapp.alreadyLinked"))
-      link.mutate()
+      void numbers.mutate()
       onChanged?.()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
@@ -115,76 +155,109 @@ export function WhatsAppChannelForm({
   }
 
   async function unlink() {
-    await api("/api/w/whatsapp", { method: "DELETE", workspaceId: ws.id })
+    if (!current?.id) return
+    await api(`/api/w/whatsapp/numbers/${encodeURIComponent(current.id)}`, {
+      method: "DELETE",
+      workspaceId: ws.id,
+    })
     setQr(null)
     setPairing(null)
     toast.success(t("whatsapp.unlinked"))
-    link.mutate()
+    void numbers.mutate()
     onChanged?.()
   }
 
-  const hook = link.data?.webhook
-  const hookOk = hook?.status === "ok"
-
-  if (link.error) return <ErrorState error={link.error} />
-  if (!link.data) return <LoadingRows rows={3} layout="form" />
-  if (!link.data.available)
+  if (numbers.error) return <ErrorState error={numbers.error} />
+  if (summary.error) return <ErrorState error={summary.error} />
+  if (!numbers.data || !summary.data) return <LoadingRows rows={3} layout="form" />
+  if (!summary.data.available)
     return <EmptyState title={t("whatsapp.unavailable")} body={t("whatsapp.unavailableBody")} />
 
+  const hook = current?.webhook
+  const hookOk = hook?.status === "ok"
+
   return (
-    <div data-whatsapp-state={state} data-whatsapp-polling={waiting ? "on" : "off"}>
+    <div
+      data-whatsapp-state={state}
+      data-whatsapp-polling={waiting ? "on" : "off"}
+      data-whatsapp-number={current?.id ?? ""}
+    >
       <SetupGuide
         id="whatsapp"
         titleKey="channels.whatsapp.setupTitle"
         steps={WHATSAPP_GUIDE_STEPS}
-        defaultOpen={defaultGuideOpen ?? !link.data.linked}
+        defaultOpen={defaultGuideOpen ?? !current?.linked}
       />
-      <div className="mt-4 flex flex-wrap items-center gap-2 pb-4 text-sm">
-        <Badge
-          variant={state === "open" ? "brand" : state === "connecting" ? "neutral" : "outline"}
-        >
-          {t(`whatsapp.state.${state}`)}
-        </Badge>
-        {link.data.phone ? (
-          <span className="text-muted-foreground">
-            <Ltr>+{link.data.phone}</Ltr>
-          </span>
-        ) : null}
-        {link.data.linked_at ? (
-          <span className="text-muted-foreground">
-            · {t("whatsapp.linkedAt", { date: formatDate(link.data.linked_at) })}
-          </span>
-        ) : null}
-        <span
-          className="text-muted-foreground"
-          data-whatsapp-sends={`${link.data.sent_today}/${link.data.failed_today}`}
-        >
-          ·{" "}
-          {t("whatsapp.sendsToday", { sent: link.data.sent_today, failed: link.data.failed_today })}
-        </span>
-        {state === "open" ? (
-          <Link
-            className="text-nq-brand underline underline-offset-4"
-            href={`/${locale}/w/${ws.slug}/contacts/import?source=whatsapp`}
-            data-nav="import-chats"
-          >
-            {t("whatsapp.importChats")}
-          </Link>
-        ) : null}
-      </div>
 
-      {link.data.last_error ? (
+      {addsAnother ? (
+        <p className="mt-4 text-sm text-muted-foreground" data-whatsapp-adding>
+          {t("whatsapp.addNumberHint")}
+        </p>
+      ) : null}
+
+      {current ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 pb-4 text-sm">
+          <Badge
+            variant={state === "open" ? "brand" : state === "connecting" ? "neutral" : "outline"}
+          >
+            {t(`whatsapp.state.${state}`)}
+          </Badge>
+          {current.is_default ? (
+            <Badge variant="info" data-whatsapp-default>
+              {t("whatsapp.default")}
+            </Badge>
+          ) : null}
+          {current.label ? (
+            <span className="font-medium">
+              <Bdi>{current.label}</Bdi>
+            </span>
+          ) : null}
+          {current.phone ? (
+            <span className="text-muted-foreground">
+              <Ltr>+{current.phone}</Ltr>
+            </span>
+          ) : null}
+          {current.linked_at ? (
+            <span className="text-muted-foreground">
+              · {t("whatsapp.linkedAt", { date: formatDate(current.linked_at) })}
+            </span>
+          ) : null}
+          <span
+            className="text-muted-foreground"
+            data-whatsapp-sends={`${current.sent_today}/${current.failed_today}`}
+          >
+            ·{" "}
+            {current.daily_cap > 0
+              ? t("whatsapp.capToday", { sent: current.sent_today, cap: current.daily_cap })
+              : t("whatsapp.sendsToday", {
+                  sent: current.sent_today,
+                  failed: current.failed_today,
+                })}
+          </span>
+          {state === "open" ? (
+            <Link
+              className="text-nq-brand underline underline-offset-4"
+              href={`/${locale}/w/${ws.slug}/contacts/import?source=whatsapp`}
+              data-nav="import-chats"
+            >
+              {t("whatsapp.importChats")}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      {current?.last_error ? (
         <p
           className="mb-4 flex items-start gap-2 border border-nq-danger-text/40 bg-nq-danger-text/5 px-4 py-3 text-sm"
           role="status"
           data-whatsapp-error
         >
           <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-nq-danger-text" />
-          <span>{link.data.last_error}</span>
+          <span>{current.last_error}</span>
         </p>
       ) : null}
 
-      {link.data.linked && hook ? (
+      {current?.linked && hook ? (
         <div
           className="mb-5 flex items-start gap-3 border border-nq-line bg-card px-4 py-3 text-sm"
           data-webhook-status={hook.status}
@@ -249,6 +322,20 @@ export function WhatsAppChannelForm({
 
       {canManage ? (
         <div className="flex flex-col gap-4">
+          {addsAnother ? (
+            <Field className="max-w-xl">
+              <FieldLabel htmlFor="wa-number-label">{t("whatsapp.numberLabel")}</FieldLabel>
+              <Input
+                id="wa-number-label"
+                value={label}
+                maxLength={60}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder={t("whatsapp.numberLabelPlaceholder")}
+                data-whatsapp-label
+              />
+              <FieldDescription>{t("whatsapp.numberLabelHint")}</FieldDescription>
+            </Field>
+          ) : null}
           {byNumber ? (
             <form onSubmit={startLink} noValidate className="max-w-xl" data-form="whatsapp-pairing">
               <FieldGroup className="sm:flex-row sm:items-end">
@@ -273,13 +360,15 @@ export function WhatsAppChannelForm({
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
             {!byNumber ? (
-              <Button onClick={() => void startLink()} disabled={busy}>
+              <Button onClick={() => void startLink()} disabled={busy} data-whatsapp-link>
                 <QrCodeIcon />
                 {busy
                   ? t("common.working")
-                  : state === "open"
-                    ? t("whatsapp.relink")
-                    : t("whatsapp.link")}
+                  : current
+                    ? t("whatsapp.repair")
+                    : addsAnother
+                      ? t("whatsapp.addNumber")
+                      : t("whatsapp.link")}
               </Button>
             ) : null}
             <Button
@@ -290,16 +379,28 @@ export function WhatsAppChannelForm({
             >
               {byNumber ? t("whatsapp.useQr") : t("whatsapp.usePairing")}
             </Button>
-            {link.data.linked ? (
+            {current?.linked ? (
               <ConfirmButton
                 label={t("whatsapp.unlink")}
                 title={t("whatsapp.unlinkTitle")}
-                description={t("whatsapp.unlinkBody")}
+                description={
+                  all.length > 1 ? t("whatsapp.unlinkOneBody") : t("whatsapp.unlinkBody")
+                }
                 confirmLabel={t("whatsapp.unlink")}
                 onConfirm={unlink}
               />
             ) : null}
           </div>
+          {current?.id ? (
+            <NumberSettings
+              key={current.id}
+              number={current}
+              onSaved={() => {
+                void numbers.mutate()
+                onChanged?.()
+              }}
+            />
+          ) : null}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">{t("mailbox.managerOnly")}</p>
@@ -309,5 +410,91 @@ export function WhatsAppChannelForm({
         <p className="pt-4 text-sm text-muted-foreground">{t("whatsapp.replyHint")}</p>
       ) : null}
     </div>
+  )
+}
+
+/** One number's name, daily send limit and whether it is the default. */
+function NumberSettings({ number, onSaved }: { number: WhatsAppLink; onSaved: () => void }) {
+  const { t } = useTranslations()
+  const ws = useWorkspace()
+  const [label, setLabel] = useState(number.label)
+  const [cap, setCap] = useState(String(number.daily_cap || 0))
+  const [busy, setBusy] = useState(false)
+  const capValue = Number.parseInt(cap, 10)
+  const capOk = Number.isFinite(capValue) && capValue >= 0 && capValue <= 100000
+  const dirty = label.trim() !== number.label || (capOk && capValue !== number.daily_cap)
+
+  async function patch(json: Record<string, unknown>, done: string) {
+    setBusy(true)
+    try {
+      await api(`/api/w/whatsapp/numbers/${encodeURIComponent(number.id as string)}`, {
+        method: "PATCH",
+        json,
+        workspaceId: ws.id,
+      })
+      toast.success(done)
+      onSaved()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : t("common.networkError"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form
+      className="flex max-w-xl flex-col gap-3 border-t border-nq-line pt-4"
+      data-form="whatsapp-number-settings"
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!dirty || !capOk) return
+        void patch({ label: label.trim(), daily_cap: capValue }, t("whatsapp.settingsSaved"))
+      }}
+    >
+      <Field>
+        <FieldLabel htmlFor={`wa-label-${number.id}`}>{t("whatsapp.numberLabel")}</FieldLabel>
+        <Input
+          id={`wa-label-${number.id}`}
+          value={label}
+          maxLength={60}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={t("whatsapp.numberLabelPlaceholder")}
+        />
+        <FieldDescription>{t("whatsapp.numberLabelHint")}</FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`wa-cap-${number.id}`}>{t("whatsapp.dailyCap")}</FieldLabel>
+        <Input
+          id={`wa-cap-${number.id}`}
+          dir="ltr"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100000}
+          value={cap}
+          onChange={(e) => setCap(e.target.value)}
+          className="max-w-40"
+        />
+        <FieldDescription>{t("whatsapp.dailyCapHint")}</FieldDescription>
+      </Field>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" disabled={busy || !dirty || !capOk}>
+          {busy ? t("common.working") : t("common.save")}
+        </Button>
+        {!number.is_default ? (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => void patch({ is_default: true }, t("whatsapp.madeDefault"))}
+            data-whatsapp-make-default
+          >
+            <StarIcon />
+            {t("whatsapp.makeDefault")}
+          </Button>
+        ) : null}
+      </div>
+    </form>
   )
 }

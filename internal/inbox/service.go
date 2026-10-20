@@ -53,6 +53,9 @@ type ConversationFilter struct {
 	Unread     bool
 	ContactID  string
 	MailboxID  string
+	// WhatsAppID narrows the list to the WhatsApp threads on one of the
+	// workspace's numbers.
+	WhatsAppID string
 	// CustomerEmail (MH-600) narrows the list to one sender, case-insensitive.
 	// Since MH-600's fold, a workspace has at most one email conversation per
 	// sender, so this mostly matters for other channels reusing the filter;
@@ -164,6 +167,9 @@ func ListConversations(ctx context.Context, a *app.App, f ConversationFilter) (*
 	}
 	if id := strings.TrimSpace(f.MailboxID); id != "" {
 		add(` AND c.mailbox_id = $?`, id)
+	}
+	if id := strings.TrimSpace(f.WhatsAppID); id != "" {
+		add(` AND c.channel = 'whatsapp' AND c.whatsapp_link_id = $?`, id)
 	}
 	if email := strings.ToLower(strings.TrimSpace(f.CustomerEmail)); email != "" {
 		add(` AND lower(c.customer_email) = $?`, email)
@@ -559,18 +565,20 @@ func ReplyWithAttachments(ctx context.Context, a *app.App, id, text, subject str
 		}
 		mailboxID = sql.NullString{String: msgMailboxID, Valid: msgMailboxID != ""}
 	case "whatsapp":
-		// Same rule as email: send first, write the row after.
+		// Same rule as email: send first, write the row after. From the
+		// number the thread lives on.
+		wctx := threadNumber(ctx, a.SQLDB, s.WorkspaceID, id)
 		if len(attachments) == 0 {
-			sentID, err = whatsapp.SendAs(ctx, a, s.WorkspaceID, customerPhone, text, whatsapp.KindReply)
+			sentID, err = whatsapp.SendAs(wctx, a, s.WorkspaceID, customerPhone, text, whatsapp.KindReply)
 		} else {
 			at := attachments[0]
 			switch at.Kind {
 			case "location":
-				sentID, err = whatsapp.SendLocationAs(ctx, a, s.WorkspaceID, customerPhone, at.Lat, at.Lng, at.LocationName, at.LocationAddress, whatsapp.KindReply)
+				sentID, err = whatsapp.SendLocationAs(wctx, a, s.WorkspaceID, customerPhone, at.Lat, at.Lng, at.LocationName, at.LocationAddress, whatsapp.KindReply)
 			case "voice":
-				sentID, err = whatsapp.SendAudioAs(ctx, a, s.WorkspaceID, customerPhone, at.Data, whatsapp.KindReply)
+				sentID, err = whatsapp.SendAudioAs(wctx, a, s.WorkspaceID, customerPhone, at.Data, whatsapp.KindReply)
 			default: // image, video, document
-				sentID, err = whatsapp.SendMediaAs(ctx, a, s.WorkspaceID, customerPhone, at.Kind, at.ContentType, at.Data, at.Filename, text, whatsapp.KindReply)
+				sentID, err = whatsapp.SendMediaAs(wctx, a, s.WorkspaceID, customerPhone, at.Kind, at.ContentType, at.Data, at.Filename, text, whatsapp.KindReply)
 			}
 		}
 		if err != nil {

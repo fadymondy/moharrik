@@ -87,7 +87,7 @@ func (c *Client) SendReaction(ctx context.Context, number, targetID string, targ
 // same pacing lane and send log as every other send (a reaction is still the
 // number doing something WhatsApp can see).
 func SendReactionAs(ctx context.Context, a *app.App, workspaceID, phone, targetID string, targetFromMe bool, emoji string) error {
-	_, err := sendVia(ctx, a, workspaceID, phone, "reaction", func(c *Client) (string, error) {
+	_, err := sendVia(ctx, a, workspaceID, phone, KindReaction, func(c *Client) (string, error) {
 		return c.SendReaction(ctx, phone, targetID, targetFromMe, emoji)
 	})
 	return err

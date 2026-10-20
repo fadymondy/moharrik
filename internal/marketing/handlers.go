@@ -74,12 +74,12 @@ type SubscriptionOut struct {
 }
 
 type ContactOut struct {
-	ID            string            `json:"id"`
-	Email         string            `json:"email"`
-	Name          string            `json:"name"`
-	Locale        string            `json:"locale"`
-	Source        string            `json:"source"`
-	Phone         string            `json:"phone"`
+	ID     string `json:"id"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+	Locale string `json:"locale"`
+	Source string `json:"source"`
+	Phone  string `json:"phone"`
 	// MH-561: a messaging handle/username, the third identity a contact may
 	// carry instead of (or with) email/phone.
 	Handle        string            `json:"handle"`
@@ -108,20 +108,20 @@ type CampaignOut struct {
 	ListName string `json:"list_name"`
 	// email | whatsapp (MH-320). Defaulted in the database, so every campaign
 	// that existed before broadcasts still reads as the email one it was.
-	Channel        string     `json:"channel"`
-	Subject        string     `json:"subject"`
-	Body           string     `json:"body"`
-	Locale         string     `json:"locale"`
-	Status         string     `json:"status"`
-	RecipientCount int64      `json:"recipient_count"`
-	SentCount      int64      `json:"sent_count"`
-	FailedCount    int64      `json:"failed_count"`
+	Channel        string `json:"channel"`
+	Subject        string `json:"subject"`
+	Body           string `json:"body"`
+	Locale         string `json:"locale"`
+	Status         string `json:"status"`
+	RecipientCount int64  `json:"recipient_count"`
+	SentCount      int64  `json:"sent_count"`
+	FailedCount    int64  `json:"failed_count"`
 	// SkippedCount is subscribed contacts an email send left out for having no
 	// email (MH-561) — always 0 for a WhatsApp campaign, which is gated on phone.
-	SkippedCount int64 `json:"skipped_count"`
-	LastError      string     `json:"last_error"`
-	SentAt         *time.Time `json:"sent_at"`
-	CreatedAt      time.Time  `json:"created_at"`
+	SkippedCount int64      `json:"skipped_count"`
+	LastError    string     `json:"last_error"`
+	SentAt       *time.Time `json:"sent_at"`
+	CreatedAt    time.Time  `json:"created_at"`
 	// The SMTP service an email campaign goes out through (MH-412). Null =
 	// the campaign default; SMTPServiceName is the service that resolves to
 	// now, so the list can say which provider a send will use.
@@ -129,6 +129,9 @@ type CampaignOut struct {
 	SMTPServiceName string  `json:"smtp_service_name"`
 	// Only contacts in this language receive it (MH-413); "" = everyone.
 	AudienceLocale string `json:"audience_locale"`
+	// The workspace WhatsApp number a WhatsApp campaign sends from; "" is the
+	// default number at the moment it sends.
+	WhatsAppNumberID string `json:"whatsapp_number_id"`
 }
 
 type SMTPOut struct {
@@ -238,11 +241,13 @@ func getCampaign(ctx context.Context, db *sql.DB, wsID, id string) (*CampaignOut
 	var c CampaignOut
 	err := db.QueryRowContext(ctx, `
 		SELECT c.id, c.list_id, l.name, c.channel, c.subject, c.body, c.locale, c.status, c.recipient_count,
-		       c.sent_count, c.failed_count, c.skipped_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`, c.audience_locale
+		       c.sent_count, c.failed_count, c.skipped_count, c.last_error, c.sent_at, c.created_at, `+campaignServiceCols+`, c.audience_locale,
+		       c.whatsapp_link_id
 		FROM campaigns c JOIN mail_lists l ON l.id = c.list_id AND l.workspace_id = c.workspace_id
 		WHERE c.workspace_id = $1 AND c.id = $2`, wsID, id,
 	).Scan(&c.ID, &c.ListID, &c.ListName, &c.Channel, &c.Subject, &c.Body, &c.Locale, &c.Status, &c.RecipientCount,
-		&c.SentCount, &c.FailedCount, &c.SkippedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName, &c.AudienceLocale)
+		&c.SentCount, &c.FailedCount, &c.SkippedCount, &c.LastError, &c.SentAt, &c.CreatedAt, &c.SMTPServiceID, &c.SMTPServiceName, &c.AudienceLocale,
+		&c.WhatsAppNumberID)
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +521,8 @@ func Register(api huma.API, a *app.App) {
 			// MH-412: which SMTP service an email campaign goes out through.
 			SMTPServiceID string `json:"smtp_service_id,omitempty" doc:"Email only. Omit for the workspace's campaign default."`
 			// MH-413: only contacts in this language receive it.
-			AudienceLocale string `json:"audience_locale,omitempty" enum:",en,ar" doc:"en or ar sends only to contacts in that language; omit for everyone."`
+			AudienceLocale   string `json:"audience_locale,omitempty" enum:",en,ar" doc:"en or ar sends only to contacts in that language; omit for everyone."`
+			WhatsAppNumberID string `json:"whatsapp_number_id,omitempty" maxLength:"64" doc:"WhatsApp only. The workspace number it sends from (an id from GET /api/w/whatsapp/numbers, the number or its name); omit for the default number."`
 		}
 	}) (*body[struct {
 		Campaign CampaignOut `json:"campaign"`
@@ -529,13 +535,17 @@ func Register(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
+		numberID, err := CampaignNumberID(ctx, a, s.WorkspaceID, in.Body.WhatsAppNumberID)
+		if err != nil {
+			return nil, err
+		}
 		var id string
 		err = a.SQLDB.QueryRowContext(ctx, `
-			INSERT INTO campaigns (workspace_id, list_id, channel, subject, body, locale, created_by, smtp_service_id, audience_locale)
-			SELECT $1, l.id, $3, $4, $5, $6, $7, $8, $9 FROM mail_lists l WHERE l.workspace_id = $1 AND l.id = $2
+			INSERT INTO campaigns (workspace_id, list_id, channel, subject, body, locale, created_by, smtp_service_id, audience_locale, whatsapp_link_id)
+			SELECT $1, l.id, $3, $4, $5, $6, $7, $8, $9, $10 FROM mail_lists l WHERE l.workspace_id = $1 AND l.id = $2
 			RETURNING id`, s.WorkspaceID, in.Body.ListID, normChannel(in.Body.Channel),
 			strings.TrimSpace(in.Body.Subject), in.Body.Body,
-			normLocale(in.Body.Locale), s.UserID, svcID, AudienceLocale(in.Body.AudienceLocale)).Scan(&id)
+			normLocale(in.Body.Locale), s.UserID, svcID, AudienceLocale(in.Body.AudienceLocale), numberID).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("list not found")
 		}

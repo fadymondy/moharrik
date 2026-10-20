@@ -235,7 +235,11 @@ export function ChannelsSection() {
 
   async function removeRow(row: ChannelRow) {
     if (row.type === "whatsapp") {
-      await api("/api/w/whatsapp", { method: "DELETE", workspaceId: ws.id })
+      // One number only: the workspace's other numbers stay linked.
+      await api(`/api/w/whatsapp/numbers/${encodeURIComponent(row.id)}`, {
+        method: "DELETE",
+        workspaceId: ws.id,
+      })
     } else {
       await api(`${TYPE_PATH[row.type]}/${encodeURIComponent(row.id)}`, {
         method: "DELETE",
@@ -417,6 +421,7 @@ export function ChannelsSection() {
             ) : null}
             {addType === "whatsapp" ? (
               <WhatsAppChannelForm
+                adding
                 defaultGuideOpen={!counts?.whatsapp}
                 onChanged={() => {
                   refreshAll()
@@ -501,7 +506,7 @@ export function ChannelsSection() {
               />
             ) : null}
             {editRow?.type === "whatsapp" ? (
-              <WhatsAppChannelForm onChanged={() => refreshAll()} />
+              <WhatsAppChannelForm numberId={editRow.id} onChanged={() => refreshAll()} />
             ) : null}
             {editRow?.type === "telegram" ? (
               <TelegramChannelForm

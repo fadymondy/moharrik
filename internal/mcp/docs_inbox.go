@@ -16,7 +16,8 @@ const (
 		`"customer_email":"","customer_name":"Mona Adel","customer_phone":"201000000000","deal":null,` +
 		`"id":"3c9a7e21-4b6d-4f80-a2c5-9e1d7b3f6a04","last_message_at":"2026-09-23T14:05:12Z","mailbox_id":null,"message_count":6,` +
 		`"preview":"Do you deliver to Alexandria?","snoozed_until":null,"status":"open",` +
-		`"subject":"Hello, I saw your catalogue","unread":true}`
+		`"subject":"Hello, I saw your catalogue","unread":true,` +
+		`"whatsapp_number":{"id":"9b4e1c27-5a3f-4d8e-b6c0-2f7a9d1e4b63","label":"Support","phone":"201100000000"}}`
 
 	inboxExChat = `{"assignee_user_id":null,"channel":"chat","closed_at":null,"contact":null,"contact_id":null,"contact_link":"",` +
 		`"customer_email":"karim@mail.example","customer_name":"Karim Nabil","customer_phone":"","deal":null,` +
@@ -83,7 +84,8 @@ var docsInbox = map[string]ToolDoc{
 	},
 	"reply": {
 		AR: "الرد على محادثة باسمك (العضو صاحب الرمز) عبر قناتها نفسها: رد الدردشة يظهر في نافذة الزائر، ومحادثة البريد يُرَدّ عليها " +
-			"ببريد من إعدادات البريد في مساحة العمل (ضمن سلسلة رسالة العميل)، ومحادثة واتساب من الرقم المرتبط بمساحة العمل. " +
+			"ببريد من إعدادات البريد في مساحة العمل (ضمن سلسلة رسالة العميل)، ومحادثة واتساب من رقم مساحة العمل الذي تجري عليه المحادثة (whatsapp_number فيها)، " +
+			"أو من رقم آخر تختاره بـfrom_number (معرّفه أو الرقم نفسه أو اسمه). " +
 			"لا يُكتب شيء في المحادثة ما لم يُرسَل فعلًا. الرد يجعل المحادثة مقروءة ويعيد فتحها إن كانت مغلقة.",
 		Example: map[string]any{"id": "3c9a7e21-4b6d-4f80-a2c5-9e1d7b3f6a04",
 			"body": "Yes, we deliver to Alexandria within 2 working days. Shall I send you the order form?"},
@@ -205,20 +207,30 @@ var docsInbox = map[string]ToolDoc{
 			`"open_now":5,"snoozed_now":1,"unread_now":2}`,
 	},
 	"whatsapp_status": {
-		AR: "رقم واتساب الخاص بمساحة العمل: هل يوجد رقم مرتبط، وحالة اتصاله (open أو connecting أو close)، والرقم نفسه، " +
-			"وسلامة الـWebhook (هل ستصل الرسائل الواردة، ومتى وصلت آخرها)، وعدد رسائل اليوم " +
-			"(الردود والبث ورسائل الوكلاء، منذ منتصف الليل بتوقيت مساحة العمل).",
+		AR: "أرقام واتساب الخاصة بمساحة العمل: حقول الرد العليا للرقم الافتراضي، وnumbers فيها كل رقم مرتبط. لكل رقم معرّفه واسمه، " +
+			"وهل هو الافتراضي، وحالة اتصاله (open أو connecting أو close)، والرقم نفسه، وسلامة الـWebhook (هل ستصل الرسائل الواردة، " +
+			"ومتى وصلت آخرها)، وحدّه اليومي daily_cap (0 بلا حد)، وعدد رسائل اليوم (الردود والبث ورسائل الوكلاء، منذ منتصف الليل " +
+			"بتوقيت مساحة العمل). مرّر number_id (المعرّف أو الرقم أو الاسم) لقراءة رقم واحد فقط.",
 		Example: map[string]any{},
-		Result: `{"available":true,"failed_today":0,"last_error":"","linked":true,"linked_at":"2026-09-01T10:22:40Z",` +
+		Result: `{"available":true,"daily_cap":0,"failed_today":0,"id":"5e2a8c41-7d3b-4f9e-a1c6-8b0d2e4f7a19","is_default":true,` +
+			`"label":"","last_error":"","linked":true,"linked_at":"2026-09-01T10:22:40Z",` +
+			`"numbers":[{"available":true,"daily_cap":0,"failed_today":0,"id":"5e2a8c41-7d3b-4f9e-a1c6-8b0d2e4f7a19","is_default":true,` +
+			`"label":"","last_error":"","linked":true,"linked_at":"2026-09-01T10:22:40Z","phone":"201000000000","sent_today":37,"state":"open",` +
+			`"webhook":{"status":"ok","detail":"","last_delivery_at":"2026-09-24T07:58:13Z"}},` +
+			`{"available":true,"daily_cap":200,"failed_today":0,"id":"9b4e1c27-5a3f-4d8e-b6c0-2f7a9d1e4b63","is_default":false,` +
+			`"label":"Support","last_error":"","linked":true,"linked_at":"2026-10-20T09:02:11Z","phone":"201100000000","sent_today":4,"state":"open",` +
+			`"webhook":{"status":"ok","detail":"","last_delivery_at":"2026-10-20T09:40:02Z"}}],` +
 			`"phone":"201000000000","sent_today":37,"state":"open",` +
 			`"webhook":{"status":"ok","detail":"","last_delivery_at":"2026-09-24T07:58:13Z"}}`,
 	},
 	"whatsapp_link": {
 		AR: "بدء ربط رقم واتساب لمساحة العمل. تعيد رمز QR يُمسح من واتساب (الأجهزة المرتبطة ← ربط جهاز): qr_code هو محتوى الرمز الخام " +
 			"وqr_base64 صورته. وإذا أعطيتها number (مع رمز الدولة) تعيد أيضًا pairing_code يُكتب على ذلك الهاتف بدلًا من المسح. " +
-			"استدعِ whatsapp_status بعدها لترى اكتمال الربط.",
-		Example: map[string]any{"number": "+20 100 000 0000"},
-		Result: `{"pairing_code":"K7QM2XWB","qr_base64":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAARQAAAEUCAYAAADqcMl5…",` +
+			"بلا وسائط تعيد ربط الرقم الافتراضي، ومع number_id تعيد ربط ذلك الرقم وحده، ومع add (ومعه label اختياريًا) تضيف رقمًا آخر " +
+			"دون أن تمس الأرقام المربوطة. استدعِ whatsapp_status بعدها لترى اكتمال الربط.",
+		Example: map[string]any{"add": true, "label": "Support", "number": "+20 110 000 0000"},
+		Result: `{"id":"9b4e1c27-5a3f-4d8e-b6c0-2f7a9d1e4b63","label":"Support","pairing_code":"K7QM2XWB",` +
+			`"qr_base64":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAARQAAAEUCAYAAADqcMl5…",` +
 			`"qr_code":"2@Xk3vQ9pLmZ7rT1wYb5nC0aF8sD4gH6jK2eU9iO…,Qm1ZrT8xVb3nK5sD0pL7aF2gH4jW6cY9eU1iO3tR5vX=,1","state":"connecting"}`,
 	},
 	"send_whatsapp": {
@@ -226,7 +238,8 @@ var docsInbox = map[string]ToolDoc{
 			"ولم ترسل STOP (الموافقة على البريد ليست موافقة على واتساب). إن كانت لها محادثة واتساب قائمة تُرسَل الرسالة فيها فورًا. " +
 			"وإلا فالأمر يتطلب استدعاءين: الأول يعيد confirmation_required مع رمز من 6 أرقام (صالح 10 دقائق)، ثم تكرر الاستدعاء " +
 			"بنفس contact_id وtext ومعهما ذلك الرمز لتُرسَل الرسالة وتُفتح المحادثة. ولا يُرسَل شيء قبل ذلك. تخضع الرسائل لوتيرة الإرسال " +
-			"نفسها المتّبعة في البث. وللرد على محادثة استخدم reply بدلًا منها.",
+			"نفسها المتّبعة في البث. تُرسَل من الرقم الافتراضي ما لم تختر رقمًا بـfrom_number، والمحادثة لكل رقم وجهة اتصال، " +
+			"فأول رسالة من رقم جديد تطلب الرمز من جديد. وللرد على محادثة استخدم reply بدلًا منها.",
 		Example: map[string]any{"contact_id": "8d2f4a61-0c7e-4b93-b5a1-6e9c3d7f2b18",
 			"text": "Hi Mona, your order #4821 is ready for pickup at our Zamalek branch today."},
 		Result: `{"confirmation_required":true,"code":"482913","expires_at":"2026-09-24T09:30:00Z",` +
@@ -255,7 +268,7 @@ var docsCampaigns = map[string]ToolDoc{
 	},
 	"update_campaign": {
 		AR: "تعديل حملة لم تُرسَل بعد (مسودة، أو حملة فشلت وتنتظر إعادة المحاولة)، يُعثر عليها بموضوعها الحالي الدقيق. " +
-			"لا يتغير إلا ما تمرّره من حقول، ويُرفض التعديل بمجرد أن يبدأ الإرسال.",
+			"لا يتغير إلا ما تمرّره من حقول، ويُرفض التعديل بمجرد أن يبدأ الإرسال. وfrom_number يختار رقم واتساب الذي تُرسَل منه حملة واتساب.",
 		Example: map[string]any{"subject": "October product update", "new_subject": "What's new in October",
 			"audience_locale": "en"},
 		Result: `{"ok":true,"id":"c1a2b3c4-1111-4a1a-9a1a-1a1a1a1a1a1a","subject":"What's new in October"}`,
@@ -326,6 +339,15 @@ var docsCampaigns = map[string]ToolDoc{
 }
 
 var argsARInbox = map[string]string{
+	// WhatsApp numbers
+	"WhatsApp only: send from this workspace number (its id, the number or its name; whatsapp_status lists them); an empty string returns it to the default number":                                           "لواتساب فقط: أرسل من رقم مساحة العمل هذا (معرّفه أو الرقم نفسه أو اسمه؛ يعرضها whatsapp_status)، والقيمة الفارغة تعيدها إلى الرقم الافتراضي",
+	"Only WhatsApp conversations on this workspace number (whatsapp_status lists the numbers and their ids)":                                                                                                  "محادثات واتساب على رقم مساحة العمل هذا فقط (يعرض whatsapp_status الأرقام ومعرّفاتها)",
+	"WhatsApp only, rarely needed: send from this workspace number instead of the thread's own (its id from whatsapp_status, its phone number, or its label). The customer then sees it in a different chat.": "لواتساب فقط ونادرًا ما يلزم: أرسل من رقم مساحة العمل هذا بدلًا من رقم المحادثة (معرّفه من whatsapp_status أو الرقم نفسه أو اسمه). وسيراه العميل حينها في محادثة أخرى.",
+	"Optional: one number, by id, phone number or label":                                                                                 "اختياري: رقم واحد، بمعرّفه أو الرقم نفسه أو اسمه",
+	"Optional: re-pair this linked number (id, phone number or label)":                                                                   "اختياري: أعد ربط هذا الرقم المربوط (المعرّف أو الرقم نفسه أو الاسم)",
+	"Link another number instead of the default one":                                                                                     "اربط رقمًا آخر بدلًا من الرقم الافتراضي",
+	"With add: a name for the new number, e.g. Support or a brand":                                                                       "مع add: اسم للرقم الجديد، مثل الدعم أو اسم علامة تجارية",
+	"Optional: send from this workspace number (its id from whatsapp_status, its phone number, or its label) instead of the default one": "اختياري: أرسل من رقم مساحة العمل هذا (معرّفه من whatsapp_status أو الرقم نفسه أو اسمه) بدلًا من الرقم الافتراضي",
 	// chat widgets
 	"Chat widget id": "معرّف أداة الدردشة",
 	"The widget's own label in Moharrik (not shown to visitors)":                                  "اسم الأداة داخل محرّك (لا يراه الزوار)",

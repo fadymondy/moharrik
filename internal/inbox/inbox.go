@@ -42,38 +42,50 @@ var statuses = map[string]bool{"open": true, "snoozed": true, "closed": true}
 
 // ---- wire types -----------------------------------------------------------
 
+// ThreadNumber is one of the workspace's WhatsApp numbers, as a thread shows it.
+type ThreadNumber struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Phone string `json:"phone"`
+}
+
 type ConversationOut struct {
-	ID              string    `json:"id"`
-	Channel         string    `json:"channel"`
-	Subject         string    `json:"subject"`
-	Status          string    `json:"status"`
-	CustomerName    string    `json:"customer_name"`
-	CustomerEmail   string    `json:"customer_email"`
-	ContactID       *string   `json:"contact_id"`
-	AssigneeUserID  *string   `json:"assignee_user_id"`
-	MailboxID       *string   `json:"mailbox_id,omitempty" doc:"Which mailbox (MH-555) this email thread arrived on; absent for chat/WhatsApp."`
-	Unread          bool      `json:"unread"`
-	LastMessageAt   time.Time `json:"last_message_at"`
-	CreatedAt       time.Time `json:"created_at"`
-	Preview         string    `json:"preview" doc:"The most recent message, trimmed."`
-	MessageCount    int       `json:"message_count"`
-	PageURL         string    `json:"page_url" doc:"The page a chat visitor opened the conversation from; empty for other channels."`
-	UserAgent       string    `json:"user_agent" doc:"The chat visitor's browser, as it identified itself."`
-	Locale          string    `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
-	CustomerPhone   string    `json:"customer_phone" doc:"A WhatsApp customer's number; empty for other channels."`
-	CustomerHandle  string    `json:"customer_handle" doc:"A Telegram/Slack/Discord handle or a workflow channel's profile URL; empty for other channels."`
+	ID             string  `json:"id"`
+	Channel        string  `json:"channel"`
+	Subject        string  `json:"subject"`
+	Status         string  `json:"status"`
+	CustomerName   string  `json:"customer_name"`
+	CustomerEmail  string  `json:"customer_email"`
+	ContactID      *string `json:"contact_id"`
+	AssigneeUserID *string `json:"assignee_user_id"`
+	MailboxID      *string `json:"mailbox_id,omitempty" doc:"Which mailbox (MH-555) this email thread arrived on; absent for chat/WhatsApp."`
+	// WhatsApp is the workspace number a WhatsApp thread lives on: the one the
+	// customer wrote to, and the one every reply goes out from. Absent for
+	// other channels, and for an old thread no message has arrived on since
+	// numbers were told apart (it answers from the default number).
+	WhatsApp       *ThreadNumber `json:"whatsapp_number,omitempty"`
+	Unread         bool          `json:"unread"`
+	LastMessageAt  time.Time     `json:"last_message_at"`
+	CreatedAt      time.Time     `json:"created_at"`
+	Preview        string        `json:"preview" doc:"The most recent message, trimmed."`
+	MessageCount   int           `json:"message_count"`
+	PageURL        string        `json:"page_url" doc:"The page a chat visitor opened the conversation from; empty for other channels."`
+	UserAgent      string        `json:"user_agent" doc:"The chat visitor's browser, as it identified itself."`
+	Locale         string        `json:"locale" doc:"The chat visitor's language, e.g. ar or en-GB."`
+	CustomerPhone  string        `json:"customer_phone" doc:"A WhatsApp customer's number; empty for other channels."`
+	CustomerHandle string        `json:"customer_handle" doc:"A Telegram/Slack/Discord handle or a workflow channel's profile URL; empty for other channels."`
 	// IsGroup (MH-604) marks a Telegram/Slack/Discord thread with more than
 	// one possible sender — a group chat/channel, never a 1:1 DM, and never
 	// true for chat/email/WhatsApp (WhatsApp groups are deliberately never
 	// filed). Drives the UI's per-message sender avatar: shown only here.
-	IsGroup         bool      `json:"is_group"`
+	IsGroup bool `json:"is_group"`
 	// AvatarURL is MH-602's single answer for "what photo, if any" — a linked
 	// contact's uploaded/provider photo when there is one, else this
 	// conversation's own cached WhatsApp photo (set for an unlinked customer),
 	// else empty so the client renders initials. Never build this from
 	// Contact.* directly; crm.AvatarURL already picked the right source.
-	AvatarURL       string    `json:"avatar_url"`
-	SourceChannelID *string   `json:"source_channel_id" doc:"Which of this workspace's connections of that kind this conversation came from; null for chat/email/WhatsApp."`
+	AvatarURL       string  `json:"avatar_url"`
+	SourceChannelID *string `json:"source_channel_id" doc:"Which of this workspace's connections of that kind this conversation came from; null for chat/email/WhatsApp."`
 	// refreshPhoto is set by scanConversation when this is a WhatsApp row
 	// whose photo has never been fetched or is past the refresh window
 	// (MH-602 defect 1). It never reaches JSON (unexported); ListConversations
@@ -91,15 +103,15 @@ type ConversationOut struct {
 	// How the inbox is organised (MH-657). Pinned, Archived, MutedUntil and
 	// Favourite are the SIGNED-IN member's own; Color, Icon, Labels and
 	// Blocked are the team's, the same for everyone.
-	Pinned     bool           `json:"pinned" doc:"Pinned to the top of YOUR inbox."`
-	Archived   bool           `json:"archived" doc:"Archived in YOUR inbox: out of the list until archived=true is asked for, or the customer writes again (unless it is muted)."`
-	MutedUntil *time.Time     `json:"muted_until" doc:"YOUR mute ends then (9999-12-31 is always); null when not muted. A muted chat never alerts you."`
-	Favourite  bool           `json:"favourite" doc:"In YOUR favourites."`
-	Color      string         `json:"color" enum:",gray,red,orange,amber,green,teal,blue,violet,pink" doc:"The chat's colour, from the tag palette; empty for none."`
-	Icon       string         `json:"icon" doc:"The chat's icon name; empty for none."`
-	Labels     []LabelRef     `json:"labels" doc:"The workspace labels on this chat."`
-	Blocked    bool           `json:"blocked" doc:"The customer is blocked: their messages are dropped and nobody can reply until it is unblocked."`
-	ClearedAt  *time.Time     `json:"cleared_at" doc:"When the chat's messages were cleared; null if never."`
+	Pinned     bool       `json:"pinned" doc:"Pinned to the top of YOUR inbox."`
+	Archived   bool       `json:"archived" doc:"Archived in YOUR inbox: out of the list until archived=true is asked for, or the customer writes again (unless it is muted)."`
+	MutedUntil *time.Time `json:"muted_until" doc:"YOUR mute ends then (9999-12-31 is always); null when not muted. A muted chat never alerts you."`
+	Favourite  bool       `json:"favourite" doc:"In YOUR favourites."`
+	Color      string     `json:"color" enum:",gray,red,orange,amber,green,teal,blue,violet,pink" doc:"The chat's colour, from the tag palette; empty for none."`
+	Icon       string     `json:"icon" doc:"The chat's icon name; empty for none."`
+	Labels     []LabelRef `json:"labels" doc:"The workspace labels on this chat."`
+	Blocked    bool       `json:"blocked" doc:"The customer is blocked: their messages are dropped and nobody can reply until it is unblocked."`
+	ClearedAt  *time.Time `json:"cleared_at" doc:"When the chat's messages were cleared; null if never."`
 }
 
 // LinkedContact is the CRM contact on a conversation.
@@ -123,20 +135,20 @@ type LinkedDeal struct {
 }
 
 type MessageOut struct {
-	ID           string    `json:"id"`
-	Direction    string    `json:"direction" doc:"in = the customer wrote it, out = the team replied."`
-	AuthorUserID *string   `json:"author_user_id"`
-	AuthorEmail  string    `json:"author_email"`
-	Body         string    `json:"body" doc:"Plain text. For chat/WhatsApp this is Markdown source; for email it is the text/plain rendering."`
-	BodyHTML     string    `json:"body_html,omitempty" doc:"Sanitised HTML (MH-556): an email's own HTML part, or the Markdown in Body rendered. Empty when there is nothing to add over Body (plain-text-only email)."`
-	MailboxID    *string   `json:"mailbox_id,omitempty" doc:"Which mailbox this email arrived on or went out through; absent for chat/WhatsApp."`
+	ID           string  `json:"id"`
+	Direction    string  `json:"direction" doc:"in = the customer wrote it, out = the team replied."`
+	AuthorUserID *string `json:"author_user_id"`
+	AuthorEmail  string  `json:"author_email"`
+	Body         string  `json:"body" doc:"Plain text. For chat/WhatsApp this is Markdown source; for email it is the text/plain rendering."`
+	BodyHTML     string  `json:"body_html,omitempty" doc:"Sanitised HTML (MH-556): an email's own HTML part, or the Markdown in Body rendered. Empty when there is nothing to add over Body (plain-text-only email)."`
+	MailboxID    *string `json:"mailbox_id,omitempty" doc:"Which mailbox this email arrived on or went out through; absent for chat/WhatsApp."`
 	// Subject (MH-600): an email keeps its OWN subject line even after every
 	// sender's email folds into one conversation. Empty for chat/WhatsApp,
 	// where a message has no subject of its own — the client shows this only
 	// when it differs from the previous message's, so a run of replies on the
 	// same subject shows it once.
-	Subject      string          `json:"subject,omitempty" doc:"The email's own subject line (email channel only); empty for chat/WhatsApp."`
-	Attachments  []AttachmentOut `json:"attachments,omitempty"`
+	Subject     string          `json:"subject,omitempty" doc:"The email's own subject line (email channel only); empty for chat/WhatsApp."`
+	Attachments []AttachmentOut `json:"attachments,omitempty"`
 	// Status (MH-656) is an outbound message's delivery tick: sent, delivered,
 	// read. Empty for inbound messages and for anything sent before ticks
 	// were recorded; only WhatsApp reports delivered/read.

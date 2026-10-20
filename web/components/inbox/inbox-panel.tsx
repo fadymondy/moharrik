@@ -76,6 +76,7 @@ import {
   useConversationLabels,
   useConversationPages,
   useMailboxes,
+  useWhatsAppNumbers,
 } from "@/lib/queries"
 import { Bdi, BdiBlock } from "@/components/bidi"
 
@@ -139,9 +140,11 @@ export function InboxPanel({
   // over whatever page is open, so these stay out of that page's URL (MH-1147).
   const [channel, setChannelState] = useState(linkedChannel)
   const [mailboxFilter, setMailboxFilter] = useState("")
+  const [numberFilter, setNumberFilter] = useState("")
   function setChannel(next: string) {
     setChannelState(next)
     if (next !== "email") setMailboxFilter("")
+    if (next !== "whatsapp") setNumberFilter("")
   }
   // The search box, applied after 300ms of quiet (MH-556).
   const [q, setQ] = useState("")
@@ -170,6 +173,8 @@ export function InboxPanel({
       // Only meaningful under Email (MH-555); dropped everywhere else so a
       // leftover value can never silently narrow another channel's list.
       mailbox_id: channel === "email" ? mailboxFilter || undefined : undefined,
+      // The same idea under WhatsApp: one of the workspace's numbers.
+      whatsapp_number_id: channel === "whatsapp" ? numberFilter || undefined : undefined,
       // Ten at a time, unread on top (MH-592): what needs an answer is what
       // opens first, and the rest arrives as the list is scrolled or searched.
       limit: 10,
@@ -199,6 +204,9 @@ export function InboxPanel({
   // there is more than one to choose between.
   const mailboxes = useMailboxes(ws.id)
   const mailboxOpts = mailboxes.data?.mailboxes ?? []
+  // WhatsApp numbers: read only under WhatsApp, where the sub-filter lives.
+  const numbers = useWhatsAppNumbers(ws.id, 0, channel === "whatsapp")
+  const numberOpts = (numbers.data ?? []).filter((n) => n.id)
 
   // No timer: the API tells this tab when a message actually arrives, and the
   // affected thread is revalidated by key so an open conversation updates too.
@@ -431,6 +439,20 @@ export function InboxPanel({
                     onChange={setMailboxFilter}
                     options={mailboxOpts.map((m) => ({ value: m.id, label: m.name }))}
                     noneLabel={t("inbox.mailbox.all")}
+                  />
+                </div>
+              ) : null}
+              {channel === "whatsapp" && numberOpts.length > 1 ? (
+                <div className="col-span-2">
+                  <PickSelect
+                    id="inbox-whatsapp-number"
+                    value={numberFilter}
+                    onChange={setNumberFilter}
+                    options={numberOpts.map((n) => ({
+                      value: n.id as string,
+                      label: n.label || (n.phone ? `+${n.phone}` : t("whatsapp.unnamed")),
+                    }))}
+                    noneLabel={t("inbox.whatsappNumber.all")}
                   />
                 </div>
               ) : null}
@@ -827,7 +849,23 @@ function ConversationRow({
             )}
             <span className="text-xs text-muted-foreground">
               <RowChannelIcon channel={c.channel} label={t(`inbox.channel.${c.channel}`)} />
-              {t(`inbox.channel.${c.channel}`)} · <Ltr>{formatDate(c.last_message_at)}</Ltr> ·{" "}
+              {t(`inbox.channel.${c.channel}`)}
+              {c.whatsapp_number ? (
+                <>
+                  {" "}
+                  <span
+                    className="border border-nq-line px-1 text-[10px]"
+                    data-row-whatsapp-number={c.whatsapp_number.id}
+                  >
+                    {c.whatsapp_number.label ? (
+                      <Bdi>{c.whatsapp_number.label}</Bdi>
+                    ) : (
+                      <Ltr>+{c.whatsapp_number.phone}</Ltr>
+                    )}
+                  </span>
+                </>
+              ) : null}{" "}
+              · <Ltr>{formatDate(c.last_message_at)}</Ltr> ·{" "}
               {t("inbox.messageCount", { n: c.message_count })}
             </span>
             {c.labels?.length ? (

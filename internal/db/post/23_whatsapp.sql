@@ -13,8 +13,7 @@ END $$;
 -- is IF NOT EXISTS, so an existing database would never get a new column.
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS customer_phone text NOT NULL DEFAULT '';
 
--- One thread per number per workspace: a customer writing again next week
--- continues the conversation they already had.
-CREATE UNIQUE INDEX IF NOT EXISTS conversations_phone_uniq
-    ON conversations (workspace_id, customer_phone)
-    WHERE customer_phone <> '' AND channel = 'whatsapp';
+-- One thread per customer number per linked number: a customer writing again
+-- next week continues the conversation they already had. The index lives in
+-- 225_whatsapp_multi_number.sql, since it includes the linked number the
+-- thread is on (conversations.whatsapp_link_id).

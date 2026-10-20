@@ -65,7 +65,7 @@ type notifyWS struct {
 func readNotify(ctx context.Context, a *app.App, wsID, userID, role string) (*NotifySettings, error) {
 	o := &NotifySettings{Available: LoadConfig().Configured(), Kinds: []string{}, Recent: []NotifyMessageOut{},
 		QuietStart: 1320, QuietEnd: 420, DailyCap: 20, BatchMinutes: 5, Locale: "en", Enabled: true}
-	o.WorkspaceLinked = sendable(ctx, a, wsID)
+	_, o.WorkspaceLinked = sendable(ctx, a, wsID, "")
 	for _, k := range NotifyKinds {
 		o.AllKinds = append(o.AllKinds, NotifyKindOut{Kind: k.Kind, Allowed: authz.Can(role, k.Permission)})
 	}

@@ -189,6 +189,17 @@ export function CustomerPanel({
             <ChannelIcon />
             {channelLabel(conv.channel, t)}
           </Badge>
+          {conv.whatsapp_number ? (
+            <Badge
+              variant="outline"
+              className="ms-1"
+              title={t("inbox.whatsappNumber.on")}
+              data-thread-whatsapp-number={conv.whatsapp_number.id}
+            >
+              {conv.whatsapp_number.label ? <Bdi>{conv.whatsapp_number.label}</Bdi> : null}
+              {conv.whatsapp_number.phone ? <Ltr>+{conv.whatsapp_number.phone}</Ltr> : null}
+            </Badge>
+          ) : null}
           {conv.customer_email ? (
             <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground [&>svg]:size-3.5 [&>svg]:shrink-0">
               <MailIcon />

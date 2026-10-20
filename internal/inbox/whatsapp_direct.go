@@ -108,9 +108,14 @@ func SendWhatsAppToContact(ctx context.Context, a *app.App, contactID, text, cod
 	if !whatsapp.LoadConfig().Configured() {
 		return nil, whatsappError(whatsapp.ErrNotConfigured)
 	}
-	if _, err := whatsapp.Load(ctx, a, s.WorkspaceID); err != nil {
+	// The number it goes from: the one the caller picked (whatsapp.WithLink),
+	// else the default. The consent and the code below are the recipient's,
+	// whichever number sends.
+	link, err := whatsapp.Load(ctx, a, s.WorkspaceID)
+	if err != nil {
 		return nil, whatsappError(err)
 	}
+	ctx = whatsapp.WithLink(ctx, link.ID)
 	// MH-410: the contact limits, checked before a code is issued and again
 	// on the confirmed call (the count may have moved in between).
 	if l, err := directLimit(ctx, a.SQLDB, s.WorkspaceID, digits); err != nil {
@@ -122,10 +127,9 @@ func SendWhatsAppToContact(ctx context.Context, a *app.App, contactID, text, cod
 	res := &DirectSend{ContactID: contactID,
 		Summary: fmt.Sprintf("send %d characters on WhatsApp to %s (+%s)", len([]rune(text)), firstNonEmpty(name, email, "the contact"), digits)}
 
-	var convID string
-	err = a.SQLDB.QueryRowContext(ctx, `
-		SELECT id FROM conversations WHERE workspace_id = $1 AND channel = 'whatsapp' AND customer_phone = $2`,
-		s.WorkspaceID, digits).Scan(&convID)
+	// A thread is per (number, customer): a first message from a second
+	// number is a new thread, and needs the code like any first message.
+	convID, err := whatsAppThread(ctx, a.SQLDB, s.WorkspaceID, link.ID, digits)
 	if err != nil && !notFound(err) {
 		return nil, huma.Error500InternalServerError("could not read the conversation")
 	}
@@ -159,16 +163,14 @@ func SendWhatsAppToContact(ctx context.Context, a *app.App, contactID, text, cod
 		// choice, which the automatic phone match must not undo.
 		err := a.SQLDB.QueryRowContext(ctx, `
 			INSERT INTO conversations (workspace_id, channel, customer_name, customer_email, customer_phone, contact_id, contact_link,
-			                           subject, last_message_at, unread)
-			VALUES ($1, 'whatsapp', $2, $3, $4, $5, 'manual', $6, now(), false)
-			ON CONFLICT (workspace_id, customer_phone) WHERE customer_phone <> '' AND channel = 'whatsapp' DO NOTHING
+			                           subject, last_message_at, unread, whatsapp_link_id)
+			VALUES ($1, 'whatsapp', $2, $3, $4, $5, 'manual', $6, now(), false, $7)
+			ON CONFLICT (workspace_id, whatsapp_link_id, customer_phone) WHERE customer_phone <> '' AND channel = 'whatsapp' DO NOTHING
 			RETURNING id`,
-			s.WorkspaceID, trimTo(name, 120), email, digits, contactID, trim(text, 80)).Scan(&convID)
+			s.WorkspaceID, trimTo(name, 120), email, digits, contactID, trim(text, 80), link.ID).Scan(&convID)
 		if notFound(err) {
 			// They wrote in between the check and now: continue their thread.
-			err = a.SQLDB.QueryRowContext(ctx, `
-				SELECT id FROM conversations WHERE workspace_id = $1 AND channel = 'whatsapp' AND customer_phone = $2`,
-				s.WorkspaceID, digits).Scan(&convID)
+			convID, err = whatsAppThread(ctx, a.SQLDB, s.WorkspaceID, link.ID, digits)
 		}
 		if err != nil {
 			return nil, huma.Error500InternalServerError("the message was sent, but its thread could not be opened")

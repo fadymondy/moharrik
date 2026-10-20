@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/fadymondy/moharrik/internal/app"
 	"github.com/fadymondy/moharrik/internal/tenant"
 	"github.com/fadymondy/moharrik/internal/whatsapp"
@@ -41,8 +43,27 @@ type WhatsAppRecipient struct {
 	Name      string
 }
 
-// ErrNoWhatsApp is returned when the workspace has not linked a number.
+// ErrNoWhatsApp is returned when the workspace has not linked a number (or the
+// number the campaign was set to send from is no longer linked).
 var ErrNoWhatsApp = errors.New("link a WhatsApp number for this workspace before broadcasting")
+
+// CampaignNumberID resolves the number a WhatsApp campaign is set to send
+// from: a link id, the number itself or its label. "" stays "", which means
+// the workspace's default number at the moment the campaign sends.
+func CampaignNumberID(ctx context.Context, a *app.App, wsID, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return "", nil
+	}
+	l, err := whatsapp.Resolve(ctx, a, wsID, ref)
+	if errors.Is(err, whatsapp.ErrNoLink) {
+		return "", huma.Error404NotFound("no WhatsApp number in this workspace matches " + ref)
+	}
+	if err != nil {
+		return "", huma.Error500InternalServerError("could not read the WhatsApp numbers")
+	}
+	return l.ID, nil
+}
 
 // WhatsAppAudience returns who may be broadcast to for a list.
 //
@@ -398,16 +419,26 @@ func NormalizePhone(raw string) (string, error) {
 // no linked WhatsApp is told now rather than discovering it halfway through a
 // list with some contacts already messaged.
 func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string) error {
-	if _, err := whatsapp.Load(ctx, a, wsID); err != nil {
+	// The number it sends from: its own pick, else the default. A picked number
+	// that has since been unlinked stops it here, never sends from another.
+	var linkID string
+	_ = a.SQLDB.QueryRowContext(ctx, `SELECT whatsapp_link_id FROM campaigns WHERE workspace_id = $1 AND id = $2`,
+		wsID, campaignID).Scan(&linkID)
+	if linkID != "" {
+		ctx = whatsapp.WithLink(ctx, linkID)
+	}
+	l, err := whatsapp.Load(ctx, a, wsID)
+	if err != nil {
 		return ErrNoWhatsApp
 	}
+	linkID = l.ID
 	// Over the stated limit is refused before the claim (MH-467).
 	if err := checkAudience(ctx, a.SQLDB, wsID, campaignID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 
 	var listID, bodyText, locale, audienceLocale string
-	err := a.SQLDB.QueryRowContext(ctx, `
+	err = a.SQLDB.QueryRowContext(ctx, `
 		UPDATE campaigns SET status = 'sending', sent_count = 0, failed_count = 0, last_error = '', updated_at = now()
 		WHERE workspace_id = $1 AND id = $2 AND channel = 'whatsapp' AND `+claimable+`
 		RETURNING list_id, body, locale, audience_locale`, wsID, campaignID).Scan(&listID, &bodyText, &locale, &audienceLocale)
@@ -439,14 +470,20 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 	PublishCampaigns(a, wsID, campaignID)
 
 	go func() {
-		bg := tenant.WithWorkspace(context.Background(), wsID)
+		bg := whatsapp.WithLink(tenant.WithWorkspace(context.Background(), wsID), linkID)
 		var sent, failed int64
 		lastErr := ""
 
 		for i, r := range audience {
 			// The same text the preview shows (campaign_edit.go).
 			text := WhatsAppText(locale, bodyText)
-			if _, err := whatsapp.SendAs(bg, a, wsID, r.Phone, text, whatsapp.KindBroadcast); err != nil {
+			if _, err := whatsapp.SendAs(bg, a, wsID, r.Phone, text, whatsapp.KindBroadcast); errors.Is(err, whatsapp.ErrDailyCap) {
+				// The number's daily limit is reached: everyone left is not
+				// sent today, rather than tried one by one against the cap.
+				failed += int64(len(audience) - i)
+				lastErr = err.Error()
+				break
+			} else if err != nil {
 				failed++
 				lastErr = err.Error()
 			} else {
@@ -455,7 +492,7 @@ func StartWhatsAppSend(ctx context.Context, a *app.App, wsID, campaignID string)
 
 			// Paced. A burst of messages from one number is what automated-abuse
 			// detection looks for, and the cost of being wrong is the
-			// workspace's only number.
+			// number itself.
 			if i < len(audience)-1 {
 				time.Sleep(whatsappPace)
 			}

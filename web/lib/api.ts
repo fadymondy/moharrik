@@ -451,6 +451,8 @@ export type Campaign = {
   smtp_service_name: string
   /** Only contacts in this language receive it (MH-413); "" = everyone on the list. */
   audience_locale: "" | "en" | "ar"
+  /** The workspace WhatsApp number a WhatsApp campaign sends from; "" = the default number. */
+  whatsapp_number_id?: string
 }
 
 export type FormKind = "subscribe" | "inquiry"
@@ -862,6 +864,10 @@ export type Conversation = {
   closed_at: string | null
   /** Which mailbox (MH-555) an email thread arrived on; null for chat/WhatsApp or a pre-MH-555 thread. */
   mailbox_id: string | null
+  /** The workspace WhatsApp number a WhatsApp thread lives on (the one the customer wrote to,
+   *  and the one replies go from). Absent for other channels and for an old thread nothing has
+   *  arrived on since numbers were told apart (it answers from the default number). */
+  whatsapp_number?: WhatsAppThreadNumber
   /** MH-604: a Telegram/Slack/Discord group thread with more than one possible
    *  sender — never true for chat/email/WhatsApp. Drives the per-message
    *  sender avatar; a 1:1 thread never shows one. */
@@ -1443,7 +1449,17 @@ export type MailboxSettings = {
   message_count: number
 }
 
+/** One of the workspace's WhatsApp numbers, as a conversation shows it. */
+export type WhatsAppThreadNumber = { id: string; label: string; phone: string }
+
 export type WhatsAppLink = {
+  /** Names this number for re-pair, unlink and "send from"; empty when nothing is linked. */
+  id?: string
+  label: string
+  /** The number new messages and campaigns send from when none is picked. */
+  is_default: boolean
+  /** Most messages this number sends per day (workspace time zone); 0 is no limit. */
+  daily_cap: number
   linked: boolean
   /** Read live from the WhatsApp server, not from our row. */
   state: "open" | "connecting" | "close" | string
