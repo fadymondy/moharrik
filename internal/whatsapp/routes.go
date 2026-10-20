@@ -23,11 +23,17 @@ var tags = []string{"WhatsApp"}
 
 // LinkOut is what the settings page reads. The webhook token is never in it.
 type LinkOut struct {
-	Linked    bool       `json:"linked"`
-	State     string     `json:"state" doc:"open | connecting | close — read live from the WhatsApp server."`
-	Phone     string     `json:"phone"`
-	QRBase64  string     `json:"qr_base64,omitempty" doc:"Present while a phone still has to scan."`
-	QRCode    string     `json:"qr_code,omitempty"`
+	// ID names this number for every other call (re-pair, unlink, send
+	// from). Empty when nothing is linked.
+	ID        string `json:"id,omitempty"`
+	Label     string `json:"label"`
+	IsDefault bool   `json:"is_default" doc:"The number new messages and campaigns send from when none is picked."`
+	DailyCap  int    `json:"daily_cap" doc:"Most messages this number sends per day (workspace time zone); 0 is no limit."`
+	Linked    bool   `json:"linked"`
+	State     string `json:"state" doc:"open | connecting | close — read live from the WhatsApp server."`
+	Phone     string `json:"phone"`
+	QRBase64  string `json:"qr_base64,omitempty" doc:"Present while a phone still has to scan."`
+	QRCode    string `json:"qr_code,omitempty"`
 	// PairingCode is the alternative to scanning, when a number was given.
 	PairingCode string     `json:"pairing_code,omitempty" doc:"Type this on the phone (Linked devices → Link with phone number) instead of scanning."`
 	LastError   string     `json:"last_error"`
@@ -125,7 +131,7 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-whatsapp", Method: http.MethodGet, Path: "/api/w/whatsapp",
-		Summary: "The WhatsApp number linked to this workspace: state, webhook health and today's sends", Tags: tags,
+		Summary: "The workspace's default WhatsApp number: state, webhook health and today's sends", Tags: tags,
 	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[LinkOut], error) {
 		o, err := Status(ctx, a)
 		if err != nil {
@@ -136,7 +142,7 @@ func Register(api huma.API, a *app.App) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-whatsapp-link", Method: http.MethodPost, Path: "/api/w/whatsapp/link",
-		Summary: "Link a WhatsApp number: returns a QR code to scan (or a pairing code, given the number)", Tags: tags,
+		Summary: "Link (or re-pair) the default WhatsApp number: returns a QR code to scan (or a pairing code, given the number)", Tags: tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		Body *struct {
@@ -157,32 +163,154 @@ func Register(api huma.API, a *app.App) {
 	huma.Register(api, huma.Operation{
 		OperationID: "w-whatsapp-unlink", Method: http.MethodDelete, Path: "/api/w/whatsapp",
 		DefaultStatus: http.StatusNoContent,
-		Summary:       "Unlink this workspace's WhatsApp number", Tags: tags,
+		Summary:       "Unlink this workspace's default WhatsApp number (the others stay linked)", Tags: tags,
 	}, func(ctx context.Context, in *struct{ wsHeader }) (*struct{}, error) {
+		return nil, unlinkOne(ctx, a, cfg, "")
+	})
+
+	// Every number (multi-number, 2026-10). The routes above keep acting on
+	// the default number, so older clients see no change.
+	huma.Register(api, huma.Operation{
+		OperationID: "w-whatsapp-numbers", Method: http.MethodGet, Path: "/api/w/whatsapp/numbers",
+		Summary: "Every WhatsApp number linked to this workspace, the default first", Tags: tags,
+	}, func(ctx context.Context, in *struct{ wsHeader }) (*body[[]LinkOut], error) {
+		o, err := Statuses(ctx, a)
+		if err != nil {
+			return nil, err
+		}
+		return out(o), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-whatsapp-numbers-add", Method: http.MethodPost, Path: "/api/w/whatsapp/numbers",
+		Summary: "Link another WhatsApp number: returns its QR code (or a pairing code, given the number). The numbers already linked are not touched.", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		Body *struct {
+			Label  string `json:"label,omitempty" maxLength:"60" doc:"A name for the number, e.g. Support or the brand it answers for."`
+			Number string `json:"number,omitempty" maxLength:"32" doc:"The number to link, with country code, to get a pairing code instead of a QR."`
+		}
+	}) (*body[LinkOut], error) {
+		label, number := "", ""
+		if in.Body != nil {
+			label, number = in.Body.Label, in.Body.Number
+		}
+		o, err := AddNumber(ctx, a, label, number)
+		if err != nil {
+			return nil, err
+		}
+		return out(*o), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-whatsapp-number-link", Method: http.MethodPost, Path: "/api/w/whatsapp/numbers/{id}/link",
+		Summary: "Re-pair one WhatsApp number: returns a fresh QR code (or a pairing code, given the number)", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id" maxLength:"64"`
+		Body *struct {
+			Number string `json:"number,omitempty" maxLength:"32" doc:"The number to link, with country code, to get a pairing code instead of a QR."`
+		}
+	}) (*body[LinkOut], error) {
+		number := ""
+		if in.Body != nil {
+			number = in.Body.Number
+		}
+		o, err := StartLink(WithLink(ctx, in.ID), a, number)
+		if err != nil {
+			return nil, err
+		}
+		return out(*o), nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-whatsapp-number-update", Method: http.MethodPatch, Path: "/api/w/whatsapp/numbers/{id}",
+		Summary: "Rename a WhatsApp number, set its daily cap, or make it the default", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID   string `path:"id" maxLength:"64"`
+		Body struct {
+			Label     *string `json:"label,omitempty" maxLength:"60"`
+			DailyCap  *int    `json:"daily_cap,omitempty" minimum:"0" maximum:"100000" doc:"0 is no limit."`
+			IsDefault *bool   `json:"is_default,omitempty" doc:"true makes this the default number. false is ignored: pick another number as the default instead."`
+		}
+	}) (*body[LinkOut], error) {
 		s, err := scope(ctx, authz.InboxManage)
 		if err != nil {
 			return nil, err
 		}
-		l, err := Load(ctx, a, s.WorkspaceID)
-		if errors.Is(err, ErrNoLink) {
-			return nil, nil // already unlinked
+		if in.Body.Label != nil {
+			t := strings.TrimSpace(*in.Body.Label)
+			in.Body.Label = &t
 		}
-		if err != nil {
-			return nil, huma.Error500InternalServerError("could not read the WhatsApp link")
+		if err := Update(ctx, a, s.WorkspaceID, in.ID, in.Body.Label, in.Body.DailyCap); err != nil {
+			return nil, numberErr(err)
 		}
-		if cfg.Configured() {
-			// Delete the instance FIRST: dropping our row while Evolution still
-			// holds the phone session would leave a linked number nobody can
-			// see or unlink.
-			if err := ClientFor(cfg, l).Delete(ctx); err != nil {
-				return nil, evolutionErr(err)
+		if in.Body.IsDefault != nil && *in.Body.IsDefault {
+			if err := SetDefault(ctx, a, s.WorkspaceID, in.ID); err != nil {
+				return nil, numberErr(err)
 			}
 		}
-		if err := Unlink(ctx, a, s.WorkspaceID); err != nil {
-			return nil, huma.Error500InternalServerError("could not unlink")
+		o, err := Status(WithLink(ctx, in.ID), a)
+		if err != nil {
+			return nil, err
 		}
-		return nil, nil
+		return out(*o), nil
 	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "w-whatsapp-number-unlink", Method: http.MethodDelete, Path: "/api/w/whatsapp/numbers/{id}",
+		DefaultStatus: http.StatusNoContent,
+		Summary:       "Unlink one WhatsApp number. The others stay linked; if it was the default, the oldest remaining one becomes the default.", Tags: tags,
+	}, func(ctx context.Context, in *struct {
+		wsHeader
+		ID string `path:"id" maxLength:"64"`
+	}) (*struct{}, error) {
+		return nil, unlinkOne(ctx, a, cfg, in.ID)
+	})
+}
+
+// unlinkOne unlinks one number ("" is the default). Only that number's
+// instance and row go.
+func unlinkOne(ctx context.Context, a *app.App, cfg Config, id string) error {
+	s, err := scope(ctx, authz.InboxManage)
+	if err != nil {
+		return err
+	}
+	var l *Link
+	if id == "" {
+		l, err = LoadDefault(ctx, a, s.WorkspaceID)
+		if errors.Is(err, ErrNoLink) {
+			return nil // already unlinked
+		}
+	} else {
+		l, err = LoadByID(ctx, a, s.WorkspaceID, id)
+		if errors.Is(err, ErrNoLink) {
+			return huma.Error404NotFound("no such WhatsApp number in this workspace")
+		}
+	}
+	if err != nil {
+		return huma.Error500InternalServerError("could not read the WhatsApp link")
+	}
+	if cfg.Configured() {
+		// Delete the instance FIRST: dropping our row while Evolution still
+		// holds the phone session would leave a linked number nobody can
+		// see or unlink.
+		if err := ClientFor(cfg, l).Delete(ctx); err != nil {
+			return evolutionErr(err)
+		}
+	}
+	if err := UnlinkLink(ctx, a, s.WorkspaceID, l.ID); err != nil {
+		return huma.Error500InternalServerError("could not unlink")
+	}
+	return nil
+}
+
+func numberErr(err error) error {
+	if errors.Is(err, ErrNoLink) {
+		return huma.Error404NotFound("no such WhatsApp number in this workspace")
+	}
+	return huma.Error500InternalServerError("could not update the WhatsApp number")
 }
 
 // RegisterHook mounts the public webhook on the router.
@@ -209,7 +337,11 @@ func RegisterHook(r chi.Router, a *app.App) {
 		}
 
 		// A delivery with the right token is what "the webhook works" means.
-		MarkHook(ctx, a, l.WorkspaceID)
+		MarkHook(ctx, a, l.WorkspaceID, l.ID)
+		// Everything filed from here on knows which number it arrived on:
+		// the inbox threads by (number, customer), and a reply from inside
+		// a sink (an auto-reply, a rule) goes out from this same number.
+		ctx = WithLink(ctx, l.ID)
 		refreshEvents(a, l)
 
 		raw, err := io.ReadAll(io.LimitReader(r.Body, maxBody))
@@ -315,7 +447,7 @@ func RegisterHook(r chi.Router, a *app.App) {
 		case "connection.update":
 			var c Connection
 			if json.Unmarshal(p.Data, &c) == nil {
-				SetState(ctx, a, l.WorkspaceID, strings.ToLower(firstNonEmpty(c.State, "close")), c.WUID)
+				SetLinkState(ctx, a, l.WorkspaceID, l.ID, strings.ToLower(firstNonEmpty(c.State, "close")), c.WUID)
 			}
 		}
 

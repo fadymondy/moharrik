@@ -63,21 +63,24 @@ func avatarURLFor(ctx context.Context, sys *sql.DB, workspaceID string) string {
 	return AvatarURL(workspaceID, at)
 }
 
-// releaseWhatsApp lets go of the workspace's WhatsApp number before the
+// releaseWhatsApp lets go of the workspace's WhatsApp numbers before the
 // workspace goes: Evolution's instance first, exactly as the unlink route
 // does, so no phone session is left behind that nobody can see or unlink.
 // A var so tests never reach a real Evolution server.
 var releaseWhatsApp = func(ctx context.Context, a *app.App, workspaceID string) error {
-	l, err := whatsapp.Load(ctx, a, workspaceID)
-	if errors.Is(err, whatsapp.ErrNoLink) {
-		return nil
-	}
+	links, err := whatsapp.List(ctx, a, workspaceID)
 	if err != nil {
 		return err
 	}
+	if len(links) == 0 {
+		return nil
+	}
+	// Every number the workspace linked has its own Evolution instance.
 	if cfg := whatsapp.LoadConfig(); cfg.Configured() {
-		if err := whatsapp.ClientFor(cfg, l).Delete(ctx); err != nil {
-			return err
+		for _, l := range links {
+			if err := whatsapp.ClientFor(cfg, l).Delete(ctx); err != nil {
+				return err
+			}
 		}
 	}
 	return whatsapp.Unlink(ctx, a, workspaceID)

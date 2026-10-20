@@ -83,6 +83,7 @@ func AgentTyping(ctx context.Context, a *app.App, id, presence string) error {
 		if customerPhone == "" {
 			break
 		}
+		sctx := threadNumber(sctx, a.SQLDB, s.WorkspaceID, id)
 		if presence == "" {
 			clearPresenceThrottle(id)
 			_ = whatsapp.SendPresenceFor(sctx, a, s.WorkspaceID, customerPhone, "paused")

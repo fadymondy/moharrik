@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -17,9 +18,9 @@ import (
 )
 
 /*
-The WhatsApp link's two operations the settings page and the MCP tools share
-(MH-409): reading the state, and starting a link. routes.go's handlers are thin
-wrappers around these.
+The WhatsApp link's operations the settings page and the MCP tools share
+(MH-409): reading the state of each number, and starting a link. routes.go's
+handlers are thin wrappers around these.
 */
 
 // WebhookHealth says whether Evolution will deliver to this app.
@@ -32,35 +33,74 @@ type WebhookHealth struct {
 	LastDeliveryAt *time.Time `json:"last_delivery_at"`
 }
 
-// Status reads the workspace's link: the live connection state, the number,
-// the webhook's health and today's sends (in the workspace's time zone).
+// Status reads the workspace's default number: the live connection state,
+// the number, the webhook's health and today's sends (in the workspace's time
+// zone). A context that picked a number (WithLink) reads that one instead;
+// Statuses reads every number.
 func Status(ctx context.Context, a *app.App) (*LinkOut, error) {
 	s, err := scope(ctx, authz.InboxRead)
 	if err != nil {
 		return nil, err
 	}
 	cfg := LoadConfig()
-	// "close" rather than "": the page renders this straight into a label
-	// key, and an empty state showed the raw key instead of "Not linked".
-	o := &LinkOut{Available: cfg.Configured(), State: "close",
-		Webhook: WebhookHealth{Status: "not_linked", Detail: "no number is linked"}}
-	if counts, err := CountSince(ctx, a, s.WorkspaceID, startOfDay(ctx, a, s.WorkspaceID)); err == nil {
-		o.SentToday, o.FailedToday = counts.Sent, counts.Failed
-	}
+	day := startOfDay(ctx, a, s.WorkspaceID)
 	l, err := Load(ctx, a, s.WorkspaceID)
 	if errors.Is(err, ErrNoLink) {
+		// "close" rather than "": the page renders this straight into a label
+		// key, and an empty state showed the raw key instead of "Not linked".
+		o := &LinkOut{Available: cfg.Configured(), State: "close",
+			Webhook: WebhookHealth{Status: "not_linked", Detail: "no number is linked"}}
+		if counts, err := CountSince(ctx, a, s.WorkspaceID, day); err == nil {
+			o.SentToday, o.FailedToday = counts.Sent, counts.Failed
+		}
 		return o, nil
 	}
 	if err != nil {
 		return nil, huma.Error500InternalServerError("could not read the WhatsApp link")
 	}
-	o.Linked, o.Phone, o.LastError, o.LinkedAt = true, l.Phone, l.LastError, l.LinkedAt
-	o.State = firstNonEmpty(l.State, "close")
-	o.Webhook = WebhookHealth{Status: "unknown", LastDeliveryAt: lastHookAt(ctx, a, s.WorkspaceID)}
+	o := statusOf(ctx, a, cfg, l, day)
+	return &o, nil
+}
 
+// Statuses reads every number the workspace has linked, the default first.
+func Statuses(ctx context.Context, a *app.App) ([]LinkOut, error) {
+	s, err := scope(ctx, authz.InboxRead)
+	if err != nil {
+		return nil, err
+	}
+	links, err := List(ctx, a, s.WorkspaceID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("could not read the WhatsApp numbers")
+	}
+	cfg := LoadConfig()
+	day := startOfDay(ctx, a, s.WorkspaceID)
+	out := make([]LinkOut, len(links))
+	var wg sync.WaitGroup
+	for i, l := range links {
+		// One number's slow or unreachable instance must not hold up the
+		// others' rows, so each is asked at the same time.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out[i] = statusOf(ctx, a, cfg, l, day)
+		}()
+	}
+	wg.Wait()
+	return out, nil
+}
+
+// statusOf is one number's row: what is stored, then what Evolution says.
+func statusOf(ctx context.Context, a *app.App, cfg Config, l *Link, day time.Time) LinkOut {
+	o := LinkOut{ID: l.ID, Label: l.Label, IsDefault: l.IsDefault, DailyCap: l.DailyCap,
+		Available: cfg.Configured(), Linked: true, Phone: l.Phone, LastError: l.LastError, LinkedAt: l.LinkedAt,
+		State:   firstNonEmpty(l.State, "close"),
+		Webhook: WebhookHealth{Status: "unknown", LastDeliveryAt: lastHookAt(ctx, a, l.WorkspaceID, l.ID)}}
+	if counts, err := CountSinceFor(ctx, a, l, day); err == nil {
+		o.SentToday, o.FailedToday = counts.Sent, counts.Failed
+	}
 	if !cfg.Configured() {
 		o.Webhook.Detail = ErrNotConfigured.Error()
-		return o, nil
+		return o
 	}
 	c := ClientFor(cfg, l)
 	// The live state, not the stored one: a phone that was unlinked from
@@ -68,7 +108,7 @@ func Status(ctx context.Context, a *app.App) (*LinkOut, error) {
 	if state, err := c.State(ctx); err == nil {
 		o.State = state
 		if state != l.State {
-			SetState(ctx, a, s.WorkspaceID, state, "")
+			SetLinkState(ctx, a, l.WorkspaceID, l.ID, state, "")
 		}
 	}
 	want := ""
@@ -76,7 +116,7 @@ func Status(ctx context.Context, a *app.App) (*LinkOut, error) {
 		want = cfg.HookBase + "/api/whatsapp/hook/" + l.HookID
 	}
 	o.Webhook.Status, o.Webhook.Detail = webhookVerdict(ctx, c, want)
-	return o, nil
+	return o
 }
 
 func webhookVerdict(ctx context.Context, c *Client, want string) (string, string) {
@@ -96,32 +136,104 @@ func webhookVerdict(ctx context.Context, c *Client, want string) (string, string
 	return "ok", ""
 }
 
-// StartLink links a number: it creates (or reconnects) the Evolution instance,
-// points its webhook here, and returns the QR code to scan — or, when a number
-// is given, a pairing code to type on that phone instead.
+// StartLink links the workspace's default number (its first, when there is
+// none yet): it creates (or reconnects) the Evolution instance, points its
+// webhook here, and returns the QR code to scan — or, when a number is given,
+// a pairing code to type on that phone instead. A context that picked a
+// number (WithLink) re-pairs that one.
 func StartLink(ctx context.Context, a *app.App, number string) (*LinkOut, error) {
+	s, cfg, number, err := linkPrecheck(ctx, number)
+	if err != nil {
+		return nil, err
+	}
+	var l *Link
+	if id := LinkFrom(ctx); id != "" {
+		l, err = LoadByID(ctx, a, s.WorkspaceID, id)
+		if errors.Is(err, ErrNoLink) {
+			return nil, huma.Error404NotFound("no such WhatsApp number in this workspace")
+		}
+	} else {
+		l, err = Ensure(ctx, a, s.WorkspaceID, s.UserID)
+	}
+	if err != nil {
+		slog.Warn("whatsapp: link: could not prepare the link row", "workspace", s.WorkspaceID, "err", masked(err))
+		return nil, huma.Error500InternalServerError("could not prepare the link")
+	}
+	return pair(ctx, a, cfg, s, l, number)
+}
+
+// AddNumber links another number alongside the ones already linked: a new
+// row with its own instance and webhook, paired the same way. The numbers
+// already linked are only read, to refuse linking the same one twice.
+func AddNumber(ctx context.Context, a *app.App, label, number string) (*LinkOut, error) {
+	s, cfg, number, err := linkPrecheck(ctx, number)
+	if err != nil {
+		return nil, err
+	}
+	if err := refuseDuplicate(ctx, a, s.WorkspaceID, "", number); err != nil {
+		return nil, err
+	}
+	l, err := Create(ctx, a, s.WorkspaceID, s.UserID, strings.TrimSpace(label))
+	if err != nil {
+		slog.Warn("whatsapp: add number: could not prepare the link row", "workspace", s.WorkspaceID, "err", masked(err))
+		return nil, huma.Error500InternalServerError("could not prepare the link")
+	}
+	o, err := pair(ctx, a, cfg, s, l, number)
+	if err != nil {
+		// A number that never paired is not left behind as a row nobody
+		// asked for; its instance may exist, so it goes too (best effort).
+		bg := context.WithoutCancel(ctx)
+		_ = ClientFor(cfg, l).Delete(bg)
+		_ = UnlinkLink(bg, a, s.WorkspaceID, l.ID)
+		return nil, err
+	}
+	return o, nil
+}
+
+func linkPrecheck(ctx context.Context, number string) (*tenant.Scope, Config, string, error) {
 	// Linking a number is the same weight as creating a chat widget: it
 	// decides what can write into this workspace's inbox.
 	s, err := scope(ctx, authz.InboxManage)
 	if err != nil {
-		return nil, err
+		return nil, Config{}, "", err
 	}
 	cfg := LoadConfig()
 	if !cfg.Configured() {
-		return nil, huma.Error503ServiceUnavailable(ErrNotConfigured.Error())
+		return nil, cfg, "", huma.Error503ServiceUnavailable(ErrNotConfigured.Error())
 	}
 	if cfg.HookBase == "" {
-		return nil, huma.Error503ServiceUnavailable("this deployment has no public URL set (APP_URL), so WhatsApp could not call back")
+		return nil, cfg, "", huma.Error503ServiceUnavailable("this deployment has no public URL set (APP_URL), so WhatsApp could not call back")
 	}
 	number = Number(number)
 	if number != "" && (len(number) < 8 || len(number) > 15) {
-		return nil, huma.Error422UnprocessableEntity("the number must be 8 to 15 digits with its country code, e.g. 201012345678")
+		return nil, cfg, "", huma.Error422UnprocessableEntity("the number must be 8 to 15 digits with its country code, e.g. 201012345678")
 	}
+	return s, cfg, number, nil
+}
 
-	l, err := Ensure(ctx, a, s.WorkspaceID, s.UserID)
+// refuseDuplicate is a 409 when number is already linked on another row of
+// the workspace: one handset paired twice would split its chats.
+func refuseDuplicate(ctx context.Context, a *app.App, workspaceID, selfID, number string) error {
+	if number == "" {
+		return nil
+	}
+	links, err := List(ctx, a, workspaceID)
 	if err != nil {
-		slog.Warn("whatsapp: link: could not prepare the link row", "workspace", s.WorkspaceID, "err", masked(err))
-		return nil, huma.Error500InternalServerError("could not prepare the link")
+		return huma.Error500InternalServerError("could not read the WhatsApp numbers")
+	}
+	for _, o := range links {
+		if o.ID != selfID && o.Phone != "" && SamePhone(o.Phone, number) {
+			return huma.Error409Conflict("this number is already linked in this workspace")
+		}
+	}
+	return nil
+}
+
+// pair asks Evolution for the QR or pairing code of one number and points its
+// webhook here. Every write is to that number's own row.
+func pair(ctx context.Context, a *app.App, cfg Config, s *tenant.Scope, l *Link, number string) (*LinkOut, error) {
+	if err := refuseDuplicate(ctx, a, s.WorkspaceID, l.ID, number); err != nil {
+		return nil, err
 	}
 	c := ClientFor(cfg, l)
 
@@ -140,8 +252,8 @@ func StartLink(ctx context.Context, a *app.App, number string) (*LinkOut, error)
 			}
 		}
 		if err != nil {
-			slog.Warn("whatsapp: link: connect failed", "workspace", s.WorkspaceID, "err", masked(err))
-			SetError(ctx, a, s.WorkspaceID, err)
+			slog.Warn("whatsapp: link: connect failed", "workspace", s.WorkspaceID, "link", l.ID, "err", masked(err))
+			SetError(ctx, a, s.WorkspaceID, l.ID, err)
 			return nil, evolutionErr(err)
 		}
 	}
@@ -149,24 +261,26 @@ func StartLink(ctx context.Context, a *app.App, number string) (*LinkOut, error)
 	if err := c.SetWebhook(ctx, hookURL, l.Token); err != nil {
 		// Without the webhook nothing would ever arrive, so this is a
 		// failure of the whole link rather than a detail.
-		slog.Warn("whatsapp: link: setting the webhook failed", "workspace", s.WorkspaceID, "err", masked(err))
-		SetError(ctx, a, s.WorkspaceID, err)
+		slog.Warn("whatsapp: link: setting the webhook failed", "workspace", s.WorkspaceID, "link", l.ID, "err", masked(err))
+		SetError(ctx, a, s.WorkspaceID, l.ID, err)
 		return nil, evolutionErr(err)
 	}
 
 	state, _ := c.State(ctx)
-	SetState(ctx, a, s.WorkspaceID, firstNonEmpty(state, "connecting"), "")
+	SetLinkState(ctx, a, s.WorkspaceID, l.ID, firstNonEmpty(state, "connecting"), "")
 	return &LinkOut{
+		ID: l.ID, Label: l.Label, IsDefault: l.IsDefault, DailyCap: l.DailyCap, Phone: l.Phone,
 		Linked: true, State: firstNonEmpty(state, "connecting"),
 		QRBase64: qr.Base64, QRCode: qr.Code, PairingCode: qr.PairingCode, Available: true,
-		Webhook: WebhookHealth{Status: "ok", LastDeliveryAt: lastHookAt(ctx, a, s.WorkspaceID)},
+		Webhook: WebhookHealth{Status: "ok", LastDeliveryAt: lastHookAt(ctx, a, s.WorkspaceID, l.ID)},
 	}, nil
 }
 
-func lastHookAt(ctx context.Context, a *app.App, workspaceID string) *time.Time {
+func lastHookAt(ctx context.Context, a *app.App, workspaceID, linkID string) *time.Time {
 	var t *time.Time
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
-	_ = a.SQLDB.QueryRowContext(sctx, `SELECT last_hook_at FROM whatsapp_links WHERE workspace_id = $1`, workspaceID).Scan(&t)
+	_ = a.SQLDB.QueryRowContext(sctx, `SELECT last_hook_at FROM whatsapp_links WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, linkID).Scan(&t)
 	return t
 }
 
@@ -206,10 +320,12 @@ func (c *Client) Webhook(ctx context.Context) (WebhookConfig, error) {
 	return *out, nil
 }
 
-// MarkHook records that Evolution reached the webhook with the right token.
-func MarkHook(ctx context.Context, a *app.App, workspaceID string) {
+// MarkHook records that Evolution reached one number's webhook with the
+// right token.
+func MarkHook(ctx context.Context, a *app.App, workspaceID, linkID string) {
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
-	_, _ = a.SQLDB.ExecContext(sctx, `UPDATE whatsapp_links SET last_hook_at = now() WHERE workspace_id = $1`, workspaceID)
+	_, _ = a.SQLDB.ExecContext(sctx, `UPDATE whatsapp_links SET last_hook_at = now() WHERE workspace_id = $1 AND id = $2`,
+		workspaceID, linkID)
 }
 
 // retryable is an Evolution failure worth one more try: nothing got there, or

@@ -27,12 +27,14 @@ func registerCampaignEdit(api huma.API, a *app.App) {
 		SMTPServiceID string `json:"smtp_service_id,omitempty" doc:"Email only. Omit for the workspace's campaign default."`
 		// MH-413. Omitted = everyone on the list.
 		AudienceLocale string `json:"audience_locale,omitempty" enum:",en,ar" doc:"en or ar sends only to contacts in that language; omit for everyone."`
+		// Omitted = the default number.
+		WhatsAppNumberID string `json:"whatsapp_number_id,omitempty" maxLength:"64" doc:"WhatsApp only. The workspace number it sends from (an id from GET /api/w/whatsapp/numbers, the number or its name); omit for the default number."`
 	}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "w-update-campaign", Method: http.MethodPut, Path: "/api/w/campaigns/{id}",
-		Summary:     "Edit a campaign that has not gone out (draft, or failed and retryable). 409 once sending has started.",
-		Tags:        tags,
+		Summary: "Edit a campaign that has not gone out (draft, or failed and retryable). 409 once sending has started.",
+		Tags:    tags,
 	}, func(ctx context.Context, in *struct {
 		wsHeader
 		ID   string `path:"id"`
@@ -49,9 +51,13 @@ func registerCampaignEdit(api huma.API, a *app.App) {
 		if err != nil {
 			return nil, err
 		}
+		numberID, err := CampaignNumberID(ctx, a, s.WorkspaceID, b.WhatsAppNumberID)
+		if err != nil {
+			return nil, err
+		}
 		err = UpdateCampaign(ctx, a.SQLDB, s.WorkspaceID, in.ID, CampaignInput{
 			ListID: b.ListID, Channel: b.Channel, Subject: b.Subject, Body: b.Body, Locale: b.Locale, SMTPServiceID: svcID,
-			AudienceLocale: b.AudienceLocale,
+			AudienceLocale: b.AudienceLocale, WhatsAppLinkID: numberID,
 		})
 		var locked *LockedError
 		switch {

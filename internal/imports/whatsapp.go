@@ -49,48 +49,71 @@ func (p WhatsAppProvider) cfg() whatsapp.Config {
 	return whatsapp.LoadConfig()
 }
 
+// connectionID is the connection an import names when it does not pick a
+// number: the workspace's default number. Each linked number is also its own
+// connection, named by its link id.
 const connectionID = "default"
 
 func (p WhatsAppProvider) Connections(ctx context.Context, a *app.App, wsID string) ([]ImportConnection, error) {
-	link, err := whatsapp.Load(ctx, a, wsID)
-	if errors.Is(err, whatsapp.ErrNoLink) {
+	links, err := whatsapp.List(ctx, a, wsID)
+	if err != nil {
+		return nil, err
+	}
+	if len(links) == 0 {
 		return []ImportConnection{{ID: connectionID, Label: "", Ready: false, Note: "no WhatsApp number is linked yet"}}, nil
 	}
-	if err != nil {
-		return nil, err
+	out := make([]ImportConnection, 0, len(links))
+	for i, link := range links {
+		ready := link.State == "open"
+		note := ""
+		switch {
+		case link.State != "open":
+			note = "WhatsApp is not connected (state: " + link.State + ")"
+		case link.Phone == "":
+			// Connected, but Evolution has not reported a number yet (pairing not
+			// finished) — still not ready to preview/import from.
+			ready = false
+			note = "WhatsApp is connected but has not reported a number yet"
+		}
+		label := link.Phone
+		if link.Label != "" && link.Phone != "" {
+			label = link.Label + " (" + link.Phone + ")"
+		} else if link.Label != "" {
+			label = link.Label
+		}
+		id := link.ID
+		if i == 0 {
+			// The default number keeps the id imports have always used.
+			id = connectionID
+		}
+		out = append(out, ImportConnection{ID: id, Label: label, Ready: ready, Note: note})
 	}
-	ready := link.State == "open"
-	note := ""
-	switch {
-	case link.State != "open":
-		note = "WhatsApp is not connected (state: " + link.State + ")"
-	case link.Phone == "":
-		// Connected, but Evolution has not reported a number yet (pairing not
-		// finished) — still not ready to preview/import from.
-		ready = false
-		note = "WhatsApp is connected but has not reported a number yet"
-	}
-	return []ImportConnection{{ID: connectionID, Label: link.Phone, Ready: ready, Note: note}}, nil
+	return out, nil
 }
 
-// client resolves the workspace's Evolution client, or an error naming why
-// there isn't one — the same message a preview/import should surface.
-func (p WhatsAppProvider) client(ctx context.Context, a *app.App, wsID string) (*whatsapp.Client, error) {
+// client resolves the Evolution client of the number connID names (the
+// default number for "default" or ""), or an error naming why there isn't
+// one — the same message a preview/import should surface. The returned ctx
+// carries that number, so whatever the import files lands on its threads.
+func (p WhatsAppProvider) client(ctx context.Context, a *app.App, wsID, connID string) (context.Context, *whatsapp.Client, error) {
+	if connID != "" && connID != connectionID {
+		ctx = whatsapp.WithLink(ctx, connID)
+	}
 	link, err := whatsapp.Load(ctx, a, wsID)
 	if errors.Is(err, whatsapp.ErrNoLink) {
-		return nil, errors.New("no WhatsApp number is linked for this workspace")
+		return ctx, nil, errors.New("no WhatsApp number is linked for this workspace")
 	}
 	if err != nil {
-		return nil, err
+		return ctx, nil, err
 	}
 	if link.State != "open" {
-		return nil, errors.New("WhatsApp is not connected (state: " + link.State + ")")
+		return ctx, nil, errors.New("WhatsApp is not connected (state: " + link.State + ")")
 	}
-	return whatsapp.ClientFor(p.cfg(), link), nil
+	return whatsapp.WithLink(ctx, link.ID), whatsapp.ClientFor(p.cfg(), link), nil
 }
 
 func (p WhatsAppProvider) Preview(ctx context.Context, a *app.App, wsID, connID string, f Filters) ([]Item, error) {
-	cl, err := p.client(ctx, a, wsID)
+	_, cl, err := p.client(ctx, a, wsID, connID)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +202,7 @@ func localeOf(s string) string {
 }
 
 func (p WhatsAppProvider) Import(ctx context.Context, a *app.App, wsID string, job *Job, req ImportRequest, progress func(int)) error {
-	cl, err := p.client(ctx, a, wsID)
+	ctx, cl, err := p.client(ctx, a, wsID, req.ConnectionID)
 	if err != nil {
 		return err
 	}

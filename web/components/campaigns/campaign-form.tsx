@@ -28,7 +28,12 @@ import { WhatsAppMissing } from "@/components/campaigns/whatsapp-missing"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { api, ApiError, type Campaign, type CampaignChannel, type MailList } from "@/lib/api"
 import { useTranslations } from "@/lib/i18n"
-import { useEmailAudience, useSmtpServiceOptions, useWhatsAppAudience } from "@/lib/queries"
+import {
+  useEmailAudience,
+  useSmtpServiceOptions,
+  useWhatsAppAudience,
+  useWhatsAppNumbers,
+} from "@/lib/queries"
 import { Bdi } from "@/components/bidi"
 
 /** The live WhatsApp audience of a list: the number a broadcast would reach now. */
@@ -111,6 +116,8 @@ export function CampaignForm({
     // MH-412: the SMTP service; "default" = the campaign default.
     service: campaign?.smtp_service_id ?? DEFAULT_SERVICE,
     audience: (campaign?.audience_locale ?? "") as Audience,
+    // The WhatsApp number it sends from; "default" = the workspace default.
+    sender: campaign?.whatsapp_number_id || DEFAULT_SERVICE,
   }
   // What the server has, so "unsaved changes" is measured against the last save.
   const [saved, setSaved] = useState(fresh)
@@ -121,6 +128,7 @@ export function CampaignForm({
   const [channel, setChannel] = useState<CampaignChannel>(fresh.channel)
   const [service, setService] = useState<string>(fresh.service)
   const [audience, setAudience] = useState<Audience>(fresh.audience)
+  const [sender, setSender] = useState<string>(fresh.sender)
   const options = useSmtpServiceOptions(ws.id)
   const services = options.data?.services ?? []
   const [tab, setTab] = useState<string>("write")
@@ -129,6 +137,8 @@ export function CampaignForm({
 
   const chosen = listId || lists[0]?.id || ""
   const wa = channel === "whatsapp"
+  const numbers = useWhatsAppNumbers(ws.id, 0, wa)
+  const numberList = (numbers.data ?? []).filter((n) => n.id)
   const dirty =
     editing &&
     (chosen !== saved.listId ||
@@ -137,7 +147,8 @@ export function CampaignForm({
       lang !== saved.lang ||
       channel !== saved.channel ||
       service !== saved.service ||
-      audience !== saved.audience)
+      audience !== saved.audience ||
+      sender !== saved.sender)
 
   const channelItems = [
     { value: "email", label: t("campaigns.channel.email") },
@@ -161,6 +172,18 @@ export function CampaignForm({
     { value: "en", label: t("campaigns.audienceEn") },
     { value: "ar", label: t("campaigns.audienceAr") },
   ]
+  const defaultNumber = numberList.find((n) => n.is_default)
+  const numberName = (n: { label: string; phone: string }) =>
+    n.label || (n.phone ? `+${n.phone}` : t("whatsapp.unnamed"))
+  const senderItems = [
+    {
+      value: DEFAULT_SERVICE,
+      label: defaultNumber
+        ? `${t("whatsapp.sendFromDefault")} (${numberName(defaultNumber)})`
+        : t("whatsapp.sendFromDefault"),
+    },
+    ...numberList.map((n) => ({ value: n.id as string, label: numberName(n) })),
+  ]
   const langItems = [
     { value: "en", label: t("lang.en") },
     { value: "ar", label: t("lang.ar") },
@@ -179,6 +202,7 @@ export function CampaignForm({
     }
     if (channel === "email" && service !== DEFAULT_SERVICE) payload.smtp_service_id = service
     if (audience) payload.audience_locale = audience
+    if (channel === "whatsapp" && sender !== DEFAULT_SERVICE) payload.whatsapp_number_id = sender
     try {
       const res = await api<{ campaign: Campaign }>(
         campaign ? `/api/w/campaigns/${encodeURIComponent(campaign.id)}` : "/api/w/campaigns",
@@ -193,6 +217,7 @@ export function CampaignForm({
           channel,
           service,
           audience,
+          sender,
         })
         toast.success(t("campaigns.saved"))
       } else {
@@ -338,6 +363,33 @@ export function CampaignForm({
               </SelectContent>
             </Select>
             <FieldDescription>{t("campaigns.serviceHint")}</FieldDescription>
+          </Field>
+        ) : null}
+        {wa && numberList.length > 1 ? (
+          <Field>
+            <FieldLabel htmlFor={`${editing ? "edit" : "campaign"}-sender`}>
+              {t("whatsapp.sendFrom")}
+            </FieldLabel>
+            <Select
+              items={senderItems}
+              value={sender}
+              onValueChange={(v) => setSender(String(v ?? DEFAULT_SERVICE))}
+            >
+              <SelectTrigger
+                id={`${editing ? "edit" : "campaign"}-sender`}
+                className="w-full sm:w-80"
+                data-sender-picker
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {senderItems.map((i) => (
+                  <SelectItem key={i.value} value={i.value}>
+                    <Bdi>{i.label}</Bdi>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
         ) : null}
         {wa ? (

@@ -54,13 +54,15 @@ const conversationSelect = `
 	       c.color, c.icon, c.blocked_at IS NOT NULL, c.cleared_at,
 	       coalesce((SELECT json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color) ORDER BY lower(l.name))
 	                 FROM conversation_label_links ll JOIN conversation_labels l ON l.workspace_id = ll.workspace_id AND l.id = ll.label_id
-	                 WHERE ll.workspace_id = c.workspace_id AND ll.conversation_id = c.id), '[]')
+	                 WHERE ll.workspace_id = c.workspace_id AND ll.conversation_id = c.id), '[]'),
+	       c.whatsapp_link_id, coalesce(wl.label, ''), coalesce(wl.phone, '')
 	FROM conversations c
 	-- $2 is the signed-in member (MH-657): their own pin/archive/mute/favourite.
 	LEFT JOIN conversation_prefs p ON p.workspace_id = c.workspace_id AND p.conversation_id = c.id AND p.user_id = $2
 	LEFT JOIN contacts ct ON ct.workspace_id = c.workspace_id AND ct.id = c.contact_id
 	LEFT JOIN companies co ON co.workspace_id = ct.workspace_id AND co.id = ct.company_id
 	LEFT JOIN deals d ON d.workspace_id = c.workspace_id AND d.id = c.deal_id
+	LEFT JOIN whatsapp_links wl ON wl.workspace_id = c.workspace_id AND wl.id = c.whatsapp_link_id
 	WHERE c.workspace_id = $1`
 
 func scanConversation(wsID string, row interface{ Scan(...any) error }) (ConversationOut, error) {
@@ -76,6 +78,7 @@ func scanConversation(wsID string, row interface{ Scan(...any) error }) (Convers
 	var snoozed, closed, mutedUntil, cleared sql.NullTime
 	var labels []byte
 	var preview string
+	var waLinkID, waLabel, waPhone string
 	if err := row.Scan(&c.ID, &c.Channel, &c.Subject, &c.Status, &c.CustomerName, &c.CustomerEmail, &contactID,
 		&assignee, &c.Unread, &c.LastMessageAt, &c.CreatedAt, &c.PageURL, &c.UserAgent, &c.Locale, &preview, &c.MessageCount,
 		&c.CustomerPhone, &c.LinkedBy, &ctName, &ctEmail, &companyID, &coName, &dealID, &dealTitle, &snoozed, &closed,
@@ -83,7 +86,8 @@ func scanConversation(wsID string, row interface{ Scan(...any) error }) (Convers
 		&ctPhotoAttachmentID,
 		&ctHasProviderPhoto, &ctExternalPhotoURL, &ctPhotoFetchedAt,
 		&hasProviderPhoto, &ownExternalPhotoURL, &ownPhotoFetchedAt,
-		&c.Pinned, &c.Archived, &mutedUntil, &c.Favourite, &c.Color, &c.Icon, &c.Blocked, &cleared, &labels); err != nil {
+		&c.Pinned, &c.Archived, &mutedUntil, &c.Favourite, &c.Color, &c.Icon, &c.Blocked, &cleared, &labels,
+		&waLinkID, &waLabel, &waPhone); err != nil {
 		return c, err
 	}
 	// MH-602: a linked contact's photo (uploaded or provider) wins; an
@@ -115,6 +119,9 @@ func scanConversation(wsID string, row interface{ Scan(...any) error }) (Convers
 	c.ContactID = strp(contactID)
 	c.AssigneeUserID = strp(assignee)
 	c.MailboxID = strp(mailboxID)
+	if c.Channel == "whatsapp" && waLinkID != "" {
+		c.WhatsApp = &ThreadNumber{ID: waLinkID, Label: waLabel, Phone: waPhone}
+	}
 	c.Preview = trim(previewLine(preview), 140)
 	if contactID.Valid {
 		c.Contact = &LinkedContact{ID: contactID.String, Name: ctName.String, Email: ctEmail.String}
@@ -164,7 +171,7 @@ func Register(api huma.API, a *app.App) {
 	registerLinkPreview(api, a)     // MH-656
 	registerOrganise(api, a)        // MH-657
 	registerThreadMenu(api, a)      // MH-662
-	registerReactions(api, a)     // MH-664
+	registerReactions(api, a)       // MH-664
 	registerMediaGallery(api, a)    // MH-662
 
 	// ---- conversations -----------------------------------------------------
@@ -179,6 +186,7 @@ func Register(api huma.API, a *app.App) {
 		Channel       string `query:"channel" maxLength:"40" doc:"chat, email, whatsapp, telegram, slack, discord, or any other channel this workspace has (MH-568's channel_counts lists them); empty for every channel."`
 		ContactID     string `query:"contact_id" doc:"Only conversations linked to this CRM contact."`
 		MailboxID     string `query:"mailbox_id" doc:"Only email conversations on this mailbox (MH-555)."`
+		WhatsAppID    string `query:"whatsapp_number_id" maxLength:"64" doc:"Only WhatsApp conversations on this workspace number (an id from GET /api/w/whatsapp/numbers)."`
 		CustomerEmail string `query:"customer_email" maxLength:"320" doc:"MH-600: only conversations from this sender (case-insensitive). Since MH-600 folds every sender's email into one conversation, this normally narrows to at most one row."`
 		Q             string `query:"q" maxLength:"200" doc:"Full-text search (MH-556) over the customer's name, email and phone, the subject, and every message in the thread."`
 		Cursor        string `query:"cursor" doc:"next_cursor from the page before this one; empty for the newest page."`
@@ -191,7 +199,7 @@ func Register(api huma.API, a *app.App) {
 		Keep          string `query:"keep" maxLength:"4000" doc:"unread_first only (MH-599): comma-separated conversation ids to keep sorted among the unread ones (the ones this tab opened while unread), so opening a thread does not move it."`
 	}) (*body[ConversationList], error) {
 		res, err := ListConversations(ctx, a, ConversationFilter{
-			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, MailboxID: in.MailboxID,
+			Status: in.Status, Channel: in.Channel, Unread: in.Unread, ContactID: in.ContactID, MailboxID: in.MailboxID, WhatsAppID: in.WhatsAppID,
 			CustomerEmail: in.CustomerEmail, Q: in.Q, Cursor: in.Cursor, Limit: in.Limit, Order: in.Order, Keep: strings.Split(in.Keep, ","),
 			Archived: in.Archived, Favourites: in.Favourites, Groups: in.Groups, LabelID: in.LabelID,
 		})
@@ -219,8 +227,8 @@ func Register(api huma.API, a *app.App) {
 		wsHeader
 		ID   string `path:"id"`
 		Body struct {
-			Body    string `json:"body" minLength:"1" maxLength:"8000"`
-			Subject string `json:"subject,omitempty" maxLength:"500" doc:"Email only: overrides the default Re: <original subject>. Ignored on other channels."`
+			Body             string `json:"body" minLength:"1" maxLength:"8000"`
+			Subject          string `json:"subject,omitempty" maxLength:"500" doc:"Email only: overrides the default Re: <original subject>. Ignored on other channels."`
 			ReplyToMessageID string `json:"reply_to_message_id,omitempty" maxLength:"64" doc:"MH-664: quote this earlier message of the same conversation. WhatsApp shows it as a quoted reply; email answers it (In-Reply-To)."`
 		}
 	}) (*body[struct {

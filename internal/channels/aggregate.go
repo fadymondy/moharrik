@@ -12,20 +12,21 @@
 // side):
 //
 //   - mailboxes, telegram_channels, slack_channels, discord_channels,
-//     workflow_channels: every one of these clears its own last_error to ''
+//     workflow_channels: every one of these clears its own last_error to ”
 //     the moment it next succeeds (see mailbox_routes.go, telegram.go,
 //     slack.go, discord.go, workflow.go — each UPDATE on a success path sets
-//     last_error = ''). So last_error <> '' already means "the most recent
+//     last_error = ”). So last_error <> ” already means "the most recent
 //     attempt failed", with no extra timestamp comparison needed:
 //     paused   = not enabled
-//     error    = enabled AND last_error <> ''
-//     connected = enabled AND last_error = ''
-//   - whatsapp_links: one row per workspace, no enabled column. state is the
+//     error    = enabled AND last_error <> ”
+//     connected = enabled AND last_error = ”
+//   - whatsapp_links: one row per linked number (several per workspace since
+//     multi-number, 2026-10), no enabled column. state is the
 //     source of truth (internal/whatsapp/service.go clears last_error the
 //     moment state becomes 'open'):
 //     connected = state = 'open'
-//     error     = state <> 'open' AND last_error <> ''  (it was linked, then broke)
-//     paused    = state <> 'open' AND last_error = ''   (never linked, or a
+//     error     = state <> 'open' AND last_error <> ”  (it was linked, then broke)
+//     paused    = state <> 'open' AND last_error = ”   (never linked, or a
 //     clean disconnect — nothing to call broken)
 //   - chat_widgets: no last_error column at all — a widget has no "broken"
 //     state, only on/off:
@@ -111,7 +112,7 @@ const unionSelect = `
 	       ''::text, ''::text, NULL::timestamptz, created_at
 	FROM chat_widgets WHERE workspace_id = $1
 	UNION ALL
-	SELECT 'whatsapp', '', workspace_id, coalesce(nullif(phone, ''), 'WhatsApp'), (state = 'open'),
+	SELECT 'whatsapp', '', id, coalesce(nullif(label, ''), nullif(phone, ''), 'WhatsApp'), (state = 'open'),
 	       CASE WHEN state = 'open' THEN 'connected' WHEN last_error <> '' THEN 'error' ELSE 'paused' END,
 	       phone, last_error, last_error_at, created_at
 	FROM whatsapp_links WHERE workspace_id = $1
@@ -209,7 +210,7 @@ func ListChannels(ctx context.Context, a *app.App, workspaceID string, f Channel
 		case "chat":
 			s, ok = byWidget[all[i].ID]
 		case "whatsapp":
-			s, ok = waStats, true
+			s, ok = waStats[all[i].ID]
 		default: // telegram, slack, discord, workflow
 			s, ok = bySource[all[i].ID]
 		}
@@ -355,16 +356,31 @@ func groupConvStats(ctx context.Context, a *app.App, workspaceID, column string)
 	return out, rows.Err()
 }
 
-// whatsappConvStats aggregates the workspace's single WhatsApp number's
-// conversations — there is no per-connection link column to group by, since
-// whatsapp_links has exactly one row per workspace (internal/db/schema/whatsapp.sql).
-func whatsappConvStats(ctx context.Context, a *app.App, workspaceID string) (convStats, error) {
-	var s convStats
-	err := a.SQLDB.QueryRowContext(ctx, `
-		SELECT max(last_message_at),
-		       count(*) FILTER (WHERE created_at > now() - interval '30 days'),
-		       count(*) FILTER (WHERE unread)
-		FROM conversations WHERE workspace_id = $1 AND channel = 'whatsapp'`, workspaceID,
-	).Scan(&s.lastMessageAt, &s.c30d, &s.unread)
-	return s, err
+// whatsappConvStats aggregates WhatsApp conversations per workspace number
+// (conversations.whatsapp_link_id). A thread with no number on it yet (one
+// nothing has arrived on since numbers were told apart) counts towards the
+// default number, the one it answers from.
+func whatsappConvStats(ctx context.Context, a *app.App, workspaceID string) (map[string]convStats, error) {
+	rows, err := a.SQLDB.QueryContext(ctx, `
+		SELECT coalesce(nullif(c.whatsapp_link_id, ''),
+		                (SELECT l.id FROM whatsapp_links l WHERE l.workspace_id = $1 AND l.is_default LIMIT 1), ''),
+		       max(c.last_message_at),
+		       count(*) FILTER (WHERE c.created_at > now() - interval '30 days'),
+		       count(*) FILTER (WHERE c.unread)
+		FROM conversations c WHERE c.workspace_id = $1 AND c.channel = 'whatsapp'
+		GROUP BY 1`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]convStats{}
+	for rows.Next() {
+		var key string
+		var s convStats
+		if err := rows.Scan(&key, &s.lastMessageAt, &s.c30d, &s.unread); err != nil {
+			return nil, err
+		}
+		out[key] = s
+	}
+	return out, rows.Err()
 }

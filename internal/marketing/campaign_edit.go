@@ -78,6 +78,9 @@ type CampaignInput struct {
 	SMTPServiceID *string
 	// AudienceLocale narrows the send to one language (MH-413); "" = all.
 	AudienceLocale string
+	// WhatsAppLinkID is the workspace number a WhatsApp campaign sends from
+	// (already resolved, see CampaignNumberID); "" = the default number.
+	WhatsAppLinkID string
 }
 
 // UpdateCampaign rewrites a draft (or a failed, retryable) campaign.
@@ -88,12 +91,13 @@ func UpdateCampaign(ctx context.Context, db *sql.DB, wsID, id string, in Campaig
 	}
 	res, err := db.ExecContext(ctx, `
 		UPDATE campaigns c SET list_id = l.id, channel = $4, subject = $5, body = $6, locale = $7,
-		  smtp_service_id = $8, audience_locale = $9, updated_at = now()
+		  smtp_service_id = $8, audience_locale = $9, whatsapp_link_id = $10, updated_at = now()
 		FROM mail_lists l
 		WHERE c.workspace_id = $1 AND c.id = $2
 		  AND l.workspace_id = $1 AND l.id = $3
 		  AND c.`+claimable,
-		wsID, id, in.ListID, normChannel(in.Channel), subject, in.Body, normLocale(in.Locale), in.SMTPServiceID, AudienceLocale(in.AudienceLocale))
+		wsID, id, in.ListID, normChannel(in.Channel), subject, in.Body, normLocale(in.Locale), in.SMTPServiceID, AudienceLocale(in.AudienceLocale),
+		strings.TrimSpace(in.WhatsAppLinkID))
 	if err != nil {
 		return err
 	}
@@ -198,15 +202,16 @@ type TestResult struct {
 // SendTest delivers one copy of a campaign to the member (or, for email, to an
 // address they typed). It touches no campaign column.
 //
-// For WhatsApp the only target is the workspace's own linked number. Members
+// For WhatsApp the only target is the number the campaign sends from, which
+// messages itself (the default number when none is picked). Members
 // have no phone number on record, and a typed number would be a way to
 // message somebody who never agreed to it — the one thing broadcasts are
 // built to prevent.
 func SendTest(ctx context.Context, a *app.App, wsID, campaignID, memberEmail, to string) (*TestResult, error) {
-	var channel, subject, body, locale, status string
+	var channel, subject, body, locale, status, linkID string
 	err := a.SQLDB.QueryRowContext(ctx, `
-		SELECT channel, subject, body, locale, status FROM campaigns WHERE workspace_id = $1 AND id = $2`,
-		wsID, campaignID).Scan(&channel, &subject, &body, &locale, &status)
+		SELECT channel, subject, body, locale, status, whatsapp_link_id FROM campaigns WHERE workspace_id = $1 AND id = $2`,
+		wsID, campaignID).Scan(&channel, &subject, &body, &locale, &status, &linkID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCampaignNotFound
 	}
@@ -220,6 +225,9 @@ func SendTest(ctx context.Context, a *app.App, wsID, campaignID, memberEmail, to
 	if channel == "whatsapp" {
 		if strings.TrimSpace(to) != "" {
 			return nil, ErrWhatsAppTestTarget
+		}
+		if linkID != "" {
+			ctx = whatsapp.WithLink(ctx, linkID)
 		}
 		l, err := whatsapp.Load(ctx, a, wsID)
 		if err != nil || l.State != "open" || l.Phone == "" {

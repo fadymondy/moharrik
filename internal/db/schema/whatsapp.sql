@@ -1,11 +1,25 @@
--- The inbox's WhatsApp channel (MH-134): one linked number per workspace.
+-- The inbox's WhatsApp channel (MH-134): the numbers a workspace has linked.
 --
--- Evolution API holds the phone session; this row holds the link between a
--- workspace and its instance there. The instance name is derived from the
--- workspace id, so two workspaces can never share a number and an instance
--- name cannot be guessed into.
+-- Evolution API holds each phone session; a row holds the link between a
+-- workspace and one instance there. A workspace may link several numbers
+-- (one per brand or team, a second one for the assistant), each its own row,
+-- instance, webhook and pairing. The instance name is derived from the
+-- workspace id (and, after the first number, the row's id), so two workspaces
+-- can never share a number and an instance name cannot be guessed into.
+--
+-- An existing database still has workspace_id as the primary key; it is moved
+-- to id by internal/db/post/225_whatsapp_multi_number.sql.
 CREATE TABLE IF NOT EXISTS whatsapp_links (
-    workspace_id  text        PRIMARY KEY,
+    id            text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    workspace_id  text        NOT NULL,
+    -- What the team calls this number ("Sales", "Assistant"). Optional.
+    label         text        NOT NULL DEFAULT '',
+    -- The number new messages, campaigns and notifications go from when
+    -- nobody picks one. Exactly one per workspace once any number is linked.
+    is_default    boolean     NOT NULL DEFAULT false,
+    -- Most messages this number may send in one day (workspace time zone);
+    -- 0 means no cap beyond the pacing every send already keeps.
+    daily_cap     integer     NOT NULL DEFAULT 0,
     -- The Evolution instance name. Derived, not chosen: see internal/whatsapp.
     instance      text        NOT NULL,
     -- The unguessable id in the public webhook URL. Unique across the table,

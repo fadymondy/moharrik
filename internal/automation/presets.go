@@ -81,9 +81,9 @@ type Preset struct {
 	// What it needs from the workspace when it is added.
 	// Plain words for people, by language: "en" and "ar" (MH-518). Name and
 	// Description above are fadymondy.com's technical ones.
-	Plain map[string]PlainText `json:"plain"`
-	NeedsProfile  []string `json:"needs_profile" doc:"Workspace profile fields its defaults come from."`
-	NeedsWhatsApp bool     `json:"needs_whatsapp" doc:"Sends to the workspace's own WhatsApp number."`
+	Plain         map[string]PlainText `json:"plain"`
+	NeedsProfile  []string             `json:"needs_profile" doc:"Workspace profile fields its defaults come from."`
+	NeedsWhatsApp bool                 `json:"needs_whatsapp" doc:"Sends to the workspace's own WhatsApp number."`
 }
 
 type presetLibrary struct {
@@ -200,11 +200,12 @@ func SaveProfile(ctx context.Context, a *app.App, workspaceID string, in map[str
 	return clean, err
 }
 
-// workspaceWhatsApp is the number the workspace's linked WhatsApp uses, digits only.
+// workspaceWhatsApp is the workspace's default WhatsApp number, digits only.
 func workspaceWhatsApp(ctx context.Context, a *app.App, workspaceID string) string {
 	sctx := tenant.WithWorkspace(ctx, workspaceID)
 	var phone string
-	_ = a.SQLDB.QueryRowContext(sctx, `SELECT phone FROM whatsapp_links WHERE workspace_id = $1`, workspaceID).Scan(&phone)
+	_ = a.SQLDB.QueryRowContext(sctx, `SELECT phone FROM whatsapp_links WHERE workspace_id = $1
+		ORDER BY is_default DESC, created_at, id LIMIT 1`, workspaceID).Scan(&phone)
 	return digitsOnly(phone)
 }
 

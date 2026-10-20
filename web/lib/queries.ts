@@ -494,6 +494,8 @@ export type ConversationFilter = {
   channel?: string
   /** Only this mailbox's email conversations (MH-555). */
   mailbox_id?: string
+  /** Only WhatsApp conversations on this workspace number. */
+  whatsapp_number_id?: string
   /** Only this sender's conversations, case-insensitive (MH-600). Since MH-600's ingest-time
    *  fold, a workspace has at most one email conversation per sender, so this mostly matters
    *  for other channels reusing the filter. */
@@ -529,6 +531,7 @@ function conversationsBase(filter: ConversationFilter) {
   if (filter.unread) qs.set("unread", "true")
   if (filter.channel) qs.set("channel", filter.channel)
   if (filter.mailbox_id) qs.set("mailbox_id", filter.mailbox_id)
+  if (filter.whatsapp_number_id) qs.set("whatsapp_number_id", filter.whatsapp_number_id)
   if (filter.customer_email) qs.set("customer_email", filter.customer_email)
   if (filter.q) qs.set("q", filter.q)
   if (filter.order) qs.set("order", filter.order)
@@ -958,6 +961,17 @@ export const useWhatsApp = (id?: string | null, poll = 0) =>
   useSWR<WhatsAppLink>(
     id ? ["/api/w/whatsapp", id] : null,
     ([p, ws]: [string, string]) => api<WhatsAppLink>(p, { workspaceId: ws }),
+    {
+      ...noRetryOn4xx,
+      refreshInterval: poll,
+    },
+  )
+
+/** Every WhatsApp number linked to the workspace, the default first, each with its live state. */
+export const useWhatsAppNumbers = (id?: string | null, poll = 0, enabled = true) =>
+  useSWR<WhatsAppLink[]>(
+    id && enabled ? ["/api/w/whatsapp/numbers", id] : null,
+    ([p, ws]: [string, string]) => api<WhatsAppLink[]>(p, { workspaceId: ws }),
     {
       ...noRetryOn4xx,
       refreshInterval: poll,

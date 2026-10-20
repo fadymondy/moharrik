@@ -216,7 +216,7 @@ func Organise(ctx context.Context, a *app.App, id string, p OrganisePatch) (*Con
 		// difference between this and blocking them in WhatsApp itself. Best
 		// effort: a disconnected link still gets the inbox-side block.
 		if p.Blocked != nil && *p.Blocked != blocked && channel == "whatsapp" && phone != "" {
-			if err := blockOnWhatsApp(ctx, a, s.WorkspaceID, phone, *p.Blocked); err != nil && a.Log != nil {
+			if err := blockOnWhatsApp(threadNumber(ctx, a.SQLDB, s.WorkspaceID, id), a, s.WorkspaceID, phone, *p.Blocked); err != nil && a.Log != nil {
 				a.Log.Warn("could not change the block on the linked WhatsApp phone", "workspace", s.WorkspaceID, "err", err)
 			}
 		}
