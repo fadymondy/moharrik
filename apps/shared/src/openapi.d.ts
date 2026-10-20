@@ -6895,7 +6895,7 @@ export interface components {
             org_slug?: string;
             payg_enabled: boolean;
             plan?: string;
-            /** @description The hub could not be reached and a stale copy is in use: gated actions are refused. */
+            /** @description The hub could not be reached and a stale copy is in use. Nothing is refused because of it. */
             read_only: boolean;
             status?: string;
             /** @description The hub could not confirm the entitlements at all. */
