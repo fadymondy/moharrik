@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/moharrik-api ./cmd
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/moharrik-admin ./cmd/moharrik-admin
 
 # ── Web: a standalone Next.js server ───────────────────────────────────────────────────────────
-FROM node:24-alpine AS web
+FROM node:25-alpine AS web
 WORKDIR /web
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY web/package.json web/package-lock.json ./
@@ -45,7 +45,7 @@ RUN npm run build
 # both (GET /api/automation/extension and …/download) and refuses a zip that no longer matches
 # its recorded checksum. EXTENSION_SITE bakes another deployment's origin in; the default is
 # production. The zip is built here, never committed.
-FROM node:24-alpine AS extension
+FROM node:25-alpine AS extension
 WORKDIR /src
 COPY extension/ ./extension/
 ARG EXTENSION_SITE=https://app.moharrik.com
@@ -53,7 +53,7 @@ ARG GIT_COMMIT=
 RUN GIT_COMMIT=$GIT_COMMIT node extension/build.mjs --site "$EXTENSION_SITE" --out /out/extension
 
 # ── Runtime ────────────────────────────────────────────────────────────────────────────────────
-FROM node:24-alpine
+FROM node:25-alpine
 WORKDIR /app
 RUN apk add --no-cache ca-certificates tini tzdata
 ENV NODE_ENV=production \
