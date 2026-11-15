@@ -10,8 +10,8 @@ import {
   SearchIcon,
   TriangleAlertIcon,
   XIcon,
-  YoutubeIcon,
 } from "lucide-react"
+import { YoutubeIcon } from "@/components/brand-icons"
 import { Badge, Button, Checkbox, Tabs, TabsList, TabsTab, toast } from "@fadymondy/nasaq/web"
 import { Label } from "@/components/form-layout"
 

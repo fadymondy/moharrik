@@ -9,13 +9,8 @@
 */
 
 import { useState, type ReactNode } from "react"
-import {
-  ChartLineIcon,
-  RefreshCwIcon,
-  SearchIcon,
-  TriangleAlertIcon,
-  YoutubeIcon,
-} from "lucide-react"
+import { ChartLineIcon, RefreshCwIcon, SearchIcon, TriangleAlertIcon } from "lucide-react"
+import { YoutubeIcon } from "@/components/brand-icons"
 import { Badge, Button, Input, Switch, toast } from "@fadymondy/nasaq/web"
 
 import { Ltr } from "@/components/copy-field"
