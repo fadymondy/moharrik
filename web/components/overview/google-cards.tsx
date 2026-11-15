@@ -13,7 +13,8 @@
 */
 
 import Link from "next/link"
-import { ArrowDownIcon, ArrowUpIcon, ChartLineIcon, MinusIcon, YoutubeIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, ChartLineIcon, MinusIcon } from "lucide-react"
+import { YoutubeIcon } from "@/components/brand-icons"
 import type { ReactNode } from "react"
 
 import { Bdi } from "@/components/bidi"

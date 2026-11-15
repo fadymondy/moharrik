@@ -10,10 +10,10 @@ import {
   MessageCircleIcon,
   MessagesSquareIcon,
   Share2Icon,
-  SlackIcon,
   UsersIcon,
   XIcon,
 } from "lucide-react"
+import { SlackIcon } from "@/components/brand-icons"
 import {
   Badge,
   Button,

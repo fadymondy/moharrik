@@ -1,16 +1,13 @@
 import {
-  FacebookIcon,
   GlobeIcon,
   HashIcon,
-  InstagramIcon,
-  LinkedinIcon,
   MailIcon,
   MessageCircleIcon,
   MessageSquareIcon,
   SendIcon,
-  SlackIcon,
   type LucideIcon,
 } from "lucide-react"
+import { FacebookIcon, InstagramIcon, LinkedinIcon, SlackIcon } from "@/components/brand-icons"
 
 /*
 Shared with the inbox list/tabs (MH-568) and the WhatsApp-style thread (MH-587):

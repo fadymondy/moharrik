@@ -44,10 +44,10 @@ import {
   UsersIcon,
   WebhookIcon,
   WorkflowIcon,
-  YoutubeIcon,
   ZapIcon,
   type LucideIcon,
 } from "lucide-react"
+import { YoutubeIcon } from "@/components/brand-icons"
 
 export type NavItem = {
   /** Stable id: used for the e2e sweep and as the mini-rail title. */
